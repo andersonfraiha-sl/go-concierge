@@ -1,0 +1,5 @@
+nome: nexus-mock
+tipo: rest
+descricao: o Nexus de desenvolvimento (personas Ana, Bruno e Carla; recursos de leitura e escrita com idempotência). Aplicar dá ao agente o schema dos recursos, o manual de uso e o acesso por token.
+segredos: [NEXUS_TOKEN]
+apis: [nexus]

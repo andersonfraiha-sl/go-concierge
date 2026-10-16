@@ -1,0 +1,11 @@
+nome: nexus
+descricao: gateway de recursos do condomínio (identidade, unidades, áreas, visitantes, FAQ); o concierge só fala com este contrato
+base_url: http://127.0.0.1:8081
+headers:
+  Authorization: "Bearer ${NEXUS_TOKEN}"
+requer: [NEXUS_TOKEN]
+manual: |
+  GET  /v1/identity?phone=5511999990001            → {authenticated, person_id, name, account_id, role, units}
+  GET  /v1/accounts/{account}/resources            → lista de recursos {name, kind, visibility, write, params}
+  POST /v1/resources/{name}/invoke                  body {account_id, params, idempotency_key} → resultado
+  Exemplos: unidades.listar, areas.listar, faq.buscar {query, escopo}, visitantes.liberar (ESCRITA: só por caso de uso)

@@ -1,0 +1,9 @@
+nome: atende
+descricao: canal síncrono da Superlógica (emulado neste projeto): uma requisição por mensagem do morador, resposta no corpo
+base_url: http://127.0.0.1:8080
+headers:
+  Authorization: "Bearer ${ATENDE_TOKEN}"
+requer: [ATENDE_TOKEN]
+manual: |
+  POST /message  {tenantId, threadId, message, phone?, name?} → {aiMessage, exit, transferredToAttendant}
+  GET  /health   → {"status": "ok"}

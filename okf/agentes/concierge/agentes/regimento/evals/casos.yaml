@@ -1,0 +1,12 @@
+- nome: barulho cita o artigo do silêncio
+  pergunta: "posso fazer barulho depois das 22h?"
+  contem: ["Art. 10"]
+  nao_contem: ["Art. 11"]
+- nome: cachorro na piscina é proibido
+  pergunta: "posso levar meu cachorro na piscina?"
+  contem_algum: ["proibid", "não é permitid"]
+  contem: ["Art. 20"]
+- nome: assunto fora do regimento não inventa
+  pergunta: "o regimento fala de drone?"
+  contem_algum: ["não trata", "não fala"]
+  nao_contem: ["Art."]

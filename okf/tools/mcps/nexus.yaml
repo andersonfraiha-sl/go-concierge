@@ -1,0 +1,5 @@
+nome: nexus
+transporte: http
+url: http://127.0.0.1:8081/mcp
+header_env: {Authorization: NEXUS_TOKEN}
+# As tools remotas viram mcp_nexus_<tool> com a assinatura real do input_schema.

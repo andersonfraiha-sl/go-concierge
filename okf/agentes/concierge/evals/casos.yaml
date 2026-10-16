@@ -1,0 +1,16 @@
+- nome: regra de barulho vai pro regimento
+  pergunta: "posso fazer barulho depois das 22h?"
+  rota: regimento
+- nome: horário da piscina é faq
+  pergunta: "até que horas a piscina abre?"
+  rota: faq
+- nome: pedido de escrita fica no self (caso de uso)
+  pergunta: "quero liberar um visitante hoje"
+  rota: self
+- nome: despedida vai ao observador
+  pergunta: "era só isso, obrigado!"
+  rota: observador-sessao
+- nome: fora de escopo não inventa
+  pergunta: "qual a previsão do tempo pra amanhã?"
+  rota: self
+  nao_contem: ["graus", "chuva"]

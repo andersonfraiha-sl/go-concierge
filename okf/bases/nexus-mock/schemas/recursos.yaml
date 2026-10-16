@@ -1,0 +1,16 @@
+# Recursos do Nexus mock (classes: api | database | memory | knowledge | agent). Escrita só por caso de uso.
+recursos:
+  unidades.listar:    {kind: api, visibility: private, write: false, output: "lista de {id, label}"}
+  areas.listar:       {kind: api, visibility: private, write: false, output: "lista de {id, nome}"}
+  faq.buscar:         {kind: knowledge, visibility: public, write: false, params: {query: string, escopo: "publico | privado"}}
+  cadastro.campos:    {kind: api, visibility: private, write: false, params: {unidade_id: string}}
+  memoria.preferencias: {kind: memory, visibility: private, write: false}
+  visitantes.liberar: {kind: api, visibility: private, write: true, params: {unidade_id: string, nome: string, telefone: string, motivo: string}, output: "{protocolo}"}
+  areas.reservar:     {kind: api, visibility: private, write: true, params: {unidade_id: string, area_id: string, data: "AAAA-MM-DD"}, output: "{protocolo}"}
+  mudancas.agendar:   {kind: api, visibility: private, write: true, params: {unidade_id: string, data: "AAAA-MM-DD", periodo: "manha | tarde"}, output: "{protocolo}"}
+  obras.comunicar:    {kind: api, visibility: private, write: true, params: {unidade_id: string, tipo: string, descricao: string, inicio: "AAAA-MM-DD", dias: number, prestadores: array}, output: "{protocolo, liberacao_portaria, horario_permitido}"}
+  cadastro.atualizar: {kind: api, visibility: private, write: true, params: {unidade_id: string, dados: object}, output: "{protocolo}"}
+personas:
+  "5511999990001": {nome: Ana Souza, papel: morador, unidades: 1}
+  "5511999990002": {nome: Bruno Lima, papel: proprietario, unidades: 2}
+  "5511999990003": {nome: Carla Mendes, papel: sindico, unidades: 1}

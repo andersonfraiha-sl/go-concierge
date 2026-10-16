@@ -1,0 +1,7 @@
+nome: concierge
+tipo: orquestrador
+descricao: concierge do condomínio no WhatsApp — recebe a conversa espontânea do condômino e delega ao especialista certo (observador da sessão, regimento, dúvidas gerais) ou ao caso de uso do catálogo
+apis:
+  - nexus
+segredos:
+  - NEXUS_TOKEN

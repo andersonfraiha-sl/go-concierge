@@ -1,0 +1,11 @@
+- nome: agradecimento após pergunta do fluxo não encerra
+  pergunta: "obrigado!"
+  contexto: {pendencias_abertas: 1, ultima_fala_robo: "Para qual unidade é a visita?"}
+  contem: ["\"encerrar\": false"]
+- nome: despedida sem pendência encerra
+  pergunta: "era só isso, valeu"
+  contexto: {pendencias_abertas: 0, ultimo_desfecho: "liberacao_visitante: done"}
+  contem: ["\"encerrar\": true"]
+- nome: pedido sem rota transfere
+  pergunta: "quero cancelar o contrato do condomínio com a administradora"
+  contem: ["\"transferir\": true"]

@@ -1,0 +1,50 @@
+# Glossário OKF do condomínio — UMA definição por termo, três consumidores:
+#   (1) roteador: sinônimos → reconhecimento de intenção;
+#   (2) projeção: os termos entram no prompt do concierge e dos subagentes (herança de data/);
+#   (3) Intention Finder: exemplos de frases para vincular ao caso de uso.
+terms:
+  - id: unidade
+    display_name: Unidade
+    synonyms: [apartamento, apê, apto, casa, sala, lote]
+    definition: A unidade do morador no condomínio. Vem do AUTH (telefone → pessoa → unidades); com uma só, nunca é perguntada. Identificada por id e label ("Bloco B - Apto 305").
+    labels: [cadastro]
+  - id: condomino
+    display_name: Condômino
+    synonyms: [morador, proprietário, inquilino, residente]
+    definition: O usuário principal do concierge. Papel vem do AUTH (morador, proprietario, sindico); contato sem cadastro é identidade pública e só acessa casos public.
+    labels: [cadastro, acesso]
+  - id: visitante
+    display_name: Visitante
+    synonyms: [visita, convidado, amigo, parente, prestador, diarista, entregador, técnico]
+    definition: Pessoa cuja entrada o condômino autoriza na portaria. Liberar visitante é ação de ESCRITA — só pelo caso de uso, com nome, telefone, motivo e unidade.
+    labels: [portaria, escrita]
+  - id: area-comum
+    display_name: Área comum
+    synonyms: [churrasqueira, salão de festas, salão, quadra, piscina, playground, academia]
+    definition: Espaço reservável do condomínio. Reservar é escrita (caso de uso Reserva de Área Comum, com data e confirmação); horário de uso é dúvida (FAQ ou regimento).
+    labels: [reserva]
+  - id: mudanca
+    display_name: Mudança
+    synonyms: [me mudar, mudança, elevador de serviço, carreto]
+    definition: Entrada ou saída de móveis de uma unidade numa data e período (manhã/tarde), reservando o elevador de serviço. Escrita, com confirmação.
+    labels: [escrita]
+  - id: obra
+    display_name: Obra
+    synonyms: [reforma, reparo, pintura, pintor, eletricista, encanador, marceneiro, pedreiro]
+    definition: Intervenção na unidade que precisa ser comunicada à administração e à portaria, com prestadores liberados e horário de barulho conforme o regimento. Escrita.
+    labels: [escrita, regimento]
+  - id: protocolo
+    display_name: Protocolo
+    synonyms: [número do atendimento, comprovante, registro]
+    definition: Identificador devolvido pelo recurso de escrita (Nexus) ao concluir um caso de uso. Sempre repetido ao morador na resposta final.
+    labels: [atendimento]
+  - id: pendencia
+    display_name: Pendência
+    synonyms: [assunto, demanda, pedido em aberto, o que falta]
+    definition: Um assunto aberto na sessão pelo observador (ex.: "liberar visitante", "dúvida sobre piscina"). Estados aberta → em_atendimento → resolvida | transferida | abandonada. A sessão só encerra sem pendência aberta.
+    labels: [sessao]
+  - id: atendente
+    display_name: Atendente humano
+    synonyms: [falar com alguém, pessoa, humano, atendimento, administração]
+    definition: Quem assume a conversa quando o concierge não resolve (sem rota, confiança baixa, orçamento esgotado ou pedido explícito). No ATENDE é transferredToAttendant.
+    labels: [handoff]

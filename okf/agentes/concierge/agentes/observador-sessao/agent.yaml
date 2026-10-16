@@ -1,0 +1,5 @@
+nome: observador-sessao
+tipo: operador
+descricao: observa a conversa inteira, segmenta os assuntos em pendências (abre no início, encerra no fim) e decide quando a sessão acabou ou precisa de humano — nunca responde ao morador
+fontes:
+  - ../../data
