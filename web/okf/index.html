@@ -1,194 +1,230 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OKF · skills do concierge</title>
-<link rel="stylesheet" href="/styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concierge · Skills</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=2">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
-<body>
-<header class="topo">
-  <div class="marca"><span class="logo">OKF</span><span class="sub">skills do concierge · agentes em pasta</span></div>
-  <div class="acoesTopo">
-    <button id="btnNovo" class="botao primario">+ novo agente</button>
-    <button id="btnImportar" class="botao">importar zip</button>
-    <button id="btnRecarregar" class="botao" title="reler o disco">↻</button>
-  </div>
-</header>
-
-<main class="colunas">
-  <aside class="coluna esquerda">
-    <nav class="guias">
-      <button class="guia ativa" data-guia="agentes">agentes</button>
-      <button class="guia" data-guia="catalogo">catálogo</button>
+<body class="admin">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="concierge-bell"></i></span>
+      <span class="brand-name">Superlógica</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-product">Concierge <em>Skills</em></span>
+    </div>
+    <nav class="app-switch" aria-label="Área">
+      <a href="#" title="Console de teste (em breve neste projeto)"><i data-lucide="messages-square" class="i-sm"></i>Console</a>
+      <a href="#" title="Admin da administradora (em breve)"><i data-lucide="settings-2" class="i-sm"></i>Admin</a>
+      <a href="/" class="is-active"><i data-lucide="folder-tree" class="i-sm"></i>Skills</a>
     </nav>
-    <section id="guiaAgentes" class="guiaConteudo">
-      <div id="raizDrop" class="raiz" title="solte um agente aqui para levá-lo ao nível raiz">
-        <strong>agentes/</strong><span class="dica">arraste para mover · Shift+arraste para clonar</span>
+    <div class="env">
+      <span class="chip is-dev"><span class="led"></span>formato <b>OKF · pasta</b></span>
+      <span class="chip" id="chipRaiz" title="raiz do catálogo"><i data-lucide="folder" class="i-sm"></i><b>okf/</b></span>
+      <button class="btn btn-ghost btn-sm" id="btnRecarregar" title="Reler o disco"><i data-lucide="refresh-cw" class="i-sm"></i>Reler</button>
+    </div>
+  </header>
+
+  <div class="admin-layout">
+    <nav class="admin-nav" aria-label="Agentes e catálogo">
+      <div class="nav-actions">
+        <button class="btn btn-primary" id="btnNovo"><i data-lucide="plus"></i><span>Novo agente</span></button>
+        <button class="btn btn-ghost" id="btnImportar" title="Importar o zip de uma pasta"><i data-lucide="file-archive"></i></button>
+      </div>
+      <a href="#" class="nav-home" id="navHome"><i data-lucide="layout-dashboard"></i><span>Visão geral</span><em>todas as skills</em></a>
+
+      <span class="nav-label">Agentes</span>
+      <div id="raizDrop" class="raiz" title="Solte um agente aqui para levá-lo ao nível raiz">
+        <i data-lucide="folder-tree" class="i-sm"></i><span>agentes/</span><em>arraste para mover · Shift = clonar</em>
       </div>
       <div id="arvore" class="arvore"></div>
-    </section>
-    <section id="guiaCatalogo" class="guiaConteudo" hidden>
-      <p class="dica">cadastrado uma vez, aplicado por <strong>arrastar e soltar</strong> sobre um agente da árvore (ou pelo botão "aplicar" com um agente selecionado).</p>
-      <div id="catalogo"></div>
-    </section>
-  </aside>
 
-  <section class="coluna centro">
-    <div id="vazio" class="vazio">
-      <h2>Selecione um agente</h2>
-      <p>ou crie um novo. Um agente é uma <strong>pasta</strong>: <code>agent.yaml</code> na raiz e caixinhas (<code>rules/</code>, <code>workflows/</code>, <code>routers/</code>, <code>data/</code>, <code>assets/</code>, <code>agentes/</code>…). Os vínculos internos (assets citados, rotas, fontes do pai, subagentes) são conferidos a cada leitura.</p>
-    </div>
-    <div id="ficha" class="ficha" hidden>
-      <div class="fichaCab">
-        <div>
-          <div class="trilha" id="trilha"></div>
-          <h2><span id="fichaTipoIcone" class="tipoIcone"></span><span id="fichaNome"></span></h2>
-        </div>
-        <div class="acoesFicha">
-          <button id="btnSubagente" class="botao">+ subagente</button>
-          <button id="btnExportar" class="botao">exportar zip</button>
-          <button id="btnExcluir" class="botao perigo">excluir</button>
-        </div>
-      </div>
-
-      <div id="problemas" class="problemas"></div>
-
-      <details class="bloco" open>
-        <summary>Identidade <span class="dica">agent.yaml</span></summary>
-        <form id="formConfig" class="formulario">
-          <label>nome<input name="nome" spellcheck="false"></label>
-          <label>tipo
-            <select name="tipo">
-              <option value="">inferido (routers/ + subagentes = orquestrador)</option>
-              <option value="orquestrador">orquestrador — delega sempre</option>
-              <option value="operador">operador — executa</option>
-            </select>
-          </label>
-          <label class="largo">descrição <span class="dica">é o critério que o roteador do pai lê; escreva como classificador</span><textarea name="descricao" rows="2"></textarea></label>
-          <label>modelo<input name="modelo" placeholder="vazio = padrão do harness" spellcheck="false"></label>
-          <label>fontes <span class="dica">pastas de dados de um ANCESTRAL, ex.: ../../data</span><input name="fontes" placeholder="../../data, ../../assets" spellcheck="false"></label>
-          <label>apis <span class="dica">nomes do registro apis/</span><input name="apis" placeholder="nexus, open-meteo" spellcheck="false"></label>
-          <label>segredos <span class="dica">env obrigatórias</span><input name="segredos" placeholder="NEXUS_TOKEN" spellcheck="false"></label>
-          <div class="linhaBotoes"><button type="submit" class="botao primario">salvar identidade</button><span id="configStatus" class="dica"></span></div>
-        </form>
-      </details>
-
-      <details class="bloco" open>
-        <summary>Caixinhas <span class="dica">o que a pasta tem (próprio · herdado)</span></summary>
-        <div id="caixinhas" class="gradeCaixinhas"></div>
-      </details>
-
-      <details class="bloco" open>
-        <summary>Vínculos internos <span id="vinculosResumo" class="dica"></span></summary>
-        <div class="linhaBotoes"><label class="dica"><input type="checkbox" id="soQuebrados"> só os quebrados</label></div>
-        <table class="tabela" id="tabelaVinculos"><thead><tr><th>estado</th><th>tipo</th><th>alvo</th><th>onde</th><th>resolvido / problema</th></tr></thead><tbody></tbody></table>
-      </details>
-
-      <details class="bloco" open>
-        <summary>Subagentes <span id="subResumo" class="dica"></span></summary>
-        <div id="subagentes" class="listaSub"></div>
-      </details>
-
-      <details class="bloco">
-        <summary>Conhecimento OKF <span id="okfResumo" class="dica"></span></summary>
-        <div id="conhecimento"></div>
-      </details>
-
-      <details class="bloco">
-        <summary>Dados indexados <span id="dadosResumo" class="dica"></span></summary>
-        <div id="dados"></div>
-      </details>
-    </div>
-  </section>
-
-  <section class="coluna direita">
-    <nav class="guias">
-      <button class="guia ativa" data-aba="arquivos">arquivos</button>
-      <button class="guia" data-aba="projecao">projeção</button>
-      <button class="guia" data-aba="roteador">roteador</button>
+      <span class="nav-label">Catálogo <small>arraste sobre um agente</small></span>
+      <div id="catalogo" class="catalogo"></div>
     </nav>
-    <section id="abaArquivos" class="guiaConteudo">
-      <div class="editorBarra">
-        <span id="arquivoAtual" class="arquivoAtual">nenhum arquivo</span>
-        <button id="btnNovoArquivo" class="botao" title="novo arquivo numa caixinha">+ arquivo</button>
-        <button id="btnSalvarArquivo" class="botao primario" disabled>salvar</button>
-        <button id="btnExcluirArquivo" class="botao perigo" disabled>excluir</button>
-      </div>
-      <div id="arvoreArquivos" class="arvoreArquivos"></div>
-      <textarea id="editor" spellcheck="false" placeholder="selecione um arquivo…" disabled></textarea>
-    </section>
-    <section id="abaProjecao" class="guiaConteudo" hidden>
-      <p class="dica">o system prompt compilado da pasta (princípio ICM: dados ficam indexados e são lidos sob demanda). É o que o harness Eino recebe.</p>
-      <pre id="projecao" class="pre"></pre>
-    </section>
-    <section id="abaRoteador" class="guiaConteudo" hidden>
-      <p class="dica">só o que decide a rota (routers/*.md): a passada barata do orquestrador.</p>
-      <pre id="roteador" class="pre"></pre>
-    </section>
-  </section>
-</main>
 
-<div id="aviso" class="aviso" hidden></div>
+    <main class="admin-main" id="main" tabindex="-1">
+      <!-- visão geral -->
+      <section id="visao">
+        <div class="page-head">
+          <div>
+            <h1>Skills do concierge</h1>
+            <p>Cada skill é um <b>agente em pasta</b> (formato OKF): <code>agent.yaml</code> na raiz e caixinhas de regras, workflows, rotas, dados e assets. Os vínculos internos são conferidos a cada leitura, e os subagentes moram em <code>agentes/</code>.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnImportar2"><i data-lucide="file-archive"></i><span>Importar zip</span></button>
+            <button class="btn btn-primary" id="btnNovo2"><i data-lucide="plus"></i><span>Novo agente</span></button>
+          </div>
+        </div>
+        <div class="kpis" id="kpis"></div>
+        <div class="layers" id="layers"></div>
+        <div class="card">
+          <h2><i data-lucide="bot"></i>Agentes de primeiro nível</h2>
+          <div class="uc-grid" id="gradeAgentes"></div>
+        </div>
+      </section>
 
-<!-- assistente: novo agente -->
-<div id="modalNovo" class="modalFundo" hidden>
-  <div class="modal">
-    <div class="modalTopo"><h2 id="modalNovoTitulo">Novo agente</h2><button class="fechar" data-fecha="modalNovo">×</button></div>
-    <form id="formNovo" class="formulario">
-      <label>onde
-        <select name="pai"><option value="">raiz (agentes/)</option></select>
-      </label>
-      <label>nome <span class="dica">vira o nome da pasta: minúsculas, dígitos e hífen</span><input name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" placeholder="observador-sessao"></label>
-      <fieldset class="largo">
-        <legend>tipo</legend>
-        <label class="radio"><input type="radio" name="tipo" value="operador" checked> <strong>operador</strong> — executa a tarefa; subagentes são subtasks</label>
-        <label class="radio"><input type="radio" name="tipo" value="orquestrador"> <strong>orquestrador</strong> — nunca executa, roteia pelos routers/ e delega</label>
-      </fieldset>
-      <label class="largo">descrição <span class="dica">uma linha que funciona como classificador para o roteador do pai</span><textarea name="descricao" rows="2" required placeholder="observa a conversa, abre uma pendência por assunto e decide quando a sessão acabou"></textarea></label>
-      <label>modelo<input name="modelo" placeholder="vazio = padrão" spellcheck="false"></label>
-      <fieldset class="largo">
-        <legend>caixinhas iniciais <span class="dica">cada uma nasce com um arquivo-modelo</span></legend>
-        <div id="novoCaixinhas" class="gradeChecks"></div>
-      </fieldset>
-      <fieldset class="largo">
-        <legend>vínculos</legend>
-        <label class="radio" id="rotuloFontePai"><input type="checkbox" name="fonte_pai"> herdar a pasta <code>data/</code> do pai como fonte (<code>fontes: [../../data]</code>)</label>
-        <label>apis do registro<select name="apis" multiple size="3"></select></label>
-        <label>segredos <span class="dica">separados por vírgula</span><input name="segredos" placeholder="NEXUS_TOKEN" spellcheck="false"></label>
-      </fieldset>
-      <div class="linhaBotoes"><button type="submit" class="botao primario">criar pasta</button><span id="novoStatus" class="dica"></span></div>
-    </form>
+      <!-- ficha do agente -->
+      <section id="ficha" hidden>
+        <div class="page-head">
+          <div class="page-title">
+            <span class="agent-icon" id="fichaIcone"><i data-lucide="bot"></i></span>
+            <div>
+              <div class="crumbs" id="trilha"></div>
+              <h1 id="fichaNome"></h1>
+              <p id="fichaDesc"></p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnSubagente"><i data-lucide="git-branch-plus"></i><span>Subagente</span></button>
+            <button class="btn btn-ghost" id="btnExportar"><i data-lucide="download"></i><span>Exportar zip</span></button>
+            <button class="btn btn-danger" id="btnExcluir"><i data-lucide="trash-2"></i><span>Excluir</span></button>
+          </div>
+        </div>
+
+        <div id="problemas" class="problemas"></div>
+
+        <div class="editor-layout">
+          <div class="side-stack">
+            <div class="card">
+              <h2><i data-lucide="id-card"></i>Identidade <small class="muted mono">agent.yaml</small></h2>
+              <form id="formConfig" class="form-grid">
+                <div class="form-row"><label>Nome</label><input class="field-input" name="nome" spellcheck="false"></div>
+                <div class="form-row"><label>Tipo</label>
+                  <select class="field-select" name="tipo">
+                    <option value="">Inferido (routers/ + subagentes = orquestrador)</option>
+                    <option value="orquestrador">Orquestrador — delega sempre</option>
+                    <option value="operador">Operador — executa</option>
+                  </select>
+                </div>
+                <div class="form-row span-2"><label>Descrição <small>é o critério que o roteador do pai lê; escreva como classificador</small></label><textarea class="field-area field-short" name="descricao" rows="2"></textarea></div>
+                <div class="form-row"><label>Modelo <small>vazio = padrão do harness</small></label><input class="field-input" name="modelo" spellcheck="false" placeholder="gemini-2.5-flash"></div>
+                <div class="form-row"><label>Fontes <small>dados de um ancestral</small></label><input class="field-input mono" name="fontes" spellcheck="false" placeholder="../../data"></div>
+                <div class="form-row"><label>APIs <small>nomes do registro</small></label><input class="field-input mono" name="apis" spellcheck="false" placeholder="nexus"></div>
+                <div class="form-row"><label>Segredos <small>env obrigatórias</small></label><input class="field-input mono" name="segredos" spellcheck="false" placeholder="NEXUS_TOKEN"></div>
+                <div class="form-actions span-2"><span class="muted" id="configStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar identidade</span></button></div>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="package"></i>Caixinhas <small class="muted">o que a pasta tem · próprio e herdado</small></h2>
+              <div id="caixinhas" class="boxes"></div>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="link-2"></i>Vínculos internos <small class="muted" id="vinculosResumo"></small>
+                <label class="switch" style="margin-left:auto"><input type="checkbox" id="soQuebrados"><i></i>só os quebrados</label>
+              </h2>
+              <table class="res-table" id="tabelaVinculos"><thead><tr><th></th><th>Tipo</th><th>Alvo</th><th>Onde</th><th>Resolvido / problema</th></tr></thead><tbody></tbody></table>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="git-branch"></i>Subagentes <small class="muted" id="subResumo"></small></h2>
+              <div id="subagentes" class="sub-list"></div>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="book-open"></i>Conhecimento OKF <small class="muted" id="okfResumo"></small></h2>
+              <div id="conhecimento"></div>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="database"></i>Dados indexados <small class="muted" id="dadosResumo"></small></h2>
+              <div id="dados"></div>
+            </div>
+          </div>
+
+          <div class="card editor-card sticky">
+            <div class="editor-bar">
+              <div class="seg">
+                <button class="is-active" data-aba="arquivos">Arquivos</button>
+                <button data-aba="projecao">Projeção</button>
+                <button data-aba="roteador">Roteador</button>
+              </div>
+              <span class="file" id="arquivoAtual">nenhum arquivo</span>
+              <button class="btn btn-ghost btn-sm" id="btnNovoArquivo" title="Novo arquivo numa caixinha"><i data-lucide="file-plus-2" class="i-sm"></i>Arquivo</button>
+              <button class="btn btn-primary btn-sm" id="btnSalvarArquivo" disabled><i data-lucide="save" class="i-sm"></i>Salvar</button>
+              <button class="vote no" id="btnExcluirArquivo" title="Excluir arquivo" disabled><i data-lucide="trash-2"></i></button>
+            </div>
+            <div id="abaArquivos" class="aba">
+              <div id="arvoreArquivos" class="file-tree"></div>
+              <textarea id="editor" class="code" spellcheck="false" placeholder="Selecione um arquivo na lista acima, ou crie um novo com modelo." disabled></textarea>
+            </div>
+            <div id="abaProjecao" class="aba" hidden>
+              <p class="notice info"><i data-lucide="info"></i>O system prompt compilado da pasta (princípio ICM: os dados ficam indexados e são lidos sob demanda). É o que o harness Eino recebe.</p>
+              <pre id="projecao" class="pre"></pre>
+            </div>
+            <div id="abaRoteador" class="aba" hidden>
+              <p class="notice info"><i data-lucide="info"></i>Só o que decide a rota (<code>routers/*.md</code>): a passada barata do orquestrador.</p>
+              <pre id="roteador" class="pre"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
-</div>
 
-<!-- importar zip -->
-<div id="modalImportar" class="modalFundo" hidden>
-  <div class="modal">
-    <div class="modalTopo"><h2>Importar agente (zip da pasta)</h2><button class="fechar" data-fecha="modalImportar">×</button></div>
-    <form id="formImportar" class="formulario">
-      <label>onde<select name="pai"><option value="">raiz (agentes/)</option></select></label>
-      <label>nome da pasta<input name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false"></label>
-      <label class="largo">zip<input type="file" name="zip" accept=".zip" required></label>
-      <p class="dica">o zip precisa ter <code>agent.yaml</code> ou <code>workflows/principal.md</code> na raiz (ou numa única pasta interna). Se o nome já existir, o agente é substituído.</p>
-      <div class="linhaBotoes"><button type="submit" class="botao primario">importar</button><span id="importarStatus" class="dica"></span></div>
-    </form>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- drawer: novo agente -->
+  <div id="drawerNovo" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerNovo"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="bot"></i></span><h2 id="drawerNovoTitulo">Novo agente</h2><button class="vote" data-fecha="drawerNovo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formNovo" class="body">
+        <div class="form-row"><label>Onde</label><select class="field-select" name="pai"><option value="">raiz (agentes/)</option></select></div>
+        <div class="form-row"><label>Nome <small>vira o nome da pasta: minúsculas, dígitos e hífen</small></label><input class="field-input mono" name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" placeholder="observador-sessao"></div>
+        <div class="form-row"><label>Tipo</label>
+          <div class="modes modes-2">
+            <label class="mode is-on"><input type="radio" name="tipo" value="operador" checked><span class="mode-icon"><i data-lucide="bot"></i></span><span class="mode-body"><strong>Operador</strong><span>executa a tarefa; subagentes são subtasks</span></span></label>
+            <label class="mode"><input type="radio" name="tipo" value="orquestrador"><span class="mode-icon"><i data-lucide="git-branch"></i></span><span class="mode-body"><strong>Orquestrador</strong><span>nunca executa: roteia pelos routers/ e delega</span></span></label>
+          </div>
+        </div>
+        <div class="form-row"><label>Descrição <small>uma linha que funciona como classificador para o roteador do pai</small></label><textarea class="field-area field-short" name="descricao" rows="2" required placeholder="observa a conversa, abre uma pendência por assunto e decide quando a sessão acabou"></textarea></div>
+        <div class="form-row"><label>Modelo <small>vazio = padrão</small></label><input class="field-input" name="modelo" spellcheck="false"></div>
+        <div class="form-row"><label>Caixinhas iniciais <small>cada uma nasce com um arquivo-modelo</small></label><div id="novoCaixinhas" class="checks"></div></div>
+        <div class="form-row" id="rotuloFontePai"><label class="switch"><input type="checkbox" name="fonte_pai"><i></i>herdar <code>data/</code> do pai como fonte (<code>fontes: [../../data]</code>)</label></div>
+        <div class="form-row"><label>APIs do registro</label><select class="field-select" name="apis" multiple size="3"></select></div>
+        <div class="form-row"><label>Segredos <small>separados por vírgula</small></label><input class="field-input mono" name="segredos" placeholder="NEXUS_TOKEN" spellcheck="false"></div>
+        <div class="form-actions"><span class="muted" id="novoStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="folder-plus"></i><span>Criar pasta</span></button></div>
+      </form>
+    </aside>
   </div>
-</div>
 
-<!-- novo arquivo -->
-<div id="modalArquivo" class="modalFundo" hidden>
-  <div class="modal">
-    <div class="modalTopo"><h2>Novo arquivo</h2><button class="fechar" data-fecha="modalArquivo">×</button></div>
-    <form id="formArquivo" class="formulario">
-      <label>caixinha<select name="caixinha"></select></label>
-      <label>nome <span class="dica">com extensão; subpastas valem (okf/questions/x.md)</span><input name="nome" required spellcheck="false" placeholder="politicas.md"></label>
-      <p id="dicaCaixinha" class="dica largo"></p>
-      <div class="linhaBotoes"><button type="submit" class="botao primario">criar com modelo</button></div>
-    </form>
+  <!-- drawer: importar -->
+  <div id="drawerImportar" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerImportar"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="file-archive"></i></span><h2>Importar agente</h2><button class="vote" data-fecha="drawerImportar" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formImportar" class="body">
+        <div class="form-row"><label>Onde</label><select class="field-select" name="pai"><option value="">raiz (agentes/)</option></select></div>
+        <div class="form-row"><label>Nome da pasta</label><input class="field-input mono" name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false"></div>
+        <div class="form-row"><label>Zip da pasta</label><input class="field-input" type="file" name="zip" accept=".zip" required></div>
+        <p class="notice warn"><i data-lucide="triangle-alert"></i>O zip precisa ter <code>agent.yaml</code> ou <code>workflows/principal.md</code> na raiz (ou numa única pasta interna). Se o nome já existir, o agente é substituído.</p>
+        <div class="form-actions"><span class="muted" id="importarStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="upload"></i><span>Importar</span></button></div>
+      </form>
+    </aside>
   </div>
-</div>
 
-<script src="/app.js"></script>
+  <!-- drawer: novo arquivo -->
+  <div id="drawerArquivo" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerArquivo"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="file-plus-2"></i></span><h2>Novo arquivo</h2><button class="vote" data-fecha="drawerArquivo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formArquivo" class="body">
+        <div class="form-row"><label>Caixinha</label><select class="field-select" name="caixinha"></select></div>
+        <div class="form-row"><label>Nome <small>com extensão; subpastas valem (okf/questions/x.md)</small></label><input class="field-input mono" name="nome" required spellcheck="false" placeholder="politicas.md"></div>
+        <p class="notice info" id="dicaCaixinha"></p>
+        <div class="form-actions"><button type="submit" class="btn btn-primary"><i data-lucide="sparkles"></i><span>Criar com modelo</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <script src="/app.js?v=2"></script>
 </body>
 </html>
