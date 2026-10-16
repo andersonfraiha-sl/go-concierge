@@ -21,7 +21,7 @@ case "${1:-}" in
     exec ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
     ;;
   *)
-    eval "$GO" sh -c "'gofmt -w . && go mod tidy && go vet ./... && go test ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin.exe ./cmd/okf-admin && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin ./cmd/okf-admin'"
-    echo "binários em bin/: okf-admin.exe (Windows) e okf-admin (Linux)"
+    eval "$GO" sh -c "'gofmt -w . && go mod tidy && go vet ./... && go test ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin.exe ./cmd/okf-admin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run.exe ./cmd/okf-run && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin ./cmd/okf-admin && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run ./cmd/okf-run'"
+    echo "binários em bin/: okf-admin e okf-run (.exe Windows e Linux)"
     ;;
 esac

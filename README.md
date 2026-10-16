@@ -87,11 +87,31 @@ fonte do pai, apis e segredos. `importar zip` instala uma pasta inteira.
 | GET | `/api/catalogo` | bases, tools e apis |
 | POST | `/api/recursos/aplicar` | `{tipo, nome, agente}`: copia para a caixinha e funde segredos/apis (idempotente) |
 
+## O harness Eino (okf-run)
+
+`internal/harness` transforma a pasta num agente Eino: a instrução é a projeção, as
+tools são as nativas do formato (`ler_dado`, `abrir_workflow`, `consultar_schema`,
+`chamar_api`, `invocar_agente`), o orquestrador roteia pelo `routers/` e o contexto
+passa ao subagente (até 4 níveis). `cmd/okf-run` roda pela linha de comando:
+
+```bash
+cp .env.example .env            # LLM_MODE=gemini + GEMINI_API_KEY (ou openrouter + OPENROUTER_API_KEY)
+./bin/okf-run.exe -root okf "posso fazer barulho depois das 22h?"
+./bin/okf-run.exe -root okf --inspecionar    # projeção, roteador e tools, sem chamar modelo
+./bin/okf-run.exe -root okf -mock "..."      # modelo falso, sem rede
+```
+
+O provedor vem do `.env` com os mesmos nomes do sl-concierge: `LLM_MODE` (`gemini` |
+`openrouter` | `mock`), a chave correspondente e `MODEL_PLANNER` como modelo padrão
+quando o `agent.yaml` não diz. Sem chave, roda no modo mock.
+
 ## Estrutura
 
 ```
 cmd/okf-admin      servidor HTTP da interface (SPA embutida)
+cmd/okf-run        roda um agente pela linha de comando (harness Eino)
 internal/okf       pasta de agente: carga, herança, fronteira, vínculos, conhecimento OKF, projeção, rotas, escrita, catálogo
+internal/harness   adaptador Eino: modelo (Gemini | OpenRouter | mock), tools nativas, rota, trace e uso
 web/okf            a interface (HTML, CSS, JS, sem dependências)
 okf/               o catálogo de exemplo: concierge (orquestrador) + observador-sessao, regimento, faq
 ```

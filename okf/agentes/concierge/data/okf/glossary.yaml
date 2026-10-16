@@ -41,7 +41,7 @@ terms:
   - id: pendencia
     display_name: Pendência
     synonyms: [assunto, demanda, pedido em aberto, o que falta]
-    definition: Um assunto aberto na sessão pelo observador (ex.: "liberar visitante", "dúvida sobre piscina"). Estados aberta → em_atendimento → resolvida | transferida | abandonada. A sessão só encerra sem pendência aberta.
+    definition: 'Um assunto aberto na sessão pelo observador (ex.: "liberar visitante", "dúvida sobre piscina"). Estados aberta → em_atendimento → resolvida | transferida | abandonada. A sessão só encerra sem pendência aberta.'
     labels: [sessao]
   - id: atendente
     display_name: Atendente humano
