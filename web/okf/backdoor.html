@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=3">
+  <link rel="stylesheet" href="/styles.css?v=7">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin">
@@ -86,7 +86,8 @@
             </div>
           </div>
           <div class="page-actions">
-            <button class="btn btn-ghost" id="btnSubagente"><i data-lucide="git-branch-plus"></i><span>Subagente</span></button>
+            <span class="muted" id="salvarStatus"></span>
+            <button class="btn btn-primary" id="btnSalvarAgente" title="Salva identidade, persona e o arquivo em edição (Ctrl+S)"><i data-lucide="save"></i><span>Salvar agente</span></button>
             <button class="btn btn-ghost" id="btnExportar"><i data-lucide="download"></i><span>Exportar zip</span></button>
             <button class="btn btn-danger" id="btnExcluir"><i data-lucide="trash-2"></i><span>Excluir</span></button>
           </div>
@@ -109,15 +110,13 @@
                 </div>
                 <div class="form-row span-2"><label>Descrição <small>é o critério que o roteador do pai lê; escreva como classificador</small></label><textarea class="field-area field-short" name="descricao" rows="2"></textarea></div>
                 <div class="form-row"><label>Modelo <small>vazio = padrão do harness</small></label><input class="field-input" name="modelo" spellcheck="false" placeholder="gemini-2.5-flash"></div>
-                <div class="form-actions"><span class="muted" id="configStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar identidade</span></button></div>
               </form>
             </div>
 
             <div class="card" id="cardPersona">
-              <h2><i data-lucide="smile"></i>Persona <small class="muted mono">persona.md</small><span id="personaOrigem" class="tag tag-kind" style="margin-left:auto"></span></h2>
+              <h2><i data-lucide="smile"></i>Persona <small class="muted mono">persona.md</small><small class="muted">a voz da resposta ao morador; só o concierge tem</small><span id="personaOrigem" class="tag tag-kind" style="margin-left:auto"></span></h2>
               <div id="personaAviso"></div>
-              <textarea id="personaTexto" class="field-area" rows="7" spellcheck="false" placeholder="Quem fala com o morador: tom, traços, frases fixas. Os subagentes herdam."></textarea>
-              <div class="form-actions" id="personaAcoes" style="margin-top:10px"><span class="muted">só o orquestrador de primeiro nível tem persona: é a voz da resposta ao morador</span><button class="btn btn-primary" id="btnSalvarPersona"><i data-lucide="save"></i><span>Salvar persona</span></button></div>
+              <textarea id="personaTexto" class="field-area" rows="7" spellcheck="false" placeholder="Quem fala com o morador: tom, traços, frases fixas."></textarea>
             </div>
 
             <div class="card">
@@ -128,33 +127,6 @@
             <div class="card">
               <h2><i data-lucide="plug"></i>Recursos do Nexus que usa <small class="muted" id="recursosResumo"></small></h2>
               <div id="recursosAgente"></div>
-            </div>
-
-            <div class="card">
-              <h2><i data-lucide="package"></i>Caixinhas <small class="muted">o que a pasta tem · próprio e herdado</small></h2>
-              <div id="caixinhas" class="boxes"></div>
-            </div>
-
-            <div class="card">
-              <h2><i data-lucide="link-2"></i>Vínculos <small class="muted" id="vinculosResumo"></small>
-                <label class="switch" style="margin-left:auto"><input type="checkbox" id="soQuebrados"><i></i>só os quebrados</label>
-              </h2>
-              <table class="res-table" id="tabelaVinculos"><thead><tr><th></th><th>Tipo</th><th>Alvo</th><th>Onde</th><th>Resolvido / problema</th></tr></thead><tbody></tbody></table>
-            </div>
-
-            <div class="card">
-              <h2><i data-lucide="git-branch"></i>Subagentes <small class="muted" id="subResumo"></small></h2>
-              <div id="subagentes" class="sub-list"></div>
-            </div>
-
-            <div class="card">
-              <h2><i data-lucide="book-open"></i>Conhecimento OKF <small class="muted" id="okfResumo"></small></h2>
-              <div id="conhecimento"></div>
-            </div>
-
-            <div class="card">
-              <h2><i data-lucide="database"></i>Índice do prompt <small class="muted" id="indiceResumo"></small></h2>
-              <div id="indice"></div>
             </div>
           </div>
 
@@ -167,15 +139,17 @@
               </div>
               <span class="file" id="arquivoAtual">nenhum arquivo</span>
               <button class="btn btn-ghost btn-sm" id="btnNovoArquivo" title="Novo arquivo numa caixinha"><i data-lucide="file-plus-2" class="i-sm"></i>Arquivo</button>
-              <button class="btn btn-primary btn-sm" id="btnSalvarArquivo" disabled><i data-lucide="save" class="i-sm"></i>Salvar</button>
+              <button class="btn btn-ghost btn-sm" id="btnEditarArquivo" title="Editar o texto" disabled><i data-lucide="pencil" class="i-sm"></i>Editar</button>
+              <button class="btn btn-ghost btn-sm" id="btnCancelarEdicao" title="Voltar à leitura, descartando o que não foi salvo" hidden><i data-lucide="x" class="i-sm"></i>Cancelar</button>
               <button class="vote no" id="btnExcluirArquivo" title="Excluir arquivo" disabled><i data-lucide="trash-2"></i></button>
             </div>
             <div id="abaArquivos" class="aba">
               <div id="arvoreArquivos" class="file-tree"></div>
-              <textarea id="editor" class="code" spellcheck="false" placeholder="Selecione um arquivo na lista acima, ou crie um novo com modelo." disabled></textarea>
+              <div id="visor" class="visor"><div class="empty-state"><i data-lucide="file-text"></i>Escolha um arquivo acima: o que é do agente (regras, workflow, conhecimento OKF, assets, evals) e o que ele herda da família.</div></div>
+              <textarea id="editor" class="code" spellcheck="false" hidden></textarea>
             </div>
             <div id="abaProjecao" class="aba" hidden>
-              <p class="notice info"><i data-lucide="info"></i>O system prompt compilado da pasta: persona, políticas, workflow ou caso, contrato, índice de conhecimento e assets, recursos declarados. É o que o harness Eino recebe.</p>
+              <p class="notice info"><i data-lucide="info"></i>O system prompt compilado da pasta: persona, políticas, workflow ou caso, contrato, índice de conhecimento e assets (o que o agente vê e lê com ler_dado), recursos declarados. É o que o harness Eino recebe.</p>
               <pre id="projecao" class="pre"></pre>
             </div>
             <div id="abaRoteador" class="aba" hidden>
@@ -248,6 +222,6 @@
     </aside>
   </div>
 
-  <script src="/backdoor.js?v=4"></script>
+  <script src="/backdoor.js?v=5"></script>
 </body>
 </html>

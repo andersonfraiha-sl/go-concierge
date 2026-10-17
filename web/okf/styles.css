@@ -465,3 +465,31 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
   .topbar { gap: 12px; padding: 0 12px; }
   .brand-name, .brand-divider { display: none; }
 }
+
+/* painel direito: leitura humana dos arquivos, edição com o lápis */
+.file-tree { max-height: 300px; }
+.ft .tag { font-size: 10px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+.ft .ft-nome { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ft .ft-nome svg.lucide { width: 13px; height: 13px; flex: none; color: var(--slate-400); }
+.ft.no-prompt .ft-nome svg.lucide { color: var(--sl-blue); }
+.ft.herdado { cursor: pointer; }
+.visor { flex: 1; min-height: 320px; overflow: auto; padding: 14px 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+.visor .empty-state { margin-top: 40px; }
+.md-view h1, .md-view h2, .md-view h3, .md-view h4 { font-family: var(--font-display); margin: 14px 0 6px; line-height: 1.25; }
+.md-view h1 { font-size: 20px; margin-top: 0; } .md-view h2 { font-size: 16px; } .md-view h3 { font-size: 14px; } .md-view h4 { font-size: 13px; }
+.md-view p { margin: 0 0 10px; }
+.md-view ul, .md-view ol { margin: 0 0 10px; padding-left: 22px; }
+.md-view li { margin: 2px 0; }
+.md-view code { font-family: var(--font-mono); font-size: 12px; background: var(--canvas); padding: 1px 5px; border-radius: 4px; }
+.md-view pre { background: var(--canvas); padding: 10px 12px; border-radius: var(--r-sm); overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; margin: 0 0 10px; }
+.md-view blockquote { margin: 0 0 10px; padding: 6px 12px; border-left: 3px solid var(--sl-blue-100); color: var(--slate-600); background: var(--canvas); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.md-view a { color: var(--sl-blue); text-decoration: none; } .md-view a:hover { text-decoration: underline; }
+.md-view hr { border: 0; border-top: 1px solid var(--slate-100); margin: 12px 0; }
+.md-view .fm { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--slate-100); }
+.md-view .fm span { font-family: var(--font-mono); font-size: 11.5px; background: var(--canvas); padding: 2px 8px; border-radius: 999px; color: var(--ink-3); }
+.md-view .fm span b { color: var(--slate-500); font-weight: 500; }
+.visor .pre { padding: 0; }
+.visor .herdado-aviso { margin-bottom: 10px; }
+.visor table.res-table { font-size: 12.5px; }
+.btn.is-pending { box-shadow: 0 0 0 3px rgba(16, 52, 242, .25); }
+.btn.is-pending span::after { content: " •"; }

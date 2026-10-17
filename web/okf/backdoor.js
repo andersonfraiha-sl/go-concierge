@@ -1,4 +1,7 @@
-/* Concierge · Skills — cadastro de agentes em pasta (OKF) + recursos do Nexus. Fala só com /api/*. */
+/* Concierge · Backdoor — o concierge e seus casos de uso em pasta (OKF) + recursos do Nexus. Fala só com /api/*.
+   A ficha de um agente: identidade, persona (só o concierge), workflow e recursos à esquerda; à direita a pasta
+   inteira (regras, workflows, conhecimento OKF, assets, evals, o que herda), lida como texto para humanos e
+   editada com o lápis. Um só botão salva o agente (identidade, persona e o arquivo em edição). */
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -7,14 +10,19 @@
   const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
 
   const ICONE_CX = { rules: ['scale', 'ri-nucleo'], workflows: ['list-checks', 'ri-nucleo'], routers: ['signpost', 'ri-nucleo'], knowledge: ['book-open', 'ri-data'], assets: ['image', 'ri-assets'], evals: ['flask-conical', 'ri-evals'], agentes: ['git-branch', 'ri-sub'] };
-  const ICONE_VINC = { asset: 'image', conhecimento: 'book-open', procedimento: 'list-checks', rota: 'signpost', subagente: 'git-branch', recurso: 'plug', persona: 'smile' };
   const TAG_OKF = { Domain: 'tag-violet', Question: 'tag-private', Condition: 'tag-warn', Policy: 'tag-write', Vocabulary: 'tag-public', Procedure: 'tag-kind', KnowledgeIndex: 'tag-kind' };
   const CLASSE = { leitura: ['Leitura', 'plug'], conhecimento: ['Conhecimento', 'book-open'], memoria: ['Memória', 'brain'], agente: ['Agentes utilitários', 'bot'], escrita: ['Escrita (só pelo caso de uso)', 'pen-line'] };
   const KIND_ICON = { api: 'plug', database: 'database', knowledge: 'book-open', memory: 'brain', agent: 'bot' };
+  const ICONE_ARQ = (c) => c.endsWith('.yaml') || c.endsWith('.yml') ? 'braces' : c.endsWith('.md') ? 'file-text' : /\.(png|jpe?g|gif|svg|webp)$/i.test(c) ? 'image' : 'file';
   const tipoIcone = (t) => (t === 'orquestrador' ? 'git-branch' : 'bot');
   const corDaCaixinha = (n) => ({ rules: 'var(--sl-blue)', workflows: 'var(--sl-blue)', routers: 'var(--sl-blue)', knowledge: 'var(--info)', assets: 'var(--success)', evals: 'var(--violet)' }[n] || 'var(--sl-navy)');
 
-  const estado = { anatomia: null, arvore: [], nexus: { recursos: [], origem: '', conferido: false, account: '' }, selecionado: null, ficha: null, arquivoAtual: null, arquivoSujo: false };
+  const estado = {
+    anatomia: null, arvore: [], nexus: { recursos: [], origem: '', conferido: false, account: '' },
+    selecionado: null, ficha: null,
+    // painel direito: o arquivo aberto (caminho, dono se herdado, conteúdo lido) e o modo
+    arquivo: null, editando: false, arquivoSujo: false,
+  };
 
   // ---- http e toast -----------------------------------------------------------
   async function api(caminho, opts = {}) {
@@ -48,7 +56,7 @@
     desenharArvore();
     desenharNexus();
     preencherSelects();
-    if (estado.selecionado && acharNo(estado.selecionado)) await selecionar(estado.selecionado);
+    if (estado.selecionado && acharNo(estado.selecionado)) await selecionar(estado.selecionado, true);
     else mostrarVisao();
   }
   async function recarregarArvore() {
@@ -65,6 +73,7 @@
 
   // ---- visão geral ------------------------------------------------------------
   function mostrarVisao() {
+    if (!podeSair()) return;
     estado.selecionado = null;
     estado.ficha = null;
     $('#ficha').hidden = true;
@@ -86,7 +95,7 @@
     ].map(([t, v, e, cls]) => `<div class="kpi ${cls || ''}"><span>${t}</span><strong>${v}</strong><em>${esc(e)}</em></div>`).join('');
     $('#layers').innerHTML = [
       ['l-1', 'folder-tree', 'Do agente', 'Estático, na pasta', 'persona, regras, workflow ou caso.yaml, conhecimento OKF e assets. Editado aqui.'],
-      ['l-2', 'git-branch', 'Família', 'Herança e fronteira', 'Conhecimento e assets descem do pai; persona é só do orquestrador; irmão e fora da árvore são proibidos.'],
+      ['l-2', 'git-branch', 'Família', 'Herança e fronteira', 'Conhecimento e assets descem do pai; persona é só do concierge; irmão e fora da árvore são proibidos.'],
       ['l-3', 'plug', 'Do Nexus', 'Em tempo de execução', 'Tools, conteúdos e memórias da account. O agente declara; o harness filtra pela identidade.'],
       ['l-4', 'scroll-text', 'Projeção', 'O prompt que o Eino recebe', 'Princípio ICM: índice de dados lido sob demanda; escrita só pelo caso de uso.'],
     ].map(([cls, ic, k, t, d]) => `<div class="layer ${cls}"><div class="layer-top"><span class="layer-icon"><i data-lucide="${ic}"></i></span><div><div class="layer-kicker">${k}</div><h3>${t}</h3></div></div><p>${d}</p></div>`).join('');
@@ -166,7 +175,7 @@
   async function vincular(agente, nome, ligar) {
     const r = await api('/api/agente/recursos', { method: 'POST', body: JSON.stringify({ agente, nome, ligar }) });
     toast(`${nome} ${ligar ? 'declarado em' : 'tirado de'} ${agente.split('/').pop()} · ${r.mudancas.join('; ')}`);
-    if (agente === estado.selecionado) await selecionar(agente);
+    if (agente === estado.selecionado) await selecionar(agente, true);
     await recarregarArvore();
   }
   function desenharNexus() {
@@ -199,26 +208,46 @@
   function classeDe(r) { return r.write ? 'escrita' : r.kind === 'knowledge' ? 'conhecimento' : r.kind === 'memory' ? 'memoria' : r.kind === 'agent' ? 'agente' : 'leitura'; }
 
   // ---- ficha ------------------------------------------------------------------
-  async function selecionar(caminho) {
-    if (estado.arquivoSujo && !confirm('Há alterações não salvas no arquivo. Descartar?')) return;
+  // o que mudou e ainda não foi salvo: identidade, persona ou o arquivo em edição
+  function alteracoes() {
+    if (!estado.ficha) return [];
+    const a = estado.ficha.agente;
+    const f = $('#formConfig');
+    const out = [];
+    if (f.nome.value !== a.nome || f.tipo.value !== (a.tipo_declarado ? a.tipo : '') || f.descricao.value !== (a.descricao || '') || f.modelo.value !== (a.modelo || '')) out.push('identidade');
+    if (!$('#cardPersona').hidden && $('#personaTexto').value !== (a.persona || '')) out.push('persona');
+    if (estado.editando && estado.arquivoSujo) out.push(estado.arquivo.caminho);
+    return out;
+  }
+  function podeSair() { return !alteracoes().length || confirm(`Há alterações não salvas (${alteracoes().join(', ')}). Descartar?`); }
+  function atualizarStatus() {
+    const alt = alteracoes();
+    $('#salvarStatus').textContent = alt.length ? `não salvo: ${alt.join(', ')}` : '';
+    $('#btnSalvarAgente').classList.toggle('is-pending', alt.length > 0);
+  }
+  ['input', 'change'].forEach((ev) => { $('#formConfig').addEventListener(ev, atualizarStatus); $('#personaTexto').addEventListener(ev, atualizarStatus); });
+  window.addEventListener('beforeunload', (e) => { if (alteracoes().length) { e.preventDefault(); e.returnValue = ''; } });
+
+  async function selecionar(caminho, manterArquivo = false) {
+    if (!manterArquivo && !podeSair()) return;
     try { estado.ficha = await api('/api/agente?agente=' + encodeURIComponent(caminho)); } catch (err) { toast(err.message, true); return mostrarVisao(); }
+    const trocou = estado.selecionado !== caminho;
     estado.selecionado = caminho;
     $('#visao').hidden = true;
     $('#ficha').hidden = false;
-    $('#main').scrollTop = 0;
+    if (trocou) $('#main').scrollTop = 0;
     desenharArvore();
     desenharNexus();
     desenharFicha();
     desenharArquivos();
-    fecharEditor();
+    if (!manterArquivo || trocou || !estado.arquivo) fecharVisor();
+    else if (estado.arquivo && !estado.editando) abrirArquivo(estado.arquivo.caminho, estado.arquivo.herdadoDe, true);
+    atualizarStatus();
     carregarProjecao();
   }
 
   function desenharFicha() {
     const { agente: a, pai } = estado.ficha;
-    const vinculos = estado.ficha.vinculos || [];
-    const conhecimento = estado.ficha.conhecimento || { docs: [], termos: [] };
-    const indice = estado.ficha.indice || [];
     const recursos = estado.ficha.recursos || [];
     a.subagentes = a.subagentes || []; a.problemas = a.problemas || []; a.arquivos = a.arquivos || {}; a.herdados = a.herdados || {};
 
@@ -246,20 +275,30 @@
     f.tipo.value = a.tipo_declarado ? a.tipo : '';
     f.descricao.value = a.descricao || '';
     f.modelo.value = a.modelo || '';
-    $('#configStatus').textContent = '';
 
-    // persona: só o agente de primeiro nível (o orquestrador que fala com o morador) tem o bloco
+    // persona: só o agente de primeiro nível (o concierge, que fala com o morador)
     const raizDaFamilia = !pai;
     $('#cardPersona').hidden = !raizDaFamilia;
     $('#personaOrigem').textContent = a.persona ? 'própria' : 'nenhuma';
     $('#personaOrigem').className = 'tag ' + (a.persona ? 'tag-private' : 'tag-warn');
     $('#personaTexto').value = a.persona || '';
-    $('#personaAviso').innerHTML = raizDaFamilia && !a.persona ? `<p class="notice warn"><i data-lucide="triangle-alert"></i>Quem fala com o morador precisa de persona. Escreva e salve, ou <a href="#" id="personaModelo">use o modelo</a>.</p>` : '';
+    $('#personaAviso').innerHTML = raizDaFamilia && !a.persona ? `<p class="notice warn"><i data-lucide="triangle-alert"></i>Quem fala com o morador precisa de persona. Escreva e salve o agente, ou <a href="#" id="personaModelo">use o modelo</a>.</p>` : '';
     const pm = $('#personaModelo');
-    if (pm) pm.addEventListener('click', async (e) => { e.preventDefault(); const m = await api('/api/arquivo/modelo?caminho=persona.md'); $('#personaTexto').value = m.conteudo; });
+    if (pm) pm.addEventListener('click', async (e) => { e.preventDefault(); const m = await api('/api/arquivo/modelo?caminho=persona.md'); $('#personaTexto').value = m.conteudo; atualizarStatus(); });
 
-    // workflow: a ordem do acontecimento (workflows/principal.md), os procedimentos
-    // (demais workflows, com etapas) e, se houver, os passos determinísticos do caso.yaml
+    desenharWorkflow(a, recursos);
+
+    // recursos que usa
+    $('#recursosResumo').textContent = recursos.length ? `${recursos.length} declarado${recursos.length === 1 ? '' : 's'}${estado.nexus.conferido ? '' : ' · não conferidos'}` : 'nenhum';
+    $('#recursosAgente').innerHTML = recursos.length ? `<table class="res-table"><thead><tr><th></th><th>Recurso</th><th>Classe</th><th>Declarado em</th><th></th></tr></thead><tbody>${recursos.map((d) => `<tr class="${d.ok ? '' : 'is-bad'}"><td><span class="led ${d.ok ? 'ok' : 'bad'}"></span></td><td><code>${esc(d.nome)}</code>${d.recurso ? `<div class="muted" style="font-size:12px">${esc(d.recurso.description || '')}</div>` : ''}${!d.ok ? `<div style="color:var(--danger);font-size:12px">${esc(d.problema)}</div>` : ''}</td><td>${d.recurso ? `<span class="tag tag-kind">${esc(d.recurso.kind)}</span> <span class="tag ${d.recurso.visibility === 'public' ? 'tag-public' : 'tag-private'}">${d.recurso.visibility}</span>${d.recurso.write ? ' <span class="tag tag-write">escrita</span>' : ''}` : '<span class="muted">—</span>'}</td><td class="mono muted">${esc(d.origem)}</td><td>${d.origem === 'agent.yaml' ? `<button class="vote no" title="tirar de agent.yaml → recursos" data-nome="${esc(d.nome)}"><i data-lucide="x"></i></button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : `<div class="empty-state"><i data-lucide="plug"></i><span>Nenhum recurso declarado. Ligue na lista <b>Recursos do Nexus</b> à esquerda, ou arraste um cartão sobre o agente.</span></div>`;
+    $$('#recursosAgente button[data-nome]').forEach((b) => b.addEventListener('click', async () => { try { await vincular(estado.selecionado, b.dataset.nome, false); } catch (err) { toast(err.message, true); } }));
+    icons();
+  }
+
+  // workflow: a ordem do acontecimento (workflows/principal.md), os procedimentos
+  // (demais workflows, com etapas) e, se houver, os passos determinísticos do caso.yaml
+  function desenharWorkflow(a, recursos) {
     const wfEl = $('#workflow');
     const wf = estado.ficha.workflow || '';
     const procs = estado.ficha.procedimentos || [];
@@ -269,7 +308,7 @@
     let html = '';
     if (wf.trim()) {
       const linhas = wf.split('\n');
-      const passos = []; let intro = [];
+      const passos = []; const intro = [];
       for (const l of linhas) {
         const m = l.match(/^\s*(\d+)[.)]\s+(.*)$/);
         if (m) passos.push({ n: m[1], texto: m[2] });
@@ -277,7 +316,7 @@
         else if (!passos.length && l.trim() && !l.startsWith('# ')) intro.push(l.trim());
       }
       const md = (t) => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-      html += `<div class="form-actions" style="justify-content:space-between;margin-bottom:8px"><span class="muted">${passos.length ? plural(passos.length, 'passo', 'passos') : 'sem passos numerados'}</span><button class="btn btn-ghost btn-sm" id="btnAbrirWorkflow"><i data-lucide="pen-to-square" class="i-sm"></i>Editar principal.md</button></div>`;
+      html += `<div class="form-actions" style="justify-content:space-between;margin-bottom:8px"><span class="muted">${passos.length ? plural(passos.length, 'passo', 'passos') : 'sem passos numerados'}</span><button class="btn btn-ghost btn-sm" id="btnAbrirWorkflow"><i data-lucide="pencil" class="i-sm"></i>Editar principal.md</button></div>`;
       if (intro.length) html += `<p class="muted" style="margin:0 0 10px">${md(intro.join(' '))}</p>`;
       if (passos.length) html += `<ol class="flow">${passos.map((p) => `<li class="${classeDePasso(p.texto)}"><span class="fi"><i data-lucide="${iconeDePasso(p.texto)}"></i></span><div><b>${md(p.texto)}</b></div></li>`).join('')}</ol>`;
       else html += `<pre class="pre" style="max-height:220px">${esc(wf.trim())}</pre>`;
@@ -289,199 +328,241 @@
     if (a.caso) {
       const c = a.caso;
       const passos = passosDe(c);
-      html += `<details class="bloco-sub" style="margin-top:10px"><summary class="muted">Passos determinísticos (<code>caso.yaml</code>: ${esc(c.id)}) — o harness executa, com confirmação e escrita</summary><ol class="flow" style="margin-top:8px">${passos.map((p) => { const m = p.match(/recurso `([^`]+)`/); const d = m && decl.get(m[1]); const escrita = d && d.recurso && d.recurso.write; return `<li class="${escrita ? 'f-write' : m ? 'f-resource' : /confirmar/.test(p) ? 'f-confirm' : /redigir/.test(p) ? 'f-compose' : ''}"><span class="fi"><i data-lucide="${escrita ? 'pen-line' : m ? 'plug' : /confirmar/.test(p) ? 'check-check' : /redigir/.test(p) ? 'sparkles' : /escolher/.test(p) ? 'list' : /coletar/.test(p) ? 'message-circle-question' : 'circle'}"></i></span><div><b>${esc(p)}</b>${d && !d.ok ? `<span style="color:var(--danger)">${esc(d.problema)}</span>` : ''}</div></li>`; }).join('')}</ol><button class="btn btn-ghost btn-sm" id="btnAbrirCaso" style="margin-top:6px"><i data-lucide="pen-to-square" class="i-sm"></i>Editar caso.yaml</button></details>`;
+      html += `<details class="bloco-sub" style="margin-top:10px"><summary class="muted">Passos determinísticos (<code>caso.yaml</code>: ${esc(c.id)}) — o harness executa, com confirmação e escrita</summary><ol class="flow" style="margin-top:8px">${passos.map((p) => { const m = p.match(/recurso `([^`]+)`/); const d = m && decl.get(m[1]); const escrita = d && d.recurso && d.recurso.write; return `<li class="${escrita ? 'f-write' : m ? 'f-resource' : /confirmar/.test(p) ? 'f-confirm' : /redigir/.test(p) ? 'f-compose' : ''}"><span class="fi"><i data-lucide="${escrita ? 'pen-line' : m ? 'plug' : /confirmar/.test(p) ? 'check-check' : /redigir/.test(p) ? 'sparkles' : /escolher/.test(p) ? 'list' : /coletar/.test(p) ? 'message-circle-question' : 'circle'}"></i></span><div><b>${esc(p)}</b>${d && !d.ok ? `<span style="color:var(--danger)">${esc(d.problema)}</span>` : ''}</div></li>`; }).join('')}</ol><button class="btn btn-ghost btn-sm" id="btnAbrirCaso" style="margin-top:6px"><i data-lucide="pencil" class="i-sm"></i>Editar caso.yaml</button></details>`;
     }
     if (procs.length) {
       html += `<div style="margin-top:12px"><div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Procedimentos (abrir_workflow)</div>${procs.map((p) => `<div class="sub" data-proc="${esc(p.nome)}"><span class="res-icon"><i data-lucide="${p.etapas && p.etapas.length ? 'layers' : 'file-text'}"></i></span><strong>${esc(p.nome)}</strong><span class="badges">${p.etapas && p.etapas.length ? `<span class="tag tag-kind">${p.etapas.length} etapas</span>` : ''}</span><span>${esc(p.resumo || '')}${p.etapas && p.etapas.length ? ' · ' + esc(p.etapas.join(' → ')) : ''}</span></div>`).join('')}</div>`;
     }
     wfEl.innerHTML = html;
-    $('#btnAbrirWorkflow')?.addEventListener('click', () => abrirArquivo('workflows/principal.md'));
+    $('#btnAbrirWorkflow')?.addEventListener('click', () => abrirArquivo('workflows/principal.md', '', false, true));
     $('#btnCriarWorkflow')?.addEventListener('click', () => criarComModelo('workflows/principal.md'));
-    $('#btnAbrirCaso')?.addEventListener('click', () => abrirArquivo('caso.yaml'));
+    $('#btnAbrirCaso')?.addEventListener('click', () => abrirArquivo('caso.yaml', '', false, true));
     $$('#workflow .sub[data-proc]').forEach((d) => d.addEventListener('click', () => { const p = procs.find((x) => x.nome === d.dataset.proc); abrirArquivo(p && p.etapas && p.etapas.length ? `workflows/${p.nome}/${p.etapas[0]}.md` : `workflows/${d.dataset.proc}.md`); }));
-
-    // recursos que usa
-    $('#recursosResumo').textContent = recursos.length ? `${recursos.length} declarado${recursos.length === 1 ? '' : 's'}${estado.nexus.conferido ? '' : ' · não conferidos'}` : 'nenhum';
-    $('#recursosAgente').innerHTML = recursos.length ? `<table class="res-table"><thead><tr><th></th><th>Recurso</th><th>Classe</th><th>Declarado em</th><th></th></tr></thead><tbody>${recursos.map((d) => `<tr class="${d.ok ? '' : 'is-bad'}"><td><span class="led ${d.ok ? 'ok' : 'bad'}"></span></td><td><code>${esc(d.nome)}</code>${d.recurso ? `<div class="muted" style="font-size:12px">${esc(d.recurso.description || '')}</div>` : ''}${!d.ok ? `<div style="color:var(--danger);font-size:12px">${esc(d.problema)}</div>` : ''}</td><td>${d.recurso ? `<span class="tag tag-kind">${esc(d.recurso.kind)}</span> <span class="tag ${d.recurso.visibility === 'public' ? 'tag-public' : 'tag-private'}">${d.recurso.visibility}</span>${d.recurso.write ? ' <span class="tag tag-write">escrita</span>' : ''}` : '<span class="muted">—</span>'}</td><td class="mono muted">${esc(d.origem)}</td><td>${d.origem === 'agent.yaml' ? `<button class="vote no" title="tirar de agent.yaml → recursos" data-nome="${esc(d.nome)}"><i data-lucide="x"></i></button>` : ''}</td></tr>`).join('')}</tbody></table>`
-      : `<div class="empty-state"><i data-lucide="plug"></i><span>Nenhum recurso declarado. Ligue na lista <b>Recursos do Nexus</b> à esquerda, ou arraste um cartão sobre o agente.</span></div>`;
-    $$('#recursosAgente button[data-nome]').forEach((b) => b.addEventListener('click', async () => { try { await vincular(estado.selecionado, b.dataset.nome, false); } catch (err) { toast(err.message, true); } }));
-
-    // caixinhas
-    const boxes = estado.anatomia.caixinhas.map((cx) => {
-      const p = (a.arquivos[cx.nome] || []).length, h = (a.herdados[cx.nome] || []).length;
-      const [ic2, cls] = ICONE_CX[cx.nome] || ['folder', ''];
-      return `<div class="box ${p + h ? '' : 'vazia'}" data-cx="${cx.nome}" title="${esc(cx.descricao)}"><span class="res-icon ${cls}"><i data-lucide="${ic2}"></i></span><b>${cx.nome}/</b><span>${plural(p, 'próprio', 'próprios')}${cx.herda ? ` · ${h} herd.` : ''}${cx.tool ? ` · <code>${esc(cx.tool)}</code>` : ''}</span><button class="add" title="novo arquivo com modelo"><i data-lucide="plus"></i></button></div>`;
-    }).join('') + `<div class="box ${a.subagentes.length ? '' : 'vazia'}" data-cx="agentes"><span class="res-icon ri-sub"><i data-lucide="git-branch"></i></span><b>agentes/</b><span>${plural(a.subagentes.length, 'subagente', 'subagentes')} · ${a.tipo === 'orquestrador' ? 'rotas' : '<code>invocar_agente</code>'}</span><button class="add" title="novo subagente"><i data-lucide="plus"></i></button></div>`;
-    $('#caixinhas').innerHTML = boxes;
-    $$('#caixinhas .box').forEach((b) => {
-      const cx = b.dataset.cx;
-      $('.add', b).addEventListener('click', (e) => { e.stopPropagation(); cx === 'agentes' ? abrirNovo(a.caminho) : abrirNovoArquivo(cx); });
-      b.addEventListener('click', () => { if (cx === 'agentes') return; mostrarAba('arquivos'); const g = $(`#ft-${cx}`); if (g) g.scrollIntoView({ block: 'nearest' }); });
-    });
-
-    desenharVinculos(vinculos);
-
-    // subagentes
-    $('#subResumo').textContent = a.subagentes.length ? `${a.subagentes.length} · ${a.tipo === 'orquestrador' ? 'rotas de delegação' : 'subtasks (invocar_agente)'}` : 'nenhum';
-    $('#subagentes').innerHTML = a.subagentes.length ? a.subagentes.map((s) => {
-      const erros = (s.problemas || []).filter((p) => p.nivel === 'erro').length, avisos = (s.problemas || []).length - erros;
-      return `<div class="sub" data-rel="${esc(s.caminho)}"><span class="res-icon ${s.tipo === 'orquestrador' ? 'ri-sub' : ''}"><i data-lucide="${s.caso ? 'list-checks' : tipoIcone(s.tipo)}"></i></span><strong>${esc(s.nome)}${s.caso ? ' <span class="tag tag-write">caso</span>' : ''}</strong><span class="badges">${erros ? `<span class="badge erro">${erros}</span>` : ''}${avisos ? `<span class="badge aviso">${avisos}</span>` : ''}</span><span>${esc(s.descricao || '(sem descrição)')}</span></div>`;
-    }).join('') : `<div class="empty-state"><i data-lucide="git-branch"></i>Nenhum subagente. Use "+ Subagente" para criar um ${a.tipo === 'orquestrador' ? 'destino de rota' : 'subtask'}.</div>`;
-    $$('#subagentes .sub').forEach((d) => d.addEventListener('click', () => selecionar(d.dataset.rel)));
-
-    // conhecimento OKF
-    $('#okfResumo').textContent = `${plural(conhecimento.docs.length, 'documento', 'documentos')} · ${plural(conhecimento.termos.length, 'termo', 'termos')}`;
-    let k = '';
-    if (!conhecimento.docs.length && !conhecimento.termos.length) {
-      k = `<div class="empty-state"><i data-lucide="book-open"></i><span>Nenhum documento OKF. Crie em <code>knowledge/</code>: um <code>glossary.yaml</code> (termos e sinônimos) e docs com frontmatter <code>type: Domain | Question | Condition | Policy</code>. Um pacote OKF v0.1 (index.md, conceitos com links, log.md) pode ser copiado inteiro.</span></div>`;
-    } else {
-      k = conhecimento.docs.map((d) => `<div class="doc" data-caminho="${d.herdado_de ? '' : esc(d.caminho)}"><span class="tag ${TAG_OKF[d.tipo] || 'tag-kind'}">${esc(d.tipo)}</span><div class="dt"><strong>${esc(d.titulo)}</strong>${d.descricao ? `<p>${esc(d.descricao)}</p>` : ''}${d.respostas && d.respostas.length ? `<p>respostas: ${d.respostas.map((r) => `<code>${esc(r)}</code>`).join(' ')}</p>` : ''}<div class="meta"><span>${esc(d.caminho)}</span>${d.status ? `<span class="tag tag-locked">${esc(d.status)}</span>` : ''}${d.versao ? `<span class="tag tag-locked">v${esc(d.versao)}</span>` : ''}${d.resource ? `<span class="tag tag-kind" title="resource (OKF)">${esc(d.resource)}</span>` : ''}${d.timestamp ? `<span class="muted">${esc(d.timestamp)}</span>` : ''}${d.herdado_de ? `<span class="tag tag-kind">herdado de ${esc(d.herdado_de)}</span>` : ''}</div></div></div>`).join('');
-      if (conhecimento.termos.length) k += `<div class="termos">${conhecimento.termos.map((t) => `<div class="termo"><b>${esc(t.display_name || t.id)}<small>${t.synonyms.length ? esc(t.synonyms.join(', ')) : ''}${t.herdado_de ? ` · herdado de ${esc(t.herdado_de)}` : ''}</small></b><span>${esc(t.definition)}</span></div>`).join('')}</div>`;
-    }
-    $('#conhecimento').innerHTML = k;
-    $$('#conhecimento .doc[data-caminho]').forEach((d) => { if (d.dataset.caminho) d.addEventListener('click', () => abrirArquivo(d.dataset.caminho)); });
-
-    // índice
-    $('#indiceResumo').textContent = `${plural(indice.length, 'arquivo', 'arquivos')} lidos sob demanda (ler_dado)`;
-    $('#indice').innerHTML = indice.length
-      ? `<table class="res-table"><thead><tr><th></th><th>Caminho</th><th style="width:70px">Bytes</th><th>Resumo</th></tr></thead><tbody>${indice.map((x) => `<tr><td><i data-lucide="${x.caminho.startsWith('assets/') ? 'image' : 'book-open'}" class="i-sm"></i></td><td><code>${esc(x.caminho)}</code>${x.herdado_de ? ` <span class="tag tag-kind">herdado de ${esc(x.herdado_de)}</span>` : ''}</td><td class="mono">${x.bytes}</td><td class="muted">${esc(x.resumo || '')}</td></tr>`).join('')}</tbody></table>`
-      : `<div class="empty-state"><i data-lucide="database"></i>Nada em knowledge/ ou assets/ (próprios ou herdados).</div>`;
-    icons();
   }
 
   function passosDe(c) {
     return (c.steps || []).map((s) => s.resource ? `recurso \`${s.resource}\`${s.save_as ? ' → guarda em ' + s.save_as : ''}` : s.choose ? `escolher \`${s.choose.param}\` entre ${s.choose.from}` : s.collect ? 'coletar ' + s.collect.join(', ') : s.form ? 'formulário dinâmico' : s.confirm !== undefined ? 'confirmar (sim/não)' : s.compose ? 'redigir com o modelo' : 'passo');
   }
 
-  function desenharVinculos(vinculos) {
-    const so = $('#soQuebrados').checked;
-    const quebrados = vinculos.filter((v) => !v.ok).length;
-    $('#vinculosResumo').textContent = `${plural(vinculos.length, 'vínculo', 'vínculos')} · ${quebrados ? plural(quebrados, 'quebrado', 'quebrados') : 'todos resolvidos'}`;
-    const linhas = vinculos.filter((v) => !so || !v.ok).map((v) => {
-      const abre = v.origem && (v.origem.includes('/') || v.origem === 'persona.md' || v.origem === 'caso.yaml') && v.tipo !== 'subagente' && v.tipo !== 'recurso' ? `data-arquivo="${esc(v.origem)}"` : (v.tipo === 'subagente' || (v.tipo === 'rota' && v.ok && v.resolvido.startsWith('agentes/'))) ? `data-agente="${esc(v.resolvido)}"` : '';
-      return `<tr class="${v.ok ? '' : 'is-bad'} ${abre ? 'clicavel' : ''}" ${abre}><td><span class="led ${v.ok ? 'ok' : 'bad'}"></span></td><td><span class="tag tag-kind"><i data-lucide="${ICONE_VINC[v.tipo] || 'link'}" class="i-sm"></i>${esc(v.tipo)}</span></td><td><code>${esc(v.alvo)}</code></td><td class="muted mono">${esc(v.origem)}</td><td>${v.ok ? esc(v.resolvido || '') : `<span style="color:var(--danger)">${esc(v.problema)}</span>`}</td></tr>`;
-    }).join('');
-    $('#tabelaVinculos tbody').innerHTML = linhas || `<tr><td colspan="5" class="muted">${so ? 'nenhum vínculo quebrado' : 'nenhum vínculo encontrado'}</td></tr>`;
-    $$('#tabelaVinculos tr.clicavel').forEach((tr) => tr.addEventListener('click', () => tr.dataset.arquivo ? abrirArquivo(tr.dataset.arquivo) : selecionar(tr.dataset.agente)));
-    icons();
-  }
-  $('#soQuebrados').addEventListener('change', () => estado.ficha && desenharVinculos(estado.ficha.vinculos || []));
-
-  $('#formConfig').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = e.target;
+  // ---- salvar o agente (um botão só) --------------------------------------------
+  async function salvarAgente() {
+    if (!estado.selecionado) return;
+    const alt = alteracoes();
+    if (!alt.length) return toast('nada a salvar');
+    const a = estado.ficha.agente;
+    const f = $('#formConfig');
+    const feitos = [];
     try {
-      await api('/api/agente/config', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, campos: { nome: f.nome.value, tipo: f.tipo.value, descricao: f.descricao.value, modelo: f.modelo.value } }) });
-      toast('agent.yaml salvo');
-      await recarregarArvore();
-      await selecionar(estado.selecionado);
-    } catch (err) { toast(err.message, true); }
-  });
-  $('#btnSalvarPersona').addEventListener('click', async () => {
-    const texto = $('#personaTexto').value;
-    try {
-      if (!texto.trim()) {
-        if (estado.ficha.agente.persona) { await api(`/api/arquivo?agente=${encodeURIComponent(estado.selecionado)}&caminho=persona.md`, { method: 'DELETE' }); toast('persona.md removida'); }
-      } else {
-        await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho: 'persona.md', conteudo: texto }) });
-        toast('persona.md salva');
+      if (alt.includes('identidade')) {
+        await api('/api/agente/config', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, campos: { nome: f.nome.value, tipo: f.tipo.value, descricao: f.descricao.value, modelo: f.modelo.value } }) });
+        feitos.push('agent.yaml');
       }
-      await selecionar(estado.selecionado);
+      if (alt.includes('persona')) {
+        const texto = $('#personaTexto').value;
+        if (!texto.trim()) { if (a.persona) await api(`/api/arquivo?agente=${encodeURIComponent(estado.selecionado)}&caminho=persona.md`, { method: 'DELETE' }); }
+        else await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho: 'persona.md', conteudo: texto }) });
+        feitos.push('persona.md');
+      }
+      if (estado.editando && estado.arquivoSujo) {
+        await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho: estado.arquivo.caminho, conteudo: $('#editor').value }) });
+        estado.arquivoSujo = false;
+        estado.editando = false;
+        feitos.push(estado.arquivo.caminho);
+      }
+      toast(`salvo: ${feitos.join(', ')}`);
       await recarregarArvore();
+      await selecionar(estado.selecionado, true);
     } catch (err) { toast(err.message, true); }
-  });
+  }
+  $('#btnSalvarAgente').addEventListener('click', salvarAgente);
+  $('#formConfig').addEventListener('submit', (e) => { e.preventDefault(); salvarAgente(); });
+  document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's' && estado.selecionado) { e.preventDefault(); salvarAgente(); } });
   $('#btnExcluir').addEventListener('click', async () => {
     if (!estado.selecionado || !confirm(`Excluir a pasta ${estado.selecionado} com tudo dentro (inclusive subagentes)?`)) return;
     try {
       const r = await api('/api/agente?agente=' + encodeURIComponent(estado.selecionado), { method: 'DELETE' });
       toast('Agente excluído' + (r.mudancas.length ? ' · ' + r.mudancas.join('; ') : ''));
+      estado.ficha = null;
       await recarregarArvore();
       mostrarVisao();
     } catch (err) { toast(err.message, true); }
   });
   $('#btnExportar').addEventListener('click', () => { if (estado.selecionado) window.open('/api/agentes/exportar?agente=' + encodeURIComponent(estado.selecionado)); });
-  $('#btnSubagente').addEventListener('click', () => abrirNovo(estado.selecionado));
   $('#navHome').addEventListener('click', (e) => { e.preventDefault(); mostrarVisao(); });
 
-  // ---- arquivos ---------------------------------------------------------------
+  // ---- painel direito: a pasta ------------------------------------------------------
+  // o ancestral dono de um arquivo herdado (nome da pasta → caminho do agente)
+  function caminhoDoAncestral(nome) {
+    const partes = estado.selecionado.split('/agentes/');
+    for (let i = 0; i < partes.length; i++) {
+      const rel = partes.slice(0, i + 1).join('/agentes/');
+      if (rel.split('/').pop() === nome) return rel;
+    }
+    return '';
+  }
   function desenharArquivos() {
     const a = estado.ficha.agente;
-    const raiz = [{ caminho: 'agent.yaml', bytes: '' }];
-    if (a.persona) raiz.push({ caminho: 'persona.md', bytes: '' });
-    if (a.caso) raiz.push({ caminho: 'caso.yaml', bytes: '' });
+    const docs = new Map(((estado.ficha.conhecimento || {}).docs || []).map((d) => [d.caminho, d]));
+    const noPrompt = new Set((estado.ficha.indice || []).map((x) => x.caminho));
+    const raiz = [{ caminho: 'agent.yaml', bytes: '', resumo: 'identidade e recursos declarados' }];
+    if (a.persona) raiz.push({ caminho: 'persona.md', bytes: '', resumo: 'a voz do concierge' });
+    if (a.caso) raiz.push({ caminho: 'caso.yaml', bytes: '', resumo: 'passos determinísticos do caso de uso' });
     const grupos = [['raiz', 'var(--sl-blue)', raiz]];
     for (const cx of estado.anatomia.caixinhas) {
       const itens = [...(a.arquivos[cx.nome] || []), ...(a.herdados[cx.nome] || [])];
       if (itens.length) grupos.push([cx.nome, corDaCaixinha(cx.nome), itens]);
     }
-    $('#arvoreArquivos').innerHTML = grupos.map(([nome, cor, itens]) => `<div class="ft-group" id="ft-${nome}"><div class="cab"><span class="dot" style="background:${cor}"></span>${nome}</div>${itens.map((it) => `<div class="ft ${it.herdado_de ? 'herdado' : ''} ${it.caminho === estado.arquivoAtual ? 'is-active' : ''}" data-caminho="${esc(it.caminho)}" data-herdado="${esc(it.herdado_de || '')}" title="${esc(it.herdado_de ? `herdado de ${it.herdado_de}: edite no agente dono` : it.resumo || '')}"><span>${esc(it.caminho)}</span><span class="meta">${it.herdado_de ? 'herdado de ' + esc(it.herdado_de) : it.bytes !== '' ? it.bytes + ' b' : ''}</span></div>`).join('')}</div>`).join('');
-    $$('#arvoreArquivos .ft').forEach((d) => { if (!d.dataset.herdado) d.addEventListener('click', () => abrirArquivo(d.dataset.caminho)); });
+    const atual = estado.arquivo && estado.arquivo.caminho;
+    $('#arvoreArquivos').innerHTML = grupos.map(([nome, cor, itens]) => `<div class="ft-group" id="ft-${nome}"><div class="cab"><span class="dot" style="background:${cor}"></span>${nome}${nome === 'knowledge' || nome === 'assets' ? '<span class="muted" style="margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0">● no prompt · lido com ler_dado</span>' : ''}</div>${itens.map((it) => {
+      const d = docs.get(it.caminho);
+      const tag = d && d.tipo && d.tipo !== 'Doc' ? `<span class="tag ${TAG_OKF[d.tipo] || 'tag-kind'}">${esc(d.tipo)}</span>` : '';
+      const titulo = d && d.titulo && d.titulo !== it.caminho.split('/').pop() ? ` <span class="muted">${esc(d.titulo)}</span>` : '';
+      return `<div class="ft ${it.herdado_de ? 'herdado' : ''} ${noPrompt.has(it.caminho) ? 'no-prompt' : ''} ${it.caminho === atual ? 'is-active' : ''}" data-caminho="${esc(it.caminho)}" data-herdado="${esc(it.herdado_de || '')}" title="${esc(it.herdado_de ? `herdado de ${it.herdado_de}: leia aqui, edite no dono` : it.resumo || '')}"><span class="ft-nome"><i data-lucide="${ICONE_ARQ(it.caminho)}"></i>${esc(it.caminho)}${tag}${titulo}</span><span class="meta">${it.herdado_de ? 'herdado de ' + esc(it.herdado_de) : it.bytes !== '' ? it.bytes + ' b' : ''}</span></div>`;
+    }).join('')}</div>`).join('');
+    $$('#arvoreArquivos .ft').forEach((d) => d.addEventListener('click', () => abrirArquivo(d.dataset.caminho, d.dataset.herdado)));
+    icons();
   }
 
-  async function abrirArquivo(caminho) {
-    if (estado.arquivoSujo && !confirm('Há alterações não salvas. Descartar?')) return;
+  // abre um arquivo no visor (leitura humana); `editar` já entra no modo de edição
+  async function abrirArquivo(caminho, herdadoDe = '', silencioso = false, editar = false) {
+    if (!silencioso && estado.editando && estado.arquivoSujo && !confirm(`${estado.arquivo.caminho} tem alterações não salvas. Descartar?`)) return;
     mostrarAba('arquivos');
+    const dono = herdadoDe ? caminhoDoAncestral(herdadoDe) : estado.selecionado;
     try {
-      const r = await api(`/api/arquivo?agente=${encodeURIComponent(estado.selecionado)}&caminho=${encodeURIComponent(caminho)}`);
-      estado.arquivoAtual = caminho;
+      const r = await api(`/api/arquivo?agente=${encodeURIComponent(dono)}&caminho=${encodeURIComponent(caminho)}`);
+      estado.arquivo = { caminho, herdadoDe, dono, conteudo: r.conteudo };
+      estado.editando = false;
       estado.arquivoSujo = false;
-      const ed = $('#editor');
-      ed.value = r.conteudo;
-      ed.disabled = false;
-      $('#arquivoAtual').textContent = caminho;
-      $('#btnSalvarArquivo').disabled = false;
-      $('#btnExcluirArquivo').disabled = caminho === 'agent.yaml';
-      $$('#arvoreArquivos .ft').forEach((el) => el.classList.toggle('is-active', el.dataset.caminho === caminho));
-      $('.editor-card').scrollIntoView({ block: 'nearest' });
+      $('#arquivoAtual').textContent = (herdadoDe ? `${herdadoDe} / ` : '') + caminho;
+      $('#btnEditarArquivo').disabled = !!herdadoDe;
+      $('#btnExcluirArquivo').disabled = !!herdadoDe || caminho === 'agent.yaml';
+      $$('#arvoreArquivos .ft').forEach((el) => el.classList.toggle('is-active', el.dataset.caminho === caminho && (el.dataset.herdado || '') === (herdadoDe || '')));
+      if (editar && !herdadoDe) entrarEdicao(); else mostrarVisor();
+      if (!silencioso) $('.editor-card').scrollIntoView({ block: 'nearest' });
     } catch (err) { toast(err.message, true); }
   }
-  function fecharEditor() {
-    estado.arquivoAtual = null;
-    estado.arquivoSujo = false;
+  function mostrarVisor() {
+    const v = $('#visor');
     const ed = $('#editor');
-    ed.value = '';
-    ed.disabled = true;
+    estado.editando = false;
+    ed.hidden = true;
+    v.hidden = false;
+    $('#btnEditarArquivo').hidden = false;
+    $('#btnCancelarEdicao').hidden = true;
+    const { caminho, herdadoDe, conteudo } = estado.arquivo;
+    let html = herdadoDe ? `<p class="notice info herdado-aviso"><i data-lucide="git-branch"></i><span>Herdado de <b>${esc(herdadoDe)}</b>: este agente lê, mas quem edita é o dono. <a href="#" id="irAoDono">Abrir ${esc(herdadoDe)}</a>.</span></p>` : '';
+    html += renderizar(caminho, conteudo);
+    v.innerHTML = html;
+    $('#irAoDono')?.addEventListener('click', (e) => { e.preventDefault(); const dono = estado.arquivo.dono; const arq = estado.arquivo.caminho; selecionar(dono).then(() => abrirArquivo(arq)); });
+    $$('#visor a[data-abrir]').forEach((x) => x.addEventListener('click', (e) => { e.preventDefault(); abrirArquivo(resolverLink(caminho, x.dataset.abrir)); }));
+    v.scrollTop = 0;
+    icons();
+  }
+  function entrarEdicao() {
+    const ed = $('#editor');
+    estado.editando = true;
+    estado.arquivoSujo = false;
+    ed.value = estado.arquivo.conteudo;
+    ed.hidden = false;
+    $('#visor').hidden = true;
+    $('#btnEditarArquivo').hidden = true;
+    $('#btnCancelarEdicao').hidden = false;
+    ed.focus();
+    atualizarStatus();
+  }
+  function fecharVisor() {
+    estado.arquivo = null;
+    estado.editando = false;
+    estado.arquivoSujo = false;
+    $('#editor').hidden = true;
+    $('#editor').value = '';
+    $('#visor').hidden = false;
+    $('#visor').innerHTML = '<div class="empty-state"><i data-lucide="file-text"></i>Escolha um arquivo acima: o que é do agente (regras, workflow, conhecimento OKF, assets, evals) e o que ele herda da família.</div>';
     $('#arquivoAtual').textContent = 'nenhum arquivo';
-    $('#btnSalvarArquivo').disabled = true;
+    $('#btnEditarArquivo').hidden = false;
+    $('#btnEditarArquivo').disabled = true;
+    $('#btnCancelarEdicao').hidden = true;
     $('#btnExcluirArquivo').disabled = true;
+    icons();
   }
-  $('#editor').addEventListener('input', () => { estado.arquivoSujo = true; });
-  $('#editor').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); salvarArquivo(); } });
-  $('#btnSalvarArquivo').addEventListener('click', salvarArquivo);
-  async function salvarArquivo() {
-    if (!estado.arquivoAtual) return;
-    try {
-      await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho: estado.arquivoAtual, conteudo: $('#editor').value }) });
-      estado.arquivoSujo = false;
-      toast(`${estado.arquivoAtual} salvo`);
-      const atual = estado.arquivoAtual;
-      estado.ficha = await api('/api/agente?agente=' + encodeURIComponent(estado.selecionado));
-      desenharFicha();
-      desenharArquivos();
-      desenharNexus();
-      estado.arquivoAtual = atual;
-      await recarregarArvore();
-      carregarProjecao();
-    } catch (err) { toast(err.message, true); }
-  }
+  $('#btnEditarArquivo').addEventListener('click', () => { if (estado.arquivo && !estado.arquivo.herdadoDe) entrarEdicao(); });
+  $('#btnCancelarEdicao').addEventListener('click', () => { if (!estado.arquivoSujo || confirm('Descartar as alterações deste arquivo?')) { estado.arquivoSujo = false; mostrarVisor(); atualizarStatus(); } });
+  $('#editor').addEventListener('input', () => { estado.arquivoSujo = true; atualizarStatus(); });
   $('#btnExcluirArquivo').addEventListener('click', async () => {
-    if (!estado.arquivoAtual || !confirm(`Excluir ${estado.arquivoAtual}?`)) return;
+    if (!estado.arquivo || !confirm(`Excluir ${estado.arquivo.caminho}?`)) return;
     try {
-      await api(`/api/arquivo?agente=${encodeURIComponent(estado.selecionado)}&caminho=${encodeURIComponent(estado.arquivoAtual)}`, { method: 'DELETE' });
+      await api(`/api/arquivo?agente=${encodeURIComponent(estado.selecionado)}&caminho=${encodeURIComponent(estado.arquivo.caminho)}`, { method: 'DELETE' });
       toast('Arquivo excluído');
-      fecharEditor();
-      await selecionar(estado.selecionado);
+      fecharVisor();
+      await selecionar(estado.selecionado, true);
       await recarregarArvore();
     } catch (err) { toast(err.message, true); }
   });
+
+  // ---- leitura humana ---------------------------------------------------------------
+  function renderizar(caminho, texto) {
+    const nome = caminho.split('/').pop().toLowerCase();
+    if (nome.endsWith('.md')) return `<div class="md-view">${mdParaHtml(texto)}</div>`;
+    if (nome === 'glossary.yaml' || nome === 'glossario.yaml') {
+      const termos = ((estado.ficha.conhecimento || {}).termos || []).filter((t) => t.arquivo === caminho);
+      if (termos.length) return `<table class="res-table larga"><thead><tr><th>Termo</th><th>Sinônimos</th><th>Definição</th><th>Labels</th></tr></thead><tbody>${termos.map((t) => `<tr><td><b>${esc(t.display_name || t.id)}</b><div class="muted mono" style="font-size:11px">${esc(t.id)}</div></td><td class="muted">${esc(t.synonyms.join(', '))}</td><td>${esc(t.definition)}</td><td>${t.labels.map((l) => `<span class="tag tag-kind">${esc(l)}</span>`).join(' ')}</td></tr>`).join('')}</tbody></table>`;
+    }
+    if (/\.(png|jpe?g|gif|svg|webp)$/i.test(nome)) return `<p class="muted">imagem: ${esc(caminho)}</p>`;
+    return `<pre class="pre">${esc(texto)}</pre>`;
+  }
+  // um markdown pequeno, suficiente para os .md da pasta: frontmatter como etiquetas, títulos,
+  // listas, blocos de código, citações, negrito, código inline e links (os relativos abrem no visor)
+  function mdParaHtml(src) {
+    let texto = src.replace(/\r/g, '');
+    let html = '';
+    const fm = texto.match(/^---\n([\s\S]*?)\n---\n?/);
+    if (fm) {
+      texto = texto.slice(fm[0].length);
+      const campos = fm[1].split('\n').map((l) => l.match(/^([\w-]+):\s*(.*)$/)).filter(Boolean);
+      if (campos.length) html += `<div class="fm">${campos.map((m) => `<span><b>${esc(m[1])}</b> ${esc(m[2])}</span>`).join('')}</div>`;
+    }
+    const inline = (t) => esc(t)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, '$1<i>$2</i>')
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => /^(https?:|mailto:)/.test(u) ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : `<a href="#" data-abrir="${u}">${t}</a>`);
+    const linhas = texto.split('\n');
+    let i = 0, lista = null, par = [];
+    const flushPar = () => { if (par.length) { html += `<p>${inline(par.join(' '))}</p>`; par = []; } };
+    const flushLista = () => { if (lista) { html += `</${lista}>`; lista = null; } };
+    while (i < linhas.length) {
+      const l = linhas[i];
+      if (/^```/.test(l)) { flushPar(); flushLista(); const b = []; i++; while (i < linhas.length && !/^```/.test(linhas[i])) b.push(linhas[i++]); html += `<pre>${esc(b.join('\n'))}</pre>`; i++; continue; }
+      const h = l.match(/^(#{1,6})\s+(.*)$/);
+      if (h) { flushPar(); flushLista(); html += `<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`; i++; continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(l)) { flushPar(); flushLista(); html += '<hr>'; i++; continue; }
+      const ul = l.match(/^\s*[-*]\s+(.*)$/), ol = l.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (ul || ol) { flushPar(); const tipo = ul ? 'ul' : 'ol'; if (lista !== tipo) { flushLista(); html += `<${tipo}>`; lista = tipo; } html += `<li>${inline((ul || ol)[1])}</li>`; i++; continue; }
+      if (/^\s*>\s?/.test(l)) { flushPar(); flushLista(); html += `<blockquote>${inline(l.replace(/^\s*>\s?/, ''))}</blockquote>`; i++; continue; }
+      if (!l.trim()) { flushPar(); flushLista(); i++; continue; }
+      if (lista && /^\s{2,}\S/.test(l)) { html = html.replace(/<\/li>$/, ' ' + inline(l.trim()) + '</li>'); i++; continue; }
+      flushLista(); par.push(l.trim()); i++;
+    }
+    flushPar(); flushLista();
+    return html;
+  }
+  // link relativo ao documento → caminho a partir da pasta do agente (como o harness faz)
+  function resolverLink(doc, alvo) {
+    alvo = alvo.split('#')[0].split('?')[0];
+    if (!alvo) return doc;
+    if (/^(rules|workflows|routers|knowledge|assets|evals)\//.test(alvo) || alvo === 'agent.yaml' || alvo === 'caso.yaml' || alvo === 'persona.md') return alvo;
+    const partes = doc.split('/').slice(0, -1);
+    for (const p of alvo.split('/')) { if (p === '..') partes.pop(); else if (p && p !== '.') partes.push(p); }
+    return partes.join('/');
+  }
 
   async function criarComModelo(caminho) {
     try {
       const m = await api('/api/arquivo/modelo?caminho=' + encodeURIComponent(caminho));
       await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho, conteudo: m.conteudo }) });
       toast(`${caminho} criado`);
-      await selecionar(estado.selecionado);
-      await abrirArquivo(caminho);
+      await selecionar(estado.selecionado, true);
+      await abrirArquivo(caminho, '', false, true);
       await recarregarArvore();
     } catch (err) { toast(err.message, true); }
   }
@@ -501,7 +582,7 @@
   }
   function atualizarDicaCaixinha() {
     const cx = estado.anatomia.caixinhas.find((c) => c.nome === $('#formArquivo select[name=caixinha]').value);
-    $('#dicaCaixinha').innerHTML = cx ? `<i data-lucide="info"></i><span>${esc(cx.descricao)}${cx.ext.filter(Boolean).length ? ` Extensões: ${cx.ext.filter(Boolean).join(', ')}.` : ''}${cx.nome === 'knowledge' ? ' Subpastas sugeridas: domain/, questions/, conditions/, policies/.' : ''}</span>` : '';
+    $('#dicaCaixinha').innerHTML = cx ? `<i data-lucide="info"></i><span>${esc(cx.descricao)}${cx.ext.filter(Boolean).length ? ` Extensões: ${cx.ext.filter(Boolean).join(', ')}.` : ''}${cx.nome === 'knowledge' ? ' Subpastas sugeridas: domain/, questions/, conditions/, policies/; ou um pacote OKF v0.1 inteiro (index.md, conceitos, log.md).' : ''}</span>` : '';
     icons();
   }
   $('#formArquivo select[name=caixinha]').addEventListener('change', (e) => { atualizarDicaCaixinha(); $('#formArquivo input[name=nome]').value = SUGESTAO[e.target.value] || 'arquivo.md'; });
@@ -528,7 +609,7 @@
   }
   $$('.editor-bar .seg button').forEach((b) => b.addEventListener('click', () => mostrarAba(b.dataset.aba)));
 
-  // ---- drawers ------------------------------------------------------------------
+  // ---- drawers (o wizard de agente novo é o único lugar com caixinhas e subagentes) ----
   const abrir = (id) => { $('#' + id).hidden = false; icons(); };
   const fechar = (id) => { $('#' + id).hidden = true; };
   $$('[data-fecha]').forEach((b) => b.addEventListener('click', () => fechar(b.dataset.fecha)));
@@ -540,7 +621,7 @@
     $('#formImportar select[name=pai]').innerHTML = opcoes;
     $('#formNovo select[name=recursos]').innerHTML = (estado.nexus.recursos || []).filter((r) => !r.write).map((r) => `<option value="${esc(r.name)}">${esc(r.name)} — ${esc(r.description || r.kind)}</option>`).join('');
   }
-  // há um só concierge: o novo é sempre um caso de uso (subagente) dele
+  // há um só concierge: o novo é sempre um caso de uso (subagente) dele, salvo se o wizard mudar o "Onde"
   const raizConcierge = () => (estado.arvore[0] ? estado.arvore[0].caminho : '');
   function abrirNovo(pai) {
     const f = $('#formNovo');
@@ -550,7 +631,7 @@
     const padrao = new Set(['rules', 'workflows', 'knowledge', 'evals']);
     $('#novoCaixinhas').innerHTML = estado.anatomia.caixinhas.map((c) => `<label title="${esc(c.descricao)}"><input type="checkbox" name="cx" value="${c.nome}" ${padrao.has(c.nome) ? 'checked' : ''}><i data-lucide="${(ICONE_CX[c.nome] || ['folder'])[0]}"></i>${c.nome}/</label>`).join('');
     f.persona.checked = !pai;
-    $('#rotuloPersona').hidden = !!pai; // subagente herda a persona do primeiro nível
+    $('#rotuloPersona').hidden = !!pai; // só o concierge tem persona
     atualizarTipoNovo();
     $('#novoStatus').textContent = '';
     abrir('drawerNovo');
@@ -564,6 +645,7 @@
     if (sel.value === 'orquestrador' && !$('#formNovo select[name=pai]').value) $('#formNovo input[name=persona]').checked = true;
   }
   $$('#formNovo input[name=tipo]').forEach((r) => r.addEventListener('change', atualizarTipoNovo));
+  $('#formNovo select[name=pai]').addEventListener('change', (e) => { $('#rotuloPersona').hidden = !!e.target.value; $('#drawerNovoTitulo').textContent = e.target.value ? `Novo subagente de ${e.target.value.split('/').pop()}` : 'Novo agente'; });
   $('#btnNovo').addEventListener('click', () => abrirNovo(raizConcierge()));
   $('#btnNovo2').addEventListener('click', () => abrirNovo(raizConcierge()));
   $('#formNovo').addEventListener('submit', async (e) => {
