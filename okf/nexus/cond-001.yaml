@@ -214,8 +214,8 @@ recursos:
   kind: activity
   visibility: private
   write: true
-  description: 'Atividade cadastrada no workspace da administradora: abre uma vistoria técnica na unidade
-    (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com confirmação.'
+  description: 'Ação (atividade cadastrada no workspace da administradora): abre uma vistoria técnica na
+    unidade (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com confirmação.'
   params:
   - name: unidade_id
     type: string

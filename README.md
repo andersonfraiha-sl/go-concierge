@@ -75,12 +75,12 @@ fatos (`GET`/`DELETE /api/memoria?phone=`).
 ## Classes de recurso do Nexus
 
 O catálogo da account (`okf/nexus/<account>.yaml` ou o Nexus ao vivo) organiza os
-recursos em oito classes, pelo `kind`: **Leitura** (`api`/`database` que só leem),
+recursos em sete classes, pelo `kind`: **Leitura** (`api`/`database` que só leem),
 **Escrita** (`api`/`database` com `write: true`), **Conhecimento** (`knowledge`),
-**Memória** (`memory`), **Ação** (`action`: APIs que executam algo no mundo),
-**Agente** (`agent`: executor do Nexus que recebe um pedido e devolve um resultado),
-**Atividade** (`activity`: atividade cadastrada no workspace da administradora) e
-**Form** (`form`: procedimento externo, chamada pública via formulário). `write` é
+**Memória** (`memory`), **Ação** (`action`: APIs que executam algo no mundo; `activity`,
+uma atividade cadastrada no workspace da administradora, cai aqui também), **Agente**
+(`agent`: executor do Nexus que recebe um pedido e devolve um resultado) e **Form**
+(`form`: procedimento externo, chamada pública via formulário). `write` é
 ortogonal à classe: qualquer recurso com `write: true` só entra por um passo do
 `caso.yaml`, depois do `confirm`; os demais o agente declara em `agent.yaml → recursos`
 e chama com `chamar_recurso`.
@@ -103,9 +103,9 @@ e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
 ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
 ```
 
-Três áreas na barra: **Admin** (`/`, a administradora: seus condomínios e a matriz de
+Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
 casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
-`?administradora=<id>`), **Console** (`/console`, o emulador do ATENDE) e **Backdoor**
+`?administradora=<id>`) e **Backdoor**
 (`/backdoor`, nosso: casos de uso do concierge, `/backdoor/administradoras` com as
 administradoras e os condomínios de cada uma, `/backdoor/payloads` com o payload de
 cada recurso do Nexus por condomínio).

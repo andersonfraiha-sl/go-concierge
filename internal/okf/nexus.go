@@ -14,8 +14,9 @@ import (
 // e o que a identidade do usuário pode.
 
 // Tipos (kind) de recurso. Os quatro primeiros vêm do sl-concierge; os demais mapeiam o
-// resto do que o Nexus oferece: ações (APIs que executam algo), agentes executores,
-// atividades cadastradas no workspace e forms (procedimento externo, chamada pública).
+// resto do que o Nexus oferece: ações (APIs que executam algo; uma atividade cadastrada
+// no workspace é uma ação também), agentes executores e forms (procedimento externo,
+// chamada pública).
 const (
 	KindAPI       = "api"
 	KindDatabase  = "database"
@@ -30,7 +31,7 @@ const (
 // Classes, na ordem em que a interface as mostra. A classe é o que o recurso É para o
 // agente; `write` é ortogonal (um recurso de qualquer classe com write: true só entra
 // por um passo do caso.yaml, depois do confirm).
-var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", "agente", "atividade", "form"}
+var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", "agente", "form"}
 
 // Recurso é um item do catálogo de recursos de uma account no Nexus.
 type Recurso struct {
@@ -58,12 +59,10 @@ func (r Recurso) Classe() string {
 		return "conhecimento"
 	case KindMemory:
 		return "memoria"
-	case KindAction:
+	case KindAction, KindActivity:
 		return "acao"
 	case KindAgent:
 		return "agente"
-	case KindActivity:
-		return "atividade"
 	case KindForm:
 		return "form"
 	}

@@ -17,9 +17,8 @@
     escrita: ['Escrita', 'pen-line', 'gravam dados: só por passo do caso.yaml, depois do confirm'],
     conhecimento: ['Conhecimento', 'book-open', 'conteúdos oficiais da account (FAQ, regimento)'],
     memoria: ['Memória', 'brain', 'o que a account guarda sobre o morador'],
-    acao: ['Ação', 'zap', 'APIs que executam algo no mundo (avisar, acionar, disparar)'],
+    acao: ['Ação', 'zap', 'APIs que executam algo no mundo (avisar, acionar) e atividades cadastradas no workspace'],
     agente: ['Agente', 'bot', 'agente executor do Nexus: recebe um pedido e devolve um resultado'],
-    atividade: ['Atividade', 'clipboard-check', 'atividade cadastrada no workspace da administradora'],
     form: ['Form', 'file-input', 'procedimento externo: chamada pública via formulário'],
   };
   const KIND_ICON = { api: 'plug', database: 'database', knowledge: 'book-open', memory: 'brain', agent: 'bot', action: 'zap', activity: 'clipboard-check', form: 'file-input' };
@@ -205,15 +204,21 @@
     const grupos = {};
     for (const r of vis) (grupos[r.classe || classeDe(r)] ||= []).push(r);
     const assinatura = (r) => (r.params || []).length ? r.params.map((p) => `${p.name}${p.type ? ':' + p.type : ''}${p.required ? '*' : ''}`).join(', ') : 'sem parâmetros';
-    el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<div class="cat-group"><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}<span class="muted" style="font-weight:400;margin-left:6px">${CLASSE[k][2]}</span></div>` + grupos[k].map((r) => `<div class="cat-card" data-nome="${esc(r.name)}">
+    let fechados = {};
+    try { fechados = JSON.parse(localStorage.getItem('okf.catalogo.fechados') || '{}'); } catch (e) { /* sem storage */ }
+    el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<details class="cat-details" data-classe="${k}" ${fechados[k] && !q ? '' : 'open'}><summary class="cat-group"><i data-lucide="chevron-right" class="i-sm chev"></i><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}<span class="tag tag-kind">${grupos[k].length}</span><span class="muted" style="font-weight:400;margin-left:6px">${CLASSE[k][2]}</span></summary><div class="cat-body">` + grupos[k].map((r) => `<div class="cat-card" data-nome="${esc(r.name)}">
         <span class="res-icon ${r.write ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${KIND_ICON[r.kind] || 'plug'}"></i></span>
         <div class="ct"><strong>${esc(r.name)}</strong><span>${esc(r.description || r.kind)}</span><span class="assin">(${esc(assinatura(r))})${r.output ? ' → ' + esc(r.output) : ''}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${r.write ? '<span class="tag tag-write">write · só pelo caso.yaml</span>' : ''}</span></div>
         <span class="muted" style="font-size:11.5px">${r.write ? '<i data-lucide="list-checks" class="i-sm" title="entra por passo do caso.yaml"></i>' : ''}</span>
-      </div>`).join('')).join('');
+      </div>`).join('') + '</div></details>').join('');
+    $$('details.cat-details', el).forEach((d) => d.addEventListener('toggle', () => {
+      fechados[d.dataset.classe] = !d.open;
+      try { localStorage.setItem('okf.catalogo.fechados', JSON.stringify(fechados)); } catch (e) { /* sem storage */ }
+    }));
     icons();
   }
   $('#filtroRecursos').addEventListener('input', desenharNexus);
-  function classeDe(r) { return ({ knowledge: 'conhecimento', memory: 'memoria', action: 'acao', agent: 'agente', activity: 'atividade', form: 'form' })[r.kind] || (r.write ? 'escrita' : 'leitura'); }
+  function classeDe(r) { return ({ knowledge: 'conhecimento', memory: 'memoria', action: 'acao', activity: 'acao', agent: 'agente', form: 'form' })[r.kind] || (r.write ? 'escrita' : 'leitura'); }
 
   // ---- ficha ------------------------------------------------------------------
   // o que mudou e ainda não foi salvo: identidade, persona ou o arquivo em edição

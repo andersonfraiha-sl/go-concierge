@@ -523,3 +523,14 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .catalogo-central .cat-card { grid-template-columns: 36px 1fr auto; cursor: default; }
 .catalogo-central .cat-card .assin { font-family: var(--font-mono); font-size: 11.5px; color: var(--slate-500); }
 .catalogo-central .cat-card .usam { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; max-width: 260px; }
+
+/* grupos retráteis do catálogo */
+.cat-details { border-top: 1px solid var(--slate-100); padding-top: 6px; }
+.cat-details:first-child { border-top: 0; padding-top: 0; }
+.cat-details > summary { list-style: none; cursor: pointer; user-select: none; padding: 6px 4px; border-radius: 6px; }
+.cat-details > summary::-webkit-details-marker { display: none; }
+.cat-details > summary:hover { background: var(--canvas); }
+.cat-details > summary .chev { transition: transform .15s; color: var(--slate-400); }
+.cat-details[open] > summary .chev { transform: rotate(90deg); }
+.cat-details > summary .tag { margin-left: 4px; }
+.cat-body { display: grid; gap: 6px; padding: 4px 0 8px; }

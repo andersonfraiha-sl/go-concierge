@@ -365,13 +365,15 @@ func TestClassesDeRecurso(t *testing.T) {
 		"memoria":      {Kind: KindMemory},
 		"acao":         {Kind: KindAction, Write: true},
 		"agente":       {Kind: KindAgent},
-		"atividade":    {Kind: KindActivity, Write: true},
 		"form":         {Kind: KindForm, Visibility: "public"},
 	}
 	for quer, r := range casos {
 		if r.Classe() != quer {
 			t.Errorf("%+v: classe %s, queria %s", r, r.Classe(), quer)
 		}
+	}
+	if (Recurso{Kind: KindActivity, Write: true}).Classe() != "acao" {
+		t.Error("atividade do workspace é uma ação")
 	}
 	if len(Classes) != len(casos) {
 		t.Fatalf("Classes: %v", Classes)
