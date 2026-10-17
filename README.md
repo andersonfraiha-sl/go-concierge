@@ -50,6 +50,18 @@ Duas regras duras, herdadas do harness Python `adam`:
 - **Fronteira**: um agente só referencia a própria pasta ou um ancestral. Irmão, sobrinho
   e fora da árvore são proibidos.
 
+## O Console: emulador do ATENDE
+
+Em `/console`. O ATENDE manda um evento por webhook a cada mensagem do morador
+(`com.echo.atende.user.protocol.created`, com protocolo, contato, canal e mensagem); o
+concierge identifica o telefone no **Gruvi** (token client-credentials + BFF por
+`filter[mobile-number]`), roda o agente de primeiro nível e responde ao protocolo. O
+Console forja esse evento, manda a `POST /webhook/atende` e mostra a conversa no
+telefone, a identidade (unidades do Gruvi), a rota com tokens e a caixa de saída.
+Configuração no `.env`: `GRUVI_CLIENT_BASIC`, `GRUVI_COMPANY_ID` (e as URLs de staging
+por padrão), `ATENDE_WEBHOOK_TOKEN`, `ATENDE_REPLY_URL` (envio ao ATENDE, contrato a
+confirmar).
+
 ## A interface (okf-admin)
 
 ```bash
@@ -94,6 +106,9 @@ instala uma pasta inteira.
 | GET | `/api/arquivo/modelo?caminho=` | conteúdo inicial para um arquivo novo |
 | GET | `/api/projecao?agente=` | system prompt compilado e roteador |
 | GET | `/api/nexus/recursos` | os recursos da account (Nexus ao vivo ou instantâneo) |
+| POST | `/webhook/atende` | o evento do ATENDE; 202 e processamento em segundo plano |
+| GET | `/api/atende/sessao?protocolo=` | a conversa do protocolo (turnos, identidade, rota) e a caixa de saída |
+| GET | `/api/atende/identidade?phone=` | consulta a identidade no Gruvi |
 | POST | `/api/agente/recursos` | `{agente, nome, ligar}`: declara ou tira um recurso em `agent.yaml → recursos` |
 
 ## O harness Eino (okf-run)

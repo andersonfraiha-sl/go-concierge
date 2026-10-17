@@ -1,11 +1,12 @@
-// okf-admin: a interface de cadastro de skills (agentes e subagentes) no formato de
-// pasta, com os vínculos internos (assets, conhecimento, rotas, subagentes) e as
-// declarações de recursos do Nexus.
+// okf-admin: o servidor do concierge em desenvolvimento. Serve o Admin (cadastro de
+// skills em pasta, com vínculos e declarações de recursos do Nexus), o Console
+// (emulador do ATENDE) e o webhook do ATENDE.
 //
 //	okf-admin -root ./okf -addr 127.0.0.1:8090
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
 // sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
+// A identidade do morador vem do Gruvi (GRUVI_CLIENT_BASIC, GRUVI_COMPANY_ID).
 package main
 
 import (
@@ -24,7 +25,10 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/atende"
 	"go-concierge/internal/env"
+	"go-concierge/internal/gruvi"
+	"go-concierge/internal/harness"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 	"go-concierge/web"
@@ -35,14 +39,33 @@ type servidor struct {
 	web     fs.FS
 	account string
 	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
+	log     *log.Logger
+
+	// canal ATENDE (webhook + emulador no Console)
+	atende        *atende.Servico
+	outbox        *atende.Outbox
+	gruvi         *gruvi.Client
+	gruviOK       bool
+	gruviTokenURL string
+	gruviBFF      string
+	gruviCompany  string
+	webhookToken  string
+	replyURL      string
+	provedor      string
 }
+
+var (
+	errUnauthorized  = errors.New("não autorizado")
+	errNaoEncontrado = errors.New("protocolo não encontrado")
+	errTelefone      = errors.New("informe phone")
+)
 
 func main() {
 	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
-	dotenv := flag.String("env", ".env", "arquivo NOME=valor (NEXUS_BASE_URL, NEXUS_TOKEN, DEFAULT_ACCOUNT_ID)")
+	dotenv := flag.String("env", ".env", "arquivo NOME=valor (LLM_MODE e chaves, NEXUS_*, DEFAULT_ACCOUNT_ID, GRUVI_*, ATENDE_*)")
 	flag.Parse()
 	env.Carregar(*dotenv)
 
@@ -53,7 +76,7 @@ func main() {
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
 	cli := nexus.New(os.Getenv("NEXUS_BASE_URL"), os.Getenv("NEXUS_TOKEN"))
 	cat.Recursos = nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma"}
+	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default()}
 	switch {
 	case cli.BaseURL != "":
 		s.nexus = cli.BaseURL
@@ -63,10 +86,28 @@ func main() {
 	if *webDir != "" {
 		s.web = os.DirFS(*webDir)
 	}
+
+	// canal ATENDE: identidade pelo Gruvi, concierge pelo harness, resposta pela caixa de saída
+	s.gruvi = gruvi.New(os.Getenv("GRUVI_TOKEN_URL"), os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_CLIENT_BASIC"), os.Getenv("GRUVI_COMPANY_ID"))
+	s.gruviOK, s.gruviTokenURL, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.TokenURL, s.gruvi.BFFURL, s.gruvi.CompanyID
+	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
+	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
+	s.outbox = &atende.Outbox{}
+	if s.replyURL != "" {
+		s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
+	}
+	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
+	s.atende = &atende.Servico{
+		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,
+		Config: harness.Config{Nexus: cli, Env: os.Getenv},
+		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
+	}
+
 	mux := http.NewServeMux()
 	s.rotas(mux)
+	s.rotasAtende(mux)
 
-	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · http://%s", cat.Root, account, s.nexus, *addr)
+	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · modelo: %s · gruvi: %v · http://%s", cat.Root, account, s.nexus, s.provedor, s.gruviOK, *addr)
 	if *abrir {
 		go func() {
 			time.Sleep(300 * time.Millisecond)

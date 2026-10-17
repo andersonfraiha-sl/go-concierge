@@ -79,7 +79,34 @@ ficha. O texto abaixo descreve a anatomia como ficou.
 - Agentes já cadastrados em `okf/`: **concierge** (orquestrador) com os subagentes
   **observador-sessao** (1.6), **regimento** e **faq**.
 
-### 1.3 Canal: emulação do ATENDE
+### 1.3 Canal: emulação do ATENDE (contrato real recebido em 2026-10-17)
+
+**O que o usuário instruiu.** O ATENDE manda um **evento por webhook** a cada mensagem
+do morador (CloudEvents, `com.echo.atende.user.protocol.created`), com `tenant`,
+`data.protocol.number` (o protocolo da conversa), `data.contact.{phone,name}`,
+`data.channel` (WhatsApp, waba) e `data.message.content`. A identidade do morador vem
+do **Gruvi**: `POST GRUVI_TOKEN_URL` com `Authorization: Basic <client>` e
+`grant_type=client_credentials` → `access_token`; depois
+`GET GRUVI_BFF_URL/building-operation/companies/{GRUVI_COMPANY_ID}?filter[mobile-number]={phone}`
+com o Bearer → condomínio e unidades (`id_fastpass`, bloco, morador). O telefone do
+contato do evento é o que vai no filtro.
+
+**Implementado:** `internal/gruvi` (token com cache + identidade por telefone),
+`internal/atende` (evento, sessão por protocolo com histórico, serviço que identifica,
+roda o agente de primeiro nível pelo harness e responde pelo `Sender`), webhook
+`POST /webhook/atende` (202 e processamento em segundo plano; `ATENDE_WEBHOOK_TOKEN`
+opcional) e o **Console** (`/console`): o emulador forja o evento exatamente nesse
+formato, manda ao webhook e mostra a conversa, a identidade, a rota e a caixa de saída.
+Testado com o Gruvi de staging (telefone de exemplo → Vanderlei, unidade Jataí) e
+Gemini.
+
+**Em aberto:** como o concierge **responde** ao ATENDE (o endpoint de envio ao
+protocolo). Hoje a resposta vai à caixa de saída do Console e, se `ATENDE_REPLY_URL`
+estiver definida, a um `POST {protocol, message}` provisório. Também: eventos de
+mensagens seguintes no mesmo protocolo (nome do evento), encerramento e transferência
+ao atendente humano no contrato do ATENDE.
+
+Texto anterior (referência D13, canal síncrono), mantido como histórico:
 
 - O projeto **emula a chamada ao sistema ATENDE** da Superlógica. Os detalhes do
   emulador serão passados pelo usuário **em instruções futuras**; não inventar o
@@ -283,7 +310,10 @@ do emulador do ATENDE (1.3); depois, na ordem, o harness Eino (tools + projeçã
 agentes OKF), a sessão com pendências, o catálogo de casos de uso YAML e o Admin da
 administradora (1.4), que passa a incluir esta interface como a seção "Skills".
 
-## 7. Interface de cadastro de skills (okf-admin)
+## 7. Interface: Admin e Console (okf-admin)
+
+A barra tem só **Admin** (o cadastro de skills abaixo) e **Console** (o emulador do
+ATENDE, seção 1.3).
 
 `cmd/okf-admin` serve `web/okf` (embutida) e fala com `internal/okf`. Rodar:
 `./build.sh` e `./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open`.

@@ -366,6 +366,60 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .toast.is-error { background: var(--danger); }
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 4px) scale(.98); } }
 
+/* ---------- Console (emulador do ATENDE) ---------- */
+.workspace { display: grid; grid-template-columns: 320px minmax(360px, 420px) minmax(0, 1fr); gap: 20px; padding: 20px 24px; height: calc(100vh - var(--topbar-h)); }
+.workspace > * { min-width: 0; min-height: 0; }
+.panel { background: var(--surface); border-radius: var(--r-xl); box-shadow: var(--shadow-sm); overflow: hidden; display: flex; flex-direction: column; }
+.panel.side { overflow-y: auto; padding: 8px 0; }
+.block { padding: 16px 20px; }
+.block + .block { border-top: 1px solid var(--slate-100); }
+.block-head { display: grid; gap: 2px; margin-bottom: 12px; }
+.block-head h2 { font-size: 15px; font-weight: 600; }
+.block-sub { font-size: 12px; color: var(--slate-400); }
+.persona { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--slate-100); border-radius: var(--r-md); background: var(--surface); }
+.persona-info { display: grid; min-width: 0; flex: 1; }
+.persona-name { font-weight: 600; font-size: 14px; }
+.persona-meta { font-size: 12px; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; font-family: var(--font-display); font-weight: 600; font-size: 13px; color: #fff; background: var(--slate-500); }
+.avatar-bot { background: var(--sl-blue); }
+.sub.is-on { border-color: var(--sl-blue); background: var(--sl-blue-50); }
+.stage { display: flex; flex-direction: column; align-items: center; }
+.stage-caption { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--slate-600); margin-bottom: 10px; }
+.dot-live { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px rgba(27, 153, 59, .15); }
+.phone { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 36px; background: var(--surface); border: 8px solid var(--ink); box-shadow: 0 30px 60px -20px rgba(7, 25, 80, .35), 0 10px 20px -10px rgba(7, 25, 80, .2); overflow: hidden; }
+.phone-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--sl-navy); color: #fff; }
+.phone-title { display: grid; line-height: 1.3; min-width: 0; }
+.phone-title strong { font-family: var(--font-display); font-weight: 600; font-size: 15px; }
+.phone-title span { font-size: 12px; color: var(--sl-sky); }
+.icon-btn { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .08); border: 0; color: #fff; cursor: pointer; }
+.icon-btn:hover { background: rgba(255, 255, 255, .18); }
+.chat { flex: 1; overflow-y: auto; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 6px; background: radial-gradient(circle at 1px 1px, rgba(7, 25, 80, .05) 1px, transparent 0) 0 0 / 18px 18px, var(--canvas); }
+.day { align-self: center; margin: 4px 0 8px; padding: 3px 10px; border-radius: 999px; background: var(--surface); font-size: 11px; color: var(--slate-500); box-shadow: var(--shadow-sm); }
+.bubble { max-width: 84%; padding: 8px 12px 6px; border-radius: 16px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; box-shadow: var(--shadow-sm); animation: pop .2s ease-out; }
+.bubble time { display: block; text-align: right; font-size: 10.5px; margin-top: 2px; opacity: .65; }
+.bubble.bot { align-self: flex-start; background: var(--surface); color: var(--ink); border-top-left-radius: 4px; }
+.bubble.user { align-self: flex-end; background: var(--sl-blue); color: #fff; border-top-right-radius: 4px; }
+.bubble.is-erro { background: var(--danger-50); color: #8A1516; }
+.bubble-agente { display: block; font-size: 10.5px; font-weight: 700; color: var(--sl-blue); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: 12px 14px; border-radius: 16px; border-top-left-radius: 4px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--slate-400); animation: blink 1.2s infinite ease-in-out; }
+.typing span:nth-child(2) { animation-delay: .15s; }
+.typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.compose { display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--slate-100); }
+.compose textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; padding: 10px 12px; border-radius: 20px; border: 1px solid var(--slate-200); font: inherit; font-size: 14px; background: var(--canvas); }
+.compose textarea:focus { outline: none; border-color: var(--sl-blue); box-shadow: 0 0 0 3px rgba(16, 52, 242, .12); }
+.send { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--sl-blue); color: #fff; display: grid; place-items: center; cursor: pointer; flex: none; }
+.send:hover { background: var(--sl-blue-700); }
+.send[disabled] { opacity: .5; cursor: wait; }
+.bastidores .guias { display: flex; border-bottom: 1px solid var(--slate-100); }
+.bastidores .guia { flex: 1; border: 0; background: transparent; padding: 12px; cursor: pointer; color: var(--slate-500); font: inherit; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; }
+.bastidores .guia.is-active { color: var(--sl-blue); border-bottom-color: var(--sl-blue); font-weight: 600; }
+.aba-conteudo { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.aba-conteudo .pre { flex: 1; }
+.aba-conteudo .notice { margin: 0; }
+@media (max-width: 1180px) { .workspace { grid-template-columns: 1fr; height: auto; } .phone { min-height: 520px; } }
+
 @media (max-width: 1180px) { .editor-layout { grid-template-columns: 1fr; } .sticky { position: static; } .layers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; } .layer { margin-right: 0; } .layer::after { display: none; } }
 @media (max-width: 760px) {
   body.admin { overflow: auto; }
