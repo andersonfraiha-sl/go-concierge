@@ -53,6 +53,9 @@ type Recurso struct {
 	// Saida mapeia o retorno em campos nomeados (caminho no JSON devolvido), para o
 	// agente e a indexação semântica saberem o que vem de volta.
 	Saida []SaidaCampo `json:"saida,omitempty" yaml:"saida,omitempty"`
+	// Amostra é o retorno que o mock devolve quando não há Nexus no ar (o emulador
+	// funciona inteiro sem integração). Escrita sem amostra devolve um protocolo gerado.
+	Amostra any `json:"amostra,omitempty" yaml:"amostra,omitempty"`
 	// Definicoes são os ajustes que um condomínio pode dar a este recurso (antecedência
 	// mínima, horário, código da empresa…): o Admin os mostra como formulário, em
 	// linguagem de administradora, e grava no payload do condomínio. Sem definições,

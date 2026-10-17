@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -313,9 +314,17 @@ func TestChamarRecursoSemNexus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// sem cliente, o mock do concierge responde pela amostra do catálogo
 	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "faq.buscar", "params": map[string]any{"query": "x"}})
-	if !strings.Contains(erroDe(out), "Nexus indisponível") {
-		t.Errorf("sem cliente deveria dizer Nexus indisponível; veio %v", out)
+	if erroDe(out) != "" || out["origem"] != "mock" || out["resultado"] == nil {
+		t.Errorf("sem cliente o mock deveria responder pela amostra; veio %v", out)
+	}
+	// escrita sem amostra: protocolo gerado, pelo caso (o pai declara visitantes.liberar)
+	out = chama(t, ag, "chamar_recurso", map[string]any{"nome": "visitantes.liberar", "params": map[string]any{"unidade_id": "1", "nome": "Ana", "telefone": "1"}})
+	if erroDe(out) == "" {
+		if res, _ := out["resultado"].(map[string]any); res == nil || !strings.HasPrefix(fmt.Sprint(res["protocolo"]), "MOCK-") {
+			t.Errorf("escrita sem amostra deveria devolver protocolo MOCK-: %v", out)
+		}
 	}
 }
 
@@ -442,11 +451,12 @@ func TestRecursoLocalNaoDependeDoNexus(t *testing.T) {
 	if len(lista) != 1 || lista[0]["id"] != "109" {
 		t.Fatalf("resultado: %+v", out["resultado"])
 	}
-	// sem o local, o mesmo pedido cai no "Nexus indisponível"
+	// sem o local e sem Nexus, o mock do concierge responde pela amostra do catálogo
 	cfg.Locais = nil
 	ag2, _ := Build(context.Background(), cat, a, cfg)
-	if out, _ := ag2.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"}); out["error"] == nil {
-		t.Fatalf("sem Nexus e sem local deveria dar erro: %+v", out)
+	out2, _ := ag2.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
+	if out2["error"] != nil || out2["origem"] != "mock" {
+		t.Fatalf("sem Nexus o mock deveria responder: %+v", out2)
 	}
 }
 

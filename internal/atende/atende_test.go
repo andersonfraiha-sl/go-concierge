@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
@@ -141,5 +142,12 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	s3, err := svc2.Processar(context.Background(), ev)
 	if err != nil || s3.Identidade.Authenticated || s3.IdentErro != "bff fora" {
 		t.Fatalf("%v %+v", err, s3.Identidade)
+	}
+}
+
+func TestContextoDeAgora(t *testing.T) {
+	c := contextoDeAgora(time.Date(2026, 10, 17, 20, 5, 0, 0, time.Local))
+	if !strings.Contains(c, "sábado, 17 de outubro de 2026, 20:05") {
+		t.Fatalf("agora: %s", c)
 	}
 }

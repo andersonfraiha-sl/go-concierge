@@ -179,6 +179,9 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		}
 	}
 
+	// data e hora de agora: sem isso o modelo chuta o ano ao converter "sábado" em data
+	contexto = append(contexto, contextoDeAgora(time.Now()))
+
 	// identidade do Gruvi: entra no prompt em toda troca e resolve unidades.listar sem Nexus
 	if c := contextoDeIdentidade(sess.Identidade); c != "" {
 		contexto = append(contexto, c)
@@ -309,6 +312,17 @@ func (s *Servico) identificar(ctx context.Context, phone string) (gruvi.Identida
 		return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, err.Error()
 	}
 	return id, ""
+}
+
+var diasSemana = []string{"domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"}
+var meses = []string{"", "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"}
+
+// contextoDeAgora: a data e a hora atuais, no fuso local, para datas relativas
+// ("sábado", "amanhã", "dia 12") virarem AAAA-MM-DD certos.
+func contextoDeAgora(t time.Time) string {
+	t = t.Local()
+	return fmt.Sprintf("# Agora\n\nHoje é %s, %d de %s de %d, %02d:%02d (%s). Datas relativas do morador (amanhã, sábado, dia 12) contam a partir de hoje e vão para os recursos como AAAA-MM-DD; confirme a data por extenso com ele.",
+		diasSemana[t.Weekday()], t.Day(), meses[t.Month()], t.Year(), t.Hour(), t.Minute(), t.Format("-07:00"))
 }
 
 // contextoDeIdentidade: quem é o morador, para toda a família (o canal já sabe; o

@@ -99,6 +99,12 @@ nome, tipo, visibilidade, efeito (`write`), descrição, **conexão** (método, 
 com caminho no JSON). Fica em `conexao` e `saida` no YAML, documental: quem executa é o
 Nexus/MCP. Com o Nexus ao vivo, a edição é recusada (o dono é o Nexus).
 
+**Mock do concierge.** Sem `NEXUS_BASE_URL`, `chamar_recurso` responde pela `amostra` que
+cada recurso traz no instantâneo (editável no lápis); escrita sem amostra devolve um
+protocolo gerado (`MOCK-000123`) ecoando os params. `unidades.listar` vem da identidade
+do Gruvi. Assim o emulador roda inteiro sem integração; depois, com o Nexus no ar, nada
+muda no agente.
+
 ## Pacotes OKF v0.1
 
 A caixinha `knowledge/` lê um pacote do [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)

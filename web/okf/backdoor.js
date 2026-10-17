@@ -235,6 +235,7 @@
     if (r) {
       f.name.value = r.name; f.titulo.value = r.titulo || ''; f.kind.value = r.kind || 'api'; f.visibility.value = r.visibility || 'private'; f.write.checked = !!r.write; f.description.value = r.description || '';
       f.metodo.value = (r.conexao && r.conexao.metodo) || ''; f.url.value = (r.conexao && r.conexao.url) || ''; f.corpo.value = (r.conexao && r.conexao.corpo) || ''; f.output.value = r.output || '';
+      f.amostra.value = r.amostra === undefined || r.amostra === null ? '' : JSON.stringify(r.amostra, null, 2);
     }
     const h = (r && r.conexao && r.conexao.headers) || {};
     $('#tabHeaders tbody').innerHTML = Object.keys(h).map((k) => linhaHeader(k, h[k])).join('');
@@ -260,7 +261,9 @@
     const conexao = { metodo: f.metodo.value, url: f.url.value.trim(), headers, corpo: f.corpo.value.trim() };
     const temConexao = conexao.metodo || conexao.url || Object.keys(headers).length || conexao.corpo;
     const original = estado.nexus.recursos.find((r) => r.name === f.dataset.original);
-    return { name: f.name.value.trim(), titulo: f.titulo.value.trim(), kind: f.kind.value, visibility: f.visibility.value, write: f.write.checked, description: f.description.value.trim(), params, output: f.output.value.trim(), conexao: temConexao ? conexao : null, saida, definicoes: (original && original.definicoes) || [] };
+    let amostra = null;
+    if (f.amostra.value.trim()) { try { amostra = JSON.parse(f.amostra.value); } catch (err) { throw new Error('amostra não é JSON válido: ' + err.message); } }
+    return { amostra, name: f.name.value.trim(), titulo: f.titulo.value.trim(), kind: f.kind.value, visibility: f.visibility.value, write: f.write.checked, description: f.description.value.trim(), params, output: f.output.value.trim(), conexao: temConexao ? conexao : null, saida, definicoes: (original && original.definicoes) || [] };
   }
   async function recarregarNexus() {
     estado.nexus = await api('/api/nexus/recursos');
@@ -271,7 +274,8 @@
     e.preventDefault();
     const f = e.target;
     try {
-      await api('/api/nexus/recurso', { method: 'PUT', body: JSON.stringify({ original: f.dataset.original, recurso: lerRecursoDoForm() }) });
+      const recurso = lerRecursoDoForm();
+      await api('/api/nexus/recurso', { method: 'PUT', body: JSON.stringify({ original: f.dataset.original, recurso }) });
       fechar('drawerRecurso');
       toast(`${f.name.value.trim()} salvo no instantâneo`);
       await recarregarNexus();

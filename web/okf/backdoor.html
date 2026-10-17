@@ -265,6 +265,10 @@
         <table class="res-table larga tabela-edit" id="tabSaida" style="margin-top:8px"><thead><tr><th>Campo</th><th>Caminho no JSON</th><th>Tipo</th><th>Descrição</th><th></th></tr></thead><tbody></tbody></table>
         <button type="button" class="btn btn-ghost btn-sm" data-add="saida"><i data-lucide="plus" class="i-sm"></i>Campo de saída</button>
 
+        <h3 class="sec-titulo"><i data-lucide="flask-conical" class="i-sm"></i>Amostra de retorno <small class="muted">o que o mock devolve quando o Nexus não está no ar; JSON</small></h3>
+        <textarea class="field-area code" name="amostra" rows="4" spellcheck="false" placeholder='[{"id": "churrasqueira", "nome": "Churrasqueira"}]'></textarea>
+        <div class="muted" style="font-size:12px;margin-top:4px">Vazio: leitura devolve lista vazia; escrita devolve um protocolo gerado.</div>
+
         <div class="form-actions"><button type="button" class="btn btn-danger" id="btnRemoverRecurso" hidden><i data-lucide="trash-2"></i><span>Remover</span></button><span class="muted" id="recursoStatus" style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar recurso</span></button></div>
       </form>
     </aside>
@@ -284,6 +288,6 @@
     </aside>
   </div>
 
-  <script src="/backdoor.js?v=10"></script>
+  <script src="/backdoor.js?v=11"></script>
 </body>
 </html>

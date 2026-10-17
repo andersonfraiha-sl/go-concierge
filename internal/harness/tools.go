@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"sort"
@@ -114,6 +115,21 @@ func paginar(caminho, texto string, pagina int) saida {
 		"tem_mais": pagina < paginas,
 		"conteudo": string(r[ini:fim]),
 	}
+}
+
+// amostraDe: o retorno do mock. Leitura devolve a amostra do catálogo (ou lista vazia);
+// escrita devolve a amostra ou um protocolo gerado, ecoando os params recebidos.
+func amostraDe(r okf.Recurso, params map[string]any, sessao string) any {
+	if r.Amostra != nil {
+		return r.Amostra
+	}
+	if r.Write {
+		h := fnv.New32a()
+		h.Write([]byte(sessao + "|" + r.Name + "|" + fmt.Sprint(params)))
+		out := map[string]any{"protocolo": fmt.Sprintf("MOCK-%06d", h.Sum32()%1000000), "status": "registrado", "params": params}
+		return out
+	}
+	return []any{}
 }
 
 // ---- abrir_workflow -------------------------------------------------------
@@ -287,7 +303,20 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 	}
 	cli := ag.cfg.Nexus
 	if cli == nil || cli.BaseURL == "" {
-		return erro("Nexus indisponível: não há como chamar %s agora; avise o morador", nome), nil
+		// sem Nexus no ar: o mock do concierge responde pela amostra do catálogo
+		if achado.Recurso == nil {
+			return erro("Nexus indisponível: não há como chamar %s agora; avise o morador", nome), nil
+		}
+		params := in.Params
+		if params == nil {
+			params = map[string]any{}
+		}
+		for k, v := range ag.cfg.Payloads[nome] {
+			if _, tem := params[k]; !tem {
+				params[k] = v
+			}
+		}
+		return saida{"recurso": nome, "resultado": amostraDe(*achado.Recurso, params, ag.cfg.sessao()), "origem": "mock"}, nil
 	}
 	if achado.Recurso != nil {
 		var faltam []string
