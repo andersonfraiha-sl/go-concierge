@@ -280,7 +280,10 @@ func TestArquivosConfigEVinculo(t *testing.T) {
 	if err := c.SalvarArquivo(faq, "rules/politicas.md", []byte("# Políticas\n\n- x\n")); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SalvarArquivo(faq, PersonaMD, []byte("# Persona\n")); err != nil {
+	if err := c.SalvarArquivo(faq, PersonaMD, []byte("# Persona\n")); err == nil {
+		t.Fatal("subagente não pode ter persona própria")
+	}
+	if err := c.SalvarArquivo("agentes/pai", PersonaMD, []byte("# Persona\n\n- nova\n")); err != nil {
 		t.Fatal(err)
 	}
 	for _, ruim := range []string{"../pai/agent.yaml", "agentes/x/agent.yaml", "rules/x.exe", "data/x.md", "mcps/x.yaml"} {
@@ -320,6 +323,22 @@ func TestArquivosConfigEVinculo(t *testing.T) {
 	}
 	if err := c.ExcluirArquivo(faq, "agent.yaml"); err == nil {
 		t.Fatal("não pode excluir o agent.yaml")
+	}
+	// persona.md perdido num subagente: ignorado, com aviso
+	os.WriteFile(filepath.Join(root, "agentes", "pai", "agentes", "faq", PersonaMD), []byte("# outra\n"), 0o644)
+	tree, _ := c.Tree()
+	f2 := Find(tree, faq)
+	if f2.PersonaDe != "pai" || strings.Contains(f2.Persona, "outra") {
+		t.Fatalf("subagente deveria usar a persona do pai: de=%q %q", f2.PersonaDe, f2.Persona)
+	}
+	achou := false
+	for _, p := range f2.Problemas {
+		if p.Onde == PersonaMD && p.Nivel == "aviso" {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Fatalf("faltou o aviso de persona ignorada: %+v", f2.Problemas)
 	}
 	if err := c.ExcluirArquivo(faq, PersonaMD); err != nil {
 		t.Fatal(err)

@@ -31,7 +31,7 @@ type NovoAgente struct {
 	Descricao string   `json:"descricao"`
 	Modelo    string   `json:"modelo"`
 	Caixinhas []string `json:"caixinhas"` // quais criar com arquivo-modelo
-	Persona   bool     `json:"persona"`   // cria persona.md (padrão para orquestrador)
+	Persona   bool     `json:"persona"`   // cria persona.md (só no primeiro nível; padrão para orquestrador)
 	Caso      bool     `json:"caso"`      // cria caso.yaml
 	Recursos  []string `json:"recursos"`  // nomes do Nexus declarados
 }
@@ -92,7 +92,7 @@ func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
 		mudancas = append(mudancas, rel+"/"+nome)
 		return nil
 	}
-	if n.Persona || (tipo == Orquestrador && paiDir == "") {
+	if paiDir == "" && (n.Persona || tipo == Orquestrador) {
 		if err := escreve(PersonaMD, ModeloPersona(n)); err != nil {
 			return "", nil, err
 		}
@@ -187,6 +187,10 @@ func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 		var m map[string]any
 		if err := yaml.Unmarshal(conteudo, &m); err != nil {
 			return fmt.Errorf("agent.yaml inválido: %w", err)
+		}
+	case PersonaMD:
+		if ancs := Ancestrais(dir); len(ancs) > 0 {
+			return fmt.Errorf("persona só existe no agente de primeiro nível (%s); os subagentes herdam", filepath.Base(ancs[len(ancs)-1]))
 		}
 	case CasoYAML:
 		if _, err := ParseCaso(conteudo); err != nil {

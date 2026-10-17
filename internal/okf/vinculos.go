@@ -85,7 +85,7 @@ func (c *Catalogo) Vinculos(a *Agent) []Vinculo {
 	// persona em vigor
 	switch {
 	case a.PersonaDe != "":
-		out = append(out, Vinculo{Tipo: "persona", Origem: PersonaMD, Alvo: "herdada", OK: true, Resolvido: "persona de " + a.PersonaDe})
+		out = append(out, Vinculo{Tipo: "persona", Origem: PersonaMD, Alvo: "herdada", OK: true, Resolvido: "persona de " + a.PersonaDe + " (primeiro nível)"})
 	case a.Persona != "":
 		out = append(out, Vinculo{Tipo: "persona", Origem: PersonaMD, Alvo: "própria", OK: true, Resolvido: "próprio"})
 	}
@@ -216,8 +216,8 @@ func (c *Catalogo) validar(a *Agent) []Problema {
 		if !temRouters {
 			ps = append(ps, Problema{Nivel: "aviso", Onde: "routers/", Texto: "sem routers/: roteia só pelas descrições dos subagentes", Solucao: "crie routers/rotas.md com um critério por rota e a saída `self`"})
 		}
-		if a.Persona == "" {
-			ps = append(ps, Problema{Nivel: "aviso", Onde: PersonaMD, Texto: "quem fala com o morador precisa de persona (tom, traços, frases)", Solucao: "crie persona.md; os subagentes herdam"})
+		if a.Persona == "" && len(Ancestrais(a.Path)) == 0 {
+			ps = append(ps, Problema{Nivel: "aviso", Onde: PersonaMD, Texto: "quem fala com o morador precisa de persona (tom, traços, frases)", Solucao: "crie persona.md neste agente de primeiro nível; todos os subagentes herdam"})
 		}
 	case Operador:
 		if !temPrincipal && a.Caso == nil {
