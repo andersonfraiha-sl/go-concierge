@@ -27,13 +27,29 @@ type Sessao struct {
 	CriadaEm     time.Time        `json:"criada_em"`
 	AtualizadaEm time.Time        `json:"atualizada_em"`
 	Processando  bool             `json:"processando"`
+	// Transbordo: o protocolo passou a um atendente humano (o concierge para de
+	// responder até ser devolvido).
+	Transbordo *Transbordo `json:"transbordo,omitempty"`
 
 	historico []*schema.Message
 }
 
-// Turno é uma fala: do morador (incoming) ou do concierge (reply).
+// Transbordo é a passagem do protocolo a um humano, como o ATENDE faria ao sair do
+// bot: quem pediu (o concierge, por um motivo, ou o atendente assumindo), quando, e
+// quem está atendendo.
+type Transbordo struct {
+	Ativo     bool       `json:"ativo"`
+	Motivo    string     `json:"motivo"`
+	PedidoPor string     `json:"pedido_por"` // concierge | atendente
+	Quando    time.Time  `json:"quando"`
+	Atendente string     `json:"atendente,omitempty"`
+	Devolvido *time.Time `json:"devolvido,omitempty"`
+}
+
+// Turno é uma fala: do morador (incoming), do concierge (reply), do atendente humano
+// (durante o transbordo) ou do sistema (notas: transferido, devolvido).
 type Turno struct {
-	Quem     string          `json:"quem"` // morador | concierge | erro
+	Quem     string          `json:"quem"` // morador | concierge | atendente | sistema | erro
 	Texto    string          `json:"texto"`
 	Quando   time.Time       `json:"quando"`
 	EventoID string          `json:"evento_id,omitempty"`

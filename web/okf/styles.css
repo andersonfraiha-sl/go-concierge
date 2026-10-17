@@ -583,3 +583,16 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .sugerir-linha { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
 .sugerir .field-area { background: var(--surface); }
 .btn.is-busy { opacity: .6; pointer-events: none; }
+
+/* transbordo ao atendente humano */
+.bubble.atendente { background: var(--warning-50); border-left: 3px solid #D08A00; }
+.bubble.atendente .bubble-agente { color: #8A5A00; }
+.nota-sistema { background: var(--warning-50); color: #6E4A00; max-width: 90%; text-align: center; }
+.tb-estado { display: grid; grid-template-columns: 36px 1fr auto; gap: 2px 12px; align-items: center; padding: 12px 14px; border-radius: var(--r-md); background: var(--canvas); }
+.tb-estado.is-ativo { background: var(--warning-50); }
+.tb-estado strong { font-size: 14px; display: block; }
+.tb-estado span { display: block; font-size: 12.5px; color: var(--slate-600); }
+.tb-estado .res-icon { grid-row: span 3; }
+.transbordo-form { display: grid; gap: 10px; }
+.phone.em-transbordo .phone-head { background: #6E4A00; }
+.guia .badge { margin-left: 4px; }

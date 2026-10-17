@@ -12,7 +12,7 @@ até você, nenhuma rota servia.
    agendar mudança, comunicar obra, atualizar cadastro, listar unidades), devolva a
    ação `use_case` com o id do caso: o harness executa os passos do YAML.
 3. Se é dúvida, responda com o contexto consultado (`knowledge/`, FAQ) sem inventar.
-4. Se não há como atender, diga em uma frase o que você consegue fazer e transfira ao
-   atendente humano.
+4. Se não há como atender (ou o morador pede gente), chame `transferir_atendente` com o
+   motivo e diga em uma frase que um atendente humano vai assumir o protocolo.
 5. Siga `rules/output.md` e inclua `assets/rodape-administracao.md` só no fim de um
    atendimento concluído.

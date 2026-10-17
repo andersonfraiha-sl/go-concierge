@@ -354,6 +354,9 @@ type Resultado struct {
 	// Mensagens é o histórico completo da execução final (histórico + usuário +
 	// assistente/tools), para continuar a conversa na próxima vez.
 	Mensagens []*schema.Message `json:"-"`
+	// Transbordo é o motivo quando algum agente pediu um atendente humano
+	// (tool transferir_atendente); vazio = o concierge seguiu.
+	Transbordo string `json:"transbordo,omitempty"`
 }
 
 // coletor acompanha uma execução (e as aninhadas via invocar_agente) pelo contexto.
@@ -361,9 +364,12 @@ type coletor struct {
 	mu           sync.Mutex
 	profundidade int
 	mensagem     string // a mensagem do morador nesta execução (a guarda de escrita lê o "sim")
-	passos       []Passo
-	uso          Uso
-	invocacoes   int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
+	// transbordo é o motivo registrado pela tool transferir_atendente; compartilhado
+	// entre o orquestrador e os subagentes da mesma execução.
+	transbordo *string
+	passos     []Passo
+	uso        Uso
+	invocacoes int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
 }
 
 func (c *coletor) proximaInvocacao() int {
@@ -412,6 +418,11 @@ func Run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 
 func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.Message, profundidade int) (*Resultado, error) {
 	col := &coletor{profundidade: profundidade, mensagem: mensagem}
+	if pai := coletorDe(ctx); pai != nil && pai.transbordo != nil {
+		col.transbordo = pai.transbordo
+	} else {
+		col.transbordo = new(string)
+	}
 	ctx = context.WithValue(ctx, chaveColetor{}, col)
 	rel := ag.Def.Rel
 
@@ -504,11 +515,12 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 	col.mu.Lock()
 	defer col.mu.Unlock()
 	return &Resultado{
-		Resposta:  resposta,
-		Agente:    rel,
-		Rota:      col.passos,
-		Uso:       col.uso,
-		Mensagens: msgs,
+		Resposta:   resposta,
+		Agente:     rel,
+		Rota:       col.passos,
+		Uso:        col.uso,
+		Mensagens:  msgs,
+		Transbordo: *col.transbordo,
 	}, nil
 }
 

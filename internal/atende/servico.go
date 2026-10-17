@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cloudwego/eino/schema"
 	"log"
 	"net/http"
 	"strings"
@@ -26,6 +27,7 @@ type Sender interface {
 // Saida é uma resposta enviada (ou a enviar) ao ATENDE.
 type Saida struct {
 	Protocolo string    `json:"protocolo"`
+	Tipo      string    `json:"tipo,omitempty"` // "" = mensagem ao morador; transbordo = pedido de humano ao ATENDE
 	Texto     string    `json:"texto"`
 	Quando    time.Time `json:"quando"`
 	Enviada   bool      `json:"enviada"`
@@ -59,6 +61,14 @@ func (o *Outbox) Enviar(ctx context.Context, protocolo, texto string) error {
 }
 
 // Itens devolve as saídas de um protocolo ("" = todas).
+// Transbordar registra o pedido de atendente humano ao ATENDE. No ATENDE real isso vira
+// a chamada que tira o protocolo do bot (isHumanAttendance); aqui fica na caixa.
+func (o *Outbox) Transbordar(protocolo, motivo string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.itens = append(o.itens, Saida{Protocolo: protocolo, Tipo: "transbordo", Texto: motivo, Quando: time.Now(), Enviada: o.Real == nil})
+}
+
 func (o *Outbox) Itens(protocolo string) []Saida {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -138,6 +148,11 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	sess.Processando = true
 	defer func() { sess.Processando = false }()
 	sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: ev.ID})
+	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
+	if sess.Transbordo != nil && sess.Transbordo.Ativo {
+		sess.historico = append(sess.historico, schema.UserMessage(texto))
+		return sess, nil
+	}
 
 	if sess.Identidade.Phone == "" {
 		sess.Identidade, sess.IdentErro = s.identificar(ctx, ev.Data.Contact.Phone)
@@ -273,6 +288,83 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 			return sess, err
 		}
 	}
+	if res.Transbordo != "" {
+		s.transbordar(sess, res.Transbordo, "concierge", "")
+	}
+	return sess, nil
+}
+
+// transbordar passa o protocolo ao atendente humano.
+func (s *Servico) transbordar(sess *Sessao, motivo, pedidoPor, atendente string) {
+	sess.Transbordo = &Transbordo{Ativo: true, Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
+	sess.registrar(Turno{Quem: "sistema", Texto: "Transferido ao atendente humano: " + motivo})
+	if ob, ok := s.Sender.(*Outbox); ok && ob != nil {
+		ob.Transbordar(sess.Protocolo, motivo)
+	}
+}
+
+// Assumir: o atendente toma o protocolo (mesmo sem o concierge ter pedido).
+func (s *Servico) Assumir(protocolo, atendente, motivo string) (*Sessao, error) {
+	sess, ok := s.Sessoes.Get(protocolo)
+	if !ok {
+		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
+	}
+	if atendente == "" {
+		atendente = "atendente"
+	}
+	if sess.Transbordo != nil && sess.Transbordo.Ativo {
+		sess.Transbordo.Atendente = atendente
+		sess.registrar(Turno{Quem: "sistema", Texto: atendente + " assumiu o atendimento"})
+		return sess, nil
+	}
+	if motivo == "" {
+		motivo = "o atendente assumiu a conversa"
+	}
+	s.transbordar(sess, motivo, "atendente", atendente)
+	return sess, nil
+}
+
+// Responder: o atendente humano fala com o morador pelo mesmo canal do concierge.
+func (s *Servico) Responder(ctx context.Context, protocolo, atendente, texto string) (*Sessao, error) {
+	sess, ok := s.Sessoes.Get(protocolo)
+	if !ok {
+		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
+	}
+	if sess.Transbordo == nil || !sess.Transbordo.Ativo {
+		return nil, fmt.Errorf("o protocolo não está em transbordo: assuma o atendimento antes")
+	}
+	texto = strings.TrimSpace(texto)
+	if texto == "" {
+		return nil, fmt.Errorf("mensagem vazia")
+	}
+	if atendente != "" {
+		sess.Transbordo.Atendente = atendente
+	}
+	sess.registrar(Turno{Quem: "atendente", Texto: texto, Agente: sess.Transbordo.Atendente})
+	sess.historico = append(sess.historico, schema.AssistantMessage("[atendente humano] "+texto, nil))
+	if s.Sender != nil {
+		if err := s.Sender.Enviar(ctx, sess.Protocolo, texto); err != nil {
+			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+			return sess, err
+		}
+	}
+	return sess, nil
+}
+
+// Devolver: o atendente devolve o protocolo ao concierge, que volta a responder.
+func (s *Servico) Devolver(protocolo string) (*Sessao, error) {
+	sess, ok := s.Sessoes.Get(protocolo)
+	if !ok {
+		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
+	}
+	if sess.Transbordo == nil || !sess.Transbordo.Ativo {
+		return sess, nil
+	}
+	agora := time.Now()
+	sess.Transbordo.Ativo = false
+	sess.Transbordo.Devolvido = &agora
+	sess.registrar(Turno{Quem: "sistema", Texto: "Devolvido ao concierge"})
+	sess.historico = append(sess.historico, schema.AssistantMessage("[sistema] o atendente humano devolveu a conversa ao concierge; continue de onde parou.", nil))
 	return sess, nil
 }
 

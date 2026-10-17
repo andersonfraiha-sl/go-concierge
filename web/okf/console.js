@@ -61,9 +61,8 @@
     $('#formContato').protocolo.value = estado.protocolo;
     $('#phoneSub').textContent = 'protocolo ' + estado.protocolo;
     $('#chat').innerHTML = '<div class="day">hoje</div>';
-    $('#evento').textContent = '';
     $('#abaRota').innerHTML = '<div class="empty-state"><i data-lucide="route"></i>A rota da última resposta aparece aqui.</div>';
-    $('#saidas').innerHTML = '';
+    desenharTransbordo(null);
     icons();
     carregarSessoes();
   }
@@ -74,7 +73,6 @@
     const primeira = !estado.sessao;
     const ev = montarEvento(texto.trim(), primeira);
     estado.ultimoEvento = ev;
-    $('#evento').textContent = JSON.stringify(ev, null, 2);
     bolha('user', texto.trim(), new Date());
     estado.enviadaLocal = true;
     digitando(true);
@@ -98,7 +96,8 @@
           estado.recebidas = r.recebidas || [];
           estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
-          if (!r.sessao.processando && r.sessao.turnos.length && r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador') { clearInterval(estado.poll); carregarSessoes(); carregarMemoria(); res(); }
+          const emTransbordo = r.sessao.transbordo && r.sessao.transbordo.ativo;
+          if (!r.sessao.processando && r.sessao.turnos.length && (emTransbordo || r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador')) { clearInterval(estado.poll); carregarSessoes(); carregarMemoria(); res(); }
         } catch (err) { /* ainda não abriu */ }
         if (tentativas > 160) { clearInterval(estado.poll); toast('o concierge não respondeu em 160 s', true); digitando(false); res(); }
       }, 1000);
@@ -120,6 +119,8 @@
         if (estado.enviadaLocal) { estado.enviadaLocal = false; } // já desenhada ao enviar
         else bolha('user', t.texto, t.quando);
       } else if (t.quem === 'concierge') bolha('bot', t.texto, t.quando, t.agente);
+      else if (t.quem === 'atendente') bolha('atendente', t.texto, t.quando, t.agente || 'atendente');
+      else if (t.quem === 'sistema') nota(t.texto);
       else bolha('erro', t.texto, t.quando);
     }
     estado.desenhados = s.turnos.length;
@@ -137,20 +138,58 @@
       const m = porTexto.get(b.dataset.texto);
       if (m) { const t = b.querySelector('time'); if (t && !t.dataset.ok) { t.dataset.ok = '1'; t.innerHTML = `${hora(m.receivedAt)} <i data-lucide="check-check" class="i-sm" title="recebida pelo ATENDE ${estado.replyEmulada ? 'emulado' : ''} · ${esc(m.id)}"></i>`; } }
     });
-    const chaveSaidas = JSON.stringify([saidas, recebidas.length]);
-    if (estado.chaveSaidas !== chaveSaidas) {
-      estado.chaveSaidas = chaveSaidas;
-      $('#saidas').innerHTML = (saidas || []).length ? `<table class="res-table"><thead><tr><th>Quando</th><th>Texto</th><th>Envio</th></tr></thead><tbody>${saidas.map((x) => `<tr><td class="mono muted">${hora(x.quando)}</td><td>${esc(x.texto)}</td><td>${x.enviada ? `<span class="tag tag-ok">entregue ao ATENDE${estado.replyEmulada ? ' emulado' : ''}</span>` : x.erro ? `<span class="tag tag-bad">${esc(x.erro)}</span>` : '<span class="tag tag-locked">só na caixa</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><i data-lucide="inbox"></i>nenhuma saída ainda</div>';
-      if (recebidas.length) $('#saidas').insertAdjacentHTML('beforeend', `<p class="notice info"><i data-lucide="info"></i>O ATENDE${estado.replyEmulada ? ' emulado' : ''} recebeu ${recebidas.length} mensagem(ns) em <code>${esc((estado.config && estado.config.reply_url) || '')}</code>.</p>`);
-    }
+    const chaveTb = JSON.stringify(s.transbordo || null);
+    if (estado.chaveTb !== chaveTb) { estado.chaveTb = chaveTb; desenharTransbordo(s.transbordo || null); }
     icons();
     chat.scrollTop = chat.scrollHeight;
+  }
+
+  // ---- transbordo: o atendente humano assume o protocolo ---------------------------------
+  function desenharTransbordo(tb) {
+    const ativo = !!(tb && tb.ativo);
+    $('#badgeTransbordo').hidden = !ativo;
+    $('#formAtendente').hidden = !ativo;
+    $('.phone').classList.toggle('em-transbordo', ativo);
+    const el = $('#transbordoEstado');
+    if (!estado.sessao && !tb) { el.innerHTML = '<div class="empty-state"><i data-lucide="life-buoy"></i>Nenhuma conversa aberta.</div>'; icons(); return; }
+    if (ativo) {
+      el.innerHTML = `<div class="tb-estado is-ativo"><span class="res-icon ri-hooks"><i data-lucide="headset"></i></span><div><strong>Em atendimento humano${tb.atendente ? ' · ' + esc(tb.atendente) : ' · aguardando atendente'}</strong><span>${tb.pedido_por === 'concierge' ? 'o concierge transferiu' : 'o atendente assumiu'} às ${hora(tb.quando)} — ${esc(tb.motivo)}</span><span class="muted">O concierge não responde até ser devolvido. As mensagens do morador chegam aqui para você.</span></div></div>`;
+    } else {
+      el.innerHTML = `<div class="tb-estado"><span class="res-icon"><i data-lucide="bot"></i></span><div><strong>Com o concierge</strong><span>${tb && tb.devolvido ? 'devolvido ao concierge às ' + hora(tb.devolvido) + ' (antes: ' + esc(tb.motivo) + ')' : 'o concierge transfere sozinho quando não resolve (tool transferir_atendente); você também pode assumir agora.'}</span></div><button class="btn btn-primary btn-sm" id="btnAssumir"><i data-lucide="headset" class="i-sm"></i>Assumir atendimento</button></div>`;
+      $('#btnAssumir').addEventListener('click', () => transbordo('assumir', { atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', motivo: 'o atendente assumiu pelo Console' }));
+    }
+    icons();
+  }
+  async function transbordo(acao, extra = {}) {
+    if (!estado.protocolo) return toast('abra uma conversa primeiro', true);
+    try {
+      const r = await api('/api/atende/transbordo', { method: 'POST', body: JSON.stringify({ protocolo: estado.protocolo, acao, ...extra }) });
+      estado.sessao = r.sessao; estado.recebidas = r.recebidas || [];
+      desenharSessao(r.sessao, r.saidas);
+      toast(acao === 'assumir' ? 'você assumiu o protocolo' : acao === 'devolver' ? 'devolvido ao concierge' : 'enviado ao morador');
+      carregarSessoes();
+    } catch (err) { toast(err.message, true); }
+  }
+  $('#formAtendente').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const texto = f.texto.value.trim();
+    if (!texto) return;
+    f.texto.value = '';
+    await transbordo('responder', { atendente: f.atendente.value.trim() || 'Atendente', texto });
+  });
+  $('#btnDevolver').addEventListener('click', () => transbordo('devolver'));
+  function nota(texto) {
+    const d = document.createElement('div');
+    d.className = 'day nota-sistema';
+    d.textContent = texto;
+    $('#chat').appendChild(d);
   }
 
   function bolha(quem, texto, quando, agente) {
     const chat = $('#chat');
     const d = document.createElement('div');
-    d.className = 'bubble ' + (quem === 'user' ? 'user' : quem === 'erro' ? 'bot is-erro' : 'bot');
+    d.className = 'bubble ' + (quem === 'user' ? 'user' : quem === 'erro' ? 'bot is-erro' : quem === 'atendente' ? 'bot atendente' : 'bot');
     d.dataset.texto = texto;
     d.innerHTML = `${agente ? `<span class="bubble-agente">${esc(agente.split('/').pop())}</span>` : ''}${esc(texto)}<time>${hora(quando)}</time>`;
     chat.appendChild(d);
@@ -256,7 +295,7 @@
   $('#btnReset').addEventListener('click', novaConversa);
   $$('.bastidores .guia').forEach((b) => b.addEventListener('click', () => {
     $$('.bastidores .guia').forEach((x) => x.classList.toggle('is-active', x === b));
-    for (const aba of ['rota', 'evento', 'memoria', 'saidas']) $('#aba' + aba[0].toUpperCase() + aba.slice(1)).hidden = aba !== b.dataset.aba;
+    for (const aba of ['rota', 'transbordo', 'memoria']) $('#aba' + aba[0].toUpperCase() + aba.slice(1)).hidden = aba !== b.dataset.aba;
   }));
 
   icons();

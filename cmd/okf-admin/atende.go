@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -34,6 +35,7 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/atende/sessao", s.atendeSessao)
 	mux.HandleFunc("DELETE /api/atende/sessao", s.atendeReiniciar)
 	mux.HandleFunc("GET /api/atende/saidas", s.atendeSaidas)
+	mux.HandleFunc("POST /api/atende/transbordo", s.atendeTransbordo)
 	mux.HandleFunc("GET /api/atende/identidade", s.atendeIdentidade)
 	mux.HandleFunc("GET /api/memoria", s.memoriaLer)
 	mux.HandleFunc("DELETE /api/memoria", s.memoriaEsquecer)
@@ -145,6 +147,40 @@ func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
 	sess, ok := s.atende.Sessoes.Get(r.URL.Query().Get("protocolo"))
 	if !ok {
 		writeErr(w, 404, errNaoEncontrado)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})
+}
+
+// atendeTransbordo: o atendente humano assume, responde ou devolve o protocolo.
+func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Protocolo string `json:"protocolo"`
+		Acao      string `json:"acao"` // assumir | responder | devolver
+		Atendente string `json:"atendente"`
+		Texto     string `json:"texto"`
+		Motivo    string `json:"motivo"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	var (
+		sess *atende.Sessao
+		err  error
+	)
+	switch corpo.Acao {
+	case "assumir":
+		sess, err = s.atende.Assumir(corpo.Protocolo, corpo.Atendente, corpo.Motivo)
+	case "responder":
+		sess, err = s.atende.Responder(r.Context(), corpo.Protocolo, corpo.Atendente, corpo.Texto)
+	case "devolver":
+		sess, err = s.atende.Devolver(corpo.Protocolo)
+	default:
+		err = errors.New("acao: assumir | responder | devolver")
+	}
+	if err != nil {
+		writeErr(w, 400, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})

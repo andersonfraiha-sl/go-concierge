@@ -61,6 +61,11 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 			return nil, err
 		}
 	}
+	if err := add(utils.InferTool("transferir_atendente",
+		"Transfere este protocolo a um atendente HUMANO, que assume a conversa daqui em diante. Use quando não há como resolver: pedido fora do que você e seus subagentes fazem, dado que nenhum recurso traz, erro repetido, morador pedindo gente, reclamação séria. Depois de chamar, responda em uma frase dizendo que um atendente vai assumir e pare.",
+		ag.transferirAtendente)); err != nil {
+		return nil, err
+	}
 	if len(ag.Cat.RecursosDoAgente(a)) > 0 {
 		desc := "Chama um recurso do Nexus declarado pelo agente, com os params do manual. Um recurso de ESCRITA só roda se for passo do caso.yaml deste agente e a mensagem atual do morador for a confirmação explícita (sim); antes disso, pergunte a confirmação em uma frase e pare."
 		if perm := ag.recursosPermitidos(); len(perm) > 0 {
@@ -158,6 +163,24 @@ func amostraDe(r okf.Recurso, params map[string]any, sessao string) any {
 		return out
 	}
 	return []any{}
+}
+
+// ---- transferir_atendente ---------------------------------------------------
+
+type argsTransbordo struct {
+	Motivo string `json:"motivo" jsonschema:"required" jsonschema_description:"em uma frase, por que o concierge não resolve (vai para o atendente)"`
+}
+
+func (ag *Agente) transferirAtendente(ctx context.Context, in *argsTransbordo) (saida, error) {
+	motivo := strings.TrimSpace(in.Motivo)
+	if motivo == "" {
+		motivo = "o concierge não conseguiu resolver"
+	}
+	if col := coletorDe(ctx); col != nil && col.transbordo != nil {
+		*col.transbordo = motivo
+		col.passo(ag.Def.Rel, "transbordo", motivo)
+	}
+	return saida{"transferido": true, "motivo": motivo, "instrucao": "avise o morador em uma frase que um atendente humano vai assumir este protocolo e pare"}, nil
 }
 
 // ---- abrir_workflow -------------------------------------------------------

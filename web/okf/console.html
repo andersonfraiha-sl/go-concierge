@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=6">
+  <link rel="stylesheet" href="/styles.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin console">
@@ -79,18 +79,24 @@
     <section class="panel bastidores">
       <nav class="guias">
         <button class="guia is-active" data-aba="rota">Rota</button>
-        <button class="guia" data-aba="evento">Evento</button>
+        <button class="guia" data-aba="transbordo">Transbordo <span class="badge" id="badgeTransbordo" hidden>!</span></button>
         <button class="guia" data-aba="memoria">Memória</button>
-        <button class="guia" data-aba="saidas">Caixa de saída</button>
       </nav>
       <div class="aba-conteudo" id="abaRota"><div class="empty-state"><i data-lucide="route"></i>A rota da última resposta aparece aqui: orquestrador → subagente, tools chamadas, tokens.</div></div>
-      <div class="aba-conteudo" id="abaEvento" hidden><p class="notice info"><i data-lucide="info"></i>O JSON exatamente como foi enviado a <code>POST /webhook/atende</code>.</p><pre class="pre" id="evento"></pre></div>
+      <div class="aba-conteudo" id="abaTransbordo" hidden>
+        <p class="notice info"><i data-lucide="life-buoy"></i>Quando o concierge não resolve, ele transfere o protocolo a um atendente humano (ou o atendente assume por conta própria). Daqui em diante o concierge cala e o atendente responde ao morador por este mesmo canal, até devolver.</p>
+        <div id="transbordoEstado"></div>
+        <form id="formAtendente" class="transbordo-form" hidden>
+          <div class="form-row"><label>Atendente</label><input class="field-input" name="atendente" value="Atendente" placeholder="seu nome"></div>
+          <div class="form-row"><label>Responder ao morador</label><textarea class="field-area" name="texto" rows="3" placeholder="Oi, aqui é a Ana da administração. Vou cuidar disso pra você…"></textarea></div>
+          <div class="form-actions"><button type="button" class="btn btn-ghost" id="btnDevolver"><i data-lucide="undo-2"></i><span>Devolver ao concierge</span></button><span style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="send"></i><span>Enviar como atendente</span></button></div>
+        </form>
+      </div>
       <div class="aba-conteudo" id="abaMemoria" hidden><p class="notice info"><i data-lucide="brain"></i>A memória relacional deste telefone: fatos duráveis que o morador afirmou sobre si, capturados a cada troca e levados ao prompt de toda a família na conversa seguinte. Comum a todos os agentes.</p><div id="memoriaTabela"></div></div>
-      <div class="aba-conteudo" id="abaSaidas" hidden><p class="notice info"><i data-lucide="info"></i>O que o concierge mandou ao protocolo, por HTTP, ao ATENDE (real em <code>ATENDE_REPLY_URL</code>; senão o ATENDE emulado deste servidor, em <code>/emulador/atende/messages</code>).</p><div id="saidas"></div></div>
     </section>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/console.js?v=5"></script>
+  <script src="/console.js?v=6"></script>
 </body>
 </html>
