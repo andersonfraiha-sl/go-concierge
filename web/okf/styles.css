@@ -396,7 +396,8 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .chat { flex: 1; overflow-y: auto; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 6px; background: radial-gradient(circle at 1px 1px, rgba(7, 25, 80, .05) 1px, transparent 0) 0 0 / 18px 18px, var(--canvas); }
 .day { align-self: center; margin: 4px 0 8px; padding: 3px 10px; border-radius: 999px; background: var(--surface); font-size: 11px; color: var(--slate-500); box-shadow: var(--shadow-sm); }
 .bubble { max-width: 84%; padding: 8px 12px 6px; border-radius: 16px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; box-shadow: var(--shadow-sm); animation: pop .2s ease-out; }
-.bubble time { display: block; text-align: right; font-size: 10.5px; margin-top: 2px; opacity: .65; }
+.bubble time { display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 10.5px; margin-top: 2px; opacity: .65; }
+.bubble time svg.lucide { width: 13px; height: 13px; color: var(--sl-blue); }
 .bubble.bot { align-self: flex-start; background: var(--surface); color: var(--ink); border-top-left-radius: 4px; }
 .bubble.user { align-self: flex-end; background: var(--sl-blue); color: #fff; border-top-right-radius: 4px; }
 .bubble.is-erro { background: var(--danger-50); color: #8A1516; }

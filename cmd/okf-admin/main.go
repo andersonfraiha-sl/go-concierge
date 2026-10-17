@@ -51,6 +51,8 @@ type servidor struct {
 	gruviCompany  string
 	webhookToken  string
 	replyURL      string
+	replyEmulada  bool
+	emulador      *atende.Emulador
 	provedor      string
 }
 
@@ -93,9 +95,13 @@ func main() {
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
 	s.outbox = &atende.Outbox{}
-	if s.replyURL != "" {
-		s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
+	s.emulador = atende.NewEmulador()
+	if s.replyURL == "" {
+		// sem o ATENDE real, a resposta vai por HTTP ao ATENDE emulado deste servidor
+		s.replyURL = "http://" + *addr + "/emulador/atende/messages"
+		s.replyEmulada = true
 	}
+	s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,

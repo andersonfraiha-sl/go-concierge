@@ -26,6 +26,7 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(raw)
 	})
+	mux.HandleFunc("POST /emulador/atende/messages", s.emulador.Handler)
 	mux.HandleFunc("GET /api/atende/config", s.atendeConfig)
 	mux.HandleFunc("GET /api/atende/sessoes", s.atendeSessoes)
 	mux.HandleFunc("GET /api/atende/sessao", s.atendeSessao)
@@ -72,6 +73,7 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 		"gruvi":           map[string]any{"configurado": s.gruviOK, "token_url": s.gruviTokenURL, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
 		"webhook_token":   s.webhookToken != "",
 		"reply_url":       s.replyURL,
+		"reply_emulada":   s.replyEmulada,
 		"nexus_origem":    s.nexus,
 		"modelo_provedor": s.provedor,
 	})
@@ -87,7 +89,7 @@ func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, errNaoEncontrado)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo)})
+	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})
 }
 
 func (s *servidor) atendeReiniciar(w http.ResponseWriter, r *http.Request) {

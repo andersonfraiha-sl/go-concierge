@@ -90,6 +90,8 @@
         try {
           const r = await api('/api/atende/sessao?protocolo=' + encodeURIComponent(estado.protocolo));
           estado.sessao = r.sessao;
+          estado.recebidas = r.recebidas || [];
+          estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
           if (!r.sessao.processando && r.sessao.turnos.length && r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador') { clearInterval(estado.poll); res(); }
         } catch (err) { /* ainda não abriu */ }
@@ -111,7 +113,14 @@
     desenharIdentidade(s.identidade, s.identidade_erro);
     const ultimo = [...s.turnos].reverse().find((t) => t.quem === 'concierge');
     if (ultimo) desenharRota(ultimo);
-    $('#saidas').innerHTML = (saidas || []).length ? `<table class="res-table"><thead><tr><th>Quando</th><th>Texto</th><th>Envio</th></tr></thead><tbody>${saidas.map((x) => `<tr><td class="mono muted">${hora(x.quando)}</td><td>${esc(x.texto)}</td><td>${x.enviada ? '<span class="tag tag-ok">enviada ao ATENDE</span>' : x.erro ? `<span class="tag tag-bad">${esc(x.erro)}</span>` : '<span class="tag tag-locked">só na caixa</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><i data-lucide="inbox"></i>nenhuma saída ainda</div>';
+    const recebidas = estado.recebidas || [];
+    const porTexto = new Map(recebidas.map((m) => [m.message, m]));
+    $$('#chat .bubble.bot').forEach((b) => {
+      const m = porTexto.get(b.dataset.texto);
+      if (m) { const t = b.querySelector('time'); if (t && !t.dataset.ok) { t.dataset.ok = '1'; t.innerHTML = `${hora(m.receivedAt)} <i data-lucide="check-check" class="i-sm" title="recebida pelo ATENDE ${estado.replyEmulada ? 'emulado' : ''} · ${esc(m.id)}"></i>`; } }
+    });
+    $('#saidas').innerHTML = (saidas || []).length ? `<table class="res-table"><thead><tr><th>Quando</th><th>Texto</th><th>Envio</th></tr></thead><tbody>${saidas.map((x) => `<tr><td class="mono muted">${hora(x.quando)}</td><td>${esc(x.texto)}</td><td>${x.enviada ? `<span class="tag tag-ok">entregue ao ATENDE${estado.replyEmulada ? ' emulado' : ''}</span>` : x.erro ? `<span class="tag tag-bad">${esc(x.erro)}</span>` : '<span class="tag tag-locked">só na caixa</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><i data-lucide="inbox"></i>nenhuma saída ainda</div>';
+    if (recebidas.length) $('#saidas').insertAdjacentHTML('beforeend', `<p class="notice info"><i data-lucide="info"></i>O ATENDE${estado.replyEmulada ? ' emulado' : ''} recebeu ${recebidas.length} mensagem(ns) em <code>${esc((estado.config && estado.config.reply_url) || '')}</code>.</p>`);
     icons();
     chat.scrollTop = chat.scrollHeight;
   }
@@ -120,6 +129,7 @@
     const chat = $('#chat');
     const d = document.createElement('div');
     d.className = 'bubble ' + (quem === 'user' ? 'user' : quem === 'erro' ? 'bot is-erro' : 'bot');
+    d.dataset.texto = texto;
     d.innerHTML = `${agente ? `<span class="bubble-agente">${esc(agente.split('/').pop())}</span>` : ''}${esc(texto)}<time>${hora(quando)}</time>`;
     chat.appendChild(d);
     chat.scrollTop = chat.scrollHeight;
@@ -167,6 +177,8 @@
         estado.protocolo = d.dataset.p; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant;
         const r2 = await api('/api/atende/sessao?protocolo=' + encodeURIComponent(d.dataset.p));
         estado.sessao = r2.sessao;
+        estado.recebidas = r2.recebidas || [];
+        estado.replyEmulada = !!r2.reply_emulada;
         desenharSessao(r2.sessao, r2.saidas);
         carregarSessoes();
       }));
