@@ -8,7 +8,7 @@ Escolha a rota pela linha que melhor descreve a mensagem do morador.
   administradora, taxa, boleto → rota `faq`.
 - Liberar, autorizar ou avisar a entrada de visitante, amigo, parente, prestador ou
   entregador na portaria → rota `liberacao-visitante`.
-- Início de conversa, mudança de assunto, "era só isso", despedida, ou qualquer sinal de
-  que uma pendência abriu ou fechou → rota `observador-sessao`.
+- Saudação, agradecimento, despedida, conversa fiada ou pedido fora do condomínio →
+  rota `self` (você mesmo responde, com a sua persona).
 - Qualquer outra coisa → rota `self` (responda você mesmo: caso de uso do catálogo ou
   encaminhamento ao atendente).

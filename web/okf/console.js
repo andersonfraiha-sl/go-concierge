@@ -54,6 +54,10 @@
     estado.protocolo = novoProtocolo();
     estado.sessao = null;
     estado.ultimoEvento = null;
+    estado.desenhados = 0;
+    estado.enviadaLocal = false;
+    estado.chaveId = estado.chaveRota = estado.chaveSaidas = '';
+    $('#chat').dataset.protocolo = estado.protocolo;
     $('#formContato').protocolo.value = estado.protocolo;
     $('#phoneSub').textContent = 'protocolo ' + estado.protocolo;
     $('#chat').innerHTML = '<div class="day">hoje</div>';
@@ -72,6 +76,7 @@
     estado.ultimoEvento = ev;
     $('#evento').textContent = JSON.stringify(ev, null, 2);
     bolha('user', texto.trim(), new Date());
+    estado.enviadaLocal = true;
     digitando(true);
     $('#btnEnviar').disabled = true;
     try {
@@ -93,34 +98,51 @@
           estado.recebidas = r.recebidas || [];
           estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
-          if (!r.sessao.processando && r.sessao.turnos.length && r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador') { clearInterval(estado.poll); res(); }
+          if (!r.sessao.processando && r.sessao.turnos.length && r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador') { clearInterval(estado.poll); carregarSessoes(); res(); }
         } catch (err) { /* ainda não abriu */ }
         if (tentativas > 160) { clearInterval(estado.poll); toast('o concierge não respondeu em 160 s', true); digitando(false); res(); }
       }, 1000);
     });
   }
 
-  function desenharSessao(s, saidas) {
+  // desenho incremental: só os turnos que ainda não estão na tela entram; nada é
+  // reconstruído a cada ciclo do polling (sem "reload" nem balões reanimando).
+  function desenharSessao(s, saidas, doZero = false) {
     const chat = $('#chat');
-    chat.innerHTML = '<div class="day">hoje</div>';
-    for (const t of s.turnos) {
-      if (t.quem === 'morador') bolha('user', t.texto, t.quando);
-      else if (t.quem === 'concierge') bolha('bot', t.texto, t.quando, t.agente);
+    if (doZero || estado.desenhados > s.turnos.length || chat.dataset.protocolo !== s.protocolo) {
+      chat.innerHTML = '<div class="day">hoje</div>';
+      chat.dataset.protocolo = s.protocolo;
+      estado.desenhados = 0;
+      estado.enviadaLocal = false;
+    }
+    for (const t of s.turnos.slice(estado.desenhados)) {
+      if (t.quem === 'morador') {
+        if (estado.enviadaLocal) { estado.enviadaLocal = false; } // já desenhada ao enviar
+        else bolha('user', t.texto, t.quando);
+      } else if (t.quem === 'concierge') bolha('bot', t.texto, t.quando, t.agente);
       else bolha('erro', t.texto, t.quando);
     }
-    if (s.processando) digitando(true); else digitando(false);
-    $('#phoneSub').textContent = 'protocolo ' + s.protocolo + (s.identidade.authenticated ? ' · ' + (s.identidade.name || 'morador') : ' · contato público');
-    desenharIdentidade(s.identidade, s.identidade_erro);
+    estado.desenhados = s.turnos.length;
+    digitando(!!s.processando);
+    const sub = 'protocolo ' + s.protocolo + (s.identidade.authenticated ? ' · ' + (s.identidade.name || 'morador') : ' · contato público');
+    if ($('#phoneSub').textContent !== sub) $('#phoneSub').textContent = sub;
+    const chaveId = JSON.stringify([s.identidade, s.identidade_erro]);
+    if (estado.chaveId !== chaveId) { estado.chaveId = chaveId; desenharIdentidade(s.identidade, s.identidade_erro); }
     const ultimo = [...s.turnos].reverse().find((t) => t.quem === 'concierge');
-    if (ultimo) desenharRota(ultimo);
+    const chaveRota = ultimo ? ultimo.quando + ultimo.texto : '';
+    if (ultimo && estado.chaveRota !== chaveRota) { estado.chaveRota = chaveRota; desenharRota(ultimo); }
     const recebidas = estado.recebidas || [];
     const porTexto = new Map(recebidas.map((m) => [m.message, m]));
     $$('#chat .bubble.bot').forEach((b) => {
       const m = porTexto.get(b.dataset.texto);
       if (m) { const t = b.querySelector('time'); if (t && !t.dataset.ok) { t.dataset.ok = '1'; t.innerHTML = `${hora(m.receivedAt)} <i data-lucide="check-check" class="i-sm" title="recebida pelo ATENDE ${estado.replyEmulada ? 'emulado' : ''} · ${esc(m.id)}"></i>`; } }
     });
-    $('#saidas').innerHTML = (saidas || []).length ? `<table class="res-table"><thead><tr><th>Quando</th><th>Texto</th><th>Envio</th></tr></thead><tbody>${saidas.map((x) => `<tr><td class="mono muted">${hora(x.quando)}</td><td>${esc(x.texto)}</td><td>${x.enviada ? `<span class="tag tag-ok">entregue ao ATENDE${estado.replyEmulada ? ' emulado' : ''}</span>` : x.erro ? `<span class="tag tag-bad">${esc(x.erro)}</span>` : '<span class="tag tag-locked">só na caixa</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><i data-lucide="inbox"></i>nenhuma saída ainda</div>';
-    if (recebidas.length) $('#saidas').insertAdjacentHTML('beforeend', `<p class="notice info"><i data-lucide="info"></i>O ATENDE${estado.replyEmulada ? ' emulado' : ''} recebeu ${recebidas.length} mensagem(ns) em <code>${esc((estado.config && estado.config.reply_url) || '')}</code>.</p>`);
+    const chaveSaidas = JSON.stringify([saidas, recebidas.length]);
+    if (estado.chaveSaidas !== chaveSaidas) {
+      estado.chaveSaidas = chaveSaidas;
+      $('#saidas').innerHTML = (saidas || []).length ? `<table class="res-table"><thead><tr><th>Quando</th><th>Texto</th><th>Envio</th></tr></thead><tbody>${saidas.map((x) => `<tr><td class="mono muted">${hora(x.quando)}</td><td>${esc(x.texto)}</td><td>${x.enviada ? `<span class="tag tag-ok">entregue ao ATENDE${estado.replyEmulada ? ' emulado' : ''}</span>` : x.erro ? `<span class="tag tag-bad">${esc(x.erro)}</span>` : '<span class="tag tag-locked">só na caixa</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state"><i data-lucide="inbox"></i>nenhuma saída ainda</div>';
+      if (recebidas.length) $('#saidas').insertAdjacentHTML('beforeend', `<p class="notice info"><i data-lucide="info"></i>O ATENDE${estado.replyEmulada ? ' emulado' : ''} recebeu ${recebidas.length} mensagem(ns) em <code>${esc((estado.config && estado.config.reply_url) || '')}</code>.</p>`);
+    }
     icons();
     chat.scrollTop = chat.scrollHeight;
   }
@@ -179,7 +201,8 @@
         estado.sessao = r2.sessao;
         estado.recebidas = r2.recebidas || [];
         estado.replyEmulada = !!r2.reply_emulada;
-        desenharSessao(r2.sessao, r2.saidas);
+        estado.chaveId = estado.chaveRota = estado.chaveSaidas = '';
+        desenharSessao(r2.sessao, r2.saidas, true);
         carregarSessoes();
       }));
       icons();

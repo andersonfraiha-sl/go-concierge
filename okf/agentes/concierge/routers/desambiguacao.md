@@ -6,7 +6,6 @@
   `faq`, mesmo que cite uma regra: vai para `self`, que abre o caso de uso.
 - Se a mensagem junta duas intenções ("quero reservar o salão, pode ter som até que
   horas?"), escolha a do **entregável final** (a reserva) e deixe a dúvida para o fim.
-- O `observador-sessao` nunca responde ao morador: ele é acionado em paralelo pelo harness
-  a cada mensagem. Só roteie explicitamente para ele quando a mensagem é só sobre a
-  própria conversa (despedida, "era só isso").
+- O `observador-sessao` NUNCA é uma rota: ele é acionado em paralelo pelo harness a cada
+  mensagem e só devolve o estado das pendências. Nada que o morador diz vai para ele.
 - Na dúvida real entre dois destinos, prefira `self` e peça a precisão que falta.

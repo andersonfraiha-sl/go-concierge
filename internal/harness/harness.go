@@ -389,6 +389,23 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 				if err != nil {
 					return nil, err
 				}
+				// O orquestrador de primeiro nível é quem fala com o morador: ele entrega
+				// o resultado do subagente na sua persona (o subagente devolve um contrato,
+				// não a resposta final).
+				if profundidade == 0 && strings.TrimSpace(ag.Def.Persona) != "" && strings.TrimSpace(r.Resposta) != "" {
+					texto, uso, err := ag.entregar(ctx, mensagem, sub, r.Resposta, len(historico) > 0)
+					switch {
+					case err != nil:
+						col.passo(rel, "aviso", "entrega falhou, resposta do subagente vai crua: "+err.Error())
+					case texto != "":
+						col.uso.soma(uso)
+						r.Resposta = texto
+						if n := len(r.Mensagens); n > 0 && r.Mensagens[n-1].Role == schema.Assistant && len(r.Mensagens[n-1].ToolCalls) == 0 {
+							r.Mensagens[n-1] = schema.AssistantMessage(texto, nil)
+						}
+						r.Rota = append(r.Rota, Passo{Agente: rel, Tipo: "entrega", Detalhe: corta(texto, 160)})
+					}
+				}
 				r.Rota = append(col.passos, r.Rota...)
 				r.Uso.soma(col.uso)
 				return r, nil
@@ -452,6 +469,47 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 		Uso:       col.uso,
 		Mensagens: msgs,
 	}, nil
+}
+
+// entregar redige a resposta final ao morador, na persona do orquestrador, a partir
+// do resultado do subagente. No Mock, devolve o resultado como veio.
+func (ag *Agente) entregar(ctx context.Context, mensagem string, sub *Agente, resultado string, continuacao bool) (string, Uso, error) {
+	var uso Uso
+	if ag.Mock || ag.modelo == nil {
+		return resultado, uso, nil
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Você é o agente %q, quem fala com o morador pelo WhatsApp em nome da administração do condomínio.\n\n# Persona\n\n%s\n", ag.Def.Nome, strings.TrimSpace(okf.StripFrontmatter(ag.Def.Persona)))
+	if pol := ag.Cat.Politicas(ag.Def); pol != "" {
+		b.WriteString("\n# Políticas\n\n" + pol + "\n")
+	}
+	// assets do orquestrador (rodapés, templates): o texto, nunca o caminho
+	if assets := ag.Def.Arquivos["assets"]; len(assets) > 0 {
+		b.WriteString("\n# Assets (quando a persona mandar usar um, use o TEXTO dele, nunca o caminho)\n")
+		for _, f := range assets {
+			if f.Bytes > 4096 {
+				continue
+			}
+			if raw, err := ag.Cat.Ler(ag.Def, f); err == nil {
+				fmt.Fprintf(&b, "\n## %s\n%s\n", f.Caminho, strings.TrimSpace(string(raw)))
+			}
+		}
+	}
+	turno := "Esta é a PRIMEIRA mensagem da conversa: pode se apresentar em uma linha."
+	if continuacao {
+		turno = "A conversa já começou: NÃO cumprimente nem se apresente de novo; vá direto ao ponto."
+	}
+	fmt.Fprintf(&b, "\n# Tarefa\n\nO especialista `%s` (%s) produziu o RESULTADO abaixo para a mensagem do morador. Redija a resposta final ao morador:\n- curta, cordial, em português do Brasil, própria para WhatsApp, na persona acima;\n- %s\n- preserve os fatos, artigos citados, horários, valores, protocolos e links do resultado; não acrescente informação;\n- nada de JSON, chaves, nomes de campo, caminhos de arquivo, termos internos (subagente, rota, contrato, recurso) nem menção a que houve um especialista;\n- se o resultado diz que não encontrou, não há dado ou houve erro, diga isso com clareza e ofereça a administração.\nResponda só com o texto da mensagem.", sub.Def.Nome, sub.Def.Descricao, turno)
+	msgs := []*schema.Message{
+		schema.SystemMessage(b.String()),
+		schema.UserMessage("Mensagem do morador:\n" + mensagem + "\n\nResultado:\n" + resultado),
+	}
+	m, err := ag.modelo.Generate(ctx, msgs)
+	if err != nil {
+		return "", uso, err
+	}
+	uso.registra(m)
+	return strings.TrimSpace(m.Content), uso, nil
 }
 
 func mensagemDe(mv *adk.MessageVariant) (*schema.Message, error) {

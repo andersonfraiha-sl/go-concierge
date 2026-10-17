@@ -3,6 +3,9 @@
 O roteamento (`routers/rotas.md`) escolhe o subagente antes de você. Se a mensagem chegou
 até você, nenhuma rota servia.
 
+0. Saudação, agradecimento ou despedida: responda curto e cordial, na sua persona,
+   dizendo em uma linha o que você pode fazer (liberar visitante, dúvidas do regimento e
+   do condomínio). Sem ler nada.
 1. Leia os termos de `knowledge/glossary.yaml` para reconhecer sinônimos do morador
    (unidade = apê, apartamento; liberar = autorizar entrada…).
 2. Se o pedido é um dos casos de uso do catálogo (liberar visitante, reservar área,

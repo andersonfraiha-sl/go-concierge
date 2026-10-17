@@ -148,6 +148,10 @@ func (c *Catalogo) Roteador(a *Agent) string {
 	return strings.Join(pedacos, "\n\n")
 }
 
+// Politicas devolve o texto das políticas do agente (rules/*.md menos output.md),
+// para quem precisa delas fora da projeção inteira (a entrega do orquestrador).
+func (c *Catalogo) Politicas(a *Agent) string { return c.politicas(a) }
+
 // politicas: rules/*.md menos output.md, concatenados com os títulos rebaixados.
 func (c *Catalogo) politicas(a *Agent) string {
 	var pedacos []string

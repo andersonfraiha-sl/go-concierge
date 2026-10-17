@@ -7,9 +7,10 @@
 - nome: pedido de escrita fica no self (caso de uso)
   pergunta: "quero liberar um visitante hoje"
   rota: self
-- nome: despedida vai ao observador
+- nome: saudação e despedida ficam no self, nunca no observador
   pergunta: "era só isso, obrigado!"
-  rota: observador-sessao
+  rota: self
+  nao_contem: ["pendencias", "encerrar"]
 - nome: fora de escopo não inventa
   pergunta: "qual a previsão do tempo pra amanhã?"
   rota: self

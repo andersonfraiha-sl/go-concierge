@@ -300,9 +300,12 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
 
 - `persona.md` existe apenas no agente de **primeiro nível** (o concierge). Subagentes
   não têm persona, não a herdam e a interface nem mostra o bloco para eles.
-- Consequência para o harness (pendente): a resposta ao morador é **entregue pelo
-  orquestrador**, que aplica a persona ao resultado do subagente ou do caso de uso;
-  hoje, no flip de rota, o subagente responde direto e a persona não é aplicada.
+- Consequência para o harness (feita em 2026-10-17): a resposta ao morador é **entregue
+  pelo orquestrador**. Depois do desvio de rota, o orquestrador de primeiro nível faz
+  uma chamada de redação com a persona, as políticas e os assets (texto, nunca caminho)
+  sobre o resultado do subagente, sem JSON nem termos internos, e sem cumprimentar de
+  novo quando a conversa já começou. Passo `entrega` no trace. O `observador-sessao`
+  nunca é rota: saudação e despedida ficam no `self` do concierge.
 
 ## 6. Estado e próximos passos
 

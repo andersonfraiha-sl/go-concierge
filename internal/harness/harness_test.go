@@ -406,7 +406,7 @@ func TestMockEscolheRotaPorGlossario(t *testing.T) {
 	if r := m.escolherRota("quero liberar a entrada de um visitante"); r != "liberacao-visitante" {
 		t.Errorf("visitante → liberacao-visitante; veio %s", r)
 	}
-	if r := m.escolherRota("obrigado, era só isso, pode encerrar a conversa"); r != "observador-sessao" {
-		t.Errorf("despedida → observador-sessao; veio %s", r)
+	if r := m.escolherRota("obrigado, era só isso, pode encerrar a conversa"); r != "self" {
+		t.Errorf("despedida → self (o observador nunca é rota); veio %s", r)
 	}
 }
