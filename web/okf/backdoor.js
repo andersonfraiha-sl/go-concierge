@@ -199,7 +199,7 @@
     $('#nexusResumo').textContent = `${plural(lista.length, 'recurso', 'recursos')} · ${estado.nexus.account}`;
     $('#nexusDica span').textContent = estado.nexus.conferido ? `Origem: ${estado.nexus.origem}. A assinatura (params*) é a do MCP; o payload do condomínio preenche o que o agente não passar.` : 'Nexus indisponível: defina NEXUS_BASE_URL ou um instantâneo em okf/nexus/<account>.yaml.';
     const q = ($('#filtroRecursos').value || '').trim().toLowerCase();
-    const vis = lista.filter((r) => !q || (r.name + ' ' + (r.description || '') + ' ' + r.kind + ' ' + r.visibility).toLowerCase().includes(q));
+    const vis = lista.filter((r) => !q || (r.name + ' ' + (r.titulo || '') + ' ' + (r.description || '') + ' ' + r.kind + ' ' + r.visibility).toLowerCase().includes(q));
     if (!vis.length) { el.innerHTML = `<div class="cat-vazio">${lista.length ? 'nada com esse filtro' : estado.nexus.conferido ? 'a account não tem recursos' : 'Nexus indisponível'}</div>`; return; }
     const grupos = {};
     for (const r of vis) (grupos[r.classe || classeDe(r)] ||= []).push(r);
@@ -208,7 +208,7 @@
     try { fechados = JSON.parse(localStorage.getItem('okf.catalogo.fechados') || '{}'); } catch (e) { /* sem storage */ }
     el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<details class="cat-details" data-classe="${k}" ${fechados[k] && !q ? '' : 'open'}><summary class="cat-group"><i data-lucide="chevron-right" class="i-sm chev"></i><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}<span class="tag tag-kind">${grupos[k].length}</span><span class="muted" style="font-weight:400;margin-left:6px">${CLASSE[k][2]}</span></summary><div class="cat-body">` + grupos[k].map((r) => `<div class="cat-card" data-nome="${esc(r.name)}">
         <span class="res-icon ${r.write ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${KIND_ICON[r.kind] || 'plug'}"></i></span>
-        <div class="ct"><strong>${esc(r.name)}</strong><span>${esc(r.description || r.kind)}</span><span class="assin">(${esc(assinatura(r))})${r.output ? ' → ' + esc(r.output) : ''}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${r.write ? '<span class="tag tag-write">write · só pelo caso.yaml</span>' : ''}</span></div>
+        <div class="ct"><strong>${esc(r.titulo || r.name)}</strong>${r.titulo ? `<span class="mono" style="font-size:11.5px;color:var(--slate-500)">${esc(r.name)}</span>` : ''}<span>${esc(r.description || r.kind)}</span><span class="assin">(${esc(assinatura(r))})${r.output ? ' → ' + esc(r.output) : ''}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${r.write ? '<span class="tag tag-write">write · só pelo caso.yaml</span>' : ''}</span></div>
         <span class="muted" style="font-size:11.5px;display:flex;gap:6px;align-items:center">${r.write ? '<i data-lucide="list-checks" class="i-sm" title="entra por passo do caso.yaml"></i>' : ''}<button type="button" class="vote lapis" title="editar o recurso" data-editar="${esc(r.name)}"><i data-lucide="pencil"></i></button></span>
       </div>`).join('') + '</div></details>').join('');
     $$('button[data-editar]', el).forEach((b) => b.addEventListener('click', () => abrirRecurso(lista.find((r) => r.name === b.dataset.editar))));
@@ -228,12 +228,12 @@
     const f = $('#formRecurso');
     f.reset();
     f.dataset.original = r ? r.name : '';
-    $('#drawerRecursoTitulo').textContent = r ? r.name : 'Novo recurso';
+    $('#drawerRecursoTitulo').textContent = r ? (r.titulo || r.name) : 'Novo recurso';
     $('#recursoArquivo').textContent = `okf/nexus/${estado.nexus.account}.yaml`;
     $('#btnRemoverRecurso').hidden = !r;
     $('#recursoStatus').textContent = '';
     if (r) {
-      f.name.value = r.name; f.kind.value = r.kind || 'api'; f.visibility.value = r.visibility || 'private'; f.write.checked = !!r.write; f.description.value = r.description || '';
+      f.name.value = r.name; f.titulo.value = r.titulo || ''; f.kind.value = r.kind || 'api'; f.visibility.value = r.visibility || 'private'; f.write.checked = !!r.write; f.description.value = r.description || '';
       f.metodo.value = (r.conexao && r.conexao.metodo) || ''; f.url.value = (r.conexao && r.conexao.url) || ''; f.corpo.value = (r.conexao && r.conexao.corpo) || ''; f.output.value = r.output || '';
     }
     const h = (r && r.conexao && r.conexao.headers) || {};
@@ -260,7 +260,7 @@
     const conexao = { metodo: f.metodo.value, url: f.url.value.trim(), headers, corpo: f.corpo.value.trim() };
     const temConexao = conexao.metodo || conexao.url || Object.keys(headers).length || conexao.corpo;
     const original = estado.nexus.recursos.find((r) => r.name === f.dataset.original);
-    return { name: f.name.value.trim(), kind: f.kind.value, visibility: f.visibility.value, write: f.write.checked, description: f.description.value.trim(), params, output: f.output.value.trim(), conexao: temConexao ? conexao : null, saida, definicoes: (original && original.definicoes) || [] };
+    return { name: f.name.value.trim(), titulo: f.titulo.value.trim(), kind: f.kind.value, visibility: f.visibility.value, write: f.write.checked, description: f.description.value.trim(), params, output: f.output.value.trim(), conexao: temConexao ? conexao : null, saida, definicoes: (original && original.definicoes) || [] };
   }
   async function recarregarNexus() {
     estado.nexus = await api('/api/nexus/recursos');
@@ -366,7 +366,7 @@
 
     // recursos que usa
     $('#recursosResumo').textContent = recursos.length ? `${recursos.length} declarado${recursos.length === 1 ? '' : 's'}${estado.nexus.conferido ? '' : ' · não conferidos'}` : 'nenhum';
-    $('#recursosAgente').innerHTML = recursos.length ? `<table class="res-table"><thead><tr><th></th><th>Recurso</th><th>Classe</th><th>Declarado em</th><th></th></tr></thead><tbody>${recursos.map((d) => `<tr class="${d.ok ? '' : 'is-bad'}"><td><span class="led ${d.ok ? 'ok' : 'bad'}"></span></td><td><code>${esc(d.nome)}</code>${d.recurso ? `<div class="muted" style="font-size:12px">${esc(d.recurso.description || '')}</div>` : ''}${!d.ok ? `<div style="color:var(--danger);font-size:12px">${esc(d.problema)}</div>` : ''}</td><td>${d.recurso ? `<span class="tag tag-kind">${esc(d.recurso.kind)}</span> <span class="tag ${d.recurso.visibility === 'public' ? 'tag-public' : 'tag-private'}">${d.recurso.visibility}</span>${d.recurso.write ? ' <span class="tag tag-write">escrita</span>' : ''}` : '<span class="muted">—</span>'}</td><td class="mono muted">${esc(d.origem)}</td><td>${d.origem === 'agent.yaml' ? `<button class="vote no" title="tirar de agent.yaml → recursos" data-nome="${esc(d.nome)}"><i data-lucide="x"></i></button>` : ''}</td></tr>`).join('')}</tbody></table>`
+    $('#recursosAgente').innerHTML = recursos.length ? `<table class="res-table"><thead><tr><th></th><th>Recurso</th><th>Classe</th><th>Declarado em</th><th></th></tr></thead><tbody>${recursos.map((d) => `<tr class="${d.ok ? '' : 'is-bad'}"><td><span class="led ${d.ok ? 'ok' : 'bad'}"></span></td><td>${d.recurso && d.recurso.titulo ? `<strong>${esc(d.recurso.titulo)}</strong> ` : ''}<code>${esc(d.nome)}</code>${d.recurso ? `<div class="muted" style="font-size:12px">${esc(d.recurso.description || '')}</div>` : ''}${!d.ok ? `<div style="color:var(--danger);font-size:12px">${esc(d.problema)}</div>` : ''}</td><td>${d.recurso ? `<span class="tag tag-kind">${esc(d.recurso.kind)}</span> <span class="tag ${d.recurso.visibility === 'public' ? 'tag-public' : 'tag-private'}">${d.recurso.visibility}</span>${d.recurso.write ? ' <span class="tag tag-write">escrita</span>' : ''}` : '<span class="muted">—</span>'}</td><td class="mono muted">${esc(d.origem)}</td><td>${d.origem === 'agent.yaml' ? `<button class="vote no" title="tirar de agent.yaml → recursos" data-nome="${esc(d.nome)}"><i data-lucide="x"></i></button>` : ''}</td></tr>`).join('')}</tbody></table>`
       : `<div class="empty-state"><i data-lucide="plug"></i><span>Nenhum recurso declarado. Ligue na lista <b>Recursos do Nexus</b> à esquerda, ou arraste um cartão sobre o agente.</span></div>`;
     $$('#recursosAgente button[data-nome]').forEach((b) => b.addEventListener('click', async () => { try { await vincular(estado.selecionado, b.dataset.nome, false); } catch (err) { toast(err.message, true); } }));
     icons();
@@ -602,13 +602,13 @@
   function desenharPaleta() {
     const q = $('#paletaFiltro').value.trim().toLowerCase();
     const decl = declarados();
-    let lista = (estado.nexus.recursos || []).filter((r) => !q || (r.name + ' ' + (r.description || '') + ' ' + r.kind).toLowerCase().includes(q));
+    let lista = (estado.nexus.recursos || []).filter((r) => !q || (r.name + ' ' + (r.titulo || '') + ' ' + (r.description || '') + ' ' + r.kind).toLowerCase().includes(q));
     if (paleta.modo === 'declarar') lista = lista.filter((r) => !r.write && !decl.has(r.name));
     const grupos = {};
     for (const r of lista) (grupos[r.classe || classeDe(r)] ||= []).push(r);
     paleta.itens = Object.keys(CLASSE).flatMap((k) => grupos[k] || []);
     paleta.ativo = 0;
-    const item = (r, i) => `<div class="paleta-item ${i === 0 ? 'is-active' : ''}" data-i="${i}"><b>${esc(r.name)}</b><span class="tags">${decl.has(r.name) ? '<span class="tag tag-public">declarado</span>' : ''}<span class="tag tag-kind">${esc(r.kind)}</span>${r.write ? '<span class="tag tag-write">write</span>' : ''}</span><span>${esc(r.description || '')}</span></div>`;
+    const item = (r, i) => `<div class="paleta-item ${i === 0 ? 'is-active' : ''}" data-i="${i}"><b>${esc(r.name)}${r.titulo ? ` <span class="muted" style="font-family:var(--font);font-weight:500">· ${esc(r.titulo)}</span>` : ''}</b><span class="tags">${decl.has(r.name) ? '<span class="tag tag-public">declarado</span>' : ''}<span class="tag tag-kind">${esc(r.kind)}</span>${r.write ? '<span class="tag tag-write">write</span>' : ''}</span><span>${esc(r.description || '')}</span></div>`;
     let i = 0;
     $('#paletaLista').innerHTML = paleta.itens.length
       ? Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<div class="paleta-grupo">${CLASSE[k][0]}${k === 'escrita' ? ' (só por passo do caso.yaml)' : ''}</div>` + grupos[k].map((r) => item(r, i++)).join('')).join('')

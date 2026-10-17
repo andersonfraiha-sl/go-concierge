@@ -240,7 +240,8 @@
       <form id="formRecurso" class="body">
         <p class="notice info" id="recursoAviso"><i data-lucide="info"></i><span>Edita o instantâneo <code id="recursoArquivo"></code>. Descrição e saídas bem escritas são o que a indexação semântica e o agente usam para escolher o recurso.</span></p>
         <div class="form-grid">
-          <div class="form-row"><label>Nome <small>grupo.acao, minúsculas</small></label><input class="field-input mono" name="name" required spellcheck="false" placeholder="encomendas.listar"></div>
+          <div class="form-row"><label>Nome comercial <small>como aparece para humanos</small></label><input class="field-input" name="titulo" required placeholder="Minhas encomendas"></div>
+          <div class="form-row"><label>Código <small>grupo.acao, minúsculas; é o que o agente chama</small></label><input class="field-input mono" name="name" required spellcheck="false" placeholder="encomendas.listar"></div>
           <div class="form-row"><label>Tipo (kind)</label><select class="field-select" name="kind"><option value="api">api — leitura/escrita</option><option value="database">database</option><option value="knowledge">knowledge — conhecimento</option><option value="memory">memory — memória</option><option value="action">action — ação</option><option value="activity">activity — atividade do workspace (ação)</option><option value="agent">agent — agente executor</option><option value="form">form — procedimento externo</option></select></div>
           <div class="form-row"><label>Visibilidade</label><select class="field-select" name="visibility"><option value="private">private — só morador identificado</option><option value="public">public — qualquer contato</option></select></div>
           <div class="form-row"><label>Efeito</label><label class="switch" style="margin-top:8px"><input type="checkbox" name="write"><i></i>write: grava ou executa algo (só por passo do caso.yaml, com confirmação)</label></div>
@@ -283,6 +284,6 @@
     </aside>
   </div>
 
-  <script src="/backdoor.js?v=9"></script>
+  <script src="/backdoor.js?v=10"></script>
 </body>
 </html>

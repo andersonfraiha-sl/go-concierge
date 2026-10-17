@@ -40,6 +40,7 @@ var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", 
 // Recurso é um item do catálogo de recursos de uma account no Nexus.
 type Recurso struct {
 	Name        string      `json:"name" yaml:"name"`
+	Titulo      string      `json:"titulo,omitempty" yaml:"titulo,omitempty"` // nome comercial, para humanos ("Áreas reserváveis")
 	Kind        string      `json:"kind" yaml:"kind"`
 	Visibility  string      `json:"visibility" yaml:"visibility"` // public | private
 	Write       bool        `json:"write" yaml:"write"`

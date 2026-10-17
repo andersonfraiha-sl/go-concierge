@@ -4,6 +4,7 @@
 # encomendas). Usado pelo okf-admin e pelo okf-run quando NEXUS_BASE_URL não está definido.
 recursos:
     - name: agente.redator
+      titulo: Redator de comunicados
       kind: agent
       visibility: private
       write: false
@@ -20,6 +21,7 @@ recursos:
       output: '{texto}'
       definicoes: []
     - name: areas.listar
+      titulo: Áreas reserváveis
       kind: api
       visibility: private
       write: false
@@ -28,6 +30,7 @@ recursos:
       output: lista de {id, nome}
       definicoes: []
     - name: areas.reservar
+      titulo: Reserva de área comum
       kind: api
       visibility: private
       write: true
@@ -66,6 +69,7 @@ recursos:
           default: null
           description: 'Ex.: 10h às 22h. O concierge informa ao confirmar.'
     - name: atividade.vistoria
+      titulo: Vistoria técnica
       kind: activity
       visibility: private
       write: true
@@ -82,6 +86,7 @@ recursos:
       output: '{protocolo, previsao}'
       definicoes: []
     - name: cadastro.atualizar
+      titulo: Atualização cadastral
       kind: api
       visibility: private
       write: true
@@ -98,6 +103,7 @@ recursos:
       output: '{protocolo}'
       definicoes: []
     - name: cadastro.campos
+      titulo: Campos do cadastro
       kind: api
       visibility: private
       write: false
@@ -110,6 +116,7 @@ recursos:
       output: lista de {name, label, type?, options?, value?}
       definicoes: []
     - name: encomendas.codigo
+      titulo: Código de retirada
       kind: api
       visibility: private
       write: false
@@ -126,6 +133,7 @@ recursos:
       output: '{codigo}'
       definicoes: []
     - name: encomendas.listar
+      titulo: Minhas encomendas
       kind: api
       visibility: private
       write: false
@@ -142,6 +150,7 @@ recursos:
       output: lista de {id, label, status}
       definicoes: []
     - name: faq.buscar
+      titulo: Perguntas frequentes
       kind: knowledge
       visibility: public
       write: false
@@ -166,6 +175,7 @@ recursos:
           default: null
           description: 'publico: qualquer contato; privado: só morador identificado.'
     - name: form.ouvidoria
+      titulo: Ouvidoria
       kind: form
       visibility: public
       write: false
@@ -178,6 +188,7 @@ recursos:
       output: '{url}'
       definicoes: []
     - name: memoria.preferencias
+      titulo: Preferências do morador
       kind: memory
       visibility: private
       write: false
@@ -186,6 +197,7 @@ recursos:
       output: objeto de preferências
       definicoes: []
     - name: mudancas.agendar
+      titulo: Agendamento de mudança
       kind: api
       visibility: private
       write: true
@@ -218,6 +230,7 @@ recursos:
           default: 8h às 12h e 13h às 17h
           description: ""
     - name: obras.comunicar
+      titulo: Comunicação de obra
       kind: api
       visibility: private
       write: true
@@ -262,6 +275,7 @@ recursos:
           default: 2
           description: ""
     - name: portaria.avisar
+      titulo: Aviso à portaria
       kind: action
       visibility: private
       write: true
@@ -287,6 +301,7 @@ recursos:
           default: painel
           description: ""
     - name: unidades.listar
+      titulo: Unidades do morador
       kind: api
       visibility: private
       write: false
@@ -301,6 +316,7 @@ recursos:
           default: null
           description: Identifica o condomínio no cadastro de moradores; o concierge passa sem perguntar.
     - name: visitantes.liberar
+      titulo: Liberação de visitante
       kind: api
       visibility: private
       write: true
@@ -331,6 +347,7 @@ recursos:
           default: 24
           description: Por quanto tempo a portaria aceita a entrada.
     - name: visitantes.motivos
+      titulo: Motivos de visita
       kind: api
       visibility: private
       write: false
