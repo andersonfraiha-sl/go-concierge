@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/env"
 	"go-concierge/internal/gruvi"
@@ -57,6 +58,7 @@ type servidor struct {
 	emulador      *atende.Emulador
 	provedor      string
 	memorias      memoria.Store
+	admin         *admin.Store
 }
 
 var (
@@ -115,9 +117,18 @@ func main() {
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 	}
 
+	// Admin da administradora: mapeamento condomínio × casos de uso × payloads
+	s.admin = admin.NewStore(env.Ou("ADMIN_DIR", filepath.Join(cat.Root, "var", "admin")) + string(filepath.Separator) + "mapeamento.json")
+	if m, err := s.admin.Ler(); err == nil && len(m.Condominios) == 0 {
+		// primeiro uso: o condomínio de exemplo, ligado à account, ao Gruvi e ao tenant do ATENDE
+		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981")})
+	}
+	s.atende.Mapeamento = s.admin
+
 	mux := http.NewServeMux()
 	s.rotas(mux)
 	s.rotasAtende(mux)
+	s.rotasAdmin(mux)
 
 	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · modelo: %s · gruvi: %v · http://%s", cat.Root, account, s.nexus, s.provedor, s.gruviOK, *addr)
 	if *abrir {

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"go-concierge/internal/admin"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -120,6 +122,9 @@ type Servico struct {
 	// fatos novos a cada troca (nil = memoria.Regras).
 	Memorias memoria.Store
 	Extrator memoria.Extrator
+	// Mapeamento é o Admin da administradora (nil = tudo habilitado, sem payloads):
+	// resolve o condomínio da conversa, filtra os casos de uso e injeta os payloads.
+	Mapeamento *admin.Store
 }
 
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
@@ -145,6 +150,33 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	cfg.Sessao = ev.Data.Protocol.Number
 	cfg.Identidade = harness.Identidade{Authenticated: sess.Identidade.Authenticated, AccountID: s.Account, Role: sess.Identidade.Role}
 
+	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
+	// quais definições (payloads) valem para os recursos
+	var contexto []string
+	if s.Mapeamento != nil {
+		if m, err := s.Mapeamento.Ler(); err == nil {
+			condo, ok := m.Resolver(sess.Identidade.CompanyID, ev.Tenant, s.Account)
+			condoID := admin.Padrao
+			if ok {
+				condoID = condo.ID
+				if condo.Account != "" {
+					cfg.Identidade.AccountID = condo.Account
+				}
+			}
+			sess.Condominio = condoID
+			papel := sess.Identidade.Role
+			cfg.Casos = func(nome, casoID string) bool {
+				return m.Habilitado(condoID, nome, papel) && (casoID == "" || m.Habilitado(condoID, casoID, papel))
+			}
+			cfg.Payloads = m.PayloadsDe(condoID)
+			if c := admin.Contexto(condo, cfg.Payloads); c != "" && (ok || len(cfg.Payloads) > 0) {
+				contexto = append(contexto, c)
+			}
+		} else if s.Log != nil {
+			s.Log.Printf("atende: mapeamento: %v", err)
+		}
+	}
+
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
 	var mem memoria.Memoria
 	if s.Memorias != nil {
@@ -153,8 +185,11 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 			s.Log.Printf("atende: memória de %s: %v", ev.Data.Contact.Phone, err)
 		}
 		mem = m
-		cfg.Contexto = harness.ContextoDeMemoria(mem)
+		if c := harness.ContextoDeMemoria(mem); c != "" {
+			contexto = append(contexto, c)
+		}
 	}
+	cfg.Contexto = strings.Join(contexto, "\n\n")
 	dir, err := s.Cat.ResolveAgente(s.Agente)
 	if err != nil {
 		return sess, err

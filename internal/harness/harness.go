@@ -71,8 +71,15 @@ type Config struct {
 	// Sessao identifica a conversa (protocolo) na chave de idempotência; vazio = "local".
 	Sessao string
 	// Contexto é um bloco extra na instrução de toda a família (a memória sobre o
-	// morador, ver memoria.go); vazio = nada.
+	// morador e o contexto do condomínio); vazio = nada.
 	Contexto string
+	// Casos filtra os casos de uso (subagentes do orquestrador de primeiro nível) que
+	// este condomínio pode usar; nil = todos. Recebe o nome da pasta do subagente e o
+	// id do caso.yaml (vazio se não há caso).
+	Casos func(nome, casoID string) bool
+	// Payloads são as definições do condomínio por recurso do Nexus (Admin): valem
+	// como parâmetros padrão em chamar_recurso quando o agente não os passa.
+	Payloads map[string]map[string]any
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
@@ -157,12 +164,28 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	if a.Tipo == okf.Orquestrador {
 		ag.Roteador = cat.Roteador(a)
 	}
+	var excluidos []string
+	raiz := len(okf.Ancestrais(a.Path)) == 0
 	for _, s := range a.Subagentes {
+		if raiz && cfg.Casos != nil {
+			casoID := ""
+			if s.Caso != nil {
+				casoID = s.Caso.ID
+			}
+			if !cfg.Casos(s.Nome, casoID) {
+				excluidos = append(excluidos, s.Nome)
+				continue
+			}
+		}
 		sub, err := Build(ctx, cat, s, cfg)
 		if err != nil {
 			return nil, err
 		}
 		ag.Subagentes[s.Nome] = sub
+	}
+	if len(excluidos) > 0 {
+		ag.Roteador = semRotas(ag.Roteador, excluidos)
+		ag.Instrucao = semLinhasDeSubagente(ag.Instrucao, excluidos)
 	}
 
 	tools, err := ag.toolsNativas()
@@ -517,6 +540,64 @@ func (ag *Agente) entregar(ctx context.Context, mensagem string, sub *Agente, re
 	}
 	uso.registra(m)
 	return strings.TrimSpace(m.Content), uso, nil
+}
+
+// semRotas tira do texto do roteador os itens que apontam para rotas excluídas (o
+// item inteiro, com as linhas de continuação), para o modelo nem as ver.
+func semRotas(texto string, excluidos []string) string {
+	if texto == "" || len(excluidos) == 0 {
+		return texto
+	}
+	ehItem := func(l string) bool {
+		t := strings.TrimSpace(l)
+		return strings.HasPrefix(t, "- ") || strings.HasPrefix(t, "* ")
+	}
+	ehContinuacao := func(l string) bool {
+		return !ehItem(l) && strings.TrimSpace(l) != "" && (strings.HasPrefix(l, " ") || strings.HasPrefix(l, "\t"))
+	}
+	bl := strings.Split(texto, "\n")
+	var out []string
+	for i := 0; i < len(bl); i++ {
+		if !ehItem(bl[i]) {
+			out = append(out, bl[i])
+			continue
+		}
+		j := i + 1
+		for j < len(bl) && ehContinuacao(bl[j]) {
+			j++
+		}
+		bloco := strings.Join(bl[i:j], " ")
+		excluir := false
+		for _, ex := range excluidos {
+			if strings.Contains(bloco, "rota `"+ex+"`") {
+				excluir = true
+				break
+			}
+		}
+		if !excluir {
+			out = append(out, bl[i:j]...)
+		}
+		i = j - 1
+	}
+	return strings.Join(out, "\n")
+}
+
+// semLinhasDeSubagente tira da projeção as linhas de índice dos subagentes excluídos.
+func semLinhasDeSubagente(texto string, excluidos []string) string {
+	linhas := strings.Split(texto, "\n")
+	var out []string
+	for _, l := range linhas {
+		skip := false
+		for _, ex := range excluidos {
+			if strings.HasPrefix(strings.TrimSpace(l), "- `"+ex+"`") {
+				skip = true
+			}
+		}
+		if !skip {
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 func mensagemDe(mv *adk.MessageVariant) (*schema.Message, error) {

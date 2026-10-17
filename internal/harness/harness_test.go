@@ -391,6 +391,34 @@ func TestProfundidadeMaxima(t *testing.T) {
 	}
 }
 
+func TestSemRotasTiraOItemInteiro(t *testing.T) {
+	texto := "# Roteamento\n\n- Regras do regimento (barulho, obras),\n  \"o que diz o regimento\" → rota `regimento`.\n- Dúvida geral → rota `faq`.\n- Liberar visitante, amigo ou\n  prestador → rota `liberacao-visitante`.\n- Qualquer outra coisa → rota `self`.\n"
+	r := semRotas(texto, []string{"liberacao-visitante", "regimento"})
+	if strings.Contains(r, "liberacao-visitante") || strings.Contains(r, "regimento") || !strings.Contains(r, "rota `faq`") || !strings.Contains(r, "rota `self`") || !strings.Contains(r, "# Roteamento") {
+		t.Fatalf("semRotas:\n%s", r)
+	}
+	if semRotas("", []string{"x"}) != "" || semRotas(texto, nil) != texto {
+		t.Fatal("casos vazios")
+	}
+}
+
+func TestCasosHabilitadosFiltramSubagentes(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Casos: func(nome, casoID string) bool { return nome != "liberacao-visitante" }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, tem := ag.Subagentes["liberacao-visitante"]; tem {
+		t.Fatal("caso desabilitado não deveria ser montado")
+	}
+	if strings.Contains(ag.Roteador, "liberacao-visitante") || strings.Contains(ag.Instrucao, "`liberacao-visitante`") {
+		t.Fatalf("roteador/instrução ainda citam o caso desabilitado:\n%s", ag.Roteador)
+	}
+	if _, tem := ag.Subagentes["regimento"]; !tem {
+		t.Fatal("os demais continuam")
+	}
+}
+
 func TestMockEscolheRotaPorGlossario(t *testing.T) {
 	cat, a := catalogoExemplo(t)
 	m := NewMock(cat, a)

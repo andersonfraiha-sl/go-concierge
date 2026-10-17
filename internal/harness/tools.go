@@ -276,7 +276,11 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 		var faltam []string
 		for _, pm := range achado.Recurso.Params {
 			if pm.Required {
-				if v, ok := in.Params[pm.Name]; !ok || v == nil || fmt.Sprint(v) == "" {
+				v, ok := in.Params[pm.Name]
+				if !ok || v == nil || fmt.Sprint(v) == "" {
+					if pv, okp := ag.cfg.Payloads[nome][pm.Name]; okp && pv != nil && fmt.Sprint(pv) != "" {
+						continue // o payload do condomínio preenche
+					}
 					faltam = append(faltam, pm.Name)
 				}
 			}
@@ -288,6 +292,12 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 	params := in.Params
 	if params == nil {
 		params = map[string]any{}
+	}
+	// payload do condomínio (Admin): remontado na chamada como parâmetros padrão
+	for k, v := range ag.cfg.Payloads[nome] {
+		if _, ok := params[k]; !ok {
+			params[k] = v
+		}
 	}
 	n := 1
 	if col := coletorDe(ctx); col != nil {

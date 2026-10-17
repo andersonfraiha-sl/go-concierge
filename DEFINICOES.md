@@ -130,7 +130,34 @@ Texto anterior (referência D13, canal síncrono), mantido como histórico:
   reage a `exit` e a `transferredToAttendant`. Sua forma exata vem das instruções
   futuras.
 
-### 1.4 Módulo Admin da administradora
+### 1.4 Módulo Admin da administradora (redefinido em 2026-10-17)
+
+**Redefinição do usuário.** O condômino é o usuário final; ele fala com o próprio
+condomínio ou com a administradora dele (nesse caso, a unidade e o condomínio vêm da
+identificação pelo telefone). Há **um só concierge** (o orquestrador). Um **caso de uso**
+é uma jornada completa numa trilha de atendimento (liberar visitante, reservar área
+comum…), acessada pelo orquestrador; o caso de uso **define o agente** (workflows,
+skills, assets, conhecimento) e pode ter subagentes. Cada condomínio injeta **contexto
+dinâmico** nas skills e políticas desses agentes, mapeado pelos **recursos** do Nexus,
+cada um com a assinatura do seu MCP.
+
+Quem cria casos de uso, tools, MCPs e recursos do Nexus é a Superlógica: isso fica na
+tela **Backdoor** (a antiga tela de skills). A tela **Admin** da administradora é só o
+mapeamento, como um banco com RLS:
+
+| Eixo | O que define | Regra sem mapeamento |
+|---|---|---|
+| condomínio × caso de uso | habilitado / desabilitado e papéis que podem usar | comum a todos (habilitado) |
+| condomínio × recurso R | **payload** de definições (parâmetros padrão e regras locais) | o payload "Padrão (todos)" |
+
+Em tempo de execução, o condomínio da conversa é resolvido pela company do Gruvi, pelo
+tenant do ATENDE ou pela account; os casos desabilitados somem do roteador do concierge;
+o payload de R é **remontado na chamada** (preenche os params que o agente não passou)
+e entra no prompt como "Contexto do condomínio". Implementado em `internal/admin`
+(JSON em `okf/var/admin/mapeamento.json`), `harness.Config{Casos, Payloads}`,
+`internal/atende` e a tela Admin (`/`), com Backdoor em `/backdoor`.
+
+Texto original (para histórico):
 
 - Existe um **módulo Admin** para a **administradora de condomínios** (não para o
   morador). Ele cadastra:

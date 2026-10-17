@@ -22,6 +22,7 @@ type Sessao struct {
 	Canal        Canal            `json:"canal"`
 	Identidade   gruvi.Identidade `json:"identidade"`
 	IdentErro    string           `json:"identidade_erro,omitempty"`
+	Condominio   string           `json:"condominio,omitempty"` // id no Admin ("*" = padrão)
 	Turnos       []Turno          `json:"turnos"`
 	CriadaEm     time.Time        `json:"criada_em"`
 	AtualizadaEm time.Time        `json:"atualizada_em"`

@@ -95,9 +95,9 @@
         <div class="uc-head"><span class="usecase-icon ${n.tipo}"><i data-lucide="${tipoIcone(n.tipo)}"></i></span><div class="uc-title"><strong>${esc(n.nome)}</strong><span>${esc(n.caminho)}</span></div></div>
         <p class="uc-desc">${esc(n.descricao || 'sem descrição')}</p>
         <div class="uc-meta"><span class="tag tag-kind">${n.tipo}</span><span class="tag tag-locked">${plural((n.subagentes || []).length, 'subagente', 'subagentes')}</span>${n.caso ? '<span class="tag tag-write">caso de uso</span>' : ''}${n.erros ? `<span class="tag tag-bad">${plural(n.erros, 'erro', 'erros')}</span>` : ''}${n.avisos ? `<span class="tag tag-warn">${plural(n.avisos, 'aviso', 'avisos')}</span>` : ''}</div>
-      </button>`).join('') + `<button class="uc-card uc-new" id="cardNovo"><i data-lucide="plus"></i><span>Cadastrar um agente novo</span></button>`;
+      </button>`).join('') + `<button class="uc-card uc-new" id="cardNovo"><i data-lucide="plus"></i><span>Novo caso de uso do concierge</span></button>`;
     $$('.uc-card[data-caminho]', grade).forEach((b) => b.addEventListener('click', () => selecionar(b.dataset.caminho)));
-    $('#cardNovo').addEventListener('click', () => abrirNovo(''));
+    $('#cardNovo').addEventListener('click', () => abrirNovo(raizConcierge()));
     icons();
   }
 
@@ -515,6 +515,8 @@
     $('#formImportar select[name=pai]').innerHTML = opcoes;
     $('#formNovo select[name=recursos]').innerHTML = (estado.nexus.recursos || []).filter((r) => !r.write).map((r) => `<option value="${esc(r.name)}">${esc(r.name)} — ${esc(r.description || r.kind)}</option>`).join('');
   }
+  // há um só concierge: o novo é sempre um caso de uso (subagente) dele
+  const raizConcierge = () => (estado.arvore[0] ? estado.arvore[0].caminho : '');
   function abrirNovo(pai) {
     const f = $('#formNovo');
     f.reset();
@@ -537,8 +539,8 @@
     if (sel.value === 'orquestrador' && !$('#formNovo select[name=pai]').value) $('#formNovo input[name=persona]').checked = true;
   }
   $$('#formNovo input[name=tipo]').forEach((r) => r.addEventListener('change', atualizarTipoNovo));
-  $('#btnNovo').addEventListener('click', () => abrirNovo(''));
-  $('#btnNovo2').addEventListener('click', () => abrirNovo(''));
+  $('#btnNovo').addEventListener('click', () => abrirNovo(raizConcierge()));
+  $('#btnNovo2').addEventListener('click', () => abrirNovo(raizConcierge()));
   $('#formNovo').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;

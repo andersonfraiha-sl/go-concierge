@@ -366,6 +366,21 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .toast.is-error { background: var(--danger); }
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 4px) scale(.98); } }
 
+/* ---------- Admin: matriz ---------- */
+.matriz th.col-padrao { background: var(--sl-blue-50); }
+.matriz td.celula { cursor: pointer; vertical-align: middle; border-left: 1px solid var(--slate-100); min-width: 150px; }
+.matriz td.celula:hover { background: var(--canvas); }
+.matriz td.celula.herdada { color: var(--slate-500); }
+.matriz td.celula.herdada b { font-weight: 500; }
+.matriz td.celula.propria { background: #FBFCFF; }
+.matriz td.celula.off.propria { background: #FFF8F8; }
+.matriz td.celula .chips { margin-top: 3px; }
+.res-name { display: flex; gap: 10px; align-items: flex-start; }
+.res-name .res-icon { flex: none; }
+.res-name strong { font-family: var(--font-mono); font-size: 13px; }
+.res-name p { margin: 2px 0 0; color: var(--slate-500); font-size: 12.5px; }
+.admin-nav a.is-active, .admin-nav a.is-active span, .admin-nav a.is-active svg.lucide { color: var(--sl-blue); }
+
 /* ---------- Console (emulador do ATENDE) ---------- */
 .workspace { display: grid; grid-template-columns: 320px minmax(360px, 420px) minmax(0, 1fr); gap: 20px; padding: 20px 24px; height: calc(100vh - var(--topbar-h)); }
 .workspace > * { min-width: 0; min-height: 0; }
