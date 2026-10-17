@@ -323,7 +323,8 @@
     try { const r = await api(url('/api/admin/condominio', { id: c.id }), { method: 'DELETE' }); toast('removido'); estado.m = r.mapeamento; location.hash = '#/condominios'; aplicar(r.mapeamento, r.administradoras); } catch (err) { toast(err.message, true); }
   });
 
-  // ---- payloads (Backdoor) -----------------------------------------------------------
+  // ---- definições por condomínio (Backdoor): linhas compactas, lápis, drawer com sugestão ----
+  const payloadDrawer = { recurso: null, condoID: PADRAO };
   function desenharPayloads() {
     const sel = $('#selCondoPayload');
     if (!sel) return;
@@ -333,30 +334,117 @@
     estado.condoPayload = condoID;
     const proprios = (estado.m.payloads || {})[condoID] || {};
     const padrao = (estado.m.payloads || {})[PADRAO] || {};
-    const efetivo = (recurso) => ({ ...(padrao[recurso] || {}), ...(condoID !== PADRAO ? (proprios[recurso] || {}) : {}) });
     const tb = $('#tabelaPayloads tbody');
     tb.innerHTML = estado.recursos.length ? estado.recursos.map((r) => {
-      const assinatura = (r.params || []).length ? r.params.map((p) => `<code>${esc(p.name)}${p.type ? ':' + esc(p.type) : ''}${p.required ? '*' : ''}</code>`).join(' ') : '<span class="muted">sem parâmetros</span>';
-      const tem = proprios[r.name] !== undefined;
-      const ef = efetivo(r.name);
-      return `<tr><td><div class="res-name"><span class="res-icon ${r.write ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${r.write ? 'pen-line' : r.kind === 'knowledge' ? 'book-open' : 'plug'}"></i></span><div><strong>${esc(r.titulo || r.name)}</strong>${r.titulo ? `<div class="mono muted" style="font-size:11.5px">${esc(r.name)}</div>` : ''}<p>${esc(r.description || '')}</p><div class="chips" style="margin-top:4px"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${esc(r.visibility)}</span>${r.write ? '<span class="tag tag-write">escrita</span>' : ''}</div></div></div></td><td>${assinatura}${r.output ? `<div class="muted" style="font-size:11.5px;margin-top:4px">→ ${esc(r.output)}</div>` : ''}</td><td><textarea class="field-area code" data-recurso="${esc(r.name)}" rows="4" spellcheck="false" placeholder='{"chave": "valor"}'>${tem ? esc(JSON.stringify(proprios[r.name], null, 2)) : ''}</textarea><div class="form-actions" style="margin-top:6px"><button class="btn btn-ghost btn-sm" data-apagar="${esc(r.name)}" ${tem ? '' : 'disabled'}><i data-lucide="eraser" class="i-sm"></i>Apagar</button><button class="btn btn-primary btn-sm" data-salvar="${esc(r.name)}"><i data-lucide="save" class="i-sm"></i>Salvar</button></div></td><td><pre class="pre" style="margin:0;padding:8px;font-size:12px;background:var(--canvas)">${Object.keys(ef).length ? esc(JSON.stringify(ef, null, 2)) : '—'}</pre></td></tr>`;
-    }).join('') : '<tr><td colspan="4"><div class="empty-state"><i data-lucide="plug"></i>Nenhum recurso do Nexus (defina NEXUS_BASE_URL ou o instantâneo okf/nexus/&lt;account&gt;.yaml).</div></td></tr>';
-    $$('#tabelaPayloads button[data-salvar]').forEach((b) => b.addEventListener('click', async () => {
-      const ta = $(`#tabelaPayloads textarea[data-recurso="${CSS.escape(b.dataset.salvar)}"]`);
-      let payload;
-      try { payload = ta.value.trim() ? JSON.parse(ta.value) : {}; } catch (err) { return toast('JSON inválido: ' + err.message, true); }
-      if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) return toast('o payload precisa ser um objeto JSON', true);
-      try { const r = await api(url('/api/admin/payload'), { method: 'PUT', body: JSON.stringify({ condominio: condoID, recurso: b.dataset.salvar, payload }) }); toast(`payload de ${b.dataset.salvar} salvo`); aplicar(r.mapeamento, r.administradoras); } catch (err) { toast(err.message, true); }
-    }));
-    $$('#tabelaPayloads button[data-apagar]').forEach((b) => b.addEventListener('click', async () => {
-      try { const r = await api(url('/api/admin/payload'), { method: 'PUT', body: JSON.stringify({ condominio: condoID, recurso: b.dataset.apagar, apagar: true }) }); toast(`payload de ${b.dataset.apagar} apagado`); aplicar(r.mapeamento, r.administradoras); } catch (err) { toast(err.message, true); }
-    }));
+      const rotulo = (k) => { const d = (r.definicoes || []).find((x) => x.name === k); return d ? d.label : k; };
+      const mostra = (v) => typeof v === 'object' ? JSON.stringify(v) : String(v);
+      const prop = proprios[r.name] || {}, pad = condoID === PADRAO ? {} : (padrao[r.name] || {});
+      const chaves = [...new Set([...Object.keys(pad), ...Object.keys(prop)])];
+      const chips = chaves.length ? chaves.map((k) => prop[k] !== undefined ? `<span class="tag tag-private" title="definido neste condomínio"><b>${esc(rotulo(k))}:</b>${esc(mostra(prop[k]))}</span>` : `<span class="tag herdado" title="vale o padrão"><b>${esc(rotulo(k))}:</b>${esc(mostra(pad[k]))}</span>`).join('') : `<span class="vazio">${(r.definicoes || []).length ? 'nada definido ainda' : 'sem campos de ajuste'}</span>`;
+      return `<tr><td><div class="res-name"><span class="res-icon ${r.write ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${r.write ? 'pen-line' : r.kind === 'knowledge' ? 'book-open' : 'plug'}"></i></span><div><strong>${esc(r.titulo || r.name)}</strong><div class="cod">${esc(r.name)}</div></div></div></td><td><div class="kv-chips">${chips}</div></td><td class="acoes"><button class="vote lapis" title="definir neste condomínio" data-payload="${esc(r.name)}"><i data-lucide="pencil"></i></button></td></tr>`;
+    }).join('') : '<tr><td colspan="3"><div class="empty-state"><i data-lucide="plug"></i>Nenhum recurso do Nexus (defina NEXUS_BASE_URL ou o instantâneo okf/nexus/&lt;account&gt;.yaml).</div></td></tr>';
+    $$('#tabelaPayloads button[data-payload]').forEach((b) => b.addEventListener('click', () => abrirPayload(estado.recursos.find((r) => r.name === b.dataset.payload), condoID)));
   }
   $('#selCondoPayload')?.addEventListener('change', (e) => { estado.condoPayload = e.target.value; desenharPayloads(); icons(); });
 
+  const linhaOutra = (k = '', v = '') => `<tr><td><input class="field-input mono" data-o-k value="${esc(k)}" placeholder="chave" spellcheck="false"></td><td><input class="field-input" data-o-v value="${esc(typeof v === 'object' ? JSON.stringify(v) : v)}" placeholder="valor"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
+  function campoPayload(d, valor, herdado) {
+    const dica = herdado !== undefined && herdado !== null && herdado !== '' ? `padrão: ${esc(String(herdado))}` : 'sem padrão';
+    const v = valor;
+    let input;
+    if (d.type === 'select') input = `<select class="field-select" data-campo="${esc(d.name)}"><option value="">— ${dica} —</option>${(d.options || []).map((op) => `<option value="${esc(op)}" ${v === op ? 'selected' : ''}>${esc(op)}</option>`).join('')}</select>`;
+    else if (d.type === 'boolean') input = `<label class="switch"><input type="checkbox" data-campo="${esc(d.name)}" data-tipo="boolean" ${v === true ? 'checked' : ''}><i></i>${v === undefined ? dica : v ? 'sim' : 'não'}</label>`;
+    else if (d.type === 'text') input = `<textarea class="field-area field-short" rows="2" data-campo="${esc(d.name)}" placeholder="${dica}">${v === undefined ? '' : esc(String(v))}</textarea>`;
+    else input = `<input class="field-input" type="${d.type === 'number' ? 'number' : 'text'}" data-campo="${esc(d.name)}" data-tipo="${esc(d.type || 'string')}" value="${v === undefined ? '' : esc(String(v))}" placeholder="${dica}">`;
+    return `<div class="form-row"><label>${esc(d.label || d.name)}${d.description ? `<small style="display:block;color:var(--slate-400)">${esc(d.description)}</small>` : ''}</label>${input}</div>`;
+  }
+  function abrirPayload(r, condoID) {
+    if (!r) return;
+    payloadDrawer.recurso = r; payloadDrawer.condoID = condoID;
+    const condo = colunas().find((c) => c.id === condoID);
+    $('#payloadTitulo').textContent = `${r.titulo || r.name} · ${condo ? condo.nome : condoID}`;
+    $('#payloadCodigo').textContent = r.name + ((r.params || []).length ? ` (${r.params.map((p) => p.name + (p.required ? '*' : '')).join(', ')})` : '');
+    $('#payloadDesc').textContent = r.description || '';
+    $('#payloadTexto').value = '';
+    $('#payloadNota').textContent = '';
+    $('#payloadStatus').textContent = '';
+    const prop = ((estado.m.payloads || {})[condoID] || {})[r.name] || {};
+    const pad = condoID === PADRAO ? {} : (((estado.m.payloads || {})[PADRAO] || {})[r.name] || {});
+    const defs = r.definicoes || [];
+    $('#payloadCampos').innerHTML = defs.length ? defs.map((d) => campoPayload(d, prop[d.name], pad[d.name] !== undefined ? pad[d.name] : d.default)).join('') : '<p class="muted" style="grid-column:1/-1;margin:0;font-size:12.5px">Este recurso não declara campos de ajuste; use as definições livres abaixo (ou declare os campos no catálogo).</p>';
+    const outras = Object.keys(prop).filter((k) => !defs.some((d) => d.name === k));
+    $('#tabOutras tbody').innerHTML = outras.map((k) => linhaOutra(k, prop[k])).join('');
+    $('#payloadOutras').open = !defs.length || outras.length > 0;
+    $('#payloadOutrasN').textContent = outras.length ? `(${outras.length})` : '';
+    $('#btnApagarPayload').hidden = !Object.keys(prop).length;
+    $('#drawerPayload').hidden = false;
+    icons();
+  }
+  function lerPayloadDoForm() {
+    const r = payloadDrawer.recurso;
+    const out = {};
+    $$('#payloadCampos [data-campo]').forEach((el) => {
+      const k = el.dataset.campo;
+      if (el.dataset.tipo === 'boolean') { if (el.checked) out[k] = true; return; }
+      const v = (el.value || '').trim();
+      if (v === '') return;
+      out[k] = el.dataset.tipo === 'number' ? Number(v) : v;
+    });
+    $$('#tabOutras tbody tr').forEach((tr) => {
+      const k = $('[data-o-k]', tr).value.trim(); const v = $('[data-o-v]', tr).value.trim();
+      if (!k || v === '') return;
+      try { out[k] = /^[\[{"]/.test(v) || /^(true|false|null|-?\d+(\.\d+)?)$/.test(v) ? JSON.parse(v) : v; } catch (e) { out[k] = v; }
+    });
+    return out;
+  }
+  function preencherPayload(payload) {
+    const defs = (payloadDrawer.recurso.definicoes || []);
+    const extras = [];
+    for (const [k, v] of Object.entries(payload || {})) {
+      const el = $(`#payloadCampos [data-campo="${CSS.escape(k)}"]`);
+      if (!el) { extras.push([k, v]); continue; }
+      if (el.dataset.tipo === 'boolean') el.checked = !!v; else el.value = v === null || v === undefined ? '' : String(v);
+    }
+    if (extras.length) {
+      const tb = $('#tabOutras tbody');
+      const atuais = new Map($$('tr', tb).map((tr) => [$('[data-o-k]', tr).value.trim(), tr]));
+      for (const [k, v] of extras) { if (atuais.has(k)) $('[data-o-v]', atuais.get(k)).value = typeof v === 'object' ? JSON.stringify(v) : String(v); else tb.insertAdjacentHTML('beforeend', linhaOutra(k, v)); }
+      $('#payloadOutras').open = true;
+    }
+    icons();
+    return defs;
+  }
+  $('#btnSugerir')?.addEventListener('click', async () => {
+    const b = $('#btnSugerir');
+    b.classList.add('is-busy');
+    $('#payloadNota').textContent = 'pensando…';
+    try {
+      const r = await api(url('/api/admin/sugerir-payload'), { method: 'POST', body: JSON.stringify({ condominio: payloadDrawer.condoID, recurso: payloadDrawer.recurso.name, texto: $('#payloadTexto').value, atual: lerPayloadDoForm() }) });
+      preencherPayload(r.payload);
+      const n = Object.keys(r.payload || {}).length;
+      $('#payloadNota').textContent = (n ? `${n} ${n === 1 ? 'campo preenchido' : 'campos preenchidos'}; revise e salve.` : 'Nada reconhecido no texto.') + (r.nota ? ' ' + r.nota : '');
+    } catch (err) { $('#payloadNota').textContent = err.message; toast(err.message, true); }
+    b.classList.remove('is-busy');
+  });
+  $('#btnOutra')?.addEventListener('click', () => { $('#tabOutras tbody').insertAdjacentHTML('beforeend', linhaOutra()); icons(); $('#tabOutras tbody tr:last-child input').focus(); });
+  $('#formPayload')?.addEventListener('click', (e) => { const b = e.target.closest('button[data-del]'); if (b) b.closest('tr').remove(); });
+  $('#formPayload')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = lerPayloadDoForm();
+    try {
+      const r = await api(url('/api/admin/payload'), { method: 'PUT', body: JSON.stringify({ condominio: payloadDrawer.condoID, recurso: payloadDrawer.recurso.name, payload, apagar: !Object.keys(payload).length }) });
+      $('#drawerPayload').hidden = true;
+      toast(`${payloadDrawer.recurso.titulo || payloadDrawer.recurso.name}: definições salvas`);
+      aplicar(r.mapeamento, r.administradoras);
+    } catch (err) { $('#payloadStatus').textContent = err.message; toast(err.message, true); }
+  });
+  $('#btnApagarPayload')?.addEventListener('click', async () => {
+    try { const r = await api(url('/api/admin/payload'), { method: 'PUT', body: JSON.stringify({ condominio: payloadDrawer.condoID, recurso: payloadDrawer.recurso.name, apagar: true }) }); $('#drawerPayload').hidden = true; toast('definições deste condomínio limpas'); aplicar(r.mapeamento, r.administradoras); } catch (err) { toast(err.message, true); }
+  });
+
   // ---- drawers ---------------------------------------------------------------------
   $$('[data-fecha]').forEach((b) => b.addEventListener('click', () => ($('#' + b.dataset.fecha).hidden = true)));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['drawerCondo', 'drawerHab', 'drawerAdm'].forEach((id) => { const el = $('#' + id); if (el) el.hidden = true; }); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['drawerCondo', 'drawerHab', 'drawerAdm', 'drawerPayload'].forEach((id) => { const el = $('#' + id); if (el) el.hidden = true; }); });
   $('#btnRecarregar').addEventListener('click', () => carregar().then(() => toast('relido')).catch((err) => toast(err.message, true)));
 
   // ?adm=<id> na URL do Admin: entrar como aquela administradora (link do Backdoor)

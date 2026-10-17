@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"go-concierge/internal/harness"
 	"io/fs"
 	"net/http"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/okf"
@@ -57,6 +61,7 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/admin/habilitacao", s.adminHabilitacao)
 	mux.HandleFunc("PUT /api/admin/payload", s.adminPayload)
 	mux.HandleFunc("PUT /api/admin/orientacao", s.adminOrientacao)
+	mux.HandleFunc("POST /api/admin/sugerir-payload", s.adminSugerirPayload)
 	mux.HandleFunc("PUT /api/admin/ajustes", s.adminAjustes)
 }
 
@@ -266,6 +271,40 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.responderMapeamento(w, r, m)
+}
+
+// adminSugerirPayload: o modelo barato traduz um texto da administradora nas definições
+// do recurso (o formulário do payload), para a pessoa revisar antes de salvar.
+func (s *servidor) adminSugerirPayload(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Condominio string         `json:"condominio"`
+		Recurso    string         `json:"recurso"`
+		Texto      string         `json:"texto"`
+		Atual      map[string]any `json:"atual"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	var rec *okf.Recurso
+	for _, x := range s.cat.RecursosNexus() {
+		if x.Name == corpo.Recurso {
+			rec = &x
+			break
+		}
+	}
+	if rec == nil {
+		writeErr(w, 404, fmt.Errorf("recurso desconhecido: %s", corpo.Recurso))
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	sug, err := harness.SugerirPayload(ctx, s.atende.Config, *rec, corpo.Atual, corpo.Texto)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, sug)
 }
 
 func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
