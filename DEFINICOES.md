@@ -168,6 +168,15 @@ mapeamento deles; o padrão "*" é global, nosso. Hoje o seletor no topo do Admi
 o login; no produto o id vem da sessão/RLS do Postgres. Remover uma administradora
 exige antes mover os condomínios dela.
 
+**Escrita pelo subagente do caso, depois do sim (2026-10-17).** Enquanto não existe o
+executor determinístico do `caso.yaml`, a escrita roda pelo próprio subagente do caso
+com uma guarda determinística no harness: `chamar_recurso` só aceita um recurso de
+escrita se ele é passo do `caso.yaml` daquele agente, o morador está identificado, os
+params obrigatórios estão presentes e a mensagem atual do morador é um sim explícito
+(`harness.Confirmado`: começa com sim/ok/pode/confirmo… e não contém negação). Fora
+disso o tool devolve erro mandando resumir e pedir "confirma? (sim/não)". Sem Nexus, o
+mock devolve `{protocolo: MOCK-…}`.
+
 **Identidade do Gruvi com vários condomínios (2026-10-17).** O BFF devolve `data` como
 um condomínio (objeto com `condominium`, `units`, `legal_responsibles`) ou como lista de
 condomínios; `gruvi.Identidade` guarda as unidades por condomínio (`Condominios`) e o

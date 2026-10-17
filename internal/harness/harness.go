@@ -360,6 +360,7 @@ type Resultado struct {
 type coletor struct {
 	mu           sync.Mutex
 	profundidade int
+	mensagem     string // a mensagem do morador nesta execução (a guarda de escrita lê o "sim")
 	passos       []Passo
 	uso          Uso
 	invocacoes   int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
@@ -410,7 +411,7 @@ func Run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 }
 
 func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.Message, profundidade int) (*Resultado, error) {
-	col := &coletor{profundidade: profundidade}
+	col := &coletor{profundidade: profundidade, mensagem: mensagem}
 	ctx = context.WithValue(ctx, chaveColetor{}, col)
 	rel := ag.Def.Rel
 

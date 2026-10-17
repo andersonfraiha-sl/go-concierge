@@ -242,8 +242,9 @@ func TestChamarRecursoRecusaEscritaENaoDeclarado(t *testing.T) {
 	}
 	lib := ag.Subagentes["liberacao-visitante"]
 	out := chama(t, lib, "chamar_recurso", map[string]any{"nome": "visitantes.liberar", "params": map[string]any{"unidade_id": "u1", "nome": "Ana", "telefone": "5511999990001"}})
-	if !strings.Contains(erroDe(out), "escrita só pelo caso de uso") {
-		t.Errorf("escrita deveria ser recusada; veio %v", out)
+	// sem o sim do morador na mensagem atual, a escrita do caso é recusada
+	if !strings.Contains(erroDe(out), "confirmação") {
+		t.Errorf("escrita sem confirmação deveria ser recusada; veio %v", out)
 	}
 	out = chama(t, lib, "chamar_recurso", map[string]any{"nome": "areas.listar"})
 	if !strings.Contains(erroDe(out), "não está declarado") {
@@ -457,6 +458,42 @@ func TestRecursoLocalNaoDependeDoNexus(t *testing.T) {
 	out2, _ := ag2.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
 	if out2["error"] != nil || out2["origem"] != "mock" {
 		t.Fatalf("sem Nexus o mock deveria responder: %+v", out2)
+	}
+}
+
+func TestEscritaSoPeloCasoEComSim(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Identidade: Identidade{Authenticated: true, AccountID: "cond-001"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	visita := ag.Subagentes["liberacao-visitante"]
+	if visita == nil {
+		t.Fatal("subagente liberacao-visitante (caso de uso) não construído")
+	}
+	args := &argsRecurso{Nome: "visitantes.liberar", Params: map[string]any{"unidade_id": "109", "nome": "Ana", "telefone": "11"}}
+	// sem o sim na mensagem atual: recusa e pede a confirmação
+	ctx := context.WithValue(context.Background(), chaveColetor{}, &coletor{mensagem: "quero liberar a Ana hoje"})
+	out, _ := visita.chamarRecurso(ctx, args)
+	if !strings.Contains(erroDe(out), "confirmação") {
+		t.Fatalf("sem sim deveria pedir confirmação: %+v", out)
+	}
+	// com o sim: roda (mock devolve protocolo)
+	ctx = context.WithValue(context.Background(), chaveColetor{}, &coletor{mensagem: "Sim, pode liberar!"})
+	out, _ = visita.chamarRecurso(ctx, args)
+	res, _ := out["resultado"].(map[string]any)
+	if erroDe(out) != "" || res == nil || !strings.HasPrefix(fmt.Sprint(res["protocolo"]), "MOCK-") {
+		t.Fatalf("com sim deveria registrar: %+v", out)
+	}
+	// fora do caso (o concierge não tem esse passo): recusado mesmo com o sim
+	out, _ = ag.chamarRecurso(ctx, args)
+	if erroDe(out) == "" {
+		t.Fatalf("escrita fora do caso deveria ser recusada: %+v", out)
+	}
+	for msg, quer := range map[string]bool{"sim": true, "pode ser": true, "não, espera": false, "sim mas não hoje": false, "confirmo a reserva": true, "qual o horário?": false, "ok!": true} {
+		if Confirmado(msg) != quer {
+			t.Errorf("Confirmado(%q) deveria ser %v", msg, quer)
+		}
 	}
 }
 

@@ -62,7 +62,7 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 		}
 	}
 	if len(ag.Cat.RecursosDoAgente(a)) > 0 {
-		desc := "Chama um recurso de LEITURA do Nexus declarado pelo agente, com os params do manual. Recursos de escrita só rodam pelos passos do caso de uso."
+		desc := "Chama um recurso do Nexus declarado pelo agente, com os params do manual. Um recurso de ESCRITA só roda se for passo do caso.yaml deste agente e a mensagem atual do morador for a confirmação explícita (sim); antes disso, pergunte a confirmação em uma frase e pare."
 		if perm := ag.recursosPermitidos(); len(perm) > 0 {
 			desc += " Permitidos agora: " + strings.Join(perm, ", ") + "."
 		} else {
@@ -115,6 +115,34 @@ func paginar(caminho, texto string, pagina int) saida {
 		"tem_mais": pagina < paginas,
 		"conteudo": string(r[ini:fim]),
 	}
+}
+
+var palavrasDeSim = map[string]bool{"sim": true, "s": true, "ss": true, "ok": true, "okay": true, "pode": true, "confirmo": true, "confirma": true, "confirmado": true, "confirmar": true, "isso": true, "claro": true, "positivo": true, "beleza": true, "bora": true, "fechado": true, "vai": true, "vamos": true, "certo": true, "correto": true, "exato": true, "yes": true, "manda": true, "aceito": true}
+
+// Confirmado diz se a mensagem do morador é um sim explícito: começa com (ou é) uma
+// palavra de confirmação e não contém negação.
+func Confirmado(mensagem string) bool {
+	// tokens curtos contam aqui ("sim", "ok"): não usa palavras(), que exige 4 letras
+	ps := strings.FieldsFunc(normalizar(mensagem), func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+	})
+	if len(ps) == 0 {
+		return false
+	}
+	for _, p := range ps {
+		if p == "nao" || p == "não" || p == "nunca" || p == "cancela" || p == "cancelar" || p == "espera" || p == "ainda" {
+			return false
+		}
+	}
+	if palavrasDeSim[ps[0]] {
+		return true
+	}
+	for _, p := range ps {
+		if p == "sim" || p == "confirmo" || p == "confirmado" {
+			return true
+		}
+	}
+	return false
 }
 
 // amostraDe: o retorno do mock. Leitura devolve a amostra do catálogo (ou lista vazia);
@@ -227,15 +255,18 @@ type Permissao struct {
 }
 
 // Permissoes cruza as declarações do agente (RecursosDoAgente) com a identidade da
-// Config: escrita nunca vira tool; private só com Authenticated; declaração com
+// Config: escrita só quando é passo do caso.yaml do próprio agente (e, na chamada,
+// só depois do sim do morador); private só com Authenticated; declaração com
 // problema no Nexus fica bloqueada com o problema como motivo.
 func (ag *Agente) Permissoes() []Permissao {
 	var out []Permissao
 	for _, d := range ag.Cat.RecursosDoAgente(ag.Def) {
 		p := Permissao{RecursoDeclarado: d}
 		switch {
-		case d.Recurso != nil && d.Recurso.Write:
-			p.Motivo = "escrita só pelo caso de uso"
+		case d.Recurso != nil && d.Recurso.Write && (d.Origem != "caso.yaml" || ag.Def.Caso == nil):
+			p.Motivo = "escrita só por passo do caso de uso"
+		case d.Recurso != nil && d.Recurso.Write && !ag.cfg.Identidade.Authenticated:
+			p.Motivo = "escrita só para morador identificado"
 		case !d.OK:
 			p.Motivo = d.Problema
 		case d.Recurso != nil && d.Recurso.Visibility == "private" && !ag.cfg.Identidade.Authenticated:
@@ -282,6 +313,16 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 	}
 	if !achado.Permitido {
 		return erro("recurso %s recusado: %s", nome, achado.Motivo), nil
+	}
+	// escrita: a guarda determinística — só com o "sim" do morador na mensagem atual
+	if achado.Recurso != nil && achado.Recurso.Write {
+		msg := ""
+		if col := coletorDe(ctx); col != nil {
+			msg = col.mensagem
+		}
+		if !Confirmado(msg) {
+			return erro("%s é escrita e exige a confirmação explícita do morador: a mensagem atual (%q) não é um sim. Resuma o que vai registrar, pergunte \"confirma? (sim/não)\" e pare", nome, corta(msg, 60)), nil
+		}
 	}
 
 	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus
