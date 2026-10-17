@@ -41,7 +41,7 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 
 	if len(ag.Cat.Indice(a)) > 0 {
 		if err := add(utils.InferTool("ler_dado",
-			"Lê um arquivo do índice de conhecimento e assets do agente, em páginas de "+fmt.Sprint(PaginaChars)+" caracteres. Quando tem_mais=true, chame de novo com pagina+1.",
+			"Lê um arquivo de conhecimento ou asset do agente, em páginas de "+fmt.Sprint(PaginaChars)+" caracteres. Quando tem_mais=true, chame de novo com pagina+1. Um index.md lista a pasta dele; os links [x](knowledge/...) de um documento são caminhos que você pode passar aqui.",
 			ag.lerDado)); err != nil {
 			return nil, err
 		}

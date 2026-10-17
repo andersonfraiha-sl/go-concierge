@@ -411,3 +411,75 @@ func TestRotasComSecoes(t *testing.T) {
 		t.Fatalf("remover deveria tirar o bloco inteiro:\n%s", raw)
 	}
 }
+
+func TestPacoteOKF(t *testing.T) {
+	root := t.TempDir()
+	escreve := func(rel, conteudo string) {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte(conteudo), 0o644)
+	}
+	escreve("agentes/ag/agent.yaml", "nome: ag\ndescricao: lê um pacote OKF\n")
+	escreve("agentes/ag/knowledge/index.md", "---\ntype: KnowledgeIndex\ntitle: Raiz\n---\n- [tabelas](tables/index.md)\n- [histórico](log.md)\n")
+	escreve("agentes/ag/knowledge/log.md", "# Log\n\n- 2026-10-17: criado\n")
+	escreve("agentes/ag/knowledge/tables/index.md", "- [eventos](events.md)\n- [usuários](users.md)\n")
+	escreve("agentes/ag/knowledge/tables/events.md", "---\ntype: Table\ntitle: Eventos\nresource: bigquery://p/d/events\ntimestamp: 2026-06-12\ntags: [analytics]\n---\n# Eventos\n\nJunta com [usuários](users.md#chaves) e volta à [raiz](../index.md). Veja [docs](https://x.y/z) e [âncora](#aqui).\n")
+	escreve("agentes/ag/knowledge/tables/users.md", "---\ntype: Table\n---\n# Usuários\n\n## Chaves\n")
+	escreve("agentes/ag/knowledge/solto.md", "---\ntype: Domain\n---\n# Solto\n")
+	escreve("agentes/ag/assets/rodape.md", "— fim\n")
+	c, err := NewCatalogo(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, _ := c.Tree()
+	ag := Find(tree, "agentes/ag")
+	// prompt: só o index.md da raiz (cobre solto.md, log.md e a subpasta) e o asset
+	idx := c.Indice(ag)
+	var vistos []string
+	for _, f := range idx {
+		vistos = append(vistos, f.Caminho)
+	}
+	if strings.Join(vistos, " ") != "assets/rodape.md knowledge/index.md" {
+		t.Fatalf("índice podado: %v", vistos)
+	}
+	if n := len(c.IndiceCompleto(ag)); n != 7 {
+		t.Fatalf("índice completo deveria ter 7: %d", n)
+	}
+	// ler o que o prompt não lista, com links reescritos para o caminho canônico
+	raw, err := c.LerDado(ag, "knowledge/tables/events.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	for _, quer := range []string{"[usuários](knowledge/tables/users.md#chaves)", "[raiz](knowledge/index.md)", "[docs](https://x.y/z)", "[âncora](#aqui)"} {
+		if !strings.Contains(s, quer) {
+			t.Errorf("links: faltou %q em:\n%s", quer, s)
+		}
+	}
+	if _, err := c.LerDado(ag, "knowledge/log.md"); err != nil {
+		t.Fatalf("log.md continua legível: %v", err)
+	}
+	if _, err := c.LerDado(ag, "knowledge/../agent.yaml"); err == nil {
+		t.Fatal("fora do índice deveria falhar")
+	}
+	// docs: log.md fora; index.md sem type vira KnowledgeIndex; resource/timestamp lidos
+	k := c.Conhecimento(ag)
+	tipos := map[string]Doc{}
+	for _, d := range k.Docs {
+		tipos[d.Caminho] = d
+	}
+	if _, tem := tipos["knowledge/log.md"]; tem {
+		t.Fatal("log.md não é doc")
+	}
+	if tipos["knowledge/tables/index.md"].Tipo != "KnowledgeIndex" || tipos["knowledge/index.md"].Tipo != "KnowledgeIndex" {
+		t.Fatalf("index.md: %+v", tipos)
+	}
+	if ev := tipos["knowledge/tables/events.md"]; ev.Tipo != "Table" || ev.Resource != "bigquery://p/d/events" || ev.Timestamp != "2026-06-12" || len(ev.Tags) != 1 {
+		t.Fatalf("events: %+v", ev)
+	}
+	// a projeção lista só o index e explica a navegação
+	proj := c.Projecao(ag)
+	if !strings.Contains(proj, "knowledge/index.md") || strings.Contains(proj, "knowledge/tables/events.md") {
+		t.Fatalf("projeção: %s", proj)
+	}
+}

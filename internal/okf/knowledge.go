@@ -1,10 +1,12 @@
 package okf
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -24,6 +26,8 @@ type Doc struct {
 	Status    string   `json:"status,omitempty"`
 	Versao    string   `json:"versao,omitempty"`
 	Dominio   string   `json:"dominio,omitempty"`
+	Resource  string   `json:"resource,omitempty"`  // OKF v0.1: o recurso que o conceito descreve (tabela, API…)
+	Timestamp string   `json:"timestamp,omitempty"` // OKF v0.1: quando o conceito foi produzido/atualizado
 	Tags      []string `json:"tags"`
 	Respostas []string `json:"respostas,omitempty"`
 	HerdadoDe string   `json:"herdado_de,omitempty"`
@@ -62,6 +66,8 @@ func (c *Catalogo) Conhecimento(a *Agent) Conhecimento {
 		p := filepath.Join(base, filepath.FromSlash(f.Caminho))
 		nome := strings.ToLower(filepath.Base(f.Caminho))
 		switch {
+		case nome == ArquivoLog:
+			// histórico do pacote OKF: não é conhecimento, só fica legível por ler_dado
 		case strings.HasSuffix(nome, ".md"):
 			if doc, ok := lerDoc(p, f.Caminho); ok {
 				doc.HerdadoDe = f.HerdadoDe
@@ -100,7 +106,11 @@ func lerDoc(p, rel string) (Doc, bool) {
 	}
 	fm := Frontmatter(string(raw))
 	doc := Doc{Caminho: rel, Tags: []string{}}
-	doc.Tipo = str(fm["type"], str(fm["tipo"], "Doc"))
+	padrao := "Doc"
+	if strings.ToLower(filepath.Base(rel)) == ArquivoIndex {
+		padrao = "KnowledgeIndex"
+	}
+	doc.Tipo = str(fm["type"], str(fm["tipo"], padrao))
 	doc.ID = str(fm["id"], "")
 	doc.Titulo = str(fm["title"], str(fm["titulo"], ""))
 	if doc.Titulo == "" {
@@ -110,6 +120,18 @@ func lerDoc(p, rel string) (Doc, bool) {
 	doc.Status = str(fm["status"], "")
 	doc.Versao = str(fm["version"], str(fm["versao"], ""))
 	doc.Dominio = str(fm["domain"], str(fm["dominio"], ""))
+	doc.Resource = str(fm["resource"], "")
+	switch ts := fm["timestamp"].(type) {
+	case nil:
+	case time.Time: // YAML lê 2026-06-12 como data
+		if ts.Hour() == 0 && ts.Minute() == 0 && ts.Second() == 0 {
+			doc.Timestamp = ts.Format("2006-01-02")
+		} else {
+			doc.Timestamp = ts.Format(time.RFC3339)
+		}
+	default:
+		doc.Timestamp = strings.TrimSpace(fmt.Sprint(ts))
+	}
 	doc.Tags = stringList(fm["tags"])
 	doc.Respostas = stringList(fm["answers"])
 	return doc, true

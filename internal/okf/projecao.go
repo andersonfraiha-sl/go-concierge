@@ -56,7 +56,7 @@ func (c *Catalogo) Projecao(a *Agent) string {
 			}
 			linhas = append(linhas, l)
 		}
-		recursos = append(recursos, "## Conhecimento e assets (leia com a tool ler_dado; pagina quando tem_mais=true)\n"+strings.Join(linhas, "\n"))
+		recursos = append(recursos, "## Conhecimento e assets (leia com a tool ler_dado; pagina quando tem_mais=true; um index.md lista o que há na pasta dele e os links `[x](knowledge/...)` são caminhos que ler_dado aceita)\n"+strings.Join(linhas, "\n"))
 	}
 
 	if procs := c.Procedimentos(a); len(procs) > 0 {
@@ -203,8 +203,16 @@ func (c *Catalogo) lerArquivo(a *Agent, f Arquivo) string {
 	return string(raw)
 }
 
-// Indice: o que o prompt vê como dados: knowledge/ e assets/, próprios e herdados.
+// Indice: o que o prompt vê como dados: knowledge/ e assets/, próprios e herdados,
+// com a progressive disclosure dos pacotes OKF (só o index.md de uma pasta que o tem;
+// log.md nunca). Para localizar um arquivo a ler, use IndiceCompleto.
 func (c *Catalogo) Indice(a *Agent) []Arquivo {
+	return podarIndice(c.IndiceCompleto(a))
+}
+
+// IndiceCompleto: todos os dados do agente, inclusive o que o prompt não lista
+// (irmãos de um index.md, log.md); é o que ler_dado aceita abrir.
+func (c *Catalogo) IndiceCompleto(a *Agent) []Arquivo {
 	out := append([]Arquivo{}, a.Arquivos["knowledge"]...)
 	out = append(out, a.Arquivos["assets"]...)
 	out = append(out, a.Herdados["knowledge"]...)

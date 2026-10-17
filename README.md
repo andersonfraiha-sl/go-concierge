@@ -72,6 +72,17 @@ durável; em toda conversa seguinte a memória entra na instrução da família 
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
 fatos (`GET`/`DELETE /api/memoria?phone=`).
 
+## Pacotes OKF v0.1
+
+A caixinha `knowledge/` lê um pacote do [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
+copiado inteiro: markdown com frontmatter (`type` obrigatório; `title`, `description`,
+`resource`, `tags`, `timestamp` lidos e mostrados na ficha), conceitos ligados por links
+relativos, `index.md` por pasta e `log.md`. O índice do prompt faz a progressive
+disclosure: numa pasta com `index.md` só ele aparece, e o agente navega abrindo-o com
+`ler_dado`; os links relativos de um documento voltam reescritos para o caminho
+canônico (`knowledge/tables/foo.md`), que `ler_dado` aceita. `log.md` fica fora do índice
+e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
+
 ## A interface (okf-admin)
 
 ```bash

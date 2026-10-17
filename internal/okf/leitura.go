@@ -3,7 +3,9 @@ package okf
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 )
 
 // Leitura de arquivos pelo harness: o índice (Indice, Arquivos, Herdados) diz o que
@@ -26,11 +28,18 @@ func (c *Catalogo) Ler(a *Agent, f Arquivo) ([]byte, error) {
 	return os.ReadFile(p)
 }
 
-// LerDado localiza um item do índice (o mesmo que o prompt vê) pelo caminho e o lê.
+// LerDado localiza um dado do agente pelo caminho e o lê. Aceita tudo do índice
+// completo (também o que a progressive disclosure esconde do prompt). Num .md, os
+// links relativos voltam reescritos para o caminho canônico (ReescreverLinks).
 func (c *Catalogo) LerDado(a *Agent, caminho string) ([]byte, error) {
-	for _, d := range c.Indice(a) {
+	caminho = strings.TrimPrefix(path.Clean(caminho), "./")
+	for _, d := range c.IndiceCompleto(a) {
 		if d.Caminho == caminho {
-			return c.Ler(a, d)
+			raw, err := c.Ler(a, d)
+			if err == nil && strings.HasSuffix(strings.ToLower(caminho), ".md") {
+				raw = []byte(ReescreverLinks(caminho, string(raw)))
+			}
+			return raw, err
 		}
 	}
 	return nil, fmt.Errorf("não está no índice do agente: %s", caminho)
