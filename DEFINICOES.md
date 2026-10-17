@@ -100,9 +100,11 @@ formato, manda ao webhook e mostra a conversa, a identidade, a rota e a caixa de
 Testado com o Gruvi de staging (telefone de exemplo → Vanderlei, unidade Jataí) e
 Gemini.
 
-**Em aberto:** como o concierge **responde** ao ATENDE (o endpoint de envio ao
-protocolo). Hoje a resposta vai à caixa de saída do Console e, se `ATENDE_REPLY_URL`
-estiver definida, a um `POST {protocol, message}` provisório. Também: eventos de
+**Em aberto:** como o concierge **responde** ao ATENDE (o endpoint real de envio ao
+protocolo). Hoje a resposta vai por HTTP a `ATENDE_REPLY_URL` como
+`POST {protocol, message}` (premissa); sem essa variável, ao **ATENDE emulado** do
+próprio servidor (`/emulador/atende/messages`), que guarda o recebido e o Console marca
+no balão com ✓✓. Também: eventos de
 mensagens seguintes no mesmo protocolo (nome do evento), encerramento e transferência
 ao atendente humano no contrato do ATENDE.
 
