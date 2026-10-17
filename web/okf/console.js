@@ -176,7 +176,6 @@
     el.innerHTML = `<div class="persona" style="cursor:default"><span class="avatar ${id.authenticated ? 'avatar-bot' : ''}">${esc((id.name || '?').slice(0, 1).toUpperCase())}</span><div class="persona-info"><span class="persona-name">${esc(id.name || 'Contato sem cadastro')}</span><span class="persona-meta">${id.authenticated ? (id.company_name || 'company ' + id.company_id) + ' · ' + (id.role || '') : 'público · sem unidades no Gruvi'}</span></div><span class="tag ${id.authenticated ? 'tag-private' : 'tag-locked'}">${id.authenticated ? 'identificado' : 'público'}</span></div>`
       + (id.units && id.units.length ? `<div class="chips" style="margin-top:8px">${id.units.map((u) => `<span class="tag tag-kind">${esc(u.label)}</span>`).join('')}</div>` : '')
       + (erro ? `<p class="notice warn" style="margin-top:8px"><i data-lucide="triangle-alert"></i>${esc(erro)}</p>` : '');
-    $('#identidadeBruta').textContent = JSON.stringify(id, null, 2);
     icons();
   }
 
@@ -194,6 +193,11 @@
     const chave = JSON.stringify(m.fatos || []);
     if (estado.chaveMemoria === chave) return;
     estado.chaveMemoria = chave;
+    // aba Memória dos bastidores: a tabela completa e o JSON guardado
+    $('#memoriaTabela').innerHTML = (m.fatos && m.fatos.length)
+      ? `<table class="res-table"><thead><tr><th>Chave</th><th>Fato</th><th>Origem</th><th>Quando</th><th>Conf.</th></tr></thead><tbody>${m.fatos.map((f) => `<tr><td><code>${esc(f.chave)}</code></td><td>${esc(f.texto)}</td><td class="mono muted">${esc(f.fonte || '')}</td><td class="muted">${new Date(f.quando).toLocaleString('pt-BR')}</td><td class="mono">${f.confianca ? f.confianca.toFixed(2) : '—'}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty-state"><i data-lucide="brain"></i>nada guardado para este telefone</div>';
+    $('#memoriaBruta').textContent = JSON.stringify(m, null, 2);
     if (!m.fatos || !m.fatos.length) { el.className = 'empty-state'; el.style.padding = '12px'; el.innerHTML = '<i data-lucide="brain"></i>nada guardado ainda'; icons(); return; }
     el.className = 'memoria';
     el.style.padding = '';
@@ -254,7 +258,7 @@
   $('#btnReset').addEventListener('click', novaConversa);
   $$('.bastidores .guia').forEach((b) => b.addEventListener('click', () => {
     $$('.bastidores .guia').forEach((x) => x.classList.toggle('is-active', x === b));
-    for (const aba of ['rota', 'evento', 'identidade', 'saidas']) $('#aba' + aba[0].toUpperCase() + aba.slice(1)).hidden = aba !== b.dataset.aba;
+    for (const aba of ['rota', 'evento', 'memoria', 'saidas']) $('#aba' + aba[0].toUpperCase() + aba.slice(1)).hidden = aba !== b.dataset.aba;
   }));
 
   icons();

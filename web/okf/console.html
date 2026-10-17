@@ -81,12 +81,12 @@
       <nav class="guias">
         <button class="guia is-active" data-aba="rota">Rota</button>
         <button class="guia" data-aba="evento">Evento</button>
-        <button class="guia" data-aba="identidade">Identidade</button>
+        <button class="guia" data-aba="memoria">Memória</button>
         <button class="guia" data-aba="saidas">Caixa de saída</button>
       </nav>
       <div class="aba-conteudo" id="abaRota"><div class="empty-state"><i data-lucide="route"></i>A rota da última resposta aparece aqui: orquestrador → subagente, tools chamadas, tokens.</div></div>
       <div class="aba-conteudo" id="abaEvento" hidden><p class="notice info"><i data-lucide="info"></i>O JSON exatamente como foi enviado a <code>POST /webhook/atende</code>.</p><pre class="pre" id="evento"></pre></div>
-      <div class="aba-conteudo" id="abaIdentidade" hidden><pre class="pre" id="identidadeBruta"></pre></div>
+      <div class="aba-conteudo" id="abaMemoria" hidden><p class="notice info"><i data-lucide="brain"></i>A memória relacional deste telefone: fatos duráveis que o morador afirmou sobre si, capturados a cada troca e levados ao prompt de toda a família na conversa seguinte. Comum a todos os agentes.</p><div id="memoriaTabela"></div><pre class="pre" id="memoriaBruta" style="flex:0 0 auto;max-height:260px"></pre></div>
       <div class="aba-conteudo" id="abaSaidas" hidden><p class="notice info"><i data-lucide="info"></i>O que o concierge mandou ao protocolo, por HTTP, ao ATENDE (real em <code>ATENDE_REPLY_URL</code>; senão o ATENDE emulado deste servidor, em <code>/emulador/atende/messages</code>).</p><div id="saidas"></div></div>
     </section>
   </div>
