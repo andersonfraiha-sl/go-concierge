@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -72,5 +73,58 @@ func TestMapeamento(t *testing.T) {
 	}
 	if !m.Habilitado("cond-x", "liberacao_visitante", "") {
 		t.Fatal("padrão continua")
+	}
+}
+
+func TestAdministradorasEVisao(t *testing.T) {
+	st := NewStore(filepath.Join(t.TempDir(), "mapeamento.json"))
+	if _, err := st.SalvarAdministradora(Administradora{ID: "adm-a", Nome: "Alfa"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SalvarAdministradora(Administradora{ID: "adm-b", Nome: "Beta"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SalvarCondominio(Condominio{ID: "c1", Nome: "C1", Administradora: "adm-a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SalvarCondominio(Condominio{ID: "c2", Nome: "C2", Administradora: "adm-b"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SalvarCondominio(Condominio{ID: "c3", Nome: "C3", Administradora: "adm-zzz"}); err == nil {
+		t.Fatal("administradora desconhecida deveria falhar")
+	}
+	st.SalvarHabilitacao(Padrao, "faq", Habilitacao{Habilitado: false}, false)
+	st.SalvarHabilitacao("c2", "faq", Habilitacao{Habilitado: true}, false)
+	st.SalvarPayload("c1", "unidades.listar", map[string]any{"x": 1})
+	m, _ := st.Ler()
+	v := m.Visao("adm-a")
+	if len(v.Administradoras) != 1 || v.Administradoras[0].ID != "adm-a" || len(v.Condominios) != 1 || v.Condominios[0].ID != "c1" {
+		t.Fatalf("visão de adm-a: %+v", v)
+	}
+	if _, tem := v.Habilitacoes["c2"]; tem {
+		t.Fatal("a visão de adm-a não pode ter o mapeamento de c2")
+	}
+	if _, tem := v.Habilitacoes[Padrao]; !tem {
+		t.Fatal("o padrão é global e aparece na visão")
+	}
+	if _, tem := v.Payloads["c1"]; !tem {
+		t.Fatal("o payload do próprio condomínio aparece")
+	}
+	if _, err := st.RemoverAdministradora("adm-a"); err == nil {
+		t.Fatal("remover administradora com condomínio deveria falhar")
+	}
+	st.SalvarCondominio(Condominio{ID: "c1", Nome: "C1", Administradora: "adm-b"})
+	if _, err := st.RemoverAdministradora("adm-a"); err != nil {
+		t.Fatal(err)
+	}
+	// legado: arquivo com "administradora" string vira a primeira da lista
+	legado := NewStore(filepath.Join(t.TempDir(), "m.json"))
+	os.WriteFile(legado.Path, []byte(`{"administradora":"Antiga","condominios":[{"id":"c9","nome":"C9"}]}`), 0o644)
+	ml, err := legado.Ler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ml.Administradoras) != 1 || ml.Administradoras[0].Nome != "Antiga" || ml.Condominios[0].Administradora != "adm-1" {
+		t.Fatalf("migração do legado: %+v", ml)
 	}
 }

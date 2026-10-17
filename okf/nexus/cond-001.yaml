@@ -1,86 +1,183 @@
-# Instantâneo dos recursos da account cond-001 no Nexus (o mesmo catálogo do nexus-mock
-# do sl-concierge). Usado pelo okf-admin e pelo okf-run quando NEXUS_BASE_URL não está
-# definido. Com o Nexus no ar, a lista vem de GET /v1/accounts/{account}/resources.
+# Instantâneo dos recursos da account cond-001 no Nexus: o catálogo do nexus-mock do
+# sl-concierge, com as descrições semânticas de catalog/resources.yaml (quando usar cada
+# recurso, na linguagem do morador) e os recursos reais do BFF Gruvi (motivos de visita,
+# encomendas). Usado pelo okf-admin e pelo okf-run quando NEXUS_BASE_URL não está definido.
 recursos:
-  - name: unidades.listar
-    kind: api
-    visibility: private
-    description: Lista as unidades vinculadas à pessoa autenticada.
-    output: "lista de {id, label}"
-  - name: areas.listar
-    kind: api
-    visibility: private
-    description: Lista as áreas comuns reserváveis do condomínio.
-    output: "lista de {id, nome}"
-  - name: cadastro.campos
-    kind: api
-    visibility: private
-    description: Campos editáveis do cadastro de uma unidade (formulário dinâmico).
-    params: [{name: unidade_id, type: string, required: true}]
-    output: "lista de {name, label, type?, options?, value?}"
-  - name: faq.buscar
-    kind: knowledge
-    visibility: public
-    description: Busca na base de perguntas frequentes do condomínio.
-    params:
-      - {name: query, type: string, required: true}
-      - {name: escopo, type: string, description: "publico | privado"}
-    output: "lista de {titulo, texto, escopo}"
-  - name: memoria.preferencias
-    kind: memory
-    visibility: private
-    description: Preferências e memória da pessoa (como prefere ser tratada etc.).
-    output: objeto de preferências
-  - name: visitantes.liberar
-    kind: api
-    visibility: private
-    write: true
-    description: Registra a liberação de um visitante na portaria.
-    params:
-      - {name: unidade_id, type: string, required: true}
-      - {name: nome, type: string, required: true}
-      - {name: telefone, type: string, required: true}
-      - {name: motivo, type: string}
-    output: "{protocolo}"
-  - name: areas.reservar
-    kind: api
-    visibility: private
-    write: true
-    description: Reserva uma área comum para uma unidade numa data.
-    params:
-      - {name: unidade_id, type: string, required: true}
-      - {name: area_id, type: string, required: true}
-      - {name: data, type: date, required: true, description: AAAA-MM-DD}
-    output: "{protocolo}"
-  - name: mudancas.agendar
-    kind: api
-    visibility: private
-    write: true
-    description: Agenda uma mudança da unidade e reserva o elevador de serviço no período.
-    params:
-      - {name: unidade_id, type: string, required: true}
-      - {name: data, type: date, required: true, description: AAAA-MM-DD}
-      - {name: periodo, type: string, required: true, description: "manha | tarde"}
-    output: "{protocolo}"
-  - name: obras.comunicar
-    kind: api
-    visibility: private
-    write: true
-    description: Comunica à administração e à portaria uma obra ou reforma na unidade.
-    params:
-      - {name: unidade_id, type: string, required: true}
-      - {name: tipo, type: string, required: true}
-      - {name: descricao, type: string, required: true}
-      - {name: inicio, type: date, required: true}
-      - {name: dias, type: number, required: true}
-      - {name: prestadores, type: array, required: true}
-    output: "{protocolo, liberacao_portaria, horario_permitido}"
-  - name: cadastro.atualizar
-    kind: api
-    visibility: private
-    write: true
-    description: Atualiza campos do cadastro da unidade.
-    params:
-      - {name: unidade_id, type: string, required: true}
-      - {name: dados, type: object, required: true}
-    output: "{protocolo}"
+- name: unidades.listar
+  kind: api
+  visibility: private
+  description: 'Quais unidades (apartamentos, casas, salas) estão no nome do morador. Use para descobrir
+    ou confirmar a unidade antes de qualquer outra ação ligada a ela. Ex.: quais são minhas unidades;
+    em qual apartamento estou cadastrado.'
+  output: lista de {id, label}
+- name: areas.listar
+  kind: api
+  visibility: private
+  description: 'Quais áreas comuns podem ser reservadas (churrasqueira, salão de festas, quadra). Use
+    quando o morador quer saber o que pode reservar ou escolher uma área. Ex.: quais áreas posso reservar;
+    o condomínio tem salão de festas.'
+  output: lista de {id, nome}
+- name: cadastro.campos
+  kind: api
+  visibility: private
+  description: Quais dados cadastrais da unidade podem ser atualizados (e-mail, placa do carro, pets).
+    Use antes de montar uma atualização de cadastro.
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  output: lista de {name, label, type?, options?, value?}
+- name: faq.buscar
+  kind: knowledge
+  visibility: public
+  description: 'Respostas oficiais para dúvidas gerais do condomínio: horários (portaria, piscina), endereço,
+    contato da administradora, taxa condominial, mudanças, pets, barulho. Ex.: qual o horário da piscina;
+    quando vence o boleto; pode ter cachorro.'
+  params:
+  - name: query
+    type: string
+    required: true
+  - name: escopo
+    type: string
+    description: publico | privado
+  output: lista de {titulo, texto, escopo}
+- name: memoria.preferencias
+  kind: memory
+  visibility: private
+  description: Preferências do morador guardadas pelo concierge (como prefere ser chamado, canal preferido).
+    Use para personalizar a resposta, nunca como resposta principal.
+  output: objeto de preferências
+- name: visitantes.liberar
+  kind: api
+  visibility: private
+  write: true
+  description: 'Autorizar a entrada de um visitante na portaria (amigo, parente, prestador). É uma ação
+    de escrita: só pelo caso de uso Liberação de Visitante, com confirmação.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: nome
+    type: string
+    required: true
+  - name: telefone
+    type: string
+    required: true
+  - name: motivo
+    type: string
+  output: '{protocolo}'
+- name: areas.reservar
+  kind: api
+  visibility: private
+  write: true
+  description: 'Efetivar a reserva de uma área comum numa data. Ação de escrita: só pelo caso de uso Reserva
+    de Área Comum, com confirmação.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: area_id
+    type: string
+    required: true
+  - name: data
+    type: date
+    required: true
+    description: AAAA-MM-DD
+  output: '{protocolo}'
+- name: mudancas.agendar
+  kind: api
+  visibility: private
+  write: true
+  description: 'Agendar a mudança (entrada ou saída de móveis) de uma unidade numa data e período, reservando
+    o elevador de serviço. Ação de escrita: só por caso de uso, com confirmação. Ex.: quero agendar minha
+    mudança; vou me mudar sábado de manhã; preciso do elevador para a mudança.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: data
+    type: date
+    required: true
+    description: AAAA-MM-DD
+  - name: periodo
+    type: string
+    required: true
+    description: manha | tarde
+  output: '{protocolo}'
+- name: obras.comunicar
+  kind: api
+  visibility: private
+  write: true
+  description: 'Comunicar à administração e à portaria uma obra, reforma ou reparo na unidade (pintura,
+    elétrica, hidráulica...) e liberar os prestadores. Ação de escrita: só pelo caso de uso Comunicação
+    de Obra, com confirmação. Ex.: vou fazer uma reforma; o pintor vem semana que vem; preciso avisar
+    de uma obra.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: tipo
+    type: string
+    required: true
+  - name: descricao
+    type: string
+    required: true
+  - name: inicio
+    type: date
+    required: true
+  - name: dias
+    type: number
+    required: true
+  - name: prestadores
+    type: array
+    required: true
+  output: '{protocolo, liberacao_portaria, horario_permitido}'
+- name: cadastro.atualizar
+  kind: api
+  visibility: private
+  write: true
+  description: 'Gravar alterações no cadastro da unidade. Ação de escrita: só pelo caso de uso Atualização
+    Cadastral, com confirmação.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: dados
+    type: object
+    required: true
+  output: '{protocolo}'
+- name: visitantes.motivos
+  kind: api
+  visibility: private
+  description: 'Motivos de visita do condomínio (Gruvi): tipo filtra Visitante ou Prestador. Use antes
+    de liberar um prestador, para saber qual serviço.'
+  params:
+  - name: tipo
+    type: string
+    description: visitante | prestador (vazio = todos)
+  output: lista de {id, label, tipo}
+- name: encomendas.listar
+  kind: api
+  visibility: private
+  description: 'Encomendas da unidade que chegaram na portaria (padrão: aguardando retirada). Use quando
+    o morador pergunta se chegou pacote, entrega ou correspondência.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: status
+    type: string
+    description: waiting | delivered | canceled
+  output: lista de {id, label, status}
+- name: encomendas.codigo
+  kind: api
+  visibility: private
+  description: Código de retirada de uma encomenda que aguarda retirada na portaria.
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: encomenda_id
+    type: string
+    required: true
+  output: '{codigo}'

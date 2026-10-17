@@ -1,8 +1,12 @@
-// Package admin é o mapeamento da administradora: para cada condomínio, quais casos
-// de uso o concierge pode usar (e para quais papéis) e qual payload de definições vale
-// para cada recurso do Nexus naquele condomínio. É a "matriz" de um banco com RLS por
-// administradora e condomínio; hoje em JSON (okf/var/admin/mapeamento.json), com a
-// mesma forma que o Postgres terá.
+// Package admin é o mapeamento das administradoras: cada administradora tem seus
+// condomínios e, para cada condomínio, quais casos de uso o concierge pode usar (e para
+// quais papéis) e qual payload de definições vale para cada recurso do Nexus. É a
+// "matriz" de um banco com RLS por administradora e condomínio; hoje em JSON
+// (okf/var/admin/mapeamento.json), com a mesma forma que o Postgres terá.
+//
+// Quem mexe em quê: a Superlógica (Backdoor) cadastra as administradoras e distribui
+// os condomínios entre elas; a administradora (Admin) só enxerga os seus condomínios
+// (Visao) e neles habilita casos de uso. O padrão "*" é global.
 //
 // Regras:
 //   - sem mapeamento para um condomínio, o atributo é comum a todos ("*", o padrão);
@@ -28,13 +32,21 @@ import (
 // Padrao é a chave do mapeamento comum a todos os condomínios.
 const Padrao = "*"
 
-// Condominio é um condomínio da administradora, com os ids que o ligam aos sistemas.
+// Administradora é quem administra um conjunto de condomínios (a cliente da
+// Superlógica). O Admin é dela: ela só vê o que é seu.
+type Administradora struct {
+	ID   string `json:"id"`
+	Nome string `json:"nome"`
+}
+
+// Condominio é um condomínio de uma administradora, com os ids que o ligam aos sistemas.
 type Condominio struct {
-	ID        string `json:"id"`
-	Nome      string `json:"nome"`
-	Account   string `json:"account"`    // account dos recursos no Nexus
-	CompanyID string `json:"company_id"` // company no Gruvi (identidade por telefone)
-	Tenant    string `json:"tenant"`     // tenant do ATENDE
+	ID             string `json:"id"`
+	Nome           string `json:"nome"`
+	Administradora string `json:"administradora_id"` // id da administradora (vazio = sem dona, só o Backdoor vê)
+	Account        string `json:"account"`           // account dos recursos no Nexus
+	CompanyID      string `json:"company_id"`        // company no Gruvi (identidade por telefone)
+	Tenant         string `json:"tenant"`            // tenant do ATENDE
 }
 
 // Habilitacao de um caso de uso num condomínio.
@@ -43,10 +55,13 @@ type Habilitacao struct {
 	Papeis     []string `json:"papeis"` // vazio = todos os papéis
 }
 
-// Mapeamento é o conteúdo inteiro da administradora.
+// Mapeamento é o conteúdo inteiro (todas as administradoras) ou, depois de Visao, o
+// recorte de uma administradora.
 type Mapeamento struct {
-	Administradora string       `json:"administradora"`
-	Condominios    []Condominio `json:"condominios"`
+	Administradoras []Administradora `json:"administradoras"`
+	Condominios     []Condominio     `json:"condominios"`
+	// Legado: o nome da única administradora, de antes de haver a lista. normalizar migra.
+	AdministradoraLegado string `json:"administradora,omitempty"`
 	// Habilitacoes: condomínio (ou "*") → caso de uso → habilitação.
 	Habilitacoes map[string]map[string]Habilitacao `json:"habilitacoes"`
 	// Payloads: condomínio (ou "*") → recurso do Nexus → definições.
@@ -55,9 +70,24 @@ type Mapeamento struct {
 }
 
 func (m *Mapeamento) normalizar() {
+	if m.Administradoras == nil {
+		m.Administradoras = []Administradora{}
+	}
 	if m.Condominios == nil {
 		m.Condominios = []Condominio{}
 	}
+	if m.AdministradoraLegado != "" && len(m.Administradoras) == 0 {
+		// migração: a administradora única vira a primeira da lista, dona de todos
+		a := Administradora{ID: "adm-1", Nome: m.AdministradoraLegado}
+		m.Administradoras = append(m.Administradoras, a)
+		for i := range m.Condominios {
+			if m.Condominios[i].Administradora == "" {
+				m.Condominios[i].Administradora = a.ID
+			}
+		}
+		m.AdministradoraLegado = ""
+	}
+	sort.Slice(m.Administradoras, func(i, j int) bool { return m.Administradoras[i].Nome < m.Administradoras[j].Nome })
 	if m.Habilitacoes == nil {
 		m.Habilitacoes = map[string]map[string]Habilitacao{}
 	}
@@ -81,6 +111,46 @@ func (m *Mapeamento) normalizar() {
 		}
 	}
 	sort.Slice(m.Condominios, func(i, j int) bool { return m.Condominios[i].Nome < m.Condominios[j].Nome })
+}
+
+// Administradora procura pelo id.
+func (m Mapeamento) Administradora(id string) (Administradora, bool) {
+	for _, a := range m.Administradoras {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return Administradora{}, false
+}
+
+// Visao é o RLS da administradora: só ela, seus condomínios e o mapeamento deles
+// (mais o padrão "*", que é global). Com id vazio devolve tudo (o Backdoor).
+func (m Mapeamento) Visao(admID string) Mapeamento {
+	if admID == "" {
+		return m
+	}
+	v := Mapeamento{Administradoras: []Administradora{}, Condominios: []Condominio{}, Habilitacoes: map[string]map[string]Habilitacao{}, Payloads: map[string]map[string]map[string]any{}, AtualizadoEm: m.AtualizadoEm}
+	if a, ok := m.Administradora(admID); ok {
+		v.Administradoras = append(v.Administradoras, a)
+	}
+	meus := map[string]bool{Padrao: true}
+	for _, c := range m.Condominios {
+		if c.Administradora == admID {
+			v.Condominios = append(v.Condominios, c)
+			meus[c.ID] = true
+		}
+	}
+	for k, h := range m.Habilitacoes {
+		if meus[k] {
+			v.Habilitacoes[k] = h
+		}
+	}
+	for k, p := range m.Payloads {
+		if meus[k] {
+			v.Payloads[k] = p
+		}
+	}
+	return v
 }
 
 // Condominio procura pelo id.
@@ -255,10 +325,53 @@ func (s *Store) Alterar(fn func(m *Mapeamento) error) (Mapeamento, error) {
 
 var reID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 
-// SalvarCondominio cria ou atualiza (pelo id).
+// SalvarAdministradora cria ou atualiza (pelo id).
+func (s *Store) SalvarAdministradora(a Administradora) (Mapeamento, error) {
+	a.ID = strings.TrimSpace(strings.ToLower(a.ID))
+	a.Nome = strings.TrimSpace(a.Nome)
+	if a.ID == "" || !reID.MatchString(a.ID) {
+		return Mapeamento{}, errors.New("id da administradora inválido (minúsculas, dígitos, hífen)")
+	}
+	if a.Nome == "" {
+		return Mapeamento{}, errors.New("nome da administradora vazio")
+	}
+	return s.Alterar(func(m *Mapeamento) error {
+		for i, atual := range m.Administradoras {
+			if atual.ID == a.ID {
+				m.Administradoras[i] = a
+				return nil
+			}
+		}
+		m.Administradoras = append(m.Administradoras, a)
+		return nil
+	})
+}
+
+// RemoverAdministradora apaga a administradora; recusa enquanto ela tiver condomínios
+// (mova-os antes, para não perder mapeamento sem querer).
+func (s *Store) RemoverAdministradora(id string) (Mapeamento, error) {
+	return s.Alterar(func(m *Mapeamento) error {
+		for _, c := range m.Condominios {
+			if c.Administradora == id {
+				return fmt.Errorf("a administradora %s ainda tem o condomínio %s; mova-o antes", id, c.ID)
+			}
+		}
+		var resto []Administradora
+		for _, a := range m.Administradoras {
+			if a.ID != id {
+				resto = append(resto, a)
+			}
+		}
+		m.Administradoras = resto
+		return nil
+	})
+}
+
+// SalvarCondominio cria ou atualiza (pelo id). A administradora, se informada, tem de existir.
 func (s *Store) SalvarCondominio(c Condominio) (Mapeamento, error) {
 	c.ID = strings.TrimSpace(strings.ToLower(c.ID))
 	c.Nome = strings.TrimSpace(c.Nome)
+	c.Administradora = strings.TrimSpace(c.Administradora)
 	if c.ID == "" || !reID.MatchString(c.ID) {
 		return Mapeamento{}, errors.New("id do condomínio inválido (minúsculas, dígitos, hífen)")
 	}
@@ -266,6 +379,11 @@ func (s *Store) SalvarCondominio(c Condominio) (Mapeamento, error) {
 		return Mapeamento{}, errors.New("nome do condomínio vazio")
 	}
 	return s.Alterar(func(m *Mapeamento) error {
+		if c.Administradora != "" {
+			if _, ok := m.Administradora(c.Administradora); !ok {
+				return fmt.Errorf("administradora desconhecida: %s", c.Administradora)
+			}
+		}
 		for i, atual := range m.Condominios {
 			if atual.ID == c.ID {
 				m.Condominios[i] = c

@@ -120,8 +120,19 @@ func main() {
 	// Admin da administradora: mapeamento condomínio × casos de uso × payloads
 	s.admin = admin.NewStore(env.Ou("ADMIN_DIR", filepath.Join(cat.Root, "var", "admin")) + string(filepath.Separator) + "mapeamento.json")
 	if m, err := s.admin.Ler(); err == nil && len(m.Condominios) == 0 {
-		// primeiro uso: o condomínio de exemplo, ligado à account, ao Gruvi e ao tenant do ATENDE
-		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981")})
+		// primeiro uso: uma administradora de exemplo, dona do condomínio de exemplo
+		// (ligado à account, ao Gruvi e ao tenant do ATENDE)
+		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
+		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981")})
+	} else if err == nil && len(m.Administradoras) == 0 {
+		// mapeamento de antes das administradoras: cria a de exemplo e dá a ela os condomínios sem dona
+		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
+		for _, c := range m.Condominios {
+			if c.Administradora == "" {
+				c.Administradora = "adm-exemplo"
+				_, _ = s.admin.SalvarCondominio(c)
+			}
+		}
 	}
 	s.atende.Mapeamento = s.admin
 
@@ -234,8 +245,19 @@ func (s *servidor) agente(w http.ResponseWriter, r *http.Request) {
 		"conhecimento":  s.cat.Conhecimento(a),
 		"indice":        s.cat.Indice(a),
 		"procedimentos": s.cat.Procedimentos(a),
+		"workflow":      workflowPrincipal(a),
 		"pai":           paiRel(a.Rel),
 	})
+}
+
+// workflowPrincipal devolve o texto de workflows/principal.md (sem frontmatter), que a
+// ficha mostra como "a ordem do acontecimento" do agente.
+func workflowPrincipal(a *okf.Agent) string {
+	raw, err := os.ReadFile(filepath.Join(a.Path, "workflows", "principal.md"))
+	if err != nil {
+		return ""
+	}
+	return okf.StripFrontmatter(string(raw))
 }
 
 func paiRel(rel string) string {

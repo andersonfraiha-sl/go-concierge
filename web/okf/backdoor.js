@@ -258,22 +258,47 @@
     const pm = $('#personaModelo');
     if (pm) pm.addEventListener('click', async (e) => { e.preventDefault(); const m = await api('/api/arquivo/modelo?caminho=persona.md'); $('#personaTexto').value = m.conteudo; });
 
-    // caso de uso
-    const casoEl = $('#caso');
+    // workflow: a ordem do acontecimento (workflows/principal.md), os procedimentos
+    // (demais workflows, com etapas) e, se houver, os passos determinísticos do caso.yaml
+    const wfEl = $('#workflow');
+    const wf = estado.ficha.workflow || '';
+    const procs = estado.ficha.procedimentos || [];
+    const decl = new Map(recursos.map((d) => [d.nome, d]));
+    const iconeDePasso = (t) => /ler_dado|leia|consulte/i.test(t) ? 'book-open' : /chamar_recurso|recurso/i.test(t) ? 'plug' : /confirm/i.test(t) ? 'check-check' : /respond|redij|contrato/i.test(t) ? 'message-circle' : /transfir|atendente/i.test(t) ? 'user-round' : /rote|rota|encaminh/i.test(t) ? 'signpost' : 'circle-dot';
+    const classeDePasso = (t) => /chamar_recurso|recurso `/i.test(t) ? 'f-resource' : /confirm/i.test(t) ? 'f-confirm' : /respond|redij/i.test(t) ? 'f-compose' : '';
+    let html = '';
+    if (wf.trim()) {
+      const linhas = wf.split('\n');
+      const passos = []; let intro = [];
+      for (const l of linhas) {
+        const m = l.match(/^\s*(\d+)[.)]\s+(.*)$/);
+        if (m) passos.push({ n: m[1], texto: m[2] });
+        else if (passos.length && /^\s{2,}\S/.test(l)) passos[passos.length - 1].texto += ' ' + l.trim();
+        else if (!passos.length && l.trim() && !l.startsWith('# ')) intro.push(l.trim());
+      }
+      const md = (t) => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      html += `<div class="form-actions" style="justify-content:space-between;margin-bottom:8px"><span class="muted">${passos.length ? plural(passos.length, 'passo', 'passos') : 'sem passos numerados'}</span><button class="btn btn-ghost btn-sm" id="btnAbrirWorkflow"><i data-lucide="pen-to-square" class="i-sm"></i>Editar principal.md</button></div>`;
+      if (intro.length) html += `<p class="muted" style="margin:0 0 10px">${md(intro.join(' '))}</p>`;
+      if (passos.length) html += `<ol class="flow">${passos.map((p) => `<li class="${classeDePasso(p.texto)}"><span class="fi"><i data-lucide="${iconeDePasso(p.texto)}"></i></span><div><b>${md(p.texto)}</b></div></li>`).join('')}</ol>`;
+      else html += `<pre class="pre" style="max-height:220px">${esc(wf.trim())}</pre>`;
+    } else if (a.caso) {
+      html += `<p class="notice info"><i data-lucide="info"></i>Sem <code>workflows/principal.md</code>: a ordem vem dos passos determinísticos de <code>caso.yaml</code>.</p>`;
+    } else {
+      html += `<div class="empty-state"><i data-lucide="list-checks"></i><span>Sem workflow. Descreva a ordem do acontecimento em <code>workflows/principal.md</code>: passos numerados citando as tools (<code>ler_dado</code>, <code>chamar_recurso</code>) e os arquivos exatos.</span><button class="btn btn-ghost btn-sm" id="btnCriarWorkflow"><i data-lucide="sparkles" class="i-sm"></i>Criar principal.md com modelo</button></div>`;
+    }
     if (a.caso) {
       const c = a.caso;
-      const passos = estado.ficha.caso_passos || passosDe(c);
-      const decl = new Map(recursos.map((d) => [d.nome, d]));
-      casoEl.innerHTML = `<div class="uc-head" style="margin-bottom:10px"><span class="usecase-icon"><i data-lucide="list-checks"></i></span><div class="uc-title"><strong>${esc(c.name || c.id)}</strong><span>${esc(c.id)} · ${esc(c.visibility)}${c.fallback ? ' · fallback' : ''}</span></div><button class="btn btn-ghost btn-sm" id="btnAbrirCaso" style="margin-left:auto"><i data-lucide="pen-to-square" class="i-sm"></i>Abrir caso.yaml</button></div>
-        <p class="muted" style="margin:0 0 10px">${esc(c.description || '')}</p>
-        ${c.params && c.params.length ? `<div class="chips" style="margin-bottom:10px">${c.params.map((p) => `<span class="tag tag-kind" title="${esc(p.ask || '')}">${esc(p.name)}${p.type ? ':' + esc(p.type) : ''}</span>`).join('')}</div>` : ''}
-        <ol class="flow">${passos.map((p) => { const m = p.match(/recurso `([^`]+)`/); const d = m && decl.get(m[1]); const escrita = d && d.recurso && d.recurso.write; return `<li class="${escrita ? 'f-write' : m ? 'f-resource' : /confirmar/.test(p) ? 'f-confirm' : /redigir/.test(p) ? 'f-compose' : ''}"><span class="fi"><i data-lucide="${escrita ? 'pen-line' : m ? 'plug' : /confirmar/.test(p) ? 'check-check' : /redigir/.test(p) ? 'sparkles' : /escolher/.test(p) ? 'list' : /coletar/.test(p) ? 'message-circle-question' : 'circle'}"></i></span><div><b>${esc(p)}</b>${d && !d.ok ? `<span style="color:var(--danger)">${esc(d.problema)}</span>` : ''}</div></li>`; }).join('')}</ol>
-        ${c.output ? `<p class="muted mono" style="margin:10px 0 0">output: ${esc(c.output)}</p>` : ''}`;
-      $('#btnAbrirCaso').addEventListener('click', () => abrirArquivo('caso.yaml'));
-    } else {
-      casoEl.innerHTML = `<div class="empty-state"><i data-lucide="list-checks"></i><span>Sem caso de uso. Um agente que <b>faz</b> algo com escrita (liberar, reservar, agendar) define os passos em <code>caso.yaml</code>: coleta, confirmação e o recurso de escrita, com protocolo.</span><button class="btn btn-ghost btn-sm" id="btnCriarCaso"><i data-lucide="sparkles" class="i-sm"></i>Criar caso.yaml com modelo</button></div>`;
-      $('#btnCriarCaso').addEventListener('click', () => criarComModelo('caso.yaml'));
+      const passos = passosDe(c);
+      html += `<details class="bloco-sub" style="margin-top:10px"><summary class="muted">Passos determinísticos (<code>caso.yaml</code>: ${esc(c.id)}) — o harness executa, com confirmação e escrita</summary><ol class="flow" style="margin-top:8px">${passos.map((p) => { const m = p.match(/recurso `([^`]+)`/); const d = m && decl.get(m[1]); const escrita = d && d.recurso && d.recurso.write; return `<li class="${escrita ? 'f-write' : m ? 'f-resource' : /confirmar/.test(p) ? 'f-confirm' : /redigir/.test(p) ? 'f-compose' : ''}"><span class="fi"><i data-lucide="${escrita ? 'pen-line' : m ? 'plug' : /confirmar/.test(p) ? 'check-check' : /redigir/.test(p) ? 'sparkles' : /escolher/.test(p) ? 'list' : /coletar/.test(p) ? 'message-circle-question' : 'circle'}"></i></span><div><b>${esc(p)}</b>${d && !d.ok ? `<span style="color:var(--danger)">${esc(d.problema)}</span>` : ''}</div></li>`; }).join('')}</ol><button class="btn btn-ghost btn-sm" id="btnAbrirCaso" style="margin-top:6px"><i data-lucide="pen-to-square" class="i-sm"></i>Editar caso.yaml</button></details>`;
     }
+    if (procs.length) {
+      html += `<div style="margin-top:12px"><div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Procedimentos (abrir_workflow)</div>${procs.map((p) => `<div class="sub" data-proc="${esc(p.nome)}"><span class="res-icon"><i data-lucide="${p.etapas && p.etapas.length ? 'layers' : 'file-text'}"></i></span><strong>${esc(p.nome)}</strong><span class="badges">${p.etapas && p.etapas.length ? `<span class="tag tag-kind">${p.etapas.length} etapas</span>` : ''}</span><span>${esc(p.resumo || '')}${p.etapas && p.etapas.length ? ' · ' + esc(p.etapas.join(' → ')) : ''}</span></div>`).join('')}</div>`;
+    }
+    wfEl.innerHTML = html;
+    $('#btnAbrirWorkflow')?.addEventListener('click', () => abrirArquivo('workflows/principal.md'));
+    $('#btnCriarWorkflow')?.addEventListener('click', () => criarComModelo('workflows/principal.md'));
+    $('#btnAbrirCaso')?.addEventListener('click', () => abrirArquivo('caso.yaml'));
+    $$('#workflow .sub[data-proc]').forEach((d) => d.addEventListener('click', () => { const p = procs.find((x) => x.nome === d.dataset.proc); abrirArquivo(p && p.etapas && p.etapas.length ? `workflows/${p.nome}/${p.etapas[0]}.md` : `workflows/${d.dataset.proc}.md`); }));
 
     // recursos que usa
     $('#recursosResumo').textContent = recursos.length ? `${recursos.length} declarado${recursos.length === 1 ? '' : 's'}${estado.nexus.conferido ? '' : ' · não conferidos'}` : 'nenhum';

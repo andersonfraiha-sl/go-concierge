@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concierge · Backdoor · Administradoras</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=6">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="admin" data-modo="backdoor" data-secao="administradoras">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="concierge-bell"></i></span>
+      <span class="brand-name">Superlógica</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-product">Concierge <em>Backdoor</em></span>
+    </div>
+    <nav class="app-switch" aria-label="Área">
+      <a href="/"><i data-lucide="settings-2" class="i-sm"></i>Admin</a>
+      <a href="/console"><i data-lucide="messages-square" class="i-sm"></i>Console</a>
+      <a href="/backdoor" class="is-active"><i data-lucide="door-open" class="i-sm"></i>Backdoor</a>
+    </nav>
+    <div class="env">
+      <span class="chip" id="chipAdm"><i data-lucide="building" class="i-sm"></i><b id="chipAdmNome">…</b></span>
+      <span class="chip" id="chipCondos"><i data-lucide="building-2" class="i-sm"></i><b id="chipCondosN">…</b> condomínios</span>
+      <button class="btn btn-ghost btn-sm" id="btnRecarregar" title="Reler"><i data-lucide="refresh-cw" class="i-sm"></i>Reler</button>
+    </div>
+  </header>
+
+  <div class="admin-layout">
+    <nav class="admin-nav" aria-label="Seções">
+      <a href="/backdoor"><i data-lucide="list-checks"></i><span>Casos de uso</span><em>o concierge e seus subagentes</em></a>
+      <a href="/backdoor/administradoras" class="is-active"><i data-lucide="building"></i><span>Administradoras</span><em>e os condomínios de cada uma</em></a>
+      <span class="nav-label">Nexus</span>
+      <a href="/backdoor/payloads"><i data-lucide="plug"></i><span>Payload por condomínio</span><em>definições de cada recurso</em></a>
+      <p class="nav-dica" style="margin-top:18px">Nosso: as administradoras clientes e a que condomínios cada uma atende. O <b>Admin</b> de uma administradora só enxerga os condomínios dela (RLS); o botão "Admin" abre o painel como ela.</p>
+    </nav>
+
+    <main class="admin-main" id="main" tabindex="-1">
+      <section id="secAdministradoras" hidden>
+        <div class="page-head">
+          <div><h1>Administradoras</h1><p>Cada administradora é um cliente da Superlógica e tem o seu Admin: nele só aparecem os seus condomínios e o mapeamento deles. O padrão (todos) é global, nosso.</p></div>
+          <div class="page-actions"><button class="btn btn-primary" id="btnNovaAdm"><i data-lucide="plus"></i><span>Nova administradora</span></button></div>
+        </div>
+        <div class="card"><table class="res-table larga" id="tabelaAdms"><thead><tr><th>Administradora</th><th>id</th><th>Condomínios</th><th></th></tr></thead><tbody></tbody></table></div>
+
+        <div class="page-head" style="margin-top:28px">
+          <div><h1 style="font-size:20px">Condomínios</h1><p>Todos os condomínios, com a administradora de cada um e os ids que os ligam aos sistemas: a <b>account</b> dos recursos no Nexus, a <b>company</b> do Gruvi (identidade do morador pelo telefone) e o <b>tenant</b> do ATENDE.</p></div>
+          <div class="page-actions"><button class="btn btn-primary" id="btnNovoCondo"><i data-lucide="plus"></i><span>Novo condomínio</span></button></div>
+        </div>
+        <div class="card"><table class="res-table larga" id="tabelaCondos" data-com-adm><thead><tr><th>Condomínio</th><th>Administradora</th><th>account (Nexus)</th><th>company (Gruvi)</th><th>tenant (ATENDE)</th><th></th></tr></thead><tbody></tbody></table></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- drawer: administradora -->
+  <div id="drawerAdm" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerAdm"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="building"></i></span><h2 id="drawerAdmTitulo">Administradora</h2><button class="vote" data-fecha="drawerAdm" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formAdm" class="body">
+        <div class="form-row"><label>Nome</label><input class="field-input" name="nome" required placeholder="Administradora Alfa"></div>
+        <div class="form-row"><label>id <small>vazio = gerado do nome</small></label><input class="field-input mono" name="id" spellcheck="false" placeholder="administradora-alfa"></div>
+        <div class="form-actions"><button type="button" class="btn btn-danger" id="btnRemoverAdm" hidden><i data-lucide="trash-2"></i><span>Remover</span></button><span class="muted" style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <!-- drawer: condomínio (com a administradora) -->
+  <div id="drawerCondo" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerCondo"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="building-2"></i></span><h2 id="drawerCondoTitulo">Condomínio</h2><button class="vote" data-fecha="drawerCondo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formCondo" class="body">
+        <div class="form-row"><label>Nome</label><input class="field-input" name="nome" required placeholder="Residencial Jataí"></div>
+        <div class="form-row"><label>id <small>vazio = gerado do nome</small></label><input class="field-input mono" name="id" spellcheck="false" placeholder="residencial-jatai"></div>
+        <div class="form-row"><label>Administradora</label><select class="field-select" name="administradora_id"></select></div>
+        <div class="form-row"><label>account no Nexus</label><input class="field-input mono" name="account" spellcheck="false" placeholder="cond-001"></div>
+        <div class="form-row"><label>company no Gruvi</label><input class="field-input mono" name="company_id" spellcheck="false" placeholder="5982"></div>
+        <div class="form-row"><label>tenant do ATENDE</label><input class="field-input mono" name="tenant" spellcheck="false" placeholder="69a5a131e67bd8e2f54e5981"></div>
+        <div class="form-actions"><button type="button" class="btn btn-danger" id="btnRemoverCondo" hidden><i data-lucide="trash-2"></i><span>Remover</span></button><span class="muted" style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <script src="/admin.js?v=2"></script>
+</body>
+</html>

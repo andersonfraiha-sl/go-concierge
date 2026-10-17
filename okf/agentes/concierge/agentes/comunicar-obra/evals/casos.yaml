@@ -1,0 +1,24 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: vou fazer uma reforma no apartamento
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: preciso comunicar uma obra
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 3 não vaza termos internos
+  pergunta: vou pintar o apê semana que vem
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 4 não vaza termos internos
+  pergunta: o eletricista vem trocar a fiação
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

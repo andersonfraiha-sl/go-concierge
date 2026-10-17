@@ -1,0 +1,6 @@
+nome: agendar-mudanca
+tipo: operador
+descricao: 'Usado para o morador agendar uma data e período para sua mudança, garantindo
+  a reserva do elevador de serviço. Caso de uso: Agendamento de Mudança.'
+recursos:
+- unidades.listar

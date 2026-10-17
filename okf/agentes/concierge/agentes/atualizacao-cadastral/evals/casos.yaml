@@ -1,0 +1,12 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: quero atualizar meu cadastro
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: troquei de carro, preciso mudar a placa
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

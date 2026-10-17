@@ -1,0 +1,33 @@
+# Trazido do sl-concierge (gruvi/70_encomendas.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
+id: encomendas
+name: Minhas Encomendas
+visibility: private
+icon: package
+description: >
+  Mostra as encomendas da unidade que chegaram na portaria e aguardam retirada.
+keywords: [encomenda, encomendas, pacote, pacotes, entrega, correio, correspondência, chegou]
+examples:
+  - tenho alguma encomenda?
+  - chegou algum pacote pra mim?
+  - tem entrega na portaria?
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+  - choose:
+      param: unidade
+      reuse: always
+      title: Unidade
+      from: unidades
+      label: label
+      value: id
+      ask: De qual unidade?
+      empty: Sua unidade ainda não tem encomendas disponíveis por aqui.
+  - resource: encomendas.listar
+    with:
+      unidade_id: "{{.unidade}}"
+    save_as: encomendas
+output: |-
+  {{if .encomendas}}Encomendas aguardando retirada ({{.unidade_label}}):
+  {{range .encomendas}}• {{.label}}
+  {{end}}
+  Se quiser o código de retirada, é só pedir.{{else}}Não há encomendas aguardando retirada para {{.unidade_label}}.{{end}}

@@ -1,0 +1,18 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: qual o código pra retirar minha encomenda?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: me passa o código de retirada
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 3 não vaza termos internos
+  pergunta: preciso do código do pacote
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

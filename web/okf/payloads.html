@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/styles.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin" data-modo="backdoor">
@@ -33,6 +33,7 @@
   <div class="admin-layout">
     <nav class="admin-nav" aria-label="Seções">
       <a href="/backdoor"><i data-lucide="list-checks"></i><span>Casos de uso</span><em>o concierge e seus subagentes</em></a>
+      <a href="/backdoor/administradoras"><i data-lucide="building"></i><span>Administradoras</span><em>e os condomínios de cada uma</em></a>
       <span class="nav-label">Nexus</span>
       <a href="/backdoor/payloads" class="is-active"><i data-lucide="plug"></i><span>Payload por condomínio</span><em>definições de cada recurso</em></a>
       <p class="nav-dica" style="margin-top:18px">Técnico, nosso: para cada condomínio da administradora, o payload de definições de cada recurso do Nexus. O padrão é sobreposto pelo do condomínio, chave a chave; na chamada do recurso ele preenche os parâmetros que o agente não passou e entra no prompt como "Contexto do condomínio".</p>
@@ -45,13 +46,13 @@
           <div><h1>Payload dos recursos por condomínio</h1><p>Para o condomínio escolhido, as definições de cada recurso do Nexus: parâmetros padrão (ex.: <code>company_id</code>, <code>unidade_id</code>) e regras locais (ex.: antecedência mínima, áreas disponíveis). Na chamada do recurso, o payload preenche o que o agente não passou; e entra no prompt como "Contexto do condomínio".</p></div>
           <div class="page-actions"><label class="form-row" style="min-width:260px"><span class="muted" style="font-size:12px">Condomínio</span><select class="field-select" id="selCondoPayload"></select></label></div>
         </div>
-        <div class="card"><table class="res-table" id="tabelaPayloads"><thead><tr><th>Recurso</th><th>Assinatura (MCP)</th><th>Payload deste condomínio</th><th>Efetivo (padrão + condomínio)</th></tr></thead><tbody></tbody></table></div>
+        <div class="card"><table class="res-table larga" id="tabelaPayloads"><thead><tr><th style="width:34%">Recurso</th><th style="width:18%">Assinatura (MCP)</th><th style="width:28%">Payload deste condomínio</th><th>Efetivo (padrão + condomínio)</th></tr></thead><tbody></tbody></table></div>
       </section>
     </main>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="/admin.js?v=1"></script>
+  <script src="/admin.js?v=2"></script>
 </body>
 </html>

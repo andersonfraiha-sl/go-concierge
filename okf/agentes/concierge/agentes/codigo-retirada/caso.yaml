@@ -1,0 +1,42 @@
+# Trazido do sl-concierge (gruvi/71_codigo_retirada.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
+id: codigo_retirada
+name: Código de Retirada
+visibility: private
+icon: key-round
+description: >
+  Informa o código para retirar uma encomenda que já está na portaria.
+keywords: [código, codigo, retirada, retirar, senha, encomenda, pacote]
+examples:
+  - qual o código pra retirar minha encomenda?
+  - me passa o código de retirada
+  - preciso do código do pacote
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+  - choose:
+      param: unidade
+      reuse: always
+      title: Unidade
+      from: unidades
+      label: label
+      value: id
+      ask: De qual unidade?
+      empty: Sua unidade ainda não tem encomendas disponíveis por aqui.
+  - resource: encomendas.listar
+    with:
+      unidade_id: "{{.unidade}}"
+    save_as: encomendas
+  - choose:
+      param: encomenda
+      title: Encomenda
+      from: encomendas
+      label: label
+      value: id
+      ask: De qual encomenda?
+      empty: Não há encomendas aguardando retirada no momento.
+  - resource: encomendas.codigo
+    with:
+      unidade_id: "{{.unidade}}"
+      encomenda_id: "{{.encomenda}}"
+    save_as: retirada
+output: "O código de retirada de {{.encomenda_label}} é *{{.retirada.codigo}}*. Apresente na portaria."

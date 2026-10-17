@@ -1,0 +1,12 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: quero reservar a churrasqueira no sábado
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: dá pra agendar o salão de festas dia 12/10?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

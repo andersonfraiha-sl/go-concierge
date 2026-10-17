@@ -1,17 +1,63 @@
 - nome: regra de barulho vai pro regimento
-  pergunta: "posso fazer barulho depois das 22h?"
+  pergunta: posso fazer barulho depois das 22h?
   rota: regimento
 - nome: horário da piscina é faq
-  pergunta: "até que horas a piscina abre?"
+  pergunta: até que horas a piscina abre?
   rota: faq
 - nome: pedido de escrita fica no self (caso de uso)
-  pergunta: "quero liberar um visitante hoje"
+  pergunta: quero liberar um visitante hoje
   rota: self
 - nome: saudação e despedida ficam no self, nunca no observador
-  pergunta: "era só isso, obrigado!"
+  pergunta: era só isso, obrigado!
   rota: self
-  nao_contem: ["pendencias", "encerrar"]
+  nao_contem:
+  - pendencias
+  - encerrar
 - nome: fora de escopo não inventa
-  pergunta: "qual a previsão do tempo pra amanhã?"
+  pergunta: qual a previsão do tempo pra amanhã?
   rota: self
-  nao_contem: ["graus", "chuva"]
+  nao_contem:
+  - graus
+  - chuva
+- nome: Listar Unidades roteia
+  pergunta: quais são minhas unidades?
+  rota: listar-unidades
+- nome: Listar Unidades roteia
+  pergunta: em quais apartamentos eu estou cadastrado?
+  rota: listar-unidades
+- nome: Reserva de Área Comum roteia
+  pergunta: quero reservar a churrasqueira no sábado
+  rota: reserva-area-comum
+- nome: Reserva de Área Comum roteia
+  pergunta: dá pra agendar o salão de festas dia 12/10?
+  rota: reserva-area-comum
+- nome: Atualização Cadastral roteia
+  pergunta: quero atualizar meu cadastro
+  rota: atualizacao-cadastral
+- nome: Atualização Cadastral roteia
+  pergunta: troquei de carro, preciso mudar a placa
+  rota: atualizacao-cadastral
+- nome: Agendamento de Mudança roteia
+  pergunta: quero agendar minha mudança
+  rota: agendar-mudanca
+- nome: Agendamento de Mudança roteia
+  pergunta: preciso marcar a data da minha mudança
+  rota: agendar-mudanca
+- nome: Comunicação de Obra roteia
+  pergunta: vou fazer uma reforma no apartamento
+  rota: comunicar-obra
+- nome: Comunicação de Obra roteia
+  pergunta: preciso comunicar uma obra
+  rota: comunicar-obra
+- nome: Minhas Encomendas roteia
+  pergunta: tenho alguma encomenda?
+  rota: encomendas
+- nome: Minhas Encomendas roteia
+  pergunta: chegou algum pacote pra mim?
+  rota: encomendas
+- nome: Código de Retirada roteia
+  pergunta: qual o código pra retirar minha encomenda?
+  rota: codigo-retirada
+- nome: Código de Retirada roteia
+  pergunta: me passa o código de retirada
+  rota: codigo-retirada

@@ -428,8 +428,8 @@ func TestMockEscolheRotaPorGlossario(t *testing.T) {
 	if r := m.escolherRota("até que horas a piscina abre? qual o horário da portaria?"); r != "faq" {
 		t.Errorf("horários → faq; veio %s", r)
 	}
-	if r := m.escolherRota("vou fazer uma reforma com pintor na sala"); r != "regimento" {
-		t.Errorf("reforma (glossário knowledge/glossary.yaml: obra → regimento); veio %s", r)
+	if r := m.escolherRota("vou fazer uma reforma com pintor na sala"); r != "comunicar-obra" {
+		t.Errorf("reforma → comunicar-obra (caso de uso trazido do catálogo); veio %s", r)
 	}
 	if r := m.escolherRota("quero liberar a entrada de um visitante"); r != "liberacao-visitante" {
 		t.Errorf("visitante → liberacao-visitante; veio %s", r)

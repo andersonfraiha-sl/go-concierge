@@ -1,0 +1,7 @@
+nome: encomendas
+tipo: operador
+descricao: 'Mostra as encomendas da unidade que chegaram na portaria e aguardam retirada.
+  Caso de uso: Minhas Encomendas.'
+recursos:
+- unidades.listar
+- encomendas.listar

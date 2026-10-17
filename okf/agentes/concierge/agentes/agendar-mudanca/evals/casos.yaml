@@ -1,0 +1,24 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: quero agendar minha mudança
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: preciso marcar a data da minha mudança
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 3 não vaza termos internos
+  pergunta: agendar mudança para o dia 15
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 4 não vaza termos internos
+  pergunta: vou me mudar sábado de manhã
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

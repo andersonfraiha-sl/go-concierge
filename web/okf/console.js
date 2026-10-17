@@ -189,22 +189,19 @@
     } catch (err) { /* silencioso */ }
   }
   function desenharMemoria(m) {
-    const el = $('#memoria');
-    const chave = JSON.stringify(m.fatos || []);
+    const chave = JSON.stringify(m);
     if (estado.chaveMemoria === chave) return;
     estado.chaveMemoria = chave;
-    // aba Memória dos bastidores: a tabela completa e o JSON guardado
-    $('#memoriaTabela').innerHTML = (m.fatos && m.fatos.length)
-      ? `<table class="res-table"><thead><tr><th>Chave</th><th>Fato</th><th>Origem</th><th>Quando</th><th>Conf.</th></tr></thead><tbody>${m.fatos.map((f) => `<tr><td><code>${esc(f.chave)}</code></td><td>${esc(f.texto)}</td><td class="mono muted">${esc(f.fonte || '')}</td><td class="muted">${new Date(f.quando).toLocaleString('pt-BR')}</td><td class="mono">${f.confianca ? f.confianca.toFixed(2) : '—'}</td></tr>`).join('')}</tbody></table>`
-      : '<div class="empty-state"><i data-lucide="brain"></i>nada guardado para este telefone</div>';
-    $('#memoriaBruta').textContent = JSON.stringify(m, null, 2);
-    if (!m.fatos || !m.fatos.length) { el.className = 'empty-state'; el.style.padding = '12px'; el.innerHTML = '<i data-lucide="brain"></i>nada guardado ainda'; icons(); return; }
-    el.className = 'memoria';
-    el.style.padding = '';
-    el.innerHTML = m.fatos.map((f) => `<div class="fato"><span class="tag tag-kind">${esc(f.chave)}</span><div class="ft"><b>${esc(f.texto)}</b><span class="muted">${f.fonte ? 'protocolo ' + esc(f.fonte) + ' · ' : ''}${new Date(f.quando).toLocaleDateString('pt-BR')}</span></div><button class="vote no" title="esquecer" data-chave="${esc(f.chave)}"><i data-lucide="x"></i></button></div>`).join('')
-      + `<button class="btn btn-ghost btn-sm" id="btnEsquecerTudo" style="margin-top:8px"><i data-lucide="eraser" class="i-sm"></i>Esquecer tudo</button>`;
-    $$('#memoria button[data-chave]').forEach((b) => b.addEventListener('click', async () => { try { const r = await api(`/api/memoria?phone=${encodeURIComponent($('#formContato').phone.value.trim())}&chave=${encodeURIComponent(b.dataset.chave)}`, { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('esquecido: ' + b.dataset.chave); } catch (err) { toast(err.message, true); } }));
-    $('#btnEsquecerTudo').addEventListener('click', async () => { if (!confirm('Apagar toda a memória deste contato?')) return; try { const r = await api('/api/memoria?phone=' + encodeURIComponent($('#formContato').phone.value.trim()), { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('memória apagada'); } catch (err) { toast(err.message, true); } });
+    const phone = () => $('#formContato').phone.value.trim();
+    const fatos = m.fatos || [];
+    const quando = (d) => (d ? new Date(d).toLocaleString('pt-BR') : '—');
+    // chave-valor: primeiro o contato, depois cada fato guardado (uma linha por chave)
+    const meta = [['telefone', m.telefone || phone()], ['nome', m.nome || '—'], ['atualizada em', quando(m.atualizada_em)]];
+    $('#memoriaTabela').innerHTML = `<table class="res-table larga kv"><thead><tr><th>Chave</th><th>Valor</th><th>Origem</th><th>Quando</th><th></th></tr></thead><tbody>${meta.map(([k, v]) => `<tr class="kv-meta"><td><code>${esc(k)}</code></td><td>${esc(v)}</td><td>contato</td><td></td><td></td></tr>`).join('')}${fatos.length
+      ? fatos.map((f) => `<tr><td><code>${esc(f.chave)}</code></td><td><b>${esc(f.texto)}</b></td><td class="mono muted">${f.fonte ? 'protocolo ' + esc(f.fonte) : '—'}</td><td class="muted">${quando(f.quando)}${f.confianca ? ` · conf. ${f.confianca.toFixed(2)}` : ''}</td><td class="acoes"><button class="vote no" title="esquecer" data-chave="${esc(f.chave)}"><i data-lucide="x"></i></button></td></tr>`).join('')
+      : '<tr><td colspan="5"><div class="empty-state" style="padding:14px"><i data-lucide="brain"></i>nenhum fato guardado para este telefone ainda</div></td></tr>'}</tbody></table>${fatos.length ? '<div class="form-actions" style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="btnEsquecerTudo"><i data-lucide="eraser" class="i-sm"></i>Esquecer tudo</button></div>' : ''}`;
+    $$('#memoriaTabela button[data-chave]').forEach((b) => b.addEventListener('click', async () => { try { const r = await api(`/api/memoria?phone=${encodeURIComponent(phone())}&chave=${encodeURIComponent(b.dataset.chave)}`, { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('esquecido: ' + b.dataset.chave); } catch (err) { toast(err.message, true); } }));
+    $('#btnEsquecerTudo')?.addEventListener('click', async () => { if (!confirm('Apagar toda a memória deste contato?')) return; try { const r = await api('/api/memoria?phone=' + encodeURIComponent(phone()), { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('memória apagada'); } catch (err) { toast(err.message, true); } });
     icons();
   }
   $('#formContato').phone.addEventListener('change', carregarMemoria);

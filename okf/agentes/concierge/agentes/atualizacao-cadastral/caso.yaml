@@ -1,0 +1,38 @@
+# Trazido do sl-concierge (_default/40_atualizacao_cadastral.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
+id: atualizacao_cadastral
+name: Atualização Cadastral
+visibility: private
+icon: file-pen-line
+description: >
+  Atualiza dados cadastrais da unidade (e-mail, veículo, pets...). Os campos do
+  formulário são dinâmicos: vêm do Nexus para a unidade escolhida.
+keywords: [cadastro, cadastral, atualizar, alterar, mudar, email, veículo, placa, pet, dados]
+examples:
+  - quero atualizar meu cadastro
+  - troquei de carro, preciso mudar a placa
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+  - choose:
+      param: unidade
+      reuse: always # a unidade vale para a conversa toda (o confirm mostra antes de gravar)
+      title: Unidade
+      from: unidades
+      label: label
+      value: id
+      ask: Qual unidade você quer atualizar?
+      empty: Não encontrei unidades vinculadas ao seu cadastro.
+  - resource: cadastro.campos
+    with:
+      unidade_id: "{{.unidade}}"
+    save_as: campos
+  - form:
+      fields_from: campos
+      save_as: dados
+  - confirm: "Vou salvar para {{.unidade_label}}:\n{{.dados_resumo}}Confirma? (sim/não)"
+  - resource: cadastro.atualizar
+    with:
+      unidade_id: "{{.unidade}}"
+      dados: "$dados"
+    save_as: atualizacao
+output: "Cadastro atualizado com sucesso. Protocolo: {{.atualizacao.protocolo}}."

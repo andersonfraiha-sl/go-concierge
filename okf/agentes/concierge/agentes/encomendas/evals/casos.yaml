@@ -1,0 +1,18 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: tenho alguma encomenda?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: chegou algum pacote pra mim?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 3 não vaza termos internos
+  pergunta: tem entrega na portaria?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

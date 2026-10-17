@@ -13,10 +13,10 @@ import (
 	"go-concierge/internal/okf"
 )
 
-// Admin da administradora: a matriz condomínio × caso de uso (habilitação e papéis)
-// e condomínio × recurso (payload de definições). É a única coisa que a
-// administradora mexe; o resto (casos de uso, tools, recursos) é da Superlógica, no
-// Backdoor.
+// Admin da administradora: a matriz condomínio × caso de uso (habilitação e papéis),
+// restrita aos condomínios dela (?administradora=<id> emula o login; RLS). O resto é da
+// Superlógica, no Backdoor: administradoras e seus condomínios, casos de uso, tools,
+// recursos e o payload de cada recurso por condomínio.
 
 func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 	mux.HandleFunc("GET /backdoor", func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,19 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(raw)
 	})
+	mux.HandleFunc("GET /backdoor/administradoras", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := fs.ReadFile(s.web, "administradoras.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(raw)
+	})
 	mux.HandleFunc("GET /api/admin/estado", s.adminEstado)
+	mux.HandleFunc("PUT /api/admin/administradora", s.adminAdministradora)
+	mux.HandleFunc("DELETE /api/admin/administradora", s.adminRemoverAdministradora)
 	mux.HandleFunc("PUT /api/admin/condominio", s.adminCondominio)
 	mux.HandleFunc("DELETE /api/admin/condominio", s.adminRemoverCondominio)
 	mux.HandleFunc("PUT /api/admin/habilitacao", s.adminHabilitacao)
@@ -98,12 +110,15 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 	return out, nil
 }
 
-func (s *servidor) adminEstado(w http.ResponseWriter, _ *http.Request) {
+func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
 	m, err := s.admin.Ler()
 	if err != nil {
 		writeErr(w, 500, err)
 		return
 	}
+	// RLS: a administradora só vê o que é dela. Sem o parâmetro, é o Backdoor (tudo).
+	todas := m.Administradoras
+	m = m.Visao(r.URL.Query().Get("administradora"))
 	casos, err := s.casosDeUso()
 	if err != nil {
 		writeErr(w, 500, err)
@@ -114,13 +129,45 @@ func (s *servidor) adminEstado(w http.ResponseWriter, _ *http.Request) {
 		recursos = []okf.Recurso{}
 	}
 	writeJSON(w, 200, map[string]any{
-		"mapeamento": m,
-		"casos":      casos,
-		"recursos":   recursos,
-		"papeis":     []string{"morador", "proprietario", "sindico", "publico"},
-		"account":    s.account,
-		"gruvi":      map[string]any{"company_id": s.gruviCompany},
+		"mapeamento":      m,
+		"administradoras": todas, // a lista inteira, para o seletor que emula o login
+		"casos":           casos,
+		"recursos":        recursos,
+		"papeis":          []string{"morador", "proprietario", "sindico", "publico"},
+		"account":         s.account,
+		"gruvi":           map[string]any{"company_id": s.gruviCompany},
 	})
+}
+
+func (s *servidor) adminAdministradora(w http.ResponseWriter, r *http.Request) {
+	var a admin.Administradora
+	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if a.ID == "" {
+		a.ID = slug(a.Nome)
+	}
+	m, err := s.admin.SalvarAdministradora(a)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.responderMapeamento(w, r, m)
+}
+
+func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeErr(w, 400, errors.New("informe id"))
+		return
+	}
+	m, err := s.admin.RemoverAdministradora(id)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.responderMapeamento(w, r, m)
 }
 
 func (s *servidor) adminCondominio(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +184,7 @@ func (s *servidor) adminCondominio(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"mapeamento": m})
+	s.responderMapeamento(w, r, m)
 }
 
 func (s *servidor) adminRemoverCondominio(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +198,7 @@ func (s *servidor) adminRemoverCondominio(w http.ResponseWriter, r *http.Request
 		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"mapeamento": m})
+	s.responderMapeamento(w, r, m)
 }
 
 func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +221,7 @@ func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"mapeamento": m})
+	s.responderMapeamento(w, r, m)
 }
 
 func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +248,14 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"mapeamento": m})
+	s.responderMapeamento(w, r, m)
+}
+
+// responderMapeamento devolve o mapeamento já recortado pela administradora do
+// pedido (?administradora=), para o Admin nunca receber o que não é dele.
+func (s *servidor) responderMapeamento(w http.ResponseWriter, r *http.Request, m admin.Mapeamento) {
+	todas := m.Administradoras
+	writeJSON(w, 200, map[string]any{"mapeamento": m.Visao(r.URL.Query().Get("administradora")), "administradoras": todas})
 }
 
 var reRotaAdmin = regexp.MustCompile("rota `([^`]+)`")

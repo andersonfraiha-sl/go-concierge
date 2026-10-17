@@ -1,0 +1,7 @@
+nome: reserva-area-comum
+tipo: operador
+descricao: 'Reserva uma área comum do condomínio (churrasqueira, salão de festas,
+  quadra) para uma data. Caso de uso: Reserva de Área Comum.'
+recursos:
+- unidades.listar
+- areas.listar

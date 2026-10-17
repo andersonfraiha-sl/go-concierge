@@ -1,0 +1,98 @@
+# Trazido do sl-concierge (_default/60_comunicar_obra.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
+id: comunicar_obra
+name: Comunicação de Obra
+visibility: private
+icon: hammer
+description: >
+  Usado quando o morador vai fazer obra, reforma ou reparo na unidade (pintura,
+  elétrica, hidráulica, marcenaria...) e precisa avisar a administração e liberar
+  os prestadores na portaria.
+keywords: [obra, reforma, reparo, pintura, pintor, eletricista, encanador, marceneiro, pedreiro, prestador]
+examples:
+  - vou fazer uma reforma no apartamento
+  - preciso comunicar uma obra
+  - vou pintar o apê semana que vem
+  - o eletricista vem trocar a fiação
+params:
+  - name: tipo
+    title: Tipo de obra
+    ask: Qual o tipo de obra?
+    type: select
+    options:
+      - { value: pintura, label: Pintura }
+      - { value: eletrica, label: Elétrica }
+      - { value: hidraulica, label: Hidráulica }
+      - { value: marcenaria, label: Marcenaria }
+      - { value: alvenaria, label: "Alvenaria (quebra de parede, piso)" }
+      - { value: outra, label: Outra }
+  - name: descricao
+    title: Descrição
+    ask: Descreva rapidamente o que vai ser feito.
+    type: textarea
+    placeholder: "Ex.: pintura da sala e dos quartos"
+  - name: inicio
+    title: Início
+    ask: Quando a obra começa?
+    type: date
+  - name: dias
+    title: Duração (dias)
+    ask: Quantos dias a obra deve durar?
+    type: number
+    min: 1
+    max: 60
+  - name: comodos
+    title: Cômodos
+    ask: Quais cômodos serão afetados?
+    type: checkbox
+    required: false
+    options: [Sala, Cozinha, Quartos, Banheiros, Área de serviço, Varanda]
+  - name: ruidosa
+    title: Ferramentas barulhentas
+    ask: Vai usar furadeira, serra ou outras ferramentas barulhentas?
+    type: checkbox
+    help: O regimento limita o horário de barulho.
+  - name: prestadores
+    title: Prestadores
+    ask: Qual o nome de quem vai trabalhar na obra?
+    type: list
+    item: text
+    min_items: 1
+    max_items: 10
+    help: Os nomes ficam liberados na portaria durante a obra.
+  - name: empresa
+    title: Empresa responsável
+    ask: Qual a empresa responsável?
+    required: false
+  - name: responsavel_telefone
+    title: Telefone do responsável
+    ask: Qual o telefone do responsável pela obra (com DDD)?
+    type: phone
+    required: false
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+  - choose:
+      param: unidade
+      reuse: always # a unidade vale para a conversa toda (o confirm mostra antes de gravar)
+      title: Unidade
+      from: unidades
+      label: label
+      value: id
+      ask: Em qual unidade será a obra?
+      empty: Não encontrei unidades vinculadas ao seu cadastro.
+  - collect: [tipo, descricao, inicio, dias, comodos, ruidosa, prestadores, empresa, responsavel_telefone]
+  - confirm: "Confirma a comunicação de obra ({{.tipo_label}}) em {{.unidade_label}}, a partir de {{.inicio_label}} por {{.dias}} dia(s), com {{.prestadores_label}}? (sim/não)"
+  - resource: obras.comunicar
+    with:
+      unidade_id: "{{.unidade}}"
+      tipo: "{{.tipo}}"
+      descricao: "{{.descricao}}"
+      inicio: "{{.inicio}}"
+      dias: "{{.dias}}"
+      comodos: "$comodos"
+      ruidosa: "{{.ruidosa}}"
+      prestadores: "$prestadores"
+      empresa: "{{.empresa}}"
+      responsavel_telefone: "{{.responsavel_telefone}}"
+    save_as: obra
+output: "Obra comunicada! Protocolo: {{.obra.protocolo}}. Portaria: {{.obra.liberacao_portaria}}. Horário permitido: {{.obra.horario_permitido}}."

@@ -79,6 +79,16 @@ fatos (`GET`/`DELETE /api/memoria?phone=`).
 ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
 ```
 
+Três áreas na barra: **Admin** (`/`, a administradora: seus condomínios e a matriz de
+casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
+`?administradora=<id>`), **Console** (`/console`, o emulador do ATENDE) e **Backdoor**
+(`/backdoor`, nosso: casos de uso do concierge, `/backdoor/administradoras` com as
+administradoras e os condomínios de cada uma, `/backdoor/payloads` com o payload de
+cada recurso do Nexus por condomínio).
+
+```bash
+```
+
 Três colunas:
 
 - **Esquerda**: a árvore de agentes (arraste para mover, Shift+arraste para clonar; solte

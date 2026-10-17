@@ -213,8 +213,22 @@ func (m *Mock) indexarGlossario(termos []okf.Termo) {
 	}
 }
 
+// semContexto tira as linhas de contexto que o canal antepõe à mensagem
+// ("[morador identificado: …, unidades: …]"): só o que o morador escreveu pontua.
+func semContexto(s string) string {
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
+			continue
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, "\n")
+}
+
 func (m *Mock) escolherRota(mensagem string) string {
-	ps := palavrasSet(mensagem)
+	ps := palavrasSet(semContexto(mensagem))
 	melhor, pontos, empate := "self", 0, false
 	for _, rota := range m.nomes {
 		total := 0

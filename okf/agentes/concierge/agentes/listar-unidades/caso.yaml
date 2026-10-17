@@ -1,0 +1,17 @@
+# Trazido do sl-concierge (_default/20_listar_unidade.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
+id: listar_unidade
+name: Listar Unidades
+visibility: private
+icon: building-2
+description: Mostra as unidades (apartamentos/casas) vinculadas ao cadastro de quem pergunta.
+keywords: [unidade, unidades, apartamento, apartamentos, apto, imóvel, imóveis, vinculadas]
+examples:
+  - quais são minhas unidades?
+  - em quais apartamentos eu estou cadastrado?
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+output: |-
+  Unidades vinculadas ao seu cadastro:
+  {{range .unidades}}• {{.label}}
+  {{end}}

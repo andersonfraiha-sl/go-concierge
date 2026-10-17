@@ -1,0 +1,45 @@
+# Trazido do sl-concierge (_default/30_reserva_area_comum.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
+id: reserva_area_comum
+name: Reserva de Área Comum
+visibility: private
+icon: calendar-check
+description: Reserva uma área comum do condomínio (churrasqueira, salão de festas, quadra) para uma data.
+keywords: [reserva, reservar, agendar, churrasqueira, salão, festa, quadra, área comum]
+examples:
+  - quero reservar a churrasqueira no sábado
+  - dá pra agendar o salão de festas dia 12/10?
+params:
+  - name: data
+    title: Data da reserva
+    ask: Para qual data? (dd/mm)
+    validate: date
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+  - choose:
+      param: unidade
+      reuse: always # a unidade vale para a conversa toda (o confirm mostra antes de gravar)
+      title: Unidade
+      from: unidades
+      label: label
+      value: id
+      ask: A reserva é para qual unidade?
+      empty: Não encontrei unidades vinculadas ao seu cadastro.
+  - resource: areas.listar
+    save_as: areas
+  - choose:
+      param: area
+      title: Área comum
+      from: areas
+      label: nome
+      value: id
+      ask: Qual área você quer reservar?
+  - collect: [data]
+  - confirm: "Confirma a reserva de {{.area_label}} em {{.data_label}} para {{.unidade_label}}? (sim/não)"
+  - resource: areas.reservar
+    with:
+      unidade_id: "{{.unidade}}"
+      area_id: "{{.area}}"
+      data: "{{.data}}"
+    save_as: reserva
+output: "Reserva confirmada: {{.area_label}} em {{.data_label}} ({{.unidade_label}}). Protocolo: {{.reserva.protocolo}}."

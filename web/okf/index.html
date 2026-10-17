@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/styles.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin">
@@ -24,7 +24,7 @@
       <a href="/backdoor"><i data-lucide="door-open" class="i-sm"></i>Backdoor</a>
     </nav>
     <div class="env">
-      <span class="chip" id="chipAdm"><i data-lucide="building" class="i-sm"></i><b id="chipAdmNome">administradora</b></span>
+      <label class="chip" id="chipAdm" title="Entrar como esta administradora (emula o login; no produto vem do RLS)"><i data-lucide="building" class="i-sm"></i><select class="chip-select" id="selAdm"><option value="">administradora</option></select></label>
       <span class="chip" id="chipCondos"><i data-lucide="building-2" class="i-sm"></i><b id="chipCondosN">…</b> condomínios</span>
       <button class="btn btn-ghost btn-sm" id="btnRecarregar" title="Reler"><i data-lucide="refresh-cw" class="i-sm"></i>Reler</button>
     </div>
@@ -42,10 +42,10 @@
       <!-- condomínios -->
       <section id="secCondominios" hidden>
         <div class="page-head">
-          <div><h1>Condomínios</h1><p>Os condomínios desta administradora e os ids que os ligam aos sistemas: a <b>account</b> dos recursos no Nexus, a <b>company</b> do Gruvi (identidade do morador pelo telefone) e o <b>tenant</b> do ATENDE. Em tempo de execução, o condomínio da conversa é resolvido por esses ids.</p></div>
+          <div><h1>Condomínios</h1><p>Os condomínios desta administradora (só os seus: cada administradora enxerga o que é dela) e os ids que os ligam aos sistemas: a <b>account</b> dos recursos no Nexus, a <b>company</b> do Gruvi (identidade do morador pelo telefone) e o <b>tenant</b> do ATENDE. Em tempo de execução, o condomínio da conversa é resolvido por esses ids.</p></div>
           <div class="page-actions"><button class="btn btn-primary" id="btnNovoCondo"><i data-lucide="plus"></i><span>Novo condomínio</span></button></div>
         </div>
-        <div class="card"><table class="res-table" id="tabelaCondos"><thead><tr><th>Condomínio</th><th>id</th><th>account (Nexus)</th><th>company (Gruvi)</th><th>tenant (ATENDE)</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="card"><table class="res-table larga" id="tabelaCondos"><thead><tr><th>Condomínio</th><th>account (Nexus)</th><th>company (Gruvi)</th><th>tenant (ATENDE)</th><th></th></tr></thead><tbody></tbody></table></div>
       </section>
 
       <!-- casos de uso × condomínios -->
@@ -91,6 +91,6 @@
     </aside>
   </div>
 
-  <script src="/admin.js?v=1"></script>
+  <script src="/admin.js?v=2"></script>
 </body>
 </html>

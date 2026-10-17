@@ -155,7 +155,29 @@ tenant do ATENDE ou pela account; os casos desabilitados somem do roteador do co
 o payload de R é **remontado na chamada** (preenche os params que o agente não passou)
 e entra no prompt como "Contexto do condomínio". Implementado em `internal/admin`
 (JSON em `okf/var/admin/mapeamento.json`), `harness.Config{Casos, Payloads}`,
-`internal/atende` e a tela Admin (`/`), com Backdoor em `/backdoor`.
+`internal/atende` e a tela Admin (`/`), com Backdoor em `/backdoor`. **A administradora
+não vê recursos do Nexus** (técnico demais): o payload por condomínio fica no Backdoor,
+em `/backdoor/payloads`; o Admin tem só Condomínios e a matriz de casos de uso.
+
+**Administradoras (2026-10-17).** O Backdoor também cadastra as **administradoras**
+(clientes da Superlógica) e diz a qual delas pertence cada condomínio
+(`/backdoor/administradoras`; `admin.Administradora`, `Condominio.administradora_id`).
+O Admin é de uma administradora: o servidor recorta o mapeamento pela administradora do
+pedido (`?administradora=<id>`, `Mapeamento.Visao`) e ela só vê os seus condomínios e o
+mapeamento deles; o padrão "*" é global, nosso. Hoje o seletor no topo do Admin emula
+o login; no produto o id vem da sessão/RLS do Postgres. Remover uma administradora
+exige antes mover os condomínios dela.
+
+**Casos de uso trazidos do sl-concierge (2026-10-17).** Os casos do catálogo YAML
+(`catalog/usecases/_default` e `gruvi`) viraram subagentes do concierge, cada um com
+`caso.yaml` (o YAML original), `workflows/principal.md` (a ordem narrada dos passos),
+`rules/politicas.md` e `evals/`: listar-unidades, reserva-area-comum,
+atualizacao-cadastral, agendar-mudanca, comunicar-obra, encomendas (Gruvi) e
+codigo-retirada (Gruvi), além de faq, regimento e liberacao-visitante. As rotas estão em
+`concierge/routers/rotas.md`; o instantâneo `okf/nexus/cond-001.yaml` ganhou as
+descrições semânticas de `catalog/resources.yaml` e os recursos do BFF Gruvi
+(`visitantes.motivos`, `encomendas.listar`, `encomendas.codigo`). O executor dos passos
+do `caso.yaml` no harness continua em aberto: hoje o subagente segue o workflow narrado.
 
 Texto original (para histórico):
 
@@ -333,6 +355,16 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
   sobre o resultado do subagente, sem JSON nem termos internos, e sem cumprimentar de
   novo quando a conversa já começou. Passo `entrega` no trace. O `observador-sessao`
   nunca é rota: saudação e despedida ficam no `self` do concierge.
+
+### 1.7b O agente é o caso de uso; a ficha mostra o workflow (2026-10-17)
+
+- "Caso de uso" não é um atributo do agente: o agente **é** o caso de uso na essência.
+  A ficha do Backdoor não tem mais um card "Caso de uso"; tem o **Workflow**: a ordem
+  do acontecimento em `workflows/principal.md` (passos numerados citando tools e
+  arquivos, como no AgentAsFolder do adam), os **procedimentos** (demais workflows, com
+  etapas `00_/10_`, abertos por `abrir_workflow`) e, quando existe, os passos
+  determinísticos de `caso.yaml` como detalhe (o que o harness executa com confirmação
+  e escrita).
 
 ### 1.8 Memória relacional por contato (2026-10-17)
 

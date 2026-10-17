@@ -1,0 +1,12 @@
+- nome: exemplo 1 não vaza termos internos
+  pergunta: quais são minhas unidades?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: exemplo 2 não vaza termos internos
+  pergunta: em quais apartamentos eu estou cadastrado?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

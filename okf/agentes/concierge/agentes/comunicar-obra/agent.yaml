@@ -1,0 +1,7 @@
+nome: comunicar-obra
+tipo: operador
+descricao: 'Usado quando o morador vai fazer obra, reforma ou reparo na unidade (pintura,
+  elétrica, hidráulica, marcenaria...) e precisa avisar a administração e liberar
+  os prestadores na portaria. Caso de uso: Comunicação de Obra.'
+recursos:
+- unidades.listar
