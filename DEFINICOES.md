@@ -168,6 +168,16 @@ mapeamento deles; o padrão "*" é global, nosso. Hoje o seletor no topo do Admi
 o login; no produto o id vem da sessão/RLS do Postgres. Remover uma administradora
 exige antes mover os condomínios dela.
 
+**Identidade do Gruvi com vários condomínios (2026-10-17).** O BFF devolve `data` como
+um condomínio (objeto com `condominium`, `units`, `legal_responsibles`) ou como lista de
+condomínios; `gruvi.Identidade` guarda as unidades por condomínio (`Condominios`) e o
+papel sobe para `sindico`/`proprietario` quando o telefone está em `legal_responsibles`.
+Unidade sem `id_fastpass` usa o `id` do BFF. A identidade entra no prompt de toda troca
+("# Morador identificado"): com um só condomínio e uma só unidade o concierge usa a
+unidade sem perguntar; com mais de um, pergunta de qual se trata e registra o pedido
+naquele condomínio e unidade. `unidades.listar` é resolvido pelo canal a partir da
+identidade (`harness.Config.Locais`), sem depender do Nexus.
+
 **Ficha do condomínio (2026-10-17).** Três camadas: o Backdoor é o universo (o
 concierge com todos os casos de uso e recursos); o Admin liga e desliga **casos de uso**
 por condomínio (a administradora não mexe em recursos); e a ficha de cada condomínio

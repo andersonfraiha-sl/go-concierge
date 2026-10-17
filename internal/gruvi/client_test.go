@@ -56,3 +56,32 @@ func TestTokenEIdentidade(t *testing.T) {
 		t.Fatal(NormalizarTelefone("(19) 8162-1916"))
 	}
 }
+
+func TestIdentidadeComListaDeCondominios(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/token") || strings.Contains(r.URL.Path, "oauth") {
+			w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))
+			return
+		}
+		w.Write([]byte(`{"data":[
+		  {"condominium":{"name":"Cond A"},"units":[{"id":"uuid-1","id_external_gruvi":"op"},{"id":"uuid-2","id_fastpass":109,"block":"Jataí","unit":"Unidade Operacao Predial","resident":{"name":"Vanderlei","documents":[{"type":"MOBILE_NUMBER","value":"5519981621916"}]}}],
+		   "legal_responsibles":[{"name":"Vand","position":{"name":"Síndico"},"documents":[{"type":"MOBILE_NUMBER","value":"5519981621916"}]}]},
+		  {"condominium":{"name":"Cond B"},"units":[{"id_fastpass":"77","unit":"12","block":"T1"}]}
+		]}`))
+	}))
+	defer srv.Close()
+	c := New(srv.URL+"/oauth/token", srv.URL, "basic", "5982")
+	id, err := c.Identidade(context.Background(), "5519981621916")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !id.Authenticated || id.Name != "Vanderlei" || id.Role != "sindico" {
+		t.Fatalf("identidade: %+v", id)
+	}
+	if len(id.Condominios) != 2 || id.Condominios[0].Nome != "Cond A" || len(id.Condominios[0].Unidades) != 2 || len(id.Condominios[1].Unidades) != 1 {
+		t.Fatalf("condomínios: %+v", id.Condominios)
+	}
+	if id.Units[0].ID != "uuid-1" || id.Units[0].Label != "unidade op" || id.Units[1].ID != "109" || id.Units[1].Condominio != "Cond A" || id.Units[2].Condominio != "Cond B" {
+		t.Fatalf("unidades: %+v", id.Units)
+	}
+}

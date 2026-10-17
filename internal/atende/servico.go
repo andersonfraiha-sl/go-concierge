@@ -179,6 +179,27 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		}
 	}
 
+	// identidade do Gruvi: entra no prompt em toda troca e resolve unidades.listar sem Nexus
+	if c := contextoDeIdentidade(sess.Identidade); c != "" {
+		contexto = append(contexto, c)
+	}
+	if sess.Identidade.Authenticated && len(sess.Identidade.Units) > 0 {
+		unidades := make([]map[string]any, 0, len(sess.Identidade.Units))
+		for _, u := range sess.Identidade.Units {
+			item := map[string]any{"id": u.ID, "label": u.Label}
+			if u.Bloco != "" {
+				item["bloco"] = u.Bloco
+			}
+			if u.Condominio != "" {
+				item["condominio"] = u.Condominio
+			}
+			unidades = append(unidades, item)
+		}
+		cfg.Locais = map[string]func(context.Context, map[string]any) (any, error){
+			"unidades.listar": func(context.Context, map[string]any) (any, error) { return unidades, nil },
+		}
+	}
+
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
 	var mem memoria.Memoria
 	if s.Memorias != nil {
@@ -210,11 +231,7 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
 		return sess, err
 	}
-	entrada := texto
-	if sess.Identidade.Authenticated && sess.Identidade.Name != "" && len(sess.historico) == 0 {
-		entrada = fmt.Sprintf("[morador identificado: %s, unidades: %s]\n%s", sess.Identidade.Name, rotulos(sess.Identidade.Units), texto)
-	}
-	res, err := harness.Run(ctx, ag, entrada, sess.historico)
+	res, err := harness.Run(ctx, ag, texto, sess.historico)
 	if err != nil {
 		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
 		return sess, err
@@ -292,6 +309,45 @@ func (s *Servico) identificar(ctx context.Context, phone string) (gruvi.Identida
 		return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, err.Error()
 	}
 	return id, ""
+}
+
+// contextoDeIdentidade: quem é o morador, para toda a família (o canal já sabe; o
+// agente não deve perguntar a unidade quando só há uma).
+func contextoDeIdentidade(id gruvi.Identidade) string {
+	if !id.Authenticated {
+		return "# Contato\n\nContato não identificado pelo telefone: trate como público; não acesse dados de unidade."
+	}
+	nome := id.Name
+	if nome == "" {
+		nome = "morador"
+	}
+	papel := id.Role
+	if papel == "" {
+		papel = "morador"
+	}
+	s := fmt.Sprintf("# Morador identificado\n\n- Nome: %s\n- Papel: %s", nome, papel)
+	condos := id.Condominios
+	if len(condos) == 0 && len(id.Units) > 0 {
+		condos = []gruvi.Condominio{{Nome: id.CompanyName, Unidades: id.Units}}
+	}
+	for _, c := range condos {
+		nomeC := c.Nome
+		if nomeC == "" {
+			nomeC = "condomínio"
+		}
+		var us []string
+		for _, u := range c.Unidades {
+			us = append(us, fmt.Sprintf("%s (unidade_id %s)", u.Label, u.ID))
+		}
+		s += fmt.Sprintf("\n- Condomínio %s: %s", nomeC, strings.Join(us, "; "))
+	}
+	switch {
+	case len(condos) == 1 && len(id.Units) == 1:
+		s += fmt.Sprintf("\n\nHá um só condomínio e uma só unidade: use unidade_id %s sem perguntar e registre o pedido nela.", id.Units[0].ID)
+	case len(id.Units) > 1:
+		s += "\n\nO morador tem mais de um condomínio ou mais de uma unidade: antes de registrar qualquer pedido, pergunte de qual se trata (ofereça as opções pelo nome) e registre o pedido naquele condomínio e unidade (unidade_id). Se ele já disse qual é, não pergunte de novo."
+	}
+	return s
 }
 
 func rotulos(us []gruvi.Unidade) string {

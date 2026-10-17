@@ -419,6 +419,37 @@ func TestCasosHabilitadosFiltramSubagentes(t *testing.T) {
 	}
 }
 
+func TestRecursoLocalNaoDependeDoNexus(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	cfg := Config{Mock: true, Env: semEnv, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"},
+		Locais: map[string]func(context.Context, map[string]any) (any, error){
+			"unidades.listar": func(context.Context, map[string]any) (any, error) {
+				return []map[string]any{{"id": "109", "label": "Jataí - Unidade Operacao Predial"}}, nil
+			},
+		}}
+	ag, err := Build(context.Background(), cat, a, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := ag.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["error"] != nil || out["origem"] != "identidade" {
+		t.Fatalf("o recurso local deveria responder sem Nexus: %+v", out)
+	}
+	lista, _ := out["resultado"].([]map[string]any)
+	if len(lista) != 1 || lista[0]["id"] != "109" {
+		t.Fatalf("resultado: %+v", out["resultado"])
+	}
+	// sem o local, o mesmo pedido cai no "Nexus indisponível"
+	cfg.Locais = nil
+	ag2, _ := Build(context.Background(), cat, a, cfg)
+	if out, _ := ag2.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"}); out["error"] == nil {
+		t.Fatalf("sem Nexus e sem local deveria dar erro: %+v", out)
+	}
+}
+
 func TestMockEscolheRotaPorGlossario(t *testing.T) {
 	cat, a := catalogoExemplo(t)
 	m := NewMock(cat, a)

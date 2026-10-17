@@ -268,6 +268,23 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 		return erro("recurso %s recusado: %s", nome, achado.Motivo), nil
 	}
 
+	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus
+	if local, ok := ag.cfg.Locais[nome]; ok && local != nil {
+		params := in.Params
+		if params == nil {
+			params = map[string]any{}
+		}
+		for k, v := range ag.cfg.Payloads[nome] {
+			if _, tem := params[k]; !tem {
+				params[k] = v
+			}
+		}
+		res, err := local(ctx, params)
+		if err != nil {
+			return erro("falha ao resolver %s: %v", nome, err), nil
+		}
+		return saida{"recurso": nome, "resultado": res, "origem": "identidade"}, nil
+	}
 	cli := ag.cfg.Nexus
 	if cli == nil || cli.BaseURL == "" {
 		return erro("Nexus indisponível: não há como chamar %s agora; avise o morador", nome), nil

@@ -98,9 +98,17 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 
 // Unidade do morador no condomínio.
 type Unidade struct {
-	ID    string `json:"id"` // id_fastpass (o id que as operações usam)
-	Label string `json:"label"`
-	Bloco string `json:"bloco,omitempty"`
+	ID         string `json:"id"` // id_fastpass (o id que as operações usam); sem ele, o id do BFF
+	Label      string `json:"label"`
+	Bloco      string `json:"bloco,omitempty"`
+	Condominio string `json:"condominio,omitempty"` // nome do condomínio dono da unidade
+}
+
+// Condominio é um condomínio em que o telefone tem unidades. O BFF devolve um
+// (data como objeto) ou vários (data como lista).
+type Condominio struct {
+	Nome     string    `json:"nome"`
+	Unidades []Unidade `json:"unidades"`
 }
 
 // Identidade é o que o BFF disse do telefone.
@@ -112,14 +120,17 @@ type Identidade struct {
 	CompanyID     string    `json:"company_id"`
 	CompanyName   string    `json:"company_name,omitempty"`
 	Role          string    `json:"role,omitempty"`
-	Units         []Unidade `json:"units"`
+	Units         []Unidade `json:"units"` // todas as unidades, de todos os condomínios
+	// Condominios agrupa as unidades por condomínio: com mais de um condomínio ou mais
+	// de uma unidade, o concierge pergunta de qual se trata o pedido.
+	Condominios []Condominio `json:"condominios"`
 	// Bruto é a resposta do BFF (data), para a bancada do emulador.
 	Bruto map[string]any `json:"bruto,omitempty"`
 }
 
 // Identidade consulta o BFF pelo telefone (API1 do contrato).
 func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, error) {
-	id := Identidade{Phone: phone, CompanyID: c.CompanyID, Units: []Unidade{}}
+	id := Identidade{Phone: phone, CompanyID: c.CompanyID, Units: []Unidade{}, Condominios: []Condominio{}}
 	tok, err := c.Token(ctx)
 	if err != nil {
 		return id, err
@@ -144,23 +155,90 @@ func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, erro
 	if err := json.Unmarshal(raw, &corpo); err != nil {
 		return id, fmt.Errorf("gruvi bff: resposta não é JSON")
 	}
-	data, _ := desembrulhar(corpo).(map[string]any)
-	id.Bruto = data
-	id.CompanyName = primeiraString(data, "name", "trade_name", "company_name")
-	for _, u := range lista(data["units"]) {
-		if res, ok := u["resident"].(map[string]any); ok && id.Name == "" {
-			id.Name = str(res["name"])
+	data := desembrulhar(corpo)
+	// data é um condomínio (objeto) ou vários (lista)
+	var condos []map[string]any
+	switch d := data.(type) {
+	case map[string]any:
+		condos = []map[string]any{d}
+		id.Bruto = d
+	case []any:
+		condos = lista(d)
+		id.Bruto = map[string]any{"data": d}
+	}
+	tel := NormalizarTelefone(phone)
+	for _, cd := range condos {
+		nome := ""
+		if cm, ok := cd["condominium"].(map[string]any); ok {
+			nome = str(cm["name"])
 		}
-		if fp := str(u["id_fastpass"]); fp != "" {
-			id.Units = append(id.Units, Unidade{ID: fp, Label: rotuloUnidade(u), Bloco: str(u["block"])})
+		if nome == "" {
+			nome = primeiraString(cd, "name", "trade_name", "company_name")
+		}
+		if id.CompanyName == "" {
+			id.CompanyName = nome
+		}
+		condo := Condominio{Nome: nome, Unidades: []Unidade{}}
+		for _, u := range lista(cd["units"]) {
+			if res, ok := u["resident"].(map[string]any); ok && id.Name == "" {
+				id.Name = str(res["name"])
+			}
+			uid := str(u["id_fastpass"])
+			if uid == "" {
+				uid = str(u["id"])
+			}
+			if uid == "" {
+				continue
+			}
+			un := Unidade{ID: uid, Label: rotuloUnidade(u), Bloco: str(u["block"]), Condominio: nome}
+			condo.Unidades = append(condo.Unidades, un)
+			id.Units = append(id.Units, un)
+		}
+		// responsável legal (síndico etc.) com este telefone: o papel sobe
+		for _, lr := range lista(cd["legal_responsibles"]) {
+			if telefoneEm(lr["documents"], tel) {
+				if id.Name == "" {
+					id.Name = str(lr["name"])
+				}
+				if pos, ok := lr["position"].(map[string]any); ok && str(pos["name"]) != "" {
+					id.Role = papelDe(str(pos["name"]))
+				}
+			}
+		}
+		if len(condo.Unidades) > 0 {
+			id.Condominios = append(id.Condominios, condo)
 		}
 	}
 	if len(id.Units) > 0 {
 		id.Authenticated = true
-		id.PersonID = "gruvi:" + NormalizarTelefone(phone)
-		id.Role = "morador"
+		id.PersonID = "gruvi:" + tel
+		if id.Role == "" {
+			id.Role = "morador"
+		}
 	}
 	return id, nil
+}
+
+// telefoneEm: algum documento MOBILE_NUMBER da lista bate com o telefone normalizado.
+func telefoneEm(docs any, tel string) bool {
+	for _, d := range lista(docs) {
+		if strings.EqualFold(str(d["type"]), "MOBILE_NUMBER") && NormalizarTelefone(str(d["value"])) == tel {
+			return true
+		}
+	}
+	return false
+}
+
+// papelDe traduz o cargo do responsável legal no papel do Admin (sindico, proprietario, morador).
+func papelDe(cargo string) string {
+	c := strings.ToLower(cargo)
+	switch {
+	case strings.Contains(c, "síndic") || strings.Contains(c, "sindic"):
+		return "sindico"
+	case strings.Contains(c, "propriet"):
+		return "proprietario"
+	}
+	return "morador"
 }
 
 var naoDigitos = regexp.MustCompile(`\D`)
@@ -199,6 +277,12 @@ func lista(v any) []map[string]any {
 }
 
 func rotuloUnidade(u map[string]any) string {
+	if str(u["unit"]) == "" && str(u["block"]) == "" {
+		if ext := str(u["id_external_gruvi"]); ext != "" {
+			return "unidade " + ext
+		}
+		return "unidade"
+	}
 	unit, block := str(u["unit"]), str(u["block"])
 	if block != "" && unit != "" && !strings.Contains(strings.ToLower(unit), strings.ToLower(block)) {
 		return block + " - " + unit
