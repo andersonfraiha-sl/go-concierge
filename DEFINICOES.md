@@ -168,6 +168,14 @@ mapeamento deles; o padrão "*" é global, nosso. Hoje o seletor no topo do Admi
 o login; no produto o id vem da sessão/RLS do Postgres. Remover uma administradora
 exige antes mover os condomínios dela.
 
+**Transbordo ao atendente humano (2026-10-17).** Qualquer agente da família pode chamar a
+tool `transferir_atendente(motivo)`; o canal marca a sessão como transbordada, registra
+o pedido na caixa de saída (no ATENDE real vira a chamada que tira o protocolo do bot) e
+o concierge cala: as mensagens do morador ficam para o humano, que no Atendente assume,
+responde pelo mesmo canal e devolve ao concierge (o histórico guarda o que o humano
+disse). O atendente também pode assumir sem o concierge pedir. API:
+`POST /api/atende/transbordo {acao: assumir | responder | devolver}`.
+
 **Escrita pelo subagente do caso, depois do sim (2026-10-17).** Enquanto não existe o
 executor determinístico do `caso.yaml`, a escrita roda pelo próprio subagente do caso
 com uma guarda determinística no harness: `chamar_recurso` só aceita um recurso de
