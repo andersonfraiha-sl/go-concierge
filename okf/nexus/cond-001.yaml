@@ -10,6 +10,11 @@ recursos:
     ou confirmar a unidade antes de qualquer outra ação ligada a ela. Ex.: quais são minhas unidades;
     em qual apartamento estou cadastrado.'
   output: lista de {id, label}
+  definicoes:
+  - name: company_id
+    label: Código da empresa no Gruvi
+    type: string
+    description: Identifica o condomínio no cadastro de moradores; o concierge passa sem perguntar.
 - name: areas.listar
   kind: api
   visibility: private
@@ -41,6 +46,14 @@ recursos:
     type: string
     description: publico | privado
   output: lista de {titulo, texto, escopo}
+  definicoes:
+  - name: escopo
+    label: Quem vê as respostas
+    type: select
+    options:
+    - publico
+    - privado
+    description: 'publico: qualquer contato; privado: só morador identificado.'
 - name: memoria.preferencias
   kind: memory
   visibility: private
@@ -66,6 +79,12 @@ recursos:
   - name: motivo
     type: string
   output: '{protocolo}'
+  definicoes:
+  - name: validade_horas
+    label: Validade da liberação (horas)
+    type: number
+    default: 24
+    description: Por quanto tempo a portaria aceita a entrada.
 - name: areas.reservar
   kind: api
   visibility: private
@@ -84,6 +103,21 @@ recursos:
     required: true
     description: AAAA-MM-DD
   output: '{protocolo}'
+  definicoes:
+  - name: antecedencia_min_dias
+    label: Antecedência mínima da reserva (dias)
+    type: number
+    default: 2
+    description: Quantos dias antes o morador precisa reservar.
+  - name: max_dias
+    label: Prazo máximo para reservar (dias)
+    type: number
+    default: 60
+    description: Até quantos dias à frente aceita reserva.
+  - name: horario_uso
+    label: Horário de uso das áreas
+    type: string
+    description: 'Ex.: 10h às 22h. O concierge informa ao confirmar.'
 - name: mudancas.agendar
   kind: api
   visibility: private
@@ -104,6 +138,15 @@ recursos:
     required: true
     description: manha | tarde
   output: '{protocolo}'
+  definicoes:
+  - name: dias_permitidos
+    label: Dias em que há mudança
+    type: string
+    default: segunda a sábado
+  - name: horarios
+    label: Horários de mudança
+    type: string
+    default: 8h às 12h e 13h às 17h
 - name: obras.comunicar
   kind: api
   visibility: private
@@ -132,6 +175,15 @@ recursos:
     type: array
     required: true
   output: '{protocolo, liberacao_portaria, horario_permitido}'
+  definicoes:
+  - name: horario_permitido
+    label: Horário permitido para obras
+    type: string
+    default: 8h às 17h, dias úteis
+  - name: antecedencia_dias
+    label: Antecedência do aviso (dias)
+    type: number
+    default: 2
 - name: cadastro.atualizar
   kind: api
   visibility: private
@@ -196,6 +248,15 @@ recursos:
     type: string
     required: true
   output: '{protocolo}'
+  definicoes:
+  - name: canal
+    label: Canal da portaria
+    type: select
+    options:
+    - interfone
+    - painel
+    - whatsapp
+    default: painel
 - name: agente.redator
   kind: agent
   visibility: private
@@ -214,8 +275,9 @@ recursos:
   kind: activity
   visibility: private
   write: true
-  description: 'Ação (atividade cadastrada no workspace da administradora): abre uma vistoria técnica na
-    unidade (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com confirmação.'
+  description: 'Ação (atividade cadastrada no workspace da administradora): abre uma vistoria técnica
+    na unidade (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com
+    confirmação.'
   params:
   - name: unidade_id
     type: string

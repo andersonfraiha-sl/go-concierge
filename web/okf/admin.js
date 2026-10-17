@@ -12,7 +12,7 @@
   const secaoPadrao = () => document.body.dataset.secao || (MODO === 'backdoor' ? 'recursos' : 'casos');
   let admGuardada = '';
   try { admGuardada = localStorage.getItem('okf.administradora') || ''; } catch (e) { /* sem storage */ }
-  const estado = { m: null, adms: [], adm: admGuardada, casos: [], recursos: [], papeis: [], secao: secaoPadrao(), condoPayload: PADRAO };
+  const estado = { m: null, adms: [], adm: admGuardada, casos: [], recursos: [], papeis: [], secao: secaoPadrao(), condoPayload: PADRAO, condo: null };
 
   // no Admin toda chamada leva a administradora "logada": o servidor recorta o que volta
   function url(caminho, params = {}) {
@@ -73,9 +73,11 @@
 
   // ---- navegação ---------------------------------------------------------------
   function mostrar(secao) {
+    if (secao.startsWith('condo/')) { estado.condo = decodeURIComponent(secao.slice(6)); secao = 'condo'; }
     estado.secao = secao;
-    for (const s of ['administradoras', 'condominios', 'casos', 'recursos']) { const el = $('#sec' + s[0].toUpperCase() + s.slice(1)); if (el) el.hidden = s !== secao; }
-    $$('.admin-nav a[data-secao]').forEach((a) => a.classList.toggle('is-active', a.dataset.secao === secao));
+    for (const s of ['administradoras', 'condominios', 'condo', 'casos', 'recursos']) { const el = $('#sec' + s[0].toUpperCase() + s.slice(1)); if (el) el.hidden = s !== secao; }
+    $$('.admin-nav a[data-secao]').forEach((a) => a.classList.toggle('is-active', a.dataset.secao === secao || (secao === 'condo' && a.dataset.secao === 'condominios')));
+    $('#main').scrollTop = 0;
     desenhar();
   }
   window.addEventListener('hashchange', () => mostrar((location.hash.replace('#/', '') || secaoPadrao())));
@@ -85,6 +87,7 @@
     if (!estado.m) return;
     if ($('#tabelaAdms')) desenharAdms();
     if ($('#tabelaCondos')) desenharCondos();
+    if ($('#secCondo') && estado.secao === 'condo') desenharFichaCondo();
     if ($('#matriz')) desenharMatriz();
     if ($('#tabelaPayloads')) desenharPayloads();
     icons();
@@ -131,7 +134,7 @@
   function desenharCondos() {
     const tb = $('#tabelaCondos tbody');
     const comAdm = $('#tabelaCondos').dataset.comAdm !== undefined;
-    tb.innerHTML = estado.m.condominios.length ? estado.m.condominios.map((c) => `<tr><td><strong>${esc(c.nome)}</strong><div class="muted mono" style="font-size:11.5px">${esc(c.id)}</div></td>${comAdm ? `<td>${c.administradora_id ? esc(nomeAdm(c.administradora_id)) : '<span class="tag tag-warn">sem administradora</span>'}</td>` : ''}<td class="mono">${esc(c.account || '—')}</td><td class="mono">${esc(c.company_id || '—')}</td><td class="mono">${esc(c.tenant || '—')}</td><td><button class="btn btn-ghost btn-sm" data-edit="${esc(c.id)}"><i data-lucide="pen-to-square" class="i-sm"></i>Editar</button></td></tr>`).join('')
+    tb.innerHTML = estado.m.condominios.length ? estado.m.condominios.map((c) => `<tr><td><strong>${esc(c.nome)}</strong><div class="muted mono" style="font-size:11.5px">${esc(c.id)}</div></td>${comAdm ? `<td>${c.administradora_id ? esc(nomeAdm(c.administradora_id)) : '<span class="tag tag-warn">sem administradora</span>'}</td>` : ''}<td class="mono">${esc(c.account || '—')}</td><td class="mono">${esc(c.company_id || '—')}</td><td class="mono">${esc(c.tenant || '—')}</td><td class="acoes">${comAdm ? `<button class="btn btn-ghost btn-sm" data-edit="${esc(c.id)}"><i data-lucide="pen-to-square" class="i-sm"></i>Editar</button>` : `<a class="btn btn-ghost btn-sm" href="#/condo/${encodeURIComponent(c.id)}"><i data-lucide="arrow-right" class="i-sm"></i>Abrir</a>`}</td></tr>`).join('')
       : `<tr><td colspan="${comAdm ? 6 : 5}"><div class="empty-state"><i data-lucide="building-2"></i>Nenhum condomínio${MODO === 'admin' ? ' nesta administradora' : ''}. Sem condomínios, tudo vale pelo padrão.</div></td></tr>`;
     $$('#tabelaCondos button[data-edit]').forEach((b) => b.addEventListener('click', () => abrirCondo(estado.m.condominios.find((c) => c.id === b.dataset.edit))));
   }
@@ -179,10 +182,10 @@
   function desenharMatriz() {
     const cols = colunas();
     $('#matriz thead').innerHTML = `<tr><th>Caso de uso</th>${cols.map((c) => `<th class="${c.id === PADRAO ? 'col-padrao' : ''}">${esc(c.nome)}${c.id !== PADRAO ? `<div class="muted mono" style="font-weight:400;text-transform:none;letter-spacing:0">${esc(c.id)}</div>` : ''}</th>`).join('')}</tr>`;
-    $('#matriz tbody').innerHTML = estado.casos.length ? estado.casos.map((cs) => `<tr><td><div class="res-name"><span class="res-icon ${cs.escrita ? 'ri-hooks' : ''}"><i data-lucide="${cs.id ? 'list-checks' : 'bot'}"></i></span><div><strong>${esc(cs.titulo)}</strong><p>${esc(cs.descricao || '')}</p><div class="chips" style="margin-top:4px"><span class="tag tag-kind">${esc(cs.nome)}</span>${cs.id ? `<span class="tag tag-write">caso ${esc(cs.id)}</span>` : `<span class="tag tag-locked">${esc(cs.tipo)}</span>`}${cs.escrita ? '<span class="tag tag-warn">escrita</span>' : ''}</div></div></div></td>${cols.map((c) => {
+    $('#matriz tbody').innerHTML = estado.casos.length ? estado.casos.map((cs) => `<tr><td><div class="res-name"><span class="res-icon ${cs.escrita ? 'ri-hooks' : ''}"><i data-lucide="${cs.id ? 'list-checks' : 'bot'}"></i></span><div><strong>${esc(cs.titulo)}</strong><p>${esc(cs.descricao || '')}</p>${cs.escrita ? '<div class="chips" style="margin-top:4px"><span class="tag tag-warn">registra no sistema, com confirmação do morador</span></div>' : ''}</div></div></td>${cols.map((c) => {
       const e = efetiva(c.id, cs.nome);
       const propria = e.origem === c.id;
-      return `<td class="celula ${propria ? 'propria' : 'herdada'} ${e.habilitado ? 'on' : 'off'}" data-condo="${esc(c.id)}" data-caso="${esc(cs.nome)}" title="clique para editar"><span class="led ${e.habilitado ? 'ok' : 'bad'}"></span> <b>${e.habilitado ? 'habilitado' : 'desabilitado'}</b>${e.papeis && e.papeis.length ? `<div class="chips">${e.papeis.map((p) => `<span class="tag tag-private">${esc(p)}</span>`).join('')}</div>` : ''}<div class="muted" style="font-size:11px">${propria ? 'próprio' : e.origem === PADRAO ? 'herda o padrão' : 'implícito'}</div></td>`;
+      return `<td class="celula ${propria ? 'propria' : 'herdada'} ${e.habilitado ? 'on' : 'off'}" data-condo="${esc(c.id)}" data-caso="${esc(cs.nome)}" title="clique para editar"><span class="led ${e.habilitado ? 'ok' : 'bad'}"></span> <b>${e.habilitado ? 'ligado' : 'desligado'}</b>${e.papeis && e.papeis.length ? `<div class="chips">${e.papeis.map((p) => `<span class="tag tag-private">${esc(p)}</span>`).join('')}</div>` : ''}<div class="muted" style="font-size:11px">${propria ? 'decisão deste condomínio' : e.origem === PADRAO ? 'vale o padrão' : 'ligado por padrão'}</div></td>`;
     }).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length + 1}"><div class="empty-state"><i data-lucide="list-checks"></i>O concierge ainda não tem casos de uso (subagentes). Crie no Backdoor.</div></td></tr>`;
     $$('#matriz td.celula').forEach((td) => td.addEventListener('click', () => abrirHab(td.dataset.condo, td.dataset.caso)));
   }
@@ -214,6 +217,110 @@
   $('#btnHabLimpar')?.addEventListener('click', async () => {
     const f = $('#formHab');
     try { const r = await api(url('/api/admin/habilitacao'), { method: 'PUT', body: JSON.stringify({ condominio: f.dataset.condo, caso: f.dataset.caso, limpar: true }) }); $('#drawerHab').hidden = true; toast('entrada removida: vale o padrão'); aplicar(r.mapeamento, r.administradoras); } catch (err) { toast(err.message, true); }
+  });
+
+  // ---- ficha do condomínio (Admin): capacidades, orientações, ajustes, identificação -----
+  const condoAtual = () => (estado.condo === PADRAO ? { id: PADRAO, nome: 'Padrão (todos)' } : estado.m.condominios.find((c) => c.id === estado.condo));
+  const TIPO_CAMPO = { number: 'number', boolean: 'checkbox' };
+  function desenharFichaCondo() {
+    const c = condoAtual();
+    if (!c) { toast('condomínio não encontrado', true); location.hash = '#/condominios'; return; }
+    const padrao = c.id === PADRAO;
+    $('#condoTrilha').textContent = c.nome;
+    $('#condoNome').textContent = c.nome;
+    $('#condoSub').textContent = padrao ? 'O que vale para todos os condomínios desta administradora quando o condomínio não decide diferente.' : [c.account && `account ${c.account}`, c.company_id && `Gruvi ${c.company_id}`, c.tenant && `ATENDE ${c.tenant}`].filter(Boolean).join(' · ') || 'sem ids de integração ainda';
+    $('#cardCondoIdent').hidden = padrao;
+    $('#btnRemoverCondo2').hidden = padrao;
+    $('#condoStatus').textContent = '';
+    // capacidades
+    const ligados = estado.casos.filter((cs) => efetiva(c.id, cs.nome).habilitado).length;
+    $('#condoCapResumo').textContent = `${ligados} de ${estado.casos.length}`;
+    $('#condoCapacidades').innerHTML = estado.casos.length ? estado.casos.map((cs) => {
+      const e = efetiva(c.id, cs.nome);
+      const propria = e.origem === c.id;
+      return `<div class="cap ${e.habilitado ? '' : 'off'}"><span class="res-icon ${cs.escrita ? 'ri-hooks' : ''}"><i data-lucide="list-checks"></i></span><strong>${esc(cs.titulo)}</strong><span class="cap-meta">${e.papeis && e.papeis.length ? e.papeis.map((p) => `<span class="tag tag-private">${esc(p)}</span>`).join('') : ''}<span>${propria ? 'decisão deste condomínio' : e.origem === PADRAO ? 'vale o padrão' : 'ligado por padrão'}</span><button class="btn btn-ghost btn-sm" data-detalhe="${esc(cs.nome)}">detalhes</button></span><label class="switch" title="ligar ou desligar neste condomínio"><input type="checkbox" data-cap="${esc(cs.nome)}" ${e.habilitado ? 'checked' : ''}><i></i></label><span class="cap-desc">${esc(cs.descricao || '')}</span></div>`;
+    }).join('') : '<div class="empty-state"><i data-lucide="list-checks"></i>O concierge ainda não tem casos de uso.</div>';
+    $$('#condoCapacidades input[data-cap]').forEach((sw) => sw.addEventListener('change', async () => {
+      const e = efetiva(c.id, sw.dataset.cap);
+      try { const r = await api(url('/api/admin/habilitacao'), { method: 'PUT', body: JSON.stringify({ condominio: c.id, caso: sw.dataset.cap, habilitado: sw.checked, papeis: e.papeis || [] }) }); toast(`${sw.checked ? 'ligado' : 'desligado'} em ${c.nome}`); aplicar(r.mapeamento, r.administradoras); } catch (err) { sw.checked = !sw.checked; toast(err.message, true); }
+    }));
+    $$('#condoCapacidades button[data-detalhe]').forEach((b) => b.addEventListener('click', () => abrirHab(c.id, b.dataset.detalhe)));
+    // orientações (só as próprias; o padrão soma em tempo de execução)
+    const o = (estado.m.orientacoes || {})[c.id] || { geral: '', por_caso: {} };
+    $('#condoOrientGeral').value = o.geral || '';
+    const porCaso = o.por_caso || {};
+    $('#condoOrientCasos').innerHTML = `<div class="muted" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Por capacidade <span style="font-weight:400;text-transform:none;letter-spacing:0">· o que vale só naquele atendimento</span></div>` + estado.casos.map((cs) => `<details class="orient-caso" ${porCaso[cs.nome] ? 'open' : ''}><summary><i data-lucide="chevron-right" class="i-sm"></i>${esc(cs.titulo)}${porCaso[cs.nome] ? '<span class="tag tag-private">tem orientação</span>' : ''}</summary><textarea class="field-area" rows="3" data-orient-caso="${esc(cs.nome)}" placeholder="Ex.: ${esc(exemploOrient(cs))}">${esc(porCaso[cs.nome] || '')}</textarea></details>`).join('');
+    // ajustes: por capacidade, os recursos que ela usa e que declaram definições
+    const recMap = new Map(estado.recursos.map((r) => [r.name, r]));
+    const proprios = (estado.m.payloads || {})[c.id] || {};
+    const doPadrao = (estado.m.payloads || {})[PADRAO] || {};
+    const vistos = new Set();
+    const campo = (r, d) => {
+      const v = (proprios[r.name] || {})[d.name];
+      const herdado = !padrao && doPadrao[r.name] && doPadrao[r.name][d.name] !== undefined ? doPadrao[r.name][d.name] : d.default;
+      const dica = herdado !== undefined && herdado !== null && herdado !== '' ? `padrão: ${esc(String(herdado))}` : 'sem padrão';
+      let input;
+      if (d.type === 'select') input = `<select class="field-select" data-ajuste="${esc(r.name)}" data-campo="${esc(d.name)}"><option value="">— ${dica} —</option>${(d.options || []).map((op) => `<option value="${esc(op)}" ${v === op ? 'selected' : ''}>${esc(op)}</option>`).join('')}</select>`;
+      else if (d.type === 'boolean') input = `<label class="switch"><input type="checkbox" data-ajuste="${esc(r.name)}" data-campo="${esc(d.name)}" data-tipo="boolean" ${v === true ? 'checked' : ''}><i></i>${v === undefined ? dica : v ? 'sim' : 'não'}</label>`;
+      else if (d.type === 'text') input = `<textarea class="field-area field-short" rows="2" data-ajuste="${esc(r.name)}" data-campo="${esc(d.name)}" placeholder="${dica}">${v === undefined ? '' : esc(String(v))}</textarea>`;
+      else input = `<input class="field-input" type="${TIPO_CAMPO[d.type] || 'text'}" data-ajuste="${esc(r.name)}" data-campo="${esc(d.name)}" data-tipo="${esc(d.type || 'string')}" value="${v === undefined ? '' : esc(String(v))}" placeholder="${dica}">`;
+      return `<div class="form-row"><label>${esc(d.label || d.name)}${d.description ? `<small>${esc(d.description)}</small>` : ''}</label>${input}</div>`;
+    };
+    const grupos = [];
+    for (const cs of estado.casos) {
+      const recs = (cs.recursos || []).map((n) => recMap.get(n)).filter((r) => r && (r.definicoes || []).length && !vistos.has(r.name));
+      if (!recs.length) continue;
+      recs.forEach((r) => vistos.add(r.name));
+      grupos.push(`<div class="ajuste-grupo"><h3><i data-lucide="list-checks" class="i-sm"></i>${esc(cs.titulo)}${efetiva(c.id, cs.nome).habilitado ? '' : '<small>(desligado aqui)</small>'}</h3><div class="form-grid">${recs.flatMap((r) => r.definicoes.map((d) => campo(r, d))).join('')}</div></div>`);
+    }
+    const gerais = estado.recursos.filter((r) => (r.definicoes || []).length && !vistos.has(r.name));
+    if (gerais.length) grupos.push(`<div class="ajuste-grupo"><h3><i data-lucide="settings-2" class="i-sm"></i>Gerais</h3><div class="form-grid">${gerais.flatMap((r) => r.definicoes.map((d) => campo(r, d))).join('')}</div></div>`);
+    $('#condoAjustes').innerHTML = grupos.join('') || '<div class="empty-state"><i data-lucide="sliders-horizontal"></i>Nenhum ajuste disponível: os recursos do Nexus não declaram definições.</div>';
+    // identificação
+    if (!padrao) { const f = $('#formCondoFicha'); f.nome.value = c.nome; f.id.value = c.id; f.account.value = c.account || ''; f.company_id.value = c.company_id || ''; f.tenant.value = c.tenant || ''; }
+    icons();
+  }
+  function exemploOrient(cs) {
+    return /reserva/i.test(cs.nome) ? 'a churrasqueira só pode ser reservada por quem está em dia com o condomínio' : /visitante/i.test(cs.nome) ? 'prestadores só entram com documento; a portaria liga para a unidade antes' : /mudanca/i.test(cs.nome) ? 'o elevador de serviço precisa de proteção; o zelador acompanha' : /obra/i.test(cs.nome) ? 'obras só com o formulário da administração assinado' : /encomenda|retirada/i.test(cs.nome) ? 'a portaria guarda encomendas por até 7 dias' : 'o que o concierge deve saber ou fazer diferente aqui';
+  }
+  async function salvarCondo() {
+    const c = condoAtual();
+    if (!c) return;
+    const feitos = [];
+    try {
+      if (c.id !== PADRAO) {
+        const f = $('#formCondoFicha');
+        const novo = { nome: f.nome.value.trim(), id: c.id, administradora_id: c.administradora_id || estado.adm, account: f.account.value.trim(), company_id: f.company_id.value.trim(), tenant: f.tenant.value.trim() };
+        if (novo.nome !== c.nome || novo.account !== (c.account || '') || novo.company_id !== (c.company_id || '') || novo.tenant !== (c.tenant || '')) {
+          const r = await api(url('/api/admin/condominio'), { method: 'PUT', body: JSON.stringify(novo) });
+          estado.m = r.mapeamento; feitos.push('identificação');
+        }
+      }
+      const porCaso = {};
+      $$('#condoOrientCasos textarea[data-orient-caso]').forEach((t) => { if (t.value.trim()) porCaso[t.dataset.orientCaso] = t.value.trim(); });
+      const r1 = await api(url('/api/admin/orientacao'), { method: 'PUT', body: JSON.stringify({ condominio: c.id, geral: $('#condoOrientGeral').value, por_caso: porCaso }) });
+      estado.m = r1.mapeamento; feitos.push('orientações');
+      const ajustes = {};
+      $$('#condoAjustes [data-ajuste]').forEach((el) => {
+        const rec = el.dataset.ajuste, campo = el.dataset.campo;
+        let v;
+        if (el.dataset.tipo === 'boolean') v = el.checked;
+        else if (el.dataset.tipo === 'number') v = el.value.trim() === '' ? '' : Number(el.value);
+        else v = el.value.trim();
+        (ajustes[rec] ||= {})[campo] = v;
+      });
+      const r2 = await api(url('/api/admin/ajustes'), { method: 'PUT', body: JSON.stringify({ condominio: c.id, ajustes }) });
+      estado.m = r2.mapeamento; feitos.push('ajustes');
+      toast(`salvo: ${feitos.join(', ')}`);
+      aplicar(estado.m, r2.administradoras);
+    } catch (err) { toast(err.message, true); }
+  }
+  $('#btnSalvarCondo')?.addEventListener('click', salvarCondo);
+  $('#formCondoFicha')?.addEventListener('submit', (e) => { e.preventDefault(); salvarCondo(); });
+  $('#btnRemoverCondo2')?.addEventListener('click', async () => {
+    const c = condoAtual();
+    if (!c || c.id === PADRAO || !confirm(`Remover o condomínio ${c.nome} e tudo que foi definido para ele?`)) return;
+    try { const r = await api(url('/api/admin/condominio', { id: c.id }), { method: 'DELETE' }); toast('removido'); estado.m = r.mapeamento; location.hash = '#/condominios'; aplicar(r.mapeamento, r.administradoras); } catch (err) { toast(err.message, true); }
   });
 
   // ---- payloads (Backdoor) -----------------------------------------------------------

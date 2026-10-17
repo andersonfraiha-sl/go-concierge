@@ -169,7 +169,9 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 				return m.Habilitado(condoID, nome, papel) && (casoID == "" || m.Habilitado(condoID, casoID, papel))
 			}
 			cfg.Payloads = m.PayloadsDe(condoID)
-			if c := admin.Contexto(condo, cfg.Payloads); c != "" && (ok || len(cfg.Payloads) > 0) {
+			orient := m.OrientacaoDe(condoID)
+			cfg.Orientacoes = orient.PorCaso
+			if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" && (ok || len(cfg.Payloads) > 0 || orient.Geral != "") {
 				contexto = append(contexto, c)
 			}
 		} else if s.Log != nil {

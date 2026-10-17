@@ -128,3 +128,44 @@ func TestAdministradorasEVisao(t *testing.T) {
 		t.Fatalf("migração do legado: %+v", ml)
 	}
 }
+
+func TestOrientacoesEAjustes(t *testing.T) {
+	st := NewStore(filepath.Join(t.TempDir(), "m.json"))
+	st.SalvarCondominio(Condominio{ID: "c1", Nome: "C1"})
+	if _, err := st.SalvarOrientacao(Padrao, Orientacao{Geral: "Trate todos por você."}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SalvarOrientacao("c1", Orientacao{Geral: "A piscina fecha às 22h.", PorCaso: map[string]string{"reserva-area-comum": "Churrasqueira só aos fins de semana.", "faq": "  "}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SalvarOrientacao("zz", Orientacao{Geral: "x"}); err == nil {
+		t.Fatal("condomínio desconhecido deveria falhar")
+	}
+	st.SalvarPayload("c1", "areas.reservar", map[string]any{"do_backdoor": true, "max_dias": 60})
+	if _, err := st.SalvarAjustes("c1", map[string]map[string]any{"areas.reservar": {"antecedencia_min_dias": 2, "max_dias": ""}, "unidades.listar": {"company_id": "5982"}}); err != nil {
+		t.Fatal(err)
+	}
+	m, _ := st.Ler()
+	o := m.OrientacaoDe("c1")
+	if !strings.HasPrefix(o.Geral, "Trate todos") || !strings.HasSuffix(o.Geral, "22h.") {
+		t.Fatalf("geral junta padrão e condomínio: %q", o.Geral)
+	}
+	if o.PorCaso["reserva-area-comum"] == "" || len(o.PorCaso) != 1 {
+		t.Fatalf("por caso: %+v (texto vazio não entra)", o.PorCaso)
+	}
+	p := m.PayloadsDe("c1")
+	if p["areas.reservar"]["do_backdoor"] != true || p["areas.reservar"]["antecedencia_min_dias"] != float64(2) || p["areas.reservar"]["max_dias"] != nil || p["unidades.listar"]["company_id"] != "5982" {
+		t.Fatalf("ajustes mesclam chave a chave e vazio apaga: %+v", p)
+	}
+	ctx := ContextoDoCondominio(Condominio{Nome: "C1"}, p, o.Geral)
+	if !strings.Contains(ctx, "## Orientações da administradora") || !strings.Contains(ctx, "22h") || !strings.Contains(ctx, "areas.reservar") {
+		t.Fatalf("contexto: %s", ctx)
+	}
+	if _, err := st.RemoverCondominio("c1"); err != nil {
+		t.Fatal(err)
+	}
+	m, _ = st.Ler()
+	if _, tem := m.Orientacoes["c1"]; tem {
+		t.Fatal("remover o condomínio leva a orientação junto")
+	}
+}

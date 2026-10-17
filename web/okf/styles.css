@@ -534,3 +534,24 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .cat-details[open] > summary .chev { transform: rotate(90deg); }
 .cat-details > summary .tag { margin-left: 4px; }
 .cat-body { display: grid; gap: 6px; padding: 4px 0 8px; }
+
+/* ficha do condomínio (Admin) */
+.cap-list { display: grid; gap: 6px; }
+.cap { display: grid; grid-template-columns: 36px 1fr auto auto; gap: 2px 12px; align-items: center; padding: 10px 12px; border-radius: var(--r-md); background: var(--canvas); }
+.cap .res-icon { grid-row: span 2; }
+.cap strong { font-size: 14px; }
+.cap .cap-desc { grid-column: 2; font-size: 12.5px; color: var(--slate-500); }
+.cap .cap-meta { grid-row: span 2; display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--slate-500); }
+.cap .switch { grid-row: span 2; }
+.cap.off strong { color: var(--slate-500); }
+.orient-caso { border-top: 1px solid var(--slate-100); padding: 8px 0; }
+.orient-caso summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--ink-3); list-style: none; display: flex; gap: 8px; align-items: center; }
+.orient-caso summary::-webkit-details-marker { display: none; }
+.orient-caso summary .tag { margin-left: auto; }
+.orient-caso textarea { margin-top: 8px; }
+.ajuste-grupo { border-top: 1px solid var(--slate-100); padding: 12px 0 4px; }
+.ajuste-grupo:first-child { border-top: 0; padding-top: 0; }
+.ajuste-grupo h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.ajuste-grupo h3 small { font-weight: 400; color: var(--slate-500); }
+.ajuste-grupo .form-row small { display: block; color: var(--slate-400); }
+.ajuste-grupo .form-row .padrao { font-size: 11.5px; color: var(--slate-400); margin-top: 3px; }

@@ -56,16 +56,19 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/admin/condominio", s.adminRemoverCondominio)
 	mux.HandleFunc("PUT /api/admin/habilitacao", s.adminHabilitacao)
 	mux.HandleFunc("PUT /api/admin/payload", s.adminPayload)
+	mux.HandleFunc("PUT /api/admin/orientacao", s.adminOrientacao)
+	mux.HandleFunc("PUT /api/admin/ajustes", s.adminAjustes)
 }
 
 // casoDeUso é como o Admin vê um subagente do concierge.
 type casoDeUso struct {
-	Nome      string `json:"nome"` // pasta (a chave da habilitação)
-	ID        string `json:"id"`   // id do caso.yaml, se houver
-	Titulo    string `json:"titulo"`
-	Descricao string `json:"descricao"`
-	Escrita   bool   `json:"escrita"`
-	Tipo      string `json:"tipo"`
+	Nome      string   `json:"nome"` // pasta (a chave da habilitação)
+	ID        string   `json:"id"`   // id do caso.yaml, se houver
+	Titulo    string   `json:"titulo"`
+	Descricao string   `json:"descricao"`
+	Escrita   bool     `json:"escrita"`
+	Tipo      string   `json:"tipo"`
+	Recursos  []string `json:"recursos"` // o que o caso usa (agent.yaml e caso.yaml)
 }
 
 func (s *servidor) casosDeUso() ([]casoDeUso, error) {
@@ -92,15 +95,29 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 		if !rotas[sub.Nome] && sub.Caso == nil {
 			continue
 		}
-		c := casoDeUso{Nome: sub.Nome, Titulo: sub.Nome, Descricao: sub.Descricao, Tipo: sub.Tipo}
+		c := casoDeUso{Nome: sub.Nome, Titulo: sub.Nome, Descricao: sub.Descricao, Tipo: sub.Tipo, Recursos: []string{}}
+		visto := map[string]bool{}
+		for _, r := range sub.Recursos {
+			if !visto[r] {
+				visto[r] = true
+				c.Recursos = append(c.Recursos, r)
+			}
+		}
 		if sub.Caso != nil {
 			c.ID = sub.Caso.ID
 			if sub.Caso.Name != "" {
 				c.Titulo = sub.Caso.Name
 			}
+			if d := strings.TrimSpace(sub.Caso.Description); d != "" {
+				c.Descricao = d // a descrição do caso fala com a administradora; a do agente é critério de rota
+			}
 			for _, r := range sub.Caso.Recursos {
 				if reg[r].Write {
 					c.Escrita = true
+				}
+				if !visto[r] {
+					visto[r] = true
+					c.Recursos = append(c.Recursos, r)
 				}
 			}
 		}
@@ -244,6 +261,47 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 		corpo.Payload = map[string]any{}
 	}
 	m, err := s.admin.SalvarPayload(corpo.Condominio, corpo.Recurso, corpo.Payload)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.responderMapeamento(w, r, m)
+}
+
+func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Condominio string            `json:"condominio"`
+		Geral      string            `json:"geral"`
+		PorCaso    map[string]string `json:"por_caso"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if corpo.Condominio == "" {
+		corpo.Condominio = admin.Padrao
+	}
+	m, err := s.admin.SalvarOrientacao(corpo.Condominio, admin.Orientacao{Geral: corpo.Geral, PorCaso: corpo.PorCaso})
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.responderMapeamento(w, r, m)
+}
+
+func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Condominio string                    `json:"condominio"`
+		Ajustes    map[string]map[string]any `json:"ajustes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if corpo.Condominio == "" {
+		corpo.Condominio = admin.Padrao
+	}
+	m, err := s.admin.SalvarAjustes(corpo.Condominio, corpo.Ajustes)
 	if err != nil {
 		writeErr(w, 400, err)
 		return

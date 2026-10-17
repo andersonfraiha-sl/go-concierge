@@ -72,6 +72,14 @@ durável; em toda conversa seguinte a memória entra na instrução da família 
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
 fatos (`GET`/`DELETE /api/memoria?phone=`).
 
+## Ficha do condomínio (Admin)
+
+Cada condomínio tem uma ficha com o que o concierge faz nele (liga/desliga por caso de
+uso), **Orientações ao concierge** (texto livre geral e por caso de uso, injetado no
+prompt), **Ajustes** (formulário gerado das `definicoes` que os recursos declaram no
+catálogo, gravado no payload do condomínio) e **Identificação**. `#/condo/*` é a ficha
+do padrão, que vale para todos. API: `PUT /api/admin/orientacao`, `PUT /api/admin/ajustes`.
+
 ## Classes de recurso do Nexus
 
 O catálogo da account (`okf/nexus/<account>.yaml` ou o Nexus ao vivo) organiza os

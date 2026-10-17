@@ -42,6 +42,21 @@ type Recurso struct {
 	Description string      `json:"description" yaml:"description"`
 	Params      []ParamMeta `json:"params" yaml:"params"`
 	Output      string      `json:"output,omitempty" yaml:"output"`
+	// Definicoes são os ajustes que um condomínio pode dar a este recurso (antecedência
+	// mínima, horário, código da empresa…): o Admin os mostra como formulário, em
+	// linguagem de administradora, e grava no payload do condomínio. Sem definições,
+	// o recurso não aparece nos Ajustes.
+	Definicoes []Definicao `json:"definicoes,omitempty" yaml:"definicoes"`
+}
+
+// Definicao é um campo de ajuste de um recurso por condomínio.
+type Definicao struct {
+	Name        string   `json:"name" yaml:"name"`
+	Label       string   `json:"label" yaml:"label"`
+	Type        string   `json:"type,omitempty" yaml:"type"` // string | number | boolean | select | text
+	Options     []string `json:"options,omitempty" yaml:"options"`
+	Default     any      `json:"default,omitempty" yaml:"default"`
+	Description string   `json:"description,omitempty" yaml:"description"`
 }
 
 // ParamMeta descreve um parâmetro do recurso.

@@ -49,6 +49,14 @@ type Condominio struct {
 	Tenant         string `json:"tenant"`            // tenant do ATENDE
 }
 
+// Orientacao é o que a administradora diz ao concierge sobre um condomínio, em texto
+// livre: o geral entra no prompt da família inteira ("Contexto do condomínio"); o
+// texto por caso de uso entra só na instrução daquele subagente.
+type Orientacao struct {
+	Geral   string            `json:"geral"`
+	PorCaso map[string]string `json:"por_caso"`
+}
+
 // Habilitacao de um caso de uso num condomínio.
 type Habilitacao struct {
 	Habilitado bool     `json:"habilitado"`
@@ -64,9 +72,12 @@ type Mapeamento struct {
 	AdministradoraLegado string `json:"administradora,omitempty"`
 	// Habilitacoes: condomínio (ou "*") → caso de uso → habilitação.
 	Habilitacoes map[string]map[string]Habilitacao `json:"habilitacoes"`
-	// Payloads: condomínio (ou "*") → recurso do Nexus → definições.
-	Payloads     map[string]map[string]map[string]any `json:"payloads"`
-	AtualizadoEm time.Time                            `json:"atualizado_em"`
+	// Payloads: condomínio (ou "*") → recurso do Nexus → definições (os Ajustes do
+	// Admin gravam aqui, pelas definições que o recurso declara; o Backdoor vê o JSON).
+	Payloads map[string]map[string]map[string]any `json:"payloads"`
+	// Orientacoes: condomínio (ou "*") → texto livre para o concierge.
+	Orientacoes  map[string]Orientacao `json:"orientacoes"`
+	AtualizadoEm time.Time             `json:"atualizado_em"`
 }
 
 func (m *Mapeamento) normalizar() {
@@ -93,6 +104,15 @@ func (m *Mapeamento) normalizar() {
 	}
 	if m.Payloads == nil {
 		m.Payloads = map[string]map[string]map[string]any{}
+	}
+	if m.Orientacoes == nil {
+		m.Orientacoes = map[string]Orientacao{}
+	}
+	for k, o := range m.Orientacoes {
+		if o.PorCaso == nil {
+			o.PorCaso = map[string]string{}
+			m.Orientacoes[k] = o
+		}
 	}
 	for k, v := range m.Habilitacoes {
 		if v == nil {
@@ -129,7 +149,7 @@ func (m Mapeamento) Visao(admID string) Mapeamento {
 	if admID == "" {
 		return m
 	}
-	v := Mapeamento{Administradoras: []Administradora{}, Condominios: []Condominio{}, Habilitacoes: map[string]map[string]Habilitacao{}, Payloads: map[string]map[string]map[string]any{}, AtualizadoEm: m.AtualizadoEm}
+	v := Mapeamento{Administradoras: []Administradora{}, Condominios: []Condominio{}, Habilitacoes: map[string]map[string]Habilitacao{}, Payloads: map[string]map[string]map[string]any{}, Orientacoes: map[string]Orientacao{}, AtualizadoEm: m.AtualizadoEm}
 	if a, ok := m.Administradora(admID); ok {
 		v.Administradoras = append(v.Administradoras, a)
 	}
@@ -150,7 +170,40 @@ func (m Mapeamento) Visao(admID string) Mapeamento {
 			v.Payloads[k] = p
 		}
 	}
+	for k, o := range m.Orientacoes {
+		if meus[k] {
+			v.Orientacoes[k] = o
+		}
+	}
 	return v
+}
+
+// OrientacaoDe junta o padrão e o do condomínio: o geral concatena (padrão primeiro);
+// por caso, os dois textos também, quando existem.
+func (m Mapeamento) OrientacaoDe(condoID string) Orientacao {
+	out := Orientacao{PorCaso: map[string]string{}}
+	for _, origem := range []string{Padrao, condoID} {
+		o, ok := m.Orientacoes[origem]
+		if !ok {
+			continue
+		}
+		if g := strings.TrimSpace(o.Geral); g != "" {
+			if out.Geral != "" {
+				out.Geral += "\n\n"
+			}
+			out.Geral += g
+		}
+		for caso, t := range o.PorCaso {
+			if t = strings.TrimSpace(t); t == "" {
+				continue
+			}
+			if out.PorCaso[caso] != "" {
+				out.PorCaso[caso] += "\n\n"
+			}
+			out.PorCaso[caso] += t
+		}
+	}
+	return out
 }
 
 // Condominio procura pelo id.
@@ -239,7 +292,14 @@ func (m Mapeamento) PayloadsDe(condoID string) map[string]map[string]any {
 
 // Contexto formata os payloads para o prompt ("# Contexto do condomínio").
 func Contexto(c Condominio, payloads map[string]map[string]any) string {
-	if len(payloads) == 0 && c.Nome == "" {
+	return ContextoDoCondominio(c, payloads, "")
+}
+
+// ContextoDoCondominio: as orientações gerais da administradora e as definições por
+// recurso, no bloco que entra no prompt da família inteira.
+func ContextoDoCondominio(c Condominio, payloads map[string]map[string]any, orientacao string) string {
+	orientacao = strings.TrimSpace(orientacao)
+	if len(payloads) == 0 && c.Nome == "" && orientacao == "" {
 		return ""
 	}
 	var b strings.Builder
@@ -247,7 +307,14 @@ func Contexto(c Condominio, payloads map[string]map[string]any) string {
 	if nome == "" {
 		nome = "padrão"
 	}
-	fmt.Fprintf(&b, "# Contexto do condomínio (%s)\n\nDefinições deste condomínio para os recursos; valem como parâmetros padrão e como regras locais. Use-as sem perguntar ao morador.\n", nome)
+	fmt.Fprintf(&b, "# Contexto do condomínio (%s)\n\n", nome)
+	if orientacao != "" {
+		fmt.Fprintf(&b, "## Orientações da administradora\n\n%s\n\n", orientacao)
+	}
+	if len(payloads) == 0 {
+		return strings.TrimRight(b.String(), "\n")
+	}
+	b.WriteString("## Definições\n\nDefinições deste condomínio para os recursos; valem como parâmetros padrão e como regras locais. Use-as sem perguntar ao morador.\n")
 	recursos := make([]string, 0, len(payloads))
 	for r := range payloads {
 		recursos = append(recursos, r)
@@ -407,6 +474,7 @@ func (s *Store) RemoverCondominio(id string) (Mapeamento, error) {
 		m.Condominios = resto
 		delete(m.Habilitacoes, id)
 		delete(m.Payloads, id)
+		delete(m.Orientacoes, id)
 		return nil
 	})
 }
@@ -433,6 +501,66 @@ func (s *Store) SalvarHabilitacao(condoID, caso string, h Habilitacao, limpar bo
 			h.Papeis = []string{}
 		}
 		m.Habilitacoes[condoID][caso] = h
+		return nil
+	})
+}
+
+// SalvarOrientacao grava o texto livre do condomínio (ou do padrão).
+func (s *Store) SalvarOrientacao(condoID string, o Orientacao) (Mapeamento, error) {
+	return s.Alterar(func(m *Mapeamento) error {
+		if condoID != Padrao {
+			if _, ok := m.Condominio(condoID); !ok {
+				return fmt.Errorf("condomínio desconhecido: %s", condoID)
+			}
+		}
+		o.Geral = strings.TrimSpace(o.Geral)
+		porCaso := map[string]string{}
+		for k, v := range o.PorCaso {
+			if v = strings.TrimSpace(v); v != "" {
+				porCaso[k] = v
+			}
+		}
+		o.PorCaso = porCaso
+		if o.Geral == "" && len(porCaso) == 0 {
+			delete(m.Orientacoes, condoID)
+			return nil
+		}
+		m.Orientacoes[condoID] = o
+		return nil
+	})
+}
+
+// SalvarAjustes grava, chave a chave, os ajustes de vários recursos de um condomínio:
+// valor vazio ou nulo apaga a chave; um recurso que fica sem chaves sai do payload.
+// Chaves que o formulário não conhece (postas pelo Backdoor) ficam como estão.
+func (s *Store) SalvarAjustes(condoID string, ajustes map[string]map[string]any) (Mapeamento, error) {
+	return s.Alterar(func(m *Mapeamento) error {
+		if condoID != Padrao {
+			if _, ok := m.Condominio(condoID); !ok {
+				return fmt.Errorf("condomínio desconhecido: %s", condoID)
+			}
+		}
+		if m.Payloads[condoID] == nil {
+			m.Payloads[condoID] = map[string]map[string]any{}
+		}
+		for recurso, campos := range ajustes {
+			p := m.Payloads[condoID][recurso]
+			if p == nil {
+				p = map[string]any{}
+			}
+			for k, v := range campos {
+				if v == nil || fmt.Sprint(v) == "" {
+					delete(p, k)
+				} else {
+					p[k] = v
+				}
+			}
+			if len(p) == 0 {
+				delete(m.Payloads[condoID], recurso)
+			} else {
+				m.Payloads[condoID][recurso] = p
+			}
+		}
 		return nil
 	})
 }

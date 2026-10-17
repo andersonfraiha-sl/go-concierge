@@ -80,6 +80,9 @@ type Config struct {
 	// Payloads são as definições do condomínio por recurso do Nexus (Admin): valem
 	// como parâmetros padrão em chamar_recurso quando o agente não os passa.
 	Payloads map[string]map[string]any
+	// Orientacoes por caso de uso (nome da pasta do subagente → texto da
+	// administradora): entram só na instrução daquele subagente.
+	Orientacoes map[string]string
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
@@ -153,6 +156,9 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	instrucao := cat.Projecao(a)
 	if c := strings.TrimSpace(cfg.Contexto); c != "" {
 		instrucao += "\n\n" + c
+	}
+	if o := strings.TrimSpace(cfg.Orientacoes[a.Nome]); o != "" && len(okf.Ancestrais(a.Path)) > 0 {
+		instrucao += "\n\n# Orientações da administradora para este caso de uso\n\nValem neste condomínio, por cima das políticas gerais:\n\n" + o
 	}
 	ag := &Agente{
 		Cat:        cat,

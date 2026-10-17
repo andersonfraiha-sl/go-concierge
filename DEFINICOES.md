@@ -168,6 +168,17 @@ mapeamento deles; o padrão "*" é global, nosso. Hoje o seletor no topo do Admi
 o login; no produto o id vem da sessão/RLS do Postgres. Remover uma administradora
 exige antes mover os condomínios dela.
 
+**Ficha do condomínio (2026-10-17).** Três camadas: o Backdoor é o universo (o
+concierge com todos os casos de uso e recursos); o Admin liga e desliga **casos de uso**
+por condomínio (a administradora não mexe em recursos); e a ficha de cada condomínio
+guarda as particularidades em linguagem de administradora: **Orientações ao concierge**
+(texto livre geral, que entra no prompt da família como "Contexto do condomínio", e por
+caso de uso, que entra só na instrução daquele subagente: `admin.Orientacao`,
+`harness.Config.Orientacoes`), **Ajustes** (formulário gerado das `definicoes` que cada
+recurso declara no catálogo do Nexus, gravado no mesmo payload que o Backdoor vê em JSON)
+e **Identificação** (ids de integração). Fica em aberto a sobreposição de regras e
+conhecimento por condomínio (pasta de overlay no carregador OKF).
+
 **Casos de uso trazidos do sl-concierge (2026-10-17).** Os casos do catálogo YAML
 (`catalog/usecases/_default` e `gruvi`) viraram subagentes do concierge, cada um com
 `caso.yaml` (o YAML original), `workflows/principal.md` (a ordem narrada dos passos),
