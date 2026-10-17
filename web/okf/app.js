@@ -86,7 +86,7 @@
     ].map(([t, v, e, cls]) => `<div class="kpi ${cls || ''}"><span>${t}</span><strong>${v}</strong><em>${esc(e)}</em></div>`).join('');
     $('#layers').innerHTML = [
       ['l-1', 'folder-tree', 'Do agente', 'Estático, na pasta', 'persona, regras, workflow ou caso.yaml, conhecimento OKF e assets. Editado aqui.'],
-      ['l-2', 'git-branch', 'Família', 'Herança e fronteira', 'Persona, conhecimento e assets descem do pai; irmão e fora da árvore são proibidos.'],
+      ['l-2', 'git-branch', 'Família', 'Herança e fronteira', 'Conhecimento e assets descem do pai; persona é só do orquestrador; irmão e fora da árvore são proibidos.'],
       ['l-3', 'plug', 'Do Nexus', 'Em tempo de execução', 'Tools, conteúdos e memórias da account. O agente declara; o harness filtra pela identidade.'],
       ['l-4', 'scroll-text', 'Projeção', 'O prompt que o Eino recebe', 'Princípio ICM: índice de dados lido sob demanda; escrita só pelo caso de uso.'],
     ].map(([cls, ic, k, t, d]) => `<div class="layer ${cls}"><div class="layer-top"><span class="layer-icon"><i data-lucide="${ic}"></i></span><div><div class="layer-kicker">${k}</div><h3>${t}</h3></div></div><p>${d}</p></div>`).join('');
