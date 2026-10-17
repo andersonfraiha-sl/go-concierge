@@ -101,7 +101,7 @@ func (c *Caso) Passos() []string {
 			out = append(out, l)
 		case s["choose"] != nil:
 			if m, ok := s["choose"].(map[string]any); ok {
-				out = append(out, fmt.Sprintf("escolher `%v` entre %v", m["param"], m["from"]))
+				out = append(out, fmt.Sprintf("escolher `%v` entre %v (uma só opção: use sem perguntar; se o morador já disse ou a identidade/memória responde, não pergunte)", m["param"], m["from"]))
 			} else {
 				out = append(out, "escolher")
 			}

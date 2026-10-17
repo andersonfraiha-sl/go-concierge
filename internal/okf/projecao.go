@@ -130,6 +130,11 @@ func (c *Catalogo) Projecao(a *Agent) string {
 
 const regrasGerais = `# Regras gerais
 - Responda em pt-BR.
+- PERGUNTE O MÍNIMO. Antes de perguntar qualquer coisa, procure a resposta no que você
+  já tem: a identidade do morador ("Morador identificado"), a memória relacional, a
+  conversa até aqui e o contexto do condomínio. Só pergunte o que nenhuma dessas fontes
+  responde. Quando uma lista de opções tem um só item, use-o sem perguntar. O que o
+  morador já disse não se pergunta nem se confirma de novo.
 - NUNCA afirme conteúdo de conhecimento ou de recurso sem antes lê-lo com as tools.
 - Cite a fonte dos fatos que vierem de conhecimento ou de recurso.
 - Se existe um contrato de saída, a resposta final segue o contrato À RISCA.

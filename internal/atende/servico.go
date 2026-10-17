@@ -201,6 +201,27 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		cfg.Locais = map[string]func(context.Context, map[string]any) (any, error){
 			"unidades.listar": func(context.Context, map[string]any) (any, error) { return unidades, nil },
 		}
+		// uma só unidade: o unidade_id de todo recurso que o pede já vai preenchido, para o
+		// agente nunca ter de perguntar (o payload do condomínio, se existir, tem precedência)
+		if len(sess.Identidade.Units) == 1 {
+			if cfg.Payloads == nil {
+				cfg.Payloads = map[string]map[string]any{}
+			}
+			uid := sess.Identidade.Units[0].ID
+			for _, r := range s.Cat.RecursosNexus() {
+				for _, p := range r.Params {
+					if p.Name != "unidade_id" {
+						continue
+					}
+					if cfg.Payloads[r.Name] == nil {
+						cfg.Payloads[r.Name] = map[string]any{}
+					}
+					if _, tem := cfg.Payloads[r.Name]["unidade_id"]; !tem {
+						cfg.Payloads[r.Name]["unidade_id"] = uid
+					}
+				}
+			}
+		}
 	}
 
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
