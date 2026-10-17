@@ -27,36 +27,51 @@ contrato de partida. Data: 2026-10-16.
 - Provedor de modelo pelo `eino-ext` (OpenAI-compatível cobre OpenRouter e Gemini; há
   também Claude e Gemini nativos). Decidir o provedor padrão em 4.3.
 
-### 1.2 OKF: agentes e subagentes no formato de pasta (definido em 2026-10-16)
+### 1.2 OKF: agentes e subagentes no formato de pasta (definido em 2026-10-16, reorganizado no mesmo dia)
+
+**Reorganização aprovada (2026-10-16): dois mundos.** O que é **do agente** fica estático
+na pasta e se edita no Admin; o que é **infraestrutura** vem do **Nexus em tempo de
+execução** e o agente só declara o que precisa.
+
+| Do agente (pasta) | Do Nexus (tempo de execução) |
+|---|---|
+| `agent.yaml`: nome, tipo, descrição, modelo, `recursos:` (nomes que declara usar) | **tools**: recursos `api`, `database`, `agent` da account |
+| `persona.md`: traços e tom de quem fala com o morador; os filhos herdam | **conteúdos e memórias**: recursos `knowledge` e `memory`, consultados, nunca copiados |
+| `caso.yaml`: caso de uso determinístico (passos do catálogo); **única porta de escrita** | a lista vem de `GET /v1/accounts/{account}/resources` ou do instantâneo `okf/nexus/<account>.yaml` |
+| `rules/`, `workflows/`, `routers/`, `knowledge/` (OKF), `assets/`, `evals/`, `agentes/` | o harness cruza a declaração do agente, o que a account oferece e o que a identidade do morador pode (privado só autenticado; escrita só pelo caso; bloqueios do condomínio) |
+
+Saíram da pasta e da interface: `skills/`, `schemas/`, `mcps/`, `bash/`, `scripts/`,
+`rag/`, `hooks/`, `data/` solto, os catálogos `bases/`, `tools/`, `apis/` e os campos
+`fontes`, `apis`, `segredos` do `agent.yaml`. A interface ganhou **Recursos do Nexus**
+(lista da account com interruptor "este agente usa"), **Persona** e **Caso de uso** na
+ficha. O texto abaixo descreve a anatomia como ficou.
 
 - Todo agente e subagente do concierge é uma **pasta** ("formato pastinha"), no mesmo
   desenho do AgentAsFolder do harness Python `adam` (`../adam`, o "projeto Python"), com
   o **conhecimento OKF** dentro dela. Nada de agente em código Go.
-- **Anatomia da pasta** (`okf/agentes/<nome>/`): só `agent.yaml` na raiz (nome, tipo
-  `orquestrador | operador`, descricao, modelo, fontes, apis, segredos) e caixinhas:
-  `rules/` (output.md = contrato de saída; o resto é política), `workflows/`
-  (principal.md + procedimentos), `routers/` (rotas.md + desambiguacao.md), `evals/`,
-  `hooks/`, `skills/`, `schemas/`, `mcps/`, `bash/`, `scripts/`, `rag/`, `data/`,
-  `assets/` e `agentes/<sub>/` (subagentes, recursivo).
-- **Conhecimento OKF**: em `data/okf/` (como nos agentes do stattus4 no adam) ou `okf/`
-  na raiz (como nos bundles do `stt4-one`): `glossary.yaml` (termos, sinônimos,
-  definição, labels; UMA definição, três consumidores: roteador, projeção, intenção) e
-  documentos Markdown com frontmatter tipado `type: Domain | Vocabulary | Question |
-  Condition | Policy | Procedure`, `id`, `title`, `version`, `status`, `description`,
-  `tags`; um `Question` declara `answers:` (o espaço de respostas), `## Method` e
-  `## Tie-breaking`.
-- **Vínculos internos**: assets e dados citados em crase nos workflows/rules
-  (`assets/rodape.md`, `data/okf/glossary.yaml`, `fonte:data/x.md`), rotas
-  (`→ rota \`nome\``) apontando para subagentes, `fontes:` do ancestral, `apis:` do
-  registro, hooks apontando para scripts/agentes. Todos são conferidos a cada leitura.
-- **Duas regras duras** (do adam): **herança** (skills, schemas, mcps, bash, scripts,
-  data e assets do pai valem para os filhos, o mais próximo vence; rules, workflows,
-  routers, hooks, evals e rag não descem) e **fronteira** (um agente só referencia a
-  própria pasta ou os recursos próprios de um ancestral; irmão, sobrinho e fora da
-  árvore são proibidos).
-- **Catálogos** na raiz: `bases/<nome>/` (conector completo), `tools/{scripts, mcps,
-  assets, skills, schemas}/` (avulsos) e `apis/*.yaml` (registro, vinculado por nome).
-  Aplicar um recurso copia para a caixinha certa e funde `segredos`/`apis` no agent.yaml.
+- **Anatomia da pasta** (`okf/agentes/<nome>/`): na raiz `agent.yaml` (nome, tipo
+  `orquestrador | operador`, descricao, modelo, `recursos`), `persona.md` e `caso.yaml`;
+  caixinhas `rules/` (output.md = contrato de saída; o resto é política), `workflows/`
+  (principal.md + procedimentos), `routers/` (rotas.md + desambiguacao.md),
+  `knowledge/`, `assets/`, `evals/` e `agentes/<sub>/` (subagentes, recursivo).
+- **Conhecimento OKF** em `knowledge/`: `glossary.yaml` (termos, sinônimos, definição,
+  labels; UMA definição, três consumidores: roteador, projeção, intenção) e documentos
+  Markdown com frontmatter tipado `type: Domain | Vocabulary | Question | Condition |
+  Policy | Procedure`, `id`, `title`, `version`, `status`, `description`, `tags`; um
+  `Question` declara `answers:` (o espaço de respostas), `## Method` e `## Tie-breaking`.
+  Formato vindo dos agentes do stattus4 no adam e dos bundles do `stt4-one`.
+- **Caso de uso** (`caso.yaml`): o formato do catálogo do sl-concierge (`id`, `name`,
+  `visibility`, `params`, `steps` com `resource`, `choose`, `collect`, `form`,
+  `confirm`, `compose`, `output`). O harness executa os passos; a escrita só acontece
+  por um passo `resource` do caso, de preferência depois de um `confirm`.
+- **Vínculos**: assets e conhecimento citados em crase nos textos (`assets/rodape.md`,
+  `knowledge/glossary.yaml`), rotas (`→ rota \`nome\``) apontando para subagentes,
+  recursos declarados (agent.yaml e passos do caso) conferidos contra o Nexus (existe na
+  account? escrita fora do caso?), persona em vigor. Todos conferidos a cada leitura.
+- **Duas regras duras** (do adam): **herança** (persona, knowledge e assets do pai valem
+  para os filhos, o mais próximo vence; rules, workflows, routers, evals e caso não
+  descem) e **fronteira** (um agente só referencia a própria pasta ou um ancestral;
+  irmão, sobrinho e fora da árvore são proibidos).
 - O código Go tem o **interpretador** (pacote `internal/okf`: carga, herança, fronteira,
   vínculos, conhecimento, projeção, rotas, escrita, catálogo) e a **interface de
   cadastro** (seção 7). O harness Eino receberá a **projeção** da pasta como instrução
@@ -268,17 +283,19 @@ administradora (1.4), que passa a incluir esta interface como a seção "Skills"
 - **Árvore de agentes** com arrastar e soltar: mover (Shift = clonar), soltar no título
   `agentes/` leva à raiz; mover, clonar, criar e excluir sincronizam o `routers/rotas.md`
   dos dois pais (a rota nova entra antes do `self`; sem `routers/` nada é inventado).
-- **Catálogo** (bases, apis, assets, scripts, mcps, skills, schemas): cartões arrastáveis
-  sobre um agente, ou botão "aplicar" no agente selecionado. Idempotente.
-- **Ficha do agente**: problemas (erro/aviso com solução), identidade editável
-  (`agent.yaml` com a fronteira validada), caixinhas com contagem próprio/herdado e
-  criação de arquivo com modelo, **vínculos internos** com estado (próprio, herdado de X,
-  fonte, registro) ou o problema e a dica de fronteira ("existe em <irmão>: copie para
-  dentro ou mova para o ancestral"), subagentes, conhecimento OKF (docs por tipo,
-  glossário com sinônimos, inclusive herdados) e o índice de dados que o prompt vê.
+- **Recursos do Nexus** (lateral): a lista da account por classe (leitura, conhecimento,
+  memória, agentes utilitários, escrita), com interruptor "este agente usa" que grava
+  `agent.yaml → recursos`; escrita não tem interruptor (entra pelo `caso.yaml`). Fonte:
+  Nexus ao vivo (`NEXUS_BASE_URL`) ou instantâneo `okf/nexus/<account>.yaml`.
+- **Ficha do agente**: problemas (erro/aviso com solução), identidade (`agent.yaml`),
+  **persona** (própria ou herdada, editável), **caso de uso** (passos em linha do tempo,
+  com a escrita marcada), **recursos que usa** (declarados, com classe e estado),
+  caixinhas com contagem próprio/herdado e criação de arquivo com modelo, **vínculos**
+  com estado ou o problema e a dica de fronteira, subagentes, conhecimento OKF (docs por
+  tipo, glossário com sinônimos, inclusive herdados) e o índice que o prompt vê.
 - **Arquivos** (editor, Ctrl+S), **projeção** (system prompt compilado, princípio ICM) e
   **roteador** (só o que decide a rota).
 - **Assistente de novo agente** (ou subagente): onde, nome, tipo, descrição como
-  classificador, caixinhas iniciais com arquivo-modelo, fonte do pai, apis, segredos.
-  **Importar/exportar zip** da pasta.
+  classificador, `persona.md` e `caso.yaml` opcionais, caixinhas iniciais com
+  arquivo-modelo, recursos do Nexus que declara. **Importar/exportar zip** da pasta.
 - API JSON documentada no README; é a mesma que o Admin da administradora usará.

@@ -9,5 +9,5 @@
   respondida; `transferida` quando foi ao humano; `abandonada` quando o morador mudou de
   assunto e não voltou (ou silêncio de 30 min).
 - A sessão só pode encerrar com zero pendências abertas; use o critério de
-  `data/okf/conditions/pendencia.md` para dizer se o morador obteve o que buscava.
+  `knowledge/conditions/pendencia.md` para dizer se o morador obteve o que buscava.
 - Cite a mensagem que justifica cada mudança de estado (número da mensagem na sessão).

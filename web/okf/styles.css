@@ -145,6 +145,27 @@ svg.lucide { width: 18px; height: 18px; stroke-width: 1.75; flex: none; }
 .cat-card .vote { width: 28px; height: 28px; }
 .cat-vazio { font-size: 12px; color: var(--slate-400); padding: 4px 10px; }
 
+.nav-dica { margin: 0 12px 6px; font-size: 11.5px; color: var(--slate-400); line-height: 1.4; }
+.cat-card.is-on { border-color: var(--sl-blue-100); background: var(--sl-blue-50); }
+.cat-card[draggable="false"] { cursor: default; }
+.cat-card .ct .chips { margin-top: 3px; }
+.cat-card .ct .tag { height: 18px; font-size: 10px; padding: 0 6px; }
+.cat-card .switch { justify-self: end; }
+
+/* fluxo do caso de uso */
+.flow { list-style: none; margin: 0; padding: 0; display: grid; position: relative; }
+.flow::before { content: ""; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: var(--slate-100); }
+.flow li { position: relative; display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 5px 0; font-size: 13px; }
+.flow .fi { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--canvas); color: var(--slate-600); border: 3px solid var(--surface); z-index: 1; }
+.flow .fi svg.lucide { width: 15px; height: 15px; }
+.flow .f-resource .fi { background: var(--sl-blue-50); color: var(--sl-blue); }
+.flow .f-write .fi { background: var(--warning-50); color: #8A5A00; }
+.flow .f-confirm .fi { background: var(--success-50); color: var(--success); }
+.flow .f-compose .fi { background: var(--violet-50); color: var(--violet); }
+.flow b { display: block; font-weight: 500; }
+.flow span { color: var(--slate-500); font-size: 12.5px; }
+#personaTexto { width: 100%; }
+
 /* ---------- Conteúdo ---------- */
 .admin-main { overflow-y: auto; padding: 28px 32px 48px; outline: none; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }

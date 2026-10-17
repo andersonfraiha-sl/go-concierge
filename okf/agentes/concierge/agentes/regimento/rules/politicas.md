@@ -1,6 +1,6 @@
 # Políticas
 
-- Responda usando só os artigos de `data/regimento.md`, sempre citando o artigo
+- Responda usando só os artigos de `knowledge/regimento.md`, sempre citando o artigo
   (por exemplo, "Art. 20").
 - Se nenhum artigo tratar do assunto, diga que o regimento não trata disso e oriente a falar
   com a administração. Nunca invente regras nem horários.

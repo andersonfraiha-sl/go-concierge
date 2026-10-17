@@ -1,19 +1,25 @@
-// Package okf lê, valida, projeta e escreve agentes no formato de PASTA
-// (AgentAsFolder, o "formato pastinha" do harness Python `adam`) e os documentos
-// de conhecimento OKF que vivem dentro dessas pastas.
+// Package okf lê, valida, projeta e escreve agentes no formato de PASTA (OKF).
 //
-// Um agente não é código: é uma pasta. A raiz tem só o agent.yaml; o resto são
-// caixinhas (rules/, workflows/, routers/, hooks/, skills/, schemas/, mcps/, bash/,
-// scripts/, rag/, data/, assets/, evals/) e agentes/<sub>/ para subagentes, com a
-// mesma anatomia, recursivamente.
+// Um agente não é código: é uma pasta. Tudo o que é DO agente mora nela, estático e
+// editável no Admin; tudo o que é infraestrutura (tools, conteúdos, memórias) vem do
+// Nexus em tempo de execução, e o agente só DECLARA o que precisa.
 //
-// Duas regras duras vêm do adam e valem aqui:
+//	<agente>/
+//	├── agent.yaml      nome, tipo (orquestrador | operador), descricao, modelo, recursos (nomes do Nexus)
+//	├── persona.md      traços de personalidade e tom (quem fala com o usuário); os filhos herdam
+//	├── caso.yaml       caso de uso determinístico (passos do catálogo), quando o agente é um
+//	├── rules/          output.md = contrato de saída; os outros .md são políticas
+//	├── workflows/      principal.md = o que ele faz; os demais .md são procedimentos
+//	├── routers/        rotas.md + desambiguacao.md (orquestrador)
+//	├── knowledge/      conhecimento OKF: glossary.yaml e docs tipados (herda para os filhos)
+//	├── assets/         templates e rodapés, citados como `assets/<arquivo>` (herda)
+//	├── evals/          casos que provam o comportamento
+//	└── agentes/<sub>/  subagentes, mesma anatomia, recursivo
 //
-//   - herança: skills, schemas, mcps, bash, scripts, data e assets do ancestral
-//     valem para os filhos (o mais próximo vence); rules, workflows, routers,
-//     hooks, evals e rag não descem;
-//   - fronteira: um agente só referencia a própria pasta ou os recursos PRÓPRIOS
-//     de um ancestral; irmão, sobrinho e qualquer coisa fora da árvore são proibidos.
+// Duas regras duras: herança (persona, knowledge e assets do ancestral valem para os
+// filhos, o mais próximo vence; rules, workflows, routers, evals e caso são de cada um)
+// e fronteira (um agente só referencia a própria pasta ou um ancestral; irmão, sobrinho
+// e fora da árvore são proibidos).
 package okf
 
 import (
@@ -35,6 +41,8 @@ const (
 
 	DirAgentes = "agentes"
 	AgentYAML  = "agent.yaml"
+	PersonaMD  = "persona.md"
+	CasoYAML   = "caso.yaml"
 )
 
 // Caixinha é uma das subpastas padronizadas de um agente.
@@ -42,31 +50,24 @@ type Caixinha struct {
 	Nome      string   `json:"nome"`
 	Titulo    string   `json:"titulo"`
 	Descricao string   `json:"descricao"`
-	Herda     bool     `json:"herda"`     // desce do ancestral para os filhos
-	Nucleo    bool     `json:"nucleo"`    // identidade do agente (rules, workflows, routers)
-	Ext       []string `json:"ext"`       // extensões aceitas ("" = qualquer)
-	Recursivo bool     `json:"recursivo"` // lista subpastas (data, assets, rag, workflows)
+	Herda     bool     `json:"herda"`  // desce do ancestral para os filhos
+	Nucleo    bool     `json:"nucleo"` // identidade do agente
+	Ext       []string `json:"ext"`
+	Recursivo bool     `json:"recursivo"`
 	Tool      string   `json:"tool,omitempty"`
 }
 
 // Caixinhas é o inventário, na ordem em que a interface as mostra.
 var Caixinhas = []Caixinha{
 	{Nome: "rules", Titulo: "Regras", Descricao: "output.md é o contrato de saída; qualquer outro .md é política (concatenados, títulos rebaixados a H2).", Nucleo: true, Ext: []string{".md"}},
-	{Nome: "workflows", Titulo: "Workflows", Descricao: "principal.md é o passo a passo projetado; outros .md ou subpastas com etapas 00_/10_ são procedimentos (tool abrir_workflow).", Nucleo: true, Ext: []string{".md"}, Recursivo: true, Tool: "abrir_workflow"},
+	{Nome: "workflows", Titulo: "Workflows", Descricao: "principal.md é o que o agente faz dentro das próprias skills; outros .md ou subpastas com etapas 00_/10_ são procedimentos (tool abrir_workflow).", Nucleo: true, Ext: []string{".md"}, Recursivo: true, Tool: "abrir_workflow"},
 	{Nome: "routers", Titulo: "Roteamento", Descricao: "rotas.md (critério → rota `nome`) e desambiguacao.md; com subagentes, torna o agente orquestrador.", Nucleo: true, Ext: []string{".md"}},
+	{Nome: "knowledge", Titulo: "Conhecimento", Descricao: "Conhecimento OKF do agente: glossary.yaml (termos, sinônimos) e docs com frontmatter type: Domain | Question | Condition | Policy | Vocabulary. Indexado no prompt e lido com ler_dado; herda para os filhos.", Herda: true, Ext: []string{".md", ".yaml", ".yml", ".json", ".txt", ".csv"}, Recursivo: true, Tool: "ler_dado"},
+	{Nome: "assets", Titulo: "Assets", Descricao: "Templates, rodapés e imagens, citados como `assets/<arquivo>`; indexados como dados e herdados pelos filhos.", Herda: true, Ext: []string{""}, Recursivo: true, Tool: "ler_dado"},
 	{Nome: "evals", Titulo: "Evals", Descricao: "Casos que provam o comportamento (pergunta, rota, contem, nao_contem).", Ext: []string{".yaml", ".yml"}},
-	{Nome: "hooks", Titulo: "Hooks", Descricao: "Automações determinísticas que o runtime dispara após eventos (apos_rota, apos_tool, apos_resposta, ao_falhar).", Ext: []string{".yaml", ".yml"}},
-	{Nome: "skills", Titulo: "Skills", Descricao: "Funções que viram tools em processo (assinatura + docstring).", Herda: true, Ext: []string{".py", ".go", ".md"}},
-	{Nome: "schemas", Titulo: "Schemas", Descricao: "Estrutura dos dados (tabelas, colunas, domínios) → tool consultar_schema.", Herda: true, Ext: []string{".yaml", ".yml", ".json"}, Tool: "consultar_schema"},
-	{Nome: "mcps", Titulo: "MCPs", Descricao: "Descritores de servidores MCP (stdio/http) → tools mcp_<servidor>_<tool>.", Herda: true, Ext: []string{".yaml", ".yml"}, Tool: "mcp_*"},
-	{Nome: "bash", Titulo: "Bash", Descricao: "Allowlist de binários (frontmatter comando:) → tool rodar_bash.", Herda: true, Ext: []string{".md"}, Tool: "rodar_bash"},
-	{Nome: "scripts", Titulo: "Scripts", Descricao: "Programas da pasta, rodados em subprocesso → tool rodar_script.", Herda: true, Ext: []string{".py", ".sh", ".go"}, Tool: "rodar_script"},
-	{Nome: "rag", Titulo: "RAG", Descricao: "Documentos fragmentados e indexados por semelhança → tool buscar_rag. Não herda (o índice é da pasta).", Ext: []string{""}, Recursivo: true, Tool: "buscar_rag"},
-	{Nome: "data", Titulo: "Dados", Descricao: "Arquivos indexados no prompt e lidos sob demanda → tool ler_dado. data/okf/ guarda o conhecimento OKF tipado.", Herda: true, Ext: []string{""}, Recursivo: true, Tool: "ler_dado"},
-	{Nome: "assets", Titulo: "Assets", Descricao: "Estáticos (templates, rodapés, imagens), indexados como dados; referenciados por `assets/<arquivo>`.", Herda: true, Ext: []string{""}, Recursivo: true, Tool: "ler_dado"},
 }
 
-// CaixinhaPorNome devolve a definição de uma caixinha (ok=false se não existe).
+// CaixinhaPorNome devolve a definição de uma caixinha.
 func CaixinhaPorNome(nome string) (Caixinha, bool) {
 	for _, c := range Caixinhas {
 		if c.Nome == nome {
@@ -78,28 +79,29 @@ func CaixinhaPorNome(nome string) (Caixinha, bool) {
 
 // Arquivo é um item de uma caixinha, próprio ou herdado.
 type Arquivo struct {
-	Caminho   string `json:"caminho"` // relativo à pasta do agente (ou do ancestral)
+	Caminho   string `json:"caminho"` // relativo à pasta do agente dono
 	Bytes     int64  `json:"bytes"`
 	Resumo    string `json:"resumo,omitempty"`
-	HerdadoDe string `json:"herdado_de,omitempty"` // nome do ancestral dono do arquivo
+	HerdadoDe string `json:"herdado_de,omitempty"` // nome do ancestral dono
 }
 
 // Agent é a pasta carregada.
 type Agent struct {
 	Path string `json:"-"`
-	// Rel é o caminho relativo à raiz do catálogo, com barras: agentes/concierge/agentes/regimento.
+	// Rel é o caminho relativo à raiz, com barras: agentes/concierge/agentes/regimento.
 	Rel           string               `json:"caminho"`
 	Nome          string               `json:"nome"`
 	Tipo          string               `json:"tipo"`
 	TipoDeclarado bool                 `json:"tipo_declarado"`
 	Descricao     string               `json:"descricao"`
 	Modelo        string               `json:"modelo,omitempty"`
-	Fontes        []string             `json:"fontes"`
-	Apis          []string             `json:"apis"`
-	Segredos      []string             `json:"segredos"`
+	Recursos      []string             `json:"recursos"` // nomes de recursos do Nexus que o agente declara usar
 	Config        map[string]any       `json:"config"`
-	Arquivos      map[string][]Arquivo `json:"arquivos"` // por caixinha: só os próprios
-	Herdados      map[string][]Arquivo `json:"herdados"` // por caixinha: dos ancestrais, não sobrepostos
+	Arquivos      map[string][]Arquivo `json:"arquivos"`             // por caixinha: só os próprios
+	Herdados      map[string][]Arquivo `json:"herdados"`             // por caixinha: dos ancestrais, não sobrepostos
+	Persona       string               `json:"persona"`              // conteúdo de persona.md em vigor (própria ou herdada)
+	PersonaDe     string               `json:"persona_de,omitempty"` // "" = própria; senão o ancestral dono
+	Caso          *Caso                `json:"caso,omitempty"`
 	Subagentes    []*Agent             `json:"subagentes"`
 	Problemas     []Problema           `json:"problemas"`
 }
@@ -107,14 +109,17 @@ type Agent struct {
 // Problema é algo errado ou suspeito encontrado ao carregar ou validar.
 type Problema struct {
 	Nivel   string `json:"nivel"` // erro | aviso
-	Onde    string `json:"onde"`  // arquivo ou campo
+	Onde    string `json:"onde"`
 	Texto   string `json:"texto"`
 	Solucao string `json:"solucao,omitempty"`
 }
 
-// Catalogo é a raiz do formato: agentes/, bases/, tools/, apis/.
+// Catalogo é a raiz do formato (agentes/) mais a fonte de recursos do Nexus.
 type Catalogo struct {
 	Root string
+	// Recursos devolve os recursos do Nexus da account (tools, conteúdos, memórias).
+	// nil = Nexus indisponível: as declarações não são conferidas.
+	Recursos func() []Recurso
 }
 
 // NewCatalogo abre (sem criar) a raiz. A pasta agentes/ é criada se faltar.
@@ -138,9 +143,7 @@ func NewCatalogo(root string) (*Catalogo, error) {
 
 // IsAgent diz se a pasta tem a forma mínima de agente.
 func IsAgent(dir string) bool {
-	return fileExists(filepath.Join(dir, AgentYAML)) ||
-		fileExists(filepath.Join(dir, "workflows", "principal.md")) ||
-		fileExists(filepath.Join(dir, "workflows.md"))
+	return fileExists(filepath.Join(dir, AgentYAML)) || fileExists(filepath.Join(dir, "workflows", "principal.md"))
 }
 
 func fileExists(p string) bool {
@@ -154,7 +157,7 @@ func dirExists(p string) bool {
 }
 
 // Ancestrais lista as pastas de AGENTE acima desta (pai, avô…), subindo pelos
-// níveis agentes/. Para quando o nível acima não é agente (a raiz do catálogo).
+// níveis agentes/. Para quando o nível acima não é agente (a raiz).
 func Ancestrais(dir string) []string {
 	var out []string
 	atual := filepath.Clean(dir)
@@ -195,7 +198,7 @@ func dentro(base, alvo string) bool {
 
 // ---- carregamento -------------------------------------------------------
 
-// Tree carrega todos os agentes de primeiro nível (agentes/<nome>) com seus filhos.
+// Tree carrega todos os agentes de primeiro nível com seus filhos.
 func (c *Catalogo) Tree() ([]*Agent, error) {
 	base := filepath.Join(c.Root, DirAgentes)
 	entradas, err := os.ReadDir(base)
@@ -283,9 +286,7 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 		Config:     map[string]any{},
 		Arquivos:   map[string][]Arquivo{},
 		Herdados:   map[string][]Arquivo{},
-		Fontes:     []string{},
-		Apis:       []string{},
-		Segredos:   []string{},
+		Recursos:   []string{},
 		Subagentes: []*Agent{},
 		Problemas:  []Problema{},
 	}
@@ -310,9 +311,7 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 		if v, ok := a.Config["modelo"].(string); ok {
 			a.Modelo = v
 		}
-		a.Fontes = stringList(a.Config["fontes"])
-		a.Apis = stringList(a.Config["apis"])
-		a.Segredos = stringList(a.Config["segredos"])
+		a.Recursos = stringList(a.Config["recursos"])
 		if v, ok := a.Config["tipo"].(string); ok {
 			t := strings.ToLower(strings.TrimSpace(v))
 			if t == Orquestrador || t == Operador {
@@ -322,21 +321,21 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 				a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: AgentYAML, Texto: fmt.Sprintf("tipo %q desconhecido; vale orquestrador ou operador", v)})
 			}
 		}
-	}
-
-	// caixinhas próprias
-	for _, cx := range Caixinhas {
-		a.Arquivos[cx.Nome] = listar(dir, cx, "")
-	}
-	// legado na raiz
-	for _, nome := range []string{"politicas.md", "output.md", "workflows.md", "router.md"} {
-		if fileExists(filepath.Join(dir, nome)) {
-			a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: nome, Texto: "forma legada na raiz; mova para a caixinha correspondente", Solucao: "rules/ ou workflows/ ou routers/"})
+		for _, k := range []string{"fontes", "apis", "segredos"} {
+			if _, ok := a.Config[k]; ok {
+				a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: AgentYAML + " → " + k, Texto: "campo do formato antigo, ignorado", Solucao: "recursos do Nexus vão em `recursos:`; conhecimento e assets herdam do pai automaticamente"})
+			}
 		}
 	}
-	// herdados: do avô ao pai, o mais próximo vence; o próprio sobrepõe por caminho
+
+	// caixinhas próprias e herdadas (do pai ao avô: o mais próximo entra primeiro)
 	ancs := Ancestrais(dir)
 	for _, cx := range Caixinhas {
+		a.Arquivos[cx.Nome] = listar(dir, cx, "")
+		if a.Arquivos[cx.Nome] == nil {
+			a.Arquivos[cx.Nome] = []Arquivo{}
+		}
+		a.Herdados[cx.Nome] = []Arquivo{}
 		if !cx.Herda {
 			continue
 		}
@@ -344,17 +343,44 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 		for _, f := range a.Arquivos[cx.Nome] {
 			vistos[f.Caminho] = true
 		}
-		var herdados []Arquivo
-		for _, anc := range ancs { // do pai ao avô: o mais próximo entra primeiro
+		for _, anc := range ancs {
 			for _, f := range listar(anc, cx, filepath.Base(anc)) {
 				if vistos[f.Caminho] {
 					continue
 				}
 				vistos[f.Caminho] = true
-				herdados = append(herdados, f)
+				a.Herdados[cx.Nome] = append(a.Herdados[cx.Nome], f)
 			}
 		}
-		a.Herdados[cx.Nome] = herdados
+	}
+	// caixinhas do formato antigo
+	for _, velha := range []string{"data", "skills", "schemas", "mcps", "bash", "scripts", "rag", "hooks"} {
+		if dirExists(filepath.Join(dir, velha)) {
+			a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: velha + "/", Texto: "caixinha do formato antigo; não entra na projeção", Solucao: "conhecimento vai em knowledge/, templates em assets/, tools vêm do Nexus"})
+		}
+	}
+
+	// persona: própria ou herdada do ancestral mais próximo
+	if raw, err := os.ReadFile(filepath.Join(dir, PersonaMD)); err == nil {
+		a.Persona = string(raw)
+	} else {
+		for _, anc := range ancs {
+			if raw, err := os.ReadFile(filepath.Join(anc, PersonaMD)); err == nil {
+				a.Persona = string(raw)
+				a.PersonaDe = filepath.Base(anc)
+				break
+			}
+		}
+	}
+
+	// caso de uso
+	if p := filepath.Join(dir, CasoYAML); fileExists(p) {
+		caso, err := LoadCaso(p)
+		if err != nil {
+			a.Problemas = append(a.Problemas, Problema{Nivel: "erro", Onde: CasoYAML, Texto: err.Error()})
+		} else {
+			a.Caso = caso
+		}
 	}
 
 	// subagentes
@@ -377,7 +403,6 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 		}
 	}
 
-	// tipo inferido: routers/ + subagentes = orquestrador
 	if a.Tipo == "" {
 		if len(a.Arquivos["routers"]) > 0 && len(a.Subagentes) > 0 {
 			a.Tipo = Orquestrador
@@ -385,16 +410,7 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 			a.Tipo = Operador
 		}
 	}
-
 	a.Problemas = append(a.Problemas, c.validar(a)...)
-	for _, cx := range Caixinhas {
-		if a.Arquivos[cx.Nome] == nil {
-			a.Arquivos[cx.Nome] = []Arquivo{}
-		}
-		if a.Herdados[cx.Nome] == nil {
-			a.Herdados[cx.Nome] = []Arquivo{}
-		}
-	}
 	return a, nil
 }
 
@@ -410,18 +426,12 @@ func listar(dir string, cx Caixinha, herdadoDe string) []Arquivo {
 			return nil
 		}
 		if d.IsDir() {
-			if p != base && (strings.HasPrefix(d.Name(), ".") || d.Name() == "__pycache__") {
-				return filepath.SkipDir
-			}
-			if p != base && !cx.Recursivo {
+			if p != base && (strings.HasPrefix(d.Name(), ".") || !cx.Recursivo) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if strings.HasPrefix(d.Name(), ".") {
-			return nil
-		}
-		if !extOK(cx, d.Name()) {
+		if strings.HasPrefix(d.Name(), ".") || !extOK(cx, d.Name()) {
 			return nil
 		}
 		info, err := d.Info()
@@ -429,12 +439,7 @@ func listar(dir string, cx Caixinha, herdadoDe string) []Arquivo {
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, p)
-		out = append(out, Arquivo{
-			Caminho:   filepath.ToSlash(rel),
-			Bytes:     info.Size(),
-			Resumo:    Resumo(p),
-			HerdadoDe: herdadoDe,
-		})
+		out = append(out, Arquivo{Caminho: filepath.ToSlash(rel), Bytes: info.Size(), Resumo: Resumo(p), HerdadoDe: herdadoDe})
 		return nil
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].Caminho < out[j].Caminho })
@@ -501,9 +506,7 @@ func splitFrontmatter(texto string) (fm, corpo string) {
 	if fim == -1 {
 		return "", texto
 	}
-	fm = texto[3 : 3+fim]
-	corpo = texto[3+fim+4:]
-	return fm, strings.TrimLeft(corpo, "\n")
+	return texto[3 : 3+fim], strings.TrimLeft(texto[3+fim+4:], "\n")
 }
 
 // Resumo: uma linha curta sobre o arquivo, para o índice do prompt e a interface.
@@ -520,11 +523,10 @@ func Resumo(p string) string {
 	switch ext {
 	case ".md":
 		fm := Frontmatter(texto)
-		if d, ok := fm["description"].(string); ok && d != "" {
-			return corta(d, 160)
-		}
-		if d, ok := fm["descricao"].(string); ok && d != "" {
-			return corta(d, 160)
+		for _, k := range []string{"description", "descricao", "title", "titulo"} {
+			if d, ok := fm[k].(string); ok && d != "" {
+				return corta(d, 160)
+			}
 		}
 		texto = StripFrontmatter(texto)
 	case ".json":
@@ -548,10 +550,13 @@ func Resumo(p string) string {
 	case ".yaml", ".yml":
 		var m map[string]any
 		if yaml.Unmarshal(raw, &m) == nil {
-			for _, k := range []string{"descricao", "description", "title", "titulo", "nome"} {
+			for _, k := range []string{"descricao", "description", "title", "titulo", "nome", "name"} {
 				if d, ok := m[k].(string); ok && d != "" {
 					return corta(d, 160)
 				}
+			}
+			if t, ok := m["terms"].([]any); ok {
+				return fmt.Sprintf("glossário com %d termos", len(t))
 			}
 		}
 	case ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".webp":
@@ -575,7 +580,7 @@ func corta(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
-// Descrever: a descrição curta de uma pasta (para o índice de subagentes e rotas).
+// Descrever: a descrição curta de uma pasta (índice de subagentes e rotas).
 func Descrever(dir string) string {
 	if raw, err := os.ReadFile(filepath.Join(dir, AgentYAML)); err == nil {
 		var m map[string]any
@@ -585,15 +590,13 @@ func Descrever(dir string) string {
 			}
 		}
 	}
-	for _, cand := range []string{filepath.Join(dir, "workflows", "principal.md"), filepath.Join(dir, "workflows.md")} {
-		if fileExists(cand) {
-			return Resumo(cand)
-		}
+	if p := filepath.Join(dir, "workflows", "principal.md"); fileExists(p) {
+		return Resumo(p)
 	}
 	return ""
 }
 
-// Pai devolve a pasta do agente pai, ou "" na raiz do catálogo.
+// Pai devolve a pasta do agente pai, ou "" na raiz.
 func Pai(dir string) string {
 	if a := Ancestrais(dir); len(a) > 0 {
 		return a[0]

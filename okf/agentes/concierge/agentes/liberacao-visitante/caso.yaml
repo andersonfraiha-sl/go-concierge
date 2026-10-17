@@ -1,0 +1,46 @@
+# Caso de uso determinístico, no formato do catálogo do sl-concierge. O harness executa
+# os passos; a escrita (visitantes.liberar) só acontece aqui, depois do confirm.
+id: liberacao_visitante
+name: Liberação de Visitante
+visibility: private
+description: >
+  Usado para o dono ou morador da unidade autorizar a entrada de um visitante
+  na portaria (amigo, parente, prestador de serviço, entregador).
+keywords: [visitante, visita, liberar, liberação, autorizar, entrada, convidado, prestador]
+examples:
+  - quero liberar um visitante
+  - vai chegar um amigo meu hoje, pode liberar?
+  - autoriza a entrada da Maria no meu apartamento
+params:
+  - name: visitante_nome
+    title: Nome do visitante
+    ask: Qual o nome completo do visitante?
+  - name: visitante_telefone
+    title: Telefone do visitante
+    ask: Qual o telefone do visitante (com DDD)?
+    validate: phone
+  - name: motivo
+    title: Motivo da visita
+    ask: Qual o motivo da visita?
+steps:
+  - resource: unidades.listar
+    save_as: unidades
+  - choose:
+      param: unidade
+      reuse: always
+      title: Unidade
+      from: unidades
+      label: label
+      value: id
+      ask: Para qual unidade é a visita?
+      empty: Não encontrei unidades vinculadas ao seu cadastro. Procure a administração.
+  - collect: [visitante_nome, visitante_telefone, motivo]
+  - confirm: "Confirma a liberação de {{.visitante_nome}} ({{.motivo}}) para {{.unidade_label}}? (sim/não)"
+  - resource: visitantes.liberar
+    with:
+      unidade_id: "{{.unidade}}"
+      nome: "{{.visitante_nome}}"
+      telefone: "{{.visitante_telefone}}"
+      motivo: "{{.motivo}}"
+    save_as: liberacao
+output: "Pronto! {{.visitante_nome}} está liberado(a) para {{.unidade_label}}. Protocolo: {{.liberacao.protocolo}}."

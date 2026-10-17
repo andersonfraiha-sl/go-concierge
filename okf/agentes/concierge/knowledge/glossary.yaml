@@ -1,6 +1,6 @@
 # Glossário OKF do condomínio — UMA definição por termo, três consumidores:
 #   (1) roteador: sinônimos → reconhecimento de intenção;
-#   (2) projeção: os termos entram no prompt do concierge e dos subagentes (herança de data/);
+#   (2) projeção: os termos entram no prompt do concierge e dos subagentes (herança de knowledge/);
 #   (3) Intention Finder: exemplos de frases para vincular ao caso de uso.
 terms:
   - id: unidade

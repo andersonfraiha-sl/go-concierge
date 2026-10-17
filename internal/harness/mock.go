@@ -18,10 +18,11 @@ import (
 //
 //   - passada de rota: pontua cada rota pelas palavras-chave do roteador (peso 2)
 //     e dos termos do glossário que citam a rota (peso 1); empate ou zero → self;
-//   - resposta: se há ler_dado e ainda não leu, chama ler_dado no dado que melhor
-//     casa com a mensagem (o primeiro dado "comum" quando nada casa); depois
-//     responde com a seção do dado que mais casa, moldada na primeira seção do
-//     contrato de saída (se ela traz um JSON de exemplo, preenche o JSON).
+//   - resposta: se há ler_dado e ainda não leu, chama ler_dado no item do índice
+//     (knowledge/, assets/) que melhor casa com a mensagem (o primeiro arquivo na
+//     raiz de knowledge/ quando nada casa); depois responde com a seção do texto
+//     que mais casa, moldada na primeira seção do contrato de saída (se ela traz
+//     um JSON de exemplo, preenche o JSON).
 type Mock struct {
 	cat      *okf.Catalogo
 	a        *okf.Agent
@@ -36,7 +37,7 @@ var _ model.ToolCallingChatModel = (*Mock)(nil)
 
 // NewMock prepara o modelo falso para um agente.
 func NewMock(cat *okf.Catalogo, a *okf.Agent) *Mock {
-	m := &Mock{cat: cat, a: a, dados: cat.Dados(a), rotas: map[string]map[string]int{}}
+	m := &Mock{cat: cat, a: a, dados: cat.Indice(a), rotas: map[string]map[string]int{}}
 	if out, err := cat.LerArquivo(a.Rel, "rules/output.md"); err == nil {
 		m.contrato = primeiraSecao(okf.StripFrontmatter(string(out)))
 	}
@@ -247,12 +248,17 @@ func (m *Mock) escolherDado(mensagem string) string {
 				total++
 			}
 		}
-		comum := !strings.Contains(d.Caminho, "/okf/")
-		if total > pontos || (total == pontos && comum && strings.Contains(melhor, "/okf/")) {
+		if total > pontos || (total == pontos && naRaiz(d.Caminho) && !naRaiz(melhor)) {
 			melhor, pontos = d.Caminho, total
 		}
 	}
 	return melhor
+}
+
+// naRaiz: arquivo direto na caixinha (knowledge/x.md), não numa subpasta tipada
+// (knowledge/questions/x.md); é o texto "principal" que o mock prefere ler.
+func naRaiz(caminho string) bool {
+	return caminho != "" && strings.Count(caminho, "/") == 1
 }
 
 // melhorSecao divide o texto nos títulos (## ou #) e devolve a seção com mais

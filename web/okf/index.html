@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=2">
+  <link rel="stylesheet" href="/styles.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin">
@@ -24,14 +24,14 @@
       <a href="/" class="is-active"><i data-lucide="folder-tree" class="i-sm"></i>Skills</a>
     </nav>
     <div class="env">
-      <span class="chip is-dev"><span class="led"></span>formato <b>OKF · pasta</b></span>
-      <span class="chip" id="chipRaiz" title="raiz do catálogo"><i data-lucide="folder" class="i-sm"></i><b>okf/</b></span>
+      <span class="chip is-dev" id="chipNexus" title="de onde vêm os recursos do Nexus"><span class="led"></span>Nexus <b id="chipNexusOrigem">…</b></span>
+      <span class="chip" id="chipAccount" title="account (condomínio)"><i data-lucide="building-2" class="i-sm"></i><b id="chipAccountNome">…</b></span>
       <button class="btn btn-ghost btn-sm" id="btnRecarregar" title="Reler o disco"><i data-lucide="refresh-cw" class="i-sm"></i>Reler</button>
     </div>
   </header>
 
   <div class="admin-layout">
-    <nav class="admin-nav" aria-label="Agentes e catálogo">
+    <nav class="admin-nav" aria-label="Agentes e recursos">
       <div class="nav-actions">
         <button class="btn btn-primary" id="btnNovo"><i data-lucide="plus"></i><span>Novo agente</span></button>
         <button class="btn btn-ghost" id="btnImportar" title="Importar o zip de uma pasta"><i data-lucide="file-archive"></i></button>
@@ -44,8 +44,9 @@
       </div>
       <div id="arvore" class="arvore"></div>
 
-      <span class="nav-label">Catálogo <small>arraste sobre um agente</small></span>
-      <div id="catalogo" class="catalogo"></div>
+      <span class="nav-label">Recursos do Nexus <small id="nexusResumo"></small></span>
+      <p class="nav-dica" id="nexusDica">o que a account oferece em tempo de execução. Ligue o interruptor para o agente selecionado declarar que usa.</p>
+      <div id="recursosNexus" class="catalogo"></div>
     </nav>
 
     <main class="admin-main" id="main" tabindex="-1">
@@ -54,7 +55,7 @@
         <div class="page-head">
           <div>
             <h1>Skills do concierge</h1>
-            <p>Cada skill é um <b>agente em pasta</b> (formato OKF): <code>agent.yaml</code> na raiz e caixinhas de regras, workflows, rotas, dados e assets. Os vínculos internos são conferidos a cada leitura, e os subagentes moram em <code>agentes/</code>.</p>
+            <p>Cada skill é um <b>agente em pasta</b>: o que é dele (persona, regras, workflow ou caso de uso, conhecimento, assets) fica estático na pasta e se edita aqui; o que é infraestrutura (tools, conteúdos, memórias) vem do <b>Nexus</b> em tempo de execução, e o agente só declara o que precisa.</p>
           </div>
           <div class="page-actions">
             <button class="btn btn-ghost" id="btnImportar2"><i data-lucide="file-archive"></i><span>Importar zip</span></button>
@@ -104,11 +105,25 @@
                 </div>
                 <div class="form-row span-2"><label>Descrição <small>é o critério que o roteador do pai lê; escreva como classificador</small></label><textarea class="field-area field-short" name="descricao" rows="2"></textarea></div>
                 <div class="form-row"><label>Modelo <small>vazio = padrão do harness</small></label><input class="field-input" name="modelo" spellcheck="false" placeholder="gemini-2.5-flash"></div>
-                <div class="form-row"><label>Fontes <small>dados de um ancestral</small></label><input class="field-input mono" name="fontes" spellcheck="false" placeholder="../../data"></div>
-                <div class="form-row"><label>APIs <small>nomes do registro</small></label><input class="field-input mono" name="apis" spellcheck="false" placeholder="nexus"></div>
-                <div class="form-row"><label>Segredos <small>env obrigatórias</small></label><input class="field-input mono" name="segredos" spellcheck="false" placeholder="NEXUS_TOKEN"></div>
-                <div class="form-actions span-2"><span class="muted" id="configStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar identidade</span></button></div>
+                <div class="form-actions"><span class="muted" id="configStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar identidade</span></button></div>
               </form>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="smile"></i>Persona <small class="muted mono">persona.md</small><span id="personaOrigem" class="tag tag-kind" style="margin-left:auto"></span></h2>
+              <div id="personaAviso"></div>
+              <textarea id="personaTexto" class="field-area" rows="7" spellcheck="false" placeholder="Quem fala com o morador: tom, traços, frases fixas. Os subagentes herdam."></textarea>
+              <div class="form-actions" style="margin-top:10px"><span class="muted">entra em todo prompt como seção “Persona”</span><button class="btn btn-primary" id="btnSalvarPersona"><i data-lucide="save"></i><span>Salvar persona</span></button></div>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="list-checks"></i>Caso de uso <small class="muted mono">caso.yaml</small></h2>
+              <div id="caso"></div>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="plug"></i>Recursos do Nexus que usa <small class="muted" id="recursosResumo"></small></h2>
+              <div id="recursosAgente"></div>
             </div>
 
             <div class="card">
@@ -117,7 +132,7 @@
             </div>
 
             <div class="card">
-              <h2><i data-lucide="link-2"></i>Vínculos internos <small class="muted" id="vinculosResumo"></small>
+              <h2><i data-lucide="link-2"></i>Vínculos <small class="muted" id="vinculosResumo"></small>
                 <label class="switch" style="margin-left:auto"><input type="checkbox" id="soQuebrados"><i></i>só os quebrados</label>
               </h2>
               <table class="res-table" id="tabelaVinculos"><thead><tr><th></th><th>Tipo</th><th>Alvo</th><th>Onde</th><th>Resolvido / problema</th></tr></thead><tbody></tbody></table>
@@ -134,8 +149,8 @@
             </div>
 
             <div class="card">
-              <h2><i data-lucide="database"></i>Dados indexados <small class="muted" id="dadosResumo"></small></h2>
-              <div id="dados"></div>
+              <h2><i data-lucide="database"></i>Índice do prompt <small class="muted" id="indiceResumo"></small></h2>
+              <div id="indice"></div>
             </div>
           </div>
 
@@ -156,7 +171,7 @@
               <textarea id="editor" class="code" spellcheck="false" placeholder="Selecione um arquivo na lista acima, ou crie um novo com modelo." disabled></textarea>
             </div>
             <div id="abaProjecao" class="aba" hidden>
-              <p class="notice info"><i data-lucide="info"></i>O system prompt compilado da pasta (princípio ICM: os dados ficam indexados e são lidos sob demanda). É o que o harness Eino recebe.</p>
+              <p class="notice info"><i data-lucide="info"></i>O system prompt compilado da pasta: persona, políticas, workflow ou caso, contrato, índice de conhecimento e assets, recursos declarados. É o que o harness Eino recebe.</p>
               <pre id="projecao" class="pre"></pre>
             </div>
             <div id="abaRoteador" class="aba" hidden>
@@ -178,19 +193,23 @@
       <header><span class="res-icon"><i data-lucide="bot"></i></span><h2 id="drawerNovoTitulo">Novo agente</h2><button class="vote" data-fecha="drawerNovo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
       <form id="formNovo" class="body">
         <div class="form-row"><label>Onde</label><select class="field-select" name="pai"><option value="">raiz (agentes/)</option></select></div>
-        <div class="form-row"><label>Nome <small>vira o nome da pasta: minúsculas, dígitos e hífen</small></label><input class="field-input mono" name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" placeholder="observador-sessao"></div>
+        <div class="form-row"><label>Nome <small>vira o nome da pasta: minúsculas, dígitos e hífen</small></label><input class="field-input mono" name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" placeholder="reserva-area-comum"></div>
         <div class="form-row"><label>Tipo</label>
           <div class="modes modes-2">
             <label class="mode is-on"><input type="radio" name="tipo" value="operador" checked><span class="mode-icon"><i data-lucide="bot"></i></span><span class="mode-body"><strong>Operador</strong><span>executa a tarefa; subagentes são subtasks</span></span></label>
             <label class="mode"><input type="radio" name="tipo" value="orquestrador"><span class="mode-icon"><i data-lucide="git-branch"></i></span><span class="mode-body"><strong>Orquestrador</strong><span>nunca executa: roteia pelos routers/ e delega</span></span></label>
           </div>
         </div>
-        <div class="form-row"><label>Descrição <small>uma linha que funciona como classificador para o roteador do pai</small></label><textarea class="field-area field-short" name="descricao" rows="2" required placeholder="observa a conversa, abre uma pendência por assunto e decide quando a sessão acabou"></textarea></div>
+        <div class="form-row"><label>Descrição <small>uma linha que funciona como classificador para o roteador do pai</small></label><textarea class="field-area field-short" name="descricao" rows="2" required placeholder="reserva uma área comum (churrasqueira, salão, quadra) para uma data, com confirmação e protocolo"></textarea></div>
         <div class="form-row"><label>Modelo <small>vazio = padrão</small></label><input class="field-input" name="modelo" spellcheck="false"></div>
+        <div class="form-row"><label>O que a pasta nasce com</label>
+          <div class="checks" id="novoRaiz">
+            <label title="traços de personalidade e tom; os filhos herdam"><input type="checkbox" name="persona"><i data-lucide="smile"></i>persona.md</label>
+            <label title="caso de uso determinístico: passos, confirmação e escrita"><input type="checkbox" name="caso"><i data-lucide="list-checks"></i>caso.yaml</label>
+          </div>
+        </div>
         <div class="form-row"><label>Caixinhas iniciais <small>cada uma nasce com um arquivo-modelo</small></label><div id="novoCaixinhas" class="checks"></div></div>
-        <div class="form-row" id="rotuloFontePai"><label class="switch"><input type="checkbox" name="fonte_pai"><i></i>herdar <code>data/</code> do pai como fonte (<code>fontes: [../../data]</code>)</label></div>
-        <div class="form-row"><label>APIs do registro</label><select class="field-select" name="apis" multiple size="3"></select></div>
-        <div class="form-row"><label>Segredos <small>separados por vírgula</small></label><input class="field-input mono" name="segredos" placeholder="NEXUS_TOKEN" spellcheck="false"></div>
+        <div class="form-row"><label>Recursos do Nexus que declara <small>só leitura; escrita entra pelo caso.yaml</small></label><select class="field-select" name="recursos" multiple size="5"></select></div>
         <div class="form-actions"><span class="muted" id="novoStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="folder-plus"></i><span>Criar pasta</span></button></div>
       </form>
     </aside>
@@ -218,13 +237,13 @@
       <header><span class="res-icon"><i data-lucide="file-plus-2"></i></span><h2>Novo arquivo</h2><button class="vote" data-fecha="drawerArquivo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
       <form id="formArquivo" class="body">
         <div class="form-row"><label>Caixinha</label><select class="field-select" name="caixinha"></select></div>
-        <div class="form-row"><label>Nome <small>com extensão; subpastas valem (okf/questions/x.md)</small></label><input class="field-input mono" name="nome" required spellcheck="false" placeholder="politicas.md"></div>
+        <div class="form-row"><label>Nome <small>com extensão; subpastas valem (questions/x.md)</small></label><input class="field-input mono" name="nome" required spellcheck="false" placeholder="politicas.md"></div>
         <p class="notice info" id="dicaCaixinha"></p>
         <div class="form-actions"><button type="submit" class="btn btn-primary"><i data-lucide="sparkles"></i><span>Criar com modelo</span></button></div>
       </form>
     </aside>
   </div>
 
-  <script src="/app.js?v=2"></script>
+  <script src="/app.js?v=3"></script>
 </body>
 </html>

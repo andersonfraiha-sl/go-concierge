@@ -3,24 +3,31 @@ package harness
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 )
 
 func semEnv(string) string { return "" }
 
-// catalogoExemplo abre okf/ do repositório e devolve o concierge.
+// catalogoExemplo abre okf/ do repositório com o instantâneo do Nexus da cond-001
+// e devolve o concierge.
 func catalogoExemplo(t *testing.T) (*okf.Catalogo, *okf.Agent) {
 	t.Helper()
 	cat, err := okf.NewCatalogo(filepath.Join("..", "..", "okf"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	cat.Recursos = nexus.Fonte(nil, "cond-001", filepath.Join(cat.Root, "nexus"))
+	if cat.Recursos == nil {
+		t.Fatal("instantâneo okf/nexus/cond-001.yaml não encontrado")
 	}
 	tree, err := cat.Tree()
 	if err != nil {
@@ -62,6 +69,11 @@ func chama(t *testing.T, ag *Agente, nome string, args any) map[string]any {
 	return m
 }
 
+func erroDe(out map[string]any) string {
+	s, _ := out["error"].(string)
+	return s
+}
+
 func TestInspecaoDoConcierge(t *testing.T) {
 	cat, a := catalogoExemplo(t)
 	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv})
@@ -75,13 +87,15 @@ func TestInspecaoDoConcierge(t *testing.T) {
 		t.Error("sem chave, o modelo deve ser o mock")
 	}
 	nomes := strings.Join(ag.NomesDeTools(), " ")
-	for _, q := range []string{"ler_dado", "chamar_api"} {
+	for _, q := range []string{"ler_dado", "chamar_recurso"} {
 		if !strings.Contains(nomes, q) {
 			t.Errorf("concierge deveria ter a tool %s; tem: %s", q, nomes)
 		}
 	}
-	if strings.Contains(nomes, "invocar_agente") {
-		t.Error("orquestrador delega pela passada de rota, não por invocar_agente")
+	for _, q := range []string{"invocar_agente", "chamar_api", "consultar_schema", "rodar_"} {
+		if strings.Contains(nomes, q) {
+			t.Errorf("concierge não deveria ter %s; tem: %s", q, nomes)
+		}
 	}
 	if ag.Roteador == "" {
 		t.Error("orquestrador precisa do roteador")
@@ -92,6 +106,16 @@ func TestInspecaoDoConcierge(t *testing.T) {
 	}
 	if _, ok := reg.Tool("ler_dado"); !ok {
 		t.Errorf("regimento deveria ter ler_dado; tem %v", reg.NomesDeTools())
+	}
+	if _, ok := reg.Tool("chamar_recurso"); ok {
+		t.Error("regimento não declara recursos; não deveria ter chamar_recurso")
+	}
+	lib, ok := ag.Subagentes["liberacao-visitante"]
+	if !ok {
+		t.Fatal("subagente liberacao-visitante não construído")
+	}
+	if _, ok := lib.Tool("chamar_recurso"); !ok {
+		t.Errorf("liberacao-visitante declara recursos; deveria ter chamar_recurso; tem %v", lib.NomesDeTools())
 	}
 }
 
@@ -114,14 +138,14 @@ func TestRoteiaParaRegimentoECitaArtigo(t *testing.T) {
 	if !strings.Contains(res.Resposta, "Art. 10") {
 		t.Errorf("resposta deveria citar Art. 10; veio: %s", res.Resposta)
 	}
-	var viuLerDado bool
+	var leuRegimento bool
 	for _, p := range res.Rota {
-		if p.Tipo == "tool" && strings.HasPrefix(p.Detalhe, "ler_dado") {
-			viuLerDado = true
+		if p.Tipo == "tool" && strings.HasPrefix(p.Detalhe, "ler_dado") && strings.Contains(p.Detalhe, "knowledge/regimento.md") {
+			leuRegimento = true
 		}
 	}
-	if !viuLerDado {
-		t.Errorf("o subagente deveria ter lido o regimento com ler_dado; trace: %+v", res.Rota)
+	if !leuRegimento {
+		t.Errorf("o subagente deveria ter lido knowledge/regimento.md com ler_dado; trace: %+v", res.Rota)
 	}
 	if res.Uso.Chamadas < 3 || res.Uso.Total == 0 {
 		t.Errorf("uso deveria somar roteador + 2 passos do loop; veio %+v", res.Uso)
@@ -149,9 +173,9 @@ func TestRotaSelfQuandoNadaCasa(t *testing.T) {
 func TestLerDadoPagina(t *testing.T) {
 	root := t.TempDir()
 	escreve(t, root, "agentes/leitor/agent.yaml", "nome: leitor\ndescricao: lê\n")
-	escreve(t, root, "agentes/leitor/workflows/principal.md", "# Workflow\n\n1. Leia `data/grande.md`.\n")
+	escreve(t, root, "agentes/leitor/workflows/principal.md", "# Workflow\n\n1. Leia `knowledge/grande.md`.\n")
 	grande := strings.Repeat("0123456789", 1500) // 15000 caracteres → 3 páginas
-	escreve(t, root, "agentes/leitor/data/grande.md", grande)
+	escreve(t, root, "agentes/leitor/knowledge/grande.md", grande)
 	cat, err := okf.NewCatalogo(root)
 	if err != nil {
 		t.Fatal(err)
@@ -165,98 +189,144 @@ func TestLerDadoPagina(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p1 := chama(t, ag, "ler_dado", map[string]any{"caminho": "data/grande.md"})
+	p1 := chama(t, ag, "ler_dado", map[string]any{"caminho": "knowledge/grande.md"})
 	if p1["paginas"] != float64(3) || p1["tem_mais"] != true || len(p1["conteudo"].(string)) != PaginaChars {
 		t.Errorf("página 1: %v paginas, tem_mais=%v, %d chars", p1["paginas"], p1["tem_mais"], len(p1["conteudo"].(string)))
 	}
-	p3 := chama(t, ag, "ler_dado", map[string]any{"caminho": "data/grande.md", "pagina": 3})
+	p3 := chama(t, ag, "ler_dado", map[string]any{"caminho": "knowledge/grande.md", "pagina": 3})
 	if p3["tem_mais"] != false || len(p3["conteudo"].(string)) != 3000 {
 		t.Errorf("página 3: tem_mais=%v, %d chars", p3["tem_mais"], len(p3["conteudo"].(string)))
 	}
-	p2 := chama(t, ag, "ler_dado", map[string]any{"caminho": "data/grande.md", "pagina": 2})
+	p2 := chama(t, ag, "ler_dado", map[string]any{"caminho": "knowledge/grande.md", "pagina": 2})
 	if p1["conteudo"].(string)+p2["conteudo"].(string)+p3["conteudo"].(string) != grande {
 		t.Error("as páginas concatenadas devem reconstruir o arquivo")
 	}
-	if e := chama(t, ag, "ler_dado", map[string]any{"caminho": "data/grande.md", "pagina": 4}); e["error"] == nil {
+	if e := chama(t, ag, "ler_dado", map[string]any{"caminho": "knowledge/grande.md", "pagina": 4}); erroDe(e) == "" {
 		t.Error("página 4 deveria dar erro")
 	}
-	if e := chama(t, ag, "ler_dado", map[string]any{"caminho": "../../apis/nexus.yaml"}); e["error"] == nil {
+	if e := chama(t, ag, "ler_dado", map[string]any{"caminho": "../../nexus/cond-001.yaml"}); erroDe(e) == "" {
 		t.Error("caminho fora do índice deveria dar erro")
 	}
 }
 
-// transporteProibido falha o teste se alguém tentar sair para a rede.
-type transporteProibido struct{ t *testing.T }
-
-func (tp transporteProibido) RoundTrip(r *http.Request) (*http.Response, error) {
-	tp.t.Errorf("não deveria chamar a rede: %s %s", r.Method, r.URL)
-	return nil, errors.New("rede proibida no teste")
+// nexusFalso sobe um Nexus de mentira que registra o último invoke.
+func nexusFalso(t *testing.T) (*nexus.Client, *map[string]any) {
+	t.Helper()
+	var ultimo map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/invoke") || r.Method != http.MethodPost {
+			http.Error(w, "rota inesperada "+r.Method+" "+r.URL.Path, 404)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		ultimo = map[string]any{"path": r.URL.Path, "auth": r.Header.Get("Authorization")}
+		var corpo map[string]any
+		_ = json.Unmarshal(raw, &corpo)
+		for k, v := range corpo {
+			ultimo[k] = v
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"u1","label":"Bloco B - Apto 305"}]`))
+	}))
+	t.Cleanup(srv.Close)
+	return nexus.New(srv.URL, "tok-teste"), &ultimo
 }
 
-func TestChamarAPIRecusaSemSegredo(t *testing.T) {
+func TestChamarRecursoRecusaEscritaENaoDeclarado(t *testing.T) {
 	cat, a := catalogoExemplo(t)
-	ag, err := Build(context.Background(), cat, a, Config{
-		Mock:       true,
-		Env:        semEnv,
-		HTTPClient: &http.Client{Transport: transporteProibido{t}},
-	})
+	cli, _ := nexusFalso(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := chama(t, ag, "chamar_api", map[string]any{"nome": "nexus", "metodo": "GET", "rota": "/v1/identity?phone=5511999990001"})
-	msg, _ := out["error"].(string)
-	if !strings.Contains(msg, "NEXUS_TOKEN") {
-		t.Errorf("deveria recusar por falta de NEXUS_TOKEN; veio %v", out)
+	lib := ag.Subagentes["liberacao-visitante"]
+	out := chama(t, lib, "chamar_recurso", map[string]any{"nome": "visitantes.liberar", "params": map[string]any{"unidade_id": "u1", "nome": "Ana", "telefone": "5511999990001"}})
+	if !strings.Contains(erroDe(out), "escrita só pelo caso de uso") {
+		t.Errorf("escrita deveria ser recusada; veio %v", out)
 	}
-	out = chama(t, ag, "chamar_api", map[string]any{"nome": "atende", "metodo": "GET", "rota": "/health"})
-	if msg, _ := out["error"].(string); !strings.Contains(msg, "não está vinculada") {
-		t.Errorf("api fora do agent.yaml deveria ser recusada; veio %v", out)
+	out = chama(t, lib, "chamar_recurso", map[string]any{"nome": "areas.listar"})
+	if !strings.Contains(erroDe(out), "não está declarado") {
+		t.Errorf("recurso não declarado deveria ser recusado; veio %v", out)
+	}
+	out = chama(t, lib, "chamar_recurso", map[string]any{"nome": "inexistente.recurso"})
+	if erroDe(out) == "" {
+		t.Errorf("recurso inexistente deveria ser recusado; veio %v", out)
 	}
 }
 
-type funcRoundTripper func(*http.Request) (*http.Response, error)
-
-func (f funcRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
-func TestChamarAPIComSegredoResolveHeader(t *testing.T) {
+func TestChamarRecursoPrivadoParaContatoPublico(t *testing.T) {
 	cat, a := catalogoExemplo(t)
-	var visto *http.Request
-	rt := func(r *http.Request) (*http.Response, error) {
-		visto = r
-		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: http.NoBody}, nil
-	}
-	ag, err := Build(context.Background(), cat, a, Config{
-		Mock: true,
-		Env: func(k string) string {
-			if k == "NEXUS_TOKEN" {
-				return "segredo-de-teste"
-			}
-			return ""
-		},
-		HTTPClient: &http.Client{Transport: funcRoundTripper(rt)},
-	})
+	cli, ultimo := nexusFalso(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli}) // identidade zero = público
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := chama(t, ag, "chamar_api", map[string]any{"nome": "nexus", "metodo": "get", "rota": "/v1/identity"})
-	if out["error"] != nil || out["status"] != float64(200) {
-		t.Fatalf("esperava 200 sem erro; veio %v", out)
+	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "unidades.listar"})
+	if !strings.Contains(erroDe(out), "privado") {
+		t.Errorf("recurso private deveria ser recusado para contato público; veio %v", out)
 	}
-	if visto == nil || visto.Header.Get("Authorization") != "Bearer segredo-de-teste" || visto.URL.String() != "http://127.0.0.1:8081/v1/identity" {
-		t.Errorf("requisição montada errada: %+v", visto)
+	if *ultimo != nil {
+		t.Error("não deveria ter chamado o Nexus")
+	}
+	// público continua permitido
+	out = chama(t, ag, "chamar_recurso", map[string]any{"nome": "faq.buscar", "params": map[string]any{"query": "piscina"}})
+	if erroDe(out) != "" || out["recurso"] != "faq.buscar" {
+		t.Errorf("faq.buscar é public e deveria passar; veio %v", out)
+	}
+	if (*ultimo)["account_id"] != "cond-001" || (*ultimo)["auth"] != "Bearer tok-teste" {
+		t.Errorf("invoke montado errado: %v", *ultimo)
+	}
+	// params obrigatórios
+	out = chama(t, ag, "chamar_recurso", map[string]any{"nome": "faq.buscar"})
+	if !strings.Contains(erroDe(out), "query") {
+		t.Errorf("faltando query deveria recusar antes de chamar; veio %v", out)
 	}
 }
 
-func TestInvocarAgenteEStubs(t *testing.T) {
+func TestChamarRecursoAutenticadoEIdempotencia(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	cli, ultimo := nexusFalso(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli, Sessao: "thr-1", Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "unidades.listar"})
+	if erroDe(out) != "" {
+		t.Fatalf("morador identificado deveria listar unidades; veio %v", out)
+	}
+	lista, _ := out["resultado"].([]any)
+	if len(lista) != 1 {
+		t.Errorf("resultado deveria ser a lista do Nexus; veio %v", out["resultado"])
+	}
+	idem, _ := (*ultimo)["idempotency_key"].(string)
+	if idem != "thr-1:concierge:unidades.listar:1" {
+		t.Errorf("chave de idempotência: %q", idem)
+	}
+	if (*ultimo)["path"] != "/v1/resources/unidades.listar/invoke" {
+		t.Errorf("rota do invoke: %v", (*ultimo)["path"])
+	}
+}
+
+func TestChamarRecursoSemNexus(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv}) // Nexus nil
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "faq.buscar", "params": map[string]any{"query": "x"}})
+	if !strings.Contains(erroDe(out), "Nexus indisponível") {
+		t.Errorf("sem cliente deveria dizer Nexus indisponível; veio %v", out)
+	}
+}
+
+func TestInvocarAgente(t *testing.T) {
 	root := t.TempDir()
 	escreve(t, root, "agentes/chefe/agent.yaml", "nome: chefe\ntipo: operador\ndescricao: operador com ajudante\n")
 	escreve(t, root, "agentes/chefe/workflows/principal.md", "# Workflow\n\n1. Delegue ao `ajudante`.\n")
-	escreve(t, root, "agentes/chefe/scripts/listar.sh", "#!/bin/sh\nls\n")
-	escreve(t, root, "agentes/chefe/mcps/nexus.yaml", "nome: nexus\ntransporte: http\n")
 	escreve(t, root, "agentes/chefe/agentes/ajudante/agent.yaml", "nome: ajudante\ndescricao: ajuda\n")
-	escreve(t, root, "agentes/chefe/agentes/ajudante/workflows/principal.md", "# Workflow\n\n1. Leia `data/notas.md`.\n")
+	escreve(t, root, "agentes/chefe/agentes/ajudante/workflows/principal.md", "# Workflow\n\n1. Leia `knowledge/notas.md`.\n")
 	escreve(t, root, "agentes/chefe/agentes/ajudante/rules/output.md", "# Contrato\n\n## Resposta\numa linha\n")
-	escreve(t, root, "agentes/chefe/agentes/ajudante/data/notas.md", "# Notas\n\n## Piscina\n\nA piscina abre às 8h.\n\n## Salão\n\nO salão fecha às 23h.\n")
+	escreve(t, root, "agentes/chefe/agentes/ajudante/knowledge/notas.md", "# Notas\n\n## Piscina\n\nA piscina abre às 8h.\n\n## Salão\n\nO salão fecha às 23h.\n")
 	cat, err := okf.NewCatalogo(root)
 	if err != nil {
 		t.Fatal(err)
@@ -269,20 +339,14 @@ func TestInvocarAgenteEStubs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nomes := strings.Join(ag.NomesDeTools(), " ")
-	for _, q := range []string{"invocar_agente", "rodar_script", "mcp_nexus"} {
-		if !strings.Contains(nomes, q) {
-			t.Errorf("faltou a tool %s em %s", q, nomes)
-		}
+	if nomes := strings.Join(ag.NomesDeTools(), " "); !strings.Contains(nomes, "invocar_agente") || strings.Contains(nomes, "chamar_recurso") {
+		t.Errorf("tools do chefe: %s", nomes)
 	}
 	out := chama(t, ag, "invocar_agente", map[string]any{"nome": "ajudante", "mensagem": "a que horas o salão fecha?"})
 	if out["agente"] != "ajudante" || !strings.Contains(out["resposta"].(string), "23h") {
 		t.Errorf("subagente deveria responder pela seção do salão; veio %v", out)
 	}
-	if e := chama(t, ag, "rodar_script", map[string]any{"nome": "listar.sh"}); !strings.Contains(e["error"].(string), "ainda não suportado") {
-		t.Errorf("stub deveria dizer que não suporta; veio %v", e)
-	}
-	if e := chama(t, ag, "invocar_agente", map[string]any{"nome": "ninguem", "mensagem": "oi"}); e["error"] == nil {
+	if e := chama(t, ag, "invocar_agente", map[string]any{"nome": "ninguem", "mensagem": "oi"}); erroDe(e) == "" {
 		t.Error("subagente inexistente deveria dar erro")
 	}
 }
@@ -337,7 +401,10 @@ func TestMockEscolheRotaPorGlossario(t *testing.T) {
 		t.Errorf("horários → faq; veio %s", r)
 	}
 	if r := m.escolherRota("vou fazer uma reforma com pintor na sala"); r != "regimento" {
-		t.Errorf("reforma (glossário: obra → regimento); veio %s", r)
+		t.Errorf("reforma (glossário knowledge/glossary.yaml: obra → regimento); veio %s", r)
+	}
+	if r := m.escolherRota("quero liberar a entrada de um visitante"); r != "liberacao-visitante" {
+		t.Errorf("visitante → liberacao-visitante; veio %s", r)
 	}
 	if r := m.escolherRota("obrigado, era só isso, pode encerrar a conversa"); r != "observador-sessao" {
 		t.Errorf("despedida → observador-sessao; veio %s", r)

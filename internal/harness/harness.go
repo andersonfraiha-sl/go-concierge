@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -32,6 +31,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 )
 
@@ -60,21 +60,55 @@ type Config struct {
 	BaseURL string
 	// Mock força o modelo falso mesmo com chave (inspeção e testes).
 	Mock bool
-	// Env resolve segredos (${VAR} dos headers das apis, chave do provedor); nil = os.Getenv.
+	// Env resolve variáveis (chave do provedor, DEFAULT_ACCOUNT_ID); nil = os.Getenv.
 	Env func(string) string
-	// HTTPClient de chamar_api; nil = cliente com timeout de 20s.
-	HTTPClient *http.Client
+	// Nexus é o cliente dos recursos da account. nil ou sem BaseURL: chamar_recurso
+	// devolve {"error": "Nexus indisponível"}.
+	Nexus *nexus.Client
+	// Identidade do morador nesta execução; o zero é o contato público na account
+	// padrão (DEFAULT_ACCOUNT_ID, senão cond-001).
+	Identidade Identidade
+	// Sessao identifica a conversa (protocolo) na chave de idempotência; vazio = "local".
+	Sessao string
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
 	ChatModel model.ToolCallingChatModel
 }
 
+// Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em
+// qual account e com qual papel. Recurso `private` só com Authenticated.
+type Identidade struct {
+	Authenticated bool   `json:"authenticated"`
+	AccountID     string `json:"account_id"`
+	Role          string `json:"role,omitempty"`
+}
+
+const accountPadrao = "cond-001"
+
 func (c Config) env(k string) string {
 	if c.Env != nil {
 		return c.Env(k)
 	}
 	return os.Getenv(k)
+}
+
+// account é a account em vigor: da identidade, senão DEFAULT_ACCOUNT_ID, senão cond-001.
+func (c Config) account() string {
+	if c.Identidade.AccountID != "" {
+		return c.Identidade.AccountID
+	}
+	if v := strings.TrimSpace(c.env("DEFAULT_ACCOUNT_ID")); v != "" {
+		return v
+	}
+	return accountPadrao
+}
+
+func (c Config) sessao() string {
+	if c.Sessao != "" {
+		return c.Sessao
+	}
+	return "local"
 }
 
 // Agente é a pasta OKF pronta para rodar: instrução (projeção), tools nativas,
@@ -97,7 +131,8 @@ type Agente struct {
 }
 
 // Build monta o agente Eino da pasta: instrução = cat.Projecao(a), tools = as
-// nativas do formato que a pasta pede, subagentes recursivos.
+// nativas do formato que a pasta pede (ler_dado, abrir_workflow, invocar_agente,
+// chamar_recurso), subagentes recursivos com a mesma Config.
 func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*Agente, error) {
 	if cat == nil || a == nil {
 		return nil, errors.New("harness: catálogo e agente são obrigatórios")
@@ -287,6 +322,14 @@ type coletor struct {
 	profundidade int
 	passos       []Passo
 	uso          Uso
+	invocacoes   int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
+}
+
+func (c *coletor) proximaInvocacao() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.invocacoes++
+	return c.invocacoes
 }
 
 type chaveColetor struct{}

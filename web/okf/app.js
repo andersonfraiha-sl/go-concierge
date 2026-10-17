@@ -1,4 +1,4 @@
-/* Concierge · Skills — interface de cadastro de agentes em pasta (OKF). Fala só com /api/*. */
+/* Concierge · Skills — cadastro de agentes em pasta (OKF) + recursos do Nexus. Fala só com /api/*. */
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -6,18 +6,15 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
 
-  const ICONE_CX = {
-    rules: ['scale', 'ri-nucleo'], workflows: ['list-checks', 'ri-nucleo'], routers: ['signpost', 'ri-nucleo'],
-    evals: ['flask-conical', 'ri-evals'], hooks: ['zap', 'ri-hooks'], skills: ['puzzle', 'ri-cap'], schemas: ['table', 'ri-cap'],
-    mcps: ['server', 'ri-cap'], bash: ['terminal', 'ri-cap'], scripts: ['file-code-2', 'ri-cap'], rag: ['search', 'ri-rag'],
-    data: ['database', 'ri-data'], assets: ['image', 'ri-assets'], agentes: ['git-branch', 'ri-sub'],
-  };
-  const ICONE_CAT = { base: 'database', api: 'plug', asset: 'image', script: 'file-code-2', mcp: 'server', skill: 'puzzle', schema: 'table' };
-  const ICONE_VINC = { asset: 'image', dado: 'database', fonte: 'folder-input', rota: 'signpost', subagente: 'git-branch', api: 'plug', segredo: 'key-round', hook: 'zap', schema: 'table', script: 'file-code-2', skill: 'puzzle', mcp: 'server', rag: 'search', bash: 'terminal', procedimento: 'list-checks' };
-  const ICONE_OKF = { Domain: 'tag-violet', Question: 'tag-private', Condition: 'tag-warn', Policy: 'tag-write', Vocabulary: 'tag-public', Procedure: 'tag-kind', KnowledgeIndex: 'tag-kind' };
+  const ICONE_CX = { rules: ['scale', 'ri-nucleo'], workflows: ['list-checks', 'ri-nucleo'], routers: ['signpost', 'ri-nucleo'], knowledge: ['book-open', 'ri-data'], assets: ['image', 'ri-assets'], evals: ['flask-conical', 'ri-evals'], agentes: ['git-branch', 'ri-sub'] };
+  const ICONE_VINC = { asset: 'image', conhecimento: 'book-open', procedimento: 'list-checks', rota: 'signpost', subagente: 'git-branch', recurso: 'plug', persona: 'smile' };
+  const TAG_OKF = { Domain: 'tag-violet', Question: 'tag-private', Condition: 'tag-warn', Policy: 'tag-write', Vocabulary: 'tag-public', Procedure: 'tag-kind', KnowledgeIndex: 'tag-kind' };
+  const CLASSE = { leitura: ['Leitura', 'plug'], conhecimento: ['Conhecimento', 'book-open'], memoria: ['Memória', 'brain'], agente: ['Agentes utilitários', 'bot'], escrita: ['Escrita (só pelo caso de uso)', 'pen-line'] };
+  const KIND_ICON = { api: 'plug', database: 'database', knowledge: 'book-open', memory: 'brain', agent: 'bot' };
   const tipoIcone = (t) => (t === 'orquestrador' ? 'git-branch' : 'bot');
+  const corDaCaixinha = (n) => ({ rules: 'var(--sl-blue)', workflows: 'var(--sl-blue)', routers: 'var(--sl-blue)', knowledge: 'var(--info)', assets: 'var(--success)', evals: 'var(--violet)' }[n] || 'var(--sl-navy)');
 
-  const estado = { anatomia: null, arvore: [], catalogo: null, selecionado: null, ficha: null, arquivoAtual: null, arquivoSujo: false };
+  const estado = { anatomia: null, arvore: [], nexus: { recursos: [], origem: '', conferido: false, account: '' }, selecionado: null, ficha: null, arquivoAtual: null, arquivoSujo: false };
 
   // ---- http e toast -----------------------------------------------------------
   async function api(caminho, opts = {}) {
@@ -40,20 +37,24 @@
 
   // ---- carga ------------------------------------------------------------------
   async function carregarTudo() {
-    const [anatomia, arv, cat] = await Promise.all([api('/api/anatomia'), api('/api/agentes'), api('/api/catalogo')]);
+    const [anatomia, arv, nx] = await Promise.all([api('/api/anatomia'), api('/api/agentes'), api('/api/nexus/recursos')]);
     estado.anatomia = anatomia;
     estado.arvore = arv.agentes;
-    estado.catalogo = cat;
+    estado.nexus = nx;
+    $('#chipNexusOrigem').textContent = nx.conferido ? (nx.origem.startsWith('http') ? 'ao vivo' : 'instantâneo') : 'indisponível';
+    $('#chipNexus').title = 'recursos: ' + nx.origem;
+    $('#chipNexus').classList.toggle('is-live', nx.origem.startsWith('http'));
+    $('#chipAccountNome').textContent = nx.account;
     desenharArvore();
-    desenharCatalogo();
-    preencherSelectsDePai();
+    desenharNexus();
+    preencherSelects();
     if (estado.selecionado && acharNo(estado.selecionado)) await selecionar(estado.selecionado);
     else mostrarVisao();
   }
   async function recarregarArvore() {
     estado.arvore = (await api('/api/agentes')).agentes;
     desenharArvore();
-    preencherSelectsDePai();
+    preencherSelects();
     if (!estado.selecionado) desenharVisao();
   }
   function acharNo(caminho, lista = estado.arvore) {
@@ -68,8 +69,8 @@
     estado.ficha = null;
     $('#ficha').hidden = true;
     $('#visao').hidden = false;
-    $('#navHome').classList.add('is-active');
     desenharArvore();
+    desenharNexus();
     desenharVisao();
   }
   function desenharVisao() {
@@ -77,24 +78,23 @@
     const subs = nos.length - estado.arvore.length;
     const erros = nos.reduce((a, n) => a + n.erros, 0);
     const avisos = nos.reduce((a, n) => a + n.avisos, 0);
-    const cat = estado.catalogo || { bases: [], apis: [], tools: {} };
-    const tools = Object.values(cat.tools || {}).reduce((a, l) => a + l.length, 0);
+    const casos = nos.filter((n) => n.caso).length;
     $('#kpis').innerHTML = [
-      ['Agentes', estado.arvore.length, 'de primeiro nível'], ['Subagentes', subs, 'em agentes/'],
-      ['Erros', erros, 'vínculos quebrados e lacunas', erros ? 'is-bad' : ''], ['Avisos', avisos, 'melhorias sugeridas', avisos ? 'is-warn' : ''],
-      ['Catálogo', cat.bases.length + cat.apis.length + tools, 'bases, apis e tools'],
-    ].map(([t, v, e, cls]) => `<div class="kpi ${cls || ''}"><span>${t}</span><strong>${v}</strong><em>${e}</em></div>`).join('');
+      ['Agentes', estado.arvore.length, 'de primeiro nível'], ['Subagentes', subs, 'em agentes/'], ['Casos de uso', casos, 'com caso.yaml'],
+      ['Erros', erros, 'vínculos e declarações quebradas', erros ? 'is-bad' : ''], ['Avisos', avisos, 'melhorias sugeridas', avisos ? 'is-warn' : ''],
+      ['Recursos do Nexus', estado.nexus.recursos.length, estado.nexus.conferido ? estado.nexus.origem.replace(/^instantâneo /, '') : 'indisponível'],
+    ].map(([t, v, e, cls]) => `<div class="kpi ${cls || ''}"><span>${t}</span><strong>${v}</strong><em>${esc(e)}</em></div>`).join('');
     $('#layers').innerHTML = [
-      ['l-1', 'folder-tree', 'Formato', 'Pasta por agente', 'agent.yaml na raiz; rules, workflows, routers, data, assets e agentes/ como caixinhas.'],
-      ['l-2', 'git-branch', 'Família', 'Herança e fronteira', 'Capacidades e dados descem do pai; irmão e fora da árvore são proibidos.'],
-      ['l-3', 'link-2', 'Vínculos', 'Conferidos a cada leitura', 'Assets, dados, fontes, rotas, apis e hooks com estado e dica de correção.'],
-      ['l-4', 'scroll-text', 'Projeção', 'O prompt que o Eino recebe', 'Princípio ICM: dados indexados, lidos sob demanda pelas tools.'],
+      ['l-1', 'folder-tree', 'Do agente', 'Estático, na pasta', 'persona, regras, workflow ou caso.yaml, conhecimento OKF e assets. Editado aqui.'],
+      ['l-2', 'git-branch', 'Família', 'Herança e fronteira', 'Persona, conhecimento e assets descem do pai; irmão e fora da árvore são proibidos.'],
+      ['l-3', 'plug', 'Do Nexus', 'Em tempo de execução', 'Tools, conteúdos e memórias da account. O agente declara; o harness filtra pela identidade.'],
+      ['l-4', 'scroll-text', 'Projeção', 'O prompt que o Eino recebe', 'Princípio ICM: índice de dados lido sob demanda; escrita só pelo caso de uso.'],
     ].map(([cls, ic, k, t, d]) => `<div class="layer ${cls}"><div class="layer-top"><span class="layer-icon"><i data-lucide="${ic}"></i></span><div><div class="layer-kicker">${k}</div><h3>${t}</h3></div></div><p>${d}</p></div>`).join('');
     const grade = $('#gradeAgentes');
     grade.innerHTML = estado.arvore.map((n) => `<button class="uc-card ${n.erros ? 'is-invalid' : ''}" data-caminho="${esc(n.caminho)}">
         <div class="uc-head"><span class="usecase-icon ${n.tipo}"><i data-lucide="${tipoIcone(n.tipo)}"></i></span><div class="uc-title"><strong>${esc(n.nome)}</strong><span>${esc(n.caminho)}</span></div></div>
         <p class="uc-desc">${esc(n.descricao || 'sem descrição')}</p>
-        <div class="uc-meta"><span class="tag tag-kind">${n.tipo}</span><span class="tag tag-locked">${plural((n.subagentes || []).length, 'subagente', 'subagentes')}</span>${n.erros ? `<span class="tag tag-bad">${plural(n.erros, 'erro', 'erros')}</span>` : ''}${n.avisos ? `<span class="tag tag-warn">${plural(n.avisos, 'aviso', 'avisos')}</span>` : ''}</div>
+        <div class="uc-meta"><span class="tag tag-kind">${n.tipo}</span><span class="tag tag-locked">${plural((n.subagentes || []).length, 'subagente', 'subagentes')}</span>${n.caso ? '<span class="tag tag-write">caso de uso</span>' : ''}${n.erros ? `<span class="tag tag-bad">${plural(n.erros, 'erro', 'erros')}</span>` : ''}${n.avisos ? `<span class="tag tag-warn">${plural(n.avisos, 'aviso', 'avisos')}</span>` : ''}</div>
       </button>`).join('') + `<button class="uc-card uc-new" id="cardNovo"><i data-lucide="plus"></i><span>Cadastrar um agente novo</span></button>`;
     $$('.uc-card[data-caminho]', grade).forEach((b) => b.addEventListener('click', () => selecionar(b.dataset.caminho)));
     $('#cardNovo').addEventListener('click', () => abrirNovo(''));
@@ -117,7 +117,7 @@
       div.className = 'nav-agent' + (n.caminho === estado.selecionado ? ' is-active' : '');
       div.draggable = true;
       div.title = n.descricao || n.caminho;
-      div.innerHTML = `<i data-lucide="${tipoIcone(n.tipo)}"></i><span class="name">${esc(n.nome)}</span><span class="badges">${n.erros ? `<span class="badge erro" title="erros">${n.erros}</span>` : ''}${n.avisos ? `<span class="badge aviso" title="avisos">${n.avisos}</span>` : ''}</span>`;
+      div.innerHTML = `<i data-lucide="${n.caso ? 'list-checks' : tipoIcone(n.tipo)}"></i><span class="name">${esc(n.nome)}</span><span class="badges">${n.erros ? `<span class="badge erro" title="erros">${n.erros}</span>` : ''}${n.avisos ? `<span class="badge aviso" title="avisos">${n.avisos}</span>` : ''}</span>`;
       div.addEventListener('click', () => selecionar(n.caminho));
       ligarArrasto(div, n.caminho);
       li.appendChild(div);
@@ -136,7 +136,7 @@
       const recurso = e.dataTransfer.getData('text/recurso');
       const origem = e.dataTransfer.getData('text/agente');
       try {
-        if (recurso) await aplicarRecurso(JSON.parse(recurso), caminho);
+        if (recurso) await vincular(caminho, recurso, true);
         else if (origem && origem !== caminho) await moverAgente(origem, caminho, e.shiftKey);
       } catch (err) { toast(err.message, true); }
     });
@@ -156,38 +156,47 @@
     await recarregarArvore();
     await selecionar(r.caminho);
   }
-  async function aplicarRecurso({ tipo, nome }, agente) {
-    const r = await api('/api/recursos/aplicar', { method: 'POST', body: JSON.stringify({ tipo, nome, agente }) });
-    toast(`${r.aplicado} → ${agente.split('/').pop()}: ${r.mudancas.join('; ')}`);
+
+  // ---- recursos do Nexus -------------------------------------------------------
+  function declarados() {
+    const set = new Map();
+    for (const d of (estado.ficha && estado.ficha.recursos) || []) set.set(d.nome, d);
+    return set;
+  }
+  async function vincular(agente, nome, ligar) {
+    const r = await api('/api/agente/recursos', { method: 'POST', body: JSON.stringify({ agente, nome, ligar }) });
+    toast(`${nome} ${ligar ? 'declarado em' : 'tirado de'} ${agente.split('/').pop()} · ${r.mudancas.join('; ')}`);
     if (agente === estado.selecionado) await selecionar(agente);
     await recarregarArvore();
   }
-
-  // ---- catálogo ---------------------------------------------------------------
-  function desenharCatalogo() {
-    const c = estado.catalogo;
-    const el = $('#catalogo');
-    const grupos = [
-      ['base', 'Bases', 'database', c.bases.map((b) => ({ nome: b.nome, desc: `${b.tipo || 'base'} · ${Object.entries(b.conteudo || {}).map(([k, v]) => `${k} ${v.length}`).join(', ') || 'sem arquivos'}${b.segredos.length ? ' · ' + b.segredos.join(', ') : ''}` }))],
-      ['api', 'APIs', 'plug', c.apis.map((a) => ({ nome: a.nome, desc: (a.descricao || a.base_url) + (a.requer.length ? ` · requer ${a.requer.join(', ')}` : '') }))],
-    ];
-    for (const [tipo, titulo] of [['asset', 'Assets'], ['script', 'Scripts'], ['mcp', 'MCPs'], ['skill', 'Skills'], ['schema', 'Schemas']]) {
-      grupos.push([tipo, titulo, ICONE_CAT[tipo], ((c.tools || {})[tipo] || []).map((t) => ({ nome: t.nome, desc: t.resumo || `${t.bytes} bytes` }))]);
-    }
-    el.innerHTML = grupos.map(([tipo, titulo, ic, itens]) => `<div class="cat-group"><i data-lucide="${ic}"></i>${titulo}</div>` + (itens.length
-      ? itens.map((it) => `<div class="cat-card" draggable="true" data-tipo="${tipo}" data-nome="${esc(it.nome)}" title="arraste sobre um agente da árvore"><span class="res-icon"><i data-lucide="${ic}"></i></span><div class="ct"><strong>${esc(it.nome)}</strong><span>${esc(it.desc)}</span></div><button class="vote" title="aplicar ao agente selecionado"><i data-lucide="arrow-right-to-line"></i></button></div>`).join('')
-      : '<div class="cat-vazio">nada cadastrado</div>')).join('');
+  function desenharNexus() {
+    const el = $('#recursosNexus');
+    const lista = estado.nexus.recursos || [];
+    $('#nexusResumo').textContent = `${lista.length} · ${estado.nexus.account}`;
+    $('#nexusDica').textContent = estado.selecionado ? `ligue o interruptor para ${estado.selecionado.split('/').pop()} declarar que usa.` : 'o que a account oferece em tempo de execução. Selecione um agente para declarar o que ele usa.';
+    if (!lista.length) { el.innerHTML = `<div class="cat-vazio">${estado.nexus.conferido ? 'a account não tem recursos' : 'Nexus indisponível: defina NEXUS_BASE_URL ou um instantâneo em okf/nexus/<account>.yaml'}</div>`; return; }
+    const decl = declarados();
+    const grupos = {};
+    for (const r of lista) (grupos[r.classe || classeDe(r)] ||= []).push(r);
+    el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<div class="cat-group"><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}</div>` + grupos[k].map((r) => {
+      const d = decl.get(r.name);
+      const usa = !!d;
+      const escrita = r.write;
+      return `<div class="cat-card ${usa ? 'is-on' : ''}" draggable="${escrita ? 'false' : 'true'}" data-nome="${esc(r.name)}" title="${esc(r.description || '')}">
+        <span class="res-icon ${escrita ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${KIND_ICON[r.kind] || 'plug'}"></i></span>
+        <div class="ct"><strong>${esc(r.name)}</strong><span>${esc(r.description || r.kind)}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${escrita ? '<span class="tag tag-write">escrita</span>' : ''}${usa && d.origem === 'caso.yaml' ? '<span class="tag tag-locked">pelo caso</span>' : ''}</span></div>
+        ${escrita ? `<span class="muted" title="escrita só entra por um passo do caso.yaml">${usa ? '<i data-lucide="list-checks" class="i-sm"></i>' : ''}</span>` : `<label class="switch" title="declarar em agent.yaml → recursos"><input type="checkbox" ${usa ? 'checked' : ''} ${estado.selecionado ? '' : 'disabled'}><i></i></label>`}
+      </div>`;
+    }).join('')).join('');
     $$('.cat-card', el).forEach((d) => {
-      const rec = { tipo: d.dataset.tipo, nome: d.dataset.nome };
-      d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/recurso', JSON.stringify(rec)); e.dataTransfer.effectAllowed = 'copy'; });
-      $('button', d).addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (!estado.selecionado) return toast('Selecione um agente primeiro', true);
-        try { await aplicarRecurso(rec, estado.selecionado); } catch (err) { toast(err.message, true); }
-      });
+      const nome = d.dataset.nome;
+      d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/recurso', nome); e.dataTransfer.effectAllowed = 'copy'; });
+      const sw = $('input[type=checkbox]', d);
+      if (sw) sw.addEventListener('change', async () => { try { await vincular(estado.selecionado, nome, sw.checked); } catch (err) { sw.checked = !sw.checked; toast(err.message, true); } });
     });
     icons();
   }
+  function classeDe(r) { return r.write ? 'escrita' : r.kind === 'knowledge' ? 'conhecimento' : r.kind === 'memory' ? 'memoria' : r.kind === 'agent' ? 'agente' : 'leitura'; }
 
   // ---- ficha ------------------------------------------------------------------
   async function selecionar(caminho) {
@@ -198,6 +207,7 @@
     $('#ficha').hidden = false;
     $('#main').scrollTop = 0;
     desenharArvore();
+    desenharNexus();
     desenharFicha();
     desenharArquivos();
     fecharEditor();
@@ -208,8 +218,8 @@
     const { agente: a, pai } = estado.ficha;
     const vinculos = estado.ficha.vinculos || [];
     const conhecimento = estado.ficha.conhecimento || { docs: [], termos: [] };
-    const dados = estado.ficha.dados || [];
-    const segredos = estado.ficha.segredos || [];
+    const indice = estado.ficha.indice || [];
+    const recursos = estado.ficha.recursos || [];
     a.subagentes = a.subagentes || []; a.problemas = a.problemas || []; a.arquivos = a.arquivos || {}; a.herdados = a.herdados || {};
 
     // cabeçalho
@@ -224,7 +234,7 @@
     $('#fichaDesc').textContent = a.descricao || 'Sem descrição: o roteador do pai fica sem critério.';
     const ic = $('#fichaIcone');
     ic.className = 'agent-icon ' + a.tipo;
-    ic.innerHTML = `<i data-lucide="${tipoIcone(a.tipo)}"></i>`;
+    ic.innerHTML = `<i data-lucide="${a.caso ? 'list-checks' : tipoIcone(a.tipo)}"></i>`;
     ic.title = a.tipo + (a.tipo_declarado ? ' (declarado)' : ' (inferido)');
 
     // problemas
@@ -236,10 +246,40 @@
     f.tipo.value = a.tipo_declarado ? a.tipo : '';
     f.descricao.value = a.descricao || '';
     f.modelo.value = a.modelo || '';
-    f.fontes.value = (a.fontes || []).join(', ');
-    f.apis.value = (a.apis || []).join(', ');
-    f.segredos.value = (a.segredos || []).join(', ');
-    $('#configStatus').textContent = segredos.length ? `acessos protegidos em vigor: ${segredos.join(', ')}` : '';
+    $('#configStatus').textContent = '';
+
+    // persona
+    const propria = !a.persona_de && !!a.persona;
+    $('#personaOrigem').textContent = a.persona ? (propria ? 'própria' : 'herdada de ' + a.persona_de) : 'nenhuma';
+    $('#personaOrigem').className = 'tag ' + (propria ? 'tag-private' : a.persona ? 'tag-kind' : 'tag-warn');
+    $('#personaTexto').value = propria ? a.persona : '';
+    $('#personaTexto').placeholder = a.persona && !propria ? a.persona : 'Quem fala com o morador: tom, traços, frases fixas. Os subagentes herdam.';
+    $('#personaAviso').innerHTML = a.persona && !propria ? `<p class="notice info"><i data-lucide="info"></i>Este agente usa a persona de <b>${esc(a.persona_de)}</b>. Escreva aqui e salve para dar uma persona própria (sobrepõe a herdada).</p>` : (!a.persona && a.tipo === 'orquestrador' ? `<p class="notice warn"><i data-lucide="triangle-alert"></i>Quem fala com o morador precisa de persona. Escreva e salve, ou <a href="#" id="personaModelo">use o modelo</a>.</p>` : '');
+    const pm = $('#personaModelo');
+    if (pm) pm.addEventListener('click', async (e) => { e.preventDefault(); const m = await api('/api/arquivo/modelo?caminho=persona.md'); $('#personaTexto').value = m.conteudo; });
+
+    // caso de uso
+    const casoEl = $('#caso');
+    if (a.caso) {
+      const c = a.caso;
+      const passos = estado.ficha.caso_passos || passosDe(c);
+      const decl = new Map(recursos.map((d) => [d.nome, d]));
+      casoEl.innerHTML = `<div class="uc-head" style="margin-bottom:10px"><span class="usecase-icon"><i data-lucide="list-checks"></i></span><div class="uc-title"><strong>${esc(c.name || c.id)}</strong><span>${esc(c.id)} · ${esc(c.visibility)}${c.fallback ? ' · fallback' : ''}</span></div><button class="btn btn-ghost btn-sm" id="btnAbrirCaso" style="margin-left:auto"><i data-lucide="pen-to-square" class="i-sm"></i>Abrir caso.yaml</button></div>
+        <p class="muted" style="margin:0 0 10px">${esc(c.description || '')}</p>
+        ${c.params && c.params.length ? `<div class="chips" style="margin-bottom:10px">${c.params.map((p) => `<span class="tag tag-kind" title="${esc(p.ask || '')}">${esc(p.name)}${p.type ? ':' + esc(p.type) : ''}</span>`).join('')}</div>` : ''}
+        <ol class="flow">${passos.map((p) => { const m = p.match(/recurso `([^`]+)`/); const d = m && decl.get(m[1]); const escrita = d && d.recurso && d.recurso.write; return `<li class="${escrita ? 'f-write' : m ? 'f-resource' : /confirmar/.test(p) ? 'f-confirm' : /redigir/.test(p) ? 'f-compose' : ''}"><span class="fi"><i data-lucide="${escrita ? 'pen-line' : m ? 'plug' : /confirmar/.test(p) ? 'check-check' : /redigir/.test(p) ? 'sparkles' : /escolher/.test(p) ? 'list' : /coletar/.test(p) ? 'message-circle-question' : 'circle'}"></i></span><div><b>${esc(p)}</b>${d && !d.ok ? `<span style="color:var(--danger)">${esc(d.problema)}</span>` : ''}</div></li>`; }).join('')}</ol>
+        ${c.output ? `<p class="muted mono" style="margin:10px 0 0">output: ${esc(c.output)}</p>` : ''}`;
+      $('#btnAbrirCaso').addEventListener('click', () => abrirArquivo('caso.yaml'));
+    } else {
+      casoEl.innerHTML = `<div class="empty-state"><i data-lucide="list-checks"></i><span>Sem caso de uso. Um agente que <b>faz</b> algo com escrita (liberar, reservar, agendar) define os passos em <code>caso.yaml</code>: coleta, confirmação e o recurso de escrita, com protocolo.</span><button class="btn btn-ghost btn-sm" id="btnCriarCaso"><i data-lucide="sparkles" class="i-sm"></i>Criar caso.yaml com modelo</button></div>`;
+      $('#btnCriarCaso').addEventListener('click', () => criarComModelo('caso.yaml'));
+    }
+
+    // recursos que usa
+    $('#recursosResumo').textContent = recursos.length ? `${recursos.length} declarado${recursos.length === 1 ? '' : 's'}${estado.nexus.conferido ? '' : ' · não conferidos'}` : 'nenhum';
+    $('#recursosAgente').innerHTML = recursos.length ? `<table class="res-table"><thead><tr><th></th><th>Recurso</th><th>Classe</th><th>Declarado em</th><th></th></tr></thead><tbody>${recursos.map((d) => `<tr class="${d.ok ? '' : 'is-bad'}"><td><span class="led ${d.ok ? 'ok' : 'bad'}"></span></td><td><code>${esc(d.nome)}</code>${d.recurso ? `<div class="muted" style="font-size:12px">${esc(d.recurso.description || '')}</div>` : ''}${!d.ok ? `<div style="color:var(--danger);font-size:12px">${esc(d.problema)}</div>` : ''}</td><td>${d.recurso ? `<span class="tag tag-kind">${esc(d.recurso.kind)}</span> <span class="tag ${d.recurso.visibility === 'public' ? 'tag-public' : 'tag-private'}">${d.recurso.visibility}</span>${d.recurso.write ? ' <span class="tag tag-write">escrita</span>' : ''}` : '<span class="muted">—</span>'}</td><td class="mono muted">${esc(d.origem)}</td><td>${d.origem === 'agent.yaml' ? `<button class="vote no" title="tirar de agent.yaml → recursos" data-nome="${esc(d.nome)}"><i data-lucide="x"></i></button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : `<div class="empty-state"><i data-lucide="plug"></i><span>Nenhum recurso declarado. Ligue na lista <b>Recursos do Nexus</b> à esquerda, ou arraste um cartão sobre o agente.</span></div>`;
+    $$('#recursosAgente button[data-nome]').forEach((b) => b.addEventListener('click', async () => { try { await vincular(estado.selecionado, b.dataset.nome, false); } catch (err) { toast(err.message, true); } }));
 
     // caixinhas
     const boxes = estado.anatomia.caixinhas.map((cx) => {
@@ -260,7 +300,7 @@
     $('#subResumo').textContent = a.subagentes.length ? `${a.subagentes.length} · ${a.tipo === 'orquestrador' ? 'rotas de delegação' : 'subtasks (invocar_agente)'}` : 'nenhum';
     $('#subagentes').innerHTML = a.subagentes.length ? a.subagentes.map((s) => {
       const erros = (s.problemas || []).filter((p) => p.nivel === 'erro').length, avisos = (s.problemas || []).length - erros;
-      return `<div class="sub" data-rel="${esc(s.caminho)}"><span class="res-icon ${s.tipo === 'orquestrador' ? 'ri-sub' : ''}"><i data-lucide="${tipoIcone(s.tipo)}"></i></span><strong>${esc(s.nome)}</strong><span class="badges">${erros ? `<span class="badge erro">${erros}</span>` : ''}${avisos ? `<span class="badge aviso">${avisos}</span>` : ''}</span><span>${esc(s.descricao || '(sem descrição)')}</span></div>`;
+      return `<div class="sub" data-rel="${esc(s.caminho)}"><span class="res-icon ${s.tipo === 'orquestrador' ? 'ri-sub' : ''}"><i data-lucide="${s.caso ? 'list-checks' : tipoIcone(s.tipo)}"></i></span><strong>${esc(s.nome)}${s.caso ? ' <span class="tag tag-write">caso</span>' : ''}</strong><span class="badges">${erros ? `<span class="badge erro">${erros}</span>` : ''}${avisos ? `<span class="badge aviso">${avisos}</span>` : ''}</span><span>${esc(s.descricao || '(sem descrição)')}</span></div>`;
     }).join('') : `<div class="empty-state"><i data-lucide="git-branch"></i>Nenhum subagente. Use "+ Subagente" para criar um ${a.tipo === 'orquestrador' ? 'destino de rota' : 'subtask'}.</div>`;
     $$('#subagentes .sub').forEach((d) => d.addEventListener('click', () => selecionar(d.dataset.rel)));
 
@@ -268,20 +308,24 @@
     $('#okfResumo').textContent = `${plural(conhecimento.docs.length, 'documento', 'documentos')} · ${plural(conhecimento.termos.length, 'termo', 'termos')}`;
     let k = '';
     if (!conhecimento.docs.length && !conhecimento.termos.length) {
-      k = `<div class="empty-state"><i data-lucide="book-open"></i><span>Nenhum documento OKF. Crie em <code>data/okf/</code>: um <code>glossary.yaml</code> (termos e sinônimos) e docs com frontmatter <code>type: Domain | Question | Condition | Policy</code>.</span></div>`;
+      k = `<div class="empty-state"><i data-lucide="book-open"></i><span>Nenhum documento OKF. Crie em <code>knowledge/</code>: um <code>glossary.yaml</code> (termos e sinônimos) e docs com frontmatter <code>type: Domain | Question | Condition | Policy</code>.</span></div>`;
     } else {
-      k = conhecimento.docs.map((d) => `<div class="doc" data-caminho="${d.herdado_de ? '' : esc(d.caminho)}"><span class="tag ${ICONE_OKF[d.tipo] || 'tag-kind'}">${esc(d.tipo)}</span><div class="dt"><strong>${esc(d.titulo)}</strong>${d.descricao ? `<p>${esc(d.descricao)}</p>` : ''}${d.respostas && d.respostas.length ? `<p>respostas: ${d.respostas.map((r) => `<code>${esc(r)}</code>`).join(' ')}</p>` : ''}<div class="meta"><span>${esc(d.caminho)}</span>${d.status ? `<span class="tag tag-locked">${esc(d.status)}</span>` : ''}${d.versao ? `<span class="tag tag-locked">v${esc(d.versao)}</span>` : ''}${d.herdado_de ? `<span class="tag tag-kind">herdado de ${esc(d.herdado_de)}</span>` : ''}</div></div></div>`).join('');
+      k = conhecimento.docs.map((d) => `<div class="doc" data-caminho="${d.herdado_de ? '' : esc(d.caminho)}"><span class="tag ${TAG_OKF[d.tipo] || 'tag-kind'}">${esc(d.tipo)}</span><div class="dt"><strong>${esc(d.titulo)}</strong>${d.descricao ? `<p>${esc(d.descricao)}</p>` : ''}${d.respostas && d.respostas.length ? `<p>respostas: ${d.respostas.map((r) => `<code>${esc(r)}</code>`).join(' ')}</p>` : ''}<div class="meta"><span>${esc(d.caminho)}</span>${d.status ? `<span class="tag tag-locked">${esc(d.status)}</span>` : ''}${d.versao ? `<span class="tag tag-locked">v${esc(d.versao)}</span>` : ''}${d.herdado_de ? `<span class="tag tag-kind">herdado de ${esc(d.herdado_de)}</span>` : ''}</div></div></div>`).join('');
       if (conhecimento.termos.length) k += `<div class="termos">${conhecimento.termos.map((t) => `<div class="termo"><b>${esc(t.display_name || t.id)}<small>${t.synonyms.length ? esc(t.synonyms.join(', ')) : ''}${t.herdado_de ? ` · herdado de ${esc(t.herdado_de)}` : ''}</small></b><span>${esc(t.definition)}</span></div>`).join('')}</div>`;
     }
     $('#conhecimento').innerHTML = k;
     $$('#conhecimento .doc[data-caminho]').forEach((d) => { if (d.dataset.caminho) d.addEventListener('click', () => abrirArquivo(d.dataset.caminho)); });
 
-    // dados
-    $('#dadosResumo').textContent = `${plural(dados.length, 'arquivo', 'arquivos')} no índice do prompt`;
-    $('#dados').innerHTML = dados.length
-      ? `<table class="res-table"><thead><tr><th></th><th>Caminho</th><th style="width:70px">Bytes</th><th>Resumo</th></tr></thead><tbody>${dados.map((x) => `<tr><td><i data-lucide="${x.caminho.startsWith('assets/') ? 'image' : 'file-text'}" class="i-sm"></i></td><td><code>${esc(x.caminho)}</code>${x.herdado_de ? ` <span class="tag tag-kind">${x.herdado_de === 'fonte' ? 'fonte' : 'herdado de ' + esc(x.herdado_de)}</span>` : ''}</td><td class="mono">${x.bytes}</td><td class="muted">${esc(x.resumo || '')}</td></tr>`).join('')}</tbody></table>`
-      : `<div class="empty-state"><i data-lucide="database"></i>Nada em data/ ou assets/ (próprios, herdados ou fontes).</div>`;
+    // índice
+    $('#indiceResumo').textContent = `${plural(indice.length, 'arquivo', 'arquivos')} lidos sob demanda (ler_dado)`;
+    $('#indice').innerHTML = indice.length
+      ? `<table class="res-table"><thead><tr><th></th><th>Caminho</th><th style="width:70px">Bytes</th><th>Resumo</th></tr></thead><tbody>${indice.map((x) => `<tr><td><i data-lucide="${x.caminho.startsWith('assets/') ? 'image' : 'book-open'}" class="i-sm"></i></td><td><code>${esc(x.caminho)}</code>${x.herdado_de ? ` <span class="tag tag-kind">herdado de ${esc(x.herdado_de)}</span>` : ''}</td><td class="mono">${x.bytes}</td><td class="muted">${esc(x.resumo || '')}</td></tr>`).join('')}</tbody></table>`
+      : `<div class="empty-state"><i data-lucide="database"></i>Nada em knowledge/ ou assets/ (próprios ou herdados).</div>`;
     icons();
+  }
+
+  function passosDe(c) {
+    return (c.steps || []).map((s) => s.resource ? `recurso \`${s.resource}\`${s.save_as ? ' → guarda em ' + s.save_as : ''}` : s.choose ? `escolher \`${s.choose.param}\` entre ${s.choose.from}` : s.collect ? 'coletar ' + s.collect.join(', ') : s.form ? 'formulário dinâmico' : s.confirm !== undefined ? 'confirmar (sim/não)' : s.compose ? 'redigir com o modelo' : 'passo');
   }
 
   function desenharVinculos(vinculos) {
@@ -289,7 +333,7 @@
     const quebrados = vinculos.filter((v) => !v.ok).length;
     $('#vinculosResumo').textContent = `${plural(vinculos.length, 'vínculo', 'vínculos')} · ${quebrados ? plural(quebrados, 'quebrado', 'quebrados') : 'todos resolvidos'}`;
     const linhas = vinculos.filter((v) => !so || !v.ok).map((v) => {
-      const abre = v.origem && v.origem.includes('/') && !v.origem.startsWith('agent.yaml') ? `data-arquivo="${esc(v.origem)}"` : (v.tipo === 'subagente' || (v.tipo === 'rota' && v.ok && v.resolvido.startsWith('agentes/'))) ? `data-agente="${esc(v.resolvido)}"` : '';
+      const abre = v.origem && (v.origem.includes('/') || v.origem === 'persona.md' || v.origem === 'caso.yaml') && v.tipo !== 'subagente' && v.tipo !== 'recurso' ? `data-arquivo="${esc(v.origem)}"` : (v.tipo === 'subagente' || (v.tipo === 'rota' && v.ok && v.resolvido.startsWith('agentes/'))) ? `data-agente="${esc(v.resolvido)}"` : '';
       return `<tr class="${v.ok ? '' : 'is-bad'} ${abre ? 'clicavel' : ''}" ${abre}><td><span class="led ${v.ok ? 'ok' : 'bad'}"></span></td><td><span class="tag tag-kind"><i data-lucide="${ICONE_VINC[v.tipo] || 'link'}" class="i-sm"></i>${esc(v.tipo)}</span></td><td><code>${esc(v.alvo)}</code></td><td class="muted mono">${esc(v.origem)}</td><td>${v.ok ? esc(v.resolvido || '') : `<span style="color:var(--danger)">${esc(v.problema)}</span>`}</td></tr>`;
     }).join('');
     $('#tabelaVinculos tbody').innerHTML = linhas || `<tr><td colspan="5" class="muted">${so ? 'nenhum vínculo quebrado' : 'nenhum vínculo encontrado'}</td></tr>`;
@@ -301,12 +345,24 @@
   $('#formConfig').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
-    const lista = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
     try {
-      await api('/api/agente/config', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, campos: { nome: f.nome.value, tipo: f.tipo.value, descricao: f.descricao.value, modelo: f.modelo.value, fontes: lista(f.fontes.value), apis: lista(f.apis.value), segredos: lista(f.segredos.value) } }) });
+      await api('/api/agente/config', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, campos: { nome: f.nome.value, tipo: f.tipo.value, descricao: f.descricao.value, modelo: f.modelo.value } }) });
       toast('agent.yaml salvo');
       await recarregarArvore();
       await selecionar(estado.selecionado);
+    } catch (err) { toast(err.message, true); }
+  });
+  $('#btnSalvarPersona').addEventListener('click', async () => {
+    const texto = $('#personaTexto').value;
+    try {
+      if (!texto.trim()) {
+        if (!estado.ficha.agente.persona_de && estado.ficha.agente.persona) { await api(`/api/arquivo?agente=${encodeURIComponent(estado.selecionado)}&caminho=persona.md`, { method: 'DELETE' }); toast('persona.md removida (volta a herdar)'); }
+      } else {
+        await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho: 'persona.md', conteudo: texto }) });
+        toast('persona.md salva');
+      }
+      await selecionar(estado.selecionado);
+      await recarregarArvore();
     } catch (err) { toast(err.message, true); }
   });
   $('#btnExcluir').addEventListener('click', async () => {
@@ -325,15 +381,17 @@
   // ---- arquivos ---------------------------------------------------------------
   function desenharArquivos() {
     const a = estado.ficha.agente;
-    const grupos = [['agent.yaml', 'var(--sl-blue)', [{ caminho: 'agent.yaml', bytes: '' }]]];
+    const raiz = [{ caminho: 'agent.yaml', bytes: '' }];
+    if (a.persona && !a.persona_de) raiz.push({ caminho: 'persona.md', bytes: '' });
+    if (a.caso) raiz.push({ caminho: 'caso.yaml', bytes: '' });
+    const grupos = [['raiz', 'var(--sl-blue)', raiz]];
     for (const cx of estado.anatomia.caixinhas) {
       const itens = [...(a.arquivos[cx.nome] || []), ...(a.herdados[cx.nome] || [])];
       if (itens.length) grupos.push([cx.nome, corDaCaixinha(cx.nome), itens]);
     }
-    $('#arvoreArquivos').innerHTML = grupos.map(([nome, cor, itens]) => `<div class="ft-group" id="ft-${nome.replace('.', '-')}"><div class="cab"><span class="dot" style="background:${cor}"></span>${nome}</div>${itens.map((it) => `<div class="ft ${it.herdado_de ? 'herdado' : ''} ${it.caminho === estado.arquivoAtual ? 'is-active' : ''}" data-caminho="${esc(it.caminho)}" data-herdado="${esc(it.herdado_de || '')}" title="${esc(it.herdado_de ? `herdado de ${it.herdado_de}: edite no agente dono` : it.resumo || '')}"><span>${esc(it.caminho)}</span><span class="meta">${it.herdado_de ? 'herdado de ' + esc(it.herdado_de) : it.bytes !== '' ? it.bytes + ' b' : ''}</span></div>`).join('')}</div>`).join('');
+    $('#arvoreArquivos').innerHTML = grupos.map(([nome, cor, itens]) => `<div class="ft-group" id="ft-${nome}"><div class="cab"><span class="dot" style="background:${cor}"></span>${nome}</div>${itens.map((it) => `<div class="ft ${it.herdado_de ? 'herdado' : ''} ${it.caminho === estado.arquivoAtual ? 'is-active' : ''}" data-caminho="${esc(it.caminho)}" data-herdado="${esc(it.herdado_de || '')}" title="${esc(it.herdado_de ? `herdado de ${it.herdado_de}: edite no agente dono` : it.resumo || '')}"><span>${esc(it.caminho)}</span><span class="meta">${it.herdado_de ? 'herdado de ' + esc(it.herdado_de) : it.bytes !== '' ? it.bytes + ' b' : ''}</span></div>`).join('')}</div>`).join('');
     $$('#arvoreArquivos .ft').forEach((d) => { if (!d.dataset.herdado) d.addEventListener('click', () => abrirArquivo(d.dataset.caminho)); });
   }
-  const corDaCaixinha = (n) => ({ rules: 'var(--sl-blue)', workflows: 'var(--sl-blue)', routers: 'var(--sl-blue)', data: 'var(--info)', assets: 'var(--success)', evals: 'var(--violet)', hooks: 'var(--warning)', rag: '#AD1457' }[n] || 'var(--sl-navy)');
 
   async function abrirArquivo(caminho) {
     if (estado.arquivoSujo && !confirm('Há alterações não salvas. Descartar?')) return;
@@ -375,6 +433,7 @@
       estado.ficha = await api('/api/agente?agente=' + encodeURIComponent(estado.selecionado));
       desenharFicha();
       desenharArquivos();
+      desenharNexus();
       estado.arquivoAtual = atual;
       await recarregarArvore();
       carregarProjecao();
@@ -391,8 +450,19 @@
     } catch (err) { toast(err.message, true); }
   });
 
+  async function criarComModelo(caminho) {
+    try {
+      const m = await api('/api/arquivo/modelo?caminho=' + encodeURIComponent(caminho));
+      await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho, conteudo: m.conteudo }) });
+      toast(`${caminho} criado`);
+      await selecionar(estado.selecionado);
+      await abrirArquivo(caminho);
+      await recarregarArvore();
+    } catch (err) { toast(err.message, true); }
+  }
+
   // novo arquivo
-  const SUGESTAO = { rules: 'politicas.md', workflows: 'principal.md', routers: 'rotas.md', evals: 'casos.yaml', hooks: 'registrar.yaml', data: 'okf/glossary.yaml', assets: 'rodape.md', schemas: 'dados.yaml', mcps: 'servidor.yaml', bash: 'python.md', scripts: 'exemplo.sh', skills: 'README.md', rag: 'documento.md' };
+  const SUGESTAO = { rules: 'politicas.md', workflows: 'principal.md', routers: 'rotas.md', knowledge: 'glossary.yaml', assets: 'rodape.md', evals: 'casos.yaml' };
   $('#btnNovoArquivo').addEventListener('click', () => abrirNovoArquivo());
   function abrirNovoArquivo(caixinha) {
     if (!estado.selecionado) return toast('Selecione um agente primeiro', true);
@@ -406,23 +476,15 @@
   }
   function atualizarDicaCaixinha() {
     const cx = estado.anatomia.caixinhas.find((c) => c.nome === $('#formArquivo select[name=caixinha]').value);
-    $('#dicaCaixinha').innerHTML = cx ? `<i data-lucide="info"></i><span>${esc(cx.descricao)}${cx.ext.filter(Boolean).length ? ` Extensões: ${cx.ext.filter(Boolean).join(', ')}.` : ''}</span>` : '';
+    $('#dicaCaixinha').innerHTML = cx ? `<i data-lucide="info"></i><span>${esc(cx.descricao)}${cx.ext.filter(Boolean).length ? ` Extensões: ${cx.ext.filter(Boolean).join(', ')}.` : ''}${cx.nome === 'knowledge' ? ' Subpastas sugeridas: domain/, questions/, conditions/, policies/.' : ''}</span>` : '';
     icons();
   }
   $('#formArquivo select[name=caixinha]').addEventListener('change', (e) => { atualizarDicaCaixinha(); $('#formArquivo input[name=nome]').value = SUGESTAO[e.target.value] || 'arquivo.md'; });
   $('#formArquivo').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
-    const caminho = f.caixinha.value + '/' + f.nome.value.trim().replace(/^\/+/, '');
-    try {
-      const m = await api('/api/arquivo/modelo?caminho=' + encodeURIComponent(caminho));
-      await api('/api/arquivo', { method: 'PUT', body: JSON.stringify({ agente: estado.selecionado, caminho, conteudo: m.conteudo }) });
-      fechar('drawerArquivo');
-      toast(`${caminho} criado`);
-      await selecionar(estado.selecionado);
-      await abrirArquivo(caminho);
-      await recarregarArvore();
-    } catch (err) { toast(err.message, true); }
+    fechar('drawerArquivo');
+    await criarComModelo(f.caixinha.value + '/' + f.nome.value.trim().replace(/^\/+/, ''));
   });
 
   // ---- projeção e abas ---------------------------------------------------------
@@ -447,20 +509,20 @@
   $$('[data-fecha]').forEach((b) => b.addEventListener('click', () => fechar(b.dataset.fecha)));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['drawerNovo', 'drawerImportar', 'drawerArquivo'].forEach(fechar); });
 
-  function preencherSelectsDePai() {
+  function preencherSelects() {
     const opcoes = '<option value="">raiz (agentes/)</option>' + todosOsNos().map((n) => `<option value="${esc(n.caminho)}">${'— '.repeat(n.caminho.split('/agentes/').length - 1)}${esc(n.caminho.replace(/^agentes\//, '').replace(/\/agentes\//g, ' / '))}</option>`).join('');
     $('#formNovo select[name=pai]').innerHTML = opcoes;
     $('#formImportar select[name=pai]').innerHTML = opcoes;
-    $('#formNovo select[name=apis]').innerHTML = ((estado.catalogo && estado.catalogo.apis) || []).map((a) => `<option value="${esc(a.nome)}">${esc(a.nome)} — ${esc(a.descricao || '')}</option>`).join('');
+    $('#formNovo select[name=recursos]').innerHTML = (estado.nexus.recursos || []).filter((r) => !r.write).map((r) => `<option value="${esc(r.name)}">${esc(r.name)} — ${esc(r.description || r.kind)}</option>`).join('');
   }
   function abrirNovo(pai) {
     const f = $('#formNovo');
     f.reset();
     f.pai.value = pai || '';
     $('#drawerNovoTitulo').textContent = pai ? `Novo subagente de ${pai.split('/').pop()}` : 'Novo agente';
-    const padrao = new Set(['rules', 'workflows', 'evals', 'data']);
+    const padrao = new Set(['rules', 'workflows', 'knowledge', 'evals']);
     $('#novoCaixinhas').innerHTML = estado.anatomia.caixinhas.map((c) => `<label title="${esc(c.descricao)}"><input type="checkbox" name="cx" value="${c.nome}" ${padrao.has(c.nome) ? 'checked' : ''}><i data-lucide="${(ICONE_CX[c.nome] || ['folder'])[0]}"></i>${c.nome}/</label>`).join('');
-    $('#rotuloFontePai').hidden = !pai;
+    f.persona.checked = !pai;
     atualizarTipoNovo();
     $('#novoStatus').textContent = '';
     abrir('drawerNovo');
@@ -471,6 +533,7 @@
     $$('#formNovo .mode').forEach((m) => m.classList.toggle('is-on', $('input', m).checked));
     const cb = $('#novoCaixinhas input[value=routers]');
     if (cb) cb.checked = sel.value === 'orquestrador';
+    if (sel.value === 'orquestrador') $('#formNovo input[name=persona]').checked = true;
   }
   $$('#formNovo input[name=tipo]').forEach((r) => r.addEventListener('change', atualizarTipoNovo));
   $('#btnNovo').addEventListener('click', () => abrirNovo(''));
@@ -481,9 +544,8 @@
     const corpo = {
       pai: f.pai.value, nome: f.nome.value.trim(), tipo: f.tipo.value, descricao: f.descricao.value.trim(), modelo: f.modelo.value.trim(),
       caixinhas: $$('#novoCaixinhas input:checked').map((x) => x.value),
-      fontes: f.pai.value && f.fonte_pai.checked ? ['../../data'] : [],
-      apis: [...f.apis.selectedOptions].map((o) => o.value),
-      segredos: f.segredos.value.split(',').map((x) => x.trim()).filter(Boolean),
+      persona: f.persona.checked, caso: f.caso.checked,
+      recursos: [...f.recursos.selectedOptions].map((o) => o.value),
     };
     try {
       const r = await api('/api/agentes', { method: 'POST', body: JSON.stringify(corpo) });

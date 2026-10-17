@@ -1,0 +1,86 @@
+# Instantâneo dos recursos da account cond-001 no Nexus (o mesmo catálogo do nexus-mock
+# do sl-concierge). Usado pelo okf-admin e pelo okf-run quando NEXUS_BASE_URL não está
+# definido. Com o Nexus no ar, a lista vem de GET /v1/accounts/{account}/resources.
+recursos:
+  - name: unidades.listar
+    kind: api
+    visibility: private
+    description: Lista as unidades vinculadas à pessoa autenticada.
+    output: "lista de {id, label}"
+  - name: areas.listar
+    kind: api
+    visibility: private
+    description: Lista as áreas comuns reserváveis do condomínio.
+    output: "lista de {id, nome}"
+  - name: cadastro.campos
+    kind: api
+    visibility: private
+    description: Campos editáveis do cadastro de uma unidade (formulário dinâmico).
+    params: [{name: unidade_id, type: string, required: true}]
+    output: "lista de {name, label, type?, options?, value?}"
+  - name: faq.buscar
+    kind: knowledge
+    visibility: public
+    description: Busca na base de perguntas frequentes do condomínio.
+    params:
+      - {name: query, type: string, required: true}
+      - {name: escopo, type: string, description: "publico | privado"}
+    output: "lista de {titulo, texto, escopo}"
+  - name: memoria.preferencias
+    kind: memory
+    visibility: private
+    description: Preferências e memória da pessoa (como prefere ser tratada etc.).
+    output: objeto de preferências
+  - name: visitantes.liberar
+    kind: api
+    visibility: private
+    write: true
+    description: Registra a liberação de um visitante na portaria.
+    params:
+      - {name: unidade_id, type: string, required: true}
+      - {name: nome, type: string, required: true}
+      - {name: telefone, type: string, required: true}
+      - {name: motivo, type: string}
+    output: "{protocolo}"
+  - name: areas.reservar
+    kind: api
+    visibility: private
+    write: true
+    description: Reserva uma área comum para uma unidade numa data.
+    params:
+      - {name: unidade_id, type: string, required: true}
+      - {name: area_id, type: string, required: true}
+      - {name: data, type: date, required: true, description: AAAA-MM-DD}
+    output: "{protocolo}"
+  - name: mudancas.agendar
+    kind: api
+    visibility: private
+    write: true
+    description: Agenda uma mudança da unidade e reserva o elevador de serviço no período.
+    params:
+      - {name: unidade_id, type: string, required: true}
+      - {name: data, type: date, required: true, description: AAAA-MM-DD}
+      - {name: periodo, type: string, required: true, description: "manha | tarde"}
+    output: "{protocolo}"
+  - name: obras.comunicar
+    kind: api
+    visibility: private
+    write: true
+    description: Comunica à administração e à portaria uma obra ou reforma na unidade.
+    params:
+      - {name: unidade_id, type: string, required: true}
+      - {name: tipo, type: string, required: true}
+      - {name: descricao, type: string, required: true}
+      - {name: inicio, type: date, required: true}
+      - {name: dias, type: number, required: true}
+      - {name: prestadores, type: array, required: true}
+    output: "{protocolo, liberacao_portaria, horario_permitido}"
+  - name: cadastro.atualizar
+    kind: api
+    visibility: private
+    write: true
+    description: Atualiza campos do cadastro da unidade.
+    params:
+      - {name: unidade_id, type: string, required: true}
+      - {name: dados, type: object, required: true}
+    output: "{protocolo}"

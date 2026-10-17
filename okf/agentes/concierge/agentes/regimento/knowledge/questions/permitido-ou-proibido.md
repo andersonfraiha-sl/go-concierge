@@ -17,7 +17,7 @@ dias úteis, pet com guia), `NAO_TRATA` (nenhum artigo fala do assunto).
 ## Method
 
 1. Identifique o tema pelo glossário (barulho → silêncio; furadeira → obra; cachorro → animais).
-2. Leia o artigo do tema em `data/regimento.md`.
+2. Leia o artigo do tema em `knowledge/regimento.md`.
 3. Confronte a situação com a condição do artigo (dia, horário, porte, área).
 4. Responda com a leitura e o artigo; em CONDICIONADO, diga a condição exata.
 

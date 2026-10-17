@@ -8,33 +8,32 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Escrita: criar, editar, mover, clonar, importar e exportar pastas de agente.
-// Tudo passa por ResolveAgente (nunca sai da raiz) e por caminhoSeguro (nunca
-// escreve fora das caixinhas nem dentro de agentes/ de outro).
+// Tudo passa por ResolveAgente (nunca sai da raiz) e por caminhoSeguro (só os
+// arquivos da raiz do agente e as caixinhas; nunca agentes/ de outro).
 
-// extensões aceitas num zip ou num arquivo novo
 var extPermitidas = map[string]bool{
 	".md": true, ".yaml": true, ".yml": true, ".json": true, ".txt": true, ".csv": true,
-	".py": true, ".sh": true, ".go": true, ".sql": true, ".html": true,
 	".png": true, ".jpg": true, ".jpeg": true, ".svg": true, ".gif": true, ".webp": true, ".pdf": true,
 }
 
 // NovoAgente é o formulário de criação.
 type NovoAgente struct {
-	Pai       string   `json:"pai"` // caminho relativo do agente pai ("" = raiz)
+	Pai       string   `json:"pai"`
 	Nome      string   `json:"nome"`
 	Tipo      string   `json:"tipo"`
 	Descricao string   `json:"descricao"`
 	Modelo    string   `json:"modelo"`
 	Caixinhas []string `json:"caixinhas"` // quais criar com arquivo-modelo
-	Fontes    []string `json:"fontes"`
-	Apis      []string `json:"apis"`
-	Segredos  []string `json:"segredos"`
+	Persona   bool     `json:"persona"`   // cria persona.md (padrão para orquestrador)
+	Caso      bool     `json:"caso"`      // cria caso.yaml
+	Recursos  []string `json:"recursos"`  // nomes do Nexus declarados
 }
 
 // CriarAgente monta a pasta com os arquivos-modelo e registra a rota no pai.
@@ -65,46 +64,55 @@ func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
 	if dirExists(dir) {
 		return "", nil, fmt.Errorf("já existe um agente %q nesse lugar", n.Nome)
 	}
-	for _, f := range n.Fontes {
-		alvo := filepath.Clean(filepath.Join(dir, filepath.FromSlash(f)))
-		if !Permitido(dir, alvo) {
-			return "", nil, fmt.Errorf("fonte %q aponta para fora do contexto do agente (só a própria pasta ou um ancestral)", f)
-		}
-	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", nil, err
 	}
-	cfg := map[string]any{"nome": n.Nome}
+	cfg := map[string]any{"nome": n.Nome, "descricao": strings.TrimSpace(n.Descricao)}
 	if tipo != "" {
 		cfg["tipo"] = tipo
 	}
-	cfg["descricao"] = strings.TrimSpace(n.Descricao)
 	if n.Modelo != "" {
 		cfg["modelo"] = n.Modelo
 	}
-	if len(n.Fontes) > 0 {
-		cfg["fontes"] = n.Fontes
-	}
-	if len(n.Apis) > 0 {
-		cfg["apis"] = n.Apis
-	}
-	if len(n.Segredos) > 0 {
-		cfg["segredos"] = n.Segredos
+	if len(n.Recursos) > 0 {
+		cfg["recursos"] = n.Recursos
 	}
 	if err := gravarConfig(dir, cfg); err != nil {
 		return "", nil, err
 	}
 	mudancas := []string{rel + "/" + AgentYAML}
+	escreve := func(nome, conteudo string) error {
+		p := filepath.Join(dir, filepath.FromSlash(nome))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(p, []byte(conteudo), 0o644); err != nil {
+			return err
+		}
+		mudancas = append(mudancas, rel+"/"+nome)
+		return nil
+	}
+	if n.Persona || (tipo == Orquestrador && paiDir == "") {
+		if err := escreve(PersonaMD, ModeloPersona(n)); err != nil {
+			return "", nil, err
+		}
+	}
+	if n.Caso {
+		if err := escreve(CasoYAML, ModeloCaso(n)); err != nil {
+			return "", nil, err
+		}
+	}
 	for _, cx := range n.Caixinhas {
-		for nome, conteudo := range ModelosDaCaixinha(cx, n) {
-			p := filepath.Join(dir, filepath.FromSlash(nome))
-			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		nomes := ModelosDaCaixinha(cx, n)
+		keys := make([]string, 0, len(nomes))
+		for k := range nomes {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if err := escreve(k, nomes[k]); err != nil {
 				return "", nil, err
 			}
-			if err := os.WriteFile(p, []byte(conteudo), 0o644); err != nil {
-				return "", nil, err
-			}
-			mudancas = append(mudancas, rel+"/"+nome)
 		}
 	}
 	if paiDir != "" {
@@ -117,24 +125,22 @@ func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
 	return rel, mudancas, nil
 }
 
-// caminhoSeguro valida um caminho de arquivo dentro do agente: agent.yaml, ou
-// <caixinha>/..., ou okf/... (conhecimento na raiz). Nunca agentes/ (é dos filhos).
+// caminhoSeguro valida um caminho de arquivo dentro do agente: agent.yaml, persona.md,
+// caso.yaml ou <caixinha>/…; nunca agentes/ (é dos filhos).
 func caminhoSeguro(rel string) (string, error) {
 	rel = filepath.ToSlash(filepath.Clean("/" + rel))[1:]
 	if rel == "" || rel == "." {
 		return "", errors.New("caminho vazio")
 	}
-	if rel == AgentYAML {
+	if rel == AgentYAML || rel == PersonaMD || rel == CasoYAML {
 		return rel, nil
 	}
 	primeiro, _, _ := strings.Cut(rel, "/")
 	if primeiro == DirAgentes {
 		return "", errors.New("agentes/ pertence aos subagentes; edite-os pela árvore")
 	}
-	if primeiro != "okf" {
-		if _, ok := CaixinhaPorNome(primeiro); !ok {
-			return "", fmt.Errorf("%q não é uma caixinha do agente", primeiro)
-		}
+	if _, ok := CaixinhaPorNome(primeiro); !ok {
+		return "", fmt.Errorf("%q não é uma caixinha do agente (rules, workflows, routers, knowledge, assets, evals) nem agent.yaml, persona.md ou caso.yaml", primeiro)
 	}
 	if !strings.Contains(rel, "/") {
 		return "", errors.New("o arquivo precisa ficar dentro de uma caixinha")
@@ -163,7 +169,7 @@ func (c *Catalogo) LerArquivo(agenteRel, rel string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
 }
 
-// SalvarArquivo grava (cria ou substitui). agent.yaml precisa ser YAML válido.
+// SalvarArquivo grava (cria ou substitui). agent.yaml e caso.yaml precisam ser válidos.
 func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
@@ -176,16 +182,15 @@ func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	if err != nil {
 		return err
 	}
-	if rel == AgentYAML {
+	switch rel {
+	case AgentYAML:
 		var m map[string]any
 		if err := yaml.Unmarshal(conteudo, &m); err != nil {
 			return fmt.Errorf("agent.yaml inválido: %w", err)
 		}
-		for _, f := range stringList(m["fontes"]) {
-			alvo := filepath.Clean(filepath.Join(dir, filepath.FromSlash(f)))
-			if !Permitido(dir, alvo) {
-				return fmt.Errorf("fontes: %q aponta para fora do contexto do agente", f)
-			}
+	case CasoYAML:
+		if _, err := ParseCaso(conteudo); err != nil {
+			return err
 		}
 	}
 	p := filepath.Join(dir, filepath.FromSlash(rel))
@@ -212,8 +217,9 @@ func (c *Catalogo) ExcluirArquivo(agenteRel, rel string) error {
 	if err := os.Remove(p); err != nil {
 		return err
 	}
-	// caixinha vazia some junto
-	_ = os.Remove(filepath.Dir(p))
+	if filepath.Dir(p) != dir {
+		_ = os.Remove(filepath.Dir(p)) // caixinha vazia some junto
+	}
 	return nil
 }
 
@@ -243,25 +249,72 @@ func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
 			}
 		}
 	}
-	for _, k := range []string{"fontes", "apis", "segredos"} {
-		if v, ok := campos[k]; ok {
-			l := stringList(v)
-			if k == "fontes" {
-				for _, f := range l {
-					alvo := filepath.Clean(filepath.Join(dir, filepath.FromSlash(f)))
-					if !Permitido(dir, alvo) {
-						return fmt.Errorf("fontes: %q aponta para fora do contexto do agente", f)
-					}
-				}
-			}
-			if len(l) == 0 {
-				delete(cfg, k)
-			} else {
-				cfg[k] = l
-			}
+	if v, ok := campos["recursos"]; ok {
+		l := stringList(v)
+		if len(l) == 0 {
+			delete(cfg, "recursos")
+		} else {
+			cfg["recursos"] = l
 		}
 	}
 	return gravarConfig(dir, cfg)
+}
+
+// VincularRecurso liga ou desliga um recurso do Nexus em agent.yaml → recursos.
+func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string, error) {
+	dir, err := c.ResolveAgente(agenteRel)
+	if err != nil {
+		return nil, err
+	}
+	if !IsAgent(dir) {
+		return nil, fmt.Errorf("agente não existe: %s", agenteRel)
+	}
+	nome = strings.TrimSpace(nome)
+	if nome == "" {
+		return nil, errors.New("nome do recurso vazio")
+	}
+	if ligar {
+		if reg := c.recursoPorNome(); len(reg) > 0 {
+			r, ok := reg[nome]
+			if !ok {
+				return nil, fmt.Errorf("recurso desconhecido na account: %s", nome)
+			}
+			if r.Write {
+				return nil, fmt.Errorf("%s é recurso de ESCRITA: só entra por um passo `resource` do caso.yaml, depois de um `confirm`", nome)
+			}
+		}
+	}
+	cfg, err := lerConfig(dir)
+	if err != nil {
+		return nil, err
+	}
+	atuais := stringList(cfg["recursos"])
+	var novos []string
+	achou := false
+	for _, a := range atuais {
+		if a == nome {
+			achou = true
+			if !ligar {
+				continue
+			}
+		}
+		novos = append(novos, a)
+	}
+	if ligar && !achou {
+		novos = append(novos, nome)
+	}
+	if ligar == achou {
+		return nil, nil
+	}
+	if len(novos) == 0 {
+		delete(cfg, "recursos")
+	} else {
+		cfg["recursos"] = novos
+	}
+	if err := gravarConfig(dir, cfg); err != nil {
+		return nil, err
+	}
+	return []string{fmt.Sprintf("agent.yaml: recursos %s %s", map[bool]string{true: "+=", false: "-="}[ligar], nome)}, nil
 }
 
 // ExcluirAgente apaga a pasta (com os subagentes) e tira a rota do pai.
@@ -339,8 +392,7 @@ func (c *Catalogo) Mover(origemRel, destinoRel string, clonar bool) (string, []s
 			return "", nil, err
 		}
 		if nome != filepath.Base(origem) {
-			cfg, err := lerConfig(alvo)
-			if err == nil {
+			if cfg, err := lerConfig(alvo); err == nil {
 				cfg["nome"] = nome
 				_ = gravarConfig(alvo, cfg)
 			}
@@ -376,7 +428,6 @@ func copiarPasta(origem, destino string) error {
 }
 
 // ImportarZip instala (ou substitui) um agente a partir do zip da pasta.
-// O zip precisa ter agent.yaml ou workflows/principal.md na raiz.
 func (c *Catalogo) ImportarZip(agenteRel string, dados []byte) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
@@ -394,21 +445,13 @@ func (c *Catalogo) ImportarZip(agenteRel string, dados []byte) ([]string, error)
 		if f.FileInfo().IsDir() || strings.HasPrefix(nome, "__MACOSX") {
 			continue
 		}
-		partes := strings.Split(nome, "/")
-		limpo := []string{}
-		for _, p := range partes {
-			if p == "" || p == "." || p == ".." {
-				continue
+		var limpo []string
+		for _, p := range strings.Split(nome, "/") {
+			if p != "" && p != "." && p != ".." {
+				limpo = append(limpo, p)
 			}
-			limpo = append(limpo, p)
 		}
-		if len(limpo) == 0 {
-			continue
-		}
-		if ocultoOuLixo(limpo) {
-			continue
-		}
-		if !extPermitidas[strings.ToLower(filepath.Ext(limpo[len(limpo)-1]))] {
+		if len(limpo) == 0 || ocultoOuLixo(limpo) || !extPermitidas[strings.ToLower(filepath.Ext(limpo[len(limpo)-1]))] {
 			continue
 		}
 		alvo := filepath.Join(temp, filepath.Join(limpo...))
@@ -435,7 +478,6 @@ func (c *Catalogo) ImportarZip(agenteRel string, dados []byte) ([]string, error)
 		}
 		arquivos = append(arquivos, strings.Join(limpo, "/"))
 	}
-	// zip com uma pasta única na raiz: desce um nível
 	if !IsAgent(temp) {
 		entradas, _ := os.ReadDir(temp)
 		if len(entradas) == 1 && entradas[0].IsDir() && IsAgent(filepath.Join(temp, entradas[0].Name())) {
@@ -514,4 +556,87 @@ func (c *Catalogo) ExportarZip(agenteRel string) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// ---- agent.yaml -----------------------------------------------------------
+
+func lerConfig(dir string) (map[string]any, error) {
+	cfg := map[string]any{}
+	raw, err := os.ReadFile(filepath.Join(dir, AgentYAML))
+	if err != nil {
+		if os.IsNotExist(err) {
+			cfg["nome"] = filepath.Base(dir)
+			return cfg, nil
+		}
+		return nil, err
+	}
+	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("agent.yaml inválido: %w", err)
+	}
+	if cfg == nil {
+		cfg = map[string]any{"nome": filepath.Base(dir)}
+	}
+	return cfg, nil
+}
+
+// gravarConfig escreve o agent.yaml com os campos principais primeiro, na ordem em
+// que uma pessoa lê (nome, tipo, descricao, modelo, recursos).
+func gravarConfig(dir string, cfg map[string]any) error {
+	ordem := []string{"nome", "tipo", "descricao", "modelo", "recursos"}
+	var doc yaml.Node
+	doc.Kind = yaml.MappingNode
+	add := func(k string, v any) {
+		var val yaml.Node
+		if err := val.Encode(v); err != nil {
+			return
+		}
+		doc.Content = append(doc.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: k}, &val)
+	}
+	vistos := map[string]bool{}
+	for _, k := range ordem {
+		if v, ok := cfg[k]; ok && v != nil {
+			if l, isList := v.([]string); isList && len(l) == 0 {
+				continue
+			}
+			if s, isStr := v.(string); isStr && s == "" {
+				continue
+			}
+			add(k, v)
+			vistos[k] = true
+		}
+	}
+	var resto []string
+	for k := range cfg {
+		if !vistos[k] {
+			resto = append(resto, k)
+		}
+	}
+	sort.Strings(resto)
+	for _, k := range resto {
+		if cfg[k] != nil {
+			add(k, cfg[k])
+		}
+	}
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, AgentYAML), out, 0o644)
+}
+
+func copiarArquivo(origem, destino string) error {
+	in, err := os.Open(origem)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(destino)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }

@@ -9,15 +9,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Conhecimento OKF: os documentos tipados (frontmatter `type: Question | Condition |
-// Vocabulary | Domain | Policy | KnowledgeIndex…`) e os glossários (`glossary.yaml`,
-// com termos, sinônimos e definição) que vivem em data/okf/ do agente (como no adam)
-// ou em okf/ na raiz da pasta (como nos bundles do stt4). Entram no prompt como
-// dados indexados, e a interface os mostra como "conhecimento", não como arquivo solto.
+// Conhecimento OKF: os documentos tipados (frontmatter `type: Domain | Vocabulary |
+// Question | Condition | Policy | Procedure | KnowledgeIndex`) e os glossários
+// (`glossary.yaml`, com termos, sinônimos e definição) que vivem em knowledge/ do
+// agente e dos ancestrais (herança: o mais próximo vence).
 
 // Doc é um documento OKF em Markdown com frontmatter.
 type Doc struct {
-	Caminho   string   `json:"caminho"` // relativo ao agente dono
+	Caminho   string   `json:"caminho"`
 	Tipo      string   `json:"tipo"`
 	ID        string   `json:"id,omitempty"`
 	Titulo    string   `json:"titulo"`
@@ -26,7 +25,7 @@ type Doc struct {
 	Versao    string   `json:"versao,omitempty"`
 	Dominio   string   `json:"dominio,omitempty"`
 	Tags      []string `json:"tags"`
-	Respostas []string `json:"respostas,omitempty"` // type Question: o espaço de respostas
+	Respostas []string `json:"respostas,omitempty"`
 	HerdadoDe string   `json:"herdado_de,omitempty"`
 }
 
@@ -49,55 +48,49 @@ type Conhecimento struct {
 // TiposOKF são os tipos reconhecidos (outros valem, mas a interface sugere estes).
 var TiposOKF = []string{"Domain", "Vocabulary", "Question", "Condition", "Policy", "Procedure", "KnowledgeIndex"}
 
-// Conhecimento lista os docs e termos OKF do agente, próprios e herdados.
+// Conhecimento lista os docs e termos de knowledge/, próprios e herdados.
 func (c *Catalogo) Conhecimento(a *Agent) Conhecimento {
 	out := Conhecimento{Docs: []Doc{}, Termos: []Termo{}}
-	raizes := []struct{ dir, herdadoDe string }{{a.Path, ""}}
-	for _, anc := range Ancestrais(a.Path) {
-		raizes = append(raizes, struct{ dir, herdadoDe string }{anc, filepath.Base(anc)})
-	}
-	vistos := map[string]bool{}
-	for _, r := range raizes {
-		for _, sub := range []string{filepath.Join("data", "okf"), "okf"} {
-			base := filepath.Join(r.dir, sub)
-			if !dirExists(base) {
+	for _, f := range append(append([]Arquivo{}, a.Arquivos["knowledge"]...), a.Herdados["knowledge"]...) {
+		base := a.Path
+		if f.HerdadoDe != "" {
+			base = ancestralPorNome(a.Path, f.HerdadoDe)
+			if base == "" {
 				continue
 			}
-			_ = filepath.WalkDir(base, func(p string, d os.DirEntry, err error) error {
-				if err != nil || d.IsDir() {
-					return nil
-				}
-				rel, _ := filepath.Rel(r.dir, p)
-				rel = filepath.ToSlash(rel)
-				if vistos[rel] {
-					return nil
-				}
-				vistos[rel] = true
-				nome := strings.ToLower(d.Name())
-				switch {
-				case strings.HasSuffix(nome, ".md"):
-					if doc, ok := lerDoc(p, rel); ok {
-						doc.HerdadoDe = r.herdadoDe
-						out.Docs = append(out.Docs, doc)
-					}
-				case nome == "glossary.yaml" || nome == "glossario.yaml" || nome == "glossary.yml":
-					for _, t := range lerGlossario(p, rel) {
-						t.HerdadoDe = r.herdadoDe
-						out.Termos = append(out.Termos, t)
-					}
-				}
-				return nil
-			})
+		}
+		p := filepath.Join(base, filepath.FromSlash(f.Caminho))
+		nome := strings.ToLower(filepath.Base(f.Caminho))
+		switch {
+		case strings.HasSuffix(nome, ".md"):
+			if doc, ok := lerDoc(p, f.Caminho); ok {
+				doc.HerdadoDe = f.HerdadoDe
+				out.Docs = append(out.Docs, doc)
+			}
+		case nome == "glossary.yaml" || nome == "glossario.yaml" || nome == "glossary.yml":
+			for _, t := range lerGlossario(p, f.Caminho) {
+				t.HerdadoDe = f.HerdadoDe
+				out.Termos = append(out.Termos, t)
+			}
 		}
 	}
-	sort.Slice(out.Docs, func(i, j int) bool {
+	sort.SliceStable(out.Docs, func(i, j int) bool {
 		if out.Docs[i].Tipo != out.Docs[j].Tipo {
 			return out.Docs[i].Tipo < out.Docs[j].Tipo
 		}
 		return out.Docs[i].Caminho < out.Docs[j].Caminho
 	})
-	sort.Slice(out.Termos, func(i, j int) bool { return out.Termos[i].ID < out.Termos[j].ID })
+	sort.SliceStable(out.Termos, func(i, j int) bool { return out.Termos[i].ID < out.Termos[j].ID })
 	return out
+}
+
+func ancestralPorNome(dir, nome string) string {
+	for _, anc := range Ancestrais(dir) {
+		if filepath.Base(anc) == nome {
+			return anc
+		}
+	}
+	return ""
 }
 
 func lerDoc(p, rel string) (Doc, bool) {

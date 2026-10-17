@@ -1,10 +1,11 @@
-// okf-admin: a interface de cadastro de skills (agentes e subagentes) no formato
-// de pasta, com os vínculos internos de assets, dados, rotas e subagentes.
+// okf-admin: a interface de cadastro de skills (agentes e subagentes) no formato de
+// pasta, com os vínculos internos (assets, conhecimento, rotas, subagentes) e as
+// declarações de recursos do Nexus.
 //
 //	okf-admin -root ./okf -addr 127.0.0.1:8090
 //
-// É a mesma ideia do playground do adam (Python), reescrita em Go e sem executor:
-// aqui só se cadastra, valida e projeta. Quem executa é o harness Eino.
+// Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
+// sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
 package main
 
 import (
@@ -23,34 +24,49 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/env"
+	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 	"go-concierge/web"
 )
 
 type servidor struct {
-	cat *okf.Catalogo
-	web fs.FS
+	cat     *okf.Catalogo
+	web     fs.FS
+	account string
+	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 }
 
 func main() {
-	root := flag.String("root", "okf", "raiz do catálogo (agentes/, bases/, tools/, apis/)")
+	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
+	dotenv := flag.String("env", ".env", "arquivo NOME=valor (NEXUS_BASE_URL, NEXUS_TOKEN, DEFAULT_ACCOUNT_ID)")
 	flag.Parse()
+	env.Carregar(*dotenv)
 
 	cat, err := okf.NewCatalogo(*root)
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &servidor{cat: cat, web: web.OKF}
+	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
+	cli := nexus.New(os.Getenv("NEXUS_BASE_URL"), os.Getenv("NEXUS_TOKEN"))
+	cat.Recursos = nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
+	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma"}
+	switch {
+	case cli.BaseURL != "":
+		s.nexus = cli.BaseURL
+	case cat.Recursos != nil:
+		s.nexus = "instantâneo nexus/" + account + ".yaml"
+	}
 	if *webDir != "" {
 		s.web = os.DirFS(*webDir)
 	}
 	mux := http.NewServeMux()
 	s.rotas(mux)
 
-	log.Printf("okf-admin: catálogo %s em http://%s", cat.Root, *addr)
+	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · http://%s", cat.Root, account, s.nexus, *addr)
 	if *abrir {
 		go func() {
 			time.Sleep(300 * time.Millisecond)
@@ -78,14 +94,20 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/arquivo", s.excluirArquivo)
 	mux.HandleFunc("GET /api/arquivo/modelo", s.modelo)
 	mux.HandleFunc("GET /api/projecao", s.projecao)
-	mux.HandleFunc("GET /api/catalogo", s.catalogo)
-	mux.HandleFunc("POST /api/recursos/aplicar", s.aplicar)
+	mux.HandleFunc("GET /api/nexus/recursos", s.recursos)
+	mux.HandleFunc("POST /api/agente/recursos", s.vincular)
 }
 
 // ---- handlers ------------------------------------------------------------
 
 func (s *servidor) anatomia(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, map[string]any{"caixinhas": okf.Caixinhas, "tipos_okf": okf.TiposOKF})
+	writeJSON(w, 200, map[string]any{
+		"caixinhas":    okf.Caixinhas,
+		"tipos_okf":    okf.TiposOKF,
+		"raiz":         []string{okf.AgentYAML, okf.PersonaMD, okf.CasoYAML},
+		"account":      s.account,
+		"nexus_origem": s.nexus,
+	})
 }
 
 func (s *servidor) arvore(w http.ResponseWriter, _ *http.Request) {
@@ -97,12 +119,12 @@ func (s *servidor) arvore(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{"agentes": resumir(tree)})
 }
 
-// nó resumido da árvore (sem arquivos), com contagem de problemas
 type no struct {
 	Caminho    string `json:"caminho"`
 	Nome       string `json:"nome"`
 	Tipo       string `json:"tipo"`
 	Descricao  string `json:"descricao"`
+	Caso       bool   `json:"caso"`
 	Erros      int    `json:"erros"`
 	Avisos     int    `json:"avisos"`
 	Subagentes []no   `json:"subagentes"`
@@ -111,7 +133,7 @@ type no struct {
 func resumir(tree []*okf.Agent) []no {
 	out := []no{}
 	for _, a := range tree {
-		n := no{Caminho: a.Rel, Nome: a.Nome, Tipo: a.Tipo, Descricao: a.Descricao, Subagentes: resumir(a.Subagentes)}
+		n := no{Caminho: a.Rel, Nome: a.Nome, Tipo: a.Tipo, Descricao: a.Descricao, Caso: a.Caso != nil, Subagentes: resumir(a.Subagentes)}
 		for _, p := range a.Problemas {
 			if p.Nivel == "erro" {
 				n.Erros++
@@ -144,10 +166,10 @@ func (s *servidor) agente(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"agente":        a,
 		"vinculos":      s.cat.Vinculos(a),
+		"recursos":      s.cat.RecursosDoAgente(a),
 		"conhecimento":  s.cat.Conhecimento(a),
-		"dados":         s.cat.Dados(a),
+		"indice":        s.cat.Indice(a),
 		"procedimentos": s.cat.Procedimentos(a),
-		"segredos":      s.cat.SegredosDeclarados(a),
 		"pai":           paiRel(a.Rel),
 	})
 }
@@ -214,11 +236,7 @@ func (s *servidor) mover(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	chave := "movido"
-	if corpo.Clonar {
-		chave = "clonado"
-	}
-	writeJSON(w, 200, map[string]any{chave: rel, "caminho": rel, "mudancas": mud})
+	writeJSON(w, 200, map[string]any{"caminho": rel, "mudancas": mud})
 }
 
 func (s *servidor) importar(w http.ResponseWriter, r *http.Request) {
@@ -253,10 +271,6 @@ func (s *servidor) lerArquivo(w http.ResponseWriter, r *http.Request) {
 	raw, err := s.cat.LerArquivo(q.Get("agente"), q.Get("caminho"))
 	if err != nil {
 		writeErr(w, 404, err)
-		return
-	}
-	if q.Get("bruto") == "1" {
-		http.ServeContent(w, r, filepath.Base(q.Get("caminho")), time.Time{}, strings.NewReader(string(raw)))
 		return
 	}
 	writeJSON(w, 200, map[string]any{"caminho": q.Get("caminho"), "conteudo": string(raw)})
@@ -302,41 +316,33 @@ func (s *servidor) projecao(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"projecao": s.cat.Projecao(a), "roteador": s.cat.Roteador(a)})
 }
 
-func (s *servidor) catalogo(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, map[string]any{
-		"bases": orVazio(s.cat.ListarBases()),
-		"tools": s.cat.ListarTools(),
-		"apis":  orVazio(s.cat.ListarAPIs()),
-	})
-}
-
-func orVazio[T any](l []T) []T {
-	if l == nil {
-		return []T{}
+func (s *servidor) recursos(w http.ResponseWriter, _ *http.Request) {
+	lista := s.cat.RecursosNexus()
+	if lista == nil {
+		lista = []okf.Recurso{}
 	}
-	return l
+	writeJSON(w, 200, map[string]any{"account": s.account, "origem": s.nexus, "conferido": s.cat.TemNexus(), "recursos": lista})
 }
 
-func (s *servidor) aplicar(w http.ResponseWriter, r *http.Request) {
+func (s *servidor) vincular(w http.ResponseWriter, r *http.Request) {
 	var corpo struct {
-		Tipo   string `json:"tipo"`
-		Nome   string `json:"nome"`
 		Agente string `json:"agente"`
+		Nome   string `json:"nome"`
+		Ligar  bool   `json:"ligar"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
-	mud, err := s.cat.Aplicar(corpo.Agente, corpo.Tipo, corpo.Nome)
+	mud, err := s.cat.VincularRecurso(corpo.Agente, corpo.Nome, corpo.Ligar)
 	if err != nil {
-		code := 400
-		if strings.Contains(err.Error(), "desconhec") {
-			code = 404
-		}
-		writeErr(w, code, err)
+		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"aplicado": corpo.Tipo + ":" + corpo.Nome, "mudancas": mud})
+	if mud == nil {
+		mud = []string{"nada a fazer"}
+	}
+	writeJSON(w, 200, map[string]any{"recurso": corpo.Nome, "ligado": corpo.Ligar, "mudancas": mud})
 }
 
 // ---- util ----------------------------------------------------------------

@@ -4,13 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
@@ -18,10 +15,12 @@ import (
 	"go-concierge/internal/okf"
 )
 
-// As tools nativas do formato. Cada caixinha de capacidade da pasta vira uma tool
-// do Eino, só quando a pasta tem algo nela. Erro de uso nunca é erro Go: volta
-// como {"error": ...} para o modelo corrigir os argumentos (regras gerais da
-// projeção), e só falhas de infraestrutura derrubam o loop.
+// As quatro tools nativas do formato. O que é DO agente está na pasta (ler_dado
+// sobre knowledge/ e assets/, abrir_workflow sobre workflows/, invocar_agente sobre
+// agentes/); o que é infraestrutura vem do Nexus (chamar_recurso sobre os recursos
+// que o agent.yaml declara). Erro de uso nunca é erro Go: volta como {"error": ...}
+// para o modelo corrigir os argumentos (regras gerais da projeção); só falha de
+// infraestrutura derruba o loop.
 
 type saida = map[string]any
 
@@ -40,9 +39,9 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 	}
 	a := ag.Def
 
-	if len(ag.Cat.Dados(a)) > 0 {
+	if len(ag.Cat.Indice(a)) > 0 {
 		if err := add(utils.InferTool("ler_dado",
-			"Lê um arquivo do índice de dados do agente, em páginas de "+fmt.Sprint(PaginaChars)+" caracteres. Quando tem_mais=true, chame de novo com pagina+1.",
+			"Lê um arquivo do índice de conhecimento e assets do agente, em páginas de "+fmt.Sprint(PaginaChars)+" caracteres. Quando tem_mais=true, chame de novo com pagina+1.",
 			ag.lerDado)); err != nil {
 			return nil, err
 		}
@@ -54,20 +53,6 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 			return nil, err
 		}
 	}
-	if len(a.Arquivos["schemas"])+len(a.Herdados["schemas"]) > 0 {
-		if err := add(utils.InferTool("consultar_schema",
-			"Devolve a estrutura (tabelas, colunas, domínios) de um schema da pasta.",
-			ag.consultarSchema)); err != nil {
-			return nil, err
-		}
-	}
-	if len(a.Apis) > 0 {
-		if err := add(utils.InferTool("chamar_api",
-			"Chama uma API do registro vinculada ao agente (ver manual na projeção). Recusa quando falta um segredo.",
-			ag.chamarAPI)); err != nil {
-			return nil, err
-		}
-	}
 	if a.Tipo == okf.Operador && len(ag.Subagentes) > 0 {
 		if err := add(utils.InferTool("invocar_agente",
 			"Delega uma subtarefa a um subagente da pasta e devolve a resposta dele; você continua dono da resposta final.",
@@ -75,28 +60,14 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 			return nil, err
 		}
 	}
-
-	// stubs: a pasta pede, o runtime ainda não entrega
-	if len(a.Arquivos["scripts"])+len(a.Herdados["scripts"]) > 0 {
-		if err := add(utils.InferTool("rodar_script", "Roda um script da pasta em subprocesso.", stub[*argsScript]("rodar_script"))); err != nil {
-			return nil, err
+	if len(ag.Cat.RecursosDoAgente(a)) > 0 {
+		desc := "Chama um recurso de LEITURA do Nexus declarado pelo agente, com os params do manual. Recursos de escrita só rodam pelos passos do caso de uso."
+		if perm := ag.recursosPermitidos(); len(perm) > 0 {
+			desc += " Permitidos agora: " + strings.Join(perm, ", ") + "."
+		} else {
+			desc += " Nenhum recurso está permitido para esta identidade."
 		}
-	}
-	if len(a.Arquivos["bash"])+len(a.Herdados["bash"]) > 0 {
-		if err := add(utils.InferTool("rodar_bash", "Roda um comando da allowlist bash da pasta.", stub[*argsBash]("rodar_bash"))); err != nil {
-			return nil, err
-		}
-	}
-	if len(a.Arquivos["rag"]) > 0 {
-		if err := add(utils.InferTool("buscar_rag", "Busca semântica na base RAG da pasta.", stub[*argsRag]("buscar_rag"))); err != nil {
-			return nil, err
-		}
-	}
-	mcps := append(append([]okf.Arquivo{}, a.Arquivos["mcps"]...), a.Herdados["mcps"]...)
-	sort.Slice(mcps, func(i, j int) bool { return mcps[i].Caminho < mcps[j].Caminho })
-	for _, m := range mcps {
-		nome := strings.TrimSuffix(filepath.Base(m.Caminho), filepath.Ext(m.Caminho))
-		if err := add(utils.InferTool("mcp_"+nome, "Tools do servidor MCP "+nome+" (descritor em "+m.Caminho+").", stub[*argsMCP]("mcp_"+nome))); err != nil {
+		if err := add(utils.InferTool("chamar_recurso", desc, ag.chamarRecurso)); err != nil {
 			return nil, err
 		}
 	}
@@ -106,7 +77,7 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 // ---- ler_dado -------------------------------------------------------------
 
 type argsLerDado struct {
-	Caminho string `json:"caminho" jsonschema:"required" jsonschema_description:"caminho exatamente como no índice de dados (ex.: data/regimento.md, assets/rodape.md, fonte:data/okf/glossary.yaml)"`
+	Caminho string `json:"caminho" jsonschema:"required" jsonschema_description:"caminho exatamente como no índice (ex.: knowledge/regimento.md, assets/rodape.md)"`
 	Pagina  int    `json:"pagina" jsonschema_description:"página a partir de 1 (padrão 1)"`
 }
 
@@ -195,145 +166,6 @@ func (ag *Agente) abrirWorkflow(_ context.Context, in *argsWorkflow) (saida, err
 	return erro("procedimento %q não existe; disponíveis: %s", in.Nome, strings.Join(nomes, ", ")), nil
 }
 
-// ---- consultar_schema -----------------------------------------------------
-
-type argsSchema struct {
-	Nome string `json:"nome" jsonschema:"required" jsonschema_description:"nome do schema sem extensão, como listado na projeção"`
-}
-
-func (ag *Agente) consultarSchema(_ context.Context, in *argsSchema) (saida, error) {
-	todos := append(append([]okf.Arquivo{}, ag.Def.Arquivos["schemas"]...), ag.Def.Herdados["schemas"]...)
-	var nomes []string
-	for _, f := range todos {
-		nome := strings.TrimSuffix(filepath.Base(f.Caminho), filepath.Ext(f.Caminho))
-		nomes = append(nomes, nome)
-		if nome != strings.TrimSpace(in.Nome) {
-			continue
-		}
-		raw, err := ag.Cat.Ler(ag.Def, f)
-		if err != nil {
-			return erro("%v", err), nil
-		}
-		return saida{"nome": nome, "caminho": f.Caminho, "conteudo": string(raw)}, nil
-	}
-	return erro("schema %q não existe; disponíveis: %s", in.Nome, strings.Join(nomes, ", ")), nil
-}
-
-// ---- chamar_api -----------------------------------------------------------
-
-type argsAPI struct {
-	Nome   string `json:"nome" jsonschema:"required" jsonschema_description:"nome da API no registro (ex.: nexus)"`
-	Metodo string `json:"metodo" jsonschema:"required" jsonschema_description:"GET, POST, PUT, PATCH ou DELETE"`
-	Rota   string `json:"rota" jsonschema:"required" jsonschema_description:"caminho a partir da base_url, começando com / (pode ter query string)"`
-	Corpo  string `json:"corpo" jsonschema_description:"corpo JSON da requisição, quando houver"`
-}
-
-var metodosHTTP = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true}
-
-const maxCorpoResposta = 64 * 1024
-
-func (ag *Agente) chamarAPI(ctx context.Context, in *argsAPI) (saida, error) {
-	nome := strings.TrimSpace(in.Nome)
-	vinculada := false
-	for _, n := range ag.Def.Apis {
-		if n == nome {
-			vinculada = true
-		}
-	}
-	if !vinculada {
-		return erro("api %q não está vinculada a este agente; vinculadas: %s", nome, strings.Join(ag.Def.Apis, ", ")), nil
-	}
-	var api *okf.API
-	for _, x := range ag.Cat.ListarAPIs() {
-		if x.Nome == nome {
-			x := x
-			api = &x
-		}
-	}
-	if api == nil {
-		return erro("api %q não existe no registro apis/", nome), nil
-	}
-
-	var faltam []string
-	for _, r := range api.Requer {
-		if ag.cfg.env(r) == "" {
-			faltam = append(faltam, r)
-		}
-	}
-	headers := map[string]string{}
-	for k, v := range api.Headers {
-		headers[k] = os.Expand(v, func(variavel string) string {
-			val := ag.cfg.env(variavel)
-			if val == "" {
-				faltam = append(faltam, variavel)
-			}
-			return val
-		})
-	}
-	if len(faltam) > 0 {
-		sort.Strings(faltam)
-		return erro("recusado: segredo(s) %s não definido(s) no ambiente; a api %s exige. Não insista: avise que o acesso não está configurado.", strings.Join(unicos(faltam), ", "), nome), nil
-	}
-
-	metodo := strings.ToUpper(strings.TrimSpace(in.Metodo))
-	if !metodosHTTP[metodo] {
-		return erro("método %q inválido; use GET, POST, PUT, PATCH ou DELETE", in.Metodo), nil
-	}
-	rota := strings.TrimSpace(in.Rota)
-	if !strings.HasPrefix(rota, "/") {
-		return erro("rota deve começar com / (recebi %q)", in.Rota), nil
-	}
-	if api.BaseURL == "" {
-		return erro("api %s não tem base_url no registro", nome), nil
-	}
-	url := strings.TrimRight(api.BaseURL, "/") + rota
-
-	var corpo io.Reader
-	if strings.TrimSpace(in.Corpo) != "" {
-		corpo = strings.NewReader(in.Corpo)
-	}
-	req, err := http.NewRequestWithContext(ctx, metodo, url, corpo)
-	if err != nil {
-		return erro("requisição inválida: %v", err), nil
-	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-	if corpo != nil && req.Header.Get("Content-Type") == "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if req.Header.Get("Accept") == "" {
-		req.Header.Set("Accept", "application/json")
-	}
-	cliente := ag.cfg.HTTPClient
-	if cliente == nil {
-		cliente = &http.Client{Timeout: 20 * time.Second}
-	}
-	resp, err := cliente.Do(req)
-	if err != nil {
-		return erro("falha ao chamar %s %s: %v", metodo, url, err), nil
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxCorpoResposta))
-	out := saida{"status": resp.StatusCode, "corpo": corta(string(raw), PaginaChars)}
-	if resp.StatusCode >= 400 {
-		out["error"] = fmt.Sprintf("HTTP %d em %s %s", resp.StatusCode, metodo, rota)
-	}
-	return out, nil
-}
-
-func unicos(xs []string) []string {
-	vistos := map[string]bool{}
-	var out []string
-	for _, x := range xs {
-		if !vistos[x] {
-			vistos[x] = true
-			out = append(out, x)
-		}
-	}
-	return out
-}
-
 // ---- invocar_agente -------------------------------------------------------
 
 type argsAgente struct {
@@ -364,28 +196,111 @@ func (ag *Agente) invocarAgente(ctx context.Context, in *argsAgente) (saida, err
 	return saida{"agente": sub.Def.Nome, "resposta": r.Resposta}, nil
 }
 
-// ---- stubs ----------------------------------------------------------------
+// ---- chamar_recurso -------------------------------------------------------
 
-type argsScript struct {
-	Nome string `json:"nome" jsonschema:"required" jsonschema_description:"arquivo do script"`
-	Args string `json:"args" jsonschema_description:"argumentos"`
-}
-type argsBash struct {
-	Comando string `json:"comando" jsonschema:"required" jsonschema_description:"comando da allowlist"`
-	Args    string `json:"args" jsonschema_description:"argumentos"`
-}
-type argsRag struct {
-	Consulta string `json:"consulta" jsonschema:"required" jsonschema_description:"o que procurar"`
-}
-type argsMCP struct {
-	Tool       string `json:"tool" jsonschema:"required" jsonschema_description:"tool do servidor"`
-	Argumentos string `json:"argumentos" jsonschema_description:"argumentos em JSON"`
+type argsRecurso struct {
+	Nome   string         `json:"nome" jsonschema:"required" jsonschema_description:"nome do recurso, exatamente como declarado (ex.: faq.buscar)"`
+	Params map[string]any `json:"params" jsonschema_description:"parâmetros do recurso, pelo manual da projeção"`
 }
 
-// stub devolve o erro claro de capacidade ainda não implementada no runtime Go.
-func stub[T any](nome string) func(context.Context, T) (saida, error) {
-	return func(_ context.Context, in T) (saida, error) {
-		args, _ := json.Marshal(in)
-		return erro("%s ainda não suportado neste runtime (pedido: %s); siga sem essa capacidade ou avise o morador", nome, string(args)), nil
+// Permissao é o veredito do harness sobre um recurso declarado para esta identidade.
+type Permissao struct {
+	okf.RecursoDeclarado
+	Permitido bool   `json:"permitido"`
+	Motivo    string `json:"motivo,omitempty"` // por que NÃO está permitido
+}
+
+// Permissoes cruza as declarações do agente (RecursosDoAgente) com a identidade da
+// Config: escrita nunca vira tool; private só com Authenticated; declaração com
+// problema no Nexus fica bloqueada com o problema como motivo.
+func (ag *Agente) Permissoes() []Permissao {
+	var out []Permissao
+	for _, d := range ag.Cat.RecursosDoAgente(ag.Def) {
+		p := Permissao{RecursoDeclarado: d}
+		switch {
+		case d.Recurso != nil && d.Recurso.Write:
+			p.Motivo = "escrita só pelo caso de uso"
+		case !d.OK:
+			p.Motivo = d.Problema
+		case d.Recurso != nil && d.Recurso.Visibility == "private" && !ag.cfg.Identidade.Authenticated:
+			p.Motivo = "privado: só para morador identificado"
+		default:
+			p.Permitido = true
+		}
+		out = append(out, p)
 	}
+	return out
+}
+
+func (ag *Agente) recursosPermitidos() []string {
+	var out []string
+	vistos := map[string]bool{}
+	for _, p := range ag.Permissoes() {
+		if p.Permitido && !vistos[p.Nome] {
+			vistos[p.Nome] = true
+			out = append(out, p.Nome)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, error) {
+	nome := strings.TrimSpace(in.Nome)
+	var achado *Permissao
+	for _, p := range ag.Permissoes() {
+		if p.Nome != nome {
+			continue
+		}
+		p := p
+		if achado == nil || (p.Permitido && !achado.Permitido) {
+			achado = &p
+		}
+	}
+	if achado == nil {
+		perm := ag.recursosPermitidos()
+		if len(perm) == 0 {
+			return erro("recurso %q não está declarado por este agente e nenhum recurso está permitido agora", nome), nil
+		}
+		return erro("recurso %q não está declarado por este agente; permitidos: %s", nome, strings.Join(perm, ", ")), nil
+	}
+	if !achado.Permitido {
+		return erro("recurso %s recusado: %s", nome, achado.Motivo), nil
+	}
+
+	cli := ag.cfg.Nexus
+	if cli == nil || cli.BaseURL == "" {
+		return erro("Nexus indisponível: não há como chamar %s agora; avise o morador", nome), nil
+	}
+	if achado.Recurso != nil {
+		var faltam []string
+		for _, pm := range achado.Recurso.Params {
+			if pm.Required {
+				if v, ok := in.Params[pm.Name]; !ok || v == nil || fmt.Sprint(v) == "" {
+					faltam = append(faltam, pm.Name)
+				}
+			}
+		}
+		if len(faltam) > 0 {
+			return erro("faltam params obrigatórios de %s: %s", nome, strings.Join(faltam, ", ")), nil
+		}
+	}
+	params := in.Params
+	if params == nil {
+		params = map[string]any{}
+	}
+	n := 1
+	if col := coletorDe(ctx); col != nil {
+		n = col.proximaInvocacao()
+	}
+	idem := fmt.Sprintf("%s:%s:%s:%d", ag.cfg.sessao(), ag.Def.Nome, nome, n)
+	raw, err := cli.Invoke(ctx, nome, ag.cfg.account(), params, idem)
+	if err != nil {
+		return erro("falha ao chamar %s: %v", nome, err), nil
+	}
+	var resultado any
+	if json.Unmarshal(raw, &resultado) != nil {
+		resultado = string(raw)
+	}
+	return saida{"recurso": nome, "resultado": resultado}, nil
 }

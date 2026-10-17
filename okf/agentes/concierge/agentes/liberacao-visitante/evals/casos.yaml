@@ -1,0 +1,7 @@
+- nome: pedido completo não pergunta o que já foi dito
+  pergunta: "libera a Maria Souza, telefone 11 98888-7777, visita hoje"
+  nao_contem: ["Qual o nome completo"]
+- nome: confirmação negada não grava
+  pergunta: "não"
+  contexto: {passo: confirm}
+  nao_contem: ["Protocolo"]

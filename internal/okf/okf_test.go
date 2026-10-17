@@ -7,6 +7,12 @@ import (
 	"testing"
 )
 
+var recursosDeTeste = []Recurso{
+	{Name: "unidades.listar", Kind: KindAPI, Visibility: "private", Description: "unidades da pessoa"},
+	{Name: "faq.buscar", Kind: KindKnowledge, Visibility: "public", Description: "FAQ", Params: []ParamMeta{{Name: "query", Type: "string", Required: true}}},
+	{Name: "visitantes.liberar", Kind: KindAPI, Visibility: "private", Write: true, Description: "libera visitante"},
+}
+
 // montaFamilia cria um catálogo temporário com um pai orquestrador e dois filhos.
 func montaFamilia(t *testing.T) (*Catalogo, string) {
 	t.Helper()
@@ -20,27 +26,25 @@ func montaFamilia(t *testing.T) (*Catalogo, string) {
 			t.Fatal(err)
 		}
 	}
-	escreve("agentes/pai/agent.yaml", "nome: pai\ndescricao: orquestra o condomínio\n")
+	escreve("agentes/pai/agent.yaml", "nome: pai\ndescricao: orquestra o condomínio\nrecursos: [unidades.listar, visitantes.liberar]\n")
+	escreve("agentes/pai/persona.md", "# Persona\n\n- cordial\n")
 	escreve("agentes/pai/routers/rotas.md", "# Roteamento\n\n- Dúvida sobre o regimento → rota `regimento`.\n- Qualquer outra coisa → rota `self`.\n")
-	escreve("agentes/pai/data/consultas.md", "---\ndescription: consultas prontas\n---\n# Consultas\n")
-	escreve("agentes/pai/data/okf/glossary.yaml", "terms:\n  - id: unidade\n    display_name: Unidade\n    synonyms: [apartamento, apê]\n    definition: a unidade do morador\n    labels: [cadastro]\n")
-	escreve("agentes/pai/schemas/dw.yaml", "tabelas: {}\n")
-	escreve("agentes/pai/agentes/regimento/agent.yaml", "nome: regimento\ndescricao: responde pelo regimento\nfontes: [../../data]\n")
-	escreve("agentes/pai/agentes/regimento/workflows/principal.md", "# Workflow\n\n1. Leia `data/regimento.md` (ler_dado).\n2. Use `assets/rodape.md` no fim.\n3. Consulte `fonte:data/consultas.md`.\n4. Nunca leia `data/inexistente.md`.\n")
+	escreve("agentes/pai/knowledge/glossary.yaml", "terms:\n  - id: unidade\n    display_name: Unidade\n    synonyms: [apartamento, apê]\n    definition: a unidade do morador\n    labels: [cadastro]\n")
+	escreve("agentes/pai/assets/rodape.md", "— administração\n")
+	escreve("agentes/pai/agentes/regimento/agent.yaml", "nome: regimento\ndescricao: responde pelo regimento\nrecursos: [faq.buscar, inexistente.recurso]\n")
+	escreve("agentes/pai/agentes/regimento/workflows/principal.md", "# Workflow\n\n1. Leia `knowledge/regimento.md` (ler_dado).\n2. Use `assets/rodape.md` no fim.\n3. Consulte `knowledge/glossary.yaml`.\n4. Nunca leia `knowledge/inexistente.md`.\n")
 	escreve("agentes/pai/agentes/regimento/rules/output.md", "# Contrato\n\n## Resposta\n")
-	escreve("agentes/pai/agentes/regimento/data/regimento.md", "# Regimento\n\nArt. 1\n")
-	escreve("agentes/pai/agentes/regimento/data/okf/questions/silencio.md", "---\ntype: Question\ntitle: Pergunta — silêncio\nanswers: [PERMITIDO, PROIBIDO]\n---\n## Answers\n")
-	escreve("agentes/pai/agentes/regimento/assets/rodape.md", "— administração\n")
+	escreve("agentes/pai/agentes/regimento/knowledge/regimento.md", "# Regimento\n\nArt. 1\n")
+	escreve("agentes/pai/agentes/regimento/knowledge/questions/silencio.md", "---\ntype: Question\ntitle: Pergunta — silêncio\nanswers: [PERMITIDO, PROIBIDO]\n---\n## Answers\n")
 	escreve("agentes/pai/agentes/faq/agent.yaml", "nome: faq\ndescricao: dúvidas gerais\n")
-	escreve("agentes/pai/agentes/faq/workflows/principal.md", "# Workflow\n\n1. Leia `data/regimento.md`.\n")
-	escreve("apis/nexus.yaml", "nome: nexus\ndescricao: recursos do condomínio\nbase_url: http://nexus\nrequer: [NEXUS_TOKEN]\nmanual: |\n  POST /v1/resources/{name}/invoke\n")
-	escreve("bases/portaria/base.yaml", "nome: portaria\ntipo: rest\ndescricao: acesso à portaria\nsegredos: [PORTARIA_TOKEN]\napis: [nexus]\n")
-	escreve("bases/portaria/schemas/portaria.yaml", "tabelas: {}\n")
-	escreve("tools/assets/rodape-oficial.md", "— Administração do condomínio\n")
+	escreve("agentes/pai/agentes/faq/workflows/principal.md", "# Workflow\n\n1. Leia `knowledge/regimento.md`.\n")
+	escreve("agentes/pai/agentes/visita/agent.yaml", "nome: visita\ndescricao: libera visitante\n")
+	escreve("agentes/pai/agentes/visita/caso.yaml", "id: liberacao\nname: Liberação\nsteps:\n  - resource: unidades.listar\n    save_as: unidades\n  - collect: [nome]\n  - confirm: \"ok?\"\n  - resource: visitantes.liberar\n    with: {unidade_id: \"{{.unidade}}\"}\noutput: \"Protocolo {{.r.protocolo}}\"\n")
 	c, err := NewCatalogo(root)
 	if err != nil {
 		t.Fatal(err)
 	}
+	c.Recursos = func() []Recurso { return recursosDeTeste }
 	return c, root
 }
 
@@ -55,27 +59,31 @@ func TestArvoreHerancaETipo(t *testing.T) {
 	}
 	pai := tree[0]
 	if pai.Tipo != Orquestrador || pai.TipoDeclarado {
-		t.Fatalf("pai deveria ser orquestrador inferido (routers + subagentes), veio %s", pai.Tipo)
+		t.Fatalf("pai deveria ser orquestrador inferido, veio %s", pai.Tipo)
 	}
-	if len(pai.Subagentes) != 2 {
-		t.Fatalf("esperava 2 subagentes, veio %d", len(pai.Subagentes))
+	if len(pai.Subagentes) != 3 {
+		t.Fatalf("esperava 3 subagentes, veio %d", len(pai.Subagentes))
 	}
 	reg := Find(tree, "agentes/pai/agentes/regimento")
 	if reg == nil || reg.Tipo != Operador {
 		t.Fatalf("regimento deveria ser operador: %+v", reg)
 	}
-	// herança: schemas e data do pai aparecem como herdados; o próprio data não é repetido
-	if len(reg.Herdados["schemas"]) != 1 || reg.Herdados["schemas"][0].HerdadoDe != "pai" {
-		t.Fatalf("schemas herdados: %+v", reg.Herdados["schemas"])
+	// herança: knowledge e assets do pai aparecem como herdados; o próprio não repete
+	if len(reg.Herdados["assets"]) != 1 || reg.Herdados["assets"][0].HerdadoDe != "pai" {
+		t.Fatalf("assets herdados: %+v", reg.Herdados["assets"])
 	}
-	for _, f := range reg.Herdados["data"] {
-		if f.Caminho == "data/regimento.md" {
-			t.Fatal("o próprio data/regimento.md não pode vir como herdado")
-		}
+	if len(reg.Herdados["knowledge"]) != 1 || reg.Herdados["knowledge"][0].Caminho != "knowledge/glossary.yaml" {
+		t.Fatalf("knowledge herdado: %+v", reg.Herdados["knowledge"])
 	}
-	// rules não herda
 	if len(reg.Herdados["rules"]) != 0 {
 		t.Fatal("rules não deveria herdar")
+	}
+	// persona herdada
+	if reg.PersonaDe != "pai" || !strings.Contains(reg.Persona, "cordial") {
+		t.Fatalf("persona herdada: de=%q %q", reg.PersonaDe, reg.Persona)
+	}
+	if pai.PersonaDe != "" || pai.Persona == "" {
+		t.Fatal("pai deveria ter persona própria")
 	}
 }
 
@@ -83,11 +91,11 @@ func TestFronteira(t *testing.T) {
 	_, root := montaFamilia(t)
 	reg := filepath.Join(root, "agentes", "pai", "agentes", "regimento")
 	casos := map[string]bool{
-		filepath.Join(reg, "data", "x.md"):                                               true,
-		filepath.Join(root, "agentes", "pai", "data"):                                    true,
-		filepath.Join(root, "agentes", "pai", "agentes", "faq", "data"):                  false, // irmão
-		filepath.Join(root, "bases"):                                                     false, // fora da árvore
-		filepath.Join(root, "agentes", "pai", "agentes"):                                 false, // a área dos filhos do pai
+		filepath.Join(reg, "knowledge", "x.md"):                                          true,
+		filepath.Join(root, "agentes", "pai", "knowledge"):                               true,
+		filepath.Join(root, "agentes", "pai", "agentes", "faq", "knowledge"):             false,
+		filepath.Join(root, "nexus"):                                                     false,
+		filepath.Join(root, "agentes", "pai", "agentes"):                                 false,
 		filepath.Join(root, "agentes", "pai", "agentes", "regimento", "agentes", "neto"): true,
 	}
 	for alvo, esperado := range casos {
@@ -95,40 +103,42 @@ func TestFronteira(t *testing.T) {
 			t.Errorf("Permitido(%s) = %v, esperava %v", alvo, got, esperado)
 		}
 	}
-	if anc := Ancestrais(reg); len(anc) != 1 || filepath.Base(anc[0]) != "pai" {
-		t.Fatalf("ancestrais: %v", anc)
-	}
 }
 
-func TestVinculosEProblemas(t *testing.T) {
+func TestVinculosRecursosEProblemas(t *testing.T) {
 	c, _ := montaFamilia(t)
 	tree, _ := c.Tree()
 	reg := Find(tree, "agentes/pai/agentes/regimento")
-	vs := c.Vinculos(reg)
 	estado := map[string]Vinculo{}
-	for _, v := range vs {
+	for _, v := range c.Vinculos(reg) {
 		estado[v.Tipo+":"+v.Alvo] = v
 	}
-	if v := estado["dado:data/regimento.md"]; !v.OK || v.Resolvido != "próprio" {
-		t.Errorf("data/regimento.md deveria resolver como próprio: %+v", v)
+	if v := estado["conhecimento:knowledge/regimento.md"]; !v.OK || v.Resolvido != "próprio" {
+		t.Errorf("knowledge/regimento.md deveria resolver como próprio: %+v", v)
 	}
-	if v := estado["asset:assets/rodape.md"]; !v.OK {
-		t.Errorf("assets/rodape.md deveria resolver: %+v", v)
+	if v := estado["asset:assets/rodape.md"]; !v.OK || v.Resolvido != "herdado de pai" {
+		t.Errorf("assets/rodape.md deveria vir do pai: %+v", v)
 	}
-	if v := estado["fonte:fonte:data/consultas.md"]; !v.OK {
-		t.Errorf("fonte:data/consultas.md deveria resolver pela fonte: %+v", v)
+	if v := estado["conhecimento:knowledge/glossary.yaml"]; !v.OK {
+		t.Errorf("glossário herdado deveria resolver: %+v", v)
 	}
-	if v := estado["dado:data/inexistente.md"]; v.OK || v.Problema == "" {
-		t.Errorf("data/inexistente.md deveria quebrar: %+v", v)
+	if v := estado["conhecimento:knowledge/inexistente.md"]; v.OK {
+		t.Errorf("knowledge/inexistente.md deveria quebrar: %+v", v)
 	}
-	if v := estado["fonte:../../data"]; !v.OK {
-		t.Errorf("fontes ../../data deveria ser permitida: %+v", v)
+	if v := estado["recurso:faq.buscar"]; !v.OK || !strings.Contains(v.Resolvido, "knowledge") {
+		t.Errorf("faq.buscar deveria resolver no Nexus: %+v", v)
 	}
-	// o faq cita data/regimento.md, que existe só no IRMÃO: quebra com dica de fronteira
+	if v := estado["recurso:inexistente.recurso"]; v.OK {
+		t.Errorf("recurso inexistente deveria quebrar: %+v", v)
+	}
+	if v := estado["persona:herdada"]; !v.OK {
+		t.Errorf("persona herdada deveria aparecer: %+v", v)
+	}
+	// o faq cita knowledge/regimento.md, que existe só no IRMÃO
 	faq := Find(tree, "agentes/pai/agentes/faq")
 	achou := false
 	for _, v := range c.Vinculos(faq) {
-		if v.Alvo == "data/regimento.md" {
+		if v.Alvo == "knowledge/regimento.md" {
 			achou = true
 			if v.OK || !strings.Contains(v.Problema, "fronteira") {
 				t.Errorf("deveria apontar a fronteira: %+v", v)
@@ -138,35 +148,55 @@ func TestVinculosEProblemas(t *testing.T) {
 	if !achou {
 		t.Fatal("vínculo do faq não encontrado")
 	}
-	// rotas do pai
+	// pai declara escrita fora do caso: erro com solução
 	pai := tree[0]
-	for _, v := range c.Vinculos(pai) {
-		if v.Tipo == "rota" && v.Alvo == "regimento" && !v.OK {
-			t.Errorf("rota regimento deveria resolver: %+v", v)
+	temErroEscrita := false
+	for _, p := range pai.Problemas {
+		if strings.Contains(p.Texto, "visitantes.liberar") && strings.Contains(p.Texto, "ESCRITA") {
+			temErroEscrita = true
 		}
 	}
-	// problemas: o regimento tem um vínculo quebrado (erro) e falta politicas (nenhum aviso obrigatório sobre isso)
-	erros := 0
-	for _, p := range reg.Problemas {
+	if !temErroEscrita {
+		t.Errorf("pai deveria acusar escrita em agent.yaml: %+v", pai.Problemas)
+	}
+	// o caso do visita: escrita dentro do caso, com confirm: ok
+	visita := Find(tree, "agentes/pai/agentes/visita")
+	if visita.Caso == nil || visita.Caso.ID != "liberacao" || !visita.Caso.Confirma || len(visita.Caso.Recursos) != 2 {
+		t.Fatalf("caso: %+v", visita.Caso)
+	}
+	for _, v := range c.Vinculos(visita) {
+		if v.Tipo == "recurso" && !v.OK {
+			t.Errorf("recurso do caso deveria resolver: %+v", v)
+		}
+	}
+	for _, p := range visita.Problemas {
 		if p.Nivel == "erro" {
-			erros++
+			t.Errorf("visita não deveria ter erro: %+v", p)
 		}
-	}
-	if erros != 1 {
-		t.Errorf("esperava 1 erro no regimento, veio %d: %+v", erros, reg.Problemas)
 	}
 }
 
-func TestConhecimentoOKF(t *testing.T) {
+func TestConhecimentoEIndice(t *testing.T) {
 	c, _ := montaFamilia(t)
 	tree, _ := c.Tree()
 	reg := Find(tree, "agentes/pai/agentes/regimento")
 	k := c.Conhecimento(reg)
-	if len(k.Docs) != 1 || k.Docs[0].Tipo != "Question" || len(k.Docs[0].Respostas) != 2 {
-		t.Fatalf("docs OKF: %+v", k.Docs)
+	if len(k.Docs) != 2 {
+		t.Fatalf("docs: %+v", k.Docs)
 	}
 	if len(k.Termos) != 1 || k.Termos[0].ID != "unidade" || k.Termos[0].HerdadoDe != "pai" {
 		t.Fatalf("termos: %+v", k.Termos)
+	}
+	idx := c.Indice(reg)
+	if len(idx) != 4 {
+		t.Fatalf("índice deveria ter 2 próprios + glossário + rodapé: %+v", idx)
+	}
+	raw, err := c.LerDado(reg, "assets/rodape.md")
+	if err != nil || !strings.Contains(string(raw), "administração") {
+		t.Fatalf("LerDado herdado: %v %q", err, raw)
+	}
+	if _, err := c.LerDado(reg, "knowledge/nada.md"); err == nil {
+		t.Fatal("fora do índice deveria falhar")
 	}
 }
 
@@ -175,10 +205,17 @@ func TestProjecao(t *testing.T) {
 	tree, _ := c.Tree()
 	reg := Find(tree, "agentes/pai/agentes/regimento")
 	p := c.Projecao(reg)
-	for _, trecho := range []string{"OPERADOR", "# Workflow", "# Contrato de saída", "`data/regimento.md`", "[herdado de pai]", "`fonte:data/consultas.md`", "consultar_schema", "# Regras gerais"} {
+	for _, trecho := range []string{"OPERADOR", "# Persona", "cordial", "# Workflow", "# Contrato de saída", "`knowledge/regimento.md`", "[herdado de pai]", "chamar_recurso", "`faq.buscar` (knowledge, public)", "# Regras gerais"} {
 		if !strings.Contains(p, trecho) {
 			t.Errorf("projeção sem %q:\n%s", trecho, p)
 		}
+	}
+	if strings.Contains(p, "inexistente.recurso") {
+		t.Error("recurso quebrado não deveria ir ao prompt")
+	}
+	visita := c.Projecao(Find(tree, "agentes/pai/agentes/visita"))
+	if !strings.Contains(visita, "# Caso de uso `liberacao`") || !strings.Contains(visita, "Recursos de escrita") || !strings.Contains(visita, "confirmar (sim/não)") {
+		t.Errorf("projeção do caso:\n%s", visita)
 	}
 	pai := c.Projecao(tree[0])
 	if !strings.Contains(pai, "ORQUESTRADOR") || !strings.Contains(pai, "Rotas de delegação") {
@@ -188,7 +225,7 @@ func TestProjecao(t *testing.T) {
 
 func TestCriarMoverClonarExcluir(t *testing.T) {
 	c, root := montaFamilia(t)
-	rel, mud, err := c.CriarAgente(NovoAgente{Pai: "agentes/pai", Nome: "observador", Tipo: Operador, Descricao: "observa a sessão e segmenta assuntos", Caixinhas: []string{"rules", "workflows", "data"}})
+	rel, mud, err := c.CriarAgente(NovoAgente{Pai: "agentes/pai", Nome: "observador", Tipo: Operador, Descricao: "observa a sessão", Caixinhas: []string{"rules", "workflows", "knowledge"}, Caso: true, Recursos: []string{"faq.buscar"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,48 +233,38 @@ func TestCriarMoverClonarExcluir(t *testing.T) {
 		t.Fatalf("rel: %s", rel)
 	}
 	rotas, _ := os.ReadFile(filepath.Join(root, "agentes", "pai", "routers", "rotas.md"))
-	if !strings.Contains(string(rotas), "rota `observador`") {
-		t.Fatalf("rota não registrada no pai:\n%s\nmudanças: %v", rotas, mud)
+	if !strings.Contains(string(rotas), "rota `observador`") || strings.Index(string(rotas), "rota `observador`") > strings.Index(string(rotas), "rota `self`") {
+		t.Fatalf("rota não registrada antes do self:\n%s\n%v", rotas, mud)
 	}
-	if idx := strings.Index(string(rotas), "rota `observador`"); idx > strings.Index(string(rotas), "rota `self`") {
-		t.Fatal("a rota nova entrou depois do self")
+	dir := filepath.Join(root, "agentes", "pai", "agentes", "observador")
+	for _, f := range []string{"knowledge/glossary.yaml", "caso.yaml", "rules/output.md"} {
+		if !fileExists(filepath.Join(dir, filepath.FromSlash(f))) {
+			t.Fatalf("%s não criado", f)
+		}
 	}
-	if !fileExists(filepath.Join(root, "agentes", "pai", "agentes", "observador", "data", "okf", "glossary.yaml")) {
-		t.Fatal("glossário OKF não criado")
+	if fileExists(filepath.Join(dir, PersonaMD)) {
+		t.Fatal("subagente operador não deveria ganhar persona por padrão")
+	}
+	cfg, _ := os.ReadFile(filepath.Join(dir, AgentYAML))
+	if !strings.Contains(string(cfg), "recursos:\n    - faq.buscar") {
+		t.Fatalf("agent.yaml sem recursos:\n%s", cfg)
 	}
 
-	// mover para a raiz: some do pai
 	novoRel, _, err := c.Mover(rel, "", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if novoRel != "agentes/observador" {
-		t.Fatalf("novo rel: %s", novoRel)
+	if err != nil || novoRel != "agentes/observador" {
+		t.Fatal(err, novoRel)
 	}
 	rotas, _ = os.ReadFile(filepath.Join(root, "agentes", "pai", "routers", "rotas.md"))
 	if strings.Contains(string(rotas), "observador") {
 		t.Fatalf("rota deveria ter sido removida:\n%s", rotas)
 	}
-
-	// clonar de volta para o pai: volta a rota, original fica
 	cloneRel, _, err := c.Mover(novoRel, "agentes/pai", true)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || cloneRel != "agentes/pai/agentes/observador" || !dirExists(filepath.Join(root, "agentes", "observador")) {
+		t.Fatal(err, cloneRel)
 	}
-	if cloneRel != "agentes/pai/agentes/observador" || !dirExists(filepath.Join(root, "agentes", "observador")) {
-		t.Fatalf("clone: %s", cloneRel)
-	}
-	rotas, _ = os.ReadFile(filepath.Join(root, "agentes", "pai", "routers", "rotas.md"))
-	if !strings.Contains(string(rotas), "rota `observador`") {
-		t.Fatal("rota do clone não registrada")
-	}
-
-	// mover para dentro de si mesmo é recusado
 	if _, _, err := c.Mover("agentes/pai", "agentes/pai/agentes/regimento", false); err == nil {
 		t.Fatal("deveria recusar mover o pai para dentro do filho")
 	}
-
-	// excluir tira a rota
 	if _, err := c.ExcluirAgente(cloneRel); err != nil {
 		t.Fatal(err)
 	}
@@ -247,67 +274,76 @@ func TestCriarMoverClonarExcluir(t *testing.T) {
 	}
 }
 
-func TestArquivosEConfig(t *testing.T) {
+func TestArquivosConfigEVinculo(t *testing.T) {
 	c, root := montaFamilia(t)
-	if err := c.SalvarArquivo("agentes/pai/agentes/faq", "rules/politicas.md", []byte("# Políticas\n\n- x\n")); err != nil {
+	faq := "agentes/pai/agentes/faq"
+	if err := c.SalvarArquivo(faq, "rules/politicas.md", []byte("# Políticas\n\n- x\n")); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SalvarArquivo("agentes/pai/agentes/faq", "../pai/agent.yaml", []byte("x")); err == nil {
-		t.Fatal("deveria recusar fuga de caminho")
+	if err := c.SalvarArquivo(faq, PersonaMD, []byte("# Persona\n")); err != nil {
+		t.Fatal(err)
 	}
-	if err := c.SalvarArquivo("agentes/pai/agentes/faq", "agentes/x/agent.yaml", []byte("x")); err == nil {
-		t.Fatal("deveria recusar escrever em agentes/")
+	for _, ruim := range []string{"../pai/agent.yaml", "agentes/x/agent.yaml", "rules/x.exe", "data/x.md", "mcps/x.yaml"} {
+		if err := c.SalvarArquivo(faq, ruim, []byte("x")); err == nil {
+			t.Fatalf("deveria recusar %s", ruim)
+		}
 	}
-	if err := c.SalvarArquivo("agentes/pai/agentes/faq", "rules/x.exe", []byte("x")); err == nil {
-		t.Fatal("deveria recusar extensão")
+	if err := c.SalvarArquivo(faq, CasoYAML, []byte("name: sem id\n")); err == nil {
+		t.Fatal("caso.yaml sem id deveria ser recusado")
 	}
-	if err := c.SalvarArquivo("agentes/pai/agentes/faq", "agent.yaml", []byte("nome: faq\nfontes: [../regimento/data]\n")); err == nil {
-		t.Fatal("deveria recusar fonte de irmão no agent.yaml")
-	}
-	if err := c.SalvarConfig("agentes/pai/agentes/faq", map[string]any{"descricao": "dúvidas gerais do condomínio", "tipo": "operador", "apis": []any{"nexus"}}); err != nil {
+	if err := c.SalvarConfig(faq, map[string]any{"descricao": "dúvidas gerais do condomínio", "tipo": "operador", "recursos": []any{"faq.buscar"}}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(filepath.Join(root, "agentes", "pai", "agentes", "faq", "agent.yaml"))
-	s := string(raw)
-	if !strings.HasPrefix(s, "nome: faq\ntipo: operador\ndescricao: dúvidas gerais do condomínio\n") || !strings.Contains(s, "apis:\n    - nexus") {
-		t.Fatalf("agent.yaml gravado fora da ordem esperada:\n%s", s)
+	if !strings.HasPrefix(string(raw), "nome: faq\ntipo: operador\ndescricao: dúvidas gerais do condomínio\n") || !strings.Contains(string(raw), "recursos:\n    - faq.buscar") {
+		t.Fatalf("agent.yaml fora da ordem:\n%s", raw)
 	}
-	if err := c.ExcluirArquivo("agentes/pai/agentes/faq", "rules/politicas.md"); err != nil {
+	mud, err := c.VincularRecurso(faq, "unidades.listar", true)
+	if err != nil || len(mud) != 1 {
+		t.Fatal(err, mud)
+	}
+	if mud, _ := c.VincularRecurso(faq, "unidades.listar", true); mud != nil {
+		t.Fatal("ligar de novo deveria ser idempotente")
+	}
+	if _, err := c.VincularRecurso(faq, "nao.existe", true); err == nil {
+		t.Fatal("recurso fora da account deveria falhar")
+	}
+	if _, err := c.VincularRecurso(faq, "visitantes.liberar", true); err == nil || !strings.Contains(err.Error(), "ESCRITA") {
+		t.Fatalf("escrita em agent.yaml deveria ser recusada: %v", err)
+	}
+	if _, err := c.VincularRecurso(faq, "unidades.listar", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.ExcluirArquivo("agentes/pai/agentes/faq", "agent.yaml"); err == nil {
+	raw, _ = os.ReadFile(filepath.Join(root, "agentes", "pai", "agentes", "faq", "agent.yaml"))
+	if strings.Contains(string(raw), "unidades.listar") {
+		t.Fatalf("desligar não tirou:\n%s", raw)
+	}
+	if err := c.ExcluirArquivo(faq, "agent.yaml"); err == nil {
 		t.Fatal("não pode excluir o agent.yaml")
+	}
+	if err := c.ExcluirArquivo(faq, PersonaMD); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestAplicarCatalogo(t *testing.T) {
-	c, root := montaFamilia(t)
-	mud, err := c.Aplicar("agentes/pai/agentes/faq", "base", "portaria")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(mud) < 3 {
-		t.Fatalf("esperava schema + segredos + apis, veio %v", mud)
-	}
-	raw, _ := os.ReadFile(filepath.Join(root, "agentes", "pai", "agentes", "faq", "agent.yaml"))
-	if !strings.Contains(string(raw), "PORTARIA_TOKEN") || !strings.Contains(string(raw), "nexus") {
-		t.Fatalf("agent.yaml sem a fusão:\n%s", raw)
-	}
-	mud, err = c.Aplicar("agentes/pai/agentes/faq", "base", "portaria")
-	if err != nil || len(mud) != 1 || !strings.Contains(mud[0], "nada a fazer") {
-		t.Fatalf("aplicar de novo deveria ser idempotente: %v %v", mud, err)
-	}
-	mud, err = c.Aplicar("agentes/pai/agentes/faq", "asset", "rodape-oficial.md")
-	if err != nil || mud[0] != "assets/rodape-oficial.md" {
-		t.Fatalf("asset: %v %v", mud, err)
-	}
-	if _, err := c.Aplicar("agentes/pai/agentes/faq", "api", "inexistente"); err == nil {
-		t.Fatal("api desconhecida deveria falhar")
-	}
+func TestSemNexusNaoConfere(t *testing.T) {
+	c, _ := montaFamilia(t)
+	c.Recursos = nil
 	tree, _ := c.Tree()
-	faq := Find(tree, "agentes/pai/agentes/faq")
-	if seg := c.SegredosDeclarados(faq); len(seg) != 2 {
-		t.Fatalf("segredos declarados (próprio + requer da api): %v", seg)
+	reg := Find(tree, "agentes/pai/agentes/regimento")
+	for _, v := range c.Vinculos(reg) {
+		if v.Tipo == "recurso" && (!v.OK || !strings.Contains(v.Resolvido, "não conferido")) {
+			t.Errorf("sem Nexus deveria ficar 'não conferido': %+v", v)
+		}
+	}
+}
+
+func TestFixtureDeRecursos(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "x.yaml")
+	os.WriteFile(p, []byte("recursos:\n  - name: b.x\n    kind: api\n    write: true\n  - name: a.x\n    kind: knowledge\n    visibility: public\n"), 0o644)
+	l, err := LerRecursosFixture(p)
+	if err != nil || len(l) != 2 || l[0].Name != "a.x" || l[1].Visibility != "private" || l[1].Classe() != "escrita" || l[0].Classe() != "conhecimento" {
+		t.Fatalf("%v %+v", err, l)
 	}
 }
 
@@ -318,11 +354,8 @@ func TestZipIdaEVolta(t *testing.T) {
 		t.Fatal(err)
 	}
 	arqs, err := c.ImportarZip("agentes/regimento-copia", dados)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(arqs) < 4 {
-		t.Fatalf("arquivos importados: %v", arqs)
+	if err != nil || len(arqs) < 4 {
+		t.Fatal(err, arqs)
 	}
 	tree, _ := c.Tree()
 	if Find(tree, "agentes/regimento-copia") == nil {
@@ -344,9 +377,7 @@ func TestRotasComSecoes(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(filepath.Join(dir, "routers", "rotas.md"))
 	s := string(raw)
-	i := strings.Index(s, "rota `novo`")
-	j := strings.Index(s, "## Nenhuma serve")
-	if i == -1 || j == -1 || i > j {
+	if i, j := strings.Index(s, "rota `novo`"), strings.Index(s, "## Nenhuma serve"); i == -1 || j == -1 || i > j {
 		t.Fatalf("a rota nova deveria entrar antes da seção do self:\n%s", s)
 	}
 	if !strings.Contains(s, "- Boletim do dia → rota `novo`.") {
@@ -358,6 +389,6 @@ func TestRotasComSecoes(t *testing.T) {
 	m, _ = RemoverRota(dir, "self")
 	raw, _ = os.ReadFile(filepath.Join(dir, "routers", "rotas.md"))
 	if m == "" || strings.Contains(string(raw), "rota `self`") || strings.Contains(string(raw), "você consegue responder") {
-		t.Fatalf("remover deveria tirar o bloco inteiro (com a continuação):\n%s", raw)
+		t.Fatalf("remover deveria tirar o bloco inteiro:\n%s", raw)
 	}
 }
