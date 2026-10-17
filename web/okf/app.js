@@ -248,21 +248,13 @@
     f.modelo.value = a.modelo || '';
     $('#configStatus').textContent = '';
 
-    // persona: só o agente de primeiro nível tem; subagentes herdam a dele
+    // persona: só o agente de primeiro nível (o orquestrador que fala com o morador) tem o bloco
     const raizDaFamilia = !pai;
-    $('#personaOrigem').textContent = raizDaFamilia ? (a.persona ? 'própria' : 'nenhuma') : 'de ' + (a.persona_de || a.caminho.split('/')[1]);
-    $('#personaOrigem').className = 'tag ' + (raizDaFamilia ? (a.persona ? 'tag-private' : 'tag-warn') : 'tag-kind');
-    $('#personaTexto').hidden = !raizDaFamilia;
-    $('#personaAcoes').hidden = !raizDaFamilia;
-    $('#personaTexto').value = raizDaFamilia ? a.persona || '' : '';
-    if (raizDaFamilia) {
-      $('#personaAviso').innerHTML = !a.persona ? `<p class="notice warn"><i data-lucide="triangle-alert"></i>Quem fala com o morador precisa de persona. Escreva e salve, ou <a href="#" id="personaModelo">use o modelo</a>.</p>` : '';
-    } else {
-      const raizNome = a.persona_de || a.caminho.split('/')[1];
-      $('#personaAviso').innerHTML = `<p class="notice info"><i data-lucide="info"></i>Subagente não tem persona própria: fala com a voz de <b>${esc(raizNome)}</b>, o agente de primeiro nível. ${a.persona ? `<a href="#" id="personaIr">Editar lá</a>.` : 'Ele ainda não tem persona.'}</p>${a.persona ? `<pre class="pre" style="max-height:160px;margin-top:8px">${esc(a.persona)}</pre>` : ''}`;
-      const ir = $('#personaIr');
-      if (ir) ir.addEventListener('click', (e) => { e.preventDefault(); selecionar('agentes/' + raizNome); });
-    }
+    $('#cardPersona').hidden = !raizDaFamilia;
+    $('#personaOrigem').textContent = a.persona ? 'própria' : 'nenhuma';
+    $('#personaOrigem').className = 'tag ' + (a.persona ? 'tag-private' : 'tag-warn');
+    $('#personaTexto').value = a.persona || '';
+    $('#personaAviso').innerHTML = raizDaFamilia && !a.persona ? `<p class="notice warn"><i data-lucide="triangle-alert"></i>Quem fala com o morador precisa de persona. Escreva e salve, ou <a href="#" id="personaModelo">use o modelo</a>.</p>` : '';
     const pm = $('#personaModelo');
     if (pm) pm.addEventListener('click', async (e) => { e.preventDefault(); const m = await api('/api/arquivo/modelo?caminho=persona.md'); $('#personaTexto').value = m.conteudo; });
 
@@ -390,7 +382,7 @@
   function desenharArquivos() {
     const a = estado.ficha.agente;
     const raiz = [{ caminho: 'agent.yaml', bytes: '' }];
-    if (a.persona && !a.persona_de) raiz.push({ caminho: 'persona.md', bytes: '' });
+    if (a.persona) raiz.push({ caminho: 'persona.md', bytes: '' });
     if (a.caso) raiz.push({ caminho: 'caso.yaml', bytes: '' });
     const grupos = [['raiz', 'var(--sl-blue)', raiz]];
     for (const cx of estado.anatomia.caixinhas) {

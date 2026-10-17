@@ -99,8 +99,8 @@ type Agent struct {
 	Config        map[string]any       `json:"config"`
 	Arquivos      map[string][]Arquivo `json:"arquivos"`             // por caixinha: só os próprios
 	Herdados      map[string][]Arquivo `json:"herdados"`             // por caixinha: dos ancestrais, não sobrepostos
-	Persona       string               `json:"persona"`              // persona.md em vigor: própria (primeiro nível) ou da raiz da família
-	PersonaDe     string               `json:"persona_de,omitempty"` // "" = própria; senão o agente de primeiro nível
+	Persona       string               `json:"persona"`              // persona.md; só o agente de primeiro nível tem (subagentes: vazio)
+	PersonaDe     string               `json:"persona_de,omitempty"` // reservado (sempre vazio): a voz é aplicada pelo orquestrador na entrega
 	Caso          *Caso                `json:"caso,omitempty"`
 	Subagentes    []*Agent             `json:"subagentes"`
 	Problemas     []Problema           `json:"problemas"`
@@ -360,21 +360,16 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 		}
 	}
 
-	// persona: só o agente de PRIMEIRO NÍVEL (quem fala com o morador) tem persona.md;
-	// todos os subagentes herdam a dele. Um persona.md num subagente é ignorado.
+	// persona: só o agente de PRIMEIRO NÍVEL (o orquestrador que fala com o morador)
+	// tem persona.md. Subagentes produzem resultados, não falam com o morador: não têm
+	// persona nem a herdam; a voz é aplicada pelo orquestrador na entrega. Um
+	// persona.md num subagente é ignorado.
 	if len(ancs) == 0 {
 		if raw, err := os.ReadFile(filepath.Join(dir, PersonaMD)); err == nil {
 			a.Persona = string(raw)
 		}
-	} else {
-		raizDaFamilia := ancs[len(ancs)-1]
-		if raw, err := os.ReadFile(filepath.Join(raizDaFamilia, PersonaMD)); err == nil {
-			a.Persona = string(raw)
-			a.PersonaDe = filepath.Base(raizDaFamilia)
-		}
-		if fileExists(filepath.Join(dir, PersonaMD)) {
-			a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: PersonaMD, Texto: "persona só existe no agente de primeiro nível; este arquivo é ignorado", Solucao: "apague-o: o subagente usa a persona de " + filepath.Base(raizDaFamilia)})
-		}
+	} else if fileExists(filepath.Join(dir, PersonaMD)) {
+		a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: PersonaMD, Texto: "persona só existe no agente de primeiro nível; este arquivo é ignorado", Solucao: "apague-o: a voz é a de " + filepath.Base(ancs[len(ancs)-1]) + ", aplicada na entrega"})
 	}
 
 	// caso de uso

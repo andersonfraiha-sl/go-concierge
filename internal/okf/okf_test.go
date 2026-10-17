@@ -78,11 +78,11 @@ func TestArvoreHerancaETipo(t *testing.T) {
 	if len(reg.Herdados["rules"]) != 0 {
 		t.Fatal("rules não deveria herdar")
 	}
-	// persona herdada
-	if reg.PersonaDe != "pai" || !strings.Contains(reg.Persona, "cordial") {
-		t.Fatalf("persona herdada: de=%q %q", reg.PersonaDe, reg.Persona)
+	// persona: só na raiz; subagente não tem nem herda
+	if reg.Persona != "" || reg.PersonaDe != "" {
+		t.Fatalf("subagente não deveria ter persona: de=%q %q", reg.PersonaDe, reg.Persona)
 	}
-	if pai.PersonaDe != "" || pai.Persona == "" {
+	if pai.Persona == "" || !strings.Contains(pai.Persona, "cordial") {
 		t.Fatal("pai deveria ter persona própria")
 	}
 }
@@ -131,8 +131,8 @@ func TestVinculosRecursosEProblemas(t *testing.T) {
 	if v := estado["recurso:inexistente.recurso"]; v.OK {
 		t.Errorf("recurso inexistente deveria quebrar: %+v", v)
 	}
-	if v := estado["persona:herdada"]; !v.OK {
-		t.Errorf("persona herdada deveria aparecer: %+v", v)
+	if _, tem := estado["persona:herdada"]; tem {
+		t.Error("subagente não deveria ter vínculo de persona")
 	}
 	// o faq cita knowledge/regimento.md, que existe só no IRMÃO
 	faq := Find(tree, "agentes/pai/agentes/faq")
@@ -205,20 +205,20 @@ func TestProjecao(t *testing.T) {
 	tree, _ := c.Tree()
 	reg := Find(tree, "agentes/pai/agentes/regimento")
 	p := c.Projecao(reg)
-	for _, trecho := range []string{"OPERADOR", "# Persona", "cordial", "# Workflow", "# Contrato de saída", "`knowledge/regimento.md`", "[herdado de pai]", "chamar_recurso", "`faq.buscar` (knowledge, public)", "# Regras gerais"} {
+	for _, trecho := range []string{"OPERADOR", "# Workflow", "# Contrato de saída", "`knowledge/regimento.md`", "[herdado de pai]", "chamar_recurso", "`faq.buscar` (knowledge, public)", "# Regras gerais"} {
 		if !strings.Contains(p, trecho) {
 			t.Errorf("projeção sem %q:\n%s", trecho, p)
 		}
 	}
-	if strings.Contains(p, "inexistente.recurso") {
-		t.Error("recurso quebrado não deveria ir ao prompt")
+	if strings.Contains(p, "inexistente.recurso") || strings.Contains(p, "# Persona") {
+		t.Error("recurso quebrado e persona não deveriam ir ao prompt do subagente")
 	}
 	visita := c.Projecao(Find(tree, "agentes/pai/agentes/visita"))
 	if !strings.Contains(visita, "# Caso de uso `liberacao`") || !strings.Contains(visita, "Recursos de escrita") || !strings.Contains(visita, "confirmar (sim/não)") {
 		t.Errorf("projeção do caso:\n%s", visita)
 	}
 	pai := c.Projecao(tree[0])
-	if !strings.Contains(pai, "ORQUESTRADOR") || !strings.Contains(pai, "Rotas de delegação") {
+	if !strings.Contains(pai, "ORQUESTRADOR") || !strings.Contains(pai, "Rotas de delegação") || !strings.Contains(pai, "# Persona") || !strings.Contains(pai, "cordial") {
 		t.Errorf("projeção do pai:\n%s", pai)
 	}
 }
@@ -328,8 +328,8 @@ func TestArquivosConfigEVinculo(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "agentes", "pai", "agentes", "faq", PersonaMD), []byte("# outra\n"), 0o644)
 	tree, _ := c.Tree()
 	f2 := Find(tree, faq)
-	if f2.PersonaDe != "pai" || strings.Contains(f2.Persona, "outra") {
-		t.Fatalf("subagente deveria usar a persona do pai: de=%q %q", f2.PersonaDe, f2.Persona)
+	if f2.Persona != "" {
+		t.Fatalf("subagente não deveria carregar persona: %q", f2.Persona)
 	}
 	achou := false
 	for _, p := range f2.Problemas {

@@ -36,7 +36,7 @@ execução** e o agente só declara o que precisa.
 | Do agente (pasta) | Do Nexus (tempo de execução) |
 |---|---|
 | `agent.yaml`: nome, tipo, descrição, modelo, `recursos:` (nomes que declara usar) | **tools**: recursos `api`, `database`, `agent` da account |
-| `persona.md`: traços e tom de quem fala com o morador; **só no agente de primeiro nível** (o concierge), todos os subagentes herdam | **conteúdos e memórias**: recursos `knowledge` e `memory`, consultados, nunca copiados |
+| `persona.md`: traços e tom de quem fala com o morador; **só no orquestrador de primeiro nível** (o concierge). Subagentes produzem resultados, não falam com o morador: não têm persona nem a herdam; a voz é aplicada pelo orquestrador na entrega | **conteúdos e memórias**: recursos `knowledge` e `memory`, consultados, nunca copiados |
 | `caso.yaml`: caso de uso determinístico (passos do catálogo); **única porta de escrita** | a lista vem de `GET /v1/accounts/{account}/resources` ou do instantâneo `okf/nexus/<account>.yaml` |
 | `rules/`, `workflows/`, `routers/`, `knowledge/` (OKF), `assets/`, `evals/`, `agentes/` | o harness cruza a declaração do agente, o que a account oferece e o que a identidade do morador pode (privado só autenticado; escrita só pelo caso; bloqueios do condomínio) |
 
@@ -69,8 +69,8 @@ ficha. O texto abaixo descreve a anatomia como ficou.
   recursos declarados (agent.yaml e passos do caso) conferidos contra o Nexus (existe na
   account? escrita fora do caso?), persona em vigor. Todos conferidos a cada leitura.
 - **Duas regras duras** (do adam): **herança** (knowledge e assets do pai valem para os
-  filhos, o mais próximo vence; a persona é só do agente de primeiro nível e vale para
-  a família inteira; rules, workflows, routers, evals e caso não descem) e **fronteira** (um agente só referencia a própria pasta ou um ancestral;
+  filhos, o mais próximo vence; persona, rules, workflows, routers, evals e caso não
+  descem) e **fronteira** (um agente só referencia a própria pasta ou um ancestral;
   irmão, sobrinho e fora da árvore são proibidos).
 - O código Go tem o **interpretador** (pacote `internal/okf`: carga, herança, fronteira,
   vínculos, conhecimento, projeção, rotas, escrita, catálogo) e a **interface de
@@ -266,6 +266,14 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
 - Reimplementar os três modos (router/ReAct/planning) como no `sl-concierge`.
 - Open-JEV hospedado.
 - Faturamento por condomínio (o ledger prepara, não cobra).
+
+### 1.7 Persona é só do orquestrador (2026-10-16)
+
+- `persona.md` existe apenas no agente de **primeiro nível** (o concierge). Subagentes
+  não têm persona, não a herdam e a interface nem mostra o bloco para eles.
+- Consequência para o harness (pendente): a resposta ao morador é **entregue pelo
+  orquestrador**, que aplica a persona ao resultado do subagente ou do caso de uso;
+  hoje, no flip de rota, o subagente responde direto e a persona não é aplicada.
 
 ## 6. Estado e próximos passos
 

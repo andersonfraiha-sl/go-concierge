@@ -82,11 +82,8 @@ func (c *Catalogo) Vinculos(a *Agent) []Vinculo {
 		out = append(out, v)
 	}
 
-	// persona em vigor
-	switch {
-	case a.PersonaDe != "":
-		out = append(out, Vinculo{Tipo: "persona", Origem: PersonaMD, Alvo: "herdada", OK: true, Resolvido: "persona de " + a.PersonaDe + " (primeiro nível)"})
-	case a.Persona != "":
+	// persona (só o agente de primeiro nível)
+	if a.Persona != "" {
 		out = append(out, Vinculo{Tipo: "persona", Origem: PersonaMD, Alvo: "própria", OK: true, Resolvido: "próprio"})
 	}
 

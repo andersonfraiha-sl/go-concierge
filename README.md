@@ -17,7 +17,7 @@ o agente só declara o que precisa.
 okf/
 ├── agentes/<agente>/
 │   ├── agent.yaml        nome, tipo (orquestrador | operador), descricao, modelo, recursos (nomes do Nexus)
-│   ├── persona.md        traços e tom de quem fala com o morador; SÓ no primeiro nível, os subagentes herdam
+│   ├── persona.md        traços e tom de quem fala com o morador; SÓ no orquestrador de primeiro nível
 │   ├── caso.yaml         caso de uso determinístico (passos do catálogo); a única porta de ESCRITA
 │   ├── rules/            output.md = contrato de saída; os outros .md são políticas
 │   ├── workflows/        principal.md = o que ele faz; os demais são procedimentos
@@ -44,9 +44,9 @@ a identidade do morador pode (privado só autenticado; escrita só pelo caso).
 
 Duas regras duras, herdadas do harness Python `adam`:
 
-- **Herança**: knowledge e assets do pai valem para os filhos (o mais próximo vence); a
-  persona é só do agente de primeiro nível e vale para a família inteira. Rules,
-  workflows, routers, evals e caso são de cada um.
+- **Herança**: knowledge e assets do pai valem para os filhos (o mais próximo vence).
+  Persona (só do orquestrador de primeiro nível), rules, workflows, routers, evals e caso
+  são de cada um.
 - **Fronteira**: um agente só referencia a própria pasta ou um ancestral. Irmão, sobrinho
   e fora da árvore são proibidos.
 
