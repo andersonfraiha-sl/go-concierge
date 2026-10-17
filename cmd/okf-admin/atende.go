@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"go-concierge/internal/atende"
+	"go-concierge/internal/memoria"
 )
 
 // Canal ATENDE: o webhook que recebe os eventos, e a API do Console (emulador):
@@ -33,6 +35,62 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/atende/sessao", s.atendeReiniciar)
 	mux.HandleFunc("GET /api/atende/saidas", s.atendeSaidas)
 	mux.HandleFunc("GET /api/atende/identidade", s.atendeIdentidade)
+	mux.HandleFunc("GET /api/memoria", s.memoriaLer)
+	mux.HandleFunc("DELETE /api/memoria", s.memoriaEsquecer)
+	mux.HandleFunc("GET /api/memorias", s.memoriasListar)
+}
+
+// ---- memória relacional por contato ------------------------------------
+
+func (s *servidor) memoriaLer(w http.ResponseWriter, r *http.Request) {
+	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	if phone == "" {
+		writeErr(w, 400, errTelefone)
+		return
+	}
+	m, err := s.memorias.Ler(r.Context(), s.account, phone)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"memoria": m})
+}
+
+func (s *servidor) memoriaEsquecer(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	phone, chave := strings.TrimSpace(q.Get("phone")), strings.TrimSpace(q.Get("chave"))
+	if phone == "" {
+		writeErr(w, 400, errTelefone)
+		return
+	}
+	m, err := s.memorias.Ler(r.Context(), s.account, phone)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	if chave == "" {
+		m.Fatos = nil
+	} else if !m.Esquecer(chave) {
+		writeErr(w, 404, errors.New("fato não encontrado: "+chave))
+		return
+	}
+	if m.Fatos == nil {
+		m.Fatos = []memoria.Fato{}
+	}
+	if err := s.memorias.Gravar(r.Context(), m); err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"memoria": m})
+}
+
+func (s *servidor) memoriasListar(w http.ResponseWriter, r *http.Request) {
+	l, err := s.memorias.Listar(r.Context(), s.account)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"account": s.account, "memorias": l})
 }
 
 // webhookAtende aceita o evento (202) e processa em segundo plano; a resposta ao

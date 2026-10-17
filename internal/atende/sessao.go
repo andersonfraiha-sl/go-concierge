@@ -9,6 +9,7 @@ import (
 
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
+	"go-concierge/internal/memoria"
 )
 
 // Sessao é uma conversa do ATENDE: um protocolo, um contato, a identidade resolvida
@@ -39,6 +40,8 @@ type Turno struct {
 	Rota     []harness.Passo `json:"rota,omitempty"`
 	Uso      *harness.Uso    `json:"uso,omitempty"`
 	Modelo   string          `json:"modelo,omitempty"`
+	// Memorias: fatos novos ou alterados que esta troca gravou na memória do contato.
+	Memorias []memoria.Fato `json:"memorias,omitempty"`
 }
 
 // Sessoes guarda as conversas por protocolo.

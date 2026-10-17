@@ -62,6 +62,16 @@ Configuração no `.env`: `GRUVI_CLIENT_BASIC`, `GRUVI_COMPANY_ID` (e as URLs de
 por padrão), `ATENDE_WEBHOOK_TOKEN`, `ATENDE_REPLY_URL` (envio ao ATENDE, contrato a
 confirmar).
 
+## Memória relacional por contato
+
+Tudo o que o morador afirma sobre si ("só tenho um apartamento", "pode me chamar de
+Van", "tenho um cachorro") vira um fato com chave estável na memória do telefone
+(`internal/memoria`, JSON em `okf/var/memorias/<account>/<telefone>.json`). A cada
+troca um extrator (modelo `MODEL_EXTRACT`, ou regras sem modelo) captura o que é
+durável; em toda conversa seguinte a memória entra na instrução da família inteira
+como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
+fatos (`GET`/`DELETE /api/memoria?phone=`).
+
 ## A interface (okf-admin)
 
 ```bash

@@ -307,6 +307,24 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
   novo quando a conversa já começou. Passo `entrega` no trace. O `observador-sessao`
   nunca é rota: saudação e despedida ficam no `self` do concierge.
 
+### 1.8 Memória relacional por contato (2026-10-17)
+
+- Entre o concierge e **cada telefone** que entra em contato existe uma memória comum a
+  todos os agentes: fatos duráveis que a pessoa afirmou sobre si ("só tenho um
+  apartamento", "pode me chamar de Van", "tenho um cachorro"). Guardados por
+  `account + telefone`, com chave estável (`unidades`, `nome_preferido`, `pets`…),
+  texto, protocolo de origem e data; a mesma chave substitui o fato anterior.
+- **Captura**: a cada troca, um extrator lê a mensagem do morador e a resposta e
+  devolve só o que é durável (modelo barato `MODEL_EXTRACT`; sem modelo, regras por
+  padrão). Nada pontual, nada dito pelo concierge, nada incerto.
+- **Uso**: em toda conversa seguinte do telefone, a memória entra na instrução de toda
+  a família como "Memória sobre o morador: use sem perguntar de novo". Um caso de uso
+  que precise da unidade, por exemplo, não pergunta se a memória diz que há uma só.
+- **Onde**: `internal/memoria` (`Store` em JSON por contato em `okf/var/memorias/`,
+  trocável por Postgres ou pelo recurso `memory` do Nexus), extração no harness,
+  leitura/gravação no serviço do ATENDE, visualização e esquecimento no Console
+  (`GET/DELETE /api/memoria?phone=`).
+
 ## 6. Estado e próximos passos
 
 Feito em 2026-10-16: módulo Go `go-concierge`, pacote `internal/okf` com testes, a

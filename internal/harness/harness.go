@@ -70,6 +70,9 @@ type Config struct {
 	Identidade Identidade
 	// Sessao identifica a conversa (protocolo) na chave de idempotência; vazio = "local".
 	Sessao string
+	// Contexto é um bloco extra na instrução de toda a família (a memória sobre o
+	// morador, ver memoria.go); vazio = nada.
+	Contexto string
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
@@ -140,10 +143,14 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	if cfg.MaxIteracoes <= 0 {
 		cfg.MaxIteracoes = maxIteracoesPadrao
 	}
+	instrucao := cat.Projecao(a)
+	if c := strings.TrimSpace(cfg.Contexto); c != "" {
+		instrucao += "\n\n" + c
+	}
 	ag := &Agente{
 		Cat:        cat,
 		Def:        a,
-		Instrucao:  cat.Projecao(a),
+		Instrucao:  instrucao,
 		Subagentes: map[string]*Agente{},
 		cfg:        cfg,
 	}

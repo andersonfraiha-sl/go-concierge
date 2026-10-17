@@ -12,6 +12,7 @@ import (
 
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
+	"go-concierge/internal/memoria"
 	"go-concierge/internal/okf"
 )
 
@@ -115,6 +116,10 @@ type Servico struct {
 	Timeout     time.Duration
 	Log         *log.Logger
 	Identificar func(ctx context.Context, phone string) (gruvi.Identidade, error) // nil = Gruvi (ou público, se não configurado)
+	// Memorias é a memória relacional por contato (nil = desligada); Extrator captura
+	// fatos novos a cada troca (nil = memoria.Regras).
+	Memorias memoria.Store
+	Extrator memoria.Extrator
 }
 
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
@@ -139,6 +144,17 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	cfg := s.Config
 	cfg.Sessao = ev.Data.Protocol.Number
 	cfg.Identidade = harness.Identidade{Authenticated: sess.Identidade.Authenticated, AccountID: s.Account, Role: sess.Identidade.Role}
+
+	// memória relacional: o que já se sabe deste telefone entra no prompt da família
+	var mem memoria.Memoria
+	if s.Memorias != nil {
+		m, err := s.Memorias.Ler(ctx, s.Account, ev.Data.Contact.Phone)
+		if err != nil && s.Log != nil {
+			s.Log.Printf("atende: memória de %s: %v", ev.Data.Contact.Phone, err)
+		}
+		mem = m
+		cfg.Contexto = harness.ContextoDeMemoria(mem)
+	}
 	dir, err := s.Cat.ResolveAgente(s.Agente)
 	if err != nil {
 		return sess, err
@@ -168,7 +184,11 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	}
 	sess.historico = res.Mensagens
 	uso := res.Uso
-	sess.registrar(Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo})
+	turno := Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo}
+	if s.Memorias != nil {
+		turno.Memorias = s.lembrar(ctx, &mem, sess, texto, res.Resposta)
+	}
+	sess.registrar(turno)
 	if s.Sender != nil && res.Resposta != "" {
 		if err := s.Sender.Enviar(ctx, sess.Protocolo, res.Resposta); err != nil {
 			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
@@ -176,6 +196,44 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		}
 	}
 	return sess, nil
+}
+
+// lembrar extrai os fatos duráveis da troca e grava na memória do contato. Devolve
+// os fatos novos ou alterados (para a bancada do Console).
+func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessao, mensagem, resposta string) []memoria.Fato {
+	ex := s.Extrator
+	if ex == nil {
+		ex = memoria.Regras{}
+	}
+	fatos, err := ex.Extrair(ctx, mensagem, resposta, *mem)
+	if err != nil {
+		if s.Log != nil {
+			s.Log.Printf("atende: extrator de memória: %v", err)
+		}
+		return nil
+	}
+	if mem.Account == "" {
+		mem.Account = s.Account
+	}
+	if mem.Telefone == "" {
+		mem.Telefone = sess.Contato.Phone
+	}
+	if mem.Nome == "" {
+		mem.Nome = sess.Identidade.Name
+	}
+	var novos []memoria.Fato
+	for _, f := range fatos {
+		f.Fonte = sess.Protocolo
+		if mem.Upsert(f) {
+			novos = append(novos, f)
+		}
+	}
+	if len(novos) > 0 {
+		if err := s.Memorias.Gravar(ctx, *mem); err != nil && s.Log != nil {
+			s.Log.Printf("atende: gravar memória: %v", err)
+		}
+	}
+	return novos
 }
 
 func (s *Servico) identificar(ctx context.Context, phone string) (gruvi.Identidade, string) {

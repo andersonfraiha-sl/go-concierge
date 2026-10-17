@@ -10,6 +10,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -29,6 +30,7 @@ import (
 	"go-concierge/internal/env"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
+	"go-concierge/internal/memoria"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 	"go-concierge/web"
@@ -54,6 +56,7 @@ type servidor struct {
 	replyEmulada  bool
 	emulador      *atende.Emulador
 	provedor      string
+	memorias      memoria.Store
 }
 
 var (
@@ -103,10 +106,13 @@ func main() {
 	}
 	s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
+	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}
+	s.memorias = memoria.NewArquivos(env.Ou("MEMORIAS_DIR", filepath.Join(cat.Root, "var", "memorias")))
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,
-		Config: harness.Config{Nexus: cli, Env: os.Getenv},
+		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
+		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 	}
 
 	mux := http.NewServeMux()

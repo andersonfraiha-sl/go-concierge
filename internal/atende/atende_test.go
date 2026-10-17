@@ -10,6 +10,7 @@ import (
 
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
+	"go-concierge/internal/memoria"
 	"go-concierge/internal/okf"
 )
 
@@ -89,6 +90,48 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	if sess2 != sess || len(sess.Turnos) != 4 || len(svc.Sessoes.Lista()) != 1 {
 		t.Fatalf("sessão deveria continuar: %d turnos, %d sessões", len(sess.Turnos), len(svc.Sessoes.Lista()))
 	}
+	// memória relacional: o que o morador afirma sobre si fica guardado por telefone
+	st := memoria.NewArquivos(t.TempDir())
+	svcM := *svc
+	svcM.Sessoes = NewSessoes()
+	svcM.Memorias = st
+	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "na verdade só tenho um apartamento, tenho um cachorro", 1)))
+	ev3.ID = "evt_3"
+	s4, err := svcM.Processar(context.Background(), ev3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ult := s4.Turnos[len(s4.Turnos)-1]
+	if len(ult.Memorias) != 2 {
+		t.Fatalf("deveria ter capturado unidades e pets: %+v", ult.Memorias)
+	}
+	mem, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	if len(mem.Fatos) != 2 || mem.Fatos[0].Fonte != "344200011995" || mem.Nome != "Vanderlei" {
+		t.Fatalf("memória gravada: %+v", mem)
+	}
+	// na conversa seguinte do mesmo telefone, a memória vai ao prompt (Contexto)
+	var contexto string
+	svcM.Sessoes = NewSessoes()
+	svcM.Config.ChatModel = nil
+	svcM.Config.Env = func(k string) string { return "" }
+	// o harness recebe o contexto: conferimos pela instrução do agente montado
+	dir, _ := cat.ResolveAgente("agentes/concierge")
+	def, _ := cat.Load(dir)
+	cfg := svcM.Config
+	m2, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	cfg.Contexto = harness.ContextoDeMemoria(m2)
+	ag, err := harness.Build(context.Background(), cat, def, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contexto = ag.Instrucao
+	if !strings.Contains(contexto, "Memória sobre o morador") || !strings.Contains(contexto, "unidades: tem só uma unidade") {
+		t.Fatalf("contexto sem a memória:\n%s", contexto[len(contexto)-400:])
+	}
+	if sub := ag.Subagentes["regimento"]; sub == nil || !strings.Contains(sub.Instrucao, "Memória sobre o morador") {
+		t.Fatal("a memória deveria chegar aos subagentes também")
+	}
+
 	// identidade falha: segue como público, com o erro registrado
 	svc2 := *svc
 	svc2.Sessoes = NewSessoes()

@@ -98,7 +98,7 @@
           estado.recebidas = r.recebidas || [];
           estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
-          if (!r.sessao.processando && r.sessao.turnos.length && r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador') { clearInterval(estado.poll); carregarSessoes(); res(); }
+          if (!r.sessao.processando && r.sessao.turnos.length && r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador') { clearInterval(estado.poll); carregarSessoes(); carregarMemoria(); res(); }
         } catch (err) { /* ainda não abriu */ }
         if (tentativas > 160) { clearInterval(estado.poll); toast('o concierge não respondeu em 160 s', true); digitando(false); res(); }
       }, 1000);
@@ -164,7 +164,8 @@
 
   function desenharRota(t) {
     const linhas = (t.rota || []).map((p) => `<li class="${p.tipo === 'rota' ? 'f-confirm' : p.tipo === 'tool' ? 'f-resource' : p.tipo === 'resposta' ? 'f-compose' : ''}"><span class="fi"><i data-lucide="${p.tipo === 'rota' ? 'signpost' : p.tipo === 'tool' ? 'wrench' : p.tipo === 'resultado' ? 'corner-down-left' : 'message-circle'}"></i></span><div><b>${esc(p.tipo)} <span class="muted mono">${esc(p.agente.split('/').pop())}</span></b><span>${esc(p.detalhe)}</span></div></li>`).join('');
-    $('#abaRota').innerHTML = `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:10px"><div class="kpi"><span>Respondeu</span><strong style="font-size:15px">${esc((t.agente || '').split('/').pop())}</strong><em>${esc(t.modelo || '')}</em></div><div class="kpi"><span>Chamadas</span><strong>${t.uso ? t.uso.chamadas : 0}</strong><em>ao modelo</em></div><div class="kpi"><span>Tokens</span><strong>${t.uso ? t.uso.total : 0}</strong><em>${t.uso ? t.uso.entrada + ' entrada · ' + t.uso.saida + ' saída' : ''}</em></div></div><ol class="flow">${linhas}</ol>`;
+    const mem = (t.memorias || []).length ? `<p class="notice info"><i data-lucide="brain"></i>Memória: ${t.memorias.map((f) => `<b>${esc(f.chave)}</b> = ${esc(f.texto)}`).join(' · ')}</p>` : '';
+    $('#abaRota').innerHTML = `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:10px"><div class="kpi"><span>Respondeu</span><strong style="font-size:15px">${esc((t.agente || '').split('/').pop())}</strong><em>${esc(t.modelo || '')}</em></div><div class="kpi"><span>Chamadas</span><strong>${t.uso ? t.uso.chamadas : 0}</strong><em>ao modelo</em></div><div class="kpi"><span>Tokens</span><strong>${t.uso ? t.uso.total : 0}</strong><em>${t.uso ? t.uso.entrada + ' entrada · ' + t.uso.saida + ' saída' : ''}</em></div></div>${mem}<ol class="flow">${linhas}</ol>`;
   }
 
   function desenharIdentidade(id, erro) {
@@ -178,6 +179,31 @@
     $('#identidadeBruta').textContent = JSON.stringify(id, null, 2);
     icons();
   }
+
+  // ---- memória relacional ---------------------------------------------------------
+  async function carregarMemoria() {
+    const phone = $('#formContato').phone.value.trim();
+    if (!phone) return;
+    try {
+      const r = await api('/api/memoria?phone=' + encodeURIComponent(phone));
+      desenharMemoria(r.memoria);
+    } catch (err) { /* silencioso */ }
+  }
+  function desenharMemoria(m) {
+    const el = $('#memoria');
+    const chave = JSON.stringify(m.fatos || []);
+    if (estado.chaveMemoria === chave) return;
+    estado.chaveMemoria = chave;
+    if (!m.fatos || !m.fatos.length) { el.className = 'empty-state'; el.style.padding = '12px'; el.innerHTML = '<i data-lucide="brain"></i>nada guardado ainda'; icons(); return; }
+    el.className = 'memoria';
+    el.style.padding = '';
+    el.innerHTML = m.fatos.map((f) => `<div class="fato"><span class="tag tag-kind">${esc(f.chave)}</span><div class="ft"><b>${esc(f.texto)}</b><span class="muted">${f.fonte ? 'protocolo ' + esc(f.fonte) + ' · ' : ''}${new Date(f.quando).toLocaleDateString('pt-BR')}</span></div><button class="vote no" title="esquecer" data-chave="${esc(f.chave)}"><i data-lucide="x"></i></button></div>`).join('')
+      + `<button class="btn btn-ghost btn-sm" id="btnEsquecerTudo" style="margin-top:8px"><i data-lucide="eraser" class="i-sm"></i>Esquecer tudo</button>`;
+    $$('#memoria button[data-chave]').forEach((b) => b.addEventListener('click', async () => { try { const r = await api(`/api/memoria?phone=${encodeURIComponent($('#formContato').phone.value.trim())}&chave=${encodeURIComponent(b.dataset.chave)}`, { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('esquecido: ' + b.dataset.chave); } catch (err) { toast(err.message, true); } }));
+    $('#btnEsquecerTudo').addEventListener('click', async () => { if (!confirm('Apagar toda a memória deste contato?')) return; try { const r = await api('/api/memoria?phone=' + encodeURIComponent($('#formContato').phone.value.trim()), { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('memória apagada'); } catch (err) { toast(err.message, true); } });
+    icons();
+  }
+  $('#formContato').phone.addEventListener('change', carregarMemoria);
 
   async function identificar() {
     const phone = $('#formContato').phone.value.trim();
@@ -234,4 +260,5 @@
   icons();
   novaConversa();
   carregarConfig();
+  carregarMemoria();
 })();
