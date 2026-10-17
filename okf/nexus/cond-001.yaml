@@ -3,295 +3,342 @@
 # recurso, na linguagem do morador) e os recursos reais do BFF Gruvi (motivos de visita,
 # encomendas). Usado pelo okf-admin e pelo okf-run quando NEXUS_BASE_URL não está definido.
 recursos:
-- name: unidades.listar
-  kind: api
-  visibility: private
-  description: 'Quais unidades (apartamentos, casas, salas) estão no nome do morador. Use para descobrir
-    ou confirmar a unidade antes de qualquer outra ação ligada a ela. Ex.: quais são minhas unidades;
-    em qual apartamento estou cadastrado.'
-  output: lista de {id, label}
-  definicoes:
-  - name: company_id
-    label: Código da empresa no Gruvi
-    type: string
-    description: Identifica o condomínio no cadastro de moradores; o concierge passa sem perguntar.
-- name: areas.listar
-  kind: api
-  visibility: private
-  description: 'Quais áreas comuns podem ser reservadas (churrasqueira, salão de festas, quadra). Use
-    quando o morador quer saber o que pode reservar ou escolher uma área. Ex.: quais áreas posso reservar;
-    o condomínio tem salão de festas.'
-  output: lista de {id, nome}
-- name: cadastro.campos
-  kind: api
-  visibility: private
-  description: Quais dados cadastrais da unidade podem ser atualizados (e-mail, placa do carro, pets).
-    Use antes de montar uma atualização de cadastro.
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  output: lista de {name, label, type?, options?, value?}
-- name: faq.buscar
-  kind: knowledge
-  visibility: public
-  description: 'Respostas oficiais para dúvidas gerais do condomínio: horários (portaria, piscina), endereço,
-    contato da administradora, taxa condominial, mudanças, pets, barulho. Ex.: qual o horário da piscina;
-    quando vence o boleto; pode ter cachorro.'
-  params:
-  - name: query
-    type: string
-    required: true
-  - name: escopo
-    type: string
-    description: publico | privado
-  output: lista de {titulo, texto, escopo}
-  definicoes:
-  - name: escopo
-    label: Quem vê as respostas
-    type: select
-    options:
-    - publico
-    - privado
-    description: 'publico: qualquer contato; privado: só morador identificado.'
-- name: memoria.preferencias
-  kind: memory
-  visibility: private
-  description: Preferências do morador guardadas pelo concierge (como prefere ser chamado, canal preferido).
-    Use para personalizar a resposta, nunca como resposta principal.
-  output: objeto de preferências
-- name: visitantes.liberar
-  kind: api
-  visibility: private
-  write: true
-  description: 'Autorizar a entrada de um visitante na portaria (amigo, parente, prestador). É uma ação
-    de escrita: só pelo caso de uso Liberação de Visitante, com confirmação.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: nome
-    type: string
-    required: true
-  - name: telefone
-    type: string
-    required: true
-  - name: motivo
-    type: string
-  output: '{protocolo}'
-  definicoes:
-  - name: validade_horas
-    label: Validade da liberação (horas)
-    type: number
-    default: 24
-    description: Por quanto tempo a portaria aceita a entrada.
-- name: areas.reservar
-  kind: api
-  visibility: private
-  write: true
-  description: 'Efetivar a reserva de uma área comum numa data. Ação de escrita: só pelo caso de uso Reserva
-    de Área Comum, com confirmação.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: area_id
-    type: string
-    required: true
-  - name: data
-    type: date
-    required: true
-    description: AAAA-MM-DD
-  output: '{protocolo}'
-  definicoes:
-  - name: antecedencia_min_dias
-    label: Antecedência mínima da reserva (dias)
-    type: number
-    default: 2
-    description: Quantos dias antes o morador precisa reservar.
-  - name: max_dias
-    label: Prazo máximo para reservar (dias)
-    type: number
-    default: 60
-    description: Até quantos dias à frente aceita reserva.
-  - name: horario_uso
-    label: Horário de uso das áreas
-    type: string
-    description: 'Ex.: 10h às 22h. O concierge informa ao confirmar.'
-- name: mudancas.agendar
-  kind: api
-  visibility: private
-  write: true
-  description: 'Agendar a mudança (entrada ou saída de móveis) de uma unidade numa data e período, reservando
-    o elevador de serviço. Ação de escrita: só por caso de uso, com confirmação. Ex.: quero agendar minha
-    mudança; vou me mudar sábado de manhã; preciso do elevador para a mudança.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: data
-    type: date
-    required: true
-    description: AAAA-MM-DD
-  - name: periodo
-    type: string
-    required: true
-    description: manha | tarde
-  output: '{protocolo}'
-  definicoes:
-  - name: dias_permitidos
-    label: Dias em que há mudança
-    type: string
-    default: segunda a sábado
-  - name: horarios
-    label: Horários de mudança
-    type: string
-    default: 8h às 12h e 13h às 17h
-- name: obras.comunicar
-  kind: api
-  visibility: private
-  write: true
-  description: 'Comunicar à administração e à portaria uma obra, reforma ou reparo na unidade (pintura,
-    elétrica, hidráulica...) e liberar os prestadores. Ação de escrita: só pelo caso de uso Comunicação
-    de Obra, com confirmação. Ex.: vou fazer uma reforma; o pintor vem semana que vem; preciso avisar
-    de uma obra.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: tipo
-    type: string
-    required: true
-  - name: descricao
-    type: string
-    required: true
-  - name: inicio
-    type: date
-    required: true
-  - name: dias
-    type: number
-    required: true
-  - name: prestadores
-    type: array
-    required: true
-  output: '{protocolo, liberacao_portaria, horario_permitido}'
-  definicoes:
-  - name: horario_permitido
-    label: Horário permitido para obras
-    type: string
-    default: 8h às 17h, dias úteis
-  - name: antecedencia_dias
-    label: Antecedência do aviso (dias)
-    type: number
-    default: 2
-- name: cadastro.atualizar
-  kind: api
-  visibility: private
-  write: true
-  description: 'Gravar alterações no cadastro da unidade. Ação de escrita: só pelo caso de uso Atualização
-    Cadastral, com confirmação.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: dados
-    type: object
-    required: true
-  output: '{protocolo}'
-- name: visitantes.motivos
-  kind: api
-  visibility: private
-  description: 'Motivos de visita do condomínio (Gruvi): tipo filtra Visitante ou Prestador. Use antes
-    de liberar um prestador, para saber qual serviço.'
-  params:
-  - name: tipo
-    type: string
-    description: visitante | prestador (vazio = todos)
-  output: lista de {id, label, tipo}
-- name: encomendas.listar
-  kind: api
-  visibility: private
-  description: 'Encomendas da unidade que chegaram na portaria (padrão: aguardando retirada). Use quando
-    o morador pergunta se chegou pacote, entrega ou correspondência.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: status
-    type: string
-    description: waiting | delivered | canceled
-  output: lista de {id, label, status}
-- name: encomendas.codigo
-  kind: api
-  visibility: private
-  description: Código de retirada de uma encomenda que aguarda retirada na portaria.
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: encomenda_id
-    type: string
-    required: true
-  output: '{codigo}'
-- name: portaria.avisar
-  kind: action
-  visibility: private
-  write: true
-  description: 'Ação: avisa a portaria por mensagem (interfone/painel) sobre algo da unidade — chegada
-    de prestador, pacote a devolver, pedido urgente. Executa algo no mundo: só por passo do caso de uso,
-    com confirmação.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: mensagem
-    type: string
-    required: true
-  output: '{protocolo}'
-  definicoes:
-  - name: canal
-    label: Canal da portaria
-    type: select
-    options:
-    - interfone
-    - painel
-    - whatsapp
-    default: painel
-- name: agente.redator
-  kind: agent
-  visibility: private
-  description: 'Agente executor do Nexus: redige um comunicado formal (aviso de obra, pedido à administração)
-    a partir do que o morador descreveu, no padrão da administradora. Devolve o texto para o concierge
-    revisar com o morador.'
-  params:
-  - name: pedido
-    type: string
-    required: true
-  - name: tipo
-    type: string
-    description: aviso | pedido | reclamacao
-  output: '{texto}'
-- name: atividade.vistoria
-  kind: activity
-  visibility: private
-  write: true
-  description: 'Ação (atividade cadastrada no workspace da administradora): abre uma vistoria técnica
-    na unidade (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com
-    confirmação.'
-  params:
-  - name: unidade_id
-    type: string
-    required: true
-  - name: motivo
-    type: string
-    required: true
-  output: '{protocolo, previsao}'
-- name: form.ouvidoria
-  kind: form
-  visibility: public
-  description: 'Form: procedimento externo da ouvidoria. Devolve o link público do formulário para o morador
-    registrar elogio, sugestão ou reclamação; a chamada é pública e não grava nada pelo concierge.'
-  params:
-  - name: assunto
-    type: string
-  output: '{url}'
+    - name: agente.redator
+      kind: agent
+      visibility: private
+      write: false
+      description: 'Agente executor do Nexus: redige um comunicado formal (aviso de obra, pedido à administração) a partir do que o morador descreveu, no padrão da administradora. Devolve o texto para o concierge revisar com o morador.'
+      params:
+        - name: pedido
+          type: string
+          required: true
+          description: ""
+        - name: tipo
+          type: string
+          required: false
+          description: aviso | pedido | reclamacao
+      output: '{texto}'
+      definicoes: []
+    - name: areas.listar
+      kind: api
+      visibility: private
+      write: false
+      description: 'Quais áreas comuns podem ser reservadas (churrasqueira, salão de festas, quadra). Use quando o morador quer saber o que pode reservar ou escolher uma área. Ex.: quais áreas posso reservar; o condomínio tem salão de festas.'
+      params: []
+      output: lista de {id, nome}
+      definicoes: []
+    - name: areas.reservar
+      kind: api
+      visibility: private
+      write: true
+      description: 'Efetivar a reserva de uma área comum numa data. Ação de escrita: só pelo caso de uso Reserva de Área Comum, com confirmação.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: area_id
+          type: string
+          required: true
+          description: ""
+        - name: data
+          type: date
+          required: true
+          description: AAAA-MM-DD
+      output: '{protocolo}'
+      definicoes:
+        - name: antecedencia_min_dias
+          label: Antecedência mínima da reserva (dias)
+          type: number
+          options: []
+          default: 2
+          description: Quantos dias antes o morador precisa reservar.
+        - name: max_dias
+          label: Prazo máximo para reservar (dias)
+          type: number
+          options: []
+          default: 60
+          description: Até quantos dias à frente aceita reserva.
+        - name: horario_uso
+          label: Horário de uso das áreas
+          type: string
+          options: []
+          default: null
+          description: 'Ex.: 10h às 22h. O concierge informa ao confirmar.'
+    - name: atividade.vistoria
+      kind: activity
+      visibility: private
+      write: true
+      description: 'Ação (atividade cadastrada no workspace da administradora): abre uma vistoria técnica na unidade (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com confirmação.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: motivo
+          type: string
+          required: true
+          description: ""
+      output: '{protocolo, previsao}'
+      definicoes: []
+    - name: cadastro.atualizar
+      kind: api
+      visibility: private
+      write: true
+      description: 'Gravar alterações no cadastro da unidade. Ação de escrita: só pelo caso de uso Atualização Cadastral, com confirmação.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: dados
+          type: object
+          required: true
+          description: ""
+      output: '{protocolo}'
+      definicoes: []
+    - name: cadastro.campos
+      kind: api
+      visibility: private
+      write: false
+      description: Quais dados cadastrais da unidade podem ser atualizados (e-mail, placa do carro, pets). Use antes de montar uma atualização de cadastro.
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+      output: lista de {name, label, type?, options?, value?}
+      definicoes: []
+    - name: encomendas.codigo
+      kind: api
+      visibility: private
+      write: false
+      description: Código de retirada de uma encomenda que aguarda retirada na portaria.
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: encomenda_id
+          type: string
+          required: true
+          description: ""
+      output: '{codigo}'
+      definicoes: []
+    - name: encomendas.listar
+      kind: api
+      visibility: private
+      write: false
+      description: 'Encomendas da unidade que chegaram na portaria (padrão: aguardando retirada). Use quando o morador pergunta se chegou pacote, entrega ou correspondência.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: status
+          type: string
+          required: false
+          description: waiting | delivered | canceled
+      output: lista de {id, label, status}
+      definicoes: []
+    - name: faq.buscar
+      kind: knowledge
+      visibility: public
+      write: false
+      description: 'Respostas oficiais para dúvidas gerais do condomínio: horários (portaria, piscina), endereço, contato da administradora, taxa condominial, mudanças, pets, barulho. Ex.: qual o horário da piscina; quando vence o boleto; pode ter cachorro.'
+      params:
+        - name: query
+          type: string
+          required: true
+          description: ""
+        - name: escopo
+          type: string
+          required: false
+          description: publico | privado
+      output: lista de {titulo, texto, escopo}
+      definicoes:
+        - name: escopo
+          label: Quem vê as respostas
+          type: select
+          options:
+            - publico
+            - privado
+          default: null
+          description: 'publico: qualquer contato; privado: só morador identificado.'
+    - name: form.ouvidoria
+      kind: form
+      visibility: public
+      write: false
+      description: 'Form: procedimento externo da ouvidoria. Devolve o link público do formulário para o morador registrar elogio, sugestão ou reclamação; a chamada é pública e não grava nada pelo concierge.'
+      params:
+        - name: assunto
+          type: string
+          required: false
+          description: ""
+      output: '{url}'
+      definicoes: []
+    - name: memoria.preferencias
+      kind: memory
+      visibility: private
+      write: false
+      description: Preferências do morador guardadas pelo concierge (como prefere ser chamado, canal preferido). Use para personalizar a resposta, nunca como resposta principal.
+      params: []
+      output: objeto de preferências
+      definicoes: []
+    - name: mudancas.agendar
+      kind: api
+      visibility: private
+      write: true
+      description: 'Agendar a mudança (entrada ou saída de móveis) de uma unidade numa data e período, reservando o elevador de serviço. Ação de escrita: só por caso de uso, com confirmação. Ex.: quero agendar minha mudança; vou me mudar sábado de manhã; preciso do elevador para a mudança.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: data
+          type: date
+          required: true
+          description: AAAA-MM-DD
+        - name: periodo
+          type: string
+          required: true
+          description: manha | tarde
+      output: '{protocolo}'
+      definicoes:
+        - name: dias_permitidos
+          label: Dias em que há mudança
+          type: string
+          options: []
+          default: segunda a sábado
+          description: ""
+        - name: horarios
+          label: Horários de mudança
+          type: string
+          options: []
+          default: 8h às 12h e 13h às 17h
+          description: ""
+    - name: obras.comunicar
+      kind: api
+      visibility: private
+      write: true
+      description: 'Comunicar à administração e à portaria uma obra, reforma ou reparo na unidade (pintura, elétrica, hidráulica...) e liberar os prestadores. Ação de escrita: só pelo caso de uso Comunicação de Obra, com confirmação. Ex.: vou fazer uma reforma; o pintor vem semana que vem; preciso avisar de uma obra.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: tipo
+          type: string
+          required: true
+          description: ""
+        - name: descricao
+          type: string
+          required: true
+          description: ""
+        - name: inicio
+          type: date
+          required: true
+          description: ""
+        - name: dias
+          type: number
+          required: true
+          description: ""
+        - name: prestadores
+          type: array
+          required: true
+          description: ""
+      output: '{protocolo, liberacao_portaria, horario_permitido}'
+      definicoes:
+        - name: horario_permitido
+          label: Horário permitido para obras
+          type: string
+          options: []
+          default: 8h às 17h, dias úteis
+          description: ""
+        - name: antecedencia_dias
+          label: Antecedência do aviso (dias)
+          type: number
+          options: []
+          default: 2
+          description: ""
+    - name: portaria.avisar
+      kind: action
+      visibility: private
+      write: true
+      description: 'Ação: avisa a portaria por mensagem (interfone/painel) sobre algo da unidade — chegada de prestador, pacote a devolver, pedido urgente. Executa algo no mundo: só por passo do caso de uso, com confirmação.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: mensagem
+          type: string
+          required: true
+          description: ""
+      output: '{protocolo}'
+      definicoes:
+        - name: canal
+          label: Canal da portaria
+          type: select
+          options:
+            - interfone
+            - painel
+            - whatsapp
+          default: painel
+          description: ""
+    - name: unidades.listar
+      kind: api
+      visibility: private
+      write: false
+      description: 'Quais unidades (apartamentos, casas, salas) estão no nome do morador. Use para descobrir ou confirmar a unidade antes de qualquer outra ação ligada a ela. Ex.: quais são minhas unidades; em qual apartamento estou cadastrado.'
+      params: []
+      output: lista de {id, label}
+      definicoes:
+        - name: company_id
+          label: Código da empresa no Gruvi
+          type: string
+          options: []
+          default: null
+          description: Identifica o condomínio no cadastro de moradores; o concierge passa sem perguntar.
+    - name: visitantes.liberar
+      kind: api
+      visibility: private
+      write: true
+      description: 'Autorizar a entrada de um visitante na portaria (amigo, parente, prestador). É uma ação de escrita: só pelo caso de uso Liberação de Visitante, com confirmação.'
+      params:
+        - name: unidade_id
+          type: string
+          required: true
+          description: ""
+        - name: nome
+          type: string
+          required: true
+          description: ""
+        - name: telefone
+          type: string
+          required: true
+          description: ""
+        - name: motivo
+          type: string
+          required: false
+          description: ""
+      output: '{protocolo}'
+      definicoes:
+        - name: validade_horas
+          label: Validade da liberação (horas)
+          type: number
+          options: []
+          default: 24
+          description: Por quanto tempo a portaria aceita a entrada.
+    - name: visitantes.motivos
+      kind: api
+      visibility: private
+      write: false
+      description: 'Motivos de visita do condomínio (Gruvi): tipo filtra Visitante ou Prestador. Use antes de liberar um prestador, para saber qual serviço.'
+      params:
+        - name: tipo
+          type: string
+          required: false
+          description: visitante | prestador (vazio = todos)
+      output: lista de {id, label, tipo}
+      definicoes: []

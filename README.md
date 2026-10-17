@@ -93,6 +93,12 @@ ortogonal à classe: qualquer recurso com `write: true` só entra por um passo d
 `caso.yaml`, depois do `confirm`; os demais o agente declara em `agent.yaml → recursos`
 e chama com `chamar_recurso`.
 
+Cada recurso do instantâneo se edita no Backdoor (lápis no cartão ou "Novo recurso"):
+nome, tipo, visibilidade, efeito (`write`), descrição, **conexão** (método, URL com
+`{{param}}`, headers, corpo), **parâmetros de entrada** e **saída** (resumo e campos
+com caminho no JSON). Fica em `conexao` e `saida` no YAML, documental: quem executa é o
+Nexus/MCP. Com o Nexus ao vivo, a edição é recusada (o dono é o Nexus).
+
 ## Pacotes OKF v0.1
 
 A caixinha `knowledge/` lê um pacote do [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)

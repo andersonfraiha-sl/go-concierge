@@ -130,12 +130,16 @@ func Fonte(c *Client, account, dirFixtures string) func() []okf.Recurso {
 		mu     sync.Mutex
 		cache  []okf.Recurso
 		quando time.Time
+		mtime  time.Time
 	)
 	return func() []okf.Recurso {
 		mu.Lock()
 		defer mu.Unlock()
 		if cache != nil && time.Since(quando) < 30*time.Second {
-			return cache
+			// instantâneo editado pela interface: relê na hora
+			if st, err := os.Stat(fixture); err != nil || st.ModTime().Equal(mtime) {
+				return cache
+			}
 		}
 		if c != nil && c.BaseURL != "" {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -148,6 +152,9 @@ func Fonte(c *Client, account, dirFixtures string) func() []okf.Recurso {
 		}
 		if lista, err := okf.LerRecursosFixture(fixture); err == nil {
 			cache, quando = lista, time.Now()
+			if st, err := os.Stat(fixture); err == nil {
+				mtime = st.ModTime()
+			}
 			return cache
 		}
 		return cache

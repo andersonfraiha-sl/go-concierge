@@ -357,6 +357,40 @@ func TestSemNexusNaoConfere(t *testing.T) {
 	}
 }
 
+func TestSalvarRecursoFixture(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "acc.yaml")
+	os.WriteFile(p, []byte("# cabeçalho\n# segue\nrecursos:\n- name: a.x\n  kind: api\n  visibility: private\n"), 0o644)
+	r := Recurso{Name: "b.y", Kind: KindAPI, Visibility: "public", Description: "lista", Params: []ParamMeta{{Name: "q", Type: "string", Required: true}},
+		Conexao: &Conexao{Metodo: "GET", URL: "https://api/x?q={{q}}", Headers: map[string]string{"Authorization": "Bearer {{token}}"}},
+		Saida:   []SaidaCampo{{Name: "itens", Path: "data.items[]", Type: "array"}}}
+	if err := SalvarRecursoFixture(p, "", r); err != nil {
+		t.Fatal(err)
+	}
+	if err := SalvarRecursoFixture(p, "", Recurso{Name: "Ruim Nome", Kind: KindAPI, Visibility: "public"}); err == nil {
+		t.Fatal("nome inválido deveria falhar")
+	}
+	if err := SalvarRecursoFixture(p, "a.x", Recurso{Name: "b.y", Kind: KindAPI, Visibility: "public"}); err == nil {
+		t.Fatal("renomear para um nome que já existe deveria falhar")
+	}
+	if err := SalvarRecursoFixture(p, "a.x", Recurso{Name: "a.z", Kind: KindAction, Visibility: "private", Write: true}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(p)
+	if !strings.HasPrefix(string(raw), "# cabeçalho\n# segue\n") {
+		t.Fatalf("cabeçalho perdido: %s", raw)
+	}
+	lista, err := LerRecursosFixture(p)
+	if err != nil || len(lista) != 2 || lista[0].Name != "a.z" || lista[1].Conexao == nil || lista[1].Conexao.Headers["Authorization"] == "" || lista[1].Saida[0].Path != "data.items[]" {
+		t.Fatalf("ida e volta: %v %+v", err, lista)
+	}
+	if err := RemoverRecursoFixture(p, "a.z"); err != nil {
+		t.Fatal(err)
+	}
+	if lista, _ := LerRecursosFixture(p); len(lista) != 1 {
+		t.Fatalf("remover: %+v", lista)
+	}
+}
+
 func TestClassesDeRecurso(t *testing.T) {
 	casos := map[string]Recurso{
 		"leitura":      {Kind: KindAPI},

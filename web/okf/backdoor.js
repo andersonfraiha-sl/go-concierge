@@ -209,8 +209,9 @@
     el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<details class="cat-details" data-classe="${k}" ${fechados[k] && !q ? '' : 'open'}><summary class="cat-group"><i data-lucide="chevron-right" class="i-sm chev"></i><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}<span class="tag tag-kind">${grupos[k].length}</span><span class="muted" style="font-weight:400;margin-left:6px">${CLASSE[k][2]}</span></summary><div class="cat-body">` + grupos[k].map((r) => `<div class="cat-card" data-nome="${esc(r.name)}">
         <span class="res-icon ${r.write ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${KIND_ICON[r.kind] || 'plug'}"></i></span>
         <div class="ct"><strong>${esc(r.name)}</strong><span>${esc(r.description || r.kind)}</span><span class="assin">(${esc(assinatura(r))})${r.output ? ' → ' + esc(r.output) : ''}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${r.write ? '<span class="tag tag-write">write · só pelo caso.yaml</span>' : ''}</span></div>
-        <span class="muted" style="font-size:11.5px">${r.write ? '<i data-lucide="list-checks" class="i-sm" title="entra por passo do caso.yaml"></i>' : ''}</span>
+        <span class="muted" style="font-size:11.5px;display:flex;gap:6px;align-items:center">${r.write ? '<i data-lucide="list-checks" class="i-sm" title="entra por passo do caso.yaml"></i>' : ''}<button type="button" class="vote lapis" title="editar o recurso" data-editar="${esc(r.name)}"><i data-lucide="pencil"></i></button></span>
       </div>`).join('') + '</div></details>').join('');
+    $$('button[data-editar]', el).forEach((b) => b.addEventListener('click', () => abrirRecurso(lista.find((r) => r.name === b.dataset.editar))));
     $$('details.cat-details', el).forEach((d) => d.addEventListener('toggle', () => {
       fechados[d.dataset.classe] = !d.open;
       try { localStorage.setItem('okf.catalogo.fechados', JSON.stringify(fechados)); } catch (e) { /* sem storage */ }
@@ -218,6 +219,69 @@
     icons();
   }
   $('#filtroRecursos').addEventListener('input', desenharNexus);
+
+  // ---- edição de um recurso (instantâneo da account) ------------------------------------
+  const linhaHeader = (k = '', v = '') => `<tr><td><input class="field-input mono" data-h-k value="${esc(k)}" placeholder="Authorization" spellcheck="false"></td><td><input class="field-input mono" data-h-v value="${esc(v)}" placeholder="Bearer {{token}}" spellcheck="false"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
+  const linhaParam = (p = {}) => `<tr><td><input class="field-input mono" data-p-name value="${esc(p.name || '')}" placeholder="unidade_id" spellcheck="false"></td><td><select class="field-select" data-p-type>${['string', 'number', 'boolean', 'date', 'array', 'object'].map((t) => `<option ${(p.type || 'string') === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-p-req ${p.required ? 'checked' : ''}></td><td><input class="field-input" data-p-desc value="${esc(p.description || '')}" placeholder="o que é, formato, exemplo"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
+  const linhaSaida = (s = {}) => `<tr><td><input class="field-input mono" data-s-name value="${esc(s.name || '')}" placeholder="itens" spellcheck="false"></td><td><input class="field-input mono" data-s-path value="${esc(s.path || '')}" placeholder="data.items[].id" spellcheck="false"></td><td><select class="field-select" data-s-type>${['', 'string', 'number', 'boolean', 'date', 'array', 'object'].map((t) => `<option value="${t}" ${(s.type || '') === t ? 'selected' : ''}>${t || '—'}</option>`).join('')}</select></td><td><input class="field-input" data-s-desc value="${esc(s.description || '')}" placeholder="o que o campo significa"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
+  function abrirRecurso(r) {
+    const f = $('#formRecurso');
+    f.reset();
+    f.dataset.original = r ? r.name : '';
+    $('#drawerRecursoTitulo').textContent = r ? r.name : 'Novo recurso';
+    $('#recursoArquivo').textContent = `okf/nexus/${estado.nexus.account}.yaml`;
+    $('#btnRemoverRecurso').hidden = !r;
+    $('#recursoStatus').textContent = '';
+    if (r) {
+      f.name.value = r.name; f.kind.value = r.kind || 'api'; f.visibility.value = r.visibility || 'private'; f.write.checked = !!r.write; f.description.value = r.description || '';
+      f.metodo.value = (r.conexao && r.conexao.metodo) || ''; f.url.value = (r.conexao && r.conexao.url) || ''; f.corpo.value = (r.conexao && r.conexao.corpo) || ''; f.output.value = r.output || '';
+    }
+    const h = (r && r.conexao && r.conexao.headers) || {};
+    $('#tabHeaders tbody').innerHTML = Object.keys(h).map((k) => linhaHeader(k, h[k])).join('');
+    $('#tabParams tbody').innerHTML = ((r && r.params) || []).map(linhaParam).join('');
+    $('#tabSaida tbody').innerHTML = ((r && r.saida) || []).map(linhaSaida).join('');
+    abrir('drawerRecurso');
+    f.name.focus();
+  }
+  $('#btnNovoRecurso').addEventListener('click', () => abrirRecurso(null));
+  $$('#formRecurso [data-add]').forEach((b) => b.addEventListener('click', () => {
+    const tb = $({ headers: '#tabHeaders', params: '#tabParams', saida: '#tabSaida' }[b.dataset.add] + ' tbody');
+    tb.insertAdjacentHTML('beforeend', b.dataset.add === 'headers' ? linhaHeader() : b.dataset.add === 'params' ? linhaParam() : linhaSaida());
+    icons();
+    $('input', tb.lastElementChild).focus();
+  }));
+  $('#formRecurso').addEventListener('click', (e) => { const b = e.target.closest('button[data-del]'); if (b) b.closest('tr').remove(); });
+  function lerRecursoDoForm() {
+    const f = $('#formRecurso');
+    const headers = {};
+    $$('#tabHeaders tbody tr').forEach((tr) => { const k = $('[data-h-k]', tr).value.trim(); if (k) headers[k] = $('[data-h-v]', tr).value.trim(); });
+    const params = $$('#tabParams tbody tr').map((tr) => ({ name: $('[data-p-name]', tr).value.trim(), type: $('[data-p-type]', tr).value, required: $('[data-p-req]', tr).checked, description: $('[data-p-desc]', tr).value.trim() })).filter((p) => p.name);
+    const saida = $$('#tabSaida tbody tr').map((tr) => ({ name: $('[data-s-name]', tr).value.trim(), path: $('[data-s-path]', tr).value.trim(), type: $('[data-s-type]', tr).value, description: $('[data-s-desc]', tr).value.trim() })).filter((s) => s.name);
+    const conexao = { metodo: f.metodo.value, url: f.url.value.trim(), headers, corpo: f.corpo.value.trim() };
+    const temConexao = conexao.metodo || conexao.url || Object.keys(headers).length || conexao.corpo;
+    const original = estado.nexus.recursos.find((r) => r.name === f.dataset.original);
+    return { name: f.name.value.trim(), kind: f.kind.value, visibility: f.visibility.value, write: f.write.checked, description: f.description.value.trim(), params, output: f.output.value.trim(), conexao: temConexao ? conexao : null, saida, definicoes: (original && original.definicoes) || [] };
+  }
+  async function recarregarNexus() {
+    estado.nexus = await api('/api/nexus/recursos');
+    desenharNexus();
+    if (estado.selecionado) await selecionar(estado.selecionado, true);
+  }
+  $('#formRecurso').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('/api/nexus/recurso', { method: 'PUT', body: JSON.stringify({ original: f.dataset.original, recurso: lerRecursoDoForm() }) });
+      fechar('drawerRecurso');
+      toast(`${f.name.value.trim()} salvo no instantâneo`);
+      await recarregarNexus();
+    } catch (err) { $('#recursoStatus').textContent = err.message; toast(err.message, true); }
+  });
+  $('#btnRemoverRecurso').addEventListener('click', async () => {
+    const nome = $('#formRecurso').dataset.original;
+    if (!nome || !confirm(`Remover o recurso ${nome} do instantâneo? Agentes que o declaram ficam com vínculo quebrado.`)) return;
+    try { await api('/api/nexus/recurso?nome=' + encodeURIComponent(nome), { method: 'DELETE' }); fechar('drawerRecurso'); toast(`${nome} removido`); await recarregarNexus(); } catch (err) { toast(err.message, true); }
+  });
   function classeDe(r) { return ({ knowledge: 'conhecimento', memory: 'memoria', action: 'acao', activity: 'acao', agent: 'agente', form: 'form' })[r.kind] || (r.write ? 'escrita' : 'leitura'); }
 
   // ---- ficha ------------------------------------------------------------------
@@ -731,7 +795,7 @@
   const abrir = (id) => { $('#' + id).hidden = false; icons(); };
   const fechar = (id) => { $('#' + id).hidden = true; };
   $$('[data-fecha]').forEach((b) => b.addEventListener('click', () => fechar(b.dataset.fecha)));
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['drawerNovo', 'drawerImportar', 'drawerArquivo'].forEach(fechar); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') ['drawerNovo', 'drawerImportar', 'drawerArquivo', 'drawerRecurso'].forEach(fechar); });
 
   function preencherSelects() {
     const opcoes = '<option value="">raiz (agentes/)</option>' + todosOsNos().map((n) => `<option value="${esc(n.caminho)}">${'— '.repeat(n.caminho.split('/agentes/').length - 1)}${esc(n.caminho.replace(/^agentes\//, '').replace(/\/agentes\//g, ' / '))}</option>`).join('');

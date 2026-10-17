@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=10">
+  <link rel="stylesheet" href="/styles.css?v=12">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin">
@@ -65,7 +65,7 @@
       <section id="secRecursos" hidden>
         <div class="page-head">
           <div><h1>Recursos do Nexus</h1><p>O que a account oferece em tempo de execução: APIs, conteúdos e memórias, cada um com a assinatura do seu MCP. Um agente <b>declara</b> o que usa em <code>agent.yaml</code> (botão "Declarar recurso" na ficha, ou pelo botão direito no editor); recursos de <b>escrita</b> só entram por um passo do <code>caso.yaml</code>. O payload de cada recurso por condomínio fica em <a href="/backdoor/payloads">Payload por condomínio</a>.</p></div>
-          <div class="page-actions"><label class="form-row" style="min-width:240px"><span class="muted" style="font-size:12px">Filtrar</span><input class="field-input" id="filtroRecursos" placeholder="nome, descrição, tipo…" autocomplete="off"></label></div>
+          <div class="page-actions"><label class="form-row" style="min-width:240px"><span class="muted" style="font-size:12px">Filtrar</span><input class="field-input" id="filtroRecursos" placeholder="nome, descrição, tipo…" autocomplete="off"></label><button class="btn btn-primary" id="btnNovoRecurso" style="align-self:end"><i data-lucide="plus"></i><span>Novo recurso</span></button></div>
         </div>
         <p class="notice info" id="nexusDica"><i data-lucide="info"></i><span></span></p>
         <div class="card"><div id="recursosNexus" class="catalogo catalogo-central"></div></div>
@@ -232,6 +232,43 @@
     </aside>
   </div>
 
+  <!-- drawer: recurso do Nexus (edição do instantâneo) -->
+  <div id="drawerRecurso" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerRecurso"></div>
+    <aside class="drawer drawer-larga">
+      <header><span class="res-icon"><i data-lucide="plug"></i></span><h2 id="drawerRecursoTitulo">Recurso</h2><button class="vote" data-fecha="drawerRecurso" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formRecurso" class="body">
+        <p class="notice info" id="recursoAviso"><i data-lucide="info"></i><span>Edita o instantâneo <code id="recursoArquivo"></code>. Descrição e saídas bem escritas são o que a indexação semântica e o agente usam para escolher o recurso.</span></p>
+        <div class="form-grid">
+          <div class="form-row"><label>Nome <small>grupo.acao, minúsculas</small></label><input class="field-input mono" name="name" required spellcheck="false" placeholder="encomendas.listar"></div>
+          <div class="form-row"><label>Tipo (kind)</label><select class="field-select" name="kind"><option value="api">api — leitura/escrita</option><option value="database">database</option><option value="knowledge">knowledge — conhecimento</option><option value="memory">memory — memória</option><option value="action">action — ação</option><option value="activity">activity — atividade do workspace (ação)</option><option value="agent">agent — agente executor</option><option value="form">form — procedimento externo</option></select></div>
+          <div class="form-row"><label>Visibilidade</label><select class="field-select" name="visibility"><option value="private">private — só morador identificado</option><option value="public">public — qualquer contato</option></select></div>
+          <div class="form-row"><label>Efeito</label><label class="switch" style="margin-top:8px"><input type="checkbox" name="write"><i></i>write: grava ou executa algo (só por passo do caso.yaml, com confirmação)</label></div>
+          <div class="form-row span-2"><label>Descrição <small>quando usar, na linguagem do morador; com exemplos</small></label><textarea class="field-area" name="description" rows="3" required placeholder="Encomendas da unidade que chegaram na portaria. Use quando o morador pergunta se chegou pacote, entrega ou correspondência. Ex.: tenho alguma encomenda?"></textarea></div>
+        </div>
+
+        <h3 class="sec-titulo"><i data-lucide="link" class="i-sm"></i>Conexão <small class="muted">como o Nexus chama o sistema; {{param}} vira o valor do parâmetro</small></h3>
+        <div class="form-grid">
+          <div class="form-row"><label>Método</label><select class="field-select" name="metodo"><option value="">—</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option value="MCP">MCP (tool)</option></select></div>
+          <div class="form-row"><label>URL</label><input class="field-input mono" name="url" spellcheck="false" placeholder="https://bff.gruvi.com.br/v2/.../{{unidade_id}}/packages"></div>
+          <div class="form-row span-2"><label>Headers</label><table class="res-table larga tabela-edit" id="tabHeaders"><thead><tr><th>Header</th><th>Valor</th><th></th></tr></thead><tbody></tbody></table><button type="button" class="btn btn-ghost btn-sm" data-add="headers"><i data-lucide="plus" class="i-sm"></i>Header</button></div>
+          <div class="form-row span-2"><label>Corpo <small>template JSON para POST/PUT</small></label><textarea class="field-area code" name="corpo" rows="3" spellcheck="false" placeholder='{"unitId": "{{unidade_id}}", "status": "{{status}}"}'></textarea></div>
+        </div>
+
+        <h3 class="sec-titulo"><i data-lucide="log-in" class="i-sm"></i>Parâmetros de entrada</h3>
+        <table class="res-table larga tabela-edit" id="tabParams"><thead><tr><th>Nome</th><th>Tipo</th><th>Obrig.</th><th>Descrição</th><th></th></tr></thead><tbody></tbody></table>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="params"><i data-lucide="plus" class="i-sm"></i>Parâmetro</button>
+
+        <h3 class="sec-titulo"><i data-lucide="log-out" class="i-sm"></i>Saída</h3>
+        <div class="form-row"><label>Resumo do retorno <small>uma linha, para o prompt</small></label><input class="field-input mono" name="output" spellcheck="false" placeholder="lista de {id, label, status}"></div>
+        <table class="res-table larga tabela-edit" id="tabSaida" style="margin-top:8px"><thead><tr><th>Campo</th><th>Caminho no JSON</th><th>Tipo</th><th>Descrição</th><th></th></tr></thead><tbody></tbody></table>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="saida"><i data-lucide="plus" class="i-sm"></i>Campo de saída</button>
+
+        <div class="form-actions"><button type="button" class="btn btn-danger" id="btnRemoverRecurso" hidden><i data-lucide="trash-2"></i><span>Remover</span></button><span class="muted" id="recursoStatus" style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar recurso</span></button></div>
+      </form>
+    </aside>
+  </div>
+
   <!-- drawer: novo arquivo -->
   <div id="drawerArquivo" hidden>
     <div class="drawer-backdrop" data-fecha="drawerArquivo"></div>
@@ -246,6 +283,6 @@
     </aside>
   </div>
 
-  <script src="/backdoor.js?v=8"></script>
+  <script src="/backdoor.js?v=9"></script>
 </body>
 </html>

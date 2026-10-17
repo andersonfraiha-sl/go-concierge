@@ -170,6 +170,8 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/arquivo/modelo", s.modelo)
 	mux.HandleFunc("GET /api/projecao", s.projecao)
 	mux.HandleFunc("GET /api/nexus/recursos", s.recursos)
+	mux.HandleFunc("PUT /api/nexus/recurso", s.salvarRecurso)
+	mux.HandleFunc("DELETE /api/nexus/recurso", s.removerRecurso)
 	mux.HandleFunc("POST /api/agente/recursos", s.vincular)
 }
 
@@ -408,6 +410,50 @@ func (s *servidor) recursos(w http.ResponseWriter, _ *http.Request) {
 		lista = []okf.Recurso{}
 	}
 	writeJSON(w, 200, map[string]any{"account": s.account, "origem": s.nexus, "conferido": s.cat.TemNexus(), "recursos": lista})
+}
+
+// instantaneoEditavel: o catálogo só se edita aqui quando vem do instantâneo YAML; ao
+// vivo, o dono é o Nexus.
+func (s *servidor) instantaneoEditavel() (string, error) {
+	if strings.HasPrefix(s.nexus, "http") {
+		return "", errors.New("catálogo ao vivo do Nexus: edite o recurso lá")
+	}
+	return filepath.Join(s.cat.Root, "nexus", s.account+".yaml"), nil
+}
+
+func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Original string      `json:"original"`
+		Recurso  okf.Recurso `json:"recurso"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	p, err := s.instantaneoEditavel()
+	if err != nil {
+		writeErr(w, 409, err)
+		return
+	}
+	if err := okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.recursos(w, r)
+}
+
+func (s *servidor) removerRecurso(w http.ResponseWriter, r *http.Request) {
+	nome := r.URL.Query().Get("nome")
+	p, err := s.instantaneoEditavel()
+	if err != nil {
+		writeErr(w, 409, err)
+		return
+	}
+	if err := okf.RemoverRecursoFixture(p, nome); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	s.recursos(w, r)
 }
 
 func (s *servidor) vincular(w http.ResponseWriter, r *http.Request) {

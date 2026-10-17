@@ -1,9 +1,13 @@
 package okf
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -41,7 +45,13 @@ type Recurso struct {
 	Write       bool        `json:"write" yaml:"write"`
 	Description string      `json:"description" yaml:"description"`
 	Params      []ParamMeta `json:"params" yaml:"params"`
-	Output      string      `json:"output,omitempty" yaml:"output"`
+	Output      string      `json:"output,omitempty" yaml:"output"` // resumo humano do retorno
+	// Conexao é como o Nexus chega ao sistema por trás do recurso (método, URL com
+	// {{param}}, headers, corpo). Documental aqui: quem executa é o Nexus/MCP.
+	Conexao *Conexao `json:"conexao,omitempty" yaml:"conexao,omitempty"`
+	// Saida mapeia o retorno em campos nomeados (caminho no JSON devolvido), para o
+	// agente e a indexação semântica saberem o que vem de volta.
+	Saida []SaidaCampo `json:"saida,omitempty" yaml:"saida,omitempty"`
 	// Definicoes são os ajustes que um condomínio pode dar a este recurso (antecedência
 	// mínima, horário, código da empresa…): o Admin os mostra como formulário, em
 	// linguagem de administradora, e grava no payload do condomínio. Sem definições,
@@ -57,6 +67,121 @@ type Definicao struct {
 	Options     []string `json:"options,omitempty" yaml:"options"`
 	Default     any      `json:"default,omitempty" yaml:"default"`
 	Description string   `json:"description,omitempty" yaml:"description"`
+}
+
+// Conexao: os dados de chamada do recurso.
+type Conexao struct {
+	Metodo  string            `json:"metodo,omitempty" yaml:"metodo,omitempty"`
+	URL     string            `json:"url,omitempty" yaml:"url,omitempty"`
+	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Corpo   string            `json:"corpo,omitempty" yaml:"corpo,omitempty"` // template do body (JSON com {{param}})
+}
+
+// SaidaCampo é um campo do retorno: nome para o agente, caminho no JSON (ex.: data.items[].id).
+type SaidaCampo struct {
+	Name        string `json:"name" yaml:"name"`
+	Path        string `json:"path,omitempty" yaml:"path,omitempty"`
+	Type        string `json:"type,omitempty" yaml:"type,omitempty"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+}
+
+var reNomeRecurso = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*$`)
+
+// Validar confere o mínimo de um recurso editado na interface.
+func (r Recurso) Validar() error {
+	if !reNomeRecurso.MatchString(r.Name) {
+		return fmt.Errorf("nome de recurso inválido: %q (minúsculas, dígitos, ponto, hífen)", r.Name)
+	}
+	switch r.Kind {
+	case KindAPI, KindDatabase, KindKnowledge, KindMemory, KindAgent, KindAction, KindActivity, KindForm:
+	default:
+		return fmt.Errorf("kind desconhecido: %q", r.Kind)
+	}
+	if r.Visibility != "public" && r.Visibility != "private" {
+		return fmt.Errorf("visibility precisa ser public ou private: %q", r.Visibility)
+	}
+	for _, p := range r.Params {
+		if strings.TrimSpace(p.Name) == "" {
+			return errors.New("parâmetro sem nome")
+		}
+	}
+	for _, s := range r.Saida {
+		if strings.TrimSpace(s.Name) == "" {
+			return errors.New("campo de saída sem nome")
+		}
+	}
+	return nil
+}
+
+// SalvarRecursoFixture grava (cria ou substitui, pelo nome original) um recurso no
+// instantâneo YAML da account, preservando o cabeçalho de comentários do arquivo.
+func SalvarRecursoFixture(p, nomeOriginal string, r Recurso) error {
+	if err := r.Validar(); err != nil {
+		return err
+	}
+	lista, err := LerRecursosFixture(p)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if nomeOriginal == "" {
+		nomeOriginal = r.Name
+	}
+	trocou := false
+	for i := range lista {
+		if lista[i].Name == nomeOriginal {
+			lista[i] = r
+			trocou = true
+		} else if lista[i].Name == r.Name {
+			return fmt.Errorf("já existe um recurso chamado %s", r.Name)
+		}
+	}
+	if !trocou {
+		lista = append(lista, r)
+	}
+	return gravarRecursosFixture(p, lista)
+}
+
+// RemoverRecursoFixture tira um recurso do instantâneo.
+func RemoverRecursoFixture(p, nome string) error {
+	lista, err := LerRecursosFixture(p)
+	if err != nil {
+		return err
+	}
+	var resto []Recurso
+	for _, r := range lista {
+		if r.Name != nome {
+			resto = append(resto, r)
+		}
+	}
+	if len(resto) == len(lista) {
+		return fmt.Errorf("recurso não encontrado: %s", nome)
+	}
+	return gravarRecursosFixture(p, resto)
+}
+
+func gravarRecursosFixture(p string, lista []Recurso) error {
+	var cab strings.Builder
+	if raw, err := os.ReadFile(p); err == nil {
+		for _, l := range strings.Split(string(raw), "\n") {
+			if !strings.HasPrefix(l, "#") {
+				break
+			}
+			cab.WriteString(l + "\n")
+		}
+	}
+	if lista == nil {
+		lista = []Recurso{}
+	}
+	corpo, err := yaml.Marshal(struct {
+		Recursos []Recurso `yaml:"recursos"`
+	}{lista})
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(p, []byte(cab.String()+string(corpo)), 0o644)
 }
 
 // ParamMeta descreve um parâmetro do recurso.
