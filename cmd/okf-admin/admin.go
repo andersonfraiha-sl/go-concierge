@@ -29,6 +29,16 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(raw)
 	})
+	mux.HandleFunc("GET /backdoor/payloads", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := fs.ReadFile(s.web, "payloads.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(raw)
+	})
 	mux.HandleFunc("GET /api/admin/estado", s.adminEstado)
 	mux.HandleFunc("PUT /api/admin/condominio", s.adminCondominio)
 	mux.HandleFunc("DELETE /api/admin/condominio", s.adminRemoverCondominio)

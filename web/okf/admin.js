@@ -6,7 +6,10 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const PADRAO = '*';
 
-  const estado = { m: null, casos: [], recursos: [], papeis: [], secao: 'casos', condoPayload: PADRAO };
+  // modo: 'admin' (condomínios e casos de uso, para a administradora) ou 'backdoor'
+  // (payload dos recursos por condomínio, técnico, nosso)
+  const MODO = document.body.dataset.modo || 'admin';
+  const estado = { m: null, casos: [], recursos: [], papeis: [], secao: MODO === 'backdoor' ? 'recursos' : 'casos', condoPayload: PADRAO };
 
   async function api(caminho, opts = {}) {
     const r = await fetch(caminho, { headers: opts.body ? { 'Content-Type': 'application/json' } : {}, ...opts });
@@ -39,20 +42,21 @@
   function aplicar(m) { estado.m = m; $('#chipCondosN').textContent = m.condominios.length; desenhar(); }
 
   // ---- navegação ---------------------------------------------------------------
+  const secaoPadrao = () => (MODO === 'backdoor' ? 'recursos' : 'casos');
   function mostrar(secao) {
     estado.secao = secao;
-    for (const s of ['condominios', 'casos', 'recursos']) $('#sec' + s[0].toUpperCase() + s.slice(1)).hidden = s !== secao;
+    for (const s of ['condominios', 'casos', 'recursos']) { const el = $('#sec' + s[0].toUpperCase() + s.slice(1)); if (el) el.hidden = s !== secao; }
     $$('.admin-nav a[data-secao]').forEach((a) => a.classList.toggle('is-active', a.dataset.secao === secao));
     desenhar();
   }
-  window.addEventListener('hashchange', () => mostrar((location.hash.replace('#/', '') || 'casos')));
+  window.addEventListener('hashchange', () => mostrar((location.hash.replace('#/', '') || secaoPadrao())));
   $$('.admin-nav a[data-secao]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); location.hash = '#/' + a.dataset.secao; }));
 
   function desenhar() {
     if (!estado.m) return;
-    desenharCondos();
-    desenharMatriz();
-    desenharPayloads();
+    if ($('#tabelaCondos')) desenharCondos();
+    if ($('#matriz')) desenharMatriz();
+    if ($('#tabelaPayloads')) desenharPayloads();
     icons();
   }
 
@@ -74,8 +78,8 @@
     icons();
     f.nome.focus();
   }
-  $('#btnNovoCondo').addEventListener('click', () => abrirCondo(null));
-  $('#formCondo').addEventListener('submit', async (e) => {
+  $('#btnNovoCondo')?.addEventListener('click', () => abrirCondo(null));
+  $('#formCondo')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     try {
@@ -85,7 +89,7 @@
       aplicar(r.mapeamento);
     } catch (err) { toast(err.message, true); }
   });
-  $('#btnRemoverCondo').addEventListener('click', async () => {
+  $('#btnRemoverCondo')?.addEventListener('click', async () => {
     const id = $('#formCondo').id.value;
     if (!confirm(`Remover o condomínio ${id} e todo o seu mapeamento?`)) return;
     try { const r = await api('/api/admin/condominio?id=' + encodeURIComponent(id), { method: 'DELETE' }); $('#drawerCondo').hidden = true; toast('removido'); aplicar(r.mapeamento); } catch (err) { toast(err.message, true); }
@@ -124,7 +128,7 @@
     $('#drawerHab').hidden = false;
     icons();
   }
-  $('#formHab').addEventListener('submit', async (e) => {
+  $('#formHab')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     try {
@@ -134,7 +138,7 @@
       aplicar(r.mapeamento);
     } catch (err) { toast(err.message, true); }
   });
-  $('#btnHabLimpar').addEventListener('click', async () => {
+  $('#btnHabLimpar')?.addEventListener('click', async () => {
     const f = $('#formHab');
     try { const r = await api('/api/admin/habilitacao', { method: 'PUT', body: JSON.stringify({ condominio: f.dataset.condo, caso: f.dataset.caso, limpar: true }) }); $('#drawerHab').hidden = true; toast('entrada removida: vale o padrão'); aplicar(r.mapeamento); } catch (err) { toast(err.message, true); }
   });
@@ -142,6 +146,7 @@
   // ---- payloads --------------------------------------------------------------------
   function desenharPayloads() {
     const sel = $('#selCondoPayload');
+    if (!sel) return;
     const atual = estado.condoPayload;
     sel.innerHTML = colunas().map((c) => `<option value="${esc(c.id)}" ${c.id === atual ? 'selected' : ''}>${esc(c.nome)}</option>`).join('');
     const condoID = sel.value || PADRAO;
@@ -167,7 +172,7 @@
       try { const r = await api('/api/admin/payload', { method: 'PUT', body: JSON.stringify({ condominio: condoID, recurso: b.dataset.apagar, apagar: true }) }); toast(`payload de ${b.dataset.apagar} apagado`); aplicar(r.mapeamento); } catch (err) { toast(err.message, true); }
     }));
   }
-  $('#selCondoPayload').addEventListener('change', (e) => { estado.condoPayload = e.target.value; desenharPayloads(); icons(); });
+  $('#selCondoPayload')?.addEventListener('change', (e) => { estado.condoPayload = e.target.value; desenharPayloads(); icons(); });
 
   // ---- drawers ---------------------------------------------------------------------
   $$('[data-fecha]').forEach((b) => b.addEventListener('click', () => ($('#' + b.dataset.fecha).hidden = true)));
@@ -175,5 +180,5 @@
   $('#btnRecarregar').addEventListener('click', () => carregar().then(() => toast('relido')).catch((err) => toast(err.message, true)));
 
   icons();
-  carregar().then(() => mostrar(location.hash.replace('#/', '') || 'casos')).catch((err) => toast(err.message, true));
+  carregar().then(() => mostrar(location.hash.replace('#/', '') || secaoPadrao())).catch((err) => toast(err.message, true));
 })();

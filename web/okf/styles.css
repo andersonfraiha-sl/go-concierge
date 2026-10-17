@@ -367,8 +367,11 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 @keyframes pop { from { opacity: 0; transform: translate(-50%, 4px) scale(.98); } }
 
 /* ---------- Admin: matriz ---------- */
+.matriz { table-layout: auto; }
+.matriz th:first-child, .matriz td:first-child { width: auto; min-width: 340px; padding-right: 16px; }
+.matriz th { white-space: nowrap; }
 .matriz th.col-padrao { background: var(--sl-blue-50); }
-.matriz td.celula { cursor: pointer; vertical-align: middle; border-left: 1px solid var(--slate-100); min-width: 150px; }
+.matriz td.celula { cursor: pointer; vertical-align: middle; border-left: 1px solid var(--slate-100); min-width: 170px; white-space: nowrap; }
 .matriz td.celula:hover { background: var(--canvas); }
 .matriz td.celula.herdada { color: var(--slate-500); }
 .matriz td.celula.herdada b { font-weight: 500; }

@@ -35,8 +35,7 @@
       <a href="#/condominios" data-secao="condominios"><i data-lucide="building-2"></i><span>Condomínios</span><em>quem a administradora atende</em></a>
       <span class="nav-label">Mapeamento</span>
       <a href="#/casos" data-secao="casos"><i data-lucide="list-checks"></i><span>Casos de uso</span><em>o que cada condomínio pode usar</em></a>
-      <a href="#/recursos" data-secao="recursos"><i data-lucide="plug"></i><span>Recursos</span><em>payload por condomínio</em></a>
-      <p class="nav-dica" style="margin-top:18px">Sem mapeamento para um condomínio, vale o <b>Padrão (todos)</b>. Um caso sem entrada está habilitado. O payload de um recurso é o padrão sobreposto pelo do condomínio, chave a chave, e é remontado na chamada do recurso e injetado como contexto do condomínio.</p>
+      <p class="nav-dica" style="margin-top:18px">Sem mapeamento para um condomínio, vale o <b>Padrão (todos)</b>. Um caso de uso sem entrada está habilitado para todos.</p>
     </nav>
 
     <main class="admin-main" id="main" tabindex="-1">
@@ -57,14 +56,6 @@
         <div class="card" style="overflow-x:auto"><table class="res-table matriz" id="matriz"><thead></thead><tbody></tbody></table></div>
       </section>
 
-      <!-- recursos × condomínio -->
-      <section id="secRecursos" hidden>
-        <div class="page-head">
-          <div><h1>Payload dos recursos por condomínio</h1><p>Para o condomínio escolhido, as definições de cada recurso do Nexus: parâmetros padrão (ex.: <code>company_id</code>, <code>unidade_id</code>) e regras locais (ex.: antecedência mínima, áreas disponíveis). Na chamada do recurso, o payload preenche o que o agente não passou; e entra no prompt como "Contexto do condomínio".</p></div>
-          <div class="page-actions"><label class="form-row" style="min-width:260px"><span class="muted" style="font-size:12px">Condomínio</span><select class="field-select" id="selCondoPayload"></select></label></div>
-        </div>
-        <div class="card"><table class="res-table" id="tabelaPayloads"><thead><tr><th>Recurso</th><th>Assinatura (MCP)</th><th>Payload deste condomínio</th><th>Efetivo (padrão + condomínio)</th></tr></thead><tbody></tbody></table></div>
-      </section>
     </main>
   </div>
 
