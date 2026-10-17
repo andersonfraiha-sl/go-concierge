@@ -72,6 +72,19 @@ durável; em toda conversa seguinte a memória entra na instrução da família 
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
 fatos (`GET`/`DELETE /api/memoria?phone=`).
 
+## Classes de recurso do Nexus
+
+O catálogo da account (`okf/nexus/<account>.yaml` ou o Nexus ao vivo) organiza os
+recursos em oito classes, pelo `kind`: **Leitura** (`api`/`database` que só leem),
+**Escrita** (`api`/`database` com `write: true`), **Conhecimento** (`knowledge`),
+**Memória** (`memory`), **Ação** (`action`: APIs que executam algo no mundo),
+**Agente** (`agent`: executor do Nexus que recebe um pedido e devolve um resultado),
+**Atividade** (`activity`: atividade cadastrada no workspace da administradora) e
+**Form** (`form`: procedimento externo, chamada pública via formulário). `write` é
+ortogonal à classe: qualquer recurso com `write: true` só entra por um passo do
+`caso.yaml`, depois do `confirm`; os demais o agente declara em `agent.yaml → recursos`
+e chama com `chamar_recurso`.
+
 ## Pacotes OKF v0.1
 
 A caixinha `knowledge/` lê um pacote do [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)

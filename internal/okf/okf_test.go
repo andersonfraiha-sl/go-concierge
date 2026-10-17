@@ -357,6 +357,27 @@ func TestSemNexusNaoConfere(t *testing.T) {
 	}
 }
 
+func TestClassesDeRecurso(t *testing.T) {
+	casos := map[string]Recurso{
+		"leitura":      {Kind: KindAPI},
+		"escrita":      {Kind: KindAPI, Write: true},
+		"conhecimento": {Kind: KindKnowledge},
+		"memoria":      {Kind: KindMemory},
+		"acao":         {Kind: KindAction, Write: true},
+		"agente":       {Kind: KindAgent},
+		"atividade":    {Kind: KindActivity, Write: true},
+		"form":         {Kind: KindForm, Visibility: "public"},
+	}
+	for quer, r := range casos {
+		if r.Classe() != quer {
+			t.Errorf("%+v: classe %s, queria %s", r, r.Classe(), quer)
+		}
+	}
+	if len(Classes) != len(casos) {
+		t.Fatalf("Classes: %v", Classes)
+	}
+}
+
 func TestFixtureDeRecursos(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "x.yaml")
 	os.WriteFile(p, []byte("recursos:\n  - name: b.x\n    kind: api\n    write: true\n  - name: a.x\n    kind: knowledge\n    visibility: public\n"), 0o644)

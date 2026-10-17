@@ -11,8 +11,18 @@
 
   const ICONE_CX = { rules: ['scale', 'ri-nucleo'], workflows: ['list-checks', 'ri-nucleo'], routers: ['signpost', 'ri-nucleo'], knowledge: ['book-open', 'ri-data'], assets: ['image', 'ri-assets'], evals: ['flask-conical', 'ri-evals'], agentes: ['git-branch', 'ri-sub'] };
   const TAG_OKF = { Domain: 'tag-violet', Question: 'tag-private', Condition: 'tag-warn', Policy: 'tag-write', Vocabulary: 'tag-public', Procedure: 'tag-kind', KnowledgeIndex: 'tag-kind' };
-  const CLASSE = { leitura: ['Leitura', 'plug'], conhecimento: ['Conhecimento', 'book-open'], memoria: ['Memória', 'brain'], agente: ['Agentes utilitários', 'bot'], escrita: ['Escrita (só pelo caso de uso)', 'pen-line'] };
-  const KIND_ICON = { api: 'plug', database: 'database', knowledge: 'book-open', memory: 'brain', agent: 'bot' };
+  // classes dos recursos do Nexus, na ordem da interface; write é ortogonal (só pelo caso.yaml)
+  const CLASSE = {
+    leitura: ['Leitura', 'plug', 'APIs e consultas que só leem'],
+    escrita: ['Escrita', 'pen-line', 'gravam dados: só por passo do caso.yaml, depois do confirm'],
+    conhecimento: ['Conhecimento', 'book-open', 'conteúdos oficiais da account (FAQ, regimento)'],
+    memoria: ['Memória', 'brain', 'o que a account guarda sobre o morador'],
+    acao: ['Ação', 'zap', 'APIs que executam algo no mundo (avisar, acionar, disparar)'],
+    agente: ['Agente', 'bot', 'agente executor do Nexus: recebe um pedido e devolve um resultado'],
+    atividade: ['Atividade', 'clipboard-check', 'atividade cadastrada no workspace da administradora'],
+    form: ['Form', 'file-input', 'procedimento externo: chamada pública via formulário'],
+  };
+  const KIND_ICON = { api: 'plug', database: 'database', knowledge: 'book-open', memory: 'brain', agent: 'bot', action: 'zap', activity: 'clipboard-check', form: 'file-input' };
   const ICONE_ARQ = (c) => c.endsWith('.yaml') || c.endsWith('.yml') ? 'braces' : c.endsWith('.md') ? 'file-text' : /\.(png|jpe?g|gif|svg|webp)$/i.test(c) ? 'image' : 'file';
   const tipoIcone = (t) => (t === 'orquestrador' ? 'git-branch' : 'bot');
   const corDaCaixinha = (n) => ({ rules: 'var(--sl-blue)', workflows: 'var(--sl-blue)', routers: 'var(--sl-blue)', knowledge: 'var(--info)', assets: 'var(--success)', evals: 'var(--violet)' }[n] || 'var(--sl-navy)');
@@ -57,8 +67,24 @@
     desenharNexus();
     preencherSelects();
     if (estado.selecionado && acharNo(estado.selecionado)) await selecionar(estado.selecionado, true);
-    else mostrarVisao();
+    else mostrarSecao(secaoDaURL());
   }
+  // ---- seções do painel central: visão geral, agentes, recursos, ficha ---------------
+  const secaoDaURL = () => ({ '#/agentes': 'agentes', '#/recursos': 'recursos' }[location.hash] || 'visao');
+  function mostrarSecao(nome) {
+    if (nome !== 'ficha' && !podeSair()) return;
+    if (nome !== 'ficha') { estado.selecionado = null; estado.ficha = null; }
+    $('#visao').hidden = nome !== 'visao';
+    $('#ficha').hidden = nome !== 'ficha';
+    $('#secAgentes').hidden = nome !== 'agentes';
+    $('#secRecursos').hidden = nome !== 'recursos';
+    $$('.admin-nav a[data-secao]').forEach((a) => a.classList.toggle('is-active', a.dataset.secao === nome));
+    if (nome !== 'ficha') { desenharArvore(); desenharNexus(); if (nome === 'visao') desenharVisao(); }
+    if (estado.secao !== nome) $('#main').scrollTop = 0;
+    estado.secao = nome;
+  }
+  $$('.admin-nav a[data-secao]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); history.replaceState(null, '', a.getAttribute('href')); mostrarSecao(a.dataset.secao); }));
+  window.addEventListener('hashchange', () => { if (!estado.selecionado) mostrarSecao(secaoDaURL()); });
   async function recarregarArvore() {
     estado.arvore = (await api('/api/agentes')).agentes;
     desenharArvore();
@@ -72,16 +98,7 @@
   function todosOsNos(lista = estado.arvore, out = []) { for (const n of lista) { out.push(n); todosOsNos(n.subagentes || [], out); } return out; }
 
   // ---- visão geral ------------------------------------------------------------
-  function mostrarVisao() {
-    if (!podeSair()) return;
-    estado.selecionado = null;
-    estado.ficha = null;
-    $('#ficha').hidden = true;
-    $('#visao').hidden = false;
-    desenharArvore();
-    desenharNexus();
-    desenharVisao();
-  }
+  function mostrarVisao() { history.replaceState(null, '', '#/'); mostrarSecao('visao'); }
   function desenharVisao() {
     const nos = todosOsNos();
     const subs = nos.length - estado.arvore.length;
@@ -115,7 +132,6 @@
     const raiz = $('#arvore');
     raiz.innerHTML = '';
     raiz.appendChild(listaDeNos(estado.arvore));
-    $('#navHome').classList.toggle('is-active', !estado.selecionado);
     icons();
   }
   function listaDeNos(nos) {
@@ -126,7 +142,7 @@
       div.className = 'nav-agent' + (n.caminho === estado.selecionado ? ' is-active' : '');
       div.draggable = true;
       div.title = n.descricao || n.caminho;
-      div.innerHTML = `<i data-lucide="${n.caso ? 'list-checks' : tipoIcone(n.tipo)}"></i><span class="name">${esc(n.nome)}</span><span class="badges">${n.erros ? `<span class="badge erro" title="erros">${n.erros}</span>` : ''}${n.avisos ? `<span class="badge aviso" title="avisos">${n.avisos}</span>` : ''}</span>`;
+      div.innerHTML = `<i data-lucide="${n.caso ? 'list-checks' : tipoIcone(n.tipo)}"></i><span class="name">${esc(n.nome)}</span><span class="badges">${n.caso ? '<span class="tag tag-write">caso</span>' : `<span class="tag tag-kind">${n.tipo}</span>`}${n.erros ? `<span class="badge erro" title="erros">${n.erros}</span>` : ''}${n.avisos ? `<span class="badge aviso" title="avisos">${n.avisos}</span>` : ''}</span><span class="desc">${esc(n.descricao || 'sem descrição')}</span>`;
       div.addEventListener('click', () => selecionar(n.caminho));
       ligarArrasto(div, n.caminho);
       li.appendChild(div);
@@ -181,31 +197,23 @@
   function desenharNexus() {
     const el = $('#recursosNexus');
     const lista = estado.nexus.recursos || [];
-    $('#nexusResumo').textContent = `${lista.length} · ${estado.nexus.account}`;
-    $('#nexusDica').textContent = estado.selecionado ? `ligue o interruptor para ${estado.selecionado.split('/').pop()} declarar que usa.` : 'o que a account oferece em tempo de execução. Selecione um agente para declarar o que ele usa.';
-    if (!lista.length) { el.innerHTML = `<div class="cat-vazio">${estado.nexus.conferido ? 'a account não tem recursos' : 'Nexus indisponível: defina NEXUS_BASE_URL ou um instantâneo em okf/nexus/<account>.yaml'}</div>`; return; }
-    const decl = declarados();
+    $('#nexusResumo').textContent = `${plural(lista.length, 'recurso', 'recursos')} · ${estado.nexus.account}`;
+    $('#nexusDica span').textContent = estado.nexus.conferido ? `Origem: ${estado.nexus.origem}. A assinatura (params*) é a do MCP; o payload do condomínio preenche o que o agente não passar.` : 'Nexus indisponível: defina NEXUS_BASE_URL ou um instantâneo em okf/nexus/<account>.yaml.';
+    const q = ($('#filtroRecursos').value || '').trim().toLowerCase();
+    const vis = lista.filter((r) => !q || (r.name + ' ' + (r.description || '') + ' ' + r.kind + ' ' + r.visibility).toLowerCase().includes(q));
+    if (!vis.length) { el.innerHTML = `<div class="cat-vazio">${lista.length ? 'nada com esse filtro' : estado.nexus.conferido ? 'a account não tem recursos' : 'Nexus indisponível'}</div>`; return; }
     const grupos = {};
-    for (const r of lista) (grupos[r.classe || classeDe(r)] ||= []).push(r);
-    el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<div class="cat-group"><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}</div>` + grupos[k].map((r) => {
-      const d = decl.get(r.name);
-      const usa = !!d;
-      const escrita = r.write;
-      return `<div class="cat-card ${usa ? 'is-on' : ''}" draggable="${escrita ? 'false' : 'true'}" data-nome="${esc(r.name)}" title="${esc(r.description || '')}">
-        <span class="res-icon ${escrita ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${KIND_ICON[r.kind] || 'plug'}"></i></span>
-        <div class="ct"><strong>${esc(r.name)}</strong><span>${esc(r.description || r.kind)}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${escrita ? '<span class="tag tag-write">escrita</span>' : ''}${usa && d.origem === 'caso.yaml' ? '<span class="tag tag-locked">pelo caso</span>' : ''}</span></div>
-        ${escrita ? `<span class="muted" title="escrita só entra por um passo do caso.yaml">${usa ? '<i data-lucide="list-checks" class="i-sm"></i>' : ''}</span>` : `<label class="switch" title="declarar em agent.yaml → recursos"><input type="checkbox" ${usa ? 'checked' : ''} ${estado.selecionado ? '' : 'disabled'}><i></i></label>`}
-      </div>`;
-    }).join('')).join('');
-    $$('.cat-card', el).forEach((d) => {
-      const nome = d.dataset.nome;
-      d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/recurso', nome); e.dataTransfer.effectAllowed = 'copy'; });
-      const sw = $('input[type=checkbox]', d);
-      if (sw) sw.addEventListener('change', async () => { try { await vincular(estado.selecionado, nome, sw.checked); } catch (err) { sw.checked = !sw.checked; toast(err.message, true); } });
-    });
+    for (const r of vis) (grupos[r.classe || classeDe(r)] ||= []).push(r);
+    const assinatura = (r) => (r.params || []).length ? r.params.map((p) => `${p.name}${p.type ? ':' + p.type : ''}${p.required ? '*' : ''}`).join(', ') : 'sem parâmetros';
+    el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<div class="cat-group"><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}<span class="muted" style="font-weight:400;margin-left:6px">${CLASSE[k][2]}</span></div>` + grupos[k].map((r) => `<div class="cat-card" data-nome="${esc(r.name)}">
+        <span class="res-icon ${r.write ? 'ri-hooks' : r.kind === 'knowledge' ? 'ri-data' : ''}"><i data-lucide="${KIND_ICON[r.kind] || 'plug'}"></i></span>
+        <div class="ct"><strong>${esc(r.name)}</strong><span>${esc(r.description || r.kind)}</span><span class="assin">(${esc(assinatura(r))})${r.output ? ' → ' + esc(r.output) : ''}</span><span class="chips"><span class="tag tag-kind">${esc(r.kind)}</span><span class="tag ${r.visibility === 'public' ? 'tag-public' : 'tag-private'}">${r.visibility}</span>${r.write ? '<span class="tag tag-write">write · só pelo caso.yaml</span>' : ''}</span></div>
+        <span class="muted" style="font-size:11.5px">${r.write ? '<i data-lucide="list-checks" class="i-sm" title="entra por passo do caso.yaml"></i>' : ''}</span>
+      </div>`).join('')).join('');
     icons();
   }
-  function classeDe(r) { return r.write ? 'escrita' : r.kind === 'knowledge' ? 'conhecimento' : r.kind === 'memory' ? 'memoria' : r.kind === 'agent' ? 'agente' : 'leitura'; }
+  $('#filtroRecursos').addEventListener('input', desenharNexus);
+  function classeDe(r) { return ({ knowledge: 'conhecimento', memory: 'memoria', action: 'acao', agent: 'agente', activity: 'atividade', form: 'form' })[r.kind] || (r.write ? 'escrita' : 'leitura'); }
 
   // ---- ficha ------------------------------------------------------------------
   // o que mudou e ainda não foi salvo: identidade, persona ou o arquivo em edição
@@ -233,8 +241,7 @@
     try { estado.ficha = await api('/api/agente?agente=' + encodeURIComponent(caminho)); } catch (err) { toast(err.message, true); return mostrarVisao(); }
     const trocou = estado.selecionado !== caminho;
     estado.selecionado = caminho;
-    $('#visao').hidden = true;
-    $('#ficha').hidden = false;
+    mostrarSecao('ficha');
     if (trocou) $('#main').scrollTop = 0;
     desenharArvore();
     desenharNexus();
@@ -383,12 +390,13 @@
       const r = await api('/api/agente?agente=' + encodeURIComponent(estado.selecionado), { method: 'DELETE' });
       toast('Agente excluído' + (r.mudancas.length ? ' · ' + r.mudancas.join('; ') : ''));
       estado.ficha = null;
+      estado.selecionado = null;
       await recarregarArvore();
-      mostrarVisao();
+      mostrarSecao('agentes');
     } catch (err) { toast(err.message, true); }
   });
   $('#btnExportar').addEventListener('click', () => { if (estado.selecionado) window.open('/api/agentes/exportar?agente=' + encodeURIComponent(estado.selecionado)); });
-  $('#navHome').addEventListener('click', (e) => { e.preventDefault(); mostrarVisao(); });
+  $('#btnDeclararRecurso').addEventListener('click', (e) => { const r = e.currentTarget.getBoundingClientRect(); abrirPaleta(r.left - 300, r.bottom + 6, 'declarar'); });
 
   // ---- painel direito: a pasta ------------------------------------------------------
   // o ancestral dono de um arquivo herdado (nome da pasta → caminho do agente)
@@ -488,6 +496,111 @@
   $('#btnEditarArquivo').addEventListener('click', () => { if (estado.arquivo && !estado.arquivo.herdadoDe) entrarEdicao(); });
   $('#btnCancelarEdicao').addEventListener('click', () => { if (!estado.arquivoSujo || confirm('Descartar as alterações deste arquivo?')) { estado.arquivoSujo = false; mostrarVisor(); atualizarStatus(); } });
   $('#editor').addEventListener('input', () => { estado.arquivoSujo = true; atualizarStatus(); });
+
+  // ---- paleta: botão direito no editor → recursos do Nexus, inseridos na sintaxe do arquivo ----
+  const paleta = { aberta: false, itens: [], ativo: 0, inicio: 0, fim: 0, modo: 'inserir' };
+  function abrirPaleta(x, y, modo = 'inserir') {
+    const ed = $('#editor');
+    paleta.modo = modo;
+    paleta.inicio = ed.selectionStart; paleta.fim = ed.selectionEnd;
+    paleta.aberta = true;
+    $('#paletaFiltro').placeholder = modo === 'declarar' ? 'declarar um recurso de leitura em agent.yaml…' : 'filtrar recursos do Nexus…';
+    const el = $('#paleta');
+    el.hidden = false;
+    const w = 420, h = Math.min(420, window.innerHeight - 20);
+    el.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+    el.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + 'px';
+    $('#paletaFiltro').value = '';
+    $('#paletaDica').innerHTML = dicaDaPaleta();
+    desenharPaleta();
+    icons();
+    $('#paletaFiltro').focus();
+  }
+  function fecharPaleta(voltarAoEditor = true) {
+    if (!paleta.aberta) return;
+    paleta.aberta = false;
+    $('#paleta').hidden = true;
+    if (voltarAoEditor && paleta.modo === 'inserir') { const ed = $('#editor'); ed.focus(); ed.setSelectionRange(paleta.inicio, paleta.fim); }
+  }
+  const tipoDoArquivo = () => { const c = (estado.arquivo && estado.arquivo.caminho) || ''; return c === 'caso.yaml' ? 'caso' : c.endsWith('.md') ? 'md' : 'outro'; };
+  function dicaDaPaleta() {
+    if (paleta.modo === 'declarar') return 'Entra em <code>agent.yaml → recursos</code>: o agente passa a poder chamar o recurso (chamar_recurso). Escrita não se declara: entra por passo do caso.yaml.';
+    const t = tipoDoArquivo();
+    return t === 'caso' ? 'Insere um passo <code>- resource:</code> com <code>with</code> e <code>save_as</code>; escrita só vale aqui, depois de um <code>confirm</code>.'
+      : t === 'md' ? 'Insere a chamada na sintaxe do workflow: <code>Chame `recurso` (chamar_recurso) com `param` = {{.x}} e guarde em `x`</code>. Escrita entra pelo caso.yaml.'
+      : 'Insere o nome do recurso.';
+  }
+  function desenharPaleta() {
+    const q = $('#paletaFiltro').value.trim().toLowerCase();
+    const decl = declarados();
+    let lista = (estado.nexus.recursos || []).filter((r) => !q || (r.name + ' ' + (r.description || '') + ' ' + r.kind).toLowerCase().includes(q));
+    if (paleta.modo === 'declarar') lista = lista.filter((r) => !r.write && !decl.has(r.name));
+    const grupos = {};
+    for (const r of lista) (grupos[r.classe || classeDe(r)] ||= []).push(r);
+    paleta.itens = Object.keys(CLASSE).flatMap((k) => grupos[k] || []);
+    paleta.ativo = 0;
+    const item = (r, i) => `<div class="paleta-item ${i === 0 ? 'is-active' : ''}" data-i="${i}"><b>${esc(r.name)}</b><span class="tags">${decl.has(r.name) ? '<span class="tag tag-public">declarado</span>' : ''}<span class="tag tag-kind">${esc(r.kind)}</span>${r.write ? '<span class="tag tag-write">write</span>' : ''}</span><span>${esc(r.description || '')}</span></div>`;
+    let i = 0;
+    $('#paletaLista').innerHTML = paleta.itens.length
+      ? Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<div class="paleta-grupo">${CLASSE[k][0]}${k === 'escrita' ? ' (só por passo do caso.yaml)' : ''}</div>` + grupos[k].map((r) => item(r, i++)).join('')).join('')
+      : `<div class="paleta-vazio">${paleta.modo === 'declarar' && !q ? 'todos os recursos de leitura já estão declarados' : (estado.nexus.recursos || []).length ? 'nada com esse filtro' : 'Nexus indisponível: nenhum recurso'}</div>`;
+    $$('#paletaLista .paleta-item').forEach((d) => {
+      d.addEventListener('mousemove', () => marcarAtivo(+d.dataset.i));
+      d.addEventListener('mousedown', (e) => { e.preventDefault(); inserirRecurso(paleta.itens[+d.dataset.i]); });
+    });
+  }
+  function marcarAtivo(i) {
+    paleta.ativo = Math.max(0, Math.min(i, paleta.itens.length - 1));
+    $$('#paletaLista .paleta-item').forEach((d) => d.classList.toggle('is-active', +d.dataset.i === paleta.ativo));
+    const at = $(`#paletaLista .paleta-item[data-i="${paleta.ativo}"]`);
+    if (at) at.scrollIntoView({ block: 'nearest' });
+  }
+  // o trecho na sintaxe do arquivo aberto
+  function trechoDoRecurso(r) {
+    const params = (r.params || []).filter((p) => p.required);
+    const guarda = r.name.split('.')[0];
+    const t = tipoDoArquivo();
+    if (t === 'caso') {
+      const ed = $('#editor');
+      const linha = ed.value.slice(0, paleta.inicio).split('\n').pop();
+      const ind = (linha.match(/^\s*/) || [''])[0] || '  ';
+      let s = `${ind}- resource: ${r.name}\n`;
+      if (params.length) s += `${ind}  with:\n` + params.map((p) => `${ind}    ${p.name}: "{{.${p.name.replace(/_id$/, '')}}}"\n`).join('');
+      s += `${ind}  save_as: ${guarda}\n`;
+      return s;
+    }
+    if (t === 'md') {
+      const com = params.length ? ' com ' + params.map((p) => `\`${p.name}\` = {{.${p.name.replace(/_id$/, '')}}}`).join(', ') : '';
+      return r.write ? `ESCRITA: chame \`${r.name}\`${com}; guarde o retorno em \`${guarda}\`. Só depois do confirm; o protocolo devolvido vai na resposta.`
+        : `Chame \`${r.name}\` (chamar_recurso)${com} e guarde em \`${guarda}\`.`;
+    }
+    return r.name;
+  }
+  async function inserirRecurso(r) {
+    if (!r) return;
+    if (paleta.modo === 'declarar') {
+      fecharPaleta(false);
+      try { await vincular(estado.selecionado, r.name, true); } catch (err) { toast(err.message, true); }
+      return;
+    }
+    const ed = $('#editor');
+    const trecho = trechoDoRecurso(r);
+    ed.value = ed.value.slice(0, paleta.inicio) + trecho + ed.value.slice(paleta.fim);
+    const pos = paleta.inicio + trecho.length;
+    paleta.inicio = paleta.fim = pos;
+    ed.dispatchEvent(new Event('input'));
+    fecharPaleta();
+    if (!r.write && !declarados().has(r.name)) toast(`${r.name} não está declarado em agent.yaml: ligue no painel Recursos do Nexus`, true);
+  }
+  $('#editor').addEventListener('contextmenu', (e) => { if (!estado.editando) return; e.preventDefault(); abrirPaleta(e.clientX, e.clientY); });
+  $('#paletaFiltro').addEventListener('input', desenharPaleta);
+  $('#paletaFiltro').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); marcarAtivo(paleta.ativo + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); marcarAtivo(paleta.ativo - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); inserirRecurso(paleta.itens[paleta.ativo]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fecharPaleta(); }
+  });
+  document.addEventListener('mousedown', (e) => { if (paleta.aberta && !e.target.closest('#paleta')) fecharPaleta(false); });
   $('#btnExcluirArquivo').addEventListener('click', async () => {
     if (!estado.arquivo || !confirm(`Excluir ${estado.arquivo.caminho}?`)) return;
     try {
@@ -648,6 +761,7 @@
   $('#formNovo select[name=pai]').addEventListener('change', (e) => { $('#rotuloPersona').hidden = !!e.target.value; $('#drawerNovoTitulo').textContent = e.target.value ? `Novo subagente de ${e.target.value.split('/').pop()}` : 'Novo agente'; });
   $('#btnNovo').addEventListener('click', () => abrirNovo(raizConcierge()));
   $('#btnNovo2').addEventListener('click', () => abrirNovo(raizConcierge()));
+  $('#btnNovo3').addEventListener('click', () => abrirNovo(raizConcierge()));
   $('#formNovo').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;

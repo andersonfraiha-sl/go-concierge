@@ -13,14 +13,24 @@ import (
 // caso.yaml) o que precisa, e o harness cruza a declaração com o que a account tem
 // e o que a identidade do usuário pode.
 
-// Classes de recurso (as mesmas do sl-concierge).
+// Tipos (kind) de recurso. Os quatro primeiros vêm do sl-concierge; os demais mapeiam o
+// resto do que o Nexus oferece: ações (APIs que executam algo), agentes executores,
+// atividades cadastradas no workspace e forms (procedimento externo, chamada pública).
 const (
 	KindAPI       = "api"
 	KindDatabase  = "database"
 	KindKnowledge = "knowledge"
 	KindMemory    = "memory"
 	KindAgent     = "agent"
+	KindAction    = "action"
+	KindActivity  = "activity"
+	KindForm      = "form"
 )
+
+// Classes, na ordem em que a interface as mostra. A classe é o que o recurso É para o
+// agente; `write` é ortogonal (um recurso de qualquer classe com write: true só entra
+// por um passo do caso.yaml, depois do confirm).
+var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", "agente", "atividade", "form"}
 
 // Recurso é um item do catálogo de recursos de uma account no Nexus.
 type Recurso struct {
@@ -43,18 +53,24 @@ type ParamMeta struct {
 
 // Classe devolve o grupo em que a interface mostra o recurso.
 func (r Recurso) Classe() string {
-	switch {
-	case r.Write:
-		return "escrita"
-	case r.Kind == KindKnowledge:
+	switch r.Kind {
+	case KindKnowledge:
 		return "conhecimento"
-	case r.Kind == KindMemory:
+	case KindMemory:
 		return "memoria"
-	case r.Kind == KindAgent:
+	case KindAction:
+		return "acao"
+	case KindAgent:
 		return "agente"
-	default:
-		return "leitura"
+	case KindActivity:
+		return "atividade"
+	case KindForm:
+		return "form"
 	}
+	if r.Write {
+		return "escrita"
+	}
+	return "leitura"
 }
 
 // LerRecursosFixture lê um arquivo `recursos: [...]` (o instantâneo de uma account,

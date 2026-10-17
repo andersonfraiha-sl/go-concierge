@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=7">
+  <link rel="stylesheet" href="/styles.css?v=9">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin">
@@ -38,22 +38,39 @@
         <button class="btn btn-primary" id="btnNovo"><i data-lucide="plus"></i><span>Novo caso de uso</span></button>
         <button class="btn btn-ghost" id="btnImportar" title="Importar o zip de uma pasta"><i data-lucide="file-archive"></i></button>
       </div>
-      <a href="#" class="nav-home" id="navHome"><i data-lucide="layout-dashboard"></i><span>Visão geral</span><em>o concierge e os casos de uso</em></a>
+      <a href="#/" class="nav-home" id="navHome" data-secao="visao"><i data-lucide="layout-dashboard"></i><span>Visão geral</span><em>o concierge e os casos de uso</em></a>
+      <a href="#/agentes" class="nav-home" data-secao="agentes"><i data-lucide="folder-tree"></i><span>Agentes</span><em>a árvore: o concierge e os casos de uso</em></a>
+      <a href="#/recursos" class="nav-home" data-secao="recursos"><i data-lucide="plug"></i><span>Recursos do Nexus</span><em id="nexusResumo">o que a account oferece</em></a>
+      <span class="nav-label">Condomínios</span>
       <a href="/backdoor/administradoras" class="nav-home"><i data-lucide="building"></i><span>Administradoras</span><em>e os condomínios de cada uma</em></a>
-      <a href="/backdoor/payloads" class="nav-home"><i data-lucide="plug"></i><span>Payload por condomínio</span><em>definições dos recursos do Nexus</em></a>
-
-      <span class="nav-label">Agentes</span>
-      <div id="raizDrop" class="raiz" title="Solte um agente aqui para levá-lo ao nível raiz">
-        <i data-lucide="folder-tree" class="i-sm"></i><span>agentes/</span><em>arraste para mover · Shift = clonar</em>
-      </div>
-      <div id="arvore" class="arvore"></div>
-
-      <span class="nav-label">Recursos do Nexus <small id="nexusResumo"></small></span>
-      <p class="nav-dica" id="nexusDica">o que a account oferece em tempo de execução. Ligue o interruptor para o agente selecionado declarar que usa.</p>
-      <div id="recursosNexus" class="catalogo"></div>
+      <a href="/backdoor/payloads" class="nav-home"><i data-lucide="sliders-horizontal"></i><span>Payload por condomínio</span><em>definições dos recursos do Nexus</em></a>
     </nav>
 
     <main class="admin-main" id="main" tabindex="-1">
+      <!-- agentes: a árvore -->
+      <section id="secAgentes" hidden>
+        <div class="page-head">
+          <div><h1>Agentes</h1><p>A árvore de pastas: o <b>concierge</b> (orquestrador, com persona) e, dentro dele, cada <b>caso de uso</b> como subagente. Clique para abrir a ficha; arraste para mover (Shift = clonar). As rotas do pai são sincronizadas ao mover.</p></div>
+          <div class="page-actions"><button class="btn btn-primary" id="btnNovo3"><i data-lucide="plus"></i><span>Novo caso de uso</span></button></div>
+        </div>
+        <div class="card">
+          <div id="raizDrop" class="raiz" title="Solte um agente aqui para levá-lo ao nível raiz">
+            <i data-lucide="folder-tree" class="i-sm"></i><span>agentes/</span><em>arraste para mover · Shift = clonar</em>
+          </div>
+          <div id="arvore" class="arvore arvore-central"></div>
+        </div>
+      </section>
+
+      <!-- recursos do Nexus: o catálogo da account -->
+      <section id="secRecursos" hidden>
+        <div class="page-head">
+          <div><h1>Recursos do Nexus</h1><p>O que a account oferece em tempo de execução: APIs, conteúdos e memórias, cada um com a assinatura do seu MCP. Um agente <b>declara</b> o que usa em <code>agent.yaml</code> (botão "Declarar recurso" na ficha, ou pelo botão direito no editor); recursos de <b>escrita</b> só entram por um passo do <code>caso.yaml</code>. O payload de cada recurso por condomínio fica em <a href="/backdoor/payloads">Payload por condomínio</a>.</p></div>
+          <div class="page-actions"><label class="form-row" style="min-width:240px"><span class="muted" style="font-size:12px">Filtrar</span><input class="field-input" id="filtroRecursos" placeholder="nome, descrição, tipo…" autocomplete="off"></label></div>
+        </div>
+        <p class="notice info" id="nexusDica"><i data-lucide="info"></i><span></span></p>
+        <div class="card"><div id="recursosNexus" class="catalogo catalogo-central"></div></div>
+      </section>
+
       <!-- visão geral -->
       <section id="visao">
         <div class="page-head">
@@ -125,7 +142,7 @@
             </div>
 
             <div class="card">
-              <h2><i data-lucide="plug"></i>Recursos do Nexus que usa <small class="muted" id="recursosResumo"></small></h2>
+              <h2><i data-lucide="plug"></i>Recursos do Nexus que usa <small class="muted" id="recursosResumo"></small><button class="btn btn-ghost btn-sm" id="btnDeclararRecurso" style="margin-left:auto"><i data-lucide="plus" class="i-sm"></i>Declarar recurso</button></h2>
               <div id="recursosAgente"></div>
             </div>
           </div>
@@ -163,6 +180,13 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- paleta do botão direito no editor: recursos do Nexus com filtro, inseridos na sintaxe do arquivo -->
+  <div id="paleta" class="paleta" hidden>
+    <div class="paleta-cab"><i data-lucide="plug" class="i-sm"></i><input id="paletaFiltro" class="field-input" placeholder="filtrar recursos do Nexus…" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
+    <div id="paletaLista" class="paleta-lista"></div>
+    <div class="paleta-pe" id="paletaDica"></div>
+  </div>
 
   <!-- drawer: novo agente -->
   <div id="drawerNovo" hidden>
@@ -222,6 +246,6 @@
     </aside>
   </div>
 
-  <script src="/backdoor.js?v=5"></script>
+  <script src="/backdoor.js?v=7"></script>
 </body>
 </html>

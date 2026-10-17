@@ -181,3 +181,55 @@ recursos:
     type: string
     required: true
   output: '{codigo}'
+- name: portaria.avisar
+  kind: action
+  visibility: private
+  write: true
+  description: 'Ação: avisa a portaria por mensagem (interfone/painel) sobre algo da unidade — chegada
+    de prestador, pacote a devolver, pedido urgente. Executa algo no mundo: só por passo do caso de uso,
+    com confirmação.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: mensagem
+    type: string
+    required: true
+  output: '{protocolo}'
+- name: agente.redator
+  kind: agent
+  visibility: private
+  description: 'Agente executor do Nexus: redige um comunicado formal (aviso de obra, pedido à administração)
+    a partir do que o morador descreveu, no padrão da administradora. Devolve o texto para o concierge
+    revisar com o morador.'
+  params:
+  - name: pedido
+    type: string
+    required: true
+  - name: tipo
+    type: string
+    description: aviso | pedido | reclamacao
+  output: '{texto}'
+- name: atividade.vistoria
+  kind: activity
+  visibility: private
+  write: true
+  description: 'Atividade cadastrada no workspace da administradora: abre uma vistoria técnica na unidade
+    (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com confirmação.'
+  params:
+  - name: unidade_id
+    type: string
+    required: true
+  - name: motivo
+    type: string
+    required: true
+  output: '{protocolo, previsao}'
+- name: form.ouvidoria
+  kind: form
+  visibility: public
+  description: 'Form: procedimento externo da ouvidoria. Devolve o link público do formulário para o morador
+    registrar elogio, sugestão ou reclamação; a chamada é pública e não grava nada pelo concierge.'
+  params:
+  - name: assunto
+    type: string
+  output: '{url}'
