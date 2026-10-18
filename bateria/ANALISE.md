@@ -110,3 +110,60 @@ inteira mais índice de conhecimento mais contextos). Onde cortar, por ordem de 
 
 Depois disso, rodar a bateria de novo (`python bateria/rodar.py` é retomável e grava em
 `resultados.jsonl`; apague o arquivo para começar do zero) e comparar os números.
+
+## Segunda rodada (depois das correções, 2026-10-18)
+
+Mesmos 500 casos, mesmo modelo, depois do commit f3bdc10 (workflow sem `use_case`,
+transbordo garantido pela guarda de texto, política para dois pedidos, termos do código
+de retirada, extração de memória fora do caminho crítico, entrega pulada em pergunta
+curta, resposta vazia vira aviso). Tabela completa em `COMPARACAO.md`; primeira rodada
+preservada em `resultados-rodada1.jsonl` e `RELATORIO-rodada1.md`.
+
+| Métrica | Rodada 1 | Rodada 2 |
+|---|---|---|
+| Sem problema | 451 (90,2%) | 478 (95,6%) |
+| Rota errada | 46 (9,2%) | 18 (3,6%) |
+| Falhas duras (vazia, erro do harness, erro de tool) | 8 | 0 |
+| Latência p50 / p90 / p95 | 6,2 / 9,9 / 13,6 s | 5,4 / 8,7 / 10,3 s |
+| Pedidos de humano transferidos de fato | 60% | 97% |
+| Consultas (unidades, encomendas, código) | 88% | 100% |
+| Dois pedidos na mesma mensagem | 68% | 82% (p50 de 12,8 s para 7,4 s) |
+
+Melhoraram 37 casos, pioraram 10, 12 continuam com problema. Nenhuma resposta vazia,
+nenhum crash do harness, nenhum `chamar_recurso` com nome de rota.
+
+### O que ainda falha (22 casos) e por quê
+
+- **Cobertura, não bug (12).** "Como cadastro minha digital na portaria?" (5 variações),
+  "já reservei a churrasqueira?", "corrigir meu nome / incluir minha esposa no cadastro"
+  (3), "quanto custa o salão?", "avisa a portaria que chega um pacote": o conhecimento
+  não tem a resposta ou o recurso não tem o campo (o cadastro de exemplo só tem e-mail,
+  placa e pets), e o concierge transfere ao humano, como foi desenhado. O que resolve é
+  conteúdo: FAQ com esses assuntos e `cadastro.campos` com nome e moradores.
+- **Critério meu, não do concierge (3).** CNPJ da Superlógica foi procurado na FAQ
+  (rota `faq`) e respondido "não encontrei": certo. "Preciso falar com a administradora"
+  recebeu o telefone da administradora em vez de transbordo: aceitável.
+- **Dois pedidos (2).** Ainda transfere quando a segunda metade é uma ação ("qual o
+  horário de silêncio? e também dá pra agendar o salão"). A política está no texto; o
+  modelo barato nem sempre a segue. Um roteador que corta a mensagem no "e também" e
+  trata só a primeira parte resolveria no determinístico.
+- **Erros do modelo na cadeia longa (2).** Duas reservas terminaram em "não consegui
+  processar" depois de 17 s e 34 s: a cadeia roteador → subagente → recursos → entrega
+  passou do tempo do provedor numa chamada e o agente desistiu. Vale um retry curto por
+  chamada e o teto de iterações mais baixo.
+- **Parâmetro opcional perguntado (1).** A liberação de visitante ainda pergunta o motivo,
+  que o recurso não exige. A regra "pergunte o mínimo" precisa de uma linha explícita:
+  parâmetro opcional não se pergunta.
+- **Coleta legítima (1).** A comunicação de obra continua coletando depois do "sim",
+  porque a primeira mensagem não trazia tipo, prazo e prestadores.
+- **Preâmbulo confunde a rota (1).** "oi, tudo bem? vou trocar o piso, preciso avisar?"
+  foi ao regimento em vez da comunicação de obra; a resposta até orienta, mas não abre o
+  caso.
+
+### Latência
+
+A queda de p50 veio da extração de memória fora do caminho crítico e da entrega pulada
+nas perguntas curtas; o número de chamadas por resposta não mudou (3,6) porque a
+extração ainda conta no uso, só não atrasa a resposta. Os 10 s de p95 são as cadeias
+com flip de rota e entrega. Próximo corte com mais efeito: roteador com prompt mínimo e
+índice de conhecimento por `index.md`.
