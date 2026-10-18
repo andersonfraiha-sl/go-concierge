@@ -497,6 +497,46 @@ func TestEscritaSoPeloCasoEComSim(t *testing.T) {
 	}
 }
 
+func TestGuardaTransbordoPorTextoEPerguntaSimples(t *testing.T) {
+	for texto, quer := range map[string]bool{
+		"Entendido, Vanderlei. Vou transferir você para um atendente humano.": true,
+		"Vanderlei, um atendente vai assumir seu protocolo.":                  true,
+		"Encaminhamento: transferido ao atendente":                            true,
+		"A piscina abre às 8h.":                                               false,
+		"Não consigo fazer ligações, mas posso tirar dúvidas do regimento.":   false,
+	} {
+		if AnunciaTransferencia(texto) != quer {
+			t.Errorf("AnunciaTransferencia(%q) deveria ser %v", texto, quer)
+		}
+	}
+	col := &coletor{transbordo: new(string)}
+	if m := guardaTransbordo(col, "x", "Vou transferir você para um atendente."); m == "" || len(col.passos) != 1 || col.passos[0].Tipo != "transbordo" {
+		t.Fatalf("anúncio sem a tool deveria virar transbordo: %q %+v", m, col.passos)
+	}
+	col2 := &coletor{transbordo: new(string)}
+	*col2.transbordo = "pela tool"
+	if m := guardaTransbordo(col2, "x", "Vou transferir você."); m != "pela tool" || len(col2.passos) != 0 {
+		t.Fatalf("com a tool já chamada, a guarda não mexe: %q", m)
+	}
+	for texto, quer := range map[string]bool{"Para qual data você quer a churrasqueira?": true, "Qual o nome do visitante?": true, "Reserva confirmada: protocolo 123.": false, "## Resposta\nqual data?": false, "Posso ajudar com isso?\n\nE com aquilo?\nE mais?": false} {
+		if perguntaSimples(texto) != quer {
+			t.Errorf("perguntaSimples(%q) deveria ser %v", texto, quer)
+		}
+	}
+}
+
+func TestNomeDeRotaNaoEhRecurso(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Identidade: Identidade{Authenticated: true, AccountID: "cond-001"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := ag.chamarRecurso(context.Background(), &argsRecurso{Nome: "codigo-retirada"})
+	if !strings.Contains(erroDe(out), "subagente (rota)") {
+		t.Fatalf("nome de rota deveria ser recusado com orientação: %+v", out)
+	}
+}
+
 func TestMockEscolheRotaPorGlossario(t *testing.T) {
 	cat, a := catalogoExemplo(t)
 	m := NewMock(cat, a)

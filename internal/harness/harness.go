@@ -441,10 +441,15 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 				if err != nil {
 					return nil, err
 				}
+				if strings.TrimSpace(r.Resposta) == "" && r.Transbordo == "" {
+					col.passo(rel, "aviso", "subagente devolveu resposta vazia; vai o aviso padrão")
+					r.Resposta = respostaVazia
+				}
 				// O orquestrador de primeiro nível é quem fala com o morador: ele entrega
 				// o resultado do subagente na sua persona (o subagente devolve um contrato,
-				// não a resposta final).
-				if profundidade == 0 && strings.TrimSpace(ag.Def.Persona) != "" && strings.TrimSpace(r.Resposta) != "" {
+				// não a resposta final). Pergunta curta e simples do subagente ao morador
+				// ("Para qual data?") vai direto: não precisa de persona nem de assets.
+				if profundidade == 0 && strings.TrimSpace(ag.Def.Persona) != "" && strings.TrimSpace(r.Resposta) != "" && !perguntaSimples(r.Resposta) {
 					texto, uso, err := ag.entregar(ctx, mensagem, sub, r.Resposta, len(historico) > 0)
 					switch {
 					case err != nil:
@@ -458,6 +463,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 						r.Rota = append(r.Rota, Passo{Agente: rel, Tipo: "entrega", Detalhe: corta(texto, 160)})
 					}
 				}
+				r.Transbordo = guardaTransbordo(col, rel, r.Resposta)
 				r.Rota = append(col.passos, r.Rota...)
 				r.Uso.soma(col.uso)
 				return r, nil
@@ -512,6 +518,12 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 		}
 	}
 
+	if strings.TrimSpace(resposta) == "" && *col.transbordo == "" {
+		col.passo(rel, "aviso", "modelo não redigiu resposta; vai o aviso padrão")
+		resposta = respostaVazia
+		msgs = append(msgs, schema.AssistantMessage(resposta, nil))
+	}
+	transbordo := guardaTransbordo(col, rel, resposta)
 	col.mu.Lock()
 	defer col.mu.Unlock()
 	return &Resultado{
@@ -520,8 +532,50 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 		Rota:       col.passos,
 		Uso:        col.uso,
 		Mensagens:  msgs,
-		Transbordo: *col.transbordo,
+		Transbordo: transbordo,
 	}, nil
+}
+
+// respostaVazia é o que vai ao morador quando o modelo não redige nada.
+const respostaVazia = "Não encontrei isso por aqui. Posso te ajudar com outra coisa, ou passo para a administração."
+
+var anuncios = []string{"transferido ao atendente", "vou transferir", "vou te transferir", "transferir você", "transferindo você", "um atendente vai assumir", "um atendente humano vai assumir", "atendente irá assumir", "atendente vai entrar em contato", "vou encaminhar para um atendente", "encaminhar você para um atendente", "passar para um atendente", "repassar para um atendente"}
+
+// AnunciaTransferencia diz se o texto promete ao morador uma transferência a humano.
+func AnunciaTransferencia(texto string) bool {
+	t := strings.ToLower(texto)
+	for _, a := range anuncios {
+		if strings.Contains(t, a) {
+			return true
+		}
+	}
+	return false
+}
+
+// guardaTransbordo: a transferência acontece pela tool; se a resposta a anuncia sem a tool
+// ter sido chamada, o canal transfere mesmo assim (o morador não pode ficar esperando um
+// humano que nunca vem). Devolve o motivo do transbordo (vazio = nenhum).
+func guardaTransbordo(col *coletor, rel, resposta string) string {
+	if col.transbordo == nil {
+		return ""
+	}
+	if *col.transbordo == "" && AnunciaTransferencia(resposta) {
+		*col.transbordo = "anunciado na resposta sem a tool: " + corta(strings.TrimSpace(resposta), 120)
+		col.passo(rel, "transbordo", *col.transbordo)
+	}
+	return *col.transbordo
+}
+
+// perguntaSimples: texto curto, sem marcação, que termina perguntando ao morador.
+func perguntaSimples(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || len([]rune(s)) > 220 || !strings.HasSuffix(s, "?") {
+		return false
+	}
+	if strings.ContainsAny(s, "#{}`|[]") || strings.Count(s, "\n") > 1 {
+		return false
+	}
+	return true
 }
 
 // entregar redige a resposta final ao morador, na persona do orquestrador, a partir

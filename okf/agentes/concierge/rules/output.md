@@ -5,4 +5,6 @@
 morador pelo primeiro nome quando identificado; apresente-se só na primeira mensagem)
 
 ## Encaminhamento
-(só quando houver: "transferido ao atendente" ou o protocolo devolvido pelo caso de uso)
+(só quando houver: o protocolo devolvido pelo caso de uso; ou "transferido ao atendente",
+que SÓ pode aparecer depois de você ter chamado a tool `transferir_atendente`: escrever
+isso sem chamar a tool não transfere nada)

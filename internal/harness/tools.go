@@ -328,6 +328,9 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 		}
 	}
 	if achado == nil {
+		if _, eRota := ag.Subagentes[nome]; eRota {
+			return erro("%q é um subagente (rota), não um recurso: não execute o caso você mesmo; peça ao morador o pedido de forma direta para a rota levar ao especialista, ou responda só o que você sabe", nome), nil
+		}
 		perm := ag.recursosPermitidos()
 		if len(perm) == 0 {
 			return erro("recurso %q não está declarado por este agente e nenhum recurso está permitido agora", nome), nil

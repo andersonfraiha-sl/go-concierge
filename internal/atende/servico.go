@@ -117,6 +117,9 @@ func (h *HTTPSender) Enviar(ctx context.Context, protocolo, texto string) error 
 
 // Servico liga o webhook ao concierge: identidade pelo Gruvi, harness no agente de
 // primeiro nível, resposta pelo Sender.
+// extracoes acompanha as extrações de memória em andamento (Aguardar: testes e desligamento).
+var extracoes sync.WaitGroup
+
 type Servico struct {
 	Cat         *okf.Catalogo
 	Agente      string // caminho relativo do agente de primeiro nível (agentes/concierge)
@@ -278,15 +281,25 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	sess.historico = res.Mensagens
 	uso := res.Uso
 	turno := Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo}
-	if s.Memorias != nil {
-		turno.Memorias = s.lembrar(ctx, &mem, sess, texto, res.Resposta)
-	}
-	sess.registrar(turno)
+	idx := sess.registrar(turno)
 	if s.Sender != nil && res.Resposta != "" {
 		if err := s.Sender.Enviar(ctx, sess.Protocolo, res.Resposta); err != nil {
 			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
 			return sess, err
 		}
+	}
+	// a memória relacional é extraída depois de responder (fora do caminho crítico): o
+	// morador não espera a chamada extra ao modelo; o turno recebe os fatos quando saírem
+	if s.Memorias != nil {
+		extracoes.Add(1)
+		memCopia := mem
+		go func() {
+			defer extracoes.Done()
+			ctxMem, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			fatos := s.lembrar(ctxMem, &memCopia, sess, texto, res.Resposta)
+			sess.anotarMemorias(idx, fatos)
+		}()
 	}
 	if res.Transbordo != "" {
 		s.transbordar(sess, res.Transbordo, "concierge", "")
@@ -367,6 +380,9 @@ func (s *Servico) Devolver(protocolo string) (*Sessao, error) {
 	sess.historico = append(sess.historico, schema.AssistantMessage("[sistema] o atendente humano devolveu a conversa ao concierge; continue de onde parou.", nil))
 	return sess, nil
 }
+
+// Aguardar espera as extrações de memória em andamento (testes e desligamento).
+func (s *Servico) Aguardar() { extracoes.Wait() }
 
 // lembrar extrai os fatos duráveis da troca e grava na memória do contato. Devolve
 // os fatos novos ou alterados (para a bancada do Console).

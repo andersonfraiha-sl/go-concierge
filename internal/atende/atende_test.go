@@ -103,6 +103,8 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	ult := s4.Turnos[len(s4.Turnos)-1]
+	svcM.Aguardar()
+	ult = s4.Turnos[len(s4.Turnos)-1]
 	if len(ult.Memorias) != 2 {
 		t.Fatalf("deveria ter capturado unidades e pets: %+v", ult.Memorias)
 	}

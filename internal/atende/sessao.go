@@ -32,6 +32,7 @@ type Sessao struct {
 	Transbordo *Transbordo `json:"transbordo,omitempty"`
 
 	historico []*schema.Message
+	mu        sync.Mutex
 }
 
 // Transbordo é a passagem do protocolo a um humano, como o ATENDE faria ao sair do
@@ -111,8 +112,20 @@ func (s *Sessoes) Remover(protocolo string) {
 	delete(s.m, protocolo)
 }
 
-func (sess *Sessao) registrar(t Turno) {
+func (sess *Sessao) registrar(t Turno) int {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
 	t.Quando = time.Now()
 	sess.Turnos = append(sess.Turnos, t)
 	sess.AtualizadaEm = t.Quando
+	return len(sess.Turnos) - 1
+}
+
+// anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.
+func (sess *Sessao) anotarMemorias(idx int, fatos []memoria.Fato) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if idx >= 0 && idx < len(sess.Turnos) && len(fatos) > 0 {
+		sess.Turnos[idx].Memorias = fatos
+	}
 }

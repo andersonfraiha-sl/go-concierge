@@ -13,7 +13,8 @@ Escolha a rota pela linha que melhor descreve a mensagem do morador.
 - Atualização Cadastral: cadastro, cadastral, atualizar, alterar, mudar, email, veículo, placa, pet, dados → rota `atualizacao-cadastral`.
 - Comunicação de Obra: obra, reforma, reparo, pintura, pintor, eletricista, encanador, marceneiro, pedreiro, prestador → rota `comunicar-obra`.
 - Minhas Encomendas: encomenda, encomendas, pacote, pacotes, entrega, correio, correspondência, chegou → rota `encomendas`.
-- Código de Retirada: código, codigo, retirada, retirar, senha, encomenda, pacote → rota `codigo-retirada`.
+- Código de Retirada: código, codigo, código do pacote, código da encomenda, senha de retirada, armário de encomendas, retirar, retirada → rota `codigo-retirada`.
+- Mensagem com dois pedidos: a rota do PRIMEIRO pedido (o segundo fica para a próxima mensagem).
 - Usado para o morador agendar uma data e período para sua mudança, garantindo
   a reserva do elevador de serviço. Caso de uso: Agendamento de Mudança → rota
   `agendar-mudanca`.

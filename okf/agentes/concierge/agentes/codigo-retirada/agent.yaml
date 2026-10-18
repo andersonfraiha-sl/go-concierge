@@ -1,7 +1,7 @@
 nome: codigo-retirada
 tipo: operador
-descricao: 'Informa o código para retirar uma encomenda que já está na portaria. Caso
-  de uso: Código de Retirada.'
+descricao: 'Informa o código (senha) para retirar uma encomenda, pacote ou correspondência
+  que já está na portaria ou no armário de encomendas. Caso de uso: Código de Retirada.'
 recursos:
 - unidades.listar
 - encomendas.listar
