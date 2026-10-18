@@ -122,6 +122,8 @@ def rodar_caso(base, caso, cfg):
         erro_http = str(e)[:160]
     r = avaliar(caso, sess, resposta, latencias[-1] if latencias else 0, erro_http)
     r["latencias_s"] = latencias
+    # o diálogo inteiro (para acompanhar os casos que falham)
+    r["dialogo"] = [{"quem": t.get("quem"), "texto": t.get("texto") or "", "agente": (t.get("agente") or "").split("/")[-1]} for t in (sess or {}).get("turnos", [])]
     r["protocolo"] = protocolo
     try:
         http("DELETE", f"{base}/api/atende/sessao?protocolo={protocolo}")
@@ -134,6 +136,7 @@ def main():
     ap.add_argument("--base", default="http://127.0.0.1:8090")
     ap.add_argument("--par", type=int, default=4)
     ap.add_argument("--so", default="")
+    ap.add_argument("--ids", default="", help="lista de ids separados por vírgula")
     ap.add_argument("--saida", default=os.path.join(AQUI, "resultados.jsonl"))
     ap.add_argument("--telefone", default="5519981621916")
     ap.add_argument("--nome", default="Vanderlei Martins")
@@ -143,6 +146,9 @@ def main():
     casos = json.load(open(os.path.join(AQUI, "casos.json"), encoding="utf-8"))
     if a.so:
         casos = [c for c in casos if c["id"] == a.so or c["id"].startswith(a.so)]
+    if a.ids:
+        quer = set(a.ids.split(","))
+        casos = [c for c in casos if c["id"] in quer]
     feitos = set()
     if os.path.exists(a.saida):
         for l in open(a.saida, encoding="utf-8"):
