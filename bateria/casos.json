@@ -1,0 +1,6684 @@
+[
+ {
+  "id": "faq-000",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "até que horas a piscina abre?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-001",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o horário da piscina?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-002",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "a piscina funciona no domingo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-003",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o horário da portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-004",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "a portaria é 24 horas?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-005",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o endereço do condomínio?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-006",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o telefone da administradora?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-007",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "como falo com a administradora?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-008",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quando vence o boleto?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-009",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "onde pego a segunda via do boleto?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-010",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o valor da taxa de condomínio?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-011",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "a academia abre que horas?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-012",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tem wifi na área comum?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-013",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "como funciona a coleta de lixo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-014",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "que dia passa o lixo reciclável?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-015",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o horário do salão de festas?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-016",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "onde fica a administração?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-017",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o condomínio tem estacionamento pra visitante?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-018",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "como cadastro minha digital na portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-019",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o e-mail da administração?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "regimento-020",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "posso fazer barulho depois das 22h?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-021",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o horário de silêncio?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-022",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "pode ter cachorro no condomínio?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-023",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o regimento permite pet de grande porte?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-024",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "posso fazer festa no apartamento?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-025",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "até que horas pode festa no salão?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-026",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "é permitido churrasco na sacada?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-027",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o que o regimento diz sobre obras?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-028",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "posso estender roupa na varanda?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-029",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "pode fumar na área da piscina?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-030",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual a multa por barulho?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-031",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "criança pode usar a piscina sozinha?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-032",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "visitante pode usar a academia?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-033",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "posso alugar meu apê por temporada?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-034",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "pode bicicleta no elevador?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-035",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o regimento fala de vaga de garagem?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-036",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o que diz o regimento sobre animais?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-037",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tem regra pra uso da quadra?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "listar-unidades-038",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quais são minhas unidades?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-039",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "em qual apartamento eu estou cadastrado?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-040",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quais apês estão no meu nome?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-041",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me mostra minhas unidades"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-042",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual é a minha unidade?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-043",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tenho mais de um imóvel aqui?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-044",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "confirma meu apartamento aí"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-045",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual unidade está vinculada a esse telefone?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-046",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero reservar a churrasqueira no sábado"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-047",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "dá pra agendar o salão de festas dia 12/11?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-048",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "reserva a quadra pra domingo de manhã"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-049",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "queria bater um churras no próximo sábado"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-050",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "como faço pra reservar o salão?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-051",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "a churrasqueira está livre dia 25?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-052",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero marcar a churrasqueira para o aniversário do meu filho dia 30"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-053",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "reserva o salão pra sexta à noite"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-054",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "preciso da quadra na quarta às 19h"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-055",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero reservar uma área comum"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-056",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tem como reservar o espaço gourmet?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-057",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me reserva a churrasqueira pra amanhã"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-058",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero atualizar meu cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-059",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "troquei de carro, preciso mudar a placa"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-060",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "mudei meu e-mail, como atualizo?"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-061",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "cadastrar meu novo pet"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-062",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero incluir minha esposa no cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-063",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "atualiza meu telefone aí"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-064",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "minha placa nova é ABC1D23"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-065",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "preciso corrigir meu nome no cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-066",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "como adiciono um veículo?"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-067",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tirei o cachorro do apê, pode remover do cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-068",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero agendar minha mudança"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-069",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "preciso marcar a data da minha mudança"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-070",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vou me mudar sábado de manhã, como faço?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-071",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "como reservo o elevador de serviço pra mudança?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-072",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "mudança dia 20 à tarde, pode?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-073",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "estou saindo do apê, preciso agendar a mudança"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-074",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "chega mobília nova na quinta, preciso do elevador"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-075",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "agendar mudança de entrada pro dia 3"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "comunicar-obra-076",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vou fazer uma reforma no apartamento"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-077",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "preciso comunicar uma obra"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-078",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vou trocar o piso, preciso avisar?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-079",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o pintor vem semana que vem, como libero?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-080",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero fazer obra na cozinha a partir de segunda"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-081",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vou fazer reparo hidráulico, tem que avisar a administração?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-082",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o eletricista vai trabalhar no apê por 3 dias"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-083",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero avisar que vou reformar o banheiro"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "encomendas-084",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tenho alguma encomenda?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-085",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "chegou algum pacote pra mim?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-086",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "chegou minha encomenda da Amazon?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-087",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tem correspondência pra mim na portaria?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-088",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "meu pedido do Mercado Livre chegou?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-089",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tem pacote na portaria?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-090",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "chegou alguma carta registrada?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-091",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quantas encomendas tenho pra retirar?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "codigo-retirada-092",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o código pra retirar minha encomenda?"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "codigo-retirada-093",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me passa o código de retirada"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "codigo-retirada-094",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "preciso do código do pacote"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "codigo-retirada-095",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "código pra pegar a encomenda na portaria"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "codigo-retirada-096",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual a senha de retirada do meu pacote?"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "codigo-retirada-097",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me manda o código do armário"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-098",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero liberar um visitante"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-099",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vai chegar um amigo meu hoje, pode liberar?"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-100",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "libera a entrada da minha mãe amanhã"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-101",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vem um entregador do iFood agora"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-102",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "autoriza o técnico da internet às 14h"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-103",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "minha irmã vai dormir aqui hoje, libera ela"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-104",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "chega um Uber Flash com um pacote, pode deixar subir"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-105",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "libera o João, prestador, pra consertar o chuveiro"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-106",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero cadastrar uma visita pra sexta"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-107",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "a diarista vem amanhã cedo, libera"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "social-108",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "oi"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-109",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "bom dia!"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-110",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "boa tarde"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-111",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "olá, tudo bem?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-112",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "obrigado!"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-113",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "valeu, era só isso"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-114",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tchau"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-115",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "até mais"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-116",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "oi, quem é você?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-117",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "você é um robô?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-118",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "o que você consegue fazer?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-119",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me ajuda?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-120",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "kkkk"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-121",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "ok"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-122",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "beleza"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-123",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "boa noite, tudo certo?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-124",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "e aí"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-125",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "obrigada pela ajuda"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-126",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "pode me ajudar com uma coisa?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "fora-127",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual a previsão do tempo pra amanhã?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-128",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quem ganhou o jogo do Corinthians?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-129",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me indica uma pizzaria boa"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-130",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quanto está o dólar hoje?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-131",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me conta uma piada"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-132",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual a capital da Austrália?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-133",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "escreve um poema pra mim"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-134",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "chama um uber pra mim"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-135",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "qual o cnpj da superlógica?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-136",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "você faz transferência bancária?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-137",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "resolve essa equação: 2x+3=7"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-138",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero comprar bitcoin"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-139",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me recomenda um filme"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-140",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero falar com um ser humano"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-141",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me transfere pra um atendente"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-142",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "não quero falar com robô"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-143",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "cadê o síndico? quero falar com ele agora"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-144",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "vou processar o condomínio, quero falar com o responsável"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-145",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "isso é um absurdo, quero reclamar formalmente com uma pessoa"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-146",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "tem alguém aí de verdade?"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-147",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "me liga, por favor, é urgente"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-148",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "preciso falar com a administradora, é sobre uma cobrança indevida"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-149",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "plano",
+  "turnos": [
+   "quero registrar uma denúncia contra o porteiro"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "complexo-150",
+  "intencao": "encomendas+liberacao-visitante",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "tem correspondência pra mim na portaria? e também minha irmã vai dormir aqui hoje, libera ela"
+  ],
+  "rota": [
+   "encomendas",
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "complexo-151",
+  "intencao": "encomendas+liberacao-visitante",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "chegou algum pacote pra mim? e também libera o João, prestador, pra consertar o chuveiro"
+  ],
+  "rota": [
+   "encomendas",
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "complexo-152",
+  "intencao": "encomendas+liberacao-visitante",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "chegou algum pacote pra mim? e também vem um entregador do iFood agora"
+  ],
+  "rota": [
+   "encomendas",
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "complexo-153",
+  "intencao": "faq+reserva-area-comum",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "qual o horário da piscina? e também quero reservar uma área comum"
+  ],
+  "rota": [
+   "faq",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "complexo-154",
+  "intencao": "faq+reserva-area-comum",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "quando vence o boleto? e também como faço pra reservar o salão?"
+  ],
+  "rota": [
+   "faq",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "complexo-155",
+  "intencao": "faq+reserva-area-comum",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "como cadastro minha digital na portaria? e também reserva a quadra pra domingo de manhã"
+  ],
+  "rota": [
+   "faq",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "complexo-156",
+  "intencao": "regimento+comunicar-obra",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "tem regra pra uso da quadra? e também vou fazer uma reforma no apartamento"
+  ],
+  "rota": [
+   "regimento",
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "complexo-157",
+  "intencao": "regimento+comunicar-obra",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "o que o regimento diz sobre obras? e também vou trocar o piso, preciso avisar?"
+  ],
+  "rota": [
+   "regimento",
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "complexo-158",
+  "intencao": "regimento+comunicar-obra",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "o regimento permite pet de grande porte? e também preciso comunicar uma obra"
+  ],
+  "rota": [
+   "regimento",
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "complexo-159",
+  "intencao": "listar-unidades+atualizacao-cadastral",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "me mostra minhas unidades e também tirei o cachorro do apê, pode remover do cadastro"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self",
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "complexo-160",
+  "intencao": "listar-unidades+atualizacao-cadastral",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "me mostra minhas unidades e também como adiciono um veículo?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self",
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "complexo-161",
+  "intencao": "listar-unidades+atualizacao-cadastral",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "em qual apartamento eu estou cadastrado? e também troquei de carro, preciso mudar a placa"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self",
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "complexo-162",
+  "intencao": "reserva-area-comum+agendar-mudanca",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "tem como reservar o espaço gourmet? e também agendar mudança de entrada pro dia 3"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "complexo-163",
+  "intencao": "reserva-area-comum+agendar-mudanca",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "quero reservar a churrasqueira no sábado e também preciso marcar a data da minha mudança"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "complexo-164",
+  "intencao": "reserva-area-comum+agendar-mudanca",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "preciso da quadra na quarta às 19h e também preciso marcar a data da minha mudança"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "complexo-165",
+  "intencao": "faq+encomendas",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "qual o endereço do condomínio? e também chegou algum pacote pra mim?"
+  ],
+  "rota": [
+   "faq",
+   "encomendas"
+  ]
+ },
+ {
+  "id": "complexo-166",
+  "intencao": "faq+encomendas",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "como cadastro minha digital na portaria? e também tenho alguma encomenda?"
+  ],
+  "rota": [
+   "faq",
+   "encomendas"
+  ]
+ },
+ {
+  "id": "complexo-167",
+  "intencao": "codigo-retirada+liberacao-visitante",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "preciso do código do pacote e também quero cadastrar uma visita pra sexta"
+  ],
+  "rota": [
+   "codigo-retirada",
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "complexo-168",
+  "intencao": "codigo-retirada+liberacao-visitante",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "me manda o código do armário e também vai chegar um amigo meu hoje, pode liberar?"
+  ],
+  "rota": [
+   "codigo-retirada",
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "complexo-169",
+  "intencao": "codigo-retirada+liberacao-visitante",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "preciso do código do pacote e também vai chegar um amigo meu hoje, pode liberar?"
+  ],
+  "rota": [
+   "codigo-retirada",
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "complexo-170",
+  "intencao": "regimento+reserva-area-comum",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "qual o horário de silêncio? e também dá pra agendar o salão de festas dia 12/11?"
+  ],
+  "rota": [
+   "regimento",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "complexo-171",
+  "intencao": "regimento+reserva-area-comum",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "pode bicicleta no elevador? e também preciso da quadra na quarta às 19h"
+  ],
+  "rota": [
+   "regimento",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "complexo-172",
+  "intencao": "regimento+reserva-area-comum",
+  "tipo": "complexo",
+  "nivel": 4,
+  "transformacao": "duas-intencoes",
+  "turnos": [
+   "o que o regimento diz sobre obras? e também me reserva a churrasqueira pra amanhã"
+  ],
+  "rota": [
+   "regimento",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "armadilha-173",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "regra de obra antes de comunicar",
+  "turnos": [
+   "qual o horário permitido pra obra? vou reformar mês que vem"
+  ],
+  "rota": [
+   "regimento",
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "armadilha-174",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "negação de ação",
+  "turnos": [
+   "não quero reservar nada, só saber se a churrasqueira tem pia"
+  ],
+  "rota": [
+   "faq",
+   "regimento",
+   "self"
+  ]
+ },
+ {
+  "id": "armadilha-175",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "consulta de reserva",
+  "turnos": [
+   "já reservei a churrasqueira? não lembro"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "self"
+  ]
+ },
+ {
+  "id": "armadilha-176",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "custo de reserva",
+  "turnos": [
+   "quanto custa reservar o salão?"
+  ],
+  "rota": [
+   "faq",
+   "regimento",
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "armadilha-177",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "aviso de encomenda futura",
+  "turnos": [
+   "depois de amanhã chega um pacote, avisa a portaria"
+  ],
+  "rota": [
+   "encomendas",
+   "liberacao-visitante",
+   "self"
+  ]
+ },
+ {
+  "id": "armadilha-178",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "conflito entre vizinhos",
+  "turnos": [
+   "meu vizinho faz barulho toda noite, o que eu faço?"
+  ],
+  "rota": [
+   "regimento",
+   "transbordo",
+   "self"
+  ]
+ },
+ {
+  "id": "armadilha-179",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "cancelamento (sem recurso)",
+  "turnos": [
+   "quero cancelar a reserva de sábado"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "armadilha-180",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "código perdido",
+  "turnos": [
+   "perdi o código da encomenda"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "armadilha-181",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "ocorrência de manutenção",
+  "turnos": [
+   "o elevador está quebrado"
+  ],
+  "rota": [
+   "transbordo",
+   "self",
+   "faq"
+  ]
+ },
+ {
+  "id": "armadilha-182",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "ocorrência urgente",
+  "turnos": [
+   "tem vazamento no meu teto, vem do apê de cima"
+  ],
+  "rota": [
+   "transbordo",
+   "self",
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "armadilha-183",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "pagamento",
+  "turnos": [
+   "quero pagar o boleto por pix"
+  ],
+  "rota": [
+   "faq",
+   "self"
+  ]
+ },
+ {
+  "id": "armadilha-184",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "documento",
+  "turnos": [
+   "preciso de uma declaração de quitação"
+  ],
+  "rota": [
+   "transbordo",
+   "self",
+   "faq"
+  ]
+ },
+ {
+  "id": "armadilha-185",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "pedido que o regimento proíbe",
+  "turnos": [
+   "libera a entrada do meu cachorro na piscina"
+  ],
+  "rota": [
+   "regimento",
+   "self"
+  ]
+ },
+ {
+  "id": "armadilha-186",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "área errada para a ação",
+  "turnos": [
+   "quero fazer um churrasco na quadra"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "regimento"
+  ]
+ },
+ {
+  "id": "armadilha-187",
+  "intencao": "armadilha",
+  "tipo": "complexo",
+  "nivel": 5,
+  "transformacao": "confusão de unidade",
+  "turnos": [
+   "meu apartamento é o 101 ou o 102? esqueci"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "social-188",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "então, ok"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "fora-189",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "giria+contexto-longo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. qual a capital da Austrália??"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-190",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: tem alguém aí de verdade?"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-191",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual o endereço do condomínio??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "comunicar-obra-192",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? vou trocar o piso, preciso avisar?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "faq-193",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "a piscina funciona no doming?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-194",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "qual o e-mail da administração? pode ser?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-195",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "reserva a quadra pra domingo de manhã kkk"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "transbordo-196",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+sufixo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. isso é um absurdo, quero reclamar formalmente com uma pessoa pode ser?"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-197",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "preambulo+sufixo",
+  "turnos": [
+   "bom dia, oi, quem é você? (pra hoje)"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "faq-198",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sem-acentos+giria",
+  "turnos": [
+   "qual o e-mail da administracao??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-199",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "qual o valor da taxa de condomínio? kkk"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "regimento-200",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "pode bbicicleta no elevador?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-201",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "então, a academia abre que horas?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "fora-202",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "maiusculas+typos",
+  "turnos": [
+   "ME INDICA UMA PIZZARIIA BOA"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-203",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "o que o regimento diz sobre obras? pode ser?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-204",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "tem regra pra uso da quadra??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-205",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "tem wifi na área comum? pode ser?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-206",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "vou me mudar sábado de manhã, como faço? urgente"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "codigo-retirada-207",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "me manda o código do armárrio"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "transbordo-208",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "não quero falar com robô 🙏"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-209",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "sufixo+contexto-longo",
+  "turnos": [
+   "Sei que é sábado, mas que dia passa o lixo reciclável? kkk"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-210",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "agendar mudanca de entrada pro dia 3"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "fora-211",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "chma um uber pra mim"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-212",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "desculpa incomodar, como funciona a coleta de lixo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-213",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "maiusculas+contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, RESERVA O SALÃO PRA SEXTA À NOITE"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "encomendas-214",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: quantas encomendas tenho pra retirar?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-215",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "preciso corrigir meu nome no cdastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-216",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "tem como reservar o espaço gourmet??"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "faq-217",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "que dia passa o lixo reciclavel?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "regimento-218",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "pode ter cachorro no condominio?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "fora-219",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, escreve um poema pra mim"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-220",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "giria+sufixo",
+  "turnos": [
+   "preciso corrigir meu nome no cadastro (pra hoje)"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-221",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "sufixo+contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: autoriza o técnico da internet às 14h pode ser?"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "fora-222",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. você faz transferência bancária?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-223",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sufixo+sufixo",
+  "turnos": [
+   "pode bicicleta no elevador? por favor"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-224",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Olha, eu moro aqui há 3 anos e nunca precisei disso, mas é permitido churrasco na sacada?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "listar-unidades-225",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "confirma meu apartamento ai"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "comunicar-obra-226",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "contexto-longo+sem-acentos",
+  "turnos": [
+   "Sei que e sabado, mas o pintor vem semana que vem, como libero?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "codigo-retirada-227",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "preciso do codigo do pacote"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "social-228",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: e aí"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-229",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "typos+giria",
+  "turnos": [
+   "qqual é a minha unidade??"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-230",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "chega mobília nova na quinta, prciso do elevador"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "faq-231",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "giria+sem-acentos",
+  "turnos": [
+   "que dia passa o lixo reciclavel??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-232",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "quero liberar um visitante por favor"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "listar-unidades-233",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "typos+contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, me mostra minhas unnidades"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "social-234",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "valeu, era so isso"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-235",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "dá pra agendar o salão de festas dia 12/11??"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "faq-236",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+preambulo",
+  "turnos": [
+   "por favor, Olha, eu moro aqui há 3 anos e nunca precisei disso, mas qual o horário da portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-237",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "a piscina funciona no domingo??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-238",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "chega um Uberr Flash com um pacote, pode deixar subir"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "faq-239",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: até que horas a piscina abre?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "encomendas-240",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "giria+maiusculas",
+  "turnos": [
+   "CHEGOU MINHA ENCOMENDA DA AMAZON??"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "fora-241",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "maiusculas+sufixo",
+  "turnos": [
+   "VOCÊ FAZ TRANSFERÊNCIA BANCÁRIA? pode ser?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-242",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "giria+preambulo",
+  "turnos": [
+   "então, obrigado!"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-243",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. me reserva a churrasqueira pra amanhã"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "social-244",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "sufixo+giria",
+  "turnos": [
+   "olá, tudo bem??"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-245",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "maiusculas+preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. QUERO LIBERAR UM VISITANTE"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-246",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "quero agendaar minha mudança"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "fora-247",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "qual o cnpj da superlogica?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-248",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "maiusculas+sufixo",
+  "turnos": [
+   "O CONDOMÍNIO TEM ESTACIONAMENTO PRA VISITANTE? por favor"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-249",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "dá pra agendarr o salão de festas dia 12/11?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "fora-250",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "typos+sem-acentos",
+  "turnos": [
+   "voce faz transfeerencia bancaria?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-251",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "giria+giria",
+  "turnos": [
+   "posso estender roupa na varanda????"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "transbordo-252",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "te alguém aí de verdade?"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "comunicar-obra-253",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. o eletricista vai trabalhar no apê por 3 dias"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-254",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "quero incluir minha esposa no cadastro urgente"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "faq-255",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+sufixo",
+  "turnos": [
+   "Sei que é sábado, mas a piscina funciona no domingo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "transbordo-256",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, preciso falar com a administradora, é sobre uma cobrança indevida"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-257",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "como faço pra reservar o salão? pode ser?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "transbordo-258",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "me liga, pfv, é urgente"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-259",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "é permitido churrasco na sacada??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "social-260",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 4,
+  "transformacao": "typos+contexto-longo",
+  "turnos": [
+   "Olha, eu moro aqui há 3 anos e nunca precisei disso, mas i"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "encomendas-261",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "chegou alguma carta registrada??"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "listar-unidades-262",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "boa tarde! em qual apartamento eu estou cadastrado?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "faq-263",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "maiusculas+typos",
+  "turnos": [
+   "COMO FALO COM A ADMINISTRDORA?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-264",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "o que você consegu fazer?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "comunicar-obra-265",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sem-acentos+sufixo",
+  "turnos": [
+   "vou fazer reparo hidraulico, tem que avisar a administracao? (pra hoje)"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "fora-266",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, me indica uma pizzaria boa"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-267",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. qual o cnpj da superlógica?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-268",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, o regimento fala de vaga de garagem?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-269",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sem-acentos+maiusculas",
+  "turnos": [
+   "PODE FUMAR NA AREA DA PISCINA?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-270",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "giria+preambulo",
+  "turnos": [
+   "ei, qual a multa por barulho??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-271",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, chega mobília nova na quinta, preciso do elevador"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "social-272",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "ate mais"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "faq-273",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+preambulo",
+  "turnos": [
+   "por favor, Estou viajando e preciso resolver à distância. qual o horário da portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-274",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "qual o horario da piscina?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-275",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "preambulo+preambulo",
+  "turnos": [
+   "desculpa incomodar, por favor, reserva o salão pra sexta à noite"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "transbordo-276",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "cadê o síndico? quero falar com ele agora obrigado"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-277",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "autoriza o técnic da internet às 14h"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "listar-unidades-278",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "me mostra minhas unnidades"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-279",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "typos+maiusculas",
+  "turnos": [
+   "QUERO RESEERVAR A CHURRASQUEIRA NO SÁBADO"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "faq-280",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sem-acentos+sem-acentos",
+  "turnos": [
+   "qual o valor da taxa de condominio?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "listar-unidades-281",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "em qual apartameto eu estou cadastrado?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "faq-282",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, qual o horário da portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-283",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "preambulo+sem-acentos",
+  "turnos": [
+   "ola, aqui e o morador do 101. oi, quem e voce?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "transbordo-284",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "cadê o síndico?? queria falar com ele agora"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "comunicar-obra-285",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sufixo+maiusculas",
+  "turnos": [
+   "VOU FAZER UMA REFORMA NO APARTAMENTO KKK"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-286",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "então, reserva o salão pra sexta à noite"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "social-287",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "boa tade"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-288",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual unidade está vinculada a esse telefone??"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "regimento-289",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "desculpa incomodar, criança pode usar a piscina sozinha?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-290",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "poss fazer barulho depois das 22h?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-291",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "posso fazer barulho depois das 22h??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-292",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "a portaria é 24 hhoras?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-293",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "sem-acentos+sufixo",
+  "turnos": [
+   "pode me ajudar com uma coisa? urgente"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "transbordo-294",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "me transfere pra um atendente por favor"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-295",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "onde fica a administração? (pra hoje)"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "listar-unidades-296",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. qual é a minha unidade?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "fora-297",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "sufixo+preambulo",
+  "turnos": [
+   "oi, tudo bem? qual a capital da Austrália? por favor"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-298",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "por favor, como cadastro minha digital na portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "fora-299",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual a previsão do tempo pra amanhã??"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-300",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "posso fazer festa no apartamento? pode ser?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-301",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, minha irmã vai dormir aqui hoje, libera ela"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-302",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? atualiza meu telefone aí"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "encomendas-303",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "giria+contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. meu pedido do Mercado Livre chegou??"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-304",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "typos+sem-acentos",
+  "turnos": [
+   "da pra agendarr o salao de festas dia 12/11?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-305",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "preambulo+giria",
+  "turnos": [
+   "pfv, queria cadastrar uma visita pra sexta"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "codigo-retirada-306",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "maiusculas+sem-acentos",
+  "turnos": [
+   "ME PASSA O CODIGO DE RETIRADA"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "comunicar-obra-307",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "vou trocar o piso, preciso avisar??"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "faq-308",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "a piscina funciona no domingo? obrigado"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-309",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, Antes de tudo, parabéns pelo atendimento. Agora, qual o valor da taxa de condomínio?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "regimento-310",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "o que diz o regimento sobre animais??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-311",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "maiusculas+sem-acentos",
+  "turnos": [
+   "QUAL O HORARIO DA PORTARIA?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-312",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "queria marcar a churrasqueira para o aniversário do meu filho dia 30"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-313",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "tem como reservar o espaco gourmet?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "fora-314",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "contexto-longo+typos",
+  "turnos": [
+   "Estou viajando e preciso resolvver à diistância. qual a capital da Austrália?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-315",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "por favor, como funciona a coleta de lixo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-316",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "libera a entrada d minha mãe amanhã"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "fora-317",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "preambulo+preambulo",
+  "turnos": [
+   "então, desculpa incomodar, escreve um poema pra mim"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-318",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "giria+contexto-longo",
+  "turnos": [
+   "Olha, eu moro aqui há 3 anos e nunca precisei disso, mas chega um Uber Flash com um pacote, pode deixar subir"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "faq-319",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. que dia passa o lixo reciclável?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-320",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, libera o João, prestador, pra consertar o chuveiro"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-321",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sem-acentos+sufixo",
+  "turnos": [
+   "queria bater um churras no proximo sabado por favor"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-322",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "por favor, quero cadastrar uma visita pra sexta"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "faq-323",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual o e-mail da administração??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "transbordo-324",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "sufixo+maiusculas",
+  "turnos": [
+   "ME TRANSFERE PRA UM ATENDENTE URGENTE"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-325",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "libera o Joao, prestador, pra consertar o chuveiro"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "social-326",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 4,
+  "transformacao": "contexto-longo+maiusculas",
+  "turnos": [
+   "SEI QUE É SÁBADO, MAS PODE ME AJUDAR COM UMA COISA?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-327",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "minha placa nova é ABCC1D23"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "comunicar-obra-328",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, quero fazer obra na cozinha a partir de segunda"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-329",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "mudança dia 20 à tarde, pode? por favor"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "faq-330",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+maiusculas",
+  "turnos": [
+   "SEI QUE É SÁBADO, MAS QUAL O TELEFONE DA ADMINISTRADORA?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "regimento-331",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: visitante pode usar a academia?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-332",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual o horário da portaria??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-333",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. mudança dia 20 à tarde, pode?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "faq-334",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. que dia passa o lixo reciclável?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "encomendas-335",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "meu pedido do Mercado Livre chegou? por favor"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "codigo-retirada-336",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "qual o codigo pra retirar minha encomenda?"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "fora-337",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "escreve um poema pra mim pode ser?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-338",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "como funcciona a coleta de lixo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "comunicar-obra-339",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "vou fazer reparo hiddráulicco, tem que avisar a administração?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "comunicar-obra-340",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "contexto-longo+maiusculas",
+  "turnos": [
+   "JÁ TENTEI PELA PORTARIA E NÃO DEU CERTO. VOU FAZER UMA REFORMA NO APARTAMENTO"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "fora-341",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "sem-acentos+typos",
+  "turnos": [
+   "qual o cnpj da superlogca?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-342",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual o horário de silêncio??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "social-343",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, boa noite, tudo certo?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "codigo-retirada-344",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "qual a senha de retirada do meu pacote??"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "transbordo-345",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "vou processar o condomínio, queria falar com o responsável"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "codigo-retirada-346",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Sei que é sábado, mas qual a senha de retirada do meu pacote?"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-347",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sufixo+sem-acentos",
+  "turnos": [
+   "quero agendar minha mudanca kkk"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-348",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, autoriza o técnico da internet às 14h"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "regimento-349",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+maiusculas",
+  "turnos": [
+   "MINHA ESPOSA PEDIU PRA EU PERGUNTAR: POSSO ALUGAR MEU APÊ POR TEMPORADA?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "regimento-350",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "o que o regimento diz sobre obras??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-351",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sem-acentos+preambulo",
+  "turnos": [
+   "bom dia, qual o horario da portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-352",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "quaal o telefone da administradora?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-353",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 4,
+  "transformacao": "preambulo+typos",
+  "turnos": [
+   "olá, aqui é o morador o 101. até mais"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-354",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "como adiciono um veículo??"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "regimento-355",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, o regimento permite pet de grande porte?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-356",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "até que horas a ppiscina abre?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-357",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "giria+sem-acentos",
+  "turnos": [
+   "a portaria e 24 horas??"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "transbordo-358",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "não quero falar com robôô"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-359",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "desculpa incomodar, como cadastro minha digital na portaria?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "listar-unidades-360",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "typos+sufixo",
+  "turnos": [
+   "qual undade está vinculada a esse telefone? 🙏"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-361",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "tenho mais de um imóvel aqui? por favor"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-362",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "maiusculas+sufixo",
+  "turnos": [
+   "MINHA IRMÃ VAI DORMIR AQUI HOJE, LIBERA ELA kkk"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "codigo-retirada-363",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "typos+maiusculas",
+  "turnos": [
+   "PRECIS DO CÓDIGO DO PACOTE"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "listar-unidades-364",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "giria+typos",
+  "turnos": [
+   "quuais apês estão no meu nome??"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "faq-365",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "quando vence o boleto? kkk"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "listar-unidades-366",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "qual e a minha unidade?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "social-367",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "ok por favor"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "regimento-368",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "boa tarde! pode ter cachorro no condomínio?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-369",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "onde fica a administração? por favor"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "comunicar-obra-370",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, preciso comunicar uma obra"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "transbordo-371",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, Olha, eu moro aqui há 3 anos e nunca precisei disso, mas quero falar com um ser humano"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-372",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, quero reservar a churrasqueira no sábado"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "comunicar-obra-373",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "o eletricista vai trabalhar no ape por 3 dias"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "faq-374",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, onde pego a segunda via do boleto?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-375",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. e aí"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "transbordo-376",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "preambulo+maiusculas",
+  "turnos": [
+   "POR FAVOR, QUERO REGISTRAR UMA DENÚNCIA CONTRA O PORTEIRO"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-377",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Sei que é sábado, mas beleza"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-378",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "queria liberar um visitante"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "faq-379",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. tem wifi na área comum?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "regimento-380",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "giria+contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, pode fumar na área da piscina??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-381",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "typos+sufixo",
+  "turnos": [
+   " condomínio tem estacionamento pra visitante? por favor"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-382",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. chega mobília nova na quinta, preciso do elevador"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "encomendas-383",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "por favor, tenho alguma encomenda?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "social-384",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "bom dia, bom dia!"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-385",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "tenho mais de um imovel aqui?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "faq-386",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "ate que horas a piscina abre?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-387",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "então, olá, tudo bem?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-388",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. queria bater um churras no próximo sábado"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "encomendas-389",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "tem pacote na portaria??"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "encomendas-390",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "tem correspondência praa mim na portaria?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "listar-unidades-391",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "contexto-longo+sufixo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: tenho mais de um imóvel aqui?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "transbordo-392",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "preambulo+preambulo",
+  "turnos": [
+   "desculpa incomodar, boa tarde! não quero falar com robô"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-393",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "preambulo+maiusculas",
+  "turnos": [
+   "BOM DIA, PODE ME AJUDAR COM UMA COISA?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-394",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, dá pra agendar o salão de festas dia 12/11?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-395",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. quero liberar um visitante"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "fora-396",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "giria+giria",
+  "turnos": [
+   "quanto está o dólar hoje????"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-397",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Olha, eu moro aqui há 3 anos e nunca precisei disso, mas quero atualizar meu cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-398",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, preciso da quadra na quarta às 19h"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-399",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. troquei de carro, preciso mudar a placa"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "regimento-400",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Olha, eu moro aqui há 3 anos e nunca precisei disso, mas tem regra pra uso da quadra?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "fora-401",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "sem-acentos+preambulo",
+  "turnos": [
+   "desculpa incomodar, qual a previsao do tempo pra amanha?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-402",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "quero agendar minha mudança kkk"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "regimento-403",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "maiusculas+contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, O REGIMENTO FALA DE VAGA DE GARAGEM?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-404",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, queria bater um churras no próximo sábado"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "transbordo-405",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. me transfere pra um atendente"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-406",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "maiusculas+typos",
+  "turnos": [
+   "POSSO FAZER FESTA NO APARTAMENO?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-407",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "preciso marcar a data da minha mudanca"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "regimento-408",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "criança pode usar a piscina sozinha? 🙏"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "fora-409",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "typos+maiusculas",
+  "turnos": [
+   "QUAL A CAPITAL DA AAUSTRÁLIA?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-410",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. quero incluir minha esposa no cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "comunicar-obra-411",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "quero fazer obra na cozinha a patir de segunda"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-412",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "a churrasqueira esta livre dia 25?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-413",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "vou me mudar sábado de manhã, como faço??"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "social-414",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "valeu, era ssó isso"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-415",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "oi, quem e voce?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "regimento-416",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? o que diz o regimento sobre animais?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-417",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. como falo com a administradora?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-418",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? a piscina funciona no domingo?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "transbordo-419",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "preambulo+sufixo",
+  "turnos": [
+   "oi, tudo bem? quero falar com um ser humano"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-420",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sufixo+sufixo",
+  "turnos": [
+   "posso alugar meu apê por temporada? kkk"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-421",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, a churrasqueira está livre dia 25?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-422",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "então, preciso marcar a data da minha mudança"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "regimento-423",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+sufixo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. tem regra pra uso da quadra?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-424",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "preambulo+typos",
+  "turnos": [
+   "ei, nde pego a segunda via do boleto?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "transbordo-425",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "então, preciso falar com a administradora, é sobre uma cobrança indevida"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-426",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "quero registrar uma denuncia contra o porteiro"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "comunicar-obra-427",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "vou trocarr o piso, preciso avisar?"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ]
+ },
+ {
+  "id": "codigo-retirada-428",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "contexto-longo+sufixo",
+  "turnos": [
+   "Já tentei pela portaria e não deu certo. qual o código pra retirar minha encomenda? por favor"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "listar-unidades-429",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "quais são minhas unidades??"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "transbordo-430",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? isso é um absurdo, quero reclamar formalmente com uma pessoa"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-431",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "sufixo+sufixo",
+  "turnos": [
+   "tem wifi na área comum? obrigado"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-432",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sem-acentos+sufixo",
+  "turnos": [
+   "tirei o cachorro do ape, pode remover do cadastro (pra hoje)"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-433",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sufixo+maiusculas",
+  "turnos": [
+   "CHEGA MOBÍLIA NOVA NA QUINTA, PRECISO DO ELEVADOR OBRIGADO"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-434",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sem-acentos+sufixo",
+  "turnos": [
+   "vem um entregador do iFood agora 🙏"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "fora-435",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "sufixo+giria",
+  "turnos": [
+   "queria comprar bitcoin urgente"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-436",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "sufixo+preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. oi (pra hoje)"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-437",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "desculpa incomodar, pode me ajudar com uma coisa?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "faq-438",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Sei que é sábado, mas qual o e-mail da administração?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-439",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "desculpa incomodar, tem como reservar o espaço gourmet?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-440",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "giria",
+  "turnos": [
+   "queria cadastrar uma visita pra sexta"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "listar-unidades-441",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "ei, tenho mais de um imóvel aqui?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "listar-unidades-442",
+  "intencao": "listar-unidades",
+  "tipo": "consulta",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "quais são minhas uniades?"
+  ],
+  "rota": [
+   "listar-unidades",
+   "self"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-443",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "preambulo+maiusculas",
+  "turnos": [
+   "POR FAVOR, AUTORIZA O TÉCNICO DA INTERNET ÀS 14H"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "transbordo-444",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "quero registrar ua denúncia contra o porteiro"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-445",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 4,
+  "transformacao": "contexto-longo+maiusculas",
+  "turnos": [
+   "MINHA ESPOSA PEDIU PRA EU PERGUNTAR: OBRIGADO!"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "codigo-retirada-446",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "maiusculas+contexto-longo",
+  "turnos": [
+   "Olha, eu moro aqui há 3 anos e nunca precisei disso, mas PRECISO DO CÓDIGO DO PACOTE"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-447",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 4,
+  "transformacao": "preambulo+typos",
+  "turnos": [
+   "oi, tudo bem? quuero reservar a churrasqqueira no sábado"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-448",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "agendar mudança d entrada pro dia 3"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "atualizacao-cadastral-449",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "cadastrrar meu novo pet"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ]
+ },
+ {
+  "id": "fora-450",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? você faz transferência bancária?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "transbordo-451",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: preciso falar com a administradora, é sobre uma cobrança indevida"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-452",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "kkkk (pra hoje)"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-453",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 4,
+  "transformacao": "contexto-longo+preambulo",
+  "turnos": [
+   "oi, tudo bem? Estou viajando e preciso resolver à distância. me ajuda?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "regimento-454",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. pode ter cachorro no condomínio?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "encomendas-455",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? tem pacote na portaria?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-456",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "oi, tudo bem? quero agendar minha mudança"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "regimento-457",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "giria+typos",
+  "turnos": [
+   "tem regra pra uso da quada??"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "codigo-retirada-458",
+  "intencao": "codigo-retirada",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "contexto-longo+giria",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. código pra pegar a encomenda na portaria"
+  ],
+  "rota": [
+   "codigo-retirada"
+  ]
+ },
+ {
+  "id": "fora-459",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 3,
+  "transformacao": "sem-acentos+preambulo",
+  "turnos": [
+   "então, quanto esta o dolar hoje?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "fora-460",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "me conta uma piada obrigado"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-461",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "desculpa incomodar, que dia passa o lixo reciclável?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "social-462",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "você é um rbô?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-463",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, obrigado!"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-464",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 4,
+  "transformacao": "giria+typos",
+  "turnos": [
+   "vc é um robô??"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "social-465",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. o que você consegue fazer?"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "transbordo-466",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "sem-acentos",
+  "turnos": [
+   "preciso falar com a administradora, e sobre uma cobranca indevida"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "liberacao-visitante-467",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "vem um entregdor do iFood agora"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ]
+ },
+ {
+  "id": "faq-468",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: que dia passa o lixo reciclável?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "fora-469",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "sem-acentos+contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. chama um uber pra mim"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "encomendas-470",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. quantas encomendas tenho pra retirar?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "fora-471",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "preambulo+typos",
+  "turnos": [
+   "bom dia, qual o cnpjj da superlógica?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "regimento-472",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "preambulo+sem-acentos",
+  "turnos": [
+   "desculpa incomodar, posso estender roupa na varanda?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "transbordo-473",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 4,
+  "transformacao": "preambulo+contexto-longo",
+  "turnos": [
+   "Minha esposa pediu pra eu perguntar: boa tarde! me transfere pra um atendente"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "faq-474",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "como cadastro minha digital na portaria? por favor"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-475",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 3,
+  "transformacao": "typos",
+  "turnos": [
+   "qual o horário d piscina?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "faq-476",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 4,
+  "transformacao": "contexto-longo+maiusculas",
+  "turnos": [
+   "ESTOU VIAJANDO E PRECISO RESOLVER À DISTÂNCIA. QUAL O HORÁRIO DA PISCINA?"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "fora-477",
+  "intencao": "fora",
+  "tipo": "fora",
+  "nivel": 4,
+  "transformacao": "typos+maiusculas",
+  "turnos": [
+   "UANTO ESTÁ O DÓLAR HOJE?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ]
+ },
+ {
+  "id": "social-478",
+  "intencao": "social",
+  "tipo": "social",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Antes de tudo, parabéns pelo atendimento. Agora, obrigada pela ajuda"
+  ],
+  "rota": [
+   "self"
+  ]
+ },
+ {
+  "id": "encomendas-479",
+  "intencao": "encomendas",
+  "tipo": "consulta",
+  "nivel": 4,
+  "transformacao": "typos+sufixo",
+  "turnos": [
+   "chegou minha enomenda da Amazon?"
+  ],
+  "rota": [
+   "encomendas"
+  ]
+ },
+ {
+  "id": "transbordo-480",
+  "intencao": "transbordo",
+  "tipo": "transbordo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "quero falar com um ser humano (pra hoje)"
+  ],
+  "rota": [
+   "transbordo"
+  ]
+ },
+ {
+  "id": "agendar-mudanca-481",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "contexto-longo",
+  "turnos": [
+   "Estou viajando e preciso resolver à distância. vou me mudar sábado de manhã, como faço?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ]
+ },
+ {
+  "id": "reserva-area-comum-482",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 3,
+  "transformacao": "sufixo+giria",
+  "turnos": [
+   "queria reservar uma área comum urgente"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ]
+ },
+ {
+  "id": "regimento-483",
+  "intencao": "regimento",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "preambulo",
+  "turnos": [
+   "olá, aqui é o morador do 101. posso fazer barulho depois das 22h?"
+  ],
+  "rota": [
+   "regimento"
+  ]
+ },
+ {
+  "id": "faq-484",
+  "intencao": "faq",
+  "tipo": "conteudo",
+  "nivel": 2,
+  "transformacao": "sufixo",
+  "turnos": [
+   "qual o e-mail da administração? (pra hoje)"
+  ],
+  "rota": [
+   "faq"
+  ]
+ },
+ {
+  "id": "c-reserva-confirma",
+  "tipo": "acao-fluxo",
+  "nivel": 4,
+  "turnos": [
+   "quero reservar a churrasqueira no sábado",
+   "sim"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "contem": [
+   "MOCK-"
+  ],
+  "descricao": "reserva com confirmação → protocolo",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-reserva-nega",
+  "tipo": "acao-fluxo",
+  "nivel": 4,
+  "turnos": [
+   "quero reservar o salão dia 30",
+   "não, deixa pra lá"
+  ],
+  "rota": [
+   "reserva-area-comum",
+   "self"
+  ],
+  "nao_contem": [
+   "MOCK-"
+  ],
+  "descricao": "negação não registra",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-visita-confirma",
+  "tipo": "acao-fluxo",
+  "nivel": 4,
+  "turnos": [
+   "quero liberar o João amanhã, telefone 11999990000",
+   "sim"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "contem": [
+   "MOCK-"
+  ],
+  "descricao": "liberação com confirmação → protocolo",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-mudanca-confirma",
+  "tipo": "acao-fluxo",
+  "nivel": 4,
+  "turnos": [
+   "quero agendar minha mudança para o dia 25, de manhã",
+   "sim"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ],
+  "contem": [
+   "MOCK-"
+  ],
+  "descricao": "mudança com confirmação",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-obra-confirma",
+  "tipo": "acao-fluxo",
+  "nivel": 5,
+  "turnos": [
+   "vou pintar o apartamento a partir de segunda, 3 dias, pintor Carlos",
+   "sim"
+  ],
+  "rota": [
+   "comunicar-obra"
+  ],
+  "contem": [
+   "MOCK-"
+  ],
+  "descricao": "obra com confirmação",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-cadastro-confirma",
+  "tipo": "acao-fluxo",
+  "nivel": 5,
+  "turnos": [
+   "troquei de carro, a placa nova é XYZ9A88",
+   "sim"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ],
+  "contem": [
+   "MOCK-"
+  ],
+  "descricao": "cadastro com confirmação",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-encomenda-codigo",
+  "tipo": "consulta-fluxo",
+  "nivel": 3,
+  "turnos": [
+   "tenho encomenda?",
+   "me passa o código da primeira"
+  ],
+  "rota": [
+   "codigo-retirada",
+   "encomendas"
+  ],
+  "contem": [
+   "4831"
+  ],
+  "descricao": "lista e depois pede o código",
+  "intencao": "consulta-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-sem-perguntar-unidade",
+  "tipo": "acao-fluxo",
+  "nivel": 4,
+  "turnos": [
+   "quero reservar a quadra domingo às 10h"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "nao_contem": [
+   "qual unidade",
+   "para qual unidade",
+   "qual apartamento"
+  ],
+  "descricao": "não pergunta a unidade (só há uma)",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-saudacao-depois-pedido",
+  "tipo": "social-fluxo",
+  "nivel": 2,
+  "turnos": [
+   "oi, boa tarde",
+   "chegou pacote pra mim?"
+  ],
+  "rota": [
+   "encomendas"
+  ],
+  "descricao": "saudação e depois pedido",
+  "intencao": "social-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-transbordo-retem",
+  "tipo": "transbordo-fluxo",
+  "nivel": 4,
+  "turnos": [
+   "quero falar com um humano agora, é urgente",
+   "alguém aí?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "descricao": "em transbordo o concierge cala",
+  "intencao": "transbordo-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-faq-depois-regimento",
+  "tipo": "conteudo-fluxo",
+  "nivel": 3,
+  "turnos": [
+   "que horas a piscina fecha?",
+   "e pode levar cachorro lá?"
+  ],
+  "rota": [
+   "regimento",
+   "faq"
+  ],
+  "descricao": "assunto muda de faq para regimento",
+  "intencao": "conteudo-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-reserva-muda-data",
+  "tipo": "acao-fluxo",
+  "nivel": 5,
+  "turnos": [
+   "quero a churrasqueira sábado",
+   "na verdade domingo, pode ser?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "nao_contem": [
+   "MOCK-"
+  ],
+  "descricao": "muda a data antes de confirmar: não registra",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-despedida",
+  "tipo": "social-fluxo",
+  "nivel": 2,
+  "turnos": [
+   "tenho encomenda?",
+   "valeu, era só isso!"
+  ],
+  "rota": [
+   "self",
+   "encomendas"
+  ],
+  "nao_contem": [
+   "pendencia",
+   "encerrar"
+  ],
+  "descricao": "despedida fica no self",
+  "intencao": "social-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-dois-pedidos-sequencia",
+  "tipo": "complexo-fluxo",
+  "nivel": 5,
+  "turnos": [
+   "chegou pacote?",
+   "beleza, e libera minha mãe amanhã às 15h"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "descricao": "troca de assunto no meio",
+  "intencao": "complexo-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "c-reserva-sem-data",
+  "tipo": "acao-fluxo",
+  "nivel": 3,
+  "turnos": [
+   "quero reservar a churrasqueira"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "contem_qualquer": [
+   "data",
+   "dia",
+   "quando"
+  ],
+  "descricao": "sem data: pergunta a data",
+  "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ }
+]
