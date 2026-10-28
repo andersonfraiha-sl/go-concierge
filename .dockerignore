@@ -1,0 +1,10 @@
+.git
+bin
+*.exe
+.env
+mcp
+bateria
+okf-admin.log
+okf/var
+okf/**/.rag
+okf/**/__pycache__

@@ -368,6 +368,29 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 		}
 		return saida{"recurso": nome, "resultado": res, "origem": "identidade"}, nil
 	}
+	// recurso do catálogo MCP: tools/call no servidor, com o token do cliente
+	if achado.Recurso != nil && achado.Recurso.Origem == okf.OrigemMCP {
+		if ag.cfg.MCP == nil {
+			return erro("catálogo MCP indisponível: não há como chamar %s agora; avise o morador", nome), nil
+		}
+		params := in.Params
+		if params == nil {
+			params = map[string]any{}
+		}
+		for k, v := range ag.cfg.Payloads[nome] {
+			if _, tem := params[k]; !tem {
+				params[k] = v
+			}
+		}
+		res, err := ag.cfg.MCP.CallTool(ctx, nome, params)
+		if err != nil {
+			return erro("falha ao chamar %s: %v", nome, err), nil
+		}
+		if res.IsError {
+			return erro("%s recusou: %s", nome, corta(res.Texto(), 400)), nil
+		}
+		return saida{"recurso": nome, "resultado": res.Valor(), "origem": "mcp"}, nil
+	}
 	cli := ag.cfg.Nexus
 	if cli == nil || cli.BaseURL == "" {
 		// sem Nexus no ar: o mock do concierge responde pela amostra do catálogo

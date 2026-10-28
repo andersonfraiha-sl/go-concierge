@@ -6,3 +6,7 @@ okf/**/__pycache__/
 okf/**/var/
 okf/agentes/**/.*.novo/
 bateria/rodar.log
+mcp/.env
+mcp/node_modules/
+mcp/**/session-*.json
+mcp/**/.session-*.json

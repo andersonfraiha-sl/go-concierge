@@ -206,3 +206,37 @@ okf/               o catálogo de exemplo: concierge (orquestrador) + observador
 
 Próximas peças, na ordem das definições: harness Eino (tools + agentes OKF), emulador do
 ATENDE, sessão com pendências, catálogo de casos de uso YAML, Admin da administradora.
+
+## Catálogo MCP oficial e Docker
+
+O servidor MCP da Superlógica (entrega `mcp-catalog-agent`, vendorado em `mcp/`) transforma as
+OpenAPIs do BFF do Gruvi, `building-operation.json` e `mobile.json`, em tools MCP com nome
+`gruvi.bff.<módulo>.<operação>`, no endpoint `/mcp/gruvi/bff`. O concierge usa esse catálogo
+como **fonte de recursos do Nexus** (`internal/mcp`): `tools/list` vira a lista de recursos da
+account (classe `api`, privados, escrita pela anotação `readOnlyHint` ou pelo verbo do nome) e
+`chamar_recurso` executa por `tools/call`. Um agente declara as tools que usa em `recursos:` do
+`agent.yaml`, como qualquer recurso; o Backdoor marca cada uma com **MCP**.
+
+Autenticação (o "mecanismo com Keycloak" da entrega): o servidor roda em `request_bearer`, ou
+seja, exige em cada requisição o token B2C do Keycloak e o repassa ao BFF. No concierge:
+`MCP_AUTH=bearer` com `MCP_BEARER_TOKEN` igual ao `B2C_CLIENT_KEYCLOAK_TOKEN` do `mcp/.env`
+(o token expira: troque nos dois), ou `MCP_AUTH=keycloak` com `MCP_KEYCLOAK_URL`,
+`MCP_KEYCLOAK_CLIENT_ID` e `MCP_KEYCLOAK_CLIENT_SECRET` para um token de serviço por
+`client_credentials`, quando o servidor aceitar esse token. O servidor só aceita o header
+`Host` em loopback; o cliente envia `127.0.0.1:3337` mesmo chegando pelo nome do serviço.
+
+```bash
+cp mcp/.env.example mcp/.env   # ou o .env da entrega, com as credenciais
+docker compose up -d --build   # mcp (Node 24, porta 3337) + concierge (Go, porta 8090)
+```
+
+Admin, Console e Backdoor em http://127.0.0.1:8090. O catálogo (`okf/`) é montado do repositório,
+então o Admin edita os arquivos de verdade. A POC do MCP só escuta em loopback, por isso o
+concierge compartilha a rede do contêiner `mcp` e o Explorer (porta 3337) não fica acessível do
+host; para usá-lo, rode o MCP local com `cd mcp && npm ci && npm run start:mcp:catalog-agent`.
+
+**Token expirado?** O servidor recusa tudo com 401 e o concierge registra "catálogo indisponível
+(não autorizado)", seguindo só com o Nexus ou o instantâneo. Para inspecionar o catálogo sem um
+token válido (só `tools/list`; as chamadas ao BFF falham), use um token de teste sem expiração
+nos dois lados: `B2C_CLIENT_KEYCLOAK_TOKEN=a.e30.b` no `mcp/.env` e `MCP_BEARER_TOKEN=a.e30.b`
+no `.env` (o verificador da POC compara o token fixado e só olha o `exp` quando ele existe).

@@ -1,0 +1,36 @@
+{
+  "name": "mcp-server-with-agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start:mcp:catalog-agent": "tsx --env-file-if-exists=.env mcp-catalog-agent/server.ts",
+    "dev:mcp:catalog-agent": "tsx watch --env-file-if-exists=.env mcp-catalog-agent/server.ts",
+    "agent:mcp-catalog": "tsx --env-file-if-exists=.env mcp-catalog-agent/agent.ts",
+    "dev:agent:mcp-catalog": "tsx watch --env-file-if-exists=.env mcp-catalog-agent/agent.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/mcp-catalog-agent.test.ts"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "13.1.0",
+    "@langchain/anthropic": "1.5.13",
+    "@langchain/core": "1.2.20",
+    "@langchain/langgraph": "1.5.1",
+    "@langchain/mcp-adapters": "2.0.1",
+    "@langchain/openai": "1.6.2",
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/core": "2.3.1",
+    "@modelcontextprotocol/node": "2.1.1",
+    "@modelcontextprotocol/server": "2.3.1",
+    "@openapi-contrib/openapi-schema-to-json-schema": "4.0.0",
+    "@prefecthq/fastmcp-ts": "1.8.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "langchain": "1.5.18"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

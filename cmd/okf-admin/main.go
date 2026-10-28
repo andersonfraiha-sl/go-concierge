@@ -31,6 +31,7 @@ import (
 	"go-concierge/internal/env"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
+	"go-concierge/internal/mcp"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
@@ -82,13 +83,27 @@ func main() {
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
 	cli := nexus.New(os.Getenv("NEXUS_BASE_URL"), os.Getenv("NEXUS_TOKEN"))
-	cat.Recursos = nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
+	// Recursos: o catálogo MCP (tools/list) tem precedência; depois o Nexus ao vivo ou o
+	// instantâneo nexus/<account>.yaml. Sem nenhum, o catálogo não confere declarações.
+	mcpCli, mcpModo, err := mcp.FromEnv(os.Getenv)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
+	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
 	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default()}
+	var origens []string
+	if mcpCli != nil {
+		origens = append(origens, "MCP "+mcpCli.URL+" ("+mcpModo+")")
+	}
 	switch {
 	case cli.BaseURL != "":
-		s.nexus = cli.BaseURL
-	case cat.Recursos != nil:
-		s.nexus = "instantâneo nexus/" + account + ".yaml"
+		origens = append(origens, cli.BaseURL)
+	case fonteNexus != nil:
+		origens = append(origens, "instantâneo nexus/"+account+".yaml")
+	}
+	if len(origens) > 0 {
+		s.nexus = strings.Join(origens, " + ")
 	}
 	if *webDir != "" {
 		s.web = os.DirFS(*webDir)
@@ -109,6 +124,9 @@ func main() {
 	s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}
+	if mcpCli != nil {
+		cfgHarness.MCP = mcpCli
+	}
 	s.memorias = memoria.NewArquivos(env.Ou("MEMORIAS_DIR", filepath.Join(cat.Root, "var", "memorias")))
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,
@@ -415,7 +433,7 @@ func (s *servidor) recursos(w http.ResponseWriter, _ *http.Request) {
 // instantaneoEditavel: o catálogo só se edita aqui quando vem do instantâneo YAML; ao
 // vivo, o dono é o Nexus.
 func (s *servidor) instantaneoEditavel() (string, error) {
-	if strings.HasPrefix(s.nexus, "http") {
+	if strings.HasPrefix(s.nexus, "http") || strings.Contains(s.nexus, "+ http") {
 		return "", errors.New("catálogo ao vivo do Nexus: edite o recurso lá")
 	}
 	return filepath.Join(s.cat.Root, "nexus", s.account+".yaml"), nil

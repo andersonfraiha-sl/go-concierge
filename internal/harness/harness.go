@@ -31,6 +31,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 )
@@ -65,6 +66,9 @@ type Config struct {
 	// Nexus é o cliente dos recursos da account. nil ou sem BaseURL: chamar_recurso
 	// devolve {"error": "Nexus indisponível"}.
 	Nexus *nexus.Client
+	// MCP executa os recursos que vieram do catálogo MCP (Recurso.Origem == "mcp") por
+	// tools/call, com o token do cliente; nil = esses recursos ficam indisponíveis.
+	MCP mcp.Caller
 	// Identidade do morador nesta execução; o zero é o contato público na account
 	// padrão (DEFAULT_ACCOUNT_ID, senão cond-001).
 	Identidade Identidade

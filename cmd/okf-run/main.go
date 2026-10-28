@@ -22,8 +22,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"go-concierge/internal/harness"
+	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 )
@@ -58,12 +60,17 @@ func main() {
 		account = "cond-001"
 	}
 	cli := nexus.New(os.Getenv("NEXUS_BASE_URL"), os.Getenv("NEXUS_TOKEN"))
-	cat.Recursos = nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
+	mcpCli, mcpModo, err := mcp.FromEnv(os.Getenv)
+	falha(err)
+	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
+	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, nil), fonteNexus)
 	origem := "nenhuma"
 	switch {
+	case mcpCli != nil:
+		origem = "MCP " + mcpCli.URL + " (" + mcpModo + ")"
 	case cli.BaseURL != "":
 		origem = cli.BaseURL
-	case cat.Recursos != nil:
+	case fonteNexus != nil:
 		origem = "instantâneo nexus/" + account + ".yaml"
 	}
 
@@ -93,6 +100,9 @@ func main() {
 		Nexus:      cli,
 		Identidade: ident,
 		Sessao:     *sessao,
+	}
+	if mcpCli != nil {
+		cfg.MCP = mcpCli
 	}
 	ag, err := harness.Build(ctx, cat, a, cfg)
 	falha(err)

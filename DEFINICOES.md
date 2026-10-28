@@ -457,3 +457,12 @@ ATENDE, seção 1.3).
   classificador, `persona.md` e `caso.yaml` opcionais, caixinhas iniciais com
   arquivo-modelo, recursos do Nexus que declara. **Importar/exportar zip** da pasta.
 - API JSON documentada no README; é a mesma que o Admin da administradora usará.
+
+## Catálogo MCP oficial (2026-10-28)
+
+O catálogo de recursos do Nexus pode vir do servidor MCP oficial (entrega `mcp-catalog-agent`,
+em `mcp/`): cada tool `gruvi.bff.<módulo>.<operação>` é um recurso de classe `api`, privado;
+o harness executa por `tools/call` (`internal/mcp`). Autenticação com Keycloak: `request_bearer`
+(token B2C repassado ao BFF) hoje; `client_credentials` quando o servidor aceitar token de
+serviço. Precedência das fontes: MCP, depois Nexus ao vivo, depois o instantâneo. Empacotado
+em `docker compose` (serviços `mcp` e `concierge`).

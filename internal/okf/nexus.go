@@ -38,6 +38,10 @@ const (
 var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", "agente", "form"}
 
 // Recurso é um item do catálogo de recursos de uma account no Nexus.
+// OrigemMCP marca um recurso que veio do catálogo MCP (tools/list), não do Nexus nem do
+// instantâneo: o harness o executa por tools/call e o Backdoor não o edita.
+const OrigemMCP = "mcp"
+
 type Recurso struct {
 	Name        string      `json:"name" yaml:"name"`
 	Titulo      string      `json:"titulo,omitempty" yaml:"titulo,omitempty"` // nome comercial, para humanos ("Áreas reserváveis")
@@ -61,6 +65,10 @@ type Recurso struct {
 	// linguagem de administradora, e grava no payload do condomínio. Sem definições,
 	// o recurso não aparece nos Ajustes.
 	Definicoes []Definicao `json:"definicoes,omitempty" yaml:"definicoes"`
+	// Origem: de onde o recurso veio em tempo de execução ("mcp"); vazio = Nexus ou instantâneo.
+	Origem string `json:"origem,omitempty" yaml:"-"`
+	// Schema é o inputSchema completo da tool MCP (JSON Schema), para a interface e o manual.
+	Schema any `json:"schema,omitempty" yaml:"-"`
 }
 
 // Definicao é um campo de ajuste de um recurso por condomínio.

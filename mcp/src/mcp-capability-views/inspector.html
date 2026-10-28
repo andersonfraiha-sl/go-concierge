@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP Explorer · Capability Views</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#18252d;background:#f3f6f7;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #83d0bd;outline-offset:3px}
+header{padding:25px 36px;background:#fff;border-bottom:1px solid #dfe7e9;display:flex;justify-content:space-between;align-items:center;gap:20px}.brand{display:flex;align-items:center;gap:13px}.mark{width:42px;height:42px;background:#132c2b;color:#a7e9d2;border-radius:12px;display:grid;place-items:center;font-family:monospace;font-size:21px;font-weight:800}h1{font-size:21px;margin:0;letter-spacing:-.6px}.sub{color:#697d83;font-size:12px;margin:4px 0 0}.state{font-size:12px;color:#1b735a;background:#e9f8f1;border:1px solid #c8ebdb;border-radius:20px;padding:8px 12px}.state.error{color:#a43232;background:#fff0f0;border-color:#f0cccc}
+main{max-width:1500px;margin:auto;padding:28px 36px} .intro{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}.eyebrow{color:#608078;font-size:11px;letter-spacing:1.6px;font-weight:750;text-transform:uppercase}.intro h2{font-size:27px;letter-spacing:-.8px;margin:7px 0}.intro p{color:#64767d;max-width:800px;font-size:14px;line-height:1.6;margin:0}.refresh{background:#fff;border:1px solid #d3dfe2;border-radius:8px;padding:10px 16px;color:#28433f}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}.metric{border:1px solid #dfe7e9;border-radius:12px;background:#fff;padding:17px 20px;display:flex;align-items:center;gap:14px}.metric strong{font-size:29px;letter-spacing:-1px}.metric span{font-size:12px;color:#6a7c83}
+.connection{background:#eaf1f2;border:1px solid #dbe5e7;padding:12px 16px;border-radius:9px;font-size:12px;color:#486068;display:flex;gap:22px;flex-wrap:wrap;overflow-wrap:anywhere;margin-bottom:23px}.connection b{color:#213d43}
+.view-picker{display:flex;align-items:center;gap:12px;margin:-9px 0 22px;color:#486068;font-size:12px}.view-picker select{flex:1;min-width:0;max-width:680px;border:1px solid #d3dfe2;border-radius:8px;background:#fff;padding:10px 12px;color:#28433f}.source-list{color:#607780;overflow-wrap:anywhere}
+.tabs{display:flex;gap:24px;border-bottom:1px solid #d6e1e3;margin-bottom:18px}.tab{border:0;background:none;padding:12px 0;color:#77888e;font-weight:650;font-size:13px;border-bottom:2px solid transparent}.tab.active{color:#17684f;border-color:#25876a}
+.workspace{display:grid;grid-template-columns:340px minmax(0,1fr);min-height:570px;border:1px solid #dce5e8;border-radius:12px;overflow:hidden;background:#fff}.sidebar{background:#fbfcfc;border-right:1px solid #e1e9eb}.searchbox{padding:16px;border-bottom:1px solid #e4ebed}input{width:100%;border:1px solid #d8e2e4;border-radius:7px;padding:11px 12px;background:#fff;font-size:12px}.tool-list{max-height:680px;overflow:auto;padding:8px}.tool-button{display:block;width:100%;text-align:left;border:1px solid transparent;border-radius:8px;background:transparent;padding:13px 12px;margin-bottom:3px;color:#30464e}.tool-button:hover{background:#f0f6f4}.tool-button.selected{background:#eaf5ef;border-color:#cfe4d9}.tool-button .name{display:block;font-size:11px;font-family:ui-monospace,monospace;margin-top:9px;overflow-wrap:anywhere;line-height:1.5}.tool-button .shortpath{font-size:10px;display:block;color:#73868d;margin-top:5px;overflow-wrap:anywhere}.method{display:inline-block;border-radius:4px;padding:3px 6px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#167a5d;background:#e0f1e9}.method.POST{color:#2861a8;background:#e8f0ff}.method.PATCH,.method.PUT{color:#93610e;background:#fff0d6}.method.DELETE{color:#a83737;background:#ffe7e7}
+.detail{padding:27px;min-width:0}.detail h3{font-size:19px;line-height:1.5;margin:13px 0 11px;overflow-wrap:anywhere;font-family:ui-monospace,monospace;letter-spacing:-.5px}.endpoint{background:#f5f8f9;padding:13px;border:1px solid #e5ecee;border-radius:7px;font-family:ui-monospace,monospace;font-size:11px;overflow-wrap:anywhere;color:#48626a}.description{font-size:13px;color:#4c6169;line-height:1.9;white-space:pre-wrap;margin:21px 0 25px}.section-label{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:11px;color:#607b83;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}.pill{font-size:10px;text-transform:none;letter-spacing:0;background:#f0f4f5;padding:5px 8px;border-radius:5px;color:#60747d}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#12232e;color:#c8e1df;border-radius:9px;padding:19px;font-size:11px;line-height:1.8;max-height:460px;overflow:auto;margin:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.empty{padding:50px 24px;color:#6b7f86;text-align:center;font-size:13px;line-height:1.8}
+.history{background:white;border:1px solid #dce5e8;border-radius:12px;overflow:auto}.history-intro{padding:19px 23px;border-bottom:1px solid #e6edef}.history-intro h3{margin:0 0 6px;font-size:15px}.history-intro p{margin:0;font-size:12px;line-height:1.8;color:#6c8188}table{border-collapse:collapse;width:100%;font-size:12px}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#799098;font-weight:600}td,th{padding:16px 20px;border-bottom:1px solid #edf1f3}td.tool{font-family:monospace;overflow-wrap:anywhere;max-width:470px}.ok{color:#197856}.bad{color:#b44343}footer{font-size:11px;color:#8b9da3;padding:18px 0;display:flex;justify-content:space-between;gap:20px}
+.view-options{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 18px}.view-option{border:1px solid #dce6e8;background:#fff;color:#5a737b;padding:9px 12px;border-radius:7px;font-size:12px}.view-option.active{background:#193e36;color:#dcf6ec;border-color:#193e36}.field{border:1px solid #e0e8ea;border-radius:9px;padding:15px;margin-bottom:10px}.field-heading{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.field-name{font:600 12px ui-monospace,monospace;overflow-wrap:anywhere}.field p{font-size:12px;color:#607780;line-height:1.7;margin:10px 0}.required{color:#a05228;background:#fff0e4}.mapping{font:11px ui-monospace,monospace;color:#4b7970;margin-top:10px;overflow-wrap:anywhere}.field details{margin-top:12px;font-size:11px;color:#5b767e}.field summary{cursor:pointer;padding:4px 0}.field pre{margin-top:9px}.hint{font-size:12px;color:#758990;line-height:1.7;margin:12px 0 20px}.json-block{margin:18px 0}.json-block h4{font-size:12px;color:#4e6b73;margin:0 0 10px}.json-block pre{max-height:420px}.trace-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.trace-card{border:1px solid #e0e8ea;border-radius:10px;padding:18px;min-width:0}.trace-card h3{font-size:14px;margin:0 0 15px}.call-button{background:none;border:0;color:#246c58;font-size:12px;text-align:left;padding:4px 0;overflow-wrap:anywhere}.call-button:hover{text-decoration:underline}.history tr.selected{background:#eef7f2}dialog{border:1px solid #d1e1dc;border-radius:15px;padding:0;width:min(1100px,94vw);max-height:90vh;color:#203d43;box-shadow:0 24px 90px #102f3338}dialog::backdrop{background:#0b222c80;backdrop-filter:blur(3px)}.dialog-header{padding:20px 24px;border-bottom:1px solid #e0e8ea;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:sticky;top:0;background:#fff;z-index:1}.dialog-header h2{font:600 14px ui-monospace,monospace;overflow-wrap:anywhere;margin:0 0 8px}.dialog-header p{font-size:12px;color:#75888e;margin:0}.dialog-body{padding:24px}.dialog-close{border:1px solid #dae5e7;background:#f5f8f9;border-radius:7px;padding:7px 12px;color:#4a6269}.trace-banner{border:1px solid #d7e9de;background:#f0f8f2;border-radius:8px;padding:11px 14px;font-size:12px;line-height:1.7;color:#4d7460;margin-bottom:18px}.detail-view{min-height:200px}
+[hidden]{display:none!important}@media(max-width:800px){header{padding:19px}.state{font-size:10px}main{padding:22px 16px}.intro{align-items:flex-start}.intro h2{font-size:23px}.metrics{gap:8px}.metric{padding:13px;display:block}.metric strong{display:block;font-size:25px}.metric span{font-size:10px}.workspace{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid #e1e9eb}.tool-list{max-height:235px}.detail{padding:20px}.connection{font-size:11px;gap:8px}.view-picker{flex-direction:column;align-items:stretch}.view-picker select{min-width:0;width:100%;max-width:100%}.history td,.history th{padding:13px 10px}.history td.tool{min-width:160px}.refresh{padding:10px;font-size:11px}footer{font-size:10px}.section-label{font-size:10px}.trace-layout{grid-template-columns:1fr}.dialog-body{padding:16px}.dialog-header{padding:16px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><div class="mark">⌘</div><div><h1>MCP Explorer</h1><p class="sub">Capability Views · Concierge</p></div></div><span class="state" id="state" role="status">Carregando catálogo…</span></header>
+<main>
+<div class="intro"><div><span class="eyebrow">Ferramentas do concierge</span><h2>Veja o que seu agent pode fazer.</h2><p>Explore as tools publicadas pelo MCP e acompanhe as chamadas feitas durante a conversa.</p></div><button class="refresh" id="refresh">Atualizar catálogo</button></div>
+<div class="metrics"><div class="metric"><strong id="count">—</strong><span>Tools publicadas</span></div><div class="metric"><strong id="excluded">—</strong><span>Excluídas por x-mcp</span></div><div class="metric"><strong id="calls-count">0</strong><span>Chamadas recentes</span></div></div>
+<div class="connection"><span><b>View MCP</b> <span id="mcp-url">—</span></span><span><b>Sources</b> <span id="view-sources" class="source-list">—</span></span></div>
+<div class="view-picker"><label for="view-select">Catálogo e histórico da view</label><select id="view-select" aria-label="Selecionar view MCP"></select></div>
+<nav class="tabs" aria-label="Visualizações"><button class="tab active" id="catalog-tab">Catálogo de tools</button><button class="tab" id="history-tab">Chamadas do agent</button></nav>
+<section class="workspace" id="catalog"><aside class="sidebar"><div class="searchbox"><input id="search" type="search" placeholder="Buscar por nome, descrição ou rota…" aria-label="Buscar tool"></div><div class="tool-list" id="tools"></div></aside><article class="detail" id="detail"><div class="empty">Carregando catálogo registrado pelo MCP…</div></article></section>
+<section class="history" id="history" hidden><div class="history-intro"><h3>O que aconteceu durante a conversa</h3><p>Últimas 50 chamadas, atualizadas automaticamente. A view completa mostra todas as chamadas; views menores mostram chamadas das sources incluídas. Clique na tool para abrir argumentos, request HTTP e resposta. Credenciais são ocultadas e prévias limitadas a 24.000 caracteres.</p></div><table><thead><tr><th>Horário</th><th>Tool · abrir detalhes</th><th>View / source</th><th>Resultado</th><th>Duração</th><th>Código</th></tr></thead><tbody id="executions"></tbody></table><div class="empty" id="no-calls">Nenhuma chamada registrada ainda.<br>Converse com o agent no terminal e volte para acompanhar as execuções.</div></section>
+<footer><span>Catálogo em memória · registrado pelo MCP</span><span>Execuções MCP protegidas por Bearer</span></footer>
+</main>
+<dialog id="execution-dialog" aria-labelledby="execution-title"><div class="dialog-header"><div><h2 id="execution-title">Detalhes da chamada</h2><p id="execution-subtitle"></p></div><button class="dialog-close" id="close-dialog" aria-label="Fechar detalhes">Fechar ×</button></div><div class="dialog-body" id="execution-detail"></div></dialog>
+<script>
+const $ = (id) => document.getElementById(id);
+let tools = [];
+let selected;
+let implementation;
+let currentView = "/mcp";
+let detailVersion = 0;
+let catalogGeneration = 0;
+let historyGeneration = 0;
+function node(tag, text, className) {
+  const element = document.createElement(tag);
+  if (text !== undefined) element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+function jsonBlock(title, value, parent) {
+  const block = node("section", undefined, "json-block");
+  block.append(node("h4", title), node("pre", typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2)));
+  parent.append(block);
+}
+function previewBlock(title, preview, parent) {
+  if (!preview) return parent.append(node("p", title + ": não capturado.", "hint"));
+  jsonBlock(title, preview.value, parent);
+  if (preview.truncated) parent.append(node("p", "Prévia limitada a 24.000 caracteres. A resposta original não foi alterada.", "hint"));
+}
+function renderFields(schema, parent, mappings = {}, prefix = "", depth = 0) {
+  const properties = schema?.properties ?? {};
+  for (const [name, field] of Object.entries(properties)) {
+    const card = node("div", undefined, "field");
+    const heading = node("div", undefined, "field-heading");
+    const type = field.type ?? (field.anyOf ? "anyOf" : field.oneOf ? "oneOf" : field.$ref ? "$ref" : "schema");
+    heading.append(node("span", prefix + name, "field-name"), node("span", Array.isArray(type) ? type.join(" | ") : type, "pill"));
+    heading.append(node("span", schema.required?.includes(name) ? "Obrigatório" : "Opcional", schema.required?.includes(name) ? "pill required" : "pill"));
+    card.append(heading);
+    const mapping = mappings[name];
+    if (mapping) card.append(node("div", mapping.in + " → " + mapping.name, "mapping"));
+    if (field.description) card.append(node("p", field.description));
+    const constraints = Object.fromEntries(Object.entries(field).filter(([key]) => !["type", "description", "properties", "required"].includes(key)));
+    if (Object.keys(constraints).length) {
+      const details = node("details");
+      details.append(node("summary", "Regras e valores permitidos"), node("pre", JSON.stringify(constraints, null, 2)));
+      card.append(details);
+    }
+    if (field.properties && depth < 5) renderFields(field, card, {}, prefix + name + ".", depth + 1);
+    parent.append(card);
+  }
+  if (!Object.keys(properties).length) parent.append(node("p", "Este schema não declara campos individuais. Consulte o JSON Schema completo.", "hint"));
+}
+function selectTool(tool) {
+  selected = tool.name;
+  renderList();
+  const detail = $("detail");
+  detail.replaceChildren();
+  const method = tool._meta?.method ?? "TOOL";
+  detail.append(node("span", method, "method " + method));
+  detail.append(node("h3", tool.name));
+  detail.append(node("div", tool._meta?.path ?? tool.name, "endpoint"));
+  detail.append(node("div", tool.description ?? "Sem descrição na OpenAPI.", "description"));
+  const options = node("div", undefined, "view-options");
+  const content = node("div", undefined, "detail-view");
+  const views = ["Campos de entrada", "JSON Schema", "Contrato MCP"];
+  for (const [index, title] of views.entries()) {
+    const button = node("button", title, "view-option");
+    button.addEventListener("click", () => {
+      for (const sibling of options.children) sibling.classList.toggle("active", sibling === button);
+      content.replaceChildren();
+      if (index === 0) {
+        content.append(node("p", "Interface de entrada publicada pelo MCP. Os marcadores mostram os campos obrigatórios e sua correspondência no HTTP.", "hint"));
+        renderFields(tool.inputSchema, content, tool._meta?.parameters);
+      } else if (index === 1) {
+        jsonBlock("inputSchema · argumentos aceitos pela tool", tool.inputSchema, content);
+        if (tool.outputSchema) jsonBlock("outputSchema · contrato de saída publicado", tool.outputSchema, content);
+        else content.append(node("p", "Esta tool não publica outputSchema.", "hint"));
+      } else {
+        content.append(node("p", "Objeto completo do contrato registrado pelo MCP, equivalente à resposta tools/list, incluindo descrições, schemas, annotations e metadados.", "hint"));
+        jsonBlock("Tool MCP", tool, content);
+      }
+    });
+    options.append(button);
+  }
+  detail.append(options, content);
+  options.firstChild.click();
+}
+function renderList() {
+  const search = $("search").value.toLocaleLowerCase();
+  const list = $("tools");
+  list.replaceChildren();
+  const filtered = tools.filter((tool) => JSON.stringify([tool.name, tool.description, tool._meta]).toLocaleLowerCase().includes(search));
+  for (const tool of filtered) {
+    const button = node("button", undefined, "tool-button" + (selected === tool.name ? " selected" : ""));
+    const method = tool._meta?.method ?? "TOOL";
+    button.append(node("span", method, "method " + method), node("span", tool.name, "name"), node("span", tool._meta?.path ?? "", "shortpath"));
+    button.addEventListener("click", () => selectTool(tool));
+    list.append(button);
+  }
+  if (!filtered.length) list.append(node("div", "Nenhuma tool encontrada.", "empty"));
+}
+async function loadTools() {
+  const view = currentView;
+  const generation = ++catalogGeneration;
+  $("refresh").disabled = true;
+  try {
+    const response = await fetch("/api/tools?view=" + encodeURIComponent(view), { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (generation !== catalogGeneration || view !== currentView) return;
+    if (!response.ok) throw new Error(data.error ?? "Não foi possível consultar o MCP.");
+    tools = data.tools;
+    implementation = data.implementation;
+    $("count").textContent = tools.length;
+    $("excluded").textContent = data.excluded;
+    $("mcp-url").textContent = data.mcpUrl;
+    $("view-sources").textContent = data.sources.map((source) => source.id + " · " + [source.hierarchy.domain, source.hierarchy.service, source.hierarchy.module].filter(Boolean).join(" / ")).join("; ") || "Sem sources";
+    $("state").textContent = "● Conectado ao MCP";
+    $("state").className = "state";
+    const tool = tools.find((item) => item.name === selected) ?? tools.find((item) => item.name === "GetCompanyByDocumentController_handle") ?? tools[0];
+    if (tool) selectTool(tool);
+    else $("detail").replaceChildren(node("div", "O MCP não publicou tools.", "empty"));
+    renderList();
+  } catch (error) {
+    if (generation !== catalogGeneration || view !== currentView) return;
+    tools = [];
+    selected = undefined;
+    $("count").textContent = "—";
+    $("excluded").textContent = "—";
+    $("tools").replaceChildren(node("div", "Catálogo indisponível.", "empty"));
+    $("detail").replaceChildren(node("div", "Catálogo indisponível.", "empty"));
+    $("state").textContent = error.message;
+    $("state").className = "state error";
+  } finally {
+    if (generation === catalogGeneration) $("refresh").disabled = false;
+  }
+}
+async function loadExecutions() {
+  const view = currentView;
+  const generation = ++historyGeneration;
+  try {
+    const response = await fetch("/api/executions?view=" + encodeURIComponent(view), { cache: "no-store" });
+    const data = await response.json();
+    if (generation !== historyGeneration || view !== currentView) return;
+    if (!response.ok) throw new Error("Não foi possível consultar o histórico desta view.");
+    $("calls-count").textContent = data.executions.length;
+    $("no-calls").hidden = data.executions.length !== 0;
+    const tbody = $("executions");
+    tbody.replaceChildren();
+    for (const execution of [...data.executions].reverse()) {
+      const row = node("tr");
+      const toolCell = node("td", undefined, "tool");
+      if (implementation === "fastmcp-ts") {
+        const button = node("button", execution.toolName + " ↗", "call-button");
+        button.addEventListener("click", () => openExecution(execution));
+        toolCell.append(button);
+      } else toolCell.textContent = execution.toolName;
+      row.append(node("td", new Date(execution.timestamp).toLocaleTimeString("pt-BR")), toolCell, node("td", execution.view + " · " + execution.sourceId), node("td", execution.status ? "HTTP " + execution.status : execution.kind, execution.kind === "http_response" ? "ok" : "bad"), node("td", execution.durationMs + " ms"), node("td", execution.errorCode ?? "—"));
+      tbody.append(row);
+    }
+  } catch {
+    if (generation !== historyGeneration || view !== currentView) return;
+    $("calls-count").textContent = "0";
+    $("no-calls").hidden = false;
+    $("executions").replaceChildren();
+  }
+}
+async function openExecution(execution) {
+  const version = ++detailVersion;
+  const parent = $("execution-detail");
+  $("execution-title").textContent = execution.toolName;
+  $("execution-subtitle").textContent = new Date(execution.timestamp).toLocaleString("pt-BR") + " · " + execution.view + " · " + execution.sourceId + " · " + (execution.status ? "HTTP " + execution.status : execution.kind) + " · " + execution.durationMs + " ms";
+  parent.replaceChildren(node("p", "Carregando detalhes…", "hint"));
+  if (!$("execution-dialog").open) $("execution-dialog").showModal();
+  try {
+    const response = await fetch("/api/execution?id=" + encodeURIComponent(execution.id) + "&view=" + encodeURIComponent(currentView), { cache: "no-store" });
+    if (!response.ok) throw new Error(response.status === 404 ? "Chamada removida do histórico ou servidor reiniciado." : "Não foi possível abrir os detalhes.");
+    const { trace } = await response.json();
+    if (version !== detailVersion) return;
+    parent.replaceChildren(node("div", "Captura local em memória · credenciais ocultadas · prévias limitadas a 24.000 caracteres por bloco.", "trace-banner"));
+    if (trace.route) parent.append(node("div", trace.route.method + " " + trace.route.path, "endpoint"));
+    previewBlock("Argumentos MCP enviados pelo agent", trace.arguments, parent);
+    const layout = node("div", undefined, "trace-layout");
+    const request = node("section", undefined, "trace-card");
+    request.append(node("h3", "01 · Request HTTP"));
+    if (trace.request) {
+      request.append(node("div", trace.request.method + " " + trace.request.url, "endpoint"));
+      jsonBlock("Path resolvido", trace.request.path, request);
+      previewBlock("Query string", trace.request.query, request);
+      jsonBlock("Headers de conteúdo", trace.request.headers, request);
+      previewBlock("Body enviado", trace.request.body, request);
+    } else request.append(node("p", "Nenhuma requisição HTTP foi enviada. Confira a validação de argumentos ou a autenticação.", "hint"));
+    const result = node("section", undefined, "trace-card");
+    result.append(node("h3", "02 · Response HTTP"));
+    if (trace.response) {
+      result.append(node("div", "HTTP " + trace.response.status, "endpoint"));
+      jsonBlock("Headers de conteúdo", trace.response.headers, result);
+      previewBlock("Body recebido", trace.response.body, result);
+    } else result.append(node("p", "Nenhuma resposta HTTP foi recebida.", "hint"));
+    if (trace.error) result.append(node("p", trace.error, "bad"));
+    layout.append(request, result);
+    parent.append(layout);
+    previewBlock("Resultado MCP devolvido ao agent", trace.result, parent);
+  } catch (error) {
+    if (version === detailVersion) parent.replaceChildren(node("p", error.message, "hint"));
+  }
+}
+$("close-dialog").addEventListener("click", () => $("execution-dialog").close());
+$("execution-dialog").addEventListener("close", () => { detailVersion++; });
+$("search").addEventListener("input", renderList);
+$("refresh").addEventListener("click", loadTools);
+async function loadViews() {
+  const response = await fetch("/api/views", { cache: "no-store" });
+  if (!response.ok) throw new Error("Não foi possível carregar as views MCP.");
+  const data = await response.json();
+  const select = $("view-select");
+  select.replaceChildren();
+  for (const view of data.views) {
+    const option = document.createElement("option");
+    option.value = view.path;
+    const sources = view.sources.map((source) => source.id + " [" + [source.hierarchy.domain, source.hierarchy.service, source.hierarchy.module].filter(Boolean).join(" / ") + "]").join(", ");
+    option.textContent = view.label + (sources ? " · " + sources : "");
+    select.append(option);
+  }
+  if (!data.views.some((view) => view.path === currentView)) currentView = "/mcp";
+  select.value = currentView;
+}
+$("view-select").addEventListener("change", () => {
+  currentView = $("view-select").value;
+  catalogGeneration++;
+  historyGeneration++;
+  selected = undefined;
+  detailVersion++;
+  if ($("execution-dialog").open) $("execution-dialog").close();
+  tools = [];
+  $("count").textContent = "—";
+  $("excluded").textContent = "—";
+  $("calls-count").textContent = "0";
+  $("mcp-url").textContent = currentView;
+  $("view-sources").textContent = "Carregando sources…";
+  $("tools").replaceChildren(node("div", "Carregando catálogo da view…", "empty"));
+  $("detail").replaceChildren(node("div", "Carregando catálogo da view…", "empty"));
+  $("executions").replaceChildren();
+  $("no-calls").hidden = false;
+  loadTools();
+  loadExecutions();
+});
+for (const view of ["catalog", "history"]) {
+  $(view + "-tab").addEventListener("click", () => {
+    $("catalog").hidden = view !== "catalog";
+    $("history").hidden = view !== "history";
+    $("catalog-tab").classList.toggle("active", view === "catalog");
+    $("history-tab").classList.toggle("active", view === "history");
+    loadExecutions();
+  });
+}
+loadViews().then(() => { loadTools(); loadExecutions(); }).catch((error) => {
+  $("state").textContent = error.message;
+  $("state").className = "state error";
+});
+setInterval(loadExecutions, 2500);
+</script>
+</body>
+</html>

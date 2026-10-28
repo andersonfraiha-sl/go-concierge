@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.temp/
+coverage/
+*.tsbuildinfo
+*.log
+/mcp-catalog-agent/session-mcp-catalog-agent.json
+/mcp-catalog-agent/session-mcp-catalog-agent.json.*.tmp

@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Explorador de sessão MCP Catalog</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172b3a;
+      --muted: #627585;
+      --line: #dce6eb;
+      --paper: #ffffff;
+      --canvas: #f2f7f8;
+      --teal: #087e8b;
+      --teal-dark: #075c66;
+      --teal-soft: #e6f6f5;
+      --indigo: #4e57a8;
+      --indigo-soft: #eef0ff;
+      --amber: #9b6410;
+      --amber-soft: #fff5df;
+      --red: #a43945;
+      --red-soft: #fff0f0;
+      --green: #26704f;
+      --green-soft: #eaf7ef;
+      --shadow: 0 14px 40px rgba(28, 61, 76, .07);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1480px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 56px; }
+    .masthead { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 22px; }
+    .brand { display: flex; gap: 14px; align-items: flex-start; }
+    .brand-mark {
+      width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center;
+      border-radius: 14px; color: #fff; background: linear-gradient(145deg, #0b8792, #405da9);
+      font-size: 19px; font-weight: 800; box-shadow: 0 7px 18px rgba(8, 126, 139, .2);
+    }
+    h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.035em; line-height: 1.16; }
+    .lede { max-width: 760px; margin: 7px 0 0; color: var(--muted); }
+    .top-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .pill, .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #edf3f5; color: #536978; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .pill.live { background: var(--green-soft); color: var(--green); }
+    .pill.running { background: var(--amber-soft); color: var(--amber); }
+    .pill.failed, .badge.bad { background: var(--red-soft); color: var(--red); }
+    .badge.good { background: var(--green-soft); color: var(--green); }
+    .badge.info { background: var(--teal-soft); color: var(--teal-dark); }
+    .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+    .load-panel { padding: 18px 20px; margin-bottom: 15px; }
+    .load-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .load-copy { min-width: 180px; }
+    .load-copy strong { display: block; font-size: 14px; }
+    .load-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; }
+    .load-controls { display: flex; flex: 1; justify-content: flex-end; gap: 8px; align-items: center; }
+    .path-input, .search-input, .filter-select {
+      min-width: 0; border: 1px solid #cbd8de; border-radius: 10px; background: #fff; color: var(--ink); padding: 9px 11px;
+    }
+    .path-input { width: min(430px, 42vw); }
+    .path-input:focus, .search-input:focus, .filter-select:focus { outline: 3px solid rgba(8, 126, 139, .16); border-color: var(--teal); }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px;
+      border: 1px solid #cbd8de; border-radius: 10px; color: var(--ink); background: #fff; font-weight: 700;
+    }
+    .button:hover { border-color: #8aa7b1; background: #f7fbfb; }
+    .button.primary { color: #fff; border-color: var(--teal); background: var(--teal); }
+    .button.primary:hover { border-color: var(--teal-dark); background: var(--teal-dark); }
+    .drop-zone {
+      display: none; margin-top: 13px; border: 1px dashed #9db9c1; border-radius: 12px; padding: 13px;
+      color: var(--muted); background: #f7fbfc; text-align: center; font-size: 13px;
+    }
+    .drop-zone.visible { display: block; }
+    .drop-zone.dragging { border-color: var(--teal); color: var(--teal-dark); background: var(--teal-soft); }
+    .alert { margin: 0 0 15px; padding: 12px 15px; border: 1px solid #f0d58f; border-radius: 12px; color: #77500d; background: var(--amber-soft); }
+    .alert.error { border-color: #efb9bd; color: #872d38; background: var(--red-soft); }
+    .alert[hidden] { display: none; }
+    .file-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 5px 0 16px; color: var(--muted); font-size: 13px; }
+    .file-meta strong { color: var(--ink); font-size: 14px; overflow-wrap: anywhere; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat { min-height: 104px; padding: 15px 17px; }
+    .stat-label { color: var(--muted); font-size: 12px; font-weight: 750; letter-spacing: .045em; text-transform: uppercase; }
+    .stat-value { display: block; margin-top: 7px; font-size: clamp(20px, 2.1vw, 28px); line-height: 1.15; letter-spacing: -.035em; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat-note { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .main-grid { display: grid; grid-template-columns: 258px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .turn-nav { position: sticky; top: 12px; overflow: hidden; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+    .section-head h2, .section-head h3 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+    .section-head p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .turn-list { display: grid; gap: 4px; padding: 8px; max-height: 65vh; overflow: auto; }
+    .turn-link { display: block; width: 100%; text-align: left; padding: 10px; border: 0; border-radius: 10px; color: var(--ink); background: transparent; }
+    .turn-link:hover, .turn-link.active { background: var(--teal-soft); }
+    .turn-link strong { display: block; margin-bottom: 3px; font-size: 13px; }
+    .turn-link span { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .turn-link small { display: block; margin-top: 5px; color: #718593; font-size: 11px; }
+    .content-column { min-width: 0; }
+    .explorer-panel { overflow: hidden; }
+    .filter-bar { display: flex; align-items: center; gap: 8px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+    .search-wrap { position: relative; flex: 1; min-width: 180px; }
+    .search-wrap::before { content: "⌕"; position: absolute; left: 11px; top: 4px; color: #8296a1; font-size: 22px; pointer-events: none; }
+    .search-input { width: 100%; padding-left: 34px; }
+    .filter-select { min-width: 180px; }
+    .expand-controls { display: flex; gap: 7px; padding: 10px 16px 0; }
+    .text-button { padding: 4px 3px; border: 0; background: none; color: var(--teal-dark); font-size: 12px; font-weight: 750; }
+    .text-button:hover { text-decoration: underline; }
+    .timeline { padding: 8px 18px 20px; }
+    .turn-section { padding: 15px 0 8px; scroll-margin-top: 12px; }
+    .turn-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 0 0 11px; padding-bottom: 10px; border-bottom: 1px solid #edf1f3; }
+    .turn-heading h3 { margin: 0; font-size: 14px; }
+    .turn-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .event-list { display: grid; gap: 10px; }
+    .event-card { position: relative; min-width: 0; padding: 14px 15px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+    .event-card::before { content: ""; position: absolute; top: 22px; left: -19px; width: 7px; height: 7px; border: 2px solid var(--teal); border-radius: 50%; background: white; }
+    .event-card::after { content: ""; position: absolute; top: 32px; bottom: -14px; left: -16px; width: 1px; background: #c8dfe1; }
+    .event-card:last-child::after { display: none; }
+    .event-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .event-title { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-width: 0; }
+    .event-title h4 { margin: 0; font-size: 14px; }
+    .event-meta { display: flex; flex-wrap: wrap; gap: 5px 11px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .event-summary { margin: 8px 0 0; color: #344d5b; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .decisions { display: grid; gap: 7px; margin-top: 10px; }
+    .decision { padding: 9px 11px; border-left: 3px solid var(--indigo); border-radius: 0 8px 8px 0; background: var(--indigo-soft); color: #343b7c; font-size: 13px; overflow-wrap: anywhere; }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; overflow-wrap: anywhere; }
+    .detail-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+    details.json-detail { min-width: 0; margin-top: 8px; border: 1px solid #e0e8ec; border-radius: 9px; background: #fbfdfd; }
+    .detail-row details.json-detail { margin-top: 0; }
+    details.json-detail > summary { padding: 8px 10px; color: #3d5968; cursor: pointer; font-size: 12px; font-weight: 700; }
+    details.json-detail > summary:hover { color: var(--teal-dark); }
+    pre.json-block { max-height: min(70vh, 720px); margin: 0; padding: 13px; overflow: auto; border-top: 1px solid #e4ecef; color: #203b4a; background: #f6fafb; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; tab-size: 2; }
+    pre.text-block { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.6 Inter, ui-sans-serif, system-ui, sans-serif; }
+    .empty { padding: 30px 18px; color: var(--muted); text-align: center; }
+    .below-grid { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 16px; }
+    .catalog-panel, .archive-panel { overflow: hidden; }
+    .disclosure-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px; cursor: pointer; list-style: none; }
+    .disclosure-head::-webkit-details-marker { display: none; }
+    .disclosure-head::before { content: "＋"; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; color: var(--teal-dark); background: var(--teal-soft); font-weight: 800; }
+    details[open] > .disclosure-head::before { content: "−"; }
+    .disclosure-title { min-width: 0; flex: 1; }
+    .disclosure-title strong { display: block; }
+    .disclosure-title span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+    .catalog-content, .archive-content { padding: 0 18px 18px; }
+    .catalog-intro { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; color: #395b66; background: #f0f8f8; font-size: 13px; }
+    .catalog-filter { width: 100%; margin-bottom: 10px; }
+    .catalog-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .catalog-item { min-width: 0; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+    .catalog-item > summary { padding: 10px 12px; cursor: pointer; list-style: none; }
+    .catalog-item > summary::-webkit-details-marker { display: none; }
+    .catalog-item > summary strong { display: block; color: var(--teal-dark); font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+    .catalog-item > summary span { display: -webkit-box; margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 12px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .catalog-item-body { padding: 0 10px 10px; }
+    .catalog-item-body p { margin: 0 0 8px; color: #435b68; font-size: 12px; white-space: pre-wrap; }
+    .archive-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; color: var(--muted); font-size: 12px; }
+    .archive-list { display: grid; gap: 7px; }
+    .archive-event { border: 1px solid #e0e8ec; border-radius: 10px; background: #fff; }
+    .archive-event > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 9px 11px; cursor: pointer; list-style: none; }
+    .archive-event > summary::-webkit-details-marker { display: none; }
+    .archive-event > summary strong { font-size: 12px; }
+    .archive-event > summary small { color: var(--muted); }
+    .archive-event pre { max-height: 600px; }
+    .footer-note { margin: 15px 3px 0; color: var(--muted); font-size: 12px; }
+    .hidden { display: none !important; }
+    @media (max-width: 1020px) {
+      .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .main-grid { grid-template-columns: 210px minmax(0, 1fr); gap: 12px; }
+      .filter-select { min-width: 145px; }
+    }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 24px, 600px); padding-top: 18px; }
+      .masthead { display: block; }
+      .top-badges { justify-content: flex-start; margin: 14px 0 0 58px; }
+      .load-panel { padding: 15px; }
+      .load-row { display: block; }
+      .load-controls { justify-content: flex-start; flex-wrap: wrap; margin-top: 12px; }
+      .path-input { width: 100%; flex: 1 1 100%; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .stat { min-height: 95px; padding: 12px; }
+      .stat-value { font-size: 22px; }
+      .main-grid { display: block; }
+      .turn-nav { position: static; margin-bottom: 12px; }
+      .turn-nav .section-head { padding: 12px 15px; }
+      .turn-list { display: flex; gap: 6px; max-height: none; overflow-x: auto; }
+      .turn-link { flex: 0 0 180px; border: 1px solid #e4ecef; }
+      .filter-bar { align-items: stretch; flex-direction: column; }
+      .search-wrap { min-width: 0; }
+      .filter-select { width: 100%; }
+      .timeline { padding: 4px 12px 14px 22px; }
+      .event-card { padding: 12px; }
+      .event-card::before { left: -17px; }
+      .event-card::after { left: -14px; }
+      .event-top { display: block; }
+      .event-meta { margin-top: 6px; }
+      .catalog-list { grid-template-columns: 1fr; }
+      .expand-controls { padding-left: 14px; }
+    }
+    @media (max-width: 390px) {
+      .shell { width: calc(100% - 18px); }
+      .brand-mark { width: 39px; height: 39px; flex-basis: 39px; }
+      .brand { gap: 10px; }
+      .top-badges { margin-left: 49px; }
+      h1 { font-size: 24px; }
+      .button { padding: 8px 10px; }
+      .stat { padding: 10px; }
+      .stat-label { font-size: 10px; }
+      .stat-value { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">M</div>
+        <div>
+          <h1>Explorador de sessão MCP</h1>
+          <p class="lede">Acompanhe cada turno, as decisões de tools e os resultados registrados. Os detalhes completos ficam recolhidos até você abrir.</p>
+        </div>
+      </div>
+      <div class="top-badges">
+        <span id="statusPill" class="pill">Aguardando arquivo</span>
+        <span id="schemaPill" class="pill">Schema v1</span>
+      </div>
+    </header>
+
+    <section class="panel load-panel" aria-label="Carregar sessão">
+      <div class="load-row">
+        <div class="load-copy">
+          <strong id="sourceTitle">Arquivo da sessão</strong>
+          <span id="sourceHelp">Carregamento local; o conteúdo não é enviado a outro serviço.</span>
+        </div>
+        <div class="load-controls">
+          <input id="sessionPath" class="path-input" type="text" autocomplete="off" spellcheck="false" aria-label="Caminho do JSON na mesma origem" placeholder="session-mcp-catalog-agent.json">
+          <button id="reloadButton" class="button primary" type="button">Recarregar</button>
+          <button id="chooseButton" class="button" type="button">Selecionar JSON</button>
+          <input id="fileInput" type="file" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <div id="dropZone" class="drop-zone">Solte aqui o arquivo JSON da sessão</div>
+    </section>
+
+    <div id="alert" class="alert" role="status" hidden></div>
+    <section id="welcome" class="panel empty">
+      <strong>Carregue um JSON de sessão para começar.</strong>
+      <div id="welcomeHelp" style="margin-top:5px">Selecione o arquivo ou arraste-o para esta página.</div>
+    </section>
+
+    <section id="sessionView" class="hidden" aria-live="polite">
+      <div class="file-meta">
+        <strong id="loadedFile">—</strong>
+        <span id="modelText">Modelo não informado</span>
+        <span id="dateText">Data não informada</span>
+        <span id="eventCountText">—</span>
+      </div>
+
+      <div id="stats" class="stats" aria-label="Indicadores da sessão"></div>
+
+      <div class="main-grid">
+        <aside class="panel turn-nav" aria-label="Navegação por turnos">
+          <div class="section-head">
+            <div><h2>Turnos</h2><p id="turnNavCount">—</p></div>
+          </div>
+          <nav id="turnNav" class="turn-list"></nav>
+        </aside>
+
+        <section class="panel explorer-panel" aria-labelledby="timelineTitle">
+          <div class="section-head">
+            <div><h2 id="timelineTitle">Linha do tempo</h2><p>Usuário → inferência → inspect/call → resposta</p></div>
+            <span id="timelineCount" class="badge info">—</span>
+          </div>
+          <div class="filter-bar">
+            <div class="search-wrap"><input id="eventSearch" class="search-input" type="search" placeholder="Buscar em tipo, nome e conteúdo" aria-label="Buscar eventos por tipo, nome ou texto"></div>
+            <select id="typeFilter" class="filter-select" aria-label="Filtrar tipo de evento"><option value="">Todos os tipos</option></select>
+          </div>
+          <div class="expand-controls">
+            <button id="expandVisible" class="text-button" type="button">Expandir detalhes visíveis</button>
+            <button id="collapseVisible" class="text-button" type="button">Recolher detalhes visíveis</button>
+          </div>
+          <div id="timeline" class="timeline"></div>
+        </section>
+      </div>
+
+      <div class="below-grid">
+        <details id="catalogPanel" class="panel catalog-panel">
+          <summary class="disclosure-head">
+            <span class="disclosure-title"><strong>Catálogo do runtime</strong><span id="catalogCount">Definições completas do snapshot</span></span>
+          </summary>
+          <div class="catalog-content">
+            <p class="catalog-intro">O snapshot lista as definições disponíveis no runtime. Os requests ao modelo registram separadamente as functions bindadas; o schema de uma operação aparece na conversa após inspect.</p>
+            <input id="catalogSearch" class="search-input catalog-filter" type="search" placeholder="Buscar por nome ou descrição" aria-label="Buscar no catálogo">
+            <div id="catalogList" class="catalog-list"></div>
+          </div>
+        </details>
+
+        <details id="archivePanel" class="panel archive-panel">
+          <summary class="disclosure-head">
+            <span class="disclosure-title"><strong>Eventos completos</strong><span>Inspecione o JSON original de cada evento; assistant_messages mantém o histórico cumulativo da thread.</span></span>
+          </summary>
+          <div class="archive-content">
+            <div class="archive-tools"><span id="archiveCount">—</span><span>JSON formatado somente ao expandir</span></div>
+            <div id="archiveList" class="archive-list"></div>
+          </div>
+        </details>
+      </div>
+      <p class="footer-note">Os resultados refletem os eventos gravados no arquivo. O custo, quando informado, é uma estimativa com tarifa de referência; a tarifa efetiva do gateway não é verificada por este viewer.</p>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const DEFAULT_SESSION = 'session-mcp-catalog-agent.json';
+      const isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+      const $ = id => document.getElementById(id);
+      let session = null;
+      let loadedName = '';
+      let sourceMode = isHttp ? 'http' : 'file';
+      let eventSearchCache = new WeakMap();
+      let catalogBuilt = false;
+
+      function node(tag, className = '', value) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        if (value !== undefined && value !== null) element.textContent = String(value);
+        return element;
+      }
+
+      function isObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+      function finite(value) { return typeof value === 'number' && Number.isFinite(value); }
+      function numberText(value) { return finite(value) ? new Intl.NumberFormat('pt-BR').format(value) : 'Não informado'; }
+      function usdText(value) { return finite(value) ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 8 }).format(value) : 'Não informado'; }
+      function dateText(value) {
+        if (typeof value !== 'string') return 'Data não informada';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'medium' }).format(date);
+      }
+      function excerpt(value, limit = 220) {
+        if (typeof value !== 'string') return '';
+        const clean = value.replace(/\s+/g, ' ').trim();
+        return clean.length > limit ? clean.slice(0, limit).trimEnd() + '…' : clean;
+      }
+      function setAlert(message, kind = 'warning') {
+        const alert = $('alert');
+        alert.textContent = message;
+        alert.className = kind === 'error' ? 'alert error' : 'alert';
+        alert.hidden = !message;
+      }
+      function statusName(status) {
+        if (status === 'completed') return ['Concluída', 'live'];
+        if (status === 'running') return ['Em andamento', 'running'];
+        if (status === 'failed') return ['Encerrada com falha', 'failed'];
+        return ['Status não informado', ''];
+      }
+      function setStatus(status) {
+        const [label, style] = statusName(status);
+        $('statusPill').textContent = label;
+        $('statusPill').className = 'pill' + (style ? ' ' + style : '');
+      }
+      function setSchemaStatus(value) {
+        $('schemaPill').textContent = value === 1 ? 'Schema v1' : `Schema ${value ?? 'não informado'}`;
+      }
+      function getEvents() {
+        return Array.isArray(session?.events) ? [...session.events].filter(isObject).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)) : [];
+      }
+      function getRequestBody(event) {
+        const body = event?.data?.request?.body;
+        if (isObject(body)) return body;
+        if (typeof body === 'string') { try { return JSON.parse(body); } catch {} }
+        return null;
+      }
+      function getResponseBody(event) { return isObject(event?.data?.response) ? event.data.response : null; }
+      function getOutputItems(event) {
+        const output = getResponseBody(event)?.output;
+        return Array.isArray(output) ? output.filter(isObject) : [];
+      }
+      function outputText(item) {
+        if (!Array.isArray(item?.content)) return '';
+        return item.content.filter(block => isObject(block) && typeof block.text === 'string' && (block.type === 'output_text' || block.type === 'text')).map(block => block.text).join('\n');
+      }
+      function functionArguments(item) {
+        if (typeof item?.arguments !== 'string') return null;
+        try { const value = JSON.parse(item.arguments); return isObject(value) ? value : null; } catch { return null; }
+      }
+      function getCallOutcome(event) {
+        const result = event?.data?.result;
+        if (isObject(result) && typeof result.ok === 'boolean') return result.ok ? 'ok' : 'error';
+        if (event?.data?.rawMcpResult?.isError === true) return 'error';
+        if (event?.type === 'call_mcp_tool_error') return 'error';
+        return 'unknown';
+      }
+      function getToolMessages(events) {
+        const uniqueIds = new Set();
+        const messages = new Map();
+        for (const event of events) {
+          if (event.type !== 'assistant_messages' || !Array.isArray(event.data?.messages)) continue;
+          for (const message of event.data.messages) {
+            if (!isObject(message) || message.type !== 'tool') continue;
+            if (typeof message.id === 'string' && uniqueIds.has(message.id)) continue;
+            if (typeof message.id === 'string') uniqueIds.add(message.id);
+            if (typeof message.tool_call_id !== 'string') continue;
+            const list = messages.get(message.tool_call_id) ?? [];
+            list.push(message);
+            messages.set(message.tool_call_id, list);
+          }
+        }
+        return messages;
+      }
+      function getRequestPairs(events) {
+        const responses = new Map();
+        const requests = new Map();
+        for (const event of events) {
+          const id = event.correlation?.requestId;
+          if (typeof id !== 'string') continue;
+          if (event.type === 'llm_http_response') responses.set(id, event);
+          if (event.type === 'llm_http_request') requests.set(id, event);
+        }
+        return { responses, requests };
+      }
+      function getWrapperCalls(events) {
+        const calls = new Map();
+        for (const event of events) {
+          const id = event.correlation?.toolCallId;
+          if (typeof id === 'string' && ['inspect_mcp_tool', 'call_mcp_tool', 'call_mcp_tool_error'].includes(event.type)) calls.set(id, event);
+        }
+        return calls;
+      }
+      function makeJsonDetail(title, value) {
+        const details = node('details', 'json-detail');
+        details.append(node('summary', '', title));
+        details.addEventListener('toggle', () => {
+          if (!details.open || details.dataset.rendered === 'true') return;
+          const pre = node('pre', 'json-block');
+          try { pre.textContent = JSON.stringify(value, null, 2) ?? 'null'; }
+          catch { pre.textContent = 'Não foi possível formatar este valor.'; }
+          details.append(pre);
+          details.dataset.rendered = 'true';
+        });
+        return details;
+      }
+      function makeTextDetail(title, value) {
+        const details = node('details', 'json-detail');
+        details.append(node('summary', '', title));
+        details.addEventListener('toggle', () => {
+          if (!details.open || details.dataset.rendered === 'true') return;
+          const pre = node('pre', 'json-block text-block');
+          pre.textContent = typeof value === 'string' ? value : String(value ?? '');
+          details.append(pre);
+          details.dataset.rendered = 'true';
+        });
+        return details;
+      }
+      function addJsonDetails(parent, rows) {
+        const row = node('div', 'detail-row');
+        for (const [title, value] of rows) if (value !== undefined) row.append(makeJsonDetail(title, value));
+        if (row.childElementCount) parent.append(row);
+      }
+      function typeLabel(type) {
+        const labels = {
+          user_message: 'Mensagem do usuário',
+          llm_http_request: 'Request ao modelo',
+          llm_http_response: 'Resposta do modelo',
+          inspect_mcp_tool: 'Inspect de capability',
+          call_mcp_tool: 'Resultado da chamada MCP',
+          call_mcp_tool_error: 'Interrupção da chamada MCP',
+          assistant_messages: 'Histórico cumulativo da thread',
+          catalog_snapshot: 'Snapshot do catálogo',
+          agent_turn_error: 'Erro no turno',
+          llm_http_error: 'Erro HTTP do modelo',
+        };
+        return labels[type] ?? String(type || 'Evento');
+      }
+      function responseForRequest(event, pairs) {
+        const id = event?.correlation?.requestId;
+        return typeof id === 'string' ? pairs.responses.get(id) : undefined;
+      }
+      function requestForResponse(event, pairs) {
+        const id = event?.correlation?.requestId;
+        return typeof id === 'string' ? pairs.requests.get(id) : undefined;
+      }
+      function requestSummary(event, pairs) {
+        const body = getRequestBody(event);
+        if (!body) return 'Corpo HTTP indisponível no registro.';
+        const tools = Array.isArray(body.tools) ? body.tools.filter(tool => isObject(tool) && tool.type === 'function') : [];
+        const names = tools.map(tool => tool.name).filter(name => typeof name === 'string');
+        const inputs = Array.isArray(body.input) ? body.input.length : 0;
+        const response = responseForRequest(event, pairs);
+        const duration = finite(response?.data?.durationMs) ? ` · ${numberText(response.data.durationMs)} ms` : '';
+        return `${numberText(names.length)} functions bindadas${names.length ? ` (${names.join(', ')})` : ''} · ${numberText(inputs)} itens de entrada${duration}`;
+      }
+      function responseSummary(event, wrapperCalls) {
+        const response = getResponseBody(event);
+        const outputs = getOutputItems(event);
+        const calls = outputs.filter(item => item.type === 'function_call');
+        const messages = outputs.filter(item => item.type === 'message');
+        const bits = [];
+        if (calls.length) bits.push(`${numberText(calls.length)} decisão(ões) de tool`);
+        if (messages.length) bits.push(`${numberText(messages.length)} mensagem(ns) do modelo`);
+        const usage = response?.usage;
+        if (isObject(usage)) bits.push(`${numberText(usage.input_tokens ?? usage.prompt_tokens)} tokens de entrada · ${numberText(usage.output_tokens ?? usage.completion_tokens)} de saída`);
+        return bits.join(' · ') || (Array.isArray(response?.output) ? 'Resposta sem itens de saída.' : 'Corpo da resposta indisponível.');
+      }
+      function summaryForEvent(event, pairs, wrapperCalls) {
+        const data = isObject(event.data) ? event.data : {};
+        if (event.type === 'user_message') return excerpt(data.message, 500) || 'Mensagem sem texto.';
+        if (event.type === 'llm_http_request') return requestSummary(event, pairs);
+        if (event.type === 'llm_http_response') return responseSummary(event, wrapperCalls);
+        if (event.type === 'inspect_mcp_tool') {
+          const result = data.result;
+          const tool = result?.tool;
+          const fields = Object.keys(tool?.inputSchema?.properties ?? {}).length;
+          return result?.ok === true ? `${tool?.name ?? data.name ?? 'Capability'} · ${numberText(fields)} campos no schema · ${excerpt(tool?.description, 180)}` : `${result?.error?.code ?? 'Inspect sem resultado'} · ${result?.error?.message ?? ''}`;
+        }
+        if (event.type === 'call_mcp_tool') {
+          const result = data.result;
+          const state = getCallOutcome(event);
+          const args = isObject(data.arguments) ? Object.keys(data.arguments) : [];
+          const label = state === 'ok' ? 'MCP retornou ok' : state === 'error' ? 'MCP registrou erro' : 'Resultado não informado';
+          return `${data.name ?? 'Tool'} · ${label}${args.length ? ` · argumentos: ${args.join(', ')}` : ''}${result?.error?.code ? ` · ${result.error.code}` : ''}`;
+        }
+        if (event.type === 'call_mcp_tool_error') return `${data.name ?? 'Tool'} · chamada interrompida`;
+        if (event.type === 'assistant_messages') return 'Histórico cumulativo; a linha do tempo usa apenas as mensagens novas extraídas por call ID.';
+        if (event.type === 'catalog_snapshot') return `${numberText(data.tools)} definições completas · ${numberText(data.lightweightCatalog)} entradas leves`;
+        const error = data.error ?? data.result?.error;
+        if (isObject(error)) return `${error.code ?? error.name ?? 'Erro'} · ${excerpt(error.message, 180)}`;
+        return excerpt(typeof data.message === 'string' ? data.message : '', 220) || 'Registro disponível no JSON completo.';
+      }
+      function getTurnGroups(events) {
+        const users = events.filter(event => event.type === 'user_message');
+        if (!users.length) return events.length ? [{ id: 'session', user: null, events }] : [];
+        const groups = users.map((user, index) => ({
+          id: typeof user.correlation?.turnId === 'string' ? user.correlation.turnId : `turn-${user.sequence ?? index + 1}`,
+          user,
+          events: [],
+          index: index + 1,
+        }));
+        const byId = new Map(groups.map(group => [group.id, group]));
+        for (const event of events) {
+          if (event.type === 'catalog_snapshot') continue;
+          const turnId = event.correlation?.turnId;
+          const matched = typeof turnId === 'string' ? byId.get(turnId) : null;
+          if (matched) { matched.events.push(event); continue; }
+          let fallback = null;
+          for (let i = 0; i < groups.length; i++) {
+            if ((groups[i].user.sequence ?? 0) <= (event.sequence ?? 0)) fallback = groups[i];
+            else break;
+          }
+          if (fallback) fallback.events.push(event);
+        }
+        return groups;
+      }
+      function getCallCounts(events) {
+        let ok = 0;
+        let errors = 0;
+        let unknown = 0;
+        for (const event of events) {
+          if (event.type === 'call_mcp_tool_error') { errors++; continue; }
+          if (event.type !== 'call_mcp_tool') continue;
+          const outcome = getCallOutcome(event);
+          if (outcome === 'ok') ok++;
+          else if (outcome === 'error') errors++;
+          else unknown++;
+        }
+        return { ok, errors, unknown };
+      }
+      function usageValues(events) {
+        const responses = events.filter(event => event.type === 'llm_http_response');
+        const sums = { input: 0, output: 0, cached: 0, writes: 0, reasoning: 0 };
+        const seen = { input: 0, output: 0, cached: 0, writes: 0, reasoning: 0 };
+        const add = (key, value) => { if (finite(value)) { sums[key] += value; seen[key]++; } };
+        for (const event of responses) {
+          const usage = getResponseBody(event)?.usage;
+          if (!isObject(usage)) continue;
+          add('input', usage.input_tokens ?? usage.prompt_tokens);
+          add('output', usage.output_tokens ?? usage.completion_tokens);
+          const inputDetails = usage.input_tokens_details ?? usage.prompt_tokens_details;
+          const outputDetails = usage.output_tokens_details ?? usage.completion_tokens_details;
+          if (isObject(inputDetails)) {
+            add('cached', inputDetails.cached_tokens);
+            add('writes', inputDetails.cache_write_tokens ?? inputDetails.cache_creation_tokens);
+          }
+          if (isObject(outputDetails)) add('reasoning', outputDetails.reasoning_tokens);
+        }
+        return Object.fromEntries(Object.keys(sums).map(key => [key, responses.length > 0 && seen[key] === responses.length ? sums[key] : undefined]));
+      }
+      function addStat(container, label, value, note = '') {
+        const card = node('article', 'panel stat');
+        card.append(node('div', 'stat-label', label), node('strong', 'stat-value', value));
+        if (note) card.append(node('span', 'stat-note', note));
+        container.append(card);
+      }
+      function renderStats(events, groups) {
+        const stats = $('stats');
+        stats.replaceChildren();
+        const calls = getCallCounts(events);
+        const usage = usageValues(events);
+        const responses = events.filter(event => event.type === 'llm_http_response').length;
+        const requests = events.filter(event => event.type === 'llm_http_request');
+        const toolSets = requests.map(event => {
+          const body = getRequestBody(event);
+          return Array.isArray(body?.tools) ? body.tools.filter(item => item?.type === 'function').map(item => typeof item.name === 'string' ? item.name : '').sort() : null;
+        });
+        const signatures = [...new Set(toolSets.filter(Array.isArray).map(names => JSON.stringify(names)))];
+        const allRequestsHaveTools = toolSets.length > 0 && toolSets.every(Array.isArray);
+        const functionsNote = !requests.length || !allRequestsHaveTools
+          ? 'Functions por request: não informado em todos os requests'
+          : signatures.length === 1
+            ? `${numberText(toolSets[0].length)} functions em cada request`
+            : `Composição varia entre requests (${[...new Set(toolSets.map(names => names.length))].sort((a, b) => a - b).join(', ')} functions)`;
+        const cost = isObject(session.costEstimate) && finite(session.costEstimate.estimatedAmountUsd) ? usdText(session.costEstimate.estimatedAmountUsd) : 'Não informado';
+        const costNote = session.costEstimate?.gatewayPricingVerified === false ? 'Estimativa · tarifa de referência' : 'Estimativa registrada';
+        const cachedPercent = finite(usage.input) && usage.input > 0 && finite(usage.cached) ? `${(usage.cached / usage.input * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% da entrada` : 'Percentual não informado';
+        addStat(stats, 'Turnos', numberText(groups.filter(group => group.user).length), 'Mensagens do usuário');
+        addStat(stats, 'Inferências', numberText(responses), `${numberText(requests.length)} requests · ${functionsNote}`);
+        addStat(stats, 'Inspect', numberText(events.filter(event => event.type === 'inspect_mcp_tool').length), 'Resultados registrados');
+        addStat(stats, 'Calls MCP', numberText(calls.ok + calls.errors + calls.unknown), `${numberText(calls.ok)} ok · ${numberText(calls.errors)} com erro${calls.unknown ? ` · ${numberText(calls.unknown)} sem outcome` : ''}`);
+        addStat(stats, 'Tokens de entrada', numberText(usage.input), finite(usage.cached) ? `${numberText(usage.cached)} lidos do cache · ${cachedPercent}` : 'Cache lido: não informado');
+        addStat(stats, 'Tokens de saída', numberText(usage.output), finite(usage.reasoning) ? `${numberText(usage.reasoning)} de raciocínio incluídos` : 'Raciocínio: não informado');
+        addStat(stats, 'Escrita no cache', numberText(usage.writes), 'Tokens de entrada registrados');
+        addStat(stats, 'Custo estimado', cost, costNote);
+      }
+      function buildSearchText(event) {
+        if (eventSearchCache.has(event)) return eventSearchCache.get(event);
+        const parts = [event.type, event.sequence, event.correlation?.turnId, event.data?.name, event.data?.result?.tool?.name, event.data?.result?.error?.code];
+        let length = parts.filter(value => value !== undefined && value !== null).join(' ').length;
+        const walk = (value, depth) => {
+          if (length > 100000 || depth > 16 || value === null || value === undefined) return;
+          if (typeof value === 'string') { const text = value.slice(0, 100000 - length); parts.push(text); length += text.length; return; }
+          if (Array.isArray(value)) { for (const item of value) walk(item, depth + 1); return; }
+          if (isObject(value)) { for (const [key, child] of Object.entries(value)) { parts.push(key); length += key.length; walk(child, depth + 1); if (length > 100000) break; } }
+        };
+        if (event.type !== 'assistant_messages') walk(event.data, 0);
+        const text = parts.join(' ').toLocaleLowerCase('pt-BR');
+        eventSearchCache.set(event, text);
+        return text;
+      }
+      function matchesFilter(event) {
+        const type = $('typeFilter').value;
+        const query = $('eventSearch').value.trim().toLocaleLowerCase('pt-BR');
+        return (!type || event.type === type) && (!query || buildSearchText(event).includes(query));
+      }
+      function eventBadge(event) {
+        if (event.type === 'llm_http_response') return [`HTTP ${event.data?.status ?? '—'}`, finite(event.data?.status) && event.data.status >= 400 ? 'bad' : 'info'];
+        if (event.type === 'inspect_mcp_tool') return event.data?.result?.ok === true ? ['Schema encontrado', 'good'] : ['Inspect sem sucesso', 'bad'];
+        if (event.type === 'call_mcp_tool' || event.type === 'call_mcp_tool_error') {
+          const outcome = getCallOutcome(event);
+          return outcome === 'ok' ? ['MCP ok', 'good'] : outcome === 'error' ? ['MCP com erro', 'bad'] : ['Outcome não informado', ''];
+        }
+        if (event.type === 'llm_http_error' || event.type === 'agent_turn_error') return ['Erro registrado', 'bad'];
+        return null;
+      }
+      function validationBadge(event) {
+        if (!['call_mcp_tool', 'call_mcp_tool_error'].includes(event.type)) return null;
+        const validation = event.correlation?.validation;
+        if (validation === 'passed') return ['Schema validado', 'good'];
+        if (validation === 'failed') return ['Argumentos fora do schema', 'bad'];
+        if (validation === 'not_attempted') return ['Validação não executada', ''];
+        return ['Validação não informada', ''];
+      }
+      function appendResponseDecisions(card, event, wrapperCalls) {
+        const calls = getOutputItems(event).filter(item => item.type === 'function_call');
+        const messages = getOutputItems(event).filter(item => item.type === 'message');
+        if (!calls.length && !messages.length) return;
+        const decisions = node('div', 'decisions');
+        for (const call of calls) {
+          const args = functionArguments(call);
+          const target = typeof args?.name === 'string' ? args.name : 'nome não informado';
+          const wrapper = typeof call.call_id === 'string' ? wrapperCalls.get(call.call_id) : null;
+          const decision = node('div', 'decision');
+          decision.append(node('strong', '', `Modelo pediu ${call.name || 'uma function'}`), document.createTextNode(` para ${target}`));
+          if (wrapper) decision.append(document.createTextNode(` · execução registrada na seq. ${wrapper.sequence}`));
+          decisions.append(decision);
+        }
+        const fullTexts = [];
+        for (const message of messages) {
+          const text = outputText(message);
+          if (!text) continue;
+          fullTexts.push(text);
+          const box = node('div', 'decision');
+          box.append(node('strong', '', 'Texto do modelo: '), document.createTextNode(excerpt(text, 500)));
+          decisions.append(box);
+        }
+        card.append(decisions);
+        for (const [index, text] of fullTexts.entries()) card.append(makeTextDetail(`Texto integral da mensagem do modelo${fullTexts.length > 1 ? ` ${index + 1}` : ''}`, text));
+      }
+      function appendToolMessage(card, event, toolMessages) {
+        const id = event.correlation?.toolCallId;
+        const messages = typeof id === 'string' ? toolMessages.get(id) : null;
+        if (!messages?.length) return;
+        addJsonDetails(card, messages.map((message, index) => [`ToolMessage do agent${messages.length > 1 ? ` ${index + 1}` : ''}`, message]));
+      }
+      function eventCard(event, pairs, wrapperCalls, toolMessages) {
+        const card = node('article', 'event-card');
+        card.id = `timeline-event-${event.sequence ?? 'x'}`;
+        const top = node('div', 'event-top');
+        const title = node('div', 'event-title');
+        title.append(node('h4', '', typeLabel(event.type)));
+        const badge = eventBadge(event);
+        if (badge) title.append(node('span', `badge ${badge[1]}`, badge[0]));
+        const validation = validationBadge(event);
+        if (validation) title.append(node('span', `badge ${validation[1]}`, validation[0]));
+        top.append(title);
+        const meta = node('div', 'event-meta');
+        meta.append(node('span', '', `Seq. ${event.sequence ?? '—'}`), node('span', '', dateText(event.timestamp)));
+        const duration = event.type === 'llm_http_response' || event.type === 'llm_http_error' ? event.data?.durationMs : event.type === 'llm_http_request' ? responseForRequest(event, pairs)?.data?.durationMs : undefined;
+        if (finite(duration)) meta.append(node('span', '', `${numberText(duration)} ms`));
+        if (typeof event.correlation?.requestId === 'string') meta.append(node('span', 'mono', `req ${event.correlation.requestId.slice(0, 8)}`));
+        if (typeof event.correlation?.toolCallId === 'string') meta.append(node('span', 'mono', `call ${event.correlation.toolCallId.slice(0, 8)}`));
+        top.append(meta);
+        card.append(top, node('p', 'event-summary', summaryForEvent(event, pairs, wrapperCalls)));
+        if (event.type === 'llm_http_response') appendResponseDecisions(card, event, wrapperCalls);
+        if (event.type === 'inspect_mcp_tool') {
+          const result = event.data?.result;
+          if (result?.tool?.inputSchema) addJsonDetails(card, [['Schema de entrada', result.tool.inputSchema]]);
+          if (result?.tool?.outputSchema) addJsonDetails(card, [['Schema de saída', result.tool.outputSchema]]);
+          if (result !== undefined) addJsonDetails(card, [['Resultado do inspect', result]]);
+        }
+        if (event.type === 'call_mcp_tool' || event.type === 'call_mcp_tool_error') {
+          if (event.data?.arguments !== undefined) addJsonDetails(card, [['Argumentos enviados', event.data.arguments]]);
+          if (event.data?.result !== undefined) addJsonDetails(card, [['Resultado da wrapper', event.data.result]]);
+          if (event.data?.rawMcpResult !== undefined) addJsonDetails(card, [['Resultado MCP bruto', event.data.rawMcpResult]]);
+          if (event.data?.originalError !== undefined) addJsonDetails(card, [['Erro original', event.data.originalError]]);
+        }
+        if (['inspect_mcp_tool', 'call_mcp_tool', 'call_mcp_tool_error'].includes(event.type)) appendToolMessage(card, event, toolMessages);
+        if (event.type === 'llm_http_request' || event.type === 'llm_http_response' || event.type === 'llm_http_error') {
+          addJsonDetails(card, [[event.type === 'llm_http_request' ? 'Request HTTP completo' : event.type === 'llm_http_response' ? 'Response HTTP completo' : 'Erro HTTP completo', event.data]]);
+        }
+        if (event.type === 'user_message') {
+          if (typeof event.data?.message === 'string') card.append(makeTextDetail('Mensagem integral do usuário', event.data.message));
+          addJsonDetails(card, [['Registro completo da mensagem', event.data]]);
+        }
+        if (event.type === 'agent_turn_error') addJsonDetails(card, [['Erro do turno', event.data]]);
+        return card;
+      }
+      function renderNavigation(groups) {
+        const nav = $('turnNav');
+        nav.replaceChildren();
+        const turns = groups.filter(group => group.user);
+        $('turnNavCount').textContent = `${numberText(turns.length)} turnos`;
+        if (!turns.length) { nav.append(node('div', 'empty', 'Nenhum turno de usuário registrado.')); return; }
+        turns.forEach((group, index) => {
+          const button = node('button', 'turn-link');
+          button.type = 'button';
+          const message = group.user.data?.message;
+          const eventCount = group.events.filter(event => event.type !== 'assistant_messages').length;
+          button.append(node('strong', '', `Turno ${index + 1}`), node('span', '', excerpt(message, 130) || 'Mensagem sem texto.'), node('small', '', `${numberText(eventCount)} etapas · ${dateText(group.user.timestamp)}`));
+          button.addEventListener('click', () => {
+            document.querySelectorAll('.turn-link.active').forEach(item => item.classList.remove('active'));
+            button.classList.add('active');
+            document.getElementById(`turn-section-${index + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+          nav.append(button);
+        });
+      }
+      function renderTimeline(events, groups) {
+        const container = $('timeline');
+        container.replaceChildren();
+        const pairs = getRequestPairs(events);
+        const wrapperCalls = getWrapperCalls(events);
+        const toolMessages = getToolMessages(events);
+        let visible = 0;
+        groups.forEach((group, index) => {
+          const displayed = group.events.filter(event => event.type !== 'assistant_messages' && event.type !== 'catalog_snapshot' && matchesFilter(event));
+          if (!displayed.length) return;
+          visible += displayed.length;
+          const section = node('section', 'turn-section');
+          section.id = `turn-section-${group.user ? index + 1 : 'session'}`;
+          const heading = node('div', 'turn-heading');
+          const headingText = node('div');
+          headingText.append(node('h3', '', group.user ? `Turno ${index + 1}` : 'Eventos da sessão'));
+          headingText.append(node('p', '', group.user ? `${dateText(group.user.timestamp)} · ${numberText(displayed.length)} etapas visíveis` : `${numberText(displayed.length)} eventos visíveis`));
+          heading.append(headingText);
+          if (group.user) heading.append(node('span', 'badge', `Seq. ${group.user.sequence ?? '—'}`));
+          section.append(heading);
+          const list = node('div', 'event-list');
+          for (const event of displayed) list.append(eventCard(event, pairs, wrapperCalls, toolMessages));
+          section.append(list);
+          container.append(section);
+        });
+        $('timelineCount').textContent = `${numberText(visible)} etapas`;
+        if (!visible) container.append(node('div', 'empty', 'Nenhum evento corresponde a este filtro.'));
+      }
+      function renderCatalog() {
+        if (!session) return;
+        catalogBuilt = true;
+        const list = $('catalogList');
+        list.replaceChildren();
+        const tools = Array.isArray(session.snapshot?.tools) ? session.snapshot.tools.filter(isObject) : [];
+        const query = $('catalogSearch').value.trim().toLocaleLowerCase('pt-BR');
+        const filtered = tools.filter(tool => !query || `${tool.name ?? ''} ${tool.description ?? ''}`.toLocaleLowerCase('pt-BR').includes(query));
+        $('catalogCount').textContent = `${numberText(tools.length)} definições completas no snapshot · ${numberText(filtered.length)} exibidas`;
+        for (const tool of filtered) {
+          const item = node('details', 'catalog-item');
+          const summary = node('summary');
+          summary.append(node('strong', '', tool.name ?? 'Nome não informado'), node('span', '', excerpt(tool.description, 190) || 'Sem descrição registrada.'));
+          item.append(summary);
+          item.addEventListener('toggle', () => {
+            if (!item.open || item.dataset.rendered === 'true') return;
+            const body = node('div', 'catalog-item-body');
+            if (typeof tool.description === 'string') body.append(node('p', '', tool.description));
+            const details = [];
+            if (tool.inputSchema !== undefined) details.push(['Schema de entrada', tool.inputSchema]);
+            if (tool.outputSchema !== undefined) details.push(['Schema de saída', tool.outputSchema]);
+            if (tool._meta !== undefined) details.push(['Metadata', tool._meta]);
+            addJsonDetails(body, details);
+            item.append(body);
+            item.dataset.rendered = 'true';
+          });
+          list.append(item);
+        }
+        if (!filtered.length) list.append(node('div', 'empty', 'Nenhuma definição corresponde à busca.'));
+      }
+      function renderArchive(events) {
+        const list = $('archiveList');
+        list.replaceChildren();
+        const filtered = events.filter(matchesFilter);
+        $('archiveCount').textContent = `${numberText(filtered.length)} de ${numberText(events.length)} eventos · nenhum JSON é aberto automaticamente`;
+        for (const event of filtered) {
+          const item = node('details', 'archive-event');
+          item.id = `archive-event-${event.sequence ?? 'x'}`;
+          const summary = node('summary');
+          summary.append(node('strong', '', `Seq. ${event.sequence ?? '—'} · ${typeLabel(event.type)}`), node('small', '', dateText(event.timestamp)));
+          if (event.correlation?.turnId) summary.append(node('small', 'mono', `turn ${String(event.correlation.turnId).slice(0, 8)}`));
+          item.append(summary);
+          item.addEventListener('toggle', () => {
+            if (!item.open || item.dataset.rendered === 'true') return;
+            const pre = node('pre', 'json-block');
+            try { pre.textContent = JSON.stringify(event, null, 2) ?? 'null'; }
+            catch { pre.textContent = 'Não foi possível formatar este evento.'; }
+            item.append(pre);
+            item.dataset.rendered = 'true';
+          });
+          list.append(item);
+        }
+      }
+      function renderSession() {
+        if (!session) return;
+        const events = getEvents();
+        const groups = getTurnGroups(events);
+        setStatus(session.status);
+        setSchemaStatus(session.schemaVersion);
+        $('loadedFile').textContent = loadedName || 'Arquivo carregado';
+        $('modelText').textContent = `Modelo: ${session.model || 'não informado'}`;
+        $('dateText').textContent = `Início: ${dateText(session.startedAt)}${session.endedAt ? ` · fim: ${dateText(session.endedAt)}` : ''}`;
+        $('eventCountText').textContent = `${numberText(events.length)} eventos`;
+        $('welcome').classList.add('hidden');
+        $('sessionView').classList.remove('hidden');
+        renderStats(events, groups);
+        renderNavigation(groups);
+        renderTimeline(events, groups);
+        renderArchive(events);
+        if (catalogBuilt) renderCatalog();
+      }
+      function parseSession(text) {
+        let parsed;
+        try { parsed = JSON.parse(text); }
+        catch { throw new Error('O arquivo não contém JSON válido. Verifique se a seleção aponta para uma sessão completa.'); }
+        if (!isObject(parsed)) throw new Error('O JSON precisa conter um objeto de sessão na raiz.');
+        const warnings = [];
+        if (parsed.schemaVersion !== 1) warnings.push(`Schema recebido: ${parsed.schemaVersion ?? 'não informado'}. A visualização foi aberta em modo compatível.`);
+        if (!Array.isArray(parsed.events)) warnings.push('A lista events não está presente; os indicadores de timeline serão limitados.');
+        return { parsed, warnings };
+      }
+      function loadText(text, name, mode) {
+        const { parsed, warnings } = parseSession(text);
+        session = parsed;
+        loadedName = name;
+        sourceMode = mode;
+        eventSearchCache = new WeakMap();
+        catalogBuilt = false;
+        $('catalogList').replaceChildren();
+        $('sessionView').classList.remove('hidden');
+        $('welcome').classList.add('hidden');
+        renderSession();
+        setAlert(warnings.join(' '), warnings.length ? 'warning' : '');
+      }
+      function resolveSameOriginUrl(value) {
+        const base = value.trim() || DEFAULT_SESSION;
+        let target;
+        try { target = new URL(base, location.href); }
+        catch { throw new Error('Informe um caminho ou URL válido para o JSON.'); }
+        if (!['http:', 'https:'].includes(target.protocol) || target.origin !== location.origin) throw new Error('O JSON precisa estar na mesma origem desta página. URLs externas não são carregadas.');
+        target.hash = '';
+        return target;
+      }
+      async function loadHttp() {
+        if (!isHttp) { $('fileInput').click(); return; }
+        setAlert('Carregando a sessão…', 'warning');
+        try {
+          const target = resolveSameOriginUrl($('sessionPath').value);
+          const response = await fetch(target.href, { method: 'GET', mode: 'same-origin', credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}. Confirme o caminho e se o arquivo está na pasta servida.`);
+          const text = await response.text();
+          loadText(text, target.pathname.split('/').filter(Boolean).at(-1) || target.pathname, 'http');
+          const query = new URLSearchParams(location.search);
+          if ($('sessionPath').value.trim() && $('sessionPath').value.trim() !== DEFAULT_SESSION) query.set('session', $('sessionPath').value.trim());
+          else query.delete('session');
+          const search = query.toString();
+          history.replaceState(null, '', `${location.pathname}${search ? `?${search}` : ''}${location.hash}`);
+          $('sourceTitle').textContent = 'Arquivo na mesma origem';
+          $('sourceHelp').textContent = 'Recarregar busca novamente o caminho acima via HTTP, sem enviar a sessão para outra origem.';
+        } catch (error) {
+          setAlert(error instanceof Error ? error.message : 'Não foi possível carregar este arquivo.', 'error');
+          if (!session) $('welcome').classList.remove('hidden');
+        }
+      }
+      async function loadFile(file) {
+        if (!file) return;
+        try {
+          const text = await file.text();
+          loadText(text, file.name, 'file');
+          $('sourceTitle').textContent = 'Arquivo local';
+          $('sourceHelp').textContent = isHttp ? 'O arquivo foi lido localmente. Recarregar busca o caminho da mesma origem informado acima.' : 'O arquivo foi lido no navegador. Recarregar abrirá novamente o seletor, pois file:// não pode buscar arquivos vizinhos.';
+          $('dropZone').classList.add('visible');
+        } catch (error) {
+          setAlert(error instanceof Error ? error.message : 'Não foi possível ler este JSON.', 'error');
+        }
+      }
+      function updateFilters() {
+        if (!session) return;
+        const events = getEvents();
+        const groups = getTurnGroups(events);
+        renderTimeline(events, groups);
+        renderArchive(events);
+      }
+      function setupControls() {
+        const pathInput = $('sessionPath');
+        const querySession = new URLSearchParams(location.search).get('session');
+        pathInput.value = querySession || DEFAULT_SESSION;
+        pathInput.hidden = !isHttp;
+        $('reloadButton').textContent = isHttp ? 'Recarregar' : 'Selecionar arquivo';
+        $('chooseButton').classList.toggle('hidden', false);
+        $('sourceTitle').textContent = isHttp ? 'Arquivo na mesma origem' : 'Arquivo local';
+        $('sourceHelp').textContent = isHttp ? 'O padrão é session-mcp-catalog-agent.json ao lado desta página.' : 'Em file://, escolha o JSON ou arraste-o até a página; o navegador não permite buscar arquivos vizinhos automaticamente.';
+        $('dropZone').classList.toggle('visible', !isHttp);
+        $('welcomeHelp').textContent = isHttp ? 'A página busca o JSON da mesma origem automaticamente; você também pode escolher um arquivo local.' : 'Selecione o JSON ou arraste-o para esta página. Nenhuma configuração do navegador é necessária.';
+        $('reloadButton').addEventListener('click', () => isHttp ? loadHttp() : $('fileInput').click());
+        $('chooseButton').addEventListener('click', () => $('fileInput').click());
+        $('fileInput').addEventListener('change', event => { const file = event.target.files?.[0]; if (file) loadFile(file); event.target.value = ''; });
+        pathInput.addEventListener('keydown', event => { if (event.key === 'Enter') loadHttp(); });
+        $('eventSearch').addEventListener('input', updateFilters);
+        $('typeFilter').addEventListener('change', updateFilters);
+        $('catalogSearch').addEventListener('input', renderCatalog);
+        $('catalogPanel').addEventListener('toggle', () => { if ($('catalogPanel').open) renderCatalog(); });
+        $('archivePanel').addEventListener('toggle', () => { if ($('archivePanel').open && session) renderArchive(getEvents()); });
+        $('expandVisible').addEventListener('click', () => document.querySelectorAll('#timeline details.json-detail:not([open])').forEach(detail => { detail.open = true; }));
+        $('collapseVisible').addEventListener('click', () => document.querySelectorAll('#timeline details.json-detail[open]').forEach(detail => { detail.open = false; }));
+        const drop = $('dropZone');
+        for (const type of ['dragenter', 'dragover']) drop.addEventListener(type, event => { event.preventDefault(); drop.classList.add('dragging'); });
+        for (const type of ['dragleave', 'drop']) drop.addEventListener(type, event => { event.preventDefault(); drop.classList.remove('dragging'); });
+        drop.addEventListener('drop', event => loadFile(event.dataTransfer?.files?.[0]));
+      }
+      function setupTypeFilter() {
+        const types = [...new Set(getEvents().map(event => event.type).filter(type => typeof type === 'string'))].sort();
+        const select = $('typeFilter');
+        const selected = select.value;
+        select.replaceChildren(node('option', '', 'Todos os tipos'));
+        select.firstElementChild.value = '';
+        for (const type of types) {
+          const option = node('option', '', `${typeLabel(type)} · ${type}`);
+          option.value = type;
+          select.append(option);
+        }
+        select.value = types.includes(selected) ? selected : '';
+      }
+      setupControls();
+      const originalLoadText = loadText;
+      loadText = function(text, name, mode) {
+        originalLoadText(text, name, mode);
+        setupTypeFilter();
+        updateFilters();
+      };
+      if (isHttp) loadHttp();
+    })();
+  </script>
+</body>
+</html>
