@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concierge · Backdoor · Orquestração</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=13">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+  <style>
+    .modos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .modo { display: grid; gap: 8px; align-content: start; padding: 16px; background: var(--surface); border: 2px solid transparent; border-radius: var(--r-lg); box-shadow: var(--shadow-sm); cursor: pointer; text-align: left; font: inherit; color: inherit; }
+    .modo:hover { border-color: var(--slate-200); }
+    .modo.is-on { border-color: var(--sl-blue); background: var(--sl-blue-50); }
+    .modo .modo-top { display: flex; align-items: center; gap: 10px; }
+    .modo .modo-top strong { font-family: var(--font-display); font-size: 15px; }
+    .modo .modo-top svg.lucide { color: var(--sl-blue); }
+    .modo p { margin: 0; font-size: 12.5px; color: var(--slate-500); line-height: 1.45; }
+    .modo .quando { font-size: 12px; color: var(--ink-3); }
+    .ajustes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 14px; }
+    .ajustes small { color: var(--slate-400); font-size: 11.5px; }
+  </style>
+</head>
+<body class="admin" data-modo="backdoor">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="concierge-bell"></i></span>
+      <span class="brand-name">Superlógica</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-product">Concierge <em>Backdoor</em></span>
+    </div>
+    <nav class="app-switch" aria-label="Área">
+      <a href="/console"><i data-lucide="messages-square" class="i-sm"></i>Atendente</a>
+      <a href="/"><i data-lucide="settings-2" class="i-sm"></i>Admin</a>
+      <a href="/backdoor" class="is-active"><i data-lucide="door-open" class="i-sm"></i>Backdoor</a>
+    </nav>
+    <div class="env">
+      <span class="chip" id="chipModo"><i data-lucide="route" class="i-sm"></i>modo <b id="chipModoNome">…</b></span>
+      <button class="btn btn-ghost btn-sm" id="btnRecarregar" title="Reler"><i data-lucide="refresh-cw" class="i-sm"></i>Reler</button>
+    </div>
+  </header>
+
+  <div class="admin-layout">
+    <nav class="admin-nav" aria-label="Seções">
+      <a href="/backdoor"><i data-lucide="layout-dashboard"></i><span>Visão geral</span><em>o concierge e os casos de uso</em></a>
+      <a href="/backdoor#/agentes"><i data-lucide="folder-tree"></i><span>Casos de uso</span><em>a árvore: o concierge e os casos de uso</em></a>
+      <a href="/backdoor#/recursos"><i data-lucide="plug"></i><span>Recursos do Nexus</span><em>o que a account oferece</em></a>
+      <a href="/backdoor/orquestracao" class="is-active"><i data-lucide="route"></i><span>Orquestração</span><em>router, planning ou react</em></a>
+      <span class="nav-label">Condomínios</span>
+      <a href="/backdoor/administradoras"><i data-lucide="building"></i><span>Administradoras</span><em>e os condomínios de cada uma</em></a>
+      <a href="/backdoor/payloads"><i data-lucide="sliders-horizontal"></i><span>Condomínios</span><em>definições de cada recurso</em></a>
+      <p class="nav-dica" style="margin-top:18px">Técnico, nosso: como o concierge decide o que fazer com cada mensagem. Vale para todas as conversas a partir da próxima mensagem (grava no <code>agent.yaml</code> do concierge). Teste no <a href="/console">Console</a>: a aba Rota mostra o plano.</p>
+    </nav>
+
+    <main class="admin-main" id="main" tabindex="-1">
+      <section id="secOrq">
+        <div class="page-head">
+          <div><h1>Orquestração</h1><p>O modo diz <b>como o concierge raciocina</b> sobre a mensagem do morador antes de acionar os casos de uso: uma rota por mensagem, um plano completo de uma vez, ou um loop de pensar, agir e observar (ART, <i>Automatic Reasoning and Tool-use</i>).</p></div>
+          <div class="page-actions"><span class="muted" id="orqAgente" style="font-size:12px"></span></div>
+        </div>
+
+        <p class="notice warn" id="avisoAmbiente" hidden><i data-lucide="triangle-alert"></i><span>A variável <span class="onde">ORQUESTRACAO_MODO</span> está definida no ambiente do contêiner e <b>vence</b> o que você salvar aqui. Tire-a do <span class="onde">.env</span> e suba de novo para a interface mandar.</span></p>
+
+        <div class="modos" id="modos"></div>
+
+        <div class="card">
+          <h2><i data-lucide="sliders-horizontal"></i>Ajustes <small class="muted">valem para planning e react</small></h2>
+          <form id="formOrq" class="ajustes">
+            <label class="form-row"><span>Confiança mínima do vínculo</span><input class="field-input" type="number" name="bind_confidence" min="0.5" max="1" step="0.05"><small>Abaixo disso, o item vira pergunta de confirmação ao morador antes de executar (0,5 a 1).</small></label>
+            <label class="form-row"><span>Máximo de itens por mensagem</span><input class="field-input" type="number" name="max_itens" min="1" max="10" step="1"><small>Quantos pedidos o plano aceita de uma vez (1 a 10).</small></label>
+            <label class="form-row"><span>Máximo de passos (react)</span><input class="field-input" type="number" name="max_iteracoes" min="1" max="15" step="1"><small>Passos de pensar/agir por turno; no limite, consolida o que há (1 a 15).</small></label>
+            <div class="form-actions" style="grid-column:1/-1"><span class="muted" id="orqStatus" style="flex:1"></span><button type="submit" class="btn btn-primary" id="btnSalvar"><i data-lucide="save"></i><span>Salvar</span></button></div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/orquestracao.js?v=1"></script>
+</body>
+</html>

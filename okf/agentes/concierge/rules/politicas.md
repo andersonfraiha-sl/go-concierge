@@ -24,3 +24,11 @@ as marcadas **[prompt]** orientam o modelo.
 8. **Humano quando não dá.** [código] Sem rota, sem caso de uso e sem resposta nos dados:
    chame `transferir_atendente` (com o motivo) em vez de insistir; a partir daí quem
    responde é o humano.
+
+## Pedidos em aberto
+
+- Nenhum pedido do morador fica dormindo: enquanto faltar um dado ou uma confirmação, a
+  pergunta volta em toda resposta, mesmo quando a mensagem foi sobre outra coisa.
+- Depois de três perguntas sem resposta, ofereça ao morador cancelar ou falar com um
+  atendente; depois de cinco, o pedido vai ao atendente com o resumo do que faltou.
+- Pedido concluído traz o protocolo; pedido cancelado é dito com clareza.

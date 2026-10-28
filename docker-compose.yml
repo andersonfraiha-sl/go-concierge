@@ -5,9 +5,10 @@
 #   Admin/Console/Backdoor: http://127.0.0.1:8090
 #   (o mcp roda na rede do concierge, porque a POC do MCP só escuta em loopback)
 #
-# Credenciais: mcp/.env é o .env da entrega (B2C_CLIENT_KEYCLOAK_TOKEN, BFF, LLM gateway);
-# o .env da raiz tem as do concierge (LLM, Gruvi, ATENDE) e MCP_BEARER_TOKEN, que precisa
-# ser o MESMO token B2C do mcp/.env enquanto o servidor estiver em request_bearer.
+# Credenciais: mcp/.env é o .env da entrega (BFF, LLM gateway); o .env da raiz tem as do
+# concierge (LLM, Gruvi, ATENDE) e o fluxo B2C (MCP_AUTH=b2c, MCP_B2C_MOBILE…): o concierge
+# obtém o token de morador pelo SMS de dev, renova pelo refresh_token e grava em
+# okf/var/b2c.token, que o mcp lê (B2C_TOKEN_FILE). Ninguém cola token no .env.
 services:
   # O front (Admin, Console, Backdoor) é servido pelo próprio concierge: web/okf vai embutido
   # no binário e, aqui, também montado do repositório (-web), para editar sem rebuild.
@@ -20,6 +21,8 @@ services:
       MCP_URL: ${MCP_URL:-http://127.0.0.1:3337/mcp/gruvi/bff}
       MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:-}
       DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
+      # router (padrão) | planning | react — vence o `orquestracao:` do agent.yaml
+      ORQUESTRACAO_MODO: ${ORQUESTRACAO_MODO:-}
     command: ["-root", "/app/okf", "-addr", "0.0.0.0:8090", "-env", "/app/.env", "-web", "/app/web"]
     volumes:
       # o catálogo editado pelo Admin fica no repositório (agentes, instantâneo, var/)
@@ -31,8 +34,10 @@ services:
     restart: unless-stopped
 
   # Servidor MCP da entrega. A POC só escuta em loopback, então ele roda NA REDE do concierge
-  # (network_mode): o concierge o alcança em 127.0.0.1:3337. A porta 3337 não é publicada;
-  # para o Explorer, rode o MCP local: cd mcp && npm ci && npm run start:mcp:catalog-agent
+  # (network_mode): o concierge o alcança em 127.0.0.1:3337. A porta 3337 não é publicada:
+  # de fora, o MCP responde em http://127.0.0.1:8090/mcp/gruvi/bff (repasse do concierge,
+  # com o Authorization: Bearer do cliente). Recriou o concierge? Recrie o mcp também
+  # (docker compose up -d --build), porque ele mora no namespace de rede do concierge.
   mcp:
     build: ./mcp
     env_file:
@@ -41,6 +46,11 @@ services:
     environment:
       MCP_CATALOG_AGENT_MCP_HOST: 127.0.0.1
       MCP_CATALOG_AGENT_MCP_PORT: "3337"
+      # o token B2C corrente, gravado pelo concierge (MCP_AUTH=b2c, MCP_TOKEN_FILE): o
+      # servidor lê a cada verificação em vez de pinar um token de 5 min na subida
+      B2C_TOKEN_FILE: /app/var/b2c.token
+    volumes:
+      - ./okf/var:/app/var:ro
     network_mode: "service:concierge"
     depends_on:
       - concierge

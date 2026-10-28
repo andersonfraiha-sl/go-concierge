@@ -1,0 +1,557 @@
+package atende
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/cloudwego/eino/schema"
+
+	"go-concierge/internal/harness"
+	"go-concierge/internal/pedidos"
+)
+
+// Pedidos no turno: com Servico.Pedidos ligado, cada mensagem passa pelo detector
+// (extrator) e pelo motor de pedidos antes de qualquer agente. O que é pedido vira (ou
+// alimenta) um Pedido com protocolo; o que não é (dúvida, conversa) vai ao orquestrador.
+// O estado de cada pedido é decidido pelos parâmetros, em código; a resposta final é
+// redigida na persona a partir do que o motor devolveu.
+
+// PedidoTurno é o que um turno fez com um pedido (para a sessão e o Console).
+type PedidoTurno struct {
+	Protocolo string `json:"protocolo"`
+	Caso      string `json:"caso"`
+	Estado    string `json:"estado"`
+	Evento    string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | atendente
+}
+
+// ambienteHarness executa recursos pelo subagente do caso (permissões e guarda de escrita).
+type ambienteHarness struct{ ag *harness.Agente }
+
+func (a ambienteHarness) Chamar(ctx context.Context, agente, recurso string, params map[string]any, confirmacao string) (any, error) {
+	sub, ok := a.ag.Subagentes[agente]
+	if !ok {
+		return nil, fmt.Errorf("caso de uso %q não está disponível neste condomínio", agente)
+	}
+	out, err := sub.InvocarRecurso(ctx, recurso, params, confirmacao)
+	if err != nil {
+		return nil, err
+	}
+	if e, ok := out["error"].(string); ok && e != "" {
+		return nil, errors.New(e)
+	}
+	return out["resultado"], nil
+}
+
+type contratoDoCaso struct {
+	ct     *pedidos.Contrato
+	agente string // nome da pasta do subagente
+}
+
+// casosDisponiveis: os subagentes com caso.yaml que o Build deixou (filtro do Admin).
+func casosDisponiveis(ag *harness.Agente) ([]pedidos.CasoResumo, map[string]contratoDoCaso) {
+	var resumos []pedidos.CasoResumo
+	contratos := map[string]contratoDoCaso{}
+	for nome, sub := range ag.Subagentes {
+		if sub.Def.Caso == nil {
+			continue
+		}
+		ct, err := pedidos.ContratoDe(sub.Def.Caso)
+		if err != nil {
+			continue
+		}
+		contratos[ct.Caso.ID] = contratoDoCaso{ct: ct, agente: nome}
+		r := pedidos.CasoResumo{ID: ct.Caso.ID, Nome: ct.Caso.Name, Descricao: ct.Caso.Description, Exemplos: ct.Caso.Examples, Keywords: ct.Caso.Keywords, Agente: nome}
+		for _, n := range ct.Ordem {
+			r.Slots = append(r.Slots, ct.Slots[n])
+		}
+		resumos = append(resumos, r)
+	}
+	// ordem estável (a do roteador seria melhor; alfabética basta para o prompt)
+	for i := 1; i < len(resumos); i++ {
+		for j := i; j > 0 && resumos[j].ID < resumos[j-1].ID; j-- {
+			resumos[j], resumos[j-1] = resumos[j-1], resumos[j]
+		}
+	}
+	return resumos, contratos
+}
+
+func ultimasFalas(sess *Sessao, n int) []string {
+	var out []string
+	for _, t := range sess.Turnos {
+		switch t.Quem {
+		case "morador", "concierge", "atendente":
+			out = append(out, t.Quem+": "+corta(t.Texto, 200))
+		}
+	}
+	if len(out) > n {
+		out = out[len(out)-n:]
+	}
+	return out
+}
+
+var reCancelar = regexp.MustCompile(`CANCELA[R]?\s+(P-[A-Z0-9]{5})`)
+var reMencionaData = regexp.MustCompile(`\d|janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|fim de semana|semana que vem|próxim|proxim`)
+
+// mencionaData: a mensagem fala de alguma data (dígito, mês, dia da semana, hoje…).
+func mencionaData(msg string) bool { return reMencionaData.MatchString(strings.ToLower(msg)) }
+
+func normalizar(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(s))), " ")
+}
+
+// restanteDoMorador: a maioria das palavras significativas do restante está na mensagem.
+func restanteDoMorador(mensagem, restante string) bool {
+	norm := func(s string) []string {
+		var out []string
+		for _, w := range strings.Fields(strings.ToLower(s)) {
+			w = strings.Trim(w, ".,;:!?()\"'")
+			if len([]rune(w)) >= 4 {
+				out = append(out, w)
+			}
+		}
+		return out
+	}
+	msg := map[string]bool{}
+	for _, w := range norm(mensagem) {
+		msg[w] = true
+	}
+	palavras := norm(restante)
+	if len(palavras) == 0 {
+		return true
+	}
+	achadas := 0
+	for _, w := range palavras {
+		if msg[w] {
+			achadas++
+		}
+	}
+	return achadas*2 >= len(palavras)
+}
+
+func orProtocolo(p string) string {
+	if p == "" {
+		return " (novo)"
+	}
+	return " " + p
+}
+
+func corta(s string, n int) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-1]) + "…"
+}
+
+// turnoComPedidos é a vez do robô com o registro de pedidos como espinha dorsal.
+func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string) (*harness.Resultado, []PedidoTurno, error) {
+	rel := ag.Def.Rel
+	var rota []harness.Passo
+	var uso harness.Uso
+	passo := func(tipo, det string) { rota = append(rota, harness.Passo{Agente: rel, Tipo: tipo, Detalhe: det}) }
+	casos, contratos := casosDisponiveis(ag)
+	cart, err := s.Pedidos.Ler(ctx, s.Account, sess.Contato.Phone)
+	if err != nil {
+		return nil, nil, fmt.Errorf("pedidos de %s: %w", sess.Contato.Phone, err)
+	}
+	cart.Account, cart.Telefone = s.Account, pedidos.NormalizarTelefone(sess.Contato.Phone)
+
+	ex := s.ExtratorPedidos
+	if ex == nil {
+		ex = pedidos.Regras{}
+	}
+	extracao, err := ex.Extrair(ctx, pedidos.Entrada{Mensagem: texto, Historico: ultimasFalas(sess, 6), Casos: casos, Abertos: cart.Abertos(), Agora: time.Now()})
+	if err != nil {
+		passo("aviso", "extrator de pedidos falhou, usando regras: "+err.Error())
+		extracao, _ = pedidos.Regras{}.Extrair(ctx, pedidos.Entrada{Mensagem: texto, Casos: casos, Abertos: cart.Abertos()})
+	}
+	{
+		var itens []string
+		for _, pe := range extracao.Pedidos {
+			vals, _ := json.Marshal(pe.Valores)
+			itens = append(itens, pe.Caso+orProtocolo(pe.Protocolo)+" "+string(vals))
+		}
+		passo("pedidos", fmt.Sprintf("%d pedido(s) [%s], %d confirmação(ões), atendente=%v, restante=%q", len(extracao.Pedidos), strings.Join(itens, "; "), len(extracao.Confirmacoes), extracao.Atendente, corta(extracao.Restante, 80)))
+	}
+
+	// "cancelar P-XXXXX" vale sempre, em código, por cima do extrator
+	for _, m := range reCancelar.FindAllStringSubmatch(strings.ToUpper(texto), -1) {
+		extracao.Cancelar = append(extracao.Cancelar, m[1])
+	}
+
+	amb := ambienteHarness{ag: ag}
+	var turnos []PedidoTurno
+	consumida := false // a mensagem foi usada como resposta a um pedido (confirmação/valor)
+	anota := func(p *pedidos.Pedido, evento string) {
+		turnos = append(turnos, PedidoTurno{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: evento})
+	}
+	tocados := map[string]*pedidos.Pedido{}
+	var cancelados []string
+
+	for _, c := range extracao.Confirmacoes {
+		if p := cart.Por(c.Protocolo); p != nil && p.Estado == pedidos.Confirmando {
+			pedidos.Confirmar(p, c.Resposta, pedidos.OrigemMorador)
+			tocados[p.Protocolo] = p
+			consumida = true
+			passo("pedido", p.Protocolo+" confirmação: "+c.Resposta)
+		}
+	}
+	for _, prot := range extracao.Cancelar {
+		if p := cart.Por(prot); p != nil && p.Aberto() {
+			pedidos.Cancelar(p, pedidos.OrigemMorador, "")
+			anota(p, "cancelado")
+			passo("pedido", p.Protocolo+" cancelado pelo morador")
+			cancelados = append(cancelados, "Pedido "+p.Protocolo+" ("+p.CasoNome+") cancelado.")
+			consumida = true
+		}
+	}
+	for _, pe := range extracao.Pedidos {
+		cc, ok := contratos[pe.Caso]
+		if !ok {
+			passo("aviso", "caso desconhecido na extração: "+pe.Caso)
+			continue
+		}
+		var p *pedidos.Pedido
+		if pe.Protocolo != "" {
+			p = cart.Por(pe.Protocolo)
+		}
+		if p == nil || !p.Aberto() {
+			p = cart.AbertoDoCaso(pe.Caso)
+		}
+		if p == nil {
+			p = cart.Novo(cc.ct, cc.agente, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: len(sess.Turnos)})
+			passo("pedido", p.Protocolo+" aberto: "+cc.ct.Caso.Name)
+			anota(p, "aberto")
+			// pedido novo sem nenhuma menção a data na mensagem: data extraída é invenção
+			if !mencionaData(texto) {
+				for _, sl := range cc.ct.Slots {
+					if sl.Tipo == "date" {
+						delete(pe.Valores, sl.Nome)
+					}
+				}
+			}
+		}
+		if p.Estado == pedidos.ComAtendente {
+			passo("pedido", p.Protocolo+" está com o atendente; valores ignorados")
+			continue
+		}
+		antes := len(p.Valores)
+		if rej := pedidos.Aplicar(cc.ct, p, pe.Valores, pedidos.OrigemMorador); len(rej) > 0 {
+			for k, v := range rej {
+				passo("pedido", p.Protocolo+" rejeitou "+k+": "+v)
+			}
+			consumida = true
+		}
+		if len(p.Valores) > antes {
+			consumida = true
+		}
+		tocados[p.Protocolo] = p
+	}
+	// a mensagem inteira foi a resposta a um pedido ("sim", "salão"): não há restante
+	if consumida && normalizar(extracao.Restante) == normalizar(texto) {
+		extracao.Restante = ""
+	}
+
+	// avança os tocados e os abertos sem pergunta pendente (prontos para seguir)
+	var partes, perguntas []string
+	precisaRedigir := false
+	transbordo := ""
+	if len(cancelados) > 0 {
+		partes = append(partes, cancelados...)
+		precisaRedigir = true
+	}
+	for _, p := range cart.Abertos() {
+		if p.Estado == pedidos.ComAtendente {
+			continue
+		}
+		if _, ok := tocados[p.Protocolo]; !ok && p.Pendencia != nil {
+			continue
+		}
+		cc, ok := contratos[p.Caso]
+		if !ok {
+			continue
+		}
+		saida := pedidos.Avancar(ctx, cc.ct, p, &cart, amb)
+		passo("pedido", p.Protocolo+" "+saida.Tipo+": "+corta(saida.Texto, 140))
+		anota(p, saida.Tipo)
+		switch saida.Tipo {
+		case "pergunta", "confirmar":
+			perguntas = append(perguntas, saida.Texto)
+			precisaRedigir = true
+		case "concluido":
+			partes = append(partes, saida.Texto)
+			precisaRedigir = true
+		case "cancelado":
+			partes = append(partes, "Pedido "+p.Protocolo+" ("+p.CasoNome+") cancelado.")
+			precisaRedigir = true
+		case "erro":
+			partes = append(partes, "Não consegui concluir "+strings.ToLower(p.CasoNome)+": "+saida.Texto+".")
+			precisaRedigir = true
+		case "formulario":
+			// o caso tem formulário dinâmico: segue pelo subagente conversacional
+			if sub, ok := ag.Subagentes[p.Agente]; ok {
+				r, err := harness.Run(ctx, sub, texto, sess.historico)
+				if err != nil {
+					partes = append(partes, "Não consegui seguir com "+strings.ToLower(p.CasoNome)+".")
+				} else {
+					partes = append(partes, r.Resposta)
+					rota = append(rota, r.Rota...)
+					uso.Soma(r.Uso)
+					if r.Transbordo != "" {
+						transbordo = r.Transbordo
+					}
+				}
+			}
+		}
+	}
+
+	// o que não é pedido vai ao orquestrador (dúvidas, conversa), em modo router. O
+	// restante tem de ser fala do morador: se o modelo pôs ali uma resposta sua, cai.
+	if r := strings.TrimSpace(extracao.Restante); r != "" && !restanteDoMorador(texto, r) {
+		passo("aviso", "restante descartado (não é fala do morador): "+corta(r, 80))
+		extracao.Restante = ""
+	}
+	if r := strings.TrimSpace(extracao.Restante); r != "" {
+		res, err := harness.Run(ctx, ag, r, sess.historico)
+		if err != nil {
+			return nil, nil, err
+		}
+		rota = append(rota, res.Rota...)
+		uso.Soma(res.Uso)
+		if strings.TrimSpace(res.Resposta) != "" {
+			partes = append(partes, res.Resposta)
+		}
+		if res.Transbordo != "" {
+			transbordo = res.Transbordo
+		}
+	}
+
+	// pendências não dormem: todo pedido aberto que o turno não tocou volta à conversa
+	// com a pergunta (ou a confirmação) em aberto; com AvisoAposVezes o morador é
+	// convidado a responder, cancelar ou chamar o atendente; com AtendenteAposVezes o
+	// pedido vai ao atendente (transbordo) em vez de ficar aberto para sempre.
+	for _, p := range cart.Abertos() {
+		if _, ok := tocados[p.Protocolo]; ok || p.Estado == pedidos.ComAtendente {
+			continue
+		}
+		lembrete, vezes := p.Lembrete()
+		if lembrete == "" {
+			continue
+		}
+		if vezes >= pedidos.AtendenteAposVezes {
+			if transbordo == "" {
+				transbordo = "pendência sem resposta depois de " + fmt.Sprint(vezes) + " perguntas"
+			}
+			passo("pedido", p.Protocolo+" sem resposta "+fmt.Sprint(vezes)+" vezes: vai ao atendente")
+			continue // o bloco do atendente, abaixo, leva o pedido com o resumo
+		}
+		texto := "Ainda sobre " + strings.ToLower(p.CasoNome) + " (" + p.Protocolo + "): " + lembrete
+		if vezes >= pedidos.AvisoAposVezes {
+			texto += " Se preferir, responda \"cancelar " + p.Protocolo + "\" ou peça um atendente."
+		}
+		perguntas = append(perguntas, texto)
+		precisaRedigir = true
+		anota(p, "lembrete")
+		passo("pedido", p.Protocolo+" lembrete ("+fmt.Sprint(vezes)+"x): "+corta(lembrete, 100))
+	}
+
+	// atendente: pendências viram resumo para o humano
+	if extracao.Atendente || transbordo != "" {
+		var pend []string
+		for _, p := range cart.Abertos() {
+			if p.Estado == pedidos.ComAtendente {
+				continue
+			}
+			cc, ok := contratos[p.Caso]
+			if !ok {
+				continue
+			}
+			resumo := pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6))
+			pedidos.AoAtendente(p, resumo)
+			anota(p, "atendente")
+			faltam := p.Faltando(cc.ct)
+			var nomes []string
+			for _, f := range faltam {
+				nomes = append(nomes, f.Titulo)
+			}
+			if len(nomes) > 0 {
+				pend = append(pend, p.Protocolo+" ("+p.CasoNome+": falta "+strings.Join(nomes, ", ")+")")
+			} else {
+				pend = append(pend, p.Protocolo+" ("+p.CasoNome+")")
+			}
+		}
+		if transbordo == "" {
+			transbordo = "o morador pediu um atendente"
+		}
+		if len(pend) > 0 {
+			transbordo += "; pedidos pendentes: " + strings.Join(pend, "; ")
+			passo("pedido", "ao atendente: "+strings.Join(pend, "; "))
+		}
+		if len(partes) == 0 {
+			if extracao.Atendente {
+				partes = append(partes, "Certo, vou passar você para um atendente da administração. Ele já recebe o que conversamos até aqui.")
+			} else {
+				partes = append(partes, "Vou passar o que ficou pendente para um atendente da administração, que segue com você por aqui.")
+			}
+			precisaRedigir = true
+		}
+		perguntas = nil // quem pergunta agora é o atendente
+	}
+
+	if err := s.Pedidos.Gravar(ctx, cart); err != nil && s.Log != nil {
+		s.Log.Printf("atende: gravar pedidos de %s: %v", sess.Contato.Phone, err)
+	}
+
+	conteudo := strings.TrimSpace(strings.Join(append(partes, perguntas...), "\n\n"))
+	if conteudo == "" {
+		conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
+		precisaRedigir = true
+	}
+	resposta := conteudo
+	if precisaRedigir {
+		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(sess.historico) > 0)
+		switch {
+		case err != nil:
+			passo("aviso", "redação falhou, conteúdo vai cru: "+err.Error())
+		case strings.TrimSpace(texto) != "":
+			resposta = texto
+			uso.Soma(u)
+		}
+	}
+	passo("entrega", corta(resposta, 160))
+
+	msgs := make([]*schema.Message, 0, len(sess.historico)+2)
+	msgs = append(msgs, sess.historico...)
+	msgs = append(msgs, schema.UserMessage(texto), schema.AssistantMessage(resposta, nil))
+	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo}, turnos, nil
+}
+
+// ---- ações do atendente ------------------------------------------------------------------
+
+// Carteira devolve os pedidos de um telefone com os contratos (slots) de cada caso.
+func (s *Servico) Carteira(ctx context.Context, phone string) (pedidos.Carteira, map[string][]*pedidos.Slot, error) {
+	if s.Pedidos == nil {
+		return pedidos.Carteira{}, nil, errors.New("pedidos desligados")
+	}
+	cart, err := s.Pedidos.Ler(ctx, s.Account, phone)
+	if err != nil {
+		return cart, nil, err
+	}
+	slots := map[string][]*pedidos.Slot{}
+	dir, err := s.Cat.ResolveAgente(s.Agente)
+	if err != nil {
+		return cart, slots, nil
+	}
+	raiz, err := s.Cat.Load(dir)
+	if err != nil {
+		return cart, slots, nil
+	}
+	for _, sub := range raiz.Subagentes {
+		if sub.Caso == nil {
+			continue
+		}
+		if ct, err := pedidos.ContratoDe(sub.Caso); err == nil {
+			for _, n := range ct.Ordem {
+				slots[ct.Caso.ID] = append(slots[ct.Caso.ID], ct.Slots[n])
+			}
+		}
+	}
+	return cart, slots, nil
+}
+
+// PreencherPedido: o atendente informa os parâmetros que faltavam (e, se for o caso,
+// confirma em nome do morador); o motor avança e, concluído, o resultado vai ao morador.
+func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocoloPedido, atendente string, valores map[string]any, confirmar bool) (*Sessao, *pedidos.Pedido, pedidos.Saida, error) {
+	if s.Pedidos == nil {
+		return nil, nil, pedidos.Saida{}, errors.New("pedidos desligados")
+	}
+	sess, ok := s.Sessoes.Get(protocoloAtende)
+	if !ok {
+		return nil, nil, pedidos.Saida{}, fmt.Errorf("protocolo %s não está aberto neste servidor", protocoloAtende)
+	}
+	ag, err := s.agenteDaSessao(ctx, sess)
+	if err != nil {
+		return sess, nil, pedidos.Saida{}, err
+	}
+	_, contratos := casosDisponiveis(ag)
+	cart, err := s.Pedidos.Ler(ctx, s.Account, sess.Contato.Phone)
+	if err != nil {
+		return sess, nil, pedidos.Saida{}, err
+	}
+	p := cart.Por(protocoloPedido)
+	if p == nil {
+		return sess, nil, pedidos.Saida{}, fmt.Errorf("pedido %s não encontrado", protocoloPedido)
+	}
+	cc, ok := contratos[p.Caso]
+	if !ok {
+		return sess, p, pedidos.Saida{}, fmt.Errorf("caso %s indisponível", p.Caso)
+	}
+	if atendente == "" {
+		atendente = "Atendente"
+	}
+	if len(valores) > 0 {
+		if rej := pedidos.Aplicar(cc.ct, p, valores, pedidos.OrigemAtendente); len(rej) > 0 {
+			var itens []string
+			for k, v := range rej {
+				itens = append(itens, k+": "+v)
+			}
+			return sess, p, pedidos.Saida{}, errors.New("valores rejeitados — " + strings.Join(itens, "; "))
+		}
+	}
+	if p.Estado == pedidos.ComAtendente {
+		p.Estado = pedidos.Coletando
+	}
+	if confirmar {
+		pedidos.Confirmar(p, "sim", atendente) // fica registrado quem confirmou em nome do morador
+	}
+	saida := pedidos.Avancar(ctx, cc.ct, p, &cart, ambienteHarness{ag: ag})
+	if saida.Tipo == "confirmar" && !confirmar {
+		// volta ao atendente: ele confirma com o morador e marca "confirmar"
+		pedidos.AoAtendente(p, pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6)))
+	} else if saida.Tipo == "pergunta" {
+		pedidos.AoAtendente(p, pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6)))
+	}
+	if err := s.Pedidos.Gravar(ctx, cart); err != nil {
+		return sess, p, saida, err
+	}
+	if saida.Tipo == "concluido" || saida.Tipo == "erro" {
+		texto := saida.Texto
+		if saida.Tipo == "erro" {
+			texto = "Não consegui concluir " + strings.ToLower(p.CasoNome) + ": " + saida.Texto
+		}
+		sess.registrar(Turno{Quem: "concierge", Texto: texto, Agente: ag.Def.Rel, Pedidos: []PedidoTurno{{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: saida.Tipo}}})
+		sess.historico = append(sess.historico, schema.AssistantMessage(texto, nil))
+		if s.Sender != nil {
+			if err := s.Sender.Enviar(ctx, sess.Protocolo, texto); err != nil {
+				sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+			}
+		}
+	}
+	return sess, p, saida, nil
+}
+
+// CancelarPedido encerra um pedido a pedido do atendente.
+func (s *Servico) CancelarPedido(ctx context.Context, phone, protocoloPedido, atendente, motivo string) (*pedidos.Pedido, error) {
+	if s.Pedidos == nil {
+		return nil, errors.New("pedidos desligados")
+	}
+	cart, err := s.Pedidos.Ler(ctx, s.Account, phone)
+	if err != nil {
+		return nil, err
+	}
+	p := cart.Por(protocoloPedido)
+	if p == nil {
+		return nil, fmt.Errorf("pedido %s não encontrado", protocoloPedido)
+	}
+	if atendente == "" {
+		atendente = "Atendente"
+	}
+	pedidos.Cancelar(p, atendente, motivo)
+	return p, s.Pedidos.Gravar(ctx, cart)
+}

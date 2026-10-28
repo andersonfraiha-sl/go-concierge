@@ -379,7 +379,7 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
 
 - Evolution API, QR Code, WhatsApp real.
 - WhatsApp Flows ou formulários nativos: o formulário segue como link assinado.
-- Reimplementar os três modos (router/ReAct/planning) como no `sl-concierge`.
+- ~~Reimplementar os três modos (router/ReAct/planning) como no `sl-concierge`.~~ Revisto em 2026-10-28 (ver 1.9): os modos vieram, mas como **estratégia do orquestrador** em cima do mesmo harness (casos de uso inline, plano guardado pela sessão), não como três máquinas de estado.
 - Open-JEV hospedado.
 - Faturamento por condomínio (o ledger prepara, não cobra).
 
@@ -466,3 +466,45 @@ o harness executa por `tools/call` (`internal/mcp`). Autenticação com Keycloak
 (token B2C repassado ao BFF) hoje; `client_credentials` quando o servidor aceitar token de
 serviço. Precedência das fontes: MCP, depois Nexus ao vivo, depois o instantâneo. Empacotado
 em `docker compose` (serviços `mcp` e `concierge`).
+
+### 1.9 Modos de orquestração ART no harness (2026-10-28)
+
+- Pedido: "traga os mecanismos de ReAct e Planning (Automatic Reasoning and Tool-use)".
+- `router` segue o padrão. `planning` e `react` são configurados em `orquestracao:` do
+  `agent.yaml` do orquestrador (ou `ORQUESTRACAO_MODO`), e só valem no primeiro nível.
+- O que muda em relação ao `sl-concierge`: não há workflows nem três máquinas de
+  estado. O plano (`harness.Plano`: itens, pendente, observações) é um valor guardado
+  pela sessão do ATENDE enquanto um item espera o morador; `harness.Continuar` retoma.
+  Os casos de uso rodam inline, pelo mesmo `run` do subagente; recursos pela mesma
+  guarda de `chamar_recurso`. O modelo propõe vínculos; o harness confere nome,
+  confiança (`bind_confidence`) e escrita (nunca direta).
+- Trace: passos `modo`, `plano`, `item`; o Console mostra o TODO/checklist na aba Rota.
+- Controle: guia **Orquestração** do Backdoor (`/backdoor/orquestracao`, API `/api/admin/orquestracao`),
+  que grava `orquestracao:` no `agent.yaml` do concierge; o ambiente (`ORQUESTRACAO_MODO`) só força.
+
+### 1.10 Token B2C do MCP obtido e renovado pelo concierge (2026-10-28)
+
+- O servidor MCP da entrega exige em cada requisição o token B2C de morador (Keycloak
+  `persons`), que dura 5 minutos, e o pinava na subida. Pedido do usuário: o fluxo SMS de
+  dev do Spaces (`/auth/sms` com `validation=dev` → `session_id`; `/auth/token` com
+  `grant_type=password`, `sms_code=999999`) para obter o token.
+- Decisão: `MCP_AUTH=b2c` no concierge (`internal/mcp/b2c.go`): obtém pelo SMS, renova pelo
+  `refresh_token` (60 dias) 45 s antes de vencer e grava o token corrente em `okf/var/b2c.token`.
+  O servidor MCP ganhou `B2C_TOKEN_FILE` (uma função a mais, opt-in) e lê esse arquivo a cada
+  verificação. Nenhum token colado em `.env`. A renovação é sob demanda (na próxima chamada
+  ao MCP), não por timer.
+- O concierge repassa `/mcp/...` ao servidor (porta 8090) sem injetar token: quem testa de
+  fora usa o token corrente do arquivo.
+
+### 1.11 Pedidos: registro de trabalho por contato (2026-10-28)
+
+- Problema: no planning, o status "feito" era inferido do texto da resposta do caso de uso;
+  casos que só tinham perguntado apareciam concluídos. Pedido do usuário: um mecanismo mais
+  seguro, com pedidos acumulados entre sessões, protocolo por pedido, execução só com os
+  parâmetros obrigatórios respondidos, e pendências levadas ao atendente com resumo.
+- Decisões (confirmadas pelo usuário): execução **determinística pelos passos do caso.yaml**
+  (não pelo subagente conversacional) e os Pedidos como **espinha dorsal** da orquestração
+  (planning/react deixam de mandar; o roteador atende só o "restante").
+- Estado em código: `internal/pedidos` (modelo, contrato do caso.yaml, motor, extrator
+  Regras, resumo); extração por LLM em `harness/pedidos.go`; pipeline em
+  `atende/pedidos.go`; guia Pedidos e formulário do atendente no Console.

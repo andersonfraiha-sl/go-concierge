@@ -30,6 +30,9 @@ type Sessao struct {
 	// Transbordo: o protocolo passou a um atendente humano (o concierge para de
 	// responder até ser devolvido).
 	Transbordo *Transbordo `json:"transbordo,omitempty"`
+	// Plano: estado da orquestração (planning/react) enquanto um item espera o morador;
+	// a próxima mensagem retoma por harness.Continuar em vez de planejar de novo.
+	Plano *harness.Plano `json:"plano,omitempty"`
 
 	historico []*schema.Message
 	mu        sync.Mutex
@@ -58,6 +61,10 @@ type Turno struct {
 	Rota     []harness.Passo `json:"rota,omitempty"`
 	Uso      *harness.Uso    `json:"uso,omitempty"`
 	Modelo   string          `json:"modelo,omitempty"`
+	// Plano: o TODO/checklist da orquestração depois deste turno (planning/react).
+	Plano *harness.Plano `json:"plano,omitempty"`
+	// Pedidos: o que este turno fez no registro de pedidos (abriu, perguntou, concluiu…).
+	Pedidos []PedidoTurno `json:"pedidos,omitempty"`
 	// Memorias: fatos novos ou alterados que esta troca gravou na memória do contato.
 	Memorias []memoria.Fato `json:"memorias,omitempty"`
 }

@@ -316,6 +316,21 @@ func (ag *Agente) recursosPermitidos() []string {
 }
 
 func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, error) {
+	msg := ""
+	if col := coletorDe(ctx); col != nil {
+		msg = col.mensagem
+	}
+	return ag.invocar(ctx, in, msg)
+}
+
+// InvocarRecurso executa um recurso fora do loop de tools (o motor de pedidos), com as
+// mesmas permissões e a mesma guarda de escrita de chamar_recurso: `confirmacao` é a
+// mensagem do morador (ou do atendente) que confirmou; escrita só passa se for um sim.
+func (ag *Agente) InvocarRecurso(ctx context.Context, nome string, params map[string]any, confirmacao string) (map[string]any, error) {
+	return ag.invocar(ctx, &argsRecurso{Nome: nome, Params: params}, confirmacao)
+}
+
+func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao string) (saida, error) {
 	nome := strings.TrimSpace(in.Nome)
 	var achado *Permissao
 	for _, p := range ag.Permissoes() {
@@ -342,12 +357,8 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 	}
 	// escrita: a guarda determinística — só com o "sim" do morador na mensagem atual
 	if achado.Recurso != nil && achado.Recurso.Write {
-		msg := ""
-		if col := coletorDe(ctx); col != nil {
-			msg = col.mensagem
-		}
-		if !Confirmado(msg) {
-			return erro("%s é escrita e exige a confirmação explícita do morador: a mensagem atual (%q) não é um sim. Resuma o que vai registrar, pergunte \"confirma? (sim/não)\" e pare", nome, corta(msg, 60)), nil
+		if !Confirmado(confirmacao) {
+			return erro("%s é escrita e exige a confirmação explícita do morador: a mensagem atual (%q) não é um sim. Resuma o que vai registrar, pergunte \"confirma? (sim/não)\" e pare", nome, corta(confirmacao, 60)), nil
 		}
 	}
 

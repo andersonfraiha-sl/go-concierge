@@ -316,7 +316,7 @@ func (ag *Agente) NomesDeTools() []string {
 // Passo é um evento do trace: rota escolhida, tool chamada, resultado, resposta.
 type Passo struct {
 	Agente  string `json:"agente"`
-	Tipo    string `json:"tipo"` // rota | tool | resultado | resposta | aviso
+	Tipo    string `json:"tipo"` // rota | tool | resultado | resposta | aviso | entrega | transbordo | modo | plano | item
 	Detalhe string `json:"detalhe"`
 }
 
@@ -327,6 +327,9 @@ type Uso struct {
 	Total    int `json:"total"`
 	Chamadas int `json:"chamadas"`
 }
+
+// Soma acumula o uso de outra execução (para quem monta a resposta fora do harness).
+func (u *Uso) Soma(o Uso) { u.soma(o) }
 
 func (u *Uso) soma(o Uso) {
 	u.Entrada += o.Entrada
@@ -361,6 +364,9 @@ type Resultado struct {
 	// Transbordo é o motivo quando algum agente pediu um atendente humano
 	// (tool transferir_atendente); vazio = o concierge seguiu.
 	Transbordo string `json:"transbordo,omitempty"`
+	// Plano é o estado da orquestração nos modos planning e react (nil no router). A
+	// sessão o guarda enquanto Pendente != "" e retoma com Continuar.
+	Plano *Plano `json:"plano,omitempty"`
 }
 
 // coletor acompanha uma execução (e as aninhadas via invocar_agente) pelo contexto.
@@ -431,6 +437,12 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 	rel := ag.Def.Rel
 
 	if ag.Roteador != "" && len(ag.Subagentes) > 0 {
+		// Modos ART (plano.go): no primeiro nível, planning e react substituem a passada de
+		// rota. O Mock não planeja (responde rotas por palavra-chave): nele é sempre router.
+		if o := OrquestracaoDe(ag.Def, ag.cfg.env); profundidade == 0 && o.Modo != ModoRouter && !ag.Mock {
+			col.passo(rel, "modo", o.Modo)
+			return ag.orquestrar(ctx, col, o, mensagem, historico)
+		}
 		if profundidade >= ProfundidadeMax {
 			col.passo(rel, "aviso", fmt.Sprintf("profundidade %d atingida; respondo como self", profundidade))
 		} else {
@@ -590,22 +602,7 @@ func (ag *Agente) entregar(ctx context.Context, mensagem string, sub *Agente, re
 		return resultado, uso, nil
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Você é o agente %q, quem fala com o morador pelo WhatsApp em nome da administração do condomínio.\n\n# Persona\n\n%s\n", ag.Def.Nome, strings.TrimSpace(okf.StripFrontmatter(ag.Def.Persona)))
-	if pol := ag.Cat.Politicas(ag.Def); pol != "" {
-		b.WriteString("\n# Políticas\n\n" + pol + "\n")
-	}
-	// assets do orquestrador (rodapés, templates): o texto, nunca o caminho
-	if assets := ag.Def.Arquivos["assets"]; len(assets) > 0 {
-		b.WriteString("\n# Assets (quando a persona mandar usar um, use o TEXTO dele, nunca o caminho)\n")
-		for _, f := range assets {
-			if f.Bytes > 4096 {
-				continue
-			}
-			if raw, err := ag.Cat.Ler(ag.Def, f); err == nil {
-				fmt.Fprintf(&b, "\n## %s\n%s\n", f.Caminho, strings.TrimSpace(string(raw)))
-			}
-		}
-	}
+	b.WriteString(ag.preambuloPersona())
 	turno := "Esta é a PRIMEIRA mensagem da conversa: pode se apresentar em uma linha."
 	if continuacao {
 		turno = "A conversa já começou: NÃO cumprimente nem se apresente de novo; vá direto ao ponto."
@@ -621,6 +618,51 @@ func (ag *Agente) entregar(ctx context.Context, mensagem string, sub *Agente, re
 	}
 	uso.registra(m)
 	return strings.TrimSpace(m.Content), uso, nil
+}
+
+// Redigir escreve ao morador, na persona do orquestrador, a partir de um conteúdo já
+// decidido em código (o motor de pedidos): a tarefa diz o que preservar. No Mock
+// devolve o conteúdo como veio.
+func (ag *Agente) Redigir(ctx context.Context, tarefa, conteudo string, continuacao bool) (string, Uso, error) {
+	var uso Uso
+	if ag.Mock || ag.modelo == nil {
+		return conteudo, uso, nil
+	}
+	var b strings.Builder
+	b.WriteString(ag.preambuloPersona())
+	turno := "Esta é a PRIMEIRA mensagem da conversa: pode se apresentar em uma linha."
+	if continuacao {
+		turno = "A conversa já começou: NÃO cumprimente nem se apresente de novo; vá direto ao ponto."
+	}
+	fmt.Fprintf(&b, "\n# Tarefa\n\n%s\n- curta, cordial, em português do Brasil, própria para WhatsApp, na persona acima;\n- %s\n- nada de JSON, chaves, nomes de campo, caminhos de arquivo nem termos internos;\n- não acrescente informação nem prometa nada além do conteúdo.\nResponda só com o texto da mensagem.", strings.TrimSpace(tarefa), turno)
+	m, err := ag.modelo.Generate(ctx, []*schema.Message{schema.SystemMessage(b.String()), schema.UserMessage(conteudo)})
+	if err != nil {
+		return "", uso, err
+	}
+	uso.registra(m)
+	return strings.TrimSpace(m.Content), uso, nil
+}
+
+// preambuloPersona abre o prompt de redação ao morador: quem fala, a persona, as
+// políticas e os assets do orquestrador (rodapés, templates: o texto, nunca o caminho).
+func (ag *Agente) preambuloPersona() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Você é o agente %q, quem fala com o morador pelo WhatsApp em nome da administração do condomínio.\n\n# Persona\n\n%s\n", ag.Def.Nome, strings.TrimSpace(okf.StripFrontmatter(ag.Def.Persona)))
+	if pol := ag.Cat.Politicas(ag.Def); pol != "" {
+		b.WriteString("\n# Políticas\n\n" + pol + "\n")
+	}
+	if assets := ag.Def.Arquivos["assets"]; len(assets) > 0 {
+		b.WriteString("\n# Assets (quando a persona mandar usar um, use o TEXTO dele, nunca o caminho)\n")
+		for _, f := range assets {
+			if f.Bytes > 4096 {
+				continue
+			}
+			if raw, err := ag.Cat.Ler(ag.Def, f); err == nil {
+				fmt.Fprintf(&b, "\n## %s\n%s\n", f.Caminho, strings.TrimSpace(string(raw)))
+			}
+		}
+	}
+	return b.String()
 }
 
 // semRotas tira do texto do roteador os itens que apontam para rotas excluídas (o

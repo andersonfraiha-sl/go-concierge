@@ -86,10 +86,14 @@ func (k *Keycloak) Token(ctx context.Context) (string, error) {
 // FromEnv monta o cliente a partir do ambiente. Sem MCP_URL devolve nil (sem MCP).
 //
 //	MCP_URL                  endpoint (ex.: http://127.0.0.1:3337/mcp/gruvi/bff)
-//	MCP_AUTH                 bearer | keycloak | none (vazio: bearer se houver MCP_BEARER_TOKEN,
+//	MCP_AUTH                 bearer | b2c | file | keycloak | none (vazio: bearer se houver MCP_BEARER_TOKEN,
 //	                         keycloak se houver MCP_KEYCLOAK_URL, senão none)
 //	MCP_BEARER_TOKEN         o token B2C do Keycloak (modo bearer)
 //	MCP_KEYCLOAK_URL, MCP_KEYCLOAK_CLIENT_ID, MCP_KEYCLOAK_CLIENT_SECRET   (modo keycloak)
+//	MCP_B2C_MOBILE (+ MCP_B2C_URL, MCP_B2C_BASIC, MCP_B2C_SMS_CODE, MCP_B2C_VALIDATION,
+//	                 MCP_B2C_FINGERPRINT, MCP_B2C_CLIENT_ID)                 (modo b2c: token de
+//	                 morador pelo fluxo SMS de dev, renovado pelo refresh_token; grava em MCP_TOKEN_FILE)
+//	MCP_TOKEN_FILE           modo file: lê o token corrente desse arquivo a cada requisição
 //	MCP_HOST_HEADER          Host a enviar (padrão: 127.0.0.1:porta fora de loopback)
 func FromEnv(get func(string) string) (*Client, string, error) {
 	endpoint := strings.TrimSpace(get("MCP_URL"))
@@ -120,10 +124,31 @@ func FromEnv(get func(string) string) (*Client, string, error) {
 		if _, err := tp.(*Keycloak).validar(); err != nil {
 			return nil, "", err
 		}
+	case "b2c":
+		b := &B2C{
+			BaseURL:     ou(get("MCP_B2C_URL"), "https://api.superlogica.com/spaces/v1"),
+			Basic:       ou(get("MCP_B2C_BASIC"), "Basic Z3J1dmktYXBwOg=="), // gruvi-app, sem segredo (client público)
+			Mobile:      strings.TrimSpace(get("MCP_B2C_MOBILE")),
+			SMSCode:     ou(get("MCP_B2C_SMS_CODE"), "999999"),
+			Validation:  ou(get("MCP_B2C_VALIDATION"), "dev"),
+			Fingerprint: ou(get("MCP_B2C_FINGERPRINT"), "go-concierge"),
+			ClientID:    ou(get("MCP_B2C_CLIENT_ID"), "app"),
+			File:        strings.TrimSpace(get("MCP_TOKEN_FILE")),
+		}
+		if err := b.validar(); err != nil {
+			return nil, "", err
+		}
+		tp = b
+	case "file":
+		f := strings.TrimSpace(get("MCP_TOKEN_FILE"))
+		if f == "" {
+			return nil, "", errors.New("MCP_AUTH=file exige MCP_TOKEN_FILE")
+		}
+		tp = Arquivo(f)
 	case "none":
 		tp = nil
 	default:
-		return nil, "", fmt.Errorf("MCP_AUTH desconhecido: %q (use bearer, keycloak ou none)", modo)
+		return nil, "", fmt.Errorf("MCP_AUTH desconhecido: %q (use bearer, b2c, file, keycloak ou none)", modo)
 	}
 	c := New(endpoint, tp)
 	c.HostHeader = strings.TrimSpace(get("MCP_HOST_HEADER"))
@@ -135,4 +160,11 @@ func (k *Keycloak) validar() (bool, error) {
 		return false, errors.New("MCP_AUTH=keycloak exige MCP_KEYCLOAK_URL e MCP_KEYCLOAK_CLIENT_ID")
 	}
 	return true, nil
+}
+
+func ou(v, padrao string) string {
+	if v = strings.TrimSpace(v); v != "" {
+		return v
+	}
+	return padrao
 }

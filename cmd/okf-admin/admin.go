@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go-concierge/internal/harness"
 	"io/fs"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"go-concierge/internal/admin"
+	"go-concierge/internal/harness"
 	"go-concierge/internal/okf"
 )
 
@@ -53,6 +54,18 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(raw)
 	})
+	mux.HandleFunc("GET /backdoor/orquestracao", func(w http.ResponseWriter, r *http.Request) {
+		raw, err := fs.ReadFile(s.web, "orquestracao.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(raw)
+	})
+	mux.HandleFunc("GET /api/admin/orquestracao", s.adminOrquestracao)
+	mux.HandleFunc("PUT /api/admin/orquestracao", s.adminSalvarOrquestracao)
 	mux.HandleFunc("GET /api/admin/estado", s.adminEstado)
 	mux.HandleFunc("PUT /api/admin/administradora", s.adminAdministradora)
 	mux.HandleFunc("DELETE /api/admin/administradora", s.adminRemoverAdministradora)
@@ -368,4 +381,82 @@ func slug(s string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-")
+}
+
+// ---- orquestração: router | planning | react, no agent.yaml do concierge ----
+
+func semAmbiente(string) string { return "" }
+
+// orquestracaoAtual lê o agent.yaml do concierge e devolve o que está no arquivo, o que
+// vale de fato (ORQUESTRACAO_MODO do ambiente vence) e se o ambiente está forçando.
+func (s *servidor) orquestracaoAtual() (map[string]any, error) {
+	dir, err := s.cat.ResolveAgente(s.atende.Agente)
+	if err != nil {
+		return nil, err
+	}
+	raiz, err := s.cat.Load(dir)
+	if err != nil {
+		return nil, err
+	}
+	arquivo := harness.OrquestracaoDe(raiz, semAmbiente)
+	efetivo := harness.OrquestracaoDe(raiz, os.Getenv)
+	ambiente := strings.ToLower(strings.TrimSpace(os.Getenv("ORQUESTRACAO_MODO")))
+	return map[string]any{
+		"agente":   s.atende.Agente,
+		"arquivo":  arquivo,
+		"efetivo":  efetivo,
+		"ambiente": ambiente,
+	}, nil
+}
+
+func (s *servidor) adminOrquestracao(w http.ResponseWriter, _ *http.Request) {
+	out, err := s.orquestracaoAtual()
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, out)
+}
+
+func (s *servidor) adminSalvarOrquestracao(w http.ResponseWriter, r *http.Request) {
+	var corpo harness.Orquestracao
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	corpo.Modo = strings.ToLower(strings.TrimSpace(corpo.Modo))
+	switch corpo.Modo {
+	case harness.ModoRouter, harness.ModoPlanning, harness.ModoReAct:
+	default:
+		writeErr(w, 400, errors.New("modo deve ser router, planning ou react"))
+		return
+	}
+	if corpo.BindConfidence < 0.5 || corpo.BindConfidence > 1 {
+		writeErr(w, 400, errors.New("bind_confidence deve ficar entre 0,5 e 1"))
+		return
+	}
+	if corpo.MaxItens < 1 || corpo.MaxItens > 10 {
+		writeErr(w, 400, errors.New("max_itens deve ficar entre 1 e 10"))
+		return
+	}
+	if corpo.MaxIteracoes < 1 || corpo.MaxIteracoes > 15 {
+		writeErr(w, 400, errors.New("max_iteracoes deve ficar entre 1 e 15"))
+		return
+	}
+	campos := map[string]any{"orquestracao": map[string]any{
+		"modo":            corpo.Modo,
+		"bind_confidence": corpo.BindConfidence,
+		"max_itens":       corpo.MaxItens,
+		"max_iteracoes":   corpo.MaxIteracoes,
+	}}
+	if err := s.cat.SalvarConfig(s.atende.Agente, campos); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	out, err := s.orquestracaoAtual()
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, out)
 }

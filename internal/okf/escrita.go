@@ -261,6 +261,14 @@ func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
 			cfg["recursos"] = l
 		}
 	}
+	// orquestracao: o modo do orquestrador e os ajustes dos modos ART (harness.OrquestracaoDe)
+	if v, ok := campos["orquestracao"]; ok {
+		if m, ok := v.(map[string]any); ok && len(m) > 0 {
+			cfg["orquestracao"] = m
+		} else {
+			delete(cfg, "orquestracao")
+		}
+	}
 	return gravarConfig(dir, cfg)
 }
 

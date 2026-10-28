@@ -19,6 +19,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,6 +37,7 @@ import (
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
+	"go-concierge/internal/pedidos"
 	"go-concierge/web"
 )
 
@@ -134,6 +137,11 @@ func main() {
 		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 	}
+	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
+	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {
+		s.atende.Pedidos = pedidos.NewArquivos(env.Ou("PEDIDOS_DIR", filepath.Join(cat.Root, "var", "pedidos")))
+		s.atende.ExtratorPedidos = harness.NovoExtratorPedidos(context.Background(), cfgHarness)
+	}
 
 	// Admin da administradora: mapeamento condomínio × casos de uso × payloads
 	s.admin = admin.NewStore(env.Ou("ADMIN_DIR", filepath.Join(cat.Root, "var", "admin")) + string(filepath.Separator) + "mapeamento.json")
@@ -158,6 +166,20 @@ func main() {
 	s.rotas(mux)
 	s.rotasAtende(mux)
 	s.rotasAdmin(mux)
+	if mcpCli != nil {
+		// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o
+		// repassa, para testar de fora (Inspector, curl) pela porta do concierge. O
+		// token NÃO é injetado: o cliente manda o seu Authorization.
+		if proxy, base, err := proxyMCP(mcpCli); err != nil {
+			log.Printf("okf-admin: proxy do MCP desligado: %v", err)
+		} else {
+			// por método: um "/mcp/" sem método conflitaria com o "GET /" da interface
+			for _, m := range []string{"GET", "POST", "DELETE", "OPTIONS"} {
+				mux.Handle(m+" /mcp/", proxy)
+			}
+			log.Printf("okf-admin: MCP exposto em http://%s%s (repassa a %s; Authorization do cliente)", *addr, mcpPath(mcpCli.URL), base)
+		}
+	}
 
 	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · modelo: %s · gruvi: %v · http://%s", cat.Root, account, s.nexus, s.provedor, s.gruviOK, *addr)
 	if *abrir {
@@ -167,6 +189,35 @@ func main() {
 		}()
 	}
 	log.Fatal(http.ListenAndServe(*addr, logar(mux)))
+}
+
+// proxyMCP repassa /mcp/... ao servidor MCP configurado (MCP_URL), com o Host que ele
+// exige. Só o caminho e o corpo passam; a autenticação é do cliente.
+func proxyMCP(c *mcp.Client) (http.Handler, string, error) {
+	u, err := url.Parse(c.URL)
+	if err != nil || u.Host == "" {
+		return nil, "", fmt.Errorf("MCP_URL inválida: %q", c.URL)
+	}
+	alvo := &url.URL{Scheme: u.Scheme, Host: u.Host}
+	host := c.HostHeader
+	if host == "" {
+		host = u.Host
+	}
+	rp := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(alvo)
+			pr.Out.Host = host
+		},
+		FlushInterval: -1, // Streamable HTTP responde em SSE
+	}
+	return rp, alvo.String(), nil
+}
+
+func mcpPath(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Path != "" {
+		return u.Path
+	}
+	return "/mcp/"
 }
 
 func (s *servidor) rotas(mux *http.ServeMux) {

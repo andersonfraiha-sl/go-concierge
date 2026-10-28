@@ -193,6 +193,84 @@ O provedor vem do `.env` com os mesmos nomes do sl-concierge: `LLM_MODE` (`gemin
 `openrouter` | `mock`), a chave correspondente e `MODEL_PLANNER` como modelo padrão
 quando o `agent.yaml` não diz. Sem chave, roda no modo mock.
 
+## Pedidos: o registro de trabalho por contato
+
+Cada pedido do morador vira um **Pedido** com protocolo próprio (`P-7K3Q9`), ligado a um
+caso de uso e aos parâmetros do `caso.yaml` dele. O estado é decidido **em código**, pelos
+parâmetros capturados e validados, nunca inferido do texto de uma resposta:
+
+```
+coletando → pronto → aguardando_confirmacao → executando → concluido
+         ↘ com_atendente (pendência levada ao humano) ↗      ↘ cancelado | falhou
+```
+
+A cada mensagem (`internal/atende/pedidos.go`):
+
+1. O **detector** (`harness.ExtratorPedidosLLM`, ou `pedidos.Regras` sem chave) diz só o que
+   a mensagem contém: pedidos novos, valores para pedidos abertos, sim/não a uma confirmação,
+   cancelamento, pedido de atendente e o "restante" (dúvida, conversa). O sim/não a uma
+   confirmação pendente é decidido em código por cima do modelo.
+2. O **motor** (`internal/pedidos/motor.go`) percorre os passos do `caso.yaml`: lista recursos,
+   escolhe (uma opção só entra sozinha; `reuse: always` reaproveita a unidade de pedidos
+   anteriores), coleta (valida data, número, telefone, opções, listas), confirma e executa
+   pela mesma permissão e guarda de escrita do harness (`InvocarRecurso`), com o sim explícito.
+   Perguntas repetidas contam as vezes e levam a razão da rejeição.
+3. O **restante** vai ao orquestrador em modo router. A resposta final é redigida na persona
+   a partir do que o motor devolveu, preservando protocolos, datas e as perguntas.
+4. Se o morador pede **atendente** (ou o concierge transfere), cada pedido pendente ganha um
+   **resumo** para o humano (o que quer, o que já foi capturado, o que falta e por quê, as
+   últimas falas) e vai a `com_atendente`. Na aba Transbordo do Console o atendente preenche
+   o que falta e clica "Confirmar e executar": o motor executa e o resultado vai ao morador.
+
+Onde ver: aba **Pedidos** do Console (ao lado de Memória): protocolo, caso, estado,
+parâmetros com origem, pergunta em aberto, confirmação, resultado e histórico. Os pedidos
+ficam em `okf/var/pedidos/<account>/<telefone>.json` (`PEDIDOS_DIR`); `PEDIDOS=off` desliga
+e a conversa volta a seguir só pelo orquestrador. API: `GET /api/pedidos?phone=`,
+`POST /api/pedidos/acao` (`preencher`, `cancelar`). Casos com passo `form` (formulário
+dinâmico) ficam registrados, mas seguem pelo subagente conversacional.
+
+Com os Pedidos ligados, os modos planning e react abaixo deixam de mandar: o motor de
+pedidos é a espinha dorsal, e o orquestrador atende só o que não é pedido.
+
+## Modos de orquestração: router, planning e react (ART)
+
+O orquestrador de primeiro nível decide **como** atende a mensagem. O padrão é o
+`router` de sempre (uma rota por mensagem, `routers/rotas.md`). Os outros dois trazem
+o *Automatic Reasoning and Tool-use*: o orquestrador raciocina sobre o pedido inteiro,
+vincula cada parte a um caso de uso ou a um recurso de leitura e executa, guardando o
+estado entre turnos.
+
+| Modo | Como decide | Quando usar |
+|---|---|---|
+| `router` | uma chamada barata escolhe UMA rota; o subagente atende; a persona entrega | pedidos de um item (padrão) |
+| `planning` | uma chamada monta o **TODO** inteiro (`itens` com `alvo` e `confianca`); os itens rodam em ordem; perguntas de escolha saem juntas, uma vez só; resposta consolidada no fim | mensagens com vários pedidos; menos idas e vindas |
+| `react` | loop **pensar → agir → observar** com checklist: uma ação por passo (`caso`, `recurso`, `perguntar`, `responder`, `encerrar`), observação de cada ação no passo seguinte | pedidos abertos, em que o próximo passo depende do resultado do anterior |
+
+Em `planning` e `react` o caso de uso roda **inline**: quando ele pergunta algo ao
+morador ("Para qual data?"), o plano **pausa** (`pendente` = o item) e a sessão guarda o
+plano; a próxima mensagem vai direto ao item pendente (`harness.Continuar`), sem
+re-rotear. Vínculo com `confianca` abaixo de `bind_confidence` vira pergunta de
+confirmação. Escrita nunca é vínculo direto: só pelo caso de uso, com o sim do morador
+(`Confirmado`). O `observador-sessao` nunca é candidato.
+
+```yaml
+# okf/agentes/concierge/agent.yaml
+orquestracao:
+  modo: planning          # router | planning | react  (ORQUESTRACAO_MODO no ambiente vence)
+  bind_confidence: 0.8    # abaixo disso o item vira pergunta ao morador
+  max_itens: 5
+  max_iteracoes: 6        # react: passos por turno; no limite, consolida o que há
+```
+
+Onde se controla: a guia **Orquestração** do Backdoor (http://127.0.0.1:8090/backdoor/orquestracao):
+escolha o modo e os ajustes e salve; grava o bloco acima no `agent.yaml` do concierge e vale
+a partir da próxima mensagem, sem reiniciar. `ORQUESTRACAO_MODO` no ambiente, quando definida,
+força o modo por cima da guia (ela avisa). Teste no Console: a aba Rota mostra o plano.
+
+No Console, a aba **Rota** mostra o modo, o plano (itens com status, alvo e resultado) e
+os passos `plano`/`item`; o `Turno` carrega `plano` e a sessão guarda `plano` enquanto
+houver item esperando o morador. Código: `internal/harness/plano.go`.
+
 ## Estrutura
 
 ```
@@ -209,6 +287,13 @@ ATENDE, sessão com pendências, catálogo de casos de uso YAML, Admin da admini
 
 ## Catálogo MCP oficial e Docker
 
+O servidor MCP não publica porta (só escuta em loopback, no namespace de rede do
+concierge). Para testar de fora, o concierge repassa `/mcp/...` a ele:
+`http://127.0.0.1:8090/mcp/gruvi/bff` (Streamable HTTP; mande o seu
+`Authorization: Bearer <token B2C>`, o repasse não injeta o token do `.env`). Sem token
+o MCP responde 401. No MCP Inspector, transporte *Streamable HTTP* com essa URL e o
+header de autorização.
+
 O servidor MCP da Superlógica (entrega `mcp-catalog-agent`, vendorado em `mcp/`) transforma as
 OpenAPIs do BFF do Gruvi, `building-operation.json` e `mobile.json`, em tools MCP com nome
 `gruvi.bff.<módulo>.<operação>`, no endpoint `/mcp/gruvi/bff`. O concierge usa esse catálogo
@@ -218,12 +303,26 @@ account (classe `api`, privados, escrita pela anotação `readOnlyHint` ou pelo 
 `agent.yaml`, como qualquer recurso; o Backdoor marca cada uma com **MCP**.
 
 Autenticação (o "mecanismo com Keycloak" da entrega): o servidor roda em `request_bearer`, ou
-seja, exige em cada requisição o token B2C do Keycloak e o repassa ao BFF. No concierge:
-`MCP_AUTH=bearer` com `MCP_BEARER_TOKEN` igual ao `B2C_CLIENT_KEYCLOAK_TOKEN` do `mcp/.env`
-(o token expira: troque nos dois), ou `MCP_AUTH=keycloak` com `MCP_KEYCLOAK_URL`,
-`MCP_KEYCLOAK_CLIENT_ID` e `MCP_KEYCLOAK_CLIENT_SECRET` para um token de serviço por
-`client_credentials`, quando o servidor aceitar esse token. O servidor só aceita o header
-`Host` em loopback; o cliente envia `127.0.0.1:3337` mesmo chegando pelo nome do serviço.
+seja, exige em cada requisição o token B2C de **morador** (Keycloak `persons`) e o repassa ao
+BFF. Esse token dura **5 minutos**, e a POC o "pina" na subida (compara o hash e confere o
+`exp`), o que a tornaria inutilizável. Por isso:
+
+- **`MCP_AUTH=b2c`** (padrão): o concierge obtém o token pelo fluxo SMS de dev do Spaces
+  (`POST /auth/sms` com `validation=dev` → `session_id`; `POST /auth/token` com
+  `grant_type=password`, `sms_code=999999`), renova pelo `refresh_token` (60 dias) 45 s antes
+  de vencer e grava o token corrente em `MCP_TOKEN_FILE` (`okf/var/b2c.token`, ignorado pelo
+  git). Configura-se só `MCP_B2C_MOBILE` (telefone de teste); URL, Basic do app, código e
+  fingerprint têm padrão.
+- O servidor MCP, com `B2C_TOKEN_FILE` (compose), **lê esse arquivo a cada verificação** em
+  vez de pinar um token (ajuste de uma função em `mcp/src/mcp-building-operation-fastmcp-server.ts`,
+  `createFileTokenVerifier`, opt-in pela variável). Concierge e MCP carregam sempre o mesmo token.
+- `MCP_AUTH=file` lê o token corrente de `MCP_TOKEN_FILE` gravado por outro processo;
+  `bearer` usa um token fixo (`MCP_BEARER_TOKEN`); `keycloak` pede um token de serviço por
+  `client_credentials`, quando o servidor aceitar esse token.
+
+O servidor só aceita o header `Host` em loopback; o cliente envia `127.0.0.1:3337` mesmo
+chegando pelo nome do serviço. Para testar o MCP de fora pelo repasse `/mcp/gruvi/bff`, use
+o token corrente de `okf/var/b2c.token` no `Authorization: Bearer` (ele troca a cada 5 min).
 
 ```bash
 cp mcp/.env.example mcp/.env   # ou o .env da entrega, com as credenciais
@@ -237,8 +336,7 @@ só escuta em loopback, por isso o `mcp` roda na rede do contêiner `concierge` 
 (porta 3337) não fica acessível do host; para usá-lo, rode o MCP local com
 `cd mcp && npm ci && npm run start:mcp:catalog-agent`.
 
-**Token expirado?** O servidor recusa tudo com 401 e o concierge registra "catálogo indisponível
-(não autorizado)", seguindo só com o Nexus ou o instantâneo. Para inspecionar o catálogo sem um
-token válido (só `tools/list`; as chamadas ao BFF falham), use um token de teste sem expiração
-nos dois lados: `B2C_CLIENT_KEYCLOAK_TOKEN=a.e30.b` no `mcp/.env` e `MCP_BEARER_TOKEN=a.e30.b`
-no `.env` (o verificador da POC compara o token fixado e só olha o `exp` quando ele existe).
+**401 do MCP?** O concierge registra "catálogo indisponível (não autorizado)" e segue só com o
+Nexus ou o instantâneo. Causas: `MCP_B2C_MOBILE` sem acesso (o `/auth/token` falha), o
+`mcp` recriado sem o volume `okf/var`, ou o `concierge` recriado sem recriar o `mcp` (ele mora
+no namespace de rede do concierge: `docker compose up -d --build` recria os dois).

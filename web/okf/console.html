@@ -65,11 +65,13 @@
         <button class="guia is-active" data-aba="rota">Rota</button>
         <button class="guia" data-aba="transbordo">Transbordo <span class="badge" id="badgeTransbordo" hidden>!</span></button>
         <button class="guia" data-aba="memoria">Memória</button>
+        <button class="guia" data-aba="pedidos">Pedidos <span class="badge aviso" id="badgePedidos" hidden>0</span></button>
       </nav>
       <div class="aba-conteudo" id="abaRota"><div class="empty-state"><i data-lucide="route"></i>A rota da última resposta aparece aqui: orquestrador → subagente, tools chamadas, tokens.</div></div>
       <div class="aba-conteudo" id="abaTransbordo" hidden>
         <p class="notice info"><i data-lucide="life-buoy"></i>Quando o concierge não resolve, ele transfere o protocolo a um atendente humano (ou o atendente assume por conta própria). Daqui em diante o concierge cala e o atendente responde ao morador por este mesmo canal, até devolver.</p>
         <div id="transbordoEstado"></div>
+        <div id="transbordoPedidos"></div>
         <form id="formAtendente" class="transbordo-form" hidden>
           <div class="form-row"><label>Atendente</label><input class="field-input" name="atendente" value="Atendente" placeholder="seu nome"></div>
           <div class="form-row"><label>Responder ao morador</label><textarea class="field-area" name="texto" rows="3" placeholder="Oi, aqui é a Ana da administração. Vou cuidar disso pra você…"></textarea></div>
@@ -77,6 +79,7 @@
         </form>
       </div>
       <div class="aba-conteudo" id="abaMemoria" hidden><p class="notice info"><i data-lucide="brain"></i>A memória relacional deste telefone: fatos duráveis que o morador afirmou sobre si, capturados a cada troca e levados ao prompt de toda a família na conversa seguinte. Comum a todos os agentes.</p><div id="memoriaTabela"></div></div>
+      <div class="aba-conteudo" id="abaPedidos" hidden><p class="notice info"><i data-lucide="clipboard-list"></i>Os pedidos deste telefone, de todas as conversas: cada um é um caso de uso com protocolo próprio e os parâmetros do <code>caso.yaml</code>. O estado vem dos parâmetros capturados e validados (não do texto): coletando → pronto → aguardando confirmação → executando → concluído. Pendências sem resposta vão ao atendente com o resumo do contexto.</p><div id="pedidosLista"></div></div>
     </section>
   </div>
 

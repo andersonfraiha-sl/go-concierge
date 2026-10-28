@@ -37,6 +37,8 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/atende/saidas", s.atendeSaidas)
 	mux.HandleFunc("POST /api/atende/transbordo", s.atendeTransbordo)
 	mux.HandleFunc("GET /api/atende/identidade", s.atendeIdentidade)
+	mux.HandleFunc("GET /api/pedidos", s.pedidosLer)
+	mux.HandleFunc("POST /api/pedidos/acao", s.pedidosAcao)
 	mux.HandleFunc("GET /api/memoria", s.memoriaLer)
 	mux.HandleFunc("DELETE /api/memoria", s.memoriaEsquecer)
 	mux.HandleFunc("GET /api/memorias", s.memoriasListar)
@@ -214,4 +216,61 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"configurado": true, "identidade": id})
+}
+
+// ---- pedidos: o registro por contato e as ações do atendente ----
+
+func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
+	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	if phone == "" {
+		writeErr(w, 400, errTelefone)
+		return
+	}
+	if s.atende.Pedidos == nil {
+		writeJSON(w, 200, map[string]any{"ligado": false})
+		return
+	}
+	cart, slots, err := s.atende.Carteira(r.Context(), phone)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ligado": true, "carteira": cart, "slots": slots})
+}
+
+func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Acao      string         `json:"acao"` // preencher | cancelar
+		Protocolo string         `json:"protocolo"`
+		Pedido    string         `json:"pedido"`
+		Phone     string         `json:"phone"`
+		Atendente string         `json:"atendente"`
+		Valores   map[string]any `json:"valores"`
+		Confirmar bool           `json:"confirmar"`
+		Motivo    string         `json:"motivo"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	switch corpo.Acao {
+	case "preencher":
+		sess, p, saida, err := s.atende.PreencherPedido(ctx, corpo.Protocolo, corpo.Pedido, corpo.Atendente, corpo.Valores, corpo.Confirmar)
+		if err != nil {
+			writeErr(w, 400, err)
+			return
+		}
+		writeJSON(w, 200, map[string]any{"pedido": p, "saida": saida, "sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})
+	case "cancelar":
+		p, err := s.atende.CancelarPedido(ctx, corpo.Phone, corpo.Pedido, corpo.Atendente, corpo.Motivo)
+		if err != nil {
+			writeErr(w, 400, err)
+			return
+		}
+		writeJSON(w, 200, map[string]any{"pedido": p})
+	default:
+		writeErr(w, 400, errors.New("acao: preencher | cancelar"))
+	}
 }

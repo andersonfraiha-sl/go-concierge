@@ -8,6 +8,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/okf"
+	"go-concierge/internal/pedidos"
 )
 
 // Sender entrega a resposta do concierge ao protocolo do ATENDE.
@@ -138,6 +140,10 @@ type Servico struct {
 	// Mapeamento é o Admin da administradora (nil = tudo habilitado, sem payloads):
 	// resolve o condomínio da conversa, filtra os casos de uso e injeta os payloads.
 	Mapeamento *admin.Store
+	// Pedidos é o registro de pedidos por contato (nil = desligado: a conversa segue só
+	// pelo orquestrador). ExtratorPedidos detecta os pedidos na mensagem (nil = Regras).
+	Pedidos         pedidos.Store
+	ExtratorPedidos pedidos.Extrator
 }
 
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
@@ -164,8 +170,76 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		}
 	}
 
-	cfg := s.Config
-	cfg.Sessao = ev.Data.Protocol.Number
+	cfg, mem, dir, err := s.montar(ctx, sess)
+	if err != nil {
+		return sess, err
+	}
+	def, err := s.Cat.Load(dir)
+	if err != nil {
+		return sess, err
+	}
+	if s.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.Timeout)
+		defer cancel()
+	}
+	ag, err := harness.Build(ctx, s.Cat, def, cfg)
+	if err != nil {
+		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+		return sess, err
+	}
+	var res *harness.Resultado
+	var pedidosTurno []PedidoTurno
+	if s.Pedidos != nil {
+		res, pedidosTurno, err = s.turnoComPedidos(ctx, sess, ag, texto)
+	} else if sess.Plano != nil && sess.Plano.Pendente != "" {
+		// um item do plano perguntou algo ao morador: a resposta vai direto a ele
+		res, err = harness.Continuar(ctx, ag, sess.Plano, texto, sess.historico)
+	} else {
+		res, err = harness.Run(ctx, ag, texto, sess.historico)
+	}
+	if err != nil {
+		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+		return sess, err
+	}
+	sess.historico = res.Mensagens
+	sess.Plano = nil
+	if res.Plano != nil && res.Plano.Pendente != "" {
+		sess.Plano = res.Plano
+	}
+	uso := res.Uso
+	turno := Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo, Plano: res.Plano, Pedidos: pedidosTurno}
+	idx := sess.registrar(turno)
+	if s.Sender != nil && res.Resposta != "" {
+		if err := s.Sender.Enviar(ctx, sess.Protocolo, res.Resposta); err != nil {
+			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+			return sess, err
+		}
+	}
+	// a memória relacional é extraída depois de responder (fora do caminho crítico): o
+	// morador não espera a chamada extra ao modelo; o turno recebe os fatos quando saírem
+	if s.Memorias != nil {
+		extracoes.Add(1)
+		memCopia := mem
+		go func() {
+			defer extracoes.Done()
+			ctxMem, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			fatos := s.lembrar(ctxMem, &memCopia, sess, texto, res.Resposta)
+			sess.anotarMemorias(idx, fatos)
+		}()
+	}
+	if res.Transbordo != "" {
+		s.transbordar(sess, res.Transbordo, "concierge", "")
+	}
+	return sess, nil
+}
+
+// montar prepara a Config do harness para a sessão (identidade, Admin do condomínio,
+// data e hora, unidades, memória) e devolve a memória lida e a pasta do agente.
+func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
+	cfg = s.Config
+	cfg.Sessao = sess.Protocolo
 	cfg.Identidade = harness.Identidade{Authenticated: sess.Identidade.Authenticated, AccountID: s.Account, Role: sess.Identidade.Role}
 
 	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
@@ -173,7 +247,7 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	var contexto []string
 	if s.Mapeamento != nil {
 		if m, err := s.Mapeamento.Ler(); err == nil {
-			condo, ok := m.Resolver(sess.Identidade.CompanyID, ev.Tenant, s.Account)
+			condo, ok := m.Resolver(sess.Identidade.CompanyID, sess.Tenant, s.Account)
 			condoID := admin.Padrao
 			if ok {
 				condoID = condo.ID
@@ -243,11 +317,10 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	}
 
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
-	var mem memoria.Memoria
 	if s.Memorias != nil {
-		m, err := s.Memorias.Ler(ctx, s.Account, ev.Data.Contact.Phone)
+		m, err := s.Memorias.Ler(ctx, s.Account, sess.Contato.Phone)
 		if err != nil && s.Log != nil {
-			s.Log.Printf("atende: memória de %s: %v", ev.Data.Contact.Phone, err)
+			s.Log.Printf("atende: memória de %s: %v", sess.Contato.Phone, err)
 		}
 		mem = m
 		if c := harness.ContextoDeMemoria(mem); c != "" {
@@ -255,56 +328,38 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		}
 	}
 	cfg.Contexto = strings.Join(contexto, "\n\n")
-	dir, err := s.Cat.ResolveAgente(s.Agente)
+	dir, err = s.Cat.ResolveAgente(s.Agente)
 	if err != nil {
-		return sess, err
+		return cfg, mem, "", err
+	}
+	if s.Pedidos != nil {
+		// com o registro de pedidos ligado, o orquestrador só atende o que não é pedido:
+		// sempre em modo router (planning/react viram o motor de pedidos)
+		base := cfg.Env
+		cfg.Env = func(k string) string {
+			if k == "ORQUESTRACAO_MODO" {
+				return harness.ModoRouter
+			}
+			if base != nil {
+				return base(k)
+			}
+			return os.Getenv(k)
+		}
+	}
+	return cfg, mem, dir, nil
+}
+
+// agenteDaSessao constrói a família de agentes para a sessão (ações do atendente).
+func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Agente, error) {
+	cfg, _, dir, err := s.montar(ctx, sess)
+	if err != nil {
+		return nil, err
 	}
 	def, err := s.Cat.Load(dir)
 	if err != nil {
-		return sess, err
+		return nil, err
 	}
-	if s.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, s.Timeout)
-		defer cancel()
-	}
-	ag, err := harness.Build(ctx, s.Cat, def, cfg)
-	if err != nil {
-		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
-		return sess, err
-	}
-	res, err := harness.Run(ctx, ag, texto, sess.historico)
-	if err != nil {
-		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
-		return sess, err
-	}
-	sess.historico = res.Mensagens
-	uso := res.Uso
-	turno := Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo}
-	idx := sess.registrar(turno)
-	if s.Sender != nil && res.Resposta != "" {
-		if err := s.Sender.Enviar(ctx, sess.Protocolo, res.Resposta); err != nil {
-			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
-			return sess, err
-		}
-	}
-	// a memória relacional é extraída depois de responder (fora do caminho crítico): o
-	// morador não espera a chamada extra ao modelo; o turno recebe os fatos quando saírem
-	if s.Memorias != nil {
-		extracoes.Add(1)
-		memCopia := mem
-		go func() {
-			defer extracoes.Done()
-			ctxMem, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			defer cancel()
-			fatos := s.lembrar(ctxMem, &memCopia, sess, texto, res.Resposta)
-			sess.anotarMemorias(idx, fatos)
-		}()
-	}
-	if res.Transbordo != "" {
-		s.transbordar(sess, res.Transbordo, "concierge", "")
-	}
-	return sess, nil
+	return harness.Build(ctx, s.Cat, def, cfg)
 }
 
 // transbordar passa o protocolo ao atendente humano.
