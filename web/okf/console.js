@@ -249,6 +249,10 @@
     const peds = [...(r.carteira.pedidos || [])].reverse();
     const abertos = peds.filter((p) => !['concluido', 'cancelado', 'falhou'].includes(p.estado)).length;
     $('#badgePedidos').hidden = !abertos; $('#badgePedidos').textContent = abertos;
+    const tel = encodeURIComponent($('#formContato').phone.value.trim());
+    $('#btnExportarCsv').href = '/api/pedidos/exportar?formato=csv&phone=' + tel;
+    $('#btnExportarJson').href = '/api/pedidos/exportar?formato=json&phone=' + tel;
+    $('#pedidosResumo').textContent = peds.length ? `${peds.length} pedido(s) · ${abertos} em aberto · telefone ${$('#formContato').phone.value.trim()}` : '';
     if (!peds.length) { el.innerHTML = '<div class="empty-state"><i data-lucide="clipboard-list"></i>nenhum pedido deste telefone ainda</div>'; icons(); return; }
     const quando = (d) => (d ? new Date(d).toLocaleString('pt-BR') : '—');
     el.innerHTML = peds.map((p) => {

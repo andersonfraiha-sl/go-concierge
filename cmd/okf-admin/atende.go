@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 
 	"go-concierge/internal/atende"
 	"go-concierge/internal/memoria"
+	"go-concierge/internal/pedidos"
 )
 
 // Canal ATENDE: o webhook que recebe os eventos, e a API do Console (emulador):
@@ -39,6 +42,7 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/atende/identidade", s.atendeIdentidade)
 	mux.HandleFunc("GET /api/pedidos", s.pedidosLer)
 	mux.HandleFunc("POST /api/pedidos/acao", s.pedidosAcao)
+	mux.HandleFunc("GET /api/pedidos/exportar", s.pedidosExportar)
 	mux.HandleFunc("GET /api/memoria", s.memoriaLer)
 	mux.HandleFunc("DELETE /api/memoria", s.memoriaEsquecer)
 	mux.HandleFunc("GET /api/memorias", s.memoriasListar)
@@ -273,4 +277,64 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeErr(w, 400, errors.New("acao: preencher | cancelar"))
 	}
+}
+
+// pedidosExportar baixa a carteira do telefone: JSON (completo, com histórico) ou CSV
+// (uma linha por pedido, para planilha).
+func (s *servidor) pedidosExportar(w http.ResponseWriter, r *http.Request) {
+	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+	if phone == "" {
+		writeErr(w, 400, errTelefone)
+		return
+	}
+	if s.atende.Pedidos == nil {
+		writeErr(w, 400, errors.New("registro de pedidos desligado"))
+		return
+	}
+	cart, slots, err := s.atende.Carteira(r.Context(), phone)
+	if err != nil {
+		writeErr(w, 500, err)
+		return
+	}
+	nome := "pedidos-" + pedidos.NormalizarTelefone(phone) + "-" + time.Now().Format("20060102-1504")
+	if strings.EqualFold(r.URL.Query().Get("formato"), "csv") {
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+nome+".csv\"")
+		w.Write([]byte("\xEF\xBB\xBF")) // BOM: o Excel abre em UTF-8
+		cw := csv.NewWriter(w)
+		cw.Comma = ';'
+		cw.Write([]string{"protocolo", "caso", "estado", "criado_em", "atualizado_em", "parametros", "faltando", "pergunta_em_aberto", "confirmacao", "resultado", "protocolo_recurso", "erro", "protocolo_atende"})
+		for _, p := range cart.Pedidos {
+			var params, faltam []string
+			for _, sl := range slots[p.Caso] {
+				if _, ok := p.Valores[sl.Nome]; ok {
+					params = append(params, sl.Nome+"="+p.Rotulos[sl.Nome]+" ("+p.Origens[sl.Nome]+")")
+				} else if sl.Obrigatorio && p.Aberto() {
+					faltam = append(faltam, sl.Titulo)
+				}
+			}
+			pergunta, confirmacao, resultado, protRec := "", "", "", ""
+			if p.Pendencia != nil {
+				pergunta = fmt.Sprintf("%s (%dx)", p.Pendencia.Pergunta, p.Pendencia.Vezes)
+			}
+			if p.Confirmacao != nil {
+				confirmacao = p.Confirmacao.Texto
+				if p.Confirmacao.Resposta != "" {
+					confirmacao += " -> " + p.Confirmacao.Resposta + " (" + p.Confirmacao.Por + ")"
+				}
+			}
+			if p.Resultado != nil {
+				resultado, protRec = p.Resultado.Texto, p.Resultado.Protocolo
+			}
+			cw.Write([]string{p.Protocolo, p.CasoNome, p.Estado, p.CriadoEm.Format(time.RFC3339), p.AtualizadoEm.Format(time.RFC3339),
+				strings.Join(params, " | "), strings.Join(faltam, " | "), pergunta, confirmacao, resultado, protRec, p.Erro, p.Origem.ProtocoloAtende})
+		}
+		cw.Flush()
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+nome+".json\"")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	enc.Encode(map[string]any{"exportado_em": time.Now(), "carteira": cart, "slots": slots})
 }
