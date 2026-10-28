@@ -3,42 +3,45 @@
 #
 #   docker compose up -d --build
 #   Admin/Console/Backdoor: http://127.0.0.1:8090
-#   (o concierge compartilha a rede do mcp, porque a POC do MCP só escuta em loopback)
+#   (o mcp roda na rede do concierge, porque a POC do MCP só escuta em loopback)
 #
 # Credenciais: mcp/.env é o .env da entrega (B2C_CLIENT_KEYCLOAK_TOKEN, BFF, LLM gateway);
 # o .env da raiz tem as do concierge (LLM, Gruvi, ATENDE) e MCP_BEARER_TOKEN, que precisa
 # ser o MESMO token B2C do mcp/.env enquanto o servidor estiver em request_bearer.
 services:
+  # O front (Admin, Console, Backdoor) é servido pelo próprio concierge: web/okf vai embutido
+  # no binário e, aqui, também montado do repositório (-web), para editar sem rebuild.
+  concierge:
+    build: .
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      MCP_URL: ${MCP_URL:-http://127.0.0.1:3337/mcp/gruvi/bff}
+      MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:-}
+      DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
+    command: ["-root", "/app/okf", "-addr", "0.0.0.0:8090", "-env", "/app/.env", "-web", "/app/web"]
+    volumes:
+      # o catálogo editado pelo Admin fica no repositório (agentes, instantâneo, var/)
+      - ./okf:/app/okf
+      # o front, servido do disco: mexeu em web/okf, é só recarregar a página
+      - ./web/okf:/app/web:ro
+    ports:
+      - "${CONCIERGE_PORT:-8090}:8090"
+    restart: unless-stopped
+
+  # Servidor MCP da entrega. A POC só escuta em loopback, então ele roda NA REDE do concierge
+  # (network_mode): o concierge o alcança em 127.0.0.1:3337. A porta 3337 não é publicada;
+  # para o Explorer, rode o MCP local: cd mcp && npm ci && npm run start:mcp:catalog-agent
   mcp:
     build: ./mcp
     env_file:
       - path: ./mcp/.env
         required: false
     environment:
-      # a POC só escuta em loopback: o concierge compartilha a rede deste contêiner
-      # (network_mode abaixo) e o alcança em 127.0.0.1:3337, como a entrega espera
       MCP_CATALOG_AGENT_MCP_HOST: 127.0.0.1
       MCP_CATALOG_AGENT_MCP_PORT: "3337"
-    ports:
-      # só o concierge: o MCP escuta em loopback DENTRO do contêiner, então a porta 3337 não
-      # é alcançável do host (para o Explorer, rode o MCP local: cd mcp && npm run start:mcp:catalog-agent)
-      - "${CONCIERGE_PORT:-8090}:8090"
-    restart: unless-stopped
-
-  concierge:
-    build: .
-    env_file:
-      - path: ./.env
-        required: false
-    # mesma pilha de rede do mcp: o MCP fica em 127.0.0.1:3337 e as portas são publicadas lá
-    network_mode: "service:mcp"
-    environment:
-      MCP_URL: ${MCP_URL:-http://127.0.0.1:3337/mcp/gruvi/bff}
-      MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:-}
-      DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
-    volumes:
-      # o catálogo editado pelo Admin fica no repositório (agentes, instantâneo, var/)
-      - ./okf:/app/okf
+    network_mode: "service:concierge"
     depends_on:
-      - mcp
+      - concierge
     restart: unless-stopped

@@ -231,9 +231,11 @@ docker compose up -d --build   # mcp (Node 24, porta 3337) + concierge (Go, port
 ```
 
 Admin, Console e Backdoor em http://127.0.0.1:8090. O catálogo (`okf/`) é montado do repositório,
-então o Admin edita os arquivos de verdade. A POC do MCP só escuta em loopback, por isso o
-concierge compartilha a rede do contêiner `mcp` e o Explorer (porta 3337) não fica acessível do
-host; para usá-lo, rode o MCP local com `cd mcp && npm ci && npm run start:mcp:catalog-agent`.
+então o Admin edita os arquivos de verdade; `web/okf` também é montado (`-web`), então o front
+se edita sem rebuild. O front não tem contêiner próprio: é o concierge que o serve. A POC do MCP
+só escuta em loopback, por isso o `mcp` roda na rede do contêiner `concierge` e o Explorer
+(porta 3337) não fica acessível do host; para usá-lo, rode o MCP local com
+`cd mcp && npm ci && npm run start:mcp:catalog-agent`.
 
 **Token expirado?** O servidor recusa tudo com 401 e o concierge registra "catálogo indisponível
 (não autorizado)", seguindo só com o Nexus ou o instantâneo. Para inspecionar o catálogo sem um
