@@ -260,7 +260,17 @@
   async function carregarSessoes() {
     try {
       const r = await api('/api/atende/sessoes');
-      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.protocolo === estado.protocolo ? 'is-on' : ''}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
+      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.protocolo === estado.protocolo ? 'is-on' : ''}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.protocolo)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
+      // lixeira: apaga a conversa no servidor; se era a aberta, começa uma nova
+      $$('#sessoes .sub-del').forEach((b) => b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const p = b.dataset.del;
+        try {
+          await api('/api/atende/sessao?protocolo=' + encodeURIComponent(p), { method: 'DELETE' });
+          toast('conversa ' + p + ' excluída');
+          if (p === estado.protocolo) novaConversa(); else carregarSessoes();
+        } catch (err) { toast(err.message, true); }
+      }));
       $$('#sessoes .sub').forEach((d) => d.addEventListener('click', async () => {
         const f = $('#formContato');
         estado.protocolo = d.dataset.p; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant;
@@ -292,6 +302,13 @@
   $('#texto').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#formMensagem').requestSubmit(); } });
   $('#btnIdentificar').addEventListener('click', identificar);
   $('#btnNovaConversa').addEventListener('click', novaConversa);
+  // modal do emulador (ícone no canto superior direito)
+  const modal = $('#modalEmulador');
+  const abrirEmulador = () => { modal.hidden = false; icons(); $('#formContato').phone.focus(); };
+  const fecharEmulador = () => { modal.hidden = true; };
+  $('#btnEmulador').addEventListener('click', abrirEmulador);
+  $$('#modalEmulador [data-fechar]').forEach((el) => el.addEventListener('click', fecharEmulador));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) fecharEmulador(); });
   $('#btnReset').addEventListener('click', novaConversa);
   $$('.bastidores .guia').forEach((b) => b.addEventListener('click', () => {
     $$('.bastidores .guia').forEach((x) => x.classList.toggle('is-active', x === b));

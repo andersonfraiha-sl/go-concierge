@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=14">
+  <link rel="stylesheet" href="/styles.css?v=15">
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="admin console">
@@ -29,31 +29,15 @@
       <span class="chip" id="chipModelo"><span class="led"></span>modelo <b>…</b></span>
       <span class="chip" id="chipGruvi"><span class="led"></span>Gruvi <b>…</b></span>
       <span class="chip" id="chipNexus"><span class="led"></span>Nexus <b>…</b></span>
+      <button type="button" class="topbar-btn" id="btnEmulador" title="Emulador do ATENDE: contato, tenant e identidade" aria-haspopup="dialog" aria-controls="modalEmulador"><i data-lucide="radio-tower"></i></button>
     </div>
   </header>
 
   <div class="workspace">
-    <!-- esquerda: o contato que o ATENDE manda -->
+    <!-- esquerda: as conversas abertas neste servidor -->
     <aside class="panel side">
       <div class="block">
-        <div class="block-head"><h2>Emulador do ATENDE</h2><span class="block-sub">forja o evento <code>protocol.created</code> e manda ao webhook, como o ATENDE faria</span></div>
-        <form id="formContato" class="form-grid" style="grid-template-columns:1fr">
-          <div class="form-row"><label>Telefone do contato <small>vai no filter[mobile-number] do Gruvi</small></label><input class="field-input mono" name="phone" value="5519981621916" spellcheck="false"></div>
-          <div class="form-row"><label>Nome no WhatsApp</label><input class="field-input" name="name" value="Vanderlei Martins"></div>
-          <div class="form-row"><label>Tenant do ATENDE</label><input class="field-input mono" name="tenant" value="69a5a131e67bd8e2f54e5981" spellcheck="false"></div>
-          <div class="form-row"><label>Protocolo <small>novo a cada conversa</small></label><input class="field-input mono" name="protocolo" spellcheck="false"></div>
-          <div class="form-actions" style="justify-content:flex-start;gap:8px">
-            <button type="button" class="btn btn-ghost btn-sm" id="btnIdentificar"><i data-lucide="user-search" class="i-sm"></i>Identificar no Gruvi</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnNovaConversa"><i data-lucide="rotate-ccw" class="i-sm"></i>Nova conversa</button>
-          </div>
-        </form>
-      </div>
-      <div class="block">
-        <div class="block-head"><h2>Identidade</h2><span class="block-sub">o que o BFF do Gruvi devolve para o telefone</span></div>
-        <div id="identidade" class="empty-state" style="padding:12px"><i data-lucide="user-search"></i>Clique em “Identificar no Gruvi” ou envie uma mensagem.</div>
-      </div>
-      <div class="block">
-        <div class="block-head"><h2>Conversas</h2><span class="block-sub">protocolos abertos neste servidor</span></div>
+        <div class="block-head"><h2>Conversas</h2><span class="block-sub">protocolos abertos neste servidor · a lixeira apaga a conversa</span></div>
         <div id="sessoes" class="sub-list"></div>
       </div>
     </aside>
@@ -96,7 +80,32 @@
     </section>
   </div>
 
+  <!-- emulador do ATENDE: abre pelo ícone no canto superior direito -->
+  <div class="modal" id="modalEmulador" role="dialog" aria-modal="true" aria-labelledby="modalEmuladorTitulo" hidden>
+    <div class="modal-backdrop" data-fechar></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="block-head" style="margin:0"><h2 id="modalEmuladorTitulo">Emulador do ATENDE</h2><span class="block-sub">forja o evento <code>protocol.created</code> e manda ao webhook, como o ATENDE faria</span></div>
+        <button type="button" class="topbar-btn" title="Fechar" data-fechar><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="formContato" class="form-grid">
+          <div class="form-row"><label>Telefone do contato <small>vai no filter[mobile-number] do Gruvi</small></label><input class="field-input mono" name="phone" value="5519981621916" spellcheck="false"></div>
+          <div class="form-row"><label>Nome no WhatsApp</label><input class="field-input" name="name" value="Vanderlei Martins"></div>
+          <div class="form-row"><label>Tenant do ATENDE</label><input class="field-input mono" name="tenant" value="69a5a131e67bd8e2f54e5981" spellcheck="false"></div>
+          <div class="form-row"><label>Protocolo <small>novo a cada conversa</small></label><input class="field-input mono" name="protocolo" spellcheck="false"></div>
+          <div class="form-actions" style="grid-column:1/-1;justify-content:flex-start;gap:8px">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnIdentificar"><i data-lucide="user-search" class="i-sm"></i>Identificar no Gruvi</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnNovaConversa"><i data-lucide="rotate-ccw" class="i-sm"></i>Nova conversa</button>
+          </div>
+        </form>
+        <div class="block-head" style="margin:18px 0 10px"><h2>Identidade</h2><span class="block-sub">o que o BFF do Gruvi devolve para o telefone</span></div>
+        <div id="identidade" class="empty-state" style="padding:12px"><i data-lucide="user-search"></i>Clique em “Identificar no Gruvi” ou envie uma mensagem.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/console.js?v=6"></script>
+  <script src="/console.js?v=7"></script>
 </body>
 </html>

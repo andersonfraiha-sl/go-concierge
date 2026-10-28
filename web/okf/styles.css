@@ -596,3 +596,18 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .transbordo-form { display: grid; gap: 10px; }
 .phone.em-transbordo .phone-head { background: #6E4A00; }
 .guia .badge { margin-left: 4px; }
+
+/* console: botão do topo, modal do emulador e lixeira das conversas */
+.topbar-btn { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--slate-200); background: var(--surface); color: var(--slate-600); cursor: pointer; flex: none; }
+.topbar-btn:hover { border-color: var(--sl-blue-100); color: var(--sl-blue); background: var(--sl-blue-50); }
+.topbar-btn svg.lucide { width: 17px; height: 17px; }
+.modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; }
+.modal[hidden] { display: none; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(7, 25, 80, .45); backdrop-filter: blur(2px); }
+.modal-card { position: relative; width: min(680px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-md); animation: pop .18s ease-out; }
+.modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--slate-100); }
+.modal-body { padding: 16px 20px 20px; }
+.sub { grid-template-columns: 36px 1fr auto auto; }
+.sub .sub-del { grid-row: span 2; width: 30px; height: 30px; border-radius: 50%; border: 0; background: transparent; color: var(--slate-400); display: grid; place-items: center; cursor: pointer; }
+.sub .sub-del:hover { background: var(--danger-50); color: var(--danger); }
+.sub .sub-del svg.lucide { width: 15px; height: 15px; }
