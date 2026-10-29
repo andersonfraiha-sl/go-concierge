@@ -1,11 +1,5 @@
 // Package gruvi fala com a plataforma Gruvi (staging/produção) para identificar o
-// morador que chegou pelo ATENDE: um token OAuth client_credentials (Basic auth no
-// endpoint de token) e a consulta do BFF por telefone, que devolve o condomínio e as
-// unidades do contato.
-//
-//	POST {GRUVI_TOKEN_URL}  Authorization: Basic {GRUVI_CLIENT_BASIC}  grant_type=client_credentials
-//	GET  {GRUVI_BFF_URL}/building-operation/companies/{GRUVI_COMPANY_ID}?filter[mobile-number]={telefone}
-//	     Authorization: Bearer {access_token}
+// morador que chegou pelo ATENDE por meio de uma consulta ao BFF com token B2C.
 package gruvi
 
 import (
@@ -19,81 +13,38 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
 const (
-	TokenURLPadrao = "https://api.gruvi.app/staging/gruvi/v1/clients/auth/token"
-	BFFURLPadrao   = "https://api.gruvi.app/staging/bff/v2"
+	BFFURLPadrao = "https://b2c-nexus.superlogica.net/api/gruvi"
 )
 
-// Client guarda as credenciais e o token em cache.
-type Client struct {
-	TokenURL  string
-	BFFURL    string
-	Basic     string // base64 de client_id:client_secret (o valor do header Authorization: Basic …)
-	CompanyID string
-	HTTP      *http.Client
-
-	mu      sync.Mutex
-	token   string
-	expires time.Time
+type TokenProvider interface {
+	Token(context.Context) (string, error)
 }
 
-// New monta o cliente; valores vazios caem nos padrões de staging.
-func New(tokenURL, bffURL, basic, company string) *Client {
-	if tokenURL == "" {
-		tokenURL = TokenURLPadrao
-	}
+type Client struct {
+	BFFURL    string
+	Token     TokenProvider
+	CompanyID string
+	Telefone  string
+	HTTP      *http.Client
+}
+
+func New(bffURL, company, telefone string, token TokenProvider) *Client {
 	if bffURL == "" {
 		bffURL = BFFURLPadrao
 	}
-	return &Client{TokenURL: tokenURL, BFFURL: strings.TrimRight(bffURL, "/"), Basic: strings.TrimSpace(basic), CompanyID: strings.TrimSpace(company), HTTP: &http.Client{Timeout: 25 * time.Second}}
+	return &Client{BFFURL: strings.TrimRight(bffURL, "/"), Token: token, CompanyID: strings.TrimSpace(company), Telefone: strings.TrimSpace(telefone), HTTP: &http.Client{Timeout: 25 * time.Second}}
 }
 
-// Configurado diz se há credencial e company para consultar.
-func (c *Client) Configurado() bool { return c != nil && c.Basic != "" && c.CompanyID != "" }
+func (c *Client) Configurado() bool {
+	return c != nil && c.Token != nil && c.CompanyID != "" && c.Telefone != ""
+}
 
-// Token devolve o access_token (com cache até expirar).
-func (c *Client) Token(ctx context.Context) (string, error) {
-	if !c.Configurado() {
-		return "", errors.New("gruvi: GRUVI_CLIENT_BASIC e GRUVI_COMPANY_ID não configurados")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.token != "" && time.Now().Before(c.expires) {
-		return c.token, nil
-	}
-	form := url.Values{"grant_type": {"client_credentials"}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Basic "+c.Basic)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := c.HTTP.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("gruvi token: %w", err)
-	}
-	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("gruvi token: HTTP %d", res.StatusCode) // corpo omitido: pode ecoar credenciais
-	}
-	var tok struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
-	if json.Unmarshal(raw, &tok) != nil || tok.AccessToken == "" {
-		return "", errors.New("gruvi token: resposta sem access_token")
-	}
-	ttl := tok.ExpiresIn - 30
-	if ttl < 30 {
-		ttl = 30
-	}
-	c.token, c.expires = tok.AccessToken, time.Now().Add(time.Duration(ttl)*time.Second)
-	return c.token, nil
+func (c *Client) PermiteTelefone(phone string) bool {
+	return c.Configurado() && strings.TrimSpace(phone) != "" && NormalizarTelefone(phone) == NormalizarTelefone(c.Telefone)
 }
 
 // Unidade do morador no condomínio.
@@ -131,7 +82,13 @@ type Identidade struct {
 // Identidade consulta o BFF pelo telefone (API1 do contrato).
 func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, error) {
 	id := Identidade{Phone: phone, CompanyID: c.CompanyID, Units: []Unidade{}, Condominios: []Condominio{}}
-	tok, err := c.Token(ctx)
+	if !c.Configurado() {
+		return id, errors.New("gruvi: token B2C e GRUVI_COMPANY_ID não configurados")
+	}
+	if !c.PermiteTelefone(phone) {
+		return id, errors.New("gruvi: telefone diferente do morador configurado para o token B2C")
+	}
+	tok, err := c.Token.Token(ctx)
 	if err != nil {
 		return id, err
 	}

@@ -70,6 +70,8 @@
   // ---- envio e acompanhamento -------------------------------------------------
   async function enviar(texto) {
     if (!texto.trim()) return;
+    await configCarregada;
+    if (!$('#formContato').phone.value.trim()) { toast('Configure o telefone do contato no emulador.', true); return; }
     const primeira = !estado.sessao;
     const ev = montarEvento(texto.trim(), primeira);
     estado.ultimoEvento = ev;
@@ -390,6 +392,8 @@
     try {
       const c = await api('/api/atende/config');
       estado.config = c;
+      const contato = $('#formContato').phone;
+      if (!contato.value.trim() && c.telefone_b2c) contato.value = c.telefone_b2c;
       const set = (id, ok, txt, title) => { const el = $(id); el.querySelector('b').textContent = txt; el.classList.toggle('is-live', ok); el.classList.toggle('is-dev', !ok); el.title = title || ''; };
       set('#chipModelo', c.modelo_provedor !== 'mock', c.modelo_provedor, 'LLM_MODE do .env');
       set('#chipGruvi', c.gruvi.configurado, c.gruvi.configurado ? 'company ' + c.gruvi.company_id : 'não configurado', c.gruvi.bff_url);
@@ -417,7 +421,6 @@
 
   icons();
   novaConversa();
-  carregarConfig();
-  carregarMemoria();
-  carregarPedidos();
+  const configCarregada = carregarConfig();
+  configCarregada.then(() => { carregarMemoria(); carregarPedidos(); });
 })();

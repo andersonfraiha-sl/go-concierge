@@ -121,6 +121,10 @@ func (s *servidor) webhookAtende(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
+	if !s.atende.PermiteTelefone(ev.Data.Contact.Phone) {
+		writeErr(w, http.StatusForbidden, errors.New("telefone diferente do morador configurado para o token B2C"))
+		return
+	}
 	sess := s.atende.Sessoes.Abrir(ev)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
@@ -136,12 +140,13 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"agente":          s.atende.Agente,
 		"account":         s.account,
-		"gruvi":           map[string]any{"configurado": s.gruviOK, "token_url": s.gruviTokenURL, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
+		"gruvi":           map[string]any{"configurado": s.gruviOK, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
 		"webhook_token":   s.webhookToken != "",
 		"reply_url":       s.replyURL,
 		"reply_emulada":   s.replyEmulada,
 		"nexus_origem":    s.nexus,
 		"modelo_provedor": s.provedor,
+		"telefone_b2c":    s.atende.TelefoneB2C,
 	})
 }
 
@@ -209,7 +214,7 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.gruviOK {
-		writeJSON(w, 200, map[string]any{"configurado": false, "erro": "Gruvi não configurado (GRUVI_CLIENT_BASIC, GRUVI_COMPANY_ID no .env)"})
+		writeJSON(w, 200, map[string]any{"configurado": false, "erro": "Gruvi não configurado (MCP_AUTH=b2c, MCP_B2C_MOBILE, MCP_URL e GRUVI_COMPANY_ID no .env)"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)

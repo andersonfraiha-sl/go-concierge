@@ -128,6 +128,7 @@ type Servico struct {
 	Config      harness.Config
 	Account     string // account do Nexus para os recursos (DEFAULT_ACCOUNT_ID)
 	Gruvi       *gruvi.Client
+	TelefoneB2C string
 	Sender      Sender
 	Sessoes     *Sessoes
 	Timeout     time.Duration
@@ -149,6 +150,9 @@ type Servico struct {
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
 // sessão), roda o concierge com o histórico e envia a resposta.
 func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
+	if !s.PermiteTelefone(ev.Data.Contact.Phone) {
+		return nil, fmt.Errorf("telefone diferente do morador configurado para o token B2C")
+	}
 	sess := s.Sessoes.Abrir(ev)
 	texto := ev.Texto()
 	if texto == "" {
@@ -233,6 +237,10 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 		s.transbordar(sess, res.Transbordo, "concierge", "")
 	}
 	return sess, nil
+}
+
+func (s *Servico) PermiteTelefone(phone string) bool {
+	return s.TelefoneB2C == "" || strings.TrimSpace(phone) != "" && gruvi.NormalizarTelefone(phone) == gruvi.NormalizarTelefone(s.TelefoneB2C)
 }
 
 // montar prepara a Config do harness para a sessão (identidade, Admin do condomínio,
@@ -486,7 +494,7 @@ func (s *Servico) identificar(ctx context.Context, phone string) (gruvi.Identida
 		return id, ""
 	}
 	if s.Gruvi == nil || !s.Gruvi.Configurado() {
-		return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, "Gruvi não configurado (GRUVI_CLIENT_BASIC, GRUVI_COMPANY_ID): contato tratado como público"
+		return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, "Gruvi não configurado (token B2C e GRUVI_COMPANY_ID): contato tratado como público"
 	}
 	id, err := s.Gruvi.Identidade(ctx, phone)
 	if err != nil {

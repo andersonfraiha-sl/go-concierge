@@ -6,7 +6,7 @@
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
 // sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
-// A identidade do morador vem do Gruvi (GRUVI_CLIENT_BASIC, GRUVI_COMPANY_ID).
+// A identidade do morador vem do Gruvi com o token B2C configurado para o MCP.
 package main
 
 import (
@@ -49,20 +49,19 @@ type servidor struct {
 	log     *log.Logger
 
 	// canal ATENDE (webhook + emulador no Console)
-	atende        *atende.Servico
-	outbox        *atende.Outbox
-	gruvi         *gruvi.Client
-	gruviOK       bool
-	gruviTokenURL string
-	gruviBFF      string
-	gruviCompany  string
-	webhookToken  string
-	replyURL      string
-	replyEmulada  bool
-	emulador      *atende.Emulador
-	provedor      string
-	memorias      memoria.Store
-	admin         *admin.Store
+	atende       *atende.Servico
+	outbox       *atende.Outbox
+	gruvi        *gruvi.Client
+	gruviOK      bool
+	gruviBFF     string
+	gruviCompany string
+	webhookToken string
+	replyURL     string
+	replyEmulada bool
+	emulador     *atende.Emulador
+	provedor     string
+	memorias     memoria.Store
+	admin        *admin.Store
 }
 
 var (
@@ -113,8 +112,12 @@ func main() {
 	}
 
 	// canal ATENDE: identidade pelo Gruvi, concierge pelo harness, resposta pela caixa de saída
-	s.gruvi = gruvi.New(os.Getenv("GRUVI_TOKEN_URL"), os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_CLIENT_BASIC"), os.Getenv("GRUVI_COMPANY_ID"))
-	s.gruviOK, s.gruviTokenURL, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.TokenURL, s.gruvi.BFFURL, s.gruvi.CompanyID
+	var tokenGruvi gruvi.TokenProvider
+	if mcpCli != nil && mcpModo == "b2c" {
+		tokenGruvi = mcpCli.Token
+	}
+	s.gruvi = gruvi.New(os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_COMPANY_ID"), os.Getenv("MCP_B2C_MOBILE"), tokenGruvi)
+	s.gruviOK, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.BFFURL, s.gruvi.CompanyID
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
 	s.outbox = &atende.Outbox{}
@@ -136,6 +139,9 @@ func main() {
 		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
+	}
+	if mcpModo == "b2c" {
+		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
 	}
 	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {

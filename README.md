@@ -54,13 +54,16 @@ Duas regras duras, herdadas do harness Python `adam`:
 
 Em `/console`. O ATENDE manda um evento por webhook a cada mensagem do morador
 (`com.echo.atende.user.protocol.created`, com protocolo, contato, canal e mensagem); o
-concierge identifica o telefone no **Gruvi** (token client-credentials + BFF por
+concierge identifica o telefone no **Gruvi** (token B2C compartilhado com o MCP + BFF por
 `filter[mobile-number]`), roda o agente de primeiro nível e responde ao protocolo. O
 Console forja esse evento, manda a `POST /webhook/atende` e mostra a conversa no
 telefone, a identidade (unidades do Gruvi), a rota com tokens e a caixa de saída.
-Configuração no `.env`: `GRUVI_CLIENT_BASIC`, `GRUVI_COMPANY_ID` (e as URLs de staging
-por padrão), `ATENDE_WEBHOOK_TOKEN`, `ATENDE_REPLY_URL` (envio ao ATENDE, contrato a
+Configuração no `.env`: `GRUVI_COMPANY_ID`, `GRUVI_BFF_URL`, `MCP_AUTH=b2c` e
+`MCP_B2C_MOBILE`; opcionalmente `ATENDE_WEBHOOK_TOKEN`, `ATENDE_REPLY_URL` (envio ao ATENDE, contrato a
 confirmar).
+
+Enquanto o token B2C é gerado para um único telefone, o atendimento e a consulta de
+identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`.
 
 ## Memória relacional por contato
 
@@ -191,7 +194,15 @@ cp .env.example .env            # LLM_MODE=gemini + GEMINI_API_KEY (ou openroute
 
 O provedor vem do `.env` com os mesmos nomes do sl-concierge: `LLM_MODE` (`gemini` |
 `openrouter` | `mock`), a chave correspondente e `MODEL_PLANNER` como modelo padrão
-quando o `agent.yaml` não diz. Sem chave, roda no modo mock.
+quando o `agent.yaml` não diz. Gemini e OpenRouter sem chave rodam no modo mock.
+
+Para o gateway Luna, configure `LLM_MODE=luna`, `LLM_LUNA_OPENAI_URL`,
+`LLM_LUNA_GATEWAY_TOKEN` e `LLM_LUNA_MODEL`. O cliente usa a API Responses e envia
+os headers `x-company-id: internal` e `x-origem: workspace`. Deixe `MODEL_PLANNER`,
+`MODEL_EXTRACT` e `MODEL_CHEAP` vazios para usar `LLM_LUNA_MODEL` em todas as tarefas,
+ou configure modelos disponíveis no gateway. Um modelo definido no `agent.yaml` ou
+passado por `-modelo` continua tendo precedência no agente principal. Em `luna`, a
+chave ausente é erro; para executar sem rede, use `LLM_MODE=mock`.
 
 ## Pedidos: o registro de trabalho por contato
 
@@ -277,7 +288,7 @@ houver item esperando o morador. Código: `internal/harness/plano.go`.
 cmd/okf-admin      servidor HTTP da interface (SPA embutida)
 cmd/okf-run        roda um agente pela linha de comando (harness Eino)
 internal/okf       pasta de agente: carga, herança, fronteira, vínculos, conhecimento OKF, projeção, rotas, escrita, catálogo
-internal/harness   adaptador Eino: modelo (Gemini | OpenRouter | mock), tools nativas, rota, trace e uso
+internal/harness   adaptador Eino: modelo (Gemini | OpenRouter | Luna | mock), tools nativas, rota, trace e uso
 web/okf            a interface (HTML, CSS, JS, sem dependências)
 okf/               o catálogo de exemplo: concierge (orquestrador) + observador-sessao, regimento, faq
 ```
@@ -302,10 +313,8 @@ account (classe `api`, privados, escrita pela anotação `readOnlyHint` ou pelo 
 `chamar_recurso` executa por `tools/call`. Um agente declara as tools que usa em `recursos:` do
 `agent.yaml`, como qualquer recurso; o Backdoor marca cada uma com **MCP**.
 
-Autenticação (o "mecanismo com Keycloak" da entrega): o servidor roda em `request_bearer`, ou
-seja, exige em cada requisição o token B2C de **morador** (Keycloak `persons`) e o repassa ao
-BFF. Esse token dura **5 minutos**, e a POC o "pina" na subida (compara o hash e confere o
-`exp`), o que a tornaria inutilizável. Por isso:
+O servidor exige um Bearer em cada requisição e repassa esse token ao BFF. Ele valida
+apenas o formato do Bearer; o BFF é responsável pela autenticação e autorização.
 
 - **`MCP_AUTH=b2c`** (padrão): o concierge obtém o token pelo fluxo SMS de dev do Spaces
   (`POST /auth/sms` com `validation=dev` → `session_id`; `POST /auth/token` com
@@ -313,9 +322,6 @@ BFF. Esse token dura **5 minutos**, e a POC o "pina" na subida (compara o hash e
   de vencer e grava o token corrente em `MCP_TOKEN_FILE` (`okf/var/b2c.token`, ignorado pelo
   git). Configura-se só `MCP_B2C_MOBILE` (telefone de teste); URL, Basic do app, código e
   fingerprint têm padrão.
-- O servidor MCP, com `B2C_TOKEN_FILE` (compose), **lê esse arquivo a cada verificação** em
-  vez de pinar um token (ajuste de uma função em `mcp/src/mcp-building-operation-fastmcp-server.ts`,
-  `createFileTokenVerifier`, opt-in pela variável). Concierge e MCP carregam sempre o mesmo token.
 - `MCP_AUTH=file` lê o token corrente de `MCP_TOKEN_FILE` gravado por outro processo;
   `bearer` usa um token fixo (`MCP_BEARER_TOKEN`); `keycloak` pede um token de serviço por
   `client_credentials`, quando o servidor aceitar esse token.
@@ -329,6 +335,15 @@ cp mcp/.env.example mcp/.env   # ou o .env da entrega, com as credenciais
 docker compose up -d --build   # mcp (Node 24, porta 3337) + concierge (Go, porta 8090)
 ```
 
+Em Linux, quando os arquivos `okf/` pertencem a outro usuário, prepare o acesso do
+usuário 10001 do contêiner ao catálogo e aos arquivos criados posteriormente:
+
+```bash
+mkdir -p okf/var
+setfacl -R -m u:10001:rwX okf
+find okf -type d -exec setfacl -m d:u:10001:rwx {} +
+```
+
 Admin, Console e Backdoor em http://127.0.0.1:8090. O catálogo (`okf/`) é montado do repositório,
 então o Admin edita os arquivos de verdade; `web/okf` também é montado (`-web`), então o front
 se edita sem rebuild. O front não tem contêiner próprio: é o concierge que o serve. A POC do MCP
@@ -337,6 +352,6 @@ só escuta em loopback, por isso o `mcp` roda na rede do contêiner `concierge` 
 `cd mcp && npm ci && npm run start:mcp:catalog-agent`.
 
 **401 do MCP?** O concierge registra "catálogo indisponível (não autorizado)" e segue só com o
-Nexus ou o instantâneo. Causas: `MCP_B2C_MOBILE` sem acesso (o `/auth/token` falha), o
-`mcp` recriado sem o volume `okf/var`, ou o `concierge` recriado sem recriar o `mcp` (ele mora
+Nexus ou o instantâneo. Causas: `MCP_B2C_MOBILE` sem acesso (o `/auth/token` falha), ou o
+`concierge` recriado sem recriar o `mcp` (ele mora
 no namespace de rede do concierge: `docker compose up -d --build` recria os dois).

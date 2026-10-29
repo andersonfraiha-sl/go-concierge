@@ -48,6 +48,20 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestProcessarRecusaTelefoneDiferenteDoB2C(t *testing.T) {
+	svc := &Servico{TelefoneB2C: "5511999999999", Sessoes: NewSessoes()}
+	ev, err := Parse([]byte(eventoExemplo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Processar(context.Background(), ev); err == nil || len(svc.Sessoes.Lista()) != 0 {
+		t.Fatal("outro telefone deve ser recusado antes de criar uma sessão")
+	}
+	if !svc.PermiteTelefone("(11) 99999-9999") || svc.PermiteTelefone("") {
+		t.Fatal("a validação deve normalizar o telefone e recusar contato vazio")
+	}
+}
+
 func TestProcessarComMockEOutbox(t *testing.T) {
 	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
 	if err != nil {
