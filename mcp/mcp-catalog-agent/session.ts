@@ -154,6 +154,12 @@ export class SessionRecorder {
     return this.turn.run(turnId, fn);
   }
 
+  addSecrets(secrets: string | string[]): void {
+    for (const secret of (Array.isArray(secrets) ? secrets : [secrets]).filter(Boolean)) {
+      if (!this.secrets.includes(secret)) this.secrets.push(secret);
+    }
+  }
+
   async setSnapshot(tools: unknown[], lightweightCatalog: unknown[]): Promise<void> {
     this.document.snapshot = sanitize({ tools, lightweightCatalog }, this.secrets) as SessionDocument['snapshot'];
     await this.record('catalog_snapshot', { tools: tools.length, lightweightCatalog: lightweightCatalog.length });

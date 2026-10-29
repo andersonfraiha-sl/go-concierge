@@ -15,6 +15,7 @@ import { createMcpCatalogTools } from './tools.js';
 export interface McpCatalogAgentOptions extends ConciergeContext {
   model?: BaseChatModel;
   servers?: McpCatalogServerConfig[];
+  getBearerToken?: (server: McpCatalogServerConfig) => string | undefined | Promise<string | undefined>;
   env?: NodeJS.ProcessEnv;
   sessionPath?: string;
   fetch?: typeof fetch;
@@ -91,7 +92,7 @@ export async function createMcpCatalogAgent(options: McpCatalogAgentOptions = {}
   let catalog: Awaited<ReturnType<typeof connectMcpCatalog>> | undefined;
   try {
     const model = options.model ?? createCatalogAgentLunaModel(env, recorder, options.fetch);
-    catalog = await connectMcpCatalog(servers, env);
+    catalog = await connectMcpCatalog(servers, env, { getBearerToken: options.getBearerToken, onBearerToken: token => recorder.addSecrets(token) });
     const definitions = catalog.list();
     const lightweightCatalog = catalog.lightweight();
     await recorder.setSnapshot(definitions, lightweightCatalog);
