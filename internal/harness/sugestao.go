@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/schema"
 
 	"go-concierge/internal/okf"
@@ -40,7 +39,7 @@ func modeloBarato(ctx context.Context, cfg Config) (func(ctx context.Context, ms
 	if base == "" {
 		base = prov.BaseURL
 	}
-	m, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{APIKey: chave, BaseURL: base, Model: modelo, Timeout: 60 * time.Second})
+	m, err := novoModelo(ctx, prov, chave, base, modelo, 60*time.Second)
 	if err != nil {
 		return nil, false
 	}
@@ -71,7 +70,7 @@ SÓ com JSON: {"payload": {...}, "nota": "o que não coube ou ficou em dúvida, 
 func SugerirPayload(ctx context.Context, cfg Config, r okf.Recurso, atual map[string]any, texto string) (Sugestao, error) {
 	gerar, ok := modeloBarato(ctx, cfg)
 	if !ok {
-		return Sugestao{}, errors.New("sem modelo configurado (GEMINI_API_KEY ou OPENROUTER_API_KEY): preencha à mão")
+		return Sugestao{}, errors.New("sem modelo configurado: preencha à mão")
 	}
 	texto = strings.TrimSpace(texto)
 	if texto == "" {

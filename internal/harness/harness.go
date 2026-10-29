@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
@@ -264,6 +263,9 @@ func (ag *Agente) montarModelo(ctx context.Context) error {
 		ag.NomeModelo = prov.Modelo
 	}
 	ag.Provedor = prov.Nome
+	if prov.Nome == "luna" && chave == "" && !cfg.Mock {
+		return errors.New("harness: configure LLM_LUNA_GATEWAY_TOKEN para o gateway Luna")
+	}
 	if cfg.Mock || chave == "" || prov.Nome == "mock" && cfg.APIKey == "" {
 		ag.Mock = true
 		ag.Provedor = "mock"
@@ -273,12 +275,7 @@ func (ag *Agente) montarModelo(ctx context.Context) error {
 	if base == "" {
 		base = BaseURLPadrao
 	}
-	m, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey:  chave,
-		BaseURL: base,
-		Model:   ag.NomeModelo,
-		Timeout: 90 * time.Second,
-	})
+	m, err := novoModelo(ctx, prov, chave, base, ag.NomeModelo, 90*time.Second)
 	if err != nil {
 		return fmt.Errorf("harness: modelo %s: %w", ag.NomeModelo, err)
 	}

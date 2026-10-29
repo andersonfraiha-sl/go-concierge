@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/schema"
 
 	"go-concierge/internal/pedidos"
@@ -41,7 +40,7 @@ func NovoExtratorPedidos(ctx context.Context, cfg Config) pedidos.Extrator {
 	if base == "" {
 		base = prov.BaseURL
 	}
-	m, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{APIKey: chave, BaseURL: base, Model: modelo, Timeout: 60 * time.Second})
+	m, err := novoModelo(ctx, prov, chave, base, modelo, 60*time.Second)
 	if err != nil {
 		return pedidos.Regras{}
 	}
