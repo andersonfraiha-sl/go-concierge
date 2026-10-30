@@ -146,7 +146,7 @@ func TestTokenB2CSemVinculoNaoAutentica(t *testing.T) {
 		t.Fatal(err)
 	}
 	ev.ID = "mcp-identidade-sem-vinculo"
-	sess, err := svc.Processar(context.Background(), ev)
+	sess, err := svc.Processar(context.Background(), ev.Normalizar())
 	if err != nil {
 		t.Fatalf("contato sem vínculo pode continuar como público: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestFalhaMCPNaValidacaoDeVinculoMantemSessaoNaoAutenticada(t *testing.T) {
 		t.Fatal(err)
 	}
 	ev.ID = "mcp-identidade-falha"
-	sess, err := svc.Processar(context.Background(), ev)
+	sess, err := svc.Processar(context.Background(), ev.Normalizar())
 	if err == nil || !strings.Contains(err.Error(), "MCP indisponível") || sess.Identidade.Authenticated {
 		t.Fatalf("falha ao comprovar vínculo deve manter identidade não autenticada: sessão=%+v erro=%v", sess.Identidade, err)
 	}

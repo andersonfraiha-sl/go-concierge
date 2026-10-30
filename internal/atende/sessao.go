@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -16,17 +17,17 @@ import (
 // e os turnos (mensagens do morador e respostas do concierge). Fica em memória; a
 // persistência vem com o Postgres (decisão 4.6).
 type Sessao struct {
-	Protocolo    string           `json:"protocolo"`
-	Tenant       string           `json:"tenant"`
-	Contato      Contato          `json:"contato"`
-	Canal        Canal            `json:"canal"`
-	Identidade   gruvi.Identidade `json:"identidade"`
-	IdentErro    string           `json:"identidade_erro,omitempty"`
-	Condominio   string           `json:"condominio,omitempty"` // id no Admin ("*" = padrão)
-	Turnos       []Turno          `json:"turnos"`
-	CriadaEm     time.Time        `json:"criada_em"`
-	AtualizadaEm time.Time        `json:"atualizada_em"`
-	Processando  bool             `json:"processando"`
+	Protocolo    string            `json:"protocolo"`
+	Tenant       string            `json:"tenant"`
+	Contato      entrada.Contato   `json:"contato"`
+	Canal        map[string]string `json:"canal"`
+	Identidade   gruvi.Identidade  `json:"identidade"`
+	IdentErro    string            `json:"identidade_erro,omitempty"`
+	Condominio   string            `json:"condominio,omitempty"` // id no Admin ("*" = padrão)
+	Turnos       []Turno           `json:"turnos"`
+	CriadaEm     time.Time         `json:"criada_em"`
+	AtualizadaEm time.Time         `json:"atualizada_em"`
+	Processando  bool              `json:"processando"`
 	// Transbordo: o protocolo passou a um atendente humano (o concierge para de
 	// responder até ser devolvido).
 	Transbordo *Transbordo `json:"transbordo,omitempty"`
@@ -79,16 +80,16 @@ type Sessoes struct {
 func NewSessoes() *Sessoes { return &Sessoes{m: map[string]*Sessao{}} }
 
 // Abrir devolve a sessão do protocolo, criando-a com os dados do evento.
-func (s *Sessoes) Abrir(ev *Evento) *Sessao {
+func (s *Sessoes) Abrir(msg entrada.Mensagem) *Sessao {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	sess, ok := s.m[ev.Data.Protocol.Number]
+	sess, ok := s.m[msg.ConversaID]
 	if !ok {
-		sess = &Sessao{Protocolo: ev.Data.Protocol.Number, Tenant: ev.Tenant, Contato: ev.Data.Contact, Canal: ev.Data.Channel, CriadaEm: time.Now(), Turnos: []Turno{}}
+		sess = &Sessao{Protocolo: msg.ConversaID, Tenant: msg.Tenant, Contato: msg.Contato, Canal: msg.Canal, CriadaEm: time.Now(), Turnos: []Turno{}}
 		s.m[sess.Protocolo] = sess
 	}
 	if sess.Contato.Name == "" {
-		sess.Contato.Name = ev.Data.Contact.Name
+		sess.Contato.Name = msg.Contato.Name
 	}
 	return sess
 }

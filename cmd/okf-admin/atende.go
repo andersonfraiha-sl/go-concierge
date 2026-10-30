@@ -123,15 +123,16 @@ func (s *servidor) webhookAtende(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	if !s.atende.PermiteTelefone(ev.Data.Contact.Phone) {
+	msg := ev.Normalizar()
+	if !s.atende.PermiteTelefone(msg.Contato.Phone) {
 		writeErr(w, http.StatusForbidden, errors.New("telefone diferente do morador configurado para o token B2C"))
 		return
 	}
-	sess := s.atende.Sessoes.Abrir(ev)
+	sess := s.atende.Sessoes.Abrir(msg)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
-		if _, err := s.atende.Processar(ctx, ev); err != nil {
+		if _, err := s.atende.Processar(ctx, msg); err != nil {
 			s.log.Printf("atende: protocolo %s: %v", ev.Data.Protocol.Number, err)
 		}
 	}()

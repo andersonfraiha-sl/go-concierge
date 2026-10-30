@@ -2,13 +2,16 @@ package atende
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
@@ -120,13 +123,71 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestEventoNormalizadoPreservaDadosDaSessao(t *testing.T) {
+	ev, err := Parse([]byte(eventoExemplo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := ev.Normalizar()
+	if msg.ID != ev.ID || msg.ConversaID != ev.Data.Protocol.Number || msg.Tenant != ev.Tenant || msg.Tipo != ev.Data.Message.Type || msg.Texto != ev.Data.Message.Content {
+		t.Fatalf("mensagem normalizada: %+v", msg)
+	}
+	sess := NewSessoes().Abrir(msg)
+	for nome, par := range map[string][2]any{
+		"contato": {ev.Data.Contact, sess.Contato},
+		"canal":   {ev.Data.Channel, sess.Canal},
+	} {
+		original, err := json.Marshal(par[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		convertido, err := json.Marshal(par[1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var a, b map[string]any
+		if err := json.Unmarshal(original, &a); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(convertido, &b); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(a, b) {
+			t.Fatalf("%s da sessão mudou: original=%s convertido=%s", nome, original, convertido)
+		}
+	}
+}
+
+func TestProcessarEntradaIndependenteDoAtende(t *testing.T) {
+	svc, out, _ := servicoComPedidos(t)
+	msg := entrada.Mensagem{
+		ID:         "mensagem-1",
+		ConversaID: "conversa-1",
+		Tenant:     "tenant-1",
+		Contato:    entrada.Contato{Phone: "5519981621916", Name: "Morador"},
+		Canal:      map[string]string{"type": "outro-canal"},
+		Tipo:       "text",
+		Texto:      "  quais são minhas unidades?  ",
+	}
+	sess, err := svc.Processar(context.Background(), msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Protocolo != msg.ConversaID || sess.Tenant != msg.Tenant || sess.Canal["type"] != "outro-canal" || len(sess.Turnos) != 2 || sess.Turnos[0].Texto != "quais são minhas unidades?" || sess.Turnos[0].EventoID != msg.ID {
+		t.Fatalf("sessão processada: %+v", sess)
+	}
+	if saidas := out.Itens(msg.ConversaID); len(saidas) != 1 || saidas[0].Texto != sess.Turnos[1].Texto {
+		t.Fatalf("resposta para a conversa: %+v", saidas)
+	}
+}
+
 func TestProcessarRecusaTelefoneDiferenteDoB2C(t *testing.T) {
 	svc := &Servico{TelefoneB2C: "5511999999999", Sessoes: NewSessoes()}
 	ev, err := Parse([]byte(eventoExemplo))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Processar(context.Background(), ev); err == nil || len(svc.Sessoes.Lista()) != 0 {
+	if _, err := svc.Processar(context.Background(), ev.Normalizar()); err == nil || len(svc.Sessoes.Lista()) != 0 {
 		t.Fatal("outro telefone deve ser recusado antes de criar uma sessão")
 	}
 	if !svc.PermiteTelefone("(11) 99999-9999") || svc.PermiteTelefone("") {
@@ -150,7 +211,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 	}
 	ev, _ := Parse([]byte(eventoExemplo))
-	sess, err := svc.Processar(context.Background(), ev)
+	sess, err := svc.Processar(context.Background(), ev.Normalizar())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +231,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	// segunda mensagem no mesmo protocolo mantém a sessão e o histórico
 	ev2, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "até que horas a piscina abre?", 1)))
 	ev2.ID = "evt_2"
-	sess2, err := svc.Processar(context.Background(), ev2)
+	sess2, err := svc.Processar(context.Background(), ev2.Normalizar())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +245,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	svcM.Memorias = st
 	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "na verdade só tenho um apartamento, tenho um cachorro", 1)))
 	ev3.ID = "evt_3"
-	s4, err := svcM.Processar(context.Background(), ev3)
+	s4, err := svcM.Processar(context.Background(), ev3.Normalizar())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +285,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	svc2 := *svc
 	svc2.Sessoes = NewSessoes()
 	svc2.Config.MCP = &mcpServicoFalso{erroToken: errors.New("bff fora")}
-	s3, err := svc2.Processar(context.Background(), ev)
+	s3, err := svc2.Processar(context.Background(), ev.Normalizar())
 	if err == nil || s3.Identidade.Authenticated || !strings.Contains(s3.IdentErro, "bff fora") {
 		t.Fatalf("token B2C inválido não deve autenticar a sessão: err=%v sessão=%+v", err, s3.Identidade)
 	}

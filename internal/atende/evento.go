@@ -10,6 +10,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"go-concierge/internal/entrada"
 )
 
 // Eventos conhecidos.
@@ -99,4 +101,25 @@ func Parse(raw []byte) (*Evento, error) {
 // Texto é o conteúdo que o concierge processa (só mensagens de texto por enquanto).
 func (e *Evento) Texto() string {
 	return strings.TrimSpace(e.Data.Message.Content)
+}
+
+func (e *Evento) Normalizar() entrada.Mensagem {
+	return entrada.Mensagem{
+		ID:         e.ID,
+		ConversaID: e.Data.Protocol.Number,
+		Tenant:     e.Tenant,
+		Contato: entrada.Contato{
+			Phone: e.Data.Contact.Phone,
+			Name:  e.Data.Contact.Name,
+			Email: e.Data.Contact.Email,
+		},
+		Canal: map[string]string{
+			"type":          e.Data.Channel.Type,
+			"wabaId":        e.Data.Channel.WabaID,
+			"phoneNumberId": e.Data.Channel.PhoneNumberID,
+			"displayNumber": e.Data.Channel.DisplayNumber,
+		},
+		Tipo:  e.Data.Message.Type,
+		Texto: e.Data.Message.Content,
+	}
 }

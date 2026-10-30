@@ -65,6 +65,11 @@ confirmar).
 Enquanto o token B2C é gerado para um único telefone, o atendimento e a consulta de
 identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`.
 
+O webhook converte o evento do ATENDE para o contrato de entrada compartilhado
+`internal/entrada.Mensagem`, recebido pelo processamento do concierge. Outro canal pode
+adaptar sua mensagem para esse contrato; identidade por telefone, envio da resposta e
+identificação única das conversas entre canais ainda precisam ser definidos para ele.
+
 ## Memória relacional por contato
 
 Tudo o que o morador afirma sobre si ("só tenho um apartamento", "pode me chamar de

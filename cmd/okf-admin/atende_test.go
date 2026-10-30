@@ -3,16 +3,74 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"go-concierge/internal/atende"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
+	"go-concierge/internal/okf"
 )
 
 type tokenIdentidadeFake struct{}
+
+func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
+	cat, err := okf.NewCatalogo(filepath.Join("..", "..", "okf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fix, err := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.Recursos = func() []okf.Recurso { return fix }
+	out := &atende.Outbox{}
+	s := &servidor{
+		atende: &atende.Servico{
+			Cat: cat, Agente: "agentes/concierge", Account: "cond-001",
+			Sessoes: atende.NewSessoes(), Sender: out,
+			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
+		},
+		log: log.New(io.Discard, "", 0),
+	}
+	corpo := `{"id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1"},"message":{"type":"text","content":"posso fazer barulho depois das 22h?"}}}`
+	w := httptest.NewRecorder()
+	s.webhookAtende(w, httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpo)))
+	if w.Code != 202 {
+		t.Fatalf("status HTTP %d: %s", w.Code, w.Body.String())
+	}
+	var resposta struct {
+		Accepted bool   `json:"accepted"`
+		Event    string `json:"event"`
+		Protocol string `json:"protocol"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resposta); err != nil {
+		t.Fatal(err)
+	}
+	if !resposta.Accepted || resposta.Event != "evt-1" || resposta.Protocol != "protocolo-1" {
+		t.Fatalf("resposta do webhook: %+v", resposta)
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		if saidas := out.Itens("protocolo-1"); len(saidas) > 0 {
+			if saidas[0].Texto == "" {
+				t.Fatal("resposta vazia")
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("processamento não produziu resposta")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
 
 func (tokenIdentidadeFake) Token(context.Context) (string, error) { return "token", nil }
 

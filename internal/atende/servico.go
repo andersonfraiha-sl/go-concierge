@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go-concierge/internal/admin"
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -149,18 +150,18 @@ type Servico struct {
 
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
 // sessão), roda o concierge com o histórico e envia a resposta.
-func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
-	if !s.PermiteTelefone(ev.Data.Contact.Phone) {
+func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
+	if !s.PermiteTelefone(msg.Contato.Phone) {
 		return nil, fmt.Errorf("telefone diferente do morador configurado para o token B2C")
 	}
-	sess := s.Sessoes.Abrir(ev)
-	texto := ev.Texto()
+	sess := s.Sessoes.Abrir(msg)
+	texto := strings.TrimSpace(msg.Texto)
 	if texto == "" {
-		return sess, fmt.Errorf("evento %s sem texto (tipo %s)", ev.ID, ev.Data.Message.Type)
+		return sess, fmt.Errorf("evento %s sem texto (tipo %s)", msg.ID, msg.Tipo)
 	}
 	sess.Processando = true
 	defer func() { sess.Processando = false }()
-	sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: ev.ID})
+	sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: msg.ID})
 	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
 	if sess.Transbordo != nil && sess.Transbordo.Ativo {
 		sess.historico = append(sess.historico, schema.UserMessage(texto))
@@ -168,7 +169,7 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	}
 
 	if sess.Identidade.Phone == "" {
-		id, resultadoVinculo, err := s.identidade(ctx, ev.Data.Contact.Phone)
+		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone)
 		if err != nil {
 			sess.IdentErro = err.Error()
 			return sess, err

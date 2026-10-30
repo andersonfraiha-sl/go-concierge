@@ -38,7 +38,7 @@ func falar(t *testing.T, svc *Servico, id, texto string) *Sessao {
 	t.Helper()
 	ev, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", texto, 1)))
 	ev.ID = id
-	sess, err := svc.Processar(context.Background(), ev)
+	sess, err := svc.Processar(context.Background(), ev.Normalizar())
 	if err != nil {
 		t.Fatalf("%s: %v", texto, err)
 	}
