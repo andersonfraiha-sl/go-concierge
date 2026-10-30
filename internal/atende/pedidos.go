@@ -37,7 +37,7 @@ func (a ambienteHarness) Chamar(ctx context.Context, agente, recurso string, par
 	if !ok {
 		return nil, fmt.Errorf("caso de uso %q não está disponível neste condomínio", agente)
 	}
-	out, err := sub.InvocarRecurso(ctx, recurso, params, confirmacao)
+	out, err := sub.ExecutarPassoCaso(ctx, recurso, params, confirmacao)
 	if err != nil {
 		return nil, err
 	}

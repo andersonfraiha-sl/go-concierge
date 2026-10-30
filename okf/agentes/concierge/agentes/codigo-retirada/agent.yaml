@@ -3,6 +3,6 @@ tipo: operador
 descricao: 'Informa o código (senha) para retirar uma encomenda, pacote ou correspondência
   que já está na portaria ou no armário de encomendas. Caso de uso: Código de Retirada.'
 recursos:
-- unidades.listar
-- encomendas.listar
-- encomendas.codigo
+- gruvi.bff.building-operation.get-company-by-document-controller-handle
+- gruvi.bff.building-operation.fetch-unit-packages-controller-handle
+- gruvi.bff.building-operation.get-package-delivery-code-controller-handle

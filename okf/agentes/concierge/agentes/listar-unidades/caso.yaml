@@ -9,9 +9,9 @@ examples:
   - quais são minhas unidades?
   - em quais apartamentos eu estou cadastrado?
 steps:
-  - resource: unidades.listar
-    save_as: unidades
+  - resource: gruvi.bff.building-operation.get-company-by-document-controller-handle
+    save_as: condominio
 output: |-
   Unidades vinculadas ao seu cadastro:
-  {{range .unidades}}• {{.label}}
+  {{range .condominio.units}}• {{.unit}}
   {{end}}

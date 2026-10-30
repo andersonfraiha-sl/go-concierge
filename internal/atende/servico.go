@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/cloudwego/eino/schema"
 	"log"
@@ -117,8 +118,8 @@ func (h *HTTPSender) Enviar(ctx context.Context, protocolo, texto string) error 
 	return nil
 }
 
-// Servico liga o webhook ao concierge: identidade pelo Gruvi, harness no agente de
-// primeiro nível, resposta pelo Sender.
+// Servico liga o webhook ao concierge: identidade B2C, harness no agente de primeiro
+// nível, resposta pelo Sender.
 // extracoes acompanha as extrações de memória em andamento (Aguardar: testes e desligamento).
 var extracoes sync.WaitGroup
 
@@ -133,7 +134,6 @@ type Servico struct {
 	Sessoes     *Sessoes
 	Timeout     time.Duration
 	Log         *log.Logger
-	Identificar func(ctx context.Context, phone string) (gruvi.Identidade, error) // nil = Gruvi (ou público, se não configurado)
 	// Memorias é a memória relacional por contato (nil = desligada); Extrator captura
 	// fatos novos a cada troca (nil = memoria.Regras).
 	Memorias memoria.Store
@@ -168,9 +168,14 @@ func (s *Servico) Processar(ctx context.Context, ev *Evento) (*Sessao, error) {
 	}
 
 	if sess.Identidade.Phone == "" {
-		sess.Identidade, sess.IdentErro = s.identificar(ctx, ev.Data.Contact.Phone)
-		if sess.Identidade.Name == "" {
-			sess.Identidade.Name = ev.Data.Contact.Name
+		id, resultadoVinculo, err := s.identidade(ctx, ev.Data.Contact.Phone)
+		if err != nil {
+			sess.IdentErro = err.Error()
+			return sess, err
+		}
+		sess.Identidade = id
+		if id.Authenticated {
+			sess.guardarMCPResultado("gruvi.bff.building-operation.get-company-by-document-controller-handle", resultadoVinculo)
 		}
 	}
 
@@ -249,6 +254,7 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 	cfg = s.Config
 	cfg.Sessao = sess.Protocolo
 	cfg.Identidade = harness.Identidade{Authenticated: sess.Identidade.Authenticated, AccountID: s.Account, Role: sess.Identidade.Role}
+	cfg.MCPResultados = sess.resultadosMCP()
 
 	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
 	// quais definições (payloads) valem para os recursos
@@ -278,50 +284,14 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 			s.Log.Printf("atende: mapeamento: %v", err)
 		}
 	}
+	s.injetarParametrosMCP(&cfg, sess)
 
 	// data e hora de agora: sem isso o modelo chuta o ano ao converter "sábado" em data
 	contexto = append(contexto, contextoDeAgora(time.Now()))
 
-	// identidade do Gruvi: entra no prompt em toda troca e resolve unidades.listar sem Nexus
+	// identidade autenticada: entra no prompt em toda troca
 	if c := contextoDeIdentidade(sess.Identidade); c != "" {
 		contexto = append(contexto, c)
-	}
-	if sess.Identidade.Authenticated && len(sess.Identidade.Units) > 0 {
-		unidades := make([]map[string]any, 0, len(sess.Identidade.Units))
-		for _, u := range sess.Identidade.Units {
-			item := map[string]any{"id": u.ID, "label": u.Label}
-			if u.Bloco != "" {
-				item["bloco"] = u.Bloco
-			}
-			if u.Condominio != "" {
-				item["condominio"] = u.Condominio
-			}
-			unidades = append(unidades, item)
-		}
-		cfg.Locais = map[string]func(context.Context, map[string]any) (any, error){
-			"unidades.listar": func(context.Context, map[string]any) (any, error) { return unidades, nil },
-		}
-		// uma só unidade: o unidade_id de todo recurso que o pede já vai preenchido, para o
-		// agente nunca ter de perguntar (o payload do condomínio, se existir, tem precedência)
-		if len(sess.Identidade.Units) == 1 {
-			if cfg.Payloads == nil {
-				cfg.Payloads = map[string]map[string]any{}
-			}
-			uid := sess.Identidade.Units[0].ID
-			for _, r := range s.Cat.RecursosNexus() {
-				for _, p := range r.Params {
-					if p.Name != "unidade_id" {
-						continue
-					}
-					if cfg.Payloads[r.Name] == nil {
-						cfg.Payloads[r.Name] = map[string]any{}
-					}
-					if _, tem := cfg.Payloads[r.Name]["unidade_id"]; !tem {
-						cfg.Payloads[r.Name]["unidade_id"] = uid
-					}
-				}
-			}
-		}
 	}
 
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
@@ -485,34 +455,78 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	return novos
 }
 
-func (s *Servico) identificar(ctx context.Context, phone string) (gruvi.Identidade, string) {
-	if s.Identificar != nil {
-		id, err := s.Identificar(ctx, phone)
-		if err != nil {
-			return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, err.Error()
-		}
-		return id, ""
+func (s *Servico) identidade(ctx context.Context, phone string) (gruvi.Identidade, any, error) {
+	id := gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}
+	if s.TelefoneB2C == "" {
+		return id, nil, nil
 	}
-	if s.Gruvi == nil || !s.Gruvi.Configurado() {
-		return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, "Gruvi não configurado (token B2C e GRUVI_COMPANY_ID): contato tratado como público"
+	if !s.PermiteTelefone(phone) {
+		return id, nil, errors.New("telefone diferente do morador configurado para o token B2C")
 	}
-	id, err := s.Gruvi.Identidade(ctx, phone)
+	validar, ok := s.Config.MCP.(interface{ ValidarToken(context.Context) error })
+	if !ok {
+		return id, nil, errors.New("atende: cliente MCP não valida o token B2C")
+	}
+	if err := validar.ValidarToken(ctx); err != nil {
+		return id, nil, fmt.Errorf("atende: autenticação B2C: %w", err)
+	}
+	if s.Gruvi != nil {
+		id.CompanyID = s.Gruvi.CompanyID
+	}
+	if id.CompanyID == "" {
+		return id, nil, errors.New("atende: GRUVI_COMPANY_ID não configurado")
+	}
+	const ferramenta = "gruvi.bff.building-operation.get-company-by-document-controller-handle"
+	resultado, err := s.Config.MCP.CallTool(ctx, ferramenta, map[string]any{
+		"companyId":            id.CompanyID,
+		"filter_mobile_number": gruvi.NormalizarTelefone(phone),
+	})
 	if err != nil {
-		if s.Log != nil {
-			s.Log.Printf("atende: identidade de %s falhou: %v", phone, err)
-		}
-		return gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}, err.Error()
+		return id, nil, fmt.Errorf("atende: consulta de vínculo B2C: %w", err)
 	}
-	return id, ""
+	dados, err := harness.NormalizarResultadoMCP(ferramenta, resultado)
+	if err != nil {
+		return id, nil, fmt.Errorf("atende: consulta de vínculo B2C: %w", err)
+	}
+	id, dadosVinculados := gruvi.IdentidadeComDadosVinculadosMCP(phone, id.CompanyID, dados)
+	return id, dadosVinculados, nil
+}
+
+func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
+	if cfg.Payloads == nil {
+		cfg.Payloads = map[string]map[string]any{}
+	}
+	companyID := strings.TrimSpace(sess.Identidade.CompanyID)
+	if companyID == "" && s.Gruvi != nil {
+		companyID = strings.TrimSpace(s.Gruvi.CompanyID)
+	}
+	telefone := gruvi.NormalizarTelefone(sess.Contato.Phone)
+	company := "gruvi.bff.building-operation.get-company-by-document-controller-handle"
+	packages := "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
+	code := "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
+	visit := "gruvi.bff.building-operation.create-visit-controller-handle"
+	nomes := []string{company, packages, code, "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle", visit}
+	for _, nome := range nomes {
+		if cfg.Payloads[nome] == nil {
+			cfg.Payloads[nome] = map[string]any{}
+		}
+		if companyID != "" {
+			cfg.Payloads[nome]["companyId"] = companyID
+		}
+	}
+	for _, nome := range []string{company, packages, code} {
+		cfg.Payloads[nome]["filter_mobile_number"] = telefone
+	}
+	cfg.Payloads[visit]["resident"] = map[string]any{"mobile_number": telefone}
 }
 
 var diasSemana = []string{"domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"}
 var meses = []string{"", "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"}
 
-// contextoDeAgora: a data e a hora atuais, no fuso local, para datas relativas
+// contextoDeAgora: a data e a hora atuais, no fuso de São Paulo, para datas relativas
 // ("sábado", "amanhã", "dia 12") virarem AAAA-MM-DD certos.
 func contextoDeAgora(t time.Time) string {
-	t = t.Local()
+	t = pedidos.NoFusoSaoPaulo(t)
 	return fmt.Sprintf("# Agora\n\nHoje é %s, %d de %s de %d, %02d:%02d (%s). Datas relativas do morador (amanhã, sábado, dia 12) contam a partir de hoje e vão para os recursos como AAAA-MM-DD; confirme a data por extenso com ele.",
 		diasSemana[t.Weekday()], t.Day(), meses[t.Month()], t.Year(), t.Hour(), t.Minute(), t.Format("-07:00"))
 }
@@ -531,29 +545,7 @@ func contextoDeIdentidade(id gruvi.Identidade) string {
 	if papel == "" {
 		papel = "morador"
 	}
-	s := fmt.Sprintf("# Morador identificado\n\n- Nome: %s\n- Papel: %s", nome, papel)
-	condos := id.Condominios
-	if len(condos) == 0 && len(id.Units) > 0 {
-		condos = []gruvi.Condominio{{Nome: id.CompanyName, Unidades: id.Units}}
-	}
-	for _, c := range condos {
-		nomeC := c.Nome
-		if nomeC == "" {
-			nomeC = "condomínio"
-		}
-		var us []string
-		for _, u := range c.Unidades {
-			us = append(us, fmt.Sprintf("%s (unidade_id %s)", u.Label, u.ID))
-		}
-		s += fmt.Sprintf("\n- Condomínio %s: %s", nomeC, strings.Join(us, "; "))
-	}
-	switch {
-	case len(condos) == 1 && len(id.Units) == 1:
-		s += fmt.Sprintf("\n\nHá um só condomínio e uma só unidade: use unidade_id %s sem perguntar e registre o pedido nela.", id.Units[0].ID)
-	case len(id.Units) > 1:
-		s += "\n\nO morador tem mais de um condomínio ou mais de uma unidade: antes de registrar qualquer pedido, pergunte de qual se trata (ofereça as opções pelo nome) e registre o pedido naquele condomínio e unidade (unidade_id). Se ele já disse qual é, não pergunte de novo."
-	}
-	return s
+	return fmt.Sprintf("# Morador identificado\n\n- Nome: %s\n- Papel: %s\n\nConsulte as unidades pela tool MCP antes de qualquer operação dependente delas.", nome, papel)
 }
 
 func rotulos(us []gruvi.Unidade) string {

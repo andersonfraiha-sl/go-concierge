@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"go-concierge/internal/atende"
+	"go-concierge/internal/gruvi"
+	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/pedidos"
 )
@@ -213,18 +215,37 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, errTelefone)
 		return
 	}
-	if !s.gruviOK {
+	if !s.gruviOK || s.gruvi == nil || !s.gruvi.PermiteTelefone(phone) {
 		writeJSON(w, 200, map[string]any{"configurado": false, "erro": "Gruvi não configurado (MCP_AUTH=b2c, MCP_B2C_MOBILE, MCP_URL e GRUVI_COMPANY_ID no .env)"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	id, err := s.gruvi.Identidade(ctx, phone)
-	if err != nil {
-		writeJSON(w, 200, map[string]any{"configurado": true, "erro": err.Error(), "identidade": id})
+	c, ok := s.atende.Config.MCP.(interface{ ValidarToken(context.Context) error })
+	if !ok {
+		writeJSON(w, 200, map[string]any{"configurado": false, "erro": "cliente MCP não valida o token B2C"})
 		return
 	}
-	writeJSON(w, 200, map[string]any{"configurado": true, "identidade": id})
+	if err := c.ValidarToken(ctx); err != nil {
+		writeJSON(w, 200, map[string]any{"configurado": true, "erro": err.Error()})
+		return
+	}
+	name := "gruvi.bff.building-operation.get-company-by-document-controller-handle"
+	res, err := s.atende.Config.MCP.CallTool(ctx, name, map[string]any{
+		"companyId":            s.gruvi.CompanyID,
+		"filter_mobile_number": gruvi.NormalizarTelefone(phone),
+	})
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"configurado": true, "erro": err.Error()})
+		return
+	}
+	data, err := harness.NormalizarResultadoMCP(name, res)
+	if err != nil {
+		writeJSON(w, 200, map[string]any{"configurado": true, "erro": err.Error()})
+		return
+	}
+	identidade := gruvi.IdentidadeDoResultadoMCP(phone, s.gruvi.CompanyID, data)
+	writeJSON(w, 200, map[string]any{"configurado": true, "identidade": identidade})
 }
 
 // ---- pedidos: o registro por contato e as ações do atendente ----

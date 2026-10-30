@@ -3,7 +3,6 @@ package harness
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 )
@@ -234,17 +234,17 @@ func nexusFalso(t *testing.T) (*nexus.Client, *map[string]any) {
 }
 
 func TestChamarRecursoRecusaEscritaENaoDeclarado(t *testing.T) {
-	cat, a := catalogoExemplo(t)
-	cli, _ := nexusFalso(t)
-	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}})
+	cat, a := catalogoComMCP(t)
+	fake := &mcpFalso{}
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, MCP: fake, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	lib := ag.Subagentes["liberacao-visitante"]
-	out := chama(t, lib, "chamar_recurso", map[string]any{"nome": "visitantes.liberar", "params": map[string]any{"unidade_id": "u1", "nome": "Ana", "telefone": "5511999990001"}})
+	out := chama(t, lib, "chamar_recurso", map[string]any{"nome": "gruvi.bff.building-operation.create-visit-controller-handle", "params": map[string]any{"unitId": "u1", "visitors": []any{map[string]any{"name": "Ana"}}}})
 	// sem o sim do morador na mensagem atual, a escrita do caso é recusada
-	if !strings.Contains(erroDe(out), "confirmação") {
-		t.Errorf("escrita sem confirmação deveria ser recusada; veio %v", out)
+	if !strings.Contains(erroDe(out), "motor determinístico") {
+		t.Errorf("escrita direta deveria ser recusada; veio %v", out)
 	}
 	out = chama(t, lib, "chamar_recurso", map[string]any{"nome": "areas.listar"})
 	if !strings.Contains(erroDe(out), "não está declarado") {
@@ -257,13 +257,14 @@ func TestChamarRecursoRecusaEscritaENaoDeclarado(t *testing.T) {
 }
 
 func TestChamarRecursoPrivadoParaContatoPublico(t *testing.T) {
-	cat, a := catalogoExemplo(t)
+	cat, a := catalogoComMCP(t)
 	cli, ultimo := nexusFalso(t)
 	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli}) // identidade zero = público
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "unidades.listar"})
+	encomendas := ag.Subagentes["encomendas"]
+	out := chama(t, encomendas, "chamar_recurso", map[string]any{"nome": "gruvi.bff.building-operation.get-company-by-document-controller-handle"})
 	if !strings.Contains(erroDe(out), "privado") {
 		t.Errorf("recurso private deveria ser recusado para contato público; veio %v", out)
 	}
@@ -292,7 +293,7 @@ func TestChamarRecursoAutenticadoEIdempotencia(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "unidades.listar"})
+	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "faq.buscar", "params": map[string]any{"query": "horário da piscina"}})
 	if erroDe(out) != "" {
 		t.Fatalf("morador identificado deveria listar unidades; veio %v", out)
 	}
@@ -301,16 +302,16 @@ func TestChamarRecursoAutenticadoEIdempotencia(t *testing.T) {
 		t.Errorf("resultado deveria ser a lista do Nexus; veio %v", out["resultado"])
 	}
 	idem, _ := (*ultimo)["idempotency_key"].(string)
-	if idem != "thr-1:concierge:unidades.listar:1" {
+	if idem != "thr-1:concierge:faq.buscar:1" {
 		t.Errorf("chave de idempotência: %q", idem)
 	}
-	if (*ultimo)["path"] != "/v1/resources/unidades.listar/invoke" {
+	if (*ultimo)["path"] != "/v1/resources/faq.buscar/invoke" {
 		t.Errorf("rota do invoke: %v", (*ultimo)["path"])
 	}
 }
 
 func TestChamarRecursoSemNexus(t *testing.T) {
-	cat, a := catalogoExemplo(t)
+	cat, a := catalogoComMCP(t)
 	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv}) // Nexus nil
 	if err != nil {
 		t.Fatal(err)
@@ -321,11 +322,14 @@ func TestChamarRecursoSemNexus(t *testing.T) {
 		t.Errorf("sem cliente o mock deveria responder pela amostra; veio %v", out)
 	}
 	// escrita sem amostra: protocolo gerado, pelo caso (o pai declara visitantes.liberar)
-	out = chama(t, ag, "chamar_recurso", map[string]any{"nome": "visitantes.liberar", "params": map[string]any{"unidade_id": "1", "nome": "Ana", "telefone": "1"}})
-	if erroDe(out) == "" {
-		if res, _ := out["resultado"].(map[string]any); res == nil || !strings.HasPrefix(fmt.Sprint(res["protocolo"]), "MOCK-") {
-			t.Errorf("escrita sem amostra deveria devolver protocolo MOCK-: %v", out)
-		}
+	agAutenticado, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Identidade: Identidade{Authenticated: true, AccountID: "cond-001"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib := agAutenticado.Subagentes["liberacao-visitante"]
+	out = chama(t, lib, "chamar_recurso", map[string]any{"nome": "gruvi.bff.building-operation.create-visit-controller-handle", "params": map[string]any{"unitId": 1, "reason": 1, "visitors": []any{map[string]any{"name": "Ana"}}}})
+	if !strings.Contains(erroDe(out), "indisponível") {
+		t.Errorf("escrita migrada para MCP não deve cair em mock: %v", out)
 	}
 }
 
@@ -430,10 +434,15 @@ func TestCasosHabilitadosFiltramSubagentes(t *testing.T) {
 }
 
 func TestRecursoLocalNaoDependeDoNexus(t *testing.T) {
-	cat, a := catalogoExemplo(t)
+	cat, a := catalogoComMCP(t)
+	fake := &mcpFalso{}
+	localChamadas := 0
 	cfg := Config{Mock: true, Env: semEnv, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"},
+		MCP:      fake,
+		Payloads: map[string]map[string]any{"unidades.listar": {"companyId": "5982", "filter_mobile_number": "5519981621916"}},
 		Locais: map[string]func(context.Context, map[string]any) (any, error){
 			"unidades.listar": func(context.Context, map[string]any) (any, error) {
+				localChamadas++
 				return []map[string]any{{"id": "109", "label": "Jataí - Unidade Operacao Predial"}}, nil
 			},
 		}}
@@ -441,29 +450,34 @@ func TestRecursoLocalNaoDependeDoNexus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := ag.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
+	reservas := ag.Subagentes["reserva-area-comum"]
+	out, err := reservas.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out["error"] != nil || out["origem"] != "identidade" {
-		t.Fatalf("o recurso local deveria responder sem Nexus: %+v", out)
+	if out["error"] != nil || out["origem"] != "mcp" || localChamadas != 0 {
+		t.Fatalf("o alias de unidades deveria usar MCP, não o recurso local: %+v", out)
 	}
-	lista, _ := out["resultado"].([]map[string]any)
-	if len(lista) != 1 || lista[0]["id"] != "109" {
-		t.Fatalf("resultado: %+v", out["resultado"])
+	if len(fake.chamadas) != 1 || fake.chamadas[0] != "gruvi.bff.building-operation.get-company-by-document-controller-handle" {
+		t.Fatalf("chamada MCP: %v", fake.chamadas)
 	}
-	// sem o local e sem Nexus, o mock do concierge responde pela amostra do catálogo
+	// sem o cliente MCP, o alias não cai em dados simulados
 	cfg.Locais = nil
+	cfg.MCP = nil
 	ag2, _ := Build(context.Background(), cat, a, cfg)
-	out2, _ := ag2.chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
-	if out2["error"] != nil || out2["origem"] != "mock" {
-		t.Fatalf("sem Nexus o mock deveria responder: %+v", out2)
+	out2, _ := ag2.Subagentes["reserva-area-comum"].chamarRecurso(context.Background(), &argsRecurso{Nome: "unidades.listar"})
+	if !strings.Contains(erroDe(out2), "indisponível") {
+		t.Fatalf("sem MCP o alias não deve usar mock: %+v", out2)
 	}
 }
 
 func TestEscritaSoPeloCasoEComSim(t *testing.T) {
-	cat, a := catalogoExemplo(t)
-	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Identidade: Identidade{Authenticated: true, AccountID: "cond-001"}})
+	cat, a := catalogoComMCP(t)
+	fake := &mcpFalso{resultados: map[string]*mcp.CallResult{
+		"gruvi.bff.building-operation.create-visit-controller-handle": {StructuredContent: json.RawMessage(`{"visit":{"clearance_status":"AUTHORIZED"}}`)},
+	}}
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, MCP: fake, Identidade: Identidade{Authenticated: true, AccountID: "cond-001"},
+		Payloads: map[string]map[string]any{"gruvi.bff.building-operation.create-visit-controller-handle": {"companyId": "5982", "resident": map[string]any{"mobile_number": "5519981621916"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,19 +485,18 @@ func TestEscritaSoPeloCasoEComSim(t *testing.T) {
 	if visita == nil {
 		t.Fatal("subagente liberacao-visitante (caso de uso) não construído")
 	}
-	args := &argsRecurso{Nome: "visitantes.liberar", Params: map[string]any{"unidade_id": "109", "nome": "Ana", "telefone": "11"}}
-	// sem o sim na mensagem atual: recusa e pede a confirmação
+	args := &argsRecurso{Nome: "gruvi.bff.building-operation.create-visit-controller-handle", Params: map[string]any{"unitId": 109, "reason": 1, "visitors": []any{map[string]any{"name": "Ana"}}}}
+	// uma chamada direta do modelo não atravessa a guarda determinística
 	ctx := context.WithValue(context.Background(), chaveColetor{}, &coletor{mensagem: "quero liberar a Ana hoje"})
 	out, _ := visita.chamarRecurso(ctx, args)
-	if !strings.Contains(erroDe(out), "confirmação") {
-		t.Fatalf("sem sim deveria pedir confirmação: %+v", out)
+	if !strings.Contains(erroDe(out), "motor determinístico") || len(fake.chamadas) != 0 {
+		t.Fatalf("a tool direta do modelo não pode criar visita: %+v chamadas=%v", out, fake.chamadas)
 	}
-	// com o sim: roda (mock devolve protocolo)
+	// mesmo com o sim, a tool direta do modelo não executa uma escrita
 	ctx = context.WithValue(context.Background(), chaveColetor{}, &coletor{mensagem: "Sim, pode liberar!"})
 	out, _ = visita.chamarRecurso(ctx, args)
-	res, _ := out["resultado"].(map[string]any)
-	if erroDe(out) != "" || res == nil || !strings.HasPrefix(fmt.Sprint(res["protocolo"]), "MOCK-") {
-		t.Fatalf("com sim deveria registrar: %+v", out)
+	if !strings.Contains(erroDe(out), "motor determinístico") || len(fake.chamadas) != 0 {
+		t.Fatalf("a tool direta não pode criar visita, mesmo com sim: %+v chamadas=%v", out, fake.chamadas)
 	}
 	// fora do caso (o concierge não tem esse passo): recusado mesmo com o sim
 	out, _ = ag.chamarRecurso(ctx, args)

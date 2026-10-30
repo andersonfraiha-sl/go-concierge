@@ -115,8 +115,10 @@ type Evento struct {
 }
 
 type Opcao struct {
-	Valor  string `json:"valor"`
-	Rotulo string `json:"rotulo"`
+	Valor  string         `json:"valor"`
+	Rotulo string         `json:"rotulo"`
+	Dados  any            `json:"-"`
+	Campos map[string]any `json:"-"`
 }
 
 // Aberto diz se o pedido ainda está em andamento.

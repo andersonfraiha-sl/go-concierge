@@ -90,7 +90,8 @@ type Extrator interface {
 type Regras struct{}
 
 var rePedeAtendente = regexp.MustCompile(`atendente|humano|falar com (alguem|uma pessoa|a administracao)|pessoa de verdade`)
-var reData = regexp.MustCompile(`\b(\d{1,2}/\d{1,2}(?:/\d{2,4})?|\d{4}-\d{2}-\d{2})\b`)
+var reData = regexp.MustCompile(`\b(hoje|amanha|\d{1,2}/\d{1,2}(?:/\d{2,4})?|\d{4}-\d{2}-\d{2})\b`)
+var reRecorrencia = regexp.MustCompile(`\b(?:todo dia|todos os dias|diariamente|toda semana|todas as semanas|semanalmente|uma vez por semana|todo mes|mensalmente|recorrente|recorrencia)\b`)
 
 func (Regras) Extrair(_ context.Context, in Entrada) (Extracao, error) {
 	var out Extracao
@@ -147,6 +148,14 @@ func (Regras) Extrair(_ context.Context, in Entrada) (Extracao, error) {
 			return out, nil
 		}
 	}
+	if reRecorrencia.MatchString(n) {
+		for _, p := range in.Abertos {
+			if p.Caso == "liberacao_visitante" {
+				out.Restante = msg
+				return out, nil
+			}
+		}
+	}
 	// caso novo por palavra-chave
 	melhor, pontos := -1, 0
 	for i, c := range in.Casos {
@@ -162,13 +171,27 @@ func (Regras) Extrair(_ context.Context, in Entrada) (Extracao, error) {
 	}
 	if melhor >= 0 {
 		c := in.Casos[melhor]
+		if c.ID == "liberacao_visitante" && reRecorrencia.MatchString(n) {
+			out.Restante = msg
+			return out, nil
+		}
 		vals := map[string]any{}
-		if m := reData.FindString(msg); m != "" {
+		if m := reData.FindString(n); m != "" {
 			for _, s := range c.Slots {
 				if s.Tipo == "date" {
 					vals[s.Nome] = m
 					break
 				}
+			}
+		}
+		if c.ID == "encomendas" {
+			switch {
+			case strings.Contains(n, "entreg") || strings.Contains(n, "delivered"):
+				vals["status"] = "delivered"
+			case strings.Contains(n, "cancel") || strings.Contains(n, "canceled"):
+				vals["status"] = "canceled"
+			case strings.Contains(n, "aguard") || strings.Contains(n, "waiting") || strings.Contains(n, "esperando retirada"):
+				vals["status"] = "waiting"
 			}
 		}
 		pe := PedidoExtraido{Caso: c.ID, Valores: vals}

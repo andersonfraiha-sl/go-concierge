@@ -67,7 +67,8 @@ type Config struct {
 	Nexus *nexus.Client
 	// MCP executa os recursos que vieram do catálogo MCP (Recurso.Origem == "mcp") por
 	// tools/call, com o token do cliente; nil = esses recursos ficam indisponíveis.
-	MCP mcp.Caller
+	MCP           mcp.Caller
+	MCPResultados map[string]any
 	// Identidade do morador nesta execução; o zero é o contato público na account
 	// padrão (DEFAULT_ACCOUNT_ID, senão cond-001).
 	Identidade Identidade
@@ -86,9 +87,7 @@ type Config struct {
 	// Orientacoes por caso de uso (nome da pasta do subagente → texto da
 	// administradora): entram só na instrução daquele subagente.
 	Orientacoes map[string]string
-	// Locais são recursos que o próprio canal resolve, sem Nexus (ex.: unidades.listar
-	// a partir da identidade que o Gruvi devolveu para o telefone). Têm precedência
-	// sobre o Nexus e valem mesmo quando ele não está no ar.
+	// Locais são recursos que o próprio canal resolve, sem Nexus.
 	Locais map[string]func(ctx context.Context, params map[string]any) (any, error)
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int

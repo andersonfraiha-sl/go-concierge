@@ -2,6 +2,7 @@ package pedidos
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,78 @@ func TestContratoDaReserva(t *testing.T) {
 	}
 	if strings.Join(tipos, ",") != "recurso,escolher,recurso,escolher,coletar,confirmar,recurso" {
 		t.Fatalf("passos: %v", tipos)
+	}
+}
+
+func TestAplicarFiltraEscolhaMCPPreservandoIDOriginal(t *testing.T) {
+	slot := &Slot{Nome: "motivo", Tipo: "choose", De: "motivos", Rotulo: "reason", Valor: "id", Strict: true,
+		Filtro: map[string]any{"type_provider": "{{.categoria}}"}}
+	ct := &Contrato{Slots: map[string]*Slot{"motivo": slot}, Ordem: []string{"motivo"}}
+	p := &Pedido{
+		Valores: map[string]any{"categoria": "GUEST"}, Rotulos: map[string]string{}, Origens: map[string]string{},
+		Dados: map[string]any{"motivos": []any{
+			map[string]any{"id": int64(42), "reason": "Visita familiar", "type_provider": "GUEST"},
+			map[string]any{"id": int64(43), "reason": "Prestador de serviço", "type_provider": "SERVICE_PROVIDER"},
+		}},
+	}
+	if rejeitados := Aplicar(ct, p, map[string]any{"motivo": "Visita familiar"}, OrigemMorador); len(rejeitados) != 0 {
+		t.Fatalf("motivo filtrado devia ser aceito: %v", rejeitados)
+	}
+	if id, ok := p.Valores["motivo"].(float64); !ok || id != 42 || p.Rotulos["motivo"] != "Visita familiar" {
+		t.Fatalf("Aplicar deve guardar o ID MCP original e o rótulo: valor=%T(%v), rótulo=%q", p.Valores["motivo"], p.Valores["motivo"], p.Rotulos["motivo"])
+	}
+}
+
+func TestOpcoesDeDadosMantemCompatibilidadeLegada(t *testing.T) {
+	stringsOpcoes := OpcoesDeDados([]any{"um", "dois"}, &Slot{})
+	if len(stringsOpcoes) != 2 || stringsOpcoes[0].Valor != "um" || stringsOpcoes[1].Rotulo != "dois" {
+		t.Fatalf("lista escalar legada: %+v", stringsOpcoes)
+	}
+	idFallback := OpcoesDeDados([]any{map[string]any{"id": 42, "label": "Unidade 42"}}, &Slot{Valor: "id_fastpass", Rotulo: "unit"})
+	if len(idFallback) != 1 || idFallback[0].Valor != "42" || idFallback[0].Rotulo != "Unidade 42" {
+		t.Fatalf("fallback id legado: %+v", idFallback)
+	}
+	strict := OpcoesDeDados([]any{map[string]any{"id": 42, "unit": "Unidade 42"}}, &Slot{Valor: "id_fastpass", Rotulo: "unit", Strict: true})
+	if len(strict) != 0 {
+		t.Fatalf("escolha MCP estrita não deve aceitar fallback de id: %+v", strict)
+	}
+}
+
+func TestIDFastpassElegivelRespeitaLimitesNumericosSeguros(t *testing.T) {
+	limite := int64(1<<53 - 1)
+	testes := []struct {
+		nome   string
+		valor  any
+		aceita bool
+	}{
+		{"int minimo seguro", -limite, true},
+		{"int64 maximo seguro", limite, true},
+		{"int64 acima do limite", limite + 1, false},
+		{"uint seguro", uint64(limite), true},
+		{"uint acima do limite", uint64(limite) + 1, false},
+		{"int8", int8(127), true},
+		{"int16", int16(-32768), true},
+		{"int32", int32(109), true},
+		{"uint8", uint8(255), true},
+		{"uint16", uint16(109), true},
+		{"uint32", uint32(109), true},
+		{"uintptr", uintptr(109), true},
+		{"float32 inteiro", float32(109), true},
+		{"float64 limite seguro", float64(limite), true},
+		{"float64 fora do limite", float64(limite + 1), false},
+		{"float64 fracionario", 109.5, false},
+		{"json number inteiro", json.Number("109"), true},
+		{"json number decimal inteiro", json.Number("109.0"), true},
+		{"json number limite", json.Number("9007199254740991"), true},
+		{"json number acima", json.Number("9007199254740992"), false},
+		{"json number fracionario", json.Number("109.5"), false},
+	}
+	for _, teste := range testes {
+		t.Run(teste.nome, func(t *testing.T) {
+			if aceita := idFastpassElegivel(teste.valor); aceita != teste.aceita {
+				t.Fatalf("idFastpassElegivel(%T(%v)) = %v, esperado %v", teste.valor, teste.valor, aceita, teste.aceita)
+			}
+		})
 	}
 }
 
@@ -182,6 +255,92 @@ func TestRegrasExtrator(t *testing.T) {
 	ex, _ = r.Extrair(context.Background(), Entrada{Mensagem: "qual o horário da piscina?", Casos: casos})
 	if ex.Restante == "" || len(ex.Pedidos) != 0 {
 		t.Fatalf("dúvida vira restante: %+v", ex)
+	}
+	visita := CasoResumo{ID: "liberacao_visitante", Keywords: []string{"liberar", "visitante"}, Slots: []*Slot{{Nome: "data_visita", Tipo: "date"}}}
+	for _, teste := range []struct{ mensagem, data string }{{"quero liberar um visitante hoje", "hoje"}, {"quero liberar um visitante amanhã", "amanha"}} {
+		ex, _ = r.Extrair(context.Background(), Entrada{Mensagem: teste.mensagem, Casos: []CasoResumo{visita}})
+		if len(ex.Pedidos) != 1 || ex.Pedidos[0].Valores["data_visita"] != teste.data {
+			t.Fatalf("data relativa %q: %+v", teste.mensagem, ex)
+		}
+	}
+	ex, _ = r.Extrair(context.Background(), Entrada{Mensagem: "quero liberar visitantes toda semana", Casos: []CasoResumo{visita}})
+	if len(ex.Pedidos) != 0 || ex.Restante == "" {
+		t.Fatalf("pedido recorrente segue para o concierge encaminhar ao app: %+v", ex)
+	}
+}
+
+func TestEncomendasStatusOpcionalComDefaultWaiting(t *testing.T) {
+	ct := casoEncomendas(t)
+	caso := CasoResumo{ID: ct.Caso.ID, Nome: ct.Caso.Name, Keywords: ct.Caso.Keywords, Slots: slots(ct)}
+	for _, teste := range []struct {
+		mensagem string
+		status   string
+	}{
+		{"tenho alguma encomenda?", ""},
+		{"minhas encomendas entregues", "delivered"},
+		{"tem pacote cancelado?", "canceled"},
+		{"quero ver encomendas aguardando retirada", "waiting"},
+	} {
+		ex, err := (Regras{}).Extrair(context.Background(), Entrada{Mensagem: teste.mensagem, Casos: []CasoResumo{caso}})
+		if err != nil || len(ex.Pedidos) != 1 || ex.Pedidos[0].Caso != "encomendas" {
+			t.Fatalf("pedido de encomendas %q: %+v erro=%v", teste.mensagem, ex, err)
+		}
+		status, existe := ex.Pedidos[0].Valores["status"]
+		if teste.status == "" && existe || teste.status != "" && status != teste.status {
+			t.Fatalf("status de %q = %v, esperado %q", teste.mensagem, status, teste.status)
+		}
+	}
+	p := &Pedido{Dados: map[string]any{}, Valores: map[string]any{"unidade": "fp-1"}}
+	params, err := ct.ParamsDe(map[string]any{"unitId": "$unidade", "filter_status": `{{if .status}}{{.status}}{{else}}waiting{{end}}`}, p)
+	if err != nil || params["filter_status"] != "waiting" {
+		t.Fatalf("status padrão: %+v erro=%v", params, err)
+	}
+}
+
+func casoEncomendas(t *testing.T) *Contrato {
+	t.Helper()
+	c, err := okf.LoadCaso(filepath.Join("..", "..", "okf", "agentes", "concierge", "agentes", "encomendas", "caso.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := ContratoDe(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ct
+}
+
+func TestDatasRelativasUsamFusoSaoPauloPertoDaMeiaNoiteUTC(t *testing.T) {
+	original := Agora
+	Agora = func() time.Time { return time.Date(2026, 10, 29, 0, 30, 0, 0, time.UTC) }
+	defer func() { Agora = original }()
+	for _, teste := range []struct{ entrada, esperada string }{{"hoje", "2026-10-28"}, {"amanha", "2026-10-29"}} {
+		data, err := parseData(teste.entrada)
+		if err != nil || data.Format("2006-01-02") != teste.esperada {
+			t.Fatalf("parseData(%q) = %s, erro=%v", teste.entrada, data.Format("2006-01-02"), err)
+		}
+	}
+	fim, err := dataHoraRelativa("hoje", "fim")
+	if err != nil || fim != "2026-10-29 02:59" {
+		t.Fatalf("fim de hoje no fuso do recurso = %q, erro=%v", fim, err)
+	}
+	if !dataVisitaPermitida("2026-10-28") || dataVisitaPermitida("2026-10-30") {
+		t.Fatal("validação de hoje e datas futuras deve usar o dia de São Paulo")
+	}
+}
+
+func TestRotuloDataVisita(t *testing.T) {
+	Agora = func() time.Time { return time.Date(2026, 10, 28, 12, 0, 0, 0, time.Local) }
+	defer func() { Agora = time.Now }()
+	for _, teste := range []struct{ data, esperado string }{
+		{"2026-10-28", "hoje"},
+		{"2026-10-29", "amanhã"},
+		{"2026-11-02", "2 de novembro de 2026"},
+	} {
+		got, err := Render("{{dateLabel .data}}", map[string]any{"data": teste.data})
+		if err != nil || got != teste.esperado {
+			t.Fatalf("dateLabel(%q): %q, %v; queria %q", teste.data, got, err, teste.esperado)
+		}
 	}
 }
 

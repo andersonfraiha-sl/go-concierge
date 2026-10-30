@@ -50,6 +50,7 @@ func (c *Client) PermiteTelefone(phone string) bool {
 // Unidade do morador no condomínio.
 type Unidade struct {
 	ID         string `json:"id"` // id_fastpass (o id que as operações usam); sem ele, o id do BFF
+	IDInterno  string `json:"id_interno,omitempty"`
 	Label      string `json:"label"`
 	Bloco      string `json:"bloco,omitempty"`
 	Condominio string `json:"condominio,omitempty"` // nome do condomínio dono da unidade
@@ -140,14 +141,16 @@ func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, erro
 			if res, ok := u["resident"].(map[string]any); ok && id.Name == "" {
 				id.Name = str(res["name"])
 			}
-			uid := str(u["id_fastpass"])
+			interno := str(u["id"])
+			fastpass := str(u["id_fastpass"])
+			uid := fastpass
 			if uid == "" {
-				uid = str(u["id"])
+				uid = interno
 			}
 			if uid == "" {
 				continue
 			}
-			un := Unidade{ID: uid, Label: rotuloUnidade(u), Bloco: str(u["block"]), Condominio: nome}
+			un := Unidade{ID: uid, IDInterno: interno, Label: rotuloUnidade(u), Bloco: str(u["block"]), Condominio: nome}
 			condo.Unidades = append(condo.Unidades, un)
 			id.Units = append(id.Units, un)
 		}
@@ -174,6 +177,107 @@ func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, erro
 		}
 	}
 	return id, nil
+}
+
+func IdentidadeDoResultadoMCP(phone, companyID string, data any) Identidade {
+	id, _ := IdentidadeComDadosVinculadosMCP(phone, companyID, data)
+	return id
+}
+
+func IdentidadeComDadosVinculadosMCP(phone, companyID string, data any) (Identidade, map[string]any) {
+	tel := NormalizarTelefone(phone)
+	id := Identidade{Phone: tel, CompanyID: strings.TrimSpace(companyID), Units: []Unidade{}, Condominios: []Condominio{}}
+	var unidadesVinculadas []any
+	var condominios []map[string]any
+	switch value := data.(type) {
+	case map[string]any:
+		condominios = []map[string]any{value}
+	case []any:
+		condominios = lista(value)
+	}
+	for _, raw := range condominios {
+		nome := ""
+		if condo, ok := raw["condominium"].(map[string]any); ok {
+			nome = str(condo["name"])
+		}
+		if nome == "" {
+			nome = primeiraString(raw, "name", "trade_name", "company_name")
+		}
+		if id.CompanyName == "" {
+			id.CompanyName = nome
+		}
+		responsavelVerificado := false
+		for _, responsavel := range lista(raw["legal_responsibles"]) {
+			if !telefoneEm(responsavel["documents"], tel) {
+				continue
+			}
+			responsavelVerificado = true
+			if id.Name == "" {
+				id.Name = str(responsavel["name"])
+			}
+			if position, ok := responsavel["position"].(map[string]any); ok && str(position["name"]) != "" {
+				id.Role = papelDe(str(position["name"]))
+			}
+		}
+		condo := Condominio{Nome: nome, Unidades: []Unidade{}}
+		for _, unit := range lista(raw["units"]) {
+			resident, hasResident := unit["resident"].(map[string]any)
+			residentMatches := false
+			if hasResident {
+				residentMatches = NormalizarTelefone(str(resident["mobile_number"])) == tel || telefoneEm(resident["documents"], tel)
+				if residentMatches && id.Name == "" {
+					id.Name = str(resident["name"])
+				}
+			}
+			if !responsavelVerificado && !residentMatches {
+				continue
+			}
+			interno := str(unit["id"])
+			fastpass := str(unit["id_fastpass"])
+			operacional := fastpass
+			if operacional == "" {
+				operacional = interno
+			}
+			if operacional == "" {
+				continue
+			}
+			unidade := Unidade{ID: operacional, IDInterno: interno, Label: rotuloUnidade(unit), Bloco: str(unit["block"]), Condominio: nome}
+			condo.Unidades = append(condo.Unidades, unidade)
+			id.Units = append(id.Units, unidade)
+			unidadesVinculadas = append(unidadesVinculadas, unidadeMCPVinculada(unit))
+		}
+		if len(condo.Unidades) > 0 {
+			id.Condominios = append(id.Condominios, condo)
+		}
+	}
+	if len(id.Units) > 0 {
+		id.Authenticated = true
+		id.PersonID = "gruvi:" + tel
+		if id.Role == "" {
+			id.Role = "morador"
+		}
+	}
+	dadosVinculados := map[string]any{"units": unidadesVinculadas}
+	if id.CompanyName != "" {
+		dadosVinculados["name"] = id.CompanyName
+		dadosVinculados["condominium"] = map[string]any{"name": id.CompanyName}
+	}
+	return id, dadosVinculados
+}
+
+func unidadeMCPVinculada(unit map[string]any) map[string]any {
+	filtrada := map[string]any{}
+	for _, campo := range []string{"id", "id_external_gruvi", "id_fastpass", "block", "unit", "label"} {
+		if valor, existe := unit[campo]; existe {
+			filtrada[campo] = valor
+		}
+	}
+	if residente, ok := unit["resident"].(map[string]any); ok {
+		if nome, existe := residente["name"]; existe {
+			filtrada["resident"] = map[string]any{"name": nome}
+		}
+	}
+	return filtrada
 }
 
 // telefoneEm: algum documento MOBILE_NUMBER da lista bate com o telefone normalizado.

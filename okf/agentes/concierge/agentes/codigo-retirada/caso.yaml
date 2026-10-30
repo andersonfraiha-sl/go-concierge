@@ -10,33 +10,48 @@ examples:
   - qual o código pra retirar minha encomenda?
   - me passa o código de retirada
   - preciso do código do pacote
+params:
+  - name: reutilizar_unidade
+    title: Reutilizar unidade
+    type: select
+    options: [{value: sim, label: sim}, {value: nao, label: não}]
+    ask: Deseja reutilizar a unidade anterior?
 steps:
-  - resource: unidades.listar
-    save_as: unidades
+  - resource: gruvi.bff.building-operation.get-company-by-document-controller-handle
+    save_as: condominio
+  - reuse:
+      slot: unidade
+      confirm: reutilizar_unidade
+      from: condominio
+      label: unit
+      value: id_fastpass
+      ask: Deseja reutilizar a unidade {{.reuso_label}}?
   - choose:
       param: unidade
-      reuse: always
       title: Unidade
-      from: unidades
-      label: label
-      value: id
+      from: condominio
+      label: unit
+      value: id_fastpass
+      strict: true
       ask: De qual unidade?
-      empty: Sua unidade ainda não tem encomendas disponíveis por aqui.
-  - resource: encomendas.listar
+      empty: A consulta de encomendas não está disponível para as unidades retornadas.
+  - resource: gruvi.bff.building-operation.fetch-unit-packages-controller-handle
     with:
-      unidade_id: "{{.unidade}}"
+      unitId: "$unidade"
+      filter_status: waiting
     save_as: encomendas
   - choose:
       param: encomenda
       title: Encomenda
       from: encomendas
-      label: label
+      label: description
       value: id
+      strict: true
       ask: De qual encomenda?
       empty: Não há encomendas aguardando retirada no momento.
-  - resource: encomendas.codigo
+  - resource: gruvi.bff.building-operation.get-package-delivery-code-controller-handle
     with:
-      unidade_id: "{{.unidade}}"
-      encomenda_id: "{{.encomenda}}"
+      unitId: "$unidade"
+      packageId: "$encomenda"
     save_as: retirada
-output: "O código de retirada de {{.encomenda_label}} é *{{.retirada.codigo}}*. Apresente na portaria."
+output: "O código de retirada de {{.encomenda_label}} é *{{.retirada.delivery_code}}*. Apresente na portaria."

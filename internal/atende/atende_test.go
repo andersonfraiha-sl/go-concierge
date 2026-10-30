@@ -11,6 +11,7 @@ import (
 
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
+	"go-concierge/internal/mcp"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/okf"
 )
@@ -33,6 +34,77 @@ const eventoExemplo = `{
 func raizDoRepo(t *testing.T) string {
 	_, arq, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(arq), "..", "..")
+}
+
+type mcpServicoFalso struct {
+	erroToken        error
+	erroEmpresa      error
+	resultadoEmpresa *mcp.CallResult
+	chamadas         []string
+}
+
+func (m *mcpServicoFalso) ValidarToken(context.Context) error { return m.erroToken }
+
+func (m *mcpServicoFalso) CallTool(_ context.Context, nome string, _ map[string]any) (*mcp.CallResult, error) {
+	m.chamadas = append(m.chamadas, nome)
+	if nome == "gruvi.bff.building-operation.get-company-by-document-controller-handle" {
+		if m.erroEmpresa != nil {
+			return nil, m.erroEmpresa
+		}
+		if m.resultadoEmpresa != nil {
+			return m.resultadoEmpresa, nil
+		}
+		return &mcp.CallResult{Content: []mcp.Content{{Type: "text", Text: `{"data":{"units":[{"id":"109","id_fastpass":"109","label":"A - 101","unit":"A - 101","resident":{"name":"Vanderlei Martins","mobile_number":"5519981621916"}}]}}`}}}, nil
+	}
+	return &mcp.CallResult{Content: []mcp.Content{{Type: "text", Text: `{"ok":true}`}}}, nil
+}
+
+func adicionarToolsMCP(cat *okf.Catalogo) {
+	original := cat.Recursos
+	cat.Recursos = func() []okf.Recurso {
+		out := original()
+		parametros := map[string][]okf.ParamMeta{
+			"gruvi.bff.building-operation.get-company-by-document-controller-handle": {
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "filter_mobile_number", Type: "string", Required: true},
+			},
+			"gruvi.bff.building-operation.fetch-unit-packages-controller-handle": {
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "unitId", Type: "string", Required: true},
+				{Name: "filter_status", Type: "string"},
+				{Name: "filter_mobile_number", Type: "string", Required: true},
+			},
+			"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": {
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "unitId", Type: "string", Required: true},
+				{Name: "packageId", Type: "string", Required: true},
+				{Name: "filter_mobile_number", Type: "string", Required: true},
+			},
+			"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle": {
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "filter_visitor_type", Type: "string"},
+			},
+			"gruvi.bff.building-operation.create-visit-controller-handle": {
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "unitId", Type: "string", Required: true},
+				{Name: "start_datetime", Type: "string", Required: true},
+				{Name: "end_datetime", Type: "string", Required: true},
+				{Name: "resident", Type: "object", Required: true},
+				{Name: "reason", Type: "number", Required: true},
+				{Name: "visitors", Type: "array", Required: true},
+			},
+		}
+		for _, nome := range []string{
+			"gruvi.bff.building-operation.get-company-by-document-controller-handle",
+			"gruvi.bff.building-operation.fetch-unit-packages-controller-handle",
+			"gruvi.bff.building-operation.get-package-delivery-code-controller-handle",
+			"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle",
+			"gruvi.bff.building-operation.create-visit-controller-handle",
+		} {
+			out = append(out, okf.Recurso{Name: nome, Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemMCP, Write: strings.HasSuffix(nome, "create-visit-controller-handle"), Params: parametros[nome]})
+		}
+		return out
+	}
 }
 
 func TestParse(t *testing.T) {
@@ -69,20 +141,20 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	}
 	fix, _ := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
 	cat.Recursos = func() []okf.Recurso { return fix }
+	adicionarToolsMCP(cat)
 	out := &Outbox{}
+	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
 		Cat: cat, Agente: "agentes/concierge", Account: "cond-001", Sessoes: NewSessoes(), Sender: out,
-		Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
-		Identificar: func(ctx context.Context, phone string) (gruvi.Identidade, error) {
-			return gruvi.Identidade{Authenticated: true, Phone: phone, Name: "Vanderlei", Role: "morador", Units: []gruvi.Unidade{{ID: "fp-1", Label: "A - 101"}}}, nil
-		},
+		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
+		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 	}
 	ev, _ := Parse([]byte(eventoExemplo))
 	sess, err := svc.Processar(context.Background(), ev)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sess.Identidade.Authenticated || sess.Identidade.Name != "Vanderlei" {
+	if !sess.Identidade.Authenticated || sess.Identidade.CompanyID != "5982" {
 		t.Fatalf("identidade: %+v", sess.Identidade)
 	}
 	if len(sess.Turnos) != 2 || sess.Turnos[0].Quem != "morador" || sess.Turnos[1].Quem != "concierge" || sess.Turnos[1].Texto == "" {
@@ -116,14 +188,13 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ult := s4.Turnos[len(s4.Turnos)-1]
 	svcM.Aguardar()
-	ult = s4.Turnos[len(s4.Turnos)-1]
+	ult := s4.Turnos[len(s4.Turnos)-1]
 	if len(ult.Memorias) != 2 {
 		t.Fatalf("deveria ter capturado unidades e pets: %+v", ult.Memorias)
 	}
 	mem, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
-	if len(mem.Fatos) != 2 || mem.Fatos[0].Fonte != "344200011995" || mem.Nome != "Vanderlei" {
+	if len(mem.Fatos) != 2 || mem.Fatos[0].Fonte != "344200011995" {
 		t.Fatalf("memória gravada: %+v", mem)
 	}
 	// na conversa seguinte do mesmo telefone, a memória vai ao prompt (Contexto)
@@ -152,17 +223,15 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	// identidade falha: segue como público, com o erro registrado
 	svc2 := *svc
 	svc2.Sessoes = NewSessoes()
-	svc2.Identificar = func(ctx context.Context, phone string) (gruvi.Identidade, error) {
-		return gruvi.Identidade{}, errors.New("bff fora")
-	}
+	svc2.Config.MCP = &mcpServicoFalso{erroToken: errors.New("bff fora")}
 	s3, err := svc2.Processar(context.Background(), ev)
-	if err != nil || s3.Identidade.Authenticated || s3.IdentErro != "bff fora" {
-		t.Fatalf("%v %+v", err, s3.Identidade)
+	if err == nil || s3.Identidade.Authenticated || !strings.Contains(s3.IdentErro, "bff fora") {
+		t.Fatalf("token B2C inválido não deve autenticar a sessão: err=%v sessão=%+v", err, s3.Identidade)
 	}
 }
 
 func TestContextoDeAgora(t *testing.T) {
-	c := contextoDeAgora(time.Date(2026, 10, 17, 20, 5, 0, 0, time.Local))
+	c := contextoDeAgora(time.Date(2026, 10, 17, 23, 5, 0, 0, time.UTC))
 	if !strings.Contains(c, "sábado, 17 de outubro de 2026, 20:05") {
 		t.Fatalf("agora: %s", c)
 	}

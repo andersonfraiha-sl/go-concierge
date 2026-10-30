@@ -80,7 +80,67 @@ func TestIdentidadeComListaDeCondominios(t *testing.T) {
 	if len(id.Condominios) != 2 || id.Condominios[0].Nome != "Cond A" || len(id.Condominios[0].Unidades) != 2 || len(id.Condominios[1].Unidades) != 1 {
 		t.Fatalf("condomínios: %+v", id.Condominios)
 	}
-	if id.Units[0].ID != "uuid-1" || id.Units[0].Label != "unidade op" || id.Units[1].ID != "109" || id.Units[1].Condominio != "Cond A" || id.Units[2].Condominio != "Cond B" {
+	if id.Units[0].ID != "uuid-1" || id.Units[0].Label != "unidade op" || id.Units[1].ID != "109" || id.Units[1].IDInterno != "uuid-2" || id.Units[1].Condominio != "Cond A" || id.Units[2].Condominio != "Cond B" {
 		t.Fatalf("unidades: %+v", id.Units)
+	}
+}
+
+func TestIdentidadeDoResultadoMCPPreservaContratoEValidaTelefone(t *testing.T) {
+	phone := "19 98162-1916"
+	data := map[string]any{
+		"name":        "Residencial Exemplo",
+		"condominium": map[string]any{"name": "Cond A"},
+		"units": []any{
+			map[string]any{"id": "uuid-2", "id_fastpass": float64(109), "unit": "101", "block": "A", "resident": map[string]any{"name": "Vanderlei Martins", "mobile_number": phone}},
+			map[string]any{"id": "uuid-3", "id_fastpass": "fp-outro", "unit": "202", "block": "B", "resident": map[string]any{"name": "Outra pessoa", "mobile_number": "5511999999999"}},
+		},
+	}
+	id := IdentidadeDoResultadoMCP(phone, "5982", data)
+	if !id.Authenticated || id.Phone != "5519981621916" || id.CompanyID != "5982" || id.CompanyName != "Cond A" || id.Name != "Vanderlei Martins" || len(id.Units) != 1 || len(id.Condominios) != 1 {
+		t.Fatalf("identidade MCP: %+v", id)
+	}
+	unit := id.Units[0]
+	if unit.ID != "109" || unit.IDInterno != "uuid-2" || unit.Label != "A - 101" || id.Condominios[0].Unidades[0].ID != "109" {
+		t.Fatalf("IDs e contrato da console: %+v", unit)
+	}
+}
+
+func TestIdentidadeMCPSemVinculoTelefoneFicaPublica(t *testing.T) {
+	id := IdentidadeDoResultadoMCP("5519981621916", "5982", map[string]any{
+		"units": []any{map[string]any{"id": "uuid-2", "id_fastpass": "fp-1", "unit": "101"}},
+	})
+	if id.Authenticated || len(id.Units) != 0 || len(id.Condominios) != 0 {
+		t.Fatalf("unidade sem vínculo não autentica nem aparece: %+v", id)
+	}
+}
+
+func TestCacheVinculadoPreservaUnidadesDeResponsavelLegalSemDadosDeContato(t *testing.T) {
+	id, cache := IdentidadeComDadosVinculadosMCP("5519981621916", "5982", map[string]any{
+		"name": "Residencial Exemplo",
+		"legal_responsibles": []any{map[string]any{
+			"name":      "Vanderlei Martins",
+			"position":  map[string]any{"name": "Síndico"},
+			"documents": []any{map[string]any{"type": "MOBILE_NUMBER", "value": "5519981621916"}},
+		}},
+		"units": []any{
+			map[string]any{"id": "u1", "id_fastpass": "101", "unit": "A - 101", "resident": map[string]any{"name": "Morador A", "mobile_number": "5511999999999"}},
+			map[string]any{"id": "u2", "id_fastpass": "202", "unit": "B - 202", "resident": map[string]any{"name": "Morador B", "documents": []any{map[string]any{"type": "MOBILE_NUMBER", "value": "5511999999998"}}}},
+		},
+	})
+	if !id.Authenticated || id.Role != "sindico" || len(id.Units) != 2 {
+		t.Fatalf("responsável legal verificado deve manter acesso às unidades do condomínio: %+v", id)
+	}
+	units, ok := cache["units"].([]any)
+	if !ok || len(units) != 2 {
+		t.Fatalf("cache deve manter as unidades do responsável legal verificado: %+v", cache)
+	}
+	for _, unit := range units {
+		resident := unit.(map[string]any)["resident"].(map[string]any)
+		if _, exists := resident["mobile_number"]; exists {
+			t.Fatalf("cache não deve guardar telefone residencial: %+v", resident)
+		}
+		if _, exists := resident["documents"]; exists {
+			t.Fatalf("cache não deve guardar documentos: %+v", resident)
+		}
 	}
 }

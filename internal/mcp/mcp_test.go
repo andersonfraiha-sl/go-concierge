@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -94,6 +95,103 @@ func TestClienteListaEChamaComSessaoBearerEHostDeLoopback(t *testing.T) {
 	if !ok || v["ok"] != true || chamadas.Load() != 1 {
 		t.Fatalf("resultado SSE: %#v (chamadas %d)", res.Valor(), chamadas.Load())
 	}
+}
+
+func TestClienteRepeteLeituraAposSessaoExpirada(t *testing.T) {
+	srv, inicializacoes, chamadas := servidorDeRetry(t, "gruvi.bff.mobile.get-profile", true, func(w http.ResponseWriter, req retryRequest, chamada int32) {
+		if chamada == 1 {
+			http.Error(w, "sessão expirada", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"content":[],"isError":false}}`, *req.ID)
+	})
+	defer srv.Close()
+	c := New(srv.URL, nil)
+	c.HostHeader = "127.0.0.1:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+	if _, err := c.ListTools(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.CallTool(context.Background(), "gruvi.bff.mobile.get-profile", nil); err != nil {
+		t.Fatal(err)
+	}
+	if chamadas.Load() != 2 || inicializacoes.Load() != 2 {
+		t.Fatalf("leitura devia ser repetida com nova sessão: chamadas=%d inicializações=%d", chamadas.Load(), inicializacoes.Load())
+	}
+}
+
+func TestClienteNaoRepeteEscritaAposSessaoExpirada(t *testing.T) {
+	srv, inicializacoes, chamadas := servidorDeRetry(t, "gruvi.bff.mobile.create-visit", false, func(w http.ResponseWriter, _ retryRequest, _ int32) {
+		http.Error(w, "sessão expirada", http.StatusNotFound)
+	})
+	defer srv.Close()
+	c := New(srv.URL, nil)
+	c.HostHeader = "127.0.0.1:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+	if _, err := c.ListTools(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := c.CallTool(context.Background(), "gruvi.bff.mobile.create-visit", nil)
+	var he *httpError
+	if !errors.As(err, &he) || he.status != http.StatusNotFound {
+		t.Fatalf("esperava HTTP 404 sem replay, veio %v", err)
+	}
+	if chamadas.Load() != 1 || inicializacoes.Load() != 1 {
+		t.Fatalf("escrita incerta não devia ser repetida: chamadas=%d inicializações=%d", chamadas.Load(), inicializacoes.Load())
+	}
+}
+
+func TestClienteNaoRepeteEscritaComErroFuncionalMCP(t *testing.T) {
+	srv, inicializacoes, chamadas := servidorDeRetry(t, "gruvi.bff.mobile.create-visit", false, func(w http.ResponseWriter, req retryRequest, _ int32) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"content":[{"type":"text","text":"falha funcional"}],"isError":true}}`, *req.ID)
+	})
+	defer srv.Close()
+	c := New(srv.URL, nil)
+	c.HostHeader = "127.0.0.1:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+	if _, err := c.ListTools(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	res, err := c.CallTool(context.Background(), "gruvi.bff.mobile.create-visit", nil)
+	if err != nil || res == nil || !res.IsError {
+		t.Fatalf("erro funcional MCP devia voltar sem replay: resultado=%+v erro=%v", res, err)
+	}
+	if chamadas.Load() != 1 || inicializacoes.Load() != 1 {
+		t.Fatalf("erro funcional após POST não devia disparar retry: chamadas=%d inicializações=%d", chamadas.Load(), inicializacoes.Load())
+	}
+}
+
+type retryRequest struct {
+	ID     *int64         `json:"id"`
+	Method string         `json:"method"`
+	Params map[string]any `json:"params"`
+}
+
+func servidorDeRetry(t *testing.T, nome string, readOnly bool, responder func(http.ResponseWriter, retryRequest, int32)) (*httptest.Server, *atomic.Int32, *atomic.Int32) {
+	t.Helper()
+	var inicializacoes, chamadas atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req retryRequest
+		_ = json.Unmarshal(body, &req)
+		switch req.Method {
+		case "initialize":
+			n := inicializacoes.Add(1)
+			w.Header().Set("Mcp-Session-Id", fmt.Sprintf("sess-%d", n))
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"falso","version":"1"}}}`, *req.ID)
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"tools":[{"name":%q,"annotations":{"readOnlyHint":%t}}]}}`, *req.ID, nome, readOnly)
+		case "tools/call":
+			responder(w, req, chamadas.Add(1))
+		default:
+			http.Error(w, "método desconhecido", http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &inicializacoes, &chamadas
 }
 
 func TestClienteSemTokenRecebeNaoAutorizado(t *testing.T) {

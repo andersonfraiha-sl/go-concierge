@@ -34,8 +34,9 @@ type Sessao struct {
 	// a próxima mensagem retoma por harness.Continuar em vez de planejar de novo.
 	Plano *harness.Plano `json:"plano,omitempty"`
 
-	historico []*schema.Message
-	mu        sync.Mutex
+	historico     []*schema.Message
+	mcpResultados map[string]any
+	mu            sync.Mutex
 }
 
 // Transbordo é a passagem do protocolo a um humano, como o ATENDE faria ao sair do
@@ -135,4 +136,23 @@ func (sess *Sessao) anotarMemorias(idx int, fatos []memoria.Fato) {
 	if idx >= 0 && idx < len(sess.Turnos) && len(fatos) > 0 {
 		sess.Turnos[idx].Memorias = fatos
 	}
+}
+
+func (sess *Sessao) guardarMCPResultado(nome string, resultado any) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.mcpResultados == nil {
+		sess.mcpResultados = map[string]any{}
+	}
+	sess.mcpResultados[nome] = resultado
+}
+
+func (sess *Sessao) resultadosMCP() map[string]any {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	resultados := make(map[string]any, len(sess.mcpResultados))
+	for nome, resultado := range sess.mcpResultados {
+		resultados[nome] = resultado
+	}
+	return resultados
 }

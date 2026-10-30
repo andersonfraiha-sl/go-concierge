@@ -64,9 +64,11 @@ Regras:
 - um pedido por intenção; vários pedidos numa mensagem viram vários itens, na ordem;
 - se existe um pedido ABERTO do mesmo caso, use o protocolo dele (não abra outro) e ponha em
   valores só o que a mensagem traz; a resposta a uma pergunta em aberto vai no slot da pergunta;
-- valores: use o nome EXATO do slot; datas em AAAA-MM-DD (hoje é %s); opções pelo valor ou rótulo;
+- valores: use o nome EXATO do slot; datas em AAAA-MM-DD (hoje é %s, amanhã é %s); opções pelo valor ou rótulo;
   listas como array; sim/não como true/false; NUNCA invente valor que o morador não disse nesta
   mensagem (nem a partir do histórico, nem "o mais provável"); na dúvida, deixe de fora;
+- pedidos recorrentes de liberação de visitante não cabem neste caso: não abra pedido e deixe a
+  mensagem em restante para encaminhamento ao app Gruvi;
 - confirmacoes: só quando um pedido espera confirmação e o morador respondeu sim ou não;
 - cancelar: só se o morador desistiu de um pedido aberto;
 - atendente: true se o morador pede humano/atendente/pessoa;
@@ -123,7 +125,7 @@ func (e *ExtratorPedidosLLM) Extrair(ctx context.Context, in pedidos.Entrada) (p
 		}
 		abertos = b.String()
 	}
-	sys := fmt.Sprintf(promptPedidos, agora.Format("2006-01-02"), casos.String(), abertos)
+	sys := fmt.Sprintf(promptPedidos, agora.Format("2006-01-02"), agora.AddDate(0, 0, 1).Format("2006-01-02"), casos.String(), abertos)
 	var u strings.Builder
 	if len(in.Historico) > 0 {
 		u.WriteString("Últimos turnos:\n" + strings.Join(in.Historico, "\n") + "\n\n")

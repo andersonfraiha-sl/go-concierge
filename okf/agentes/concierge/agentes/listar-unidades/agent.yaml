@@ -3,4 +3,4 @@ tipo: operador
 descricao: 'Mostra as unidades (apartamentos/casas) vinculadas ao cadastro de quem
   pergunta. Caso de uso: Listar Unidades.'
 recursos:
-- unidades.listar
+- gruvi.bff.building-operation.get-company-by-document-controller-handle
