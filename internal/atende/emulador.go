@@ -26,6 +26,7 @@ type Emulador struct {
 
 // Entregue é uma mensagem que o ATENDE emulado recebeu do concierge.
 type Entregue struct {
+	SessaoID  string    `json:"session_id,omitempty"`
 	ID        string    `json:"id"`
 	Protocolo string    `json:"protocol"`
 	Texto     string    `json:"message"`
@@ -39,8 +40,9 @@ func NewEmulador() *Emulador { return &Emulador{recebido: map[string][]Entregue{
 func (e *Emulador) Handler(w http.ResponseWriter, r *http.Request) {
 	raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	var corpo struct {
-		Protocol string `json:"protocol"`
-		Message  string `json:"message"`
+		Protocol  string `json:"protocol"`
+		SessionID string `json:"session_id"`
+		Message   string `json:"message"`
 	}
 	if err := json.Unmarshal(raw, &corpo); err != nil || corpo.Protocol == "" || strings.TrimSpace(corpo.Message) == "" {
 		w.Header().Set("Content-Type", "application/json")
@@ -50,8 +52,12 @@ func (e *Emulador) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	e.mu.Lock()
 	e.seq++
-	m := Entregue{ID: "msg_" + strings.ToLower(time.Now().Format("20060102150405")) + "-" + itoa(e.seq), Protocolo: corpo.Protocol, Texto: corpo.Message, Quando: time.Now(), Status: "sent"}
-	e.recebido[corpo.Protocol] = append(e.recebido[corpo.Protocol], m)
+	chave := corpo.SessionID
+	if chave == "" {
+		chave = corpo.Protocol
+	}
+	m := Entregue{SessaoID: corpo.SessionID, ID: "msg_" + strings.ToLower(time.Now().Format("20060102150405")) + "-" + itoa(e.seq), Protocolo: corpo.Protocol, Texto: corpo.Message, Quando: time.Now(), Status: "sent"}
+	e.recebido[chave] = append(e.recebido[chave], m)
 	e.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"id": m.ID, "protocol": m.Protocolo, "status": m.Status})
@@ -62,6 +68,15 @@ func (e *Emulador) Recebidas(protocolo string) []Entregue {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	out := append([]Entregue{}, e.recebido[protocolo]...)
+	if len(out) == 0 {
+		for _, itens := range e.recebido {
+			for _, item := range itens {
+				if item.Protocolo == protocolo {
+					out = append(out, item)
+				}
+			}
+		}
+	}
 	return out
 }
 

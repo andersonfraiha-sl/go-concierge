@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"go-concierge/internal/atende"
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
-	"go-concierge/internal/memoria"
 	"go-concierge/internal/pedidos"
 )
 
@@ -24,6 +24,7 @@ import (
 
 func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("POST /webhook/atende", s.webhookAtende)
+	mux.HandleFunc("POST /emulador/atende/webhook", s.webhookEmulado)
 	mux.HandleFunc("GET /console", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := fs.ReadFile(s.web, "console.html")
 		if err != nil {
@@ -73,21 +74,12 @@ func (s *servidor) memoriaEsquecer(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, errTelefone)
 		return
 	}
-	m, err := s.memorias.Ler(r.Context(), s.account, phone)
+	m, err := s.atende.EsquecerMemoria(r.Context(), phone, chave)
 	if err != nil {
-		writeErr(w, 500, err)
-		return
-	}
-	if chave == "" {
-		m.Fatos = nil
-	} else if !m.Esquecer(chave) {
-		writeErr(w, 404, errors.New("fato não encontrado: "+chave))
-		return
-	}
-	if m.Fatos == nil {
-		m.Fatos = []memoria.Fato{}
-	}
-	if err := s.memorias.Gravar(r.Context(), m); err != nil {
+		if errors.Is(err, atende.ErrFatoNaoEncontrado) {
+			writeErr(w, 404, err)
+			return
+		}
 		writeErr(w, 500, err)
 		return
 	}
@@ -106,7 +98,15 @@ func (s *servidor) memoriasListar(w http.ResponseWriter, r *http.Request) {
 // webhookAtende aceita o evento (202) e processa em segundo plano; a resposta ao
 // morador sai pelo Sender (caixa de saída do emulador e, se configurado, o ATENDE).
 func (s *servidor) webhookAtende(w http.ResponseWriter, r *http.Request) {
-	if s.webhookToken != "" {
+	s.receberEventoAtende(w, r, false)
+}
+
+func (s *servidor) webhookEmulado(w http.ResponseWriter, r *http.Request) {
+	s.receberEventoAtende(w, r, true)
+}
+
+func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, emulado bool) {
+	if emulado && s.webhookToken != "" {
 		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if bearer != s.webhookToken && r.URL.Query().Get("token") != s.webhookToken {
 			writeErr(w, 401, errUnauthorized)
@@ -123,12 +123,49 @@ func (s *servidor) webhookAtende(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
+	tipo := ev.Classificar()
+	if tipo == atende.EventoIgnorado {
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "ignored": true, "event": ev.ID})
+		return
+	}
+	if err := ev.Validar(tipo); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if !emulado && (s.atendeTenant == "" || s.atendeTelefoneCanal == "" || s.atendeBaseURL == "" || s.atendeAPIKey == "") {
+		writeErr(w, http.StatusServiceUnavailable, errors.New("configuração real do ATENDE incompleta"))
+		return
+	}
+	if !emulado {
+		if err := ev.ValidarConexao(s.atendeTenant, s.atendeTelefoneCanal); err != nil {
+			writeErr(w, http.StatusForbidden, err)
+			return
+		}
+	}
+	if tipo == atende.EventoElegivel && !strings.EqualFold(ev.Data.Message.Type, "text") {
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "ignored": true, "event": ev.ID})
+		return
+	}
 	msg := ev.Normalizar()
+	if emulado {
+		msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
+		msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: ev.Data.Protocol.Number, Telefone: ev.Data.Contact.Phone, Canal: msg.Canal}
+	}
+	if tipo == atende.EventoHumano {
+		s.atende.RegistrarHumano(msg)
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": ev.Data.Protocol.Number})
+		return
+	}
+	if tipo == atende.EventoFechado {
+		s.atende.Encerrar(msg)
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": ev.Data.Protocol.Number})
+		return
+	}
 	if !s.atende.PermiteTelefone(msg.Contato.Phone) {
 		writeErr(w, http.StatusForbidden, errors.New("telefone diferente do morador configurado para o token B2C"))
 		return
 	}
-	sess := s.atende.Sessoes.Abrir(msg)
+	msg, sess := s.atende.PrepararMensagem(msg)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
@@ -136,20 +173,25 @@ func (s *servidor) webhookAtende(w http.ResponseWriter, r *http.Request) {
 			s.log.Printf("atende: protocolo %s: %v", ev.Data.Protocol.Number, err)
 		}
 	}()
-	writeJSON(w, 202, map[string]any{"accepted": true, "event": ev.ID, "protocol": sess.Protocolo})
+	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": sess.Protocolo, "session_id": sess.ID})
 }
 
 func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{
-		"agente":          s.atende.Agente,
-		"account":         s.account,
-		"gruvi":           map[string]any{"configurado": s.gruviOK, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
-		"webhook_token":   s.webhookToken != "",
-		"reply_url":       s.replyURL,
-		"reply_emulada":   s.replyEmulada,
-		"nexus_origem":    s.nexus,
-		"modelo_provedor": s.provedor,
-		"telefone_b2c":    s.atende.TelefoneB2C,
+		"agente":                  s.atende.Agente,
+		"account":                 s.account,
+		"gruvi":                   map[string]any{"configurado": s.gruviOK, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
+		"webhook_token":           s.webhookToken != "",
+		"hmac_verificacao_ativa":  false,
+		"atende_real_configurado": s.atendeTenant != "" && s.atendeTelefoneCanal != "" && s.atendeBaseURL != "" && s.atendeAPIKey != "",
+		"atende_api_base_url":     s.atendeBaseURL,
+		"webhook_real":            "/webhook/atende",
+		"webhook_emulado":         "/emulador/atende/webhook",
+		"reply_url":               s.replyURL,
+		"reply_emulada":           s.replyEmulada,
+		"nexus_origem":            s.nexus,
+		"modelo_provedor":         s.provedor,
+		"telefone_b2c":            s.atende.TelefoneB2C,
 	})
 }
 
@@ -158,18 +200,23 @@ func (s *servidor) atendeSessoes(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
-	sess, ok := s.atende.Sessoes.Get(r.URL.Query().Get("protocolo"))
+	identificador := r.URL.Query().Get("id")
+	if identificador == "" {
+		identificador = r.URL.Query().Get("protocolo")
+	}
+	sess, ok := s.atende.Sessoes.Get(identificador)
 	if !ok {
 		writeErr(w, 404, errNaoEncontrado)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})
+	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
 }
 
 // atendeTransbordo: o atendente humano assume, responde ou devolve o protocolo.
 func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 	var corpo struct {
 		Protocolo string `json:"protocolo"`
+		SessaoID  string `json:"sessao_id"`
 		Acao      string `json:"acao"` // assumir | responder | devolver
 		Atendente string `json:"atendente"`
 		Texto     string `json:"texto"`
@@ -178,6 +225,9 @@ func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
 		writeErr(w, 400, err)
 		return
+	}
+	if corpo.SessaoID != "" {
+		corpo.Protocolo = corpo.SessaoID
 	}
 	var (
 		sess *atende.Sessao
@@ -197,17 +247,37 @@ func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})
+	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
 }
 
 func (s *servidor) atendeReiniciar(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Query().Get("protocolo")
-	s.atende.Sessoes.Remover(p)
+	p := r.URL.Query().Get("id")
+	if p == "" {
+		p = r.URL.Query().Get("protocolo")
+	}
+	sess, ok := s.atende.Sessoes.Get(p)
+	if !ok {
+		writeErr(w, 404, errNaoEncontrado)
+		return
+	}
+	s.atende.Sessoes.Remover(sess.ID)
 	writeJSON(w, 200, map[string]any{"removido": p})
 }
 
 func (s *servidor) atendeSaidas(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"saidas": s.outbox.Itens(r.URL.Query().Get("protocolo"))})
+	identificador := r.URL.Query().Get("id")
+	if identificador == "" {
+		identificador = r.URL.Query().Get("protocolo")
+	}
+	if identificador != "" {
+		sess, ok := s.atende.Sessoes.Get(identificador)
+		if !ok {
+			writeErr(w, 404, errNaoEncontrado)
+			return
+		}
+		identificador = sess.ID
+	}
+	writeJSON(w, 200, map[string]any{"saidas": s.outbox.Itens(identificador)})
 }
 
 func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +343,7 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 	var corpo struct {
 		Acao      string         `json:"acao"` // preencher | cancelar
 		Protocolo string         `json:"protocolo"`
+		SessaoID  string         `json:"sessao_id"`
 		Pedido    string         `json:"pedido"`
 		Phone     string         `json:"phone"`
 		Atendente string         `json:"atendente"`
@@ -284,6 +355,9 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
+	if corpo.SessaoID != "" {
+		corpo.Protocolo = corpo.SessaoID
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 	switch corpo.Acao {
@@ -293,7 +367,7 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, 400, err)
 			return
 		}
-		writeJSON(w, 200, map[string]any{"pedido": p, "saida": saida, "sessao": sess, "saidas": s.outbox.Itens(sess.Protocolo), "recebidas": s.emulador.Recebidas(sess.Protocolo), "reply_emulada": s.replyEmulada})
+		writeJSON(w, 200, map[string]any{"pedido": p, "saida": saida, "sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
 	case "cancelar":
 		p, err := s.atende.CancelarPedido(ctx, corpo.Phone, corpo.Pedido, corpo.Atendente, corpo.Motivo)
 		if err != nil {

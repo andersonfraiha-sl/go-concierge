@@ -39,9 +39,9 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 		},
 		log: log.New(io.Discard, "", 0),
 	}
-	corpo := `{"id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1"},"message":{"type":"text","content":"posso fazer barulho depois das 22h?"}}}`
+	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-1","type":"text","content":"posso fazer barulho depois das 22h?"}}}`
 	w := httptest.NewRecorder()
-	s.webhookAtende(w, httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpo)))
+	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpo)))
 	if w.Code != 202 {
 		t.Fatalf("status HTTP %d: %s", w.Code, w.Body.String())
 	}
@@ -69,6 +69,59 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 			t.Fatal("processamento não produziu resposta")
 		case <-time.After(10 * time.Millisecond):
 		}
+	}
+}
+
+func corpoEventoTeste(evento, tenant, canal string) string {
+	corpo, _ := json.Marshal(map[string]any{
+		"event":  evento,
+		"id":     "evt-teste",
+		"tenant": tenant,
+		"data": map[string]any{
+			"protocol": map[string]any{"number": "protocolo-teste", "isHumanAttendance": false},
+			"contact":  map[string]any{"phone": "", "name": "Morador"},
+			"channel":  map[string]any{"type": "whatsapp", "displayNumber": canal},
+			"message":  map[string]any{"id": "msg-teste", "type": "text", "content": "mensagem de teste"},
+		},
+	})
+	return string(corpo)
+}
+
+func TestWebhookRealBypassHMACEClassificaAntesDeValidarContato(t *testing.T) {
+	s := &servidor{
+		atende:       &atende.Servico{Sessoes: atende.NewSessoes()},
+		atendeTenant: "tenant-1", atendeTelefoneCanal: "+55 (19) 4040-2710",
+		atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "nao-exibida",
+	}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710")))
+	r.Header.Set("X-Atende-Signature", "t=1,v1=assinatura-incorreta")
+	s.webhookAtende(w, r)
+	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
+		t.Fatalf("assinatura não verificada ou sessão humana criada: status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestWebhookIgnoraEventoDesconhecidoERecusaConexaoDivergente(t *testing.T) {
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key"}
+	w := httptest.NewRecorder()
+	s.webhookAtende(w, httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpoEventoTeste("com.echo.atende.evento.desconhecido", "outro", "1"))))
+	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
+		t.Fatalf("evento desconhecido deveria ser ignorado: status=%d body=%s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	s.webhookAtende(w, httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpoEventoTeste(atende.EventoProtocoloFechadoSistema, "outro", "551940402710"))))
+	if w.Code != 403 || len(s.atende.Sessoes.Lista()) != 0 {
+		t.Fatalf("conexão divergente deveria ser recusada sem criar sessão: status=%d", w.Code)
+	}
+}
+
+func TestWebhookEmuladoIgnoraEventoHumanoDesconhecido(t *testing.T) {
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}}
+	w := httptest.NewRecorder()
+	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710"))))
+	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
+		t.Fatalf("evento humano desconhecido criou sessão: status=%d", w.Code)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/okf"
@@ -38,7 +39,10 @@ func falar(t *testing.T, svc *Servico, id, texto string) *Sessao {
 	t.Helper()
 	ev, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", texto, 1)))
 	ev.ID = id
-	sess, err := svc.Processar(context.Background(), ev.Normalizar())
+	msg := ev.Normalizar()
+	msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
+	msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: msg.ConversaID, Telefone: msg.Contato.Phone, Canal: msg.Canal}
+	sess, err := svc.Processar(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("%s: %v", texto, err)
 	}

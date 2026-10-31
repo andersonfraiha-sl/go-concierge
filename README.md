@@ -56,19 +56,27 @@ Em `/console`. O ATENDE manda um evento por webhook a cada mensagem do morador
 (`com.echo.atende.user.protocol.created`, com protocolo, contato, canal e mensagem); o
 concierge identifica o telefone no **Gruvi** (token B2C compartilhado com o MCP + BFF por
 `filter[mobile-number]`), roda o agente de primeiro nível e responde ao protocolo. O
-Console forja esse evento, manda a `POST /webhook/atende` e mostra a conversa no
+Console forja esse evento, manda a `POST /emulador/atende/webhook` e mostra a conversa no
 telefone, a identidade (unidades do Gruvi), a rota com tokens e a caixa de saída.
 Configuração no `.env`: `GRUVI_COMPANY_ID`, `GRUVI_BFF_URL`, `MCP_AUTH=b2c` e
-`MCP_B2C_MOBILE`; opcionalmente `ATENDE_WEBHOOK_TOKEN`, `ATENDE_REPLY_URL` (envio ao ATENDE, contrato a
-confirmar).
+`MCP_B2C_MOBILE`.
+
+Para a conexão real única, configure `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`,
+`ATENDE_API_SECRET`, `ATENDE_TENANT_ID` e `ATENDE_TENANT_TELEFONE`. O webhook público é
+`POST /webhook/atende`; o Console usa `POST /emulador/atende/webhook`. A verificação HMAC
+com `ATENDE_API_SECRET` está preparada, mas desativada por decisão do usuário nesta etapa.
+Assim, a assinatura não autentica os eventos recebidos. `ATENDE_WEBHOOK_TOKEN` legado
+continua restrito à rota do emulador. `ATENDE_REPLY_URL` e `ATENDE_REPLY_TOKEN` são lidos
+como compatibilidade para respostas antigas quando a configuração nova de envio não está
+disponível.
 
 Enquanto o token B2C é gerado para um único telefone, o atendimento e a consulta de
 identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`.
 
-O webhook converte o evento do ATENDE para o contrato de entrada compartilhado
-`internal/entrada.Mensagem`, recebido pelo processamento do concierge. Outro canal pode
-adaptar sua mensagem para esse contrato; identidade por telefone, envio da resposta e
-identificação única das conversas entre canais ainda precisam ser definidos para ele.
+As duas rotas convertem os eventos classificados para o contrato compartilhado
+`internal/entrada.Mensagem`; o servidor atribui origens e destinos separados para o ATENDE
+real e o Console emulado. Sessões são consultadas pelo `id` interno; `protocolo` segue
+disponível quando identifica uma sessão sem ambiguidade.
 
 ## Memória relacional por contato
 
@@ -178,8 +186,9 @@ instala uma pasta inteira.
 | GET | `/api/arquivo/modelo?caminho=` | conteúdo inicial para um arquivo novo |
 | GET | `/api/projecao?agente=` | system prompt compilado e roteador |
 | GET | `/api/nexus/recursos` | os recursos da account (Nexus ao vivo ou instantâneo) |
-| POST | `/webhook/atende` | o evento do ATENDE; 202 e processamento em segundo plano |
-| GET | `/api/atende/sessao?protocolo=` | a conversa do protocolo (turnos, identidade, rota) e a caixa de saída |
+| POST | `/webhook/atende` | eventos reais do ATENDE; 202 e processamento em segundo plano |
+| POST | `/emulador/atende/webhook` | eventos forjados pelo Console |
+| GET | `/api/atende/sessao?id=` | sessão interna (turnos, identidade, rota) e entregas isoladas |
 | GET | `/api/atende/identidade?phone=` | consulta a identidade no Gruvi |
 | POST | `/api/agente/recursos` | `{agente, nome, ligar}`: declara ou tira um recurso em `agent.yaml → recursos` |
 

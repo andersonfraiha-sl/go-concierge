@@ -49,19 +49,23 @@ type servidor struct {
 	log     *log.Logger
 
 	// canal ATENDE (webhook + emulador no Console)
-	atende       *atende.Servico
-	outbox       *atende.Outbox
-	gruvi        *gruvi.Client
-	gruviOK      bool
-	gruviBFF     string
-	gruviCompany string
-	webhookToken string
-	replyURL     string
-	replyEmulada bool
-	emulador     *atende.Emulador
-	provedor     string
-	memorias     memoria.Store
-	admin        *admin.Store
+	atende              *atende.Servico
+	outbox              *atende.Outbox
+	gruvi               *gruvi.Client
+	gruviOK             bool
+	gruviBFF            string
+	gruviCompany        string
+	webhookToken        string
+	replyURL            string
+	replyEmulada        bool
+	atendeBaseURL       string
+	atendeAPIKey        string
+	atendeTenant        string
+	atendeTelefoneCanal string
+	emulador            *atende.Emulador
+	provedor            string
+	memorias            memoria.Store
+	admin               *admin.Store
 }
 
 var (
@@ -120,14 +124,21 @@ func main() {
 	s.gruviOK, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.BFFURL, s.gruvi.CompanyID
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
+	s.atendeBaseURL = os.Getenv("ATENDE_API_BASE_URL")
+	s.atendeAPIKey = os.Getenv("ATENDE_API_KEY")
+	s.atendeTenant = os.Getenv("ATENDE_TENANT_ID")
+	s.atendeTelefoneCanal = os.Getenv("ATENDE_TENANT_TELEFONE")
+	replyURLLegada := os.Getenv("ATENDE_REPLY_URL")
 	s.outbox = &atende.Outbox{}
 	s.emulador = atende.NewEmulador()
-	if s.replyURL == "" {
-		// sem o ATENDE real, a resposta vai por HTTP ao ATENDE emulado deste servidor
-		s.replyURL = "http://" + *addr + "/emulador/atende/messages"
-		s.replyEmulada = true
+	s.replyURL = "http://" + *addr + "/emulador/atende/messages"
+	s.replyEmulada = true
+	s.outbox.Emulado = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
+	if s.atendeBaseURL != "" && s.atendeAPIKey != "" {
+		s.outbox.ATENDE = &atende.ATENDESender{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
+	} else if replyURLLegada != "" {
+		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
-	s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}
 	if mcpCli != nil {
@@ -155,7 +166,7 @@ func main() {
 		// primeiro uso: uma administradora de exemplo, dona do condomínio de exemplo
 		// (ligado à account, ao Gruvi e ao tenant do ATENDE)
 		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
-		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981")})
+		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))})
 	} else if err == nil && len(m.Administradoras) == 0 {
 		// mapeamento de antes das administradoras: cria a de exemplo e dá a ela os condomínios sem dona
 		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})

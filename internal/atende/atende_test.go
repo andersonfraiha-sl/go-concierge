@@ -118,8 +118,91 @@ func TestParse(t *testing.T) {
 	if ev.Event != EventoProtocoloCriado || ev.Data.Protocol.Number != "344200011995" || ev.Data.Contact.Phone != "5519981621916" || !strings.Contains(ev.Texto(), "barulho") {
 		t.Fatalf("%+v", ev)
 	}
-	if _, err := Parse([]byte(`{"event":"x","data":{}}`)); err == nil {
-		t.Fatal("sem protocolo deveria falhar")
+	ignorado, err := Parse([]byte(`{"event":"x","data":{}}`))
+	if err != nil || ignorado.Classificar() != EventoIgnorado || ignorado.Validar(EventoIgnorado) != nil {
+		t.Fatalf("evento não tratado deveria ser classificado e ignorado: evento=%+v erro=%v", ignorado, err)
+	}
+}
+
+func TestClassificacaoEValidacaoPorTipo(t *testing.T) {
+	criado, err := Parse([]byte(eventoExemplo))
+	if err != nil || criado.Classificar() != EventoElegivel || criado.Validar(EventoElegivel) != nil {
+		t.Fatalf("evento elegível: class=%v err=%v", criado.Classificar(), err)
+	}
+	humanoRaw := strings.Replace(eventoExemplo, EventoProtocoloCriado, EventoMensagemAtendente, 1)
+	humanoRaw = strings.Replace(humanoRaw, `"phone": "5519981621916"`, `"phone": ""`, 1)
+	humano, err := Parse([]byte(humanoRaw))
+	if err != nil || humano.Classificar() != EventoHumano || humano.Validar(EventoHumano) != nil {
+		t.Fatalf("evento humano não deve exigir telefone: class=%v err=%v", humano.Classificar(), err)
+	}
+	fechadoRaw := strings.Replace(eventoExemplo, EventoProtocoloCriado, EventoProtocoloFechadoSistema, 1)
+	fechadoRaw = strings.Replace(fechadoRaw, `"phone": "5519981621916"`, `"phone": ""`, 1)
+	fechado, err := Parse([]byte(fechadoRaw))
+	if err != nil || fechado.Classificar() != EventoFechado || fechado.Validar(EventoFechado) != nil {
+		t.Fatalf("evento de fechamento não deve exigir telefone: class=%v err=%v", fechado.Classificar(), err)
+	}
+	semTelefone := strings.Replace(eventoExemplo, `"phone": "5519981621916"`, `"phone": ""`, 1)
+	semTelefoneEv, err := Parse([]byte(semTelefone))
+	if err != nil || semTelefoneEv.Validar(EventoElegivel) == nil {
+		t.Fatal("evento de mensagem elegível sem telefone deveria falhar")
+	}
+}
+
+func TestSessoesIsolamMesmoProtocoloEntreConectores(t *testing.T) {
+	sessoes := NewSessoes()
+	real := entrada.Mensagem{ConversaID: "protocolo-igual", Tenant: "tenant", Canal: map[string]string{"displayNumber": "5511"}, Contato: entrada.Contato{Phone: "5511999"}}
+	emulado := real
+	emulado.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
+	realSessao := sessoes.Abrir(real)
+	emuladoSessao := sessoes.Abrir(emulado)
+	if realSessao.ID == emuladoSessao.ID || realSessao.ID == "" || emuladoSessao.ID == "" {
+		t.Fatalf("IDs internos não foram isolados: real=%q emulado=%q", realSessao.ID, emuladoSessao.ID)
+	}
+	if _, ok := sessoes.Get(realSessao.ID); !ok {
+		t.Fatal("consulta por ID interno falhou")
+	}
+	if _, ok := sessoes.Get("protocolo-igual"); ok {
+		t.Fatal("protocolo externo ambíguo deveria exigir ID interno")
+	}
+}
+
+func TestOutboxFiltraPorIDInternoSemCruzarProtocolo(t *testing.T) {
+	out := &Outbox{}
+	real := entrada.Destino{Conector: "atende", Protocolo: "P-1", SessaoID: "atende:tenant:canal:P-1"}
+	emulado := entrada.Destino{Conector: "atende-emulado", Protocolo: "P-1", SessaoID: "atende-emulado:console:P-1"}
+	if err := out.Enviar(context.Background(), real, "resposta real"); err != nil {
+		t.Fatal(err)
+	}
+	if err := out.Enviar(context.Background(), emulado, "resposta emulada"); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.Itens(real.SessaoID); len(got) != 1 || got[0].Texto != "resposta real" {
+		t.Fatalf("saída real cruzou a sessão: %+v", got)
+	}
+	if got := out.Itens(emulado.SessaoID); len(got) != 1 || got[0].Texto != "resposta emulada" {
+		t.Fatalf("saída emulada cruzou a sessão: %+v", got)
+	}
+	if got := out.Itens("P-1"); len(got) != 0 {
+		t.Fatalf("protocolo ambíguo não deve misturar saídas: %+v", got)
+	}
+}
+
+func TestEventoHumanoEFechamentoAtualizamSessaoExistente(t *testing.T) {
+	sessoes := NewSessoes()
+	msg := entrada.Mensagem{ID: "evt-1", ConversaID: "P-2", Tenant: "tenant", Contato: entrada.Contato{Phone: "5511999"}, Origem: entrada.Origem{Conector: "atende", Meio: "whatsapp", ConexaoID: "tenant:5511"}}
+	sess := sessoes.Abrir(msg)
+	svc := &Servico{Sessoes: sessoes}
+	msg.Autor = "atendente"
+	msg.Texto = "fala do atendente"
+	if !svc.RegistrarHumano(msg) || !sess.AtendimentoHumano || len(sess.Turnos) != 1 || sess.Turnos[0].Quem != "atendente" {
+		t.Fatalf("mensagem humana não foi registrada: sessão=%+v", sess)
+	}
+	if !svc.Encerrar(msg) || !sess.Encerrada || len(sess.Turnos) != 2 {
+		t.Fatalf("fechamento não foi registrado: sessão=%+v", sess)
+	}
+	antes := len(sess.Turnos)
+	if _, err := svc.Processar(context.Background(), msg); err != nil || len(sess.Turnos) != antes {
+		t.Fatalf("mensagem posterior não foi ignorada: turnos=%d erro=%v", len(sess.Turnos), err)
 	}
 }
 
@@ -240,9 +323,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	}
 	// memória relacional: o que o morador afirma sobre si fica guardado por telefone
 	st := memoria.NewArquivos(t.TempDir())
-	svcM := *svc
-	svcM.Sessoes = NewSessoes()
-	svcM.Memorias = st
+	svcM := Servico{Cat: svc.Cat, Agente: svc.Agente, Account: svc.Account, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi, Memorias: st}
 	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "na verdade só tenho um apartamento, tenho um cachorro", 1)))
 	ev3.ID = "evt_3"
 	s4, err := svcM.Processar(context.Background(), ev3.Normalizar())
@@ -282,8 +363,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	}
 
 	// identidade falha: segue como público, com o erro registrado
-	svc2 := *svc
-	svc2.Sessoes = NewSessoes()
+	svc2 := Servico{Cat: svc.Cat, Agente: svc.Agente, Account: svc.Account, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi}
 	svc2.Config.MCP = &mcpServicoFalso{erroToken: errors.New("bff fora")}
 	s3, err := svc2.Processar(context.Background(), ev.Normalizar())
 	if err == nil || s3.Identidade.Authenticated || !strings.Contains(s3.IdentErro, "bff fora") {

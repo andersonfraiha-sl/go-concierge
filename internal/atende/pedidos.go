@@ -81,6 +81,8 @@ func casosDisponiveis(ag *harness.Agente) ([]pedidos.CasoResumo, map[string]cont
 }
 
 func ultimasFalas(sess *Sessao, n int) []string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
 	var out []string
 	for _, t := range sess.Turnos {
 		switch t.Quem {
@@ -150,7 +152,9 @@ func corta(s string, n int) string {
 }
 
 // turnoComPedidos é a vez do robô com o registro de pedidos como espinha dorsal.
-func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string) (*harness.Resultado, []PedidoTurno, error) {
+func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string, historico []*schema.Message) (*harness.Resultado, []PedidoTurno, error) {
+	desbloquear := s.bloquearPedidos(sess.Contato.Phone)
+	defer desbloquear()
 	rel := ag.Def.Rel
 	var rota []harness.Passo
 	var uso harness.Uso
@@ -225,7 +229,10 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			p = cart.AbertoDoCaso(pe.Caso)
 		}
 		if p == nil {
-			p = cart.Novo(cc.ct, cc.agente, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: len(sess.Turnos)})
+			sess.mu.Lock()
+			numeroTurno := len(sess.Turnos)
+			sess.mu.Unlock()
+			p = cart.Novo(cc.ct, cc.agente, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: numeroTurno})
 			passo("pedido", p.Protocolo+" aberto: "+cc.ct.Caso.Name)
 			anota(p, "aberto")
 			// pedido novo sem nenhuma menção a data na mensagem: data extraída é invenção
@@ -296,11 +303,13 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		case "formulario":
 			// o caso tem formulário dinâmico: segue pelo subagente conversacional
 			if sub, ok := ag.Subagentes[p.Agente]; ok {
-				r, err := harness.Run(ctx, sub, texto, sess.historico)
+				r, err := harness.Run(ctx, sub, texto, historico)
 				if err != nil {
 					partes = append(partes, "Não consegui seguir com "+strings.ToLower(p.CasoNome)+".")
 				} else {
-					partes = append(partes, r.Resposta)
+					if r.Transbordo == "" || sess.Destino.Conector == "atende-emulado" {
+						partes = append(partes, r.Resposta)
+					}
 					rota = append(rota, r.Rota...)
 					uso.Soma(r.Uso)
 					if r.Transbordo != "" {
@@ -318,13 +327,13 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		extracao.Restante = ""
 	}
 	if r := strings.TrimSpace(extracao.Restante); r != "" {
-		res, err := harness.Run(ctx, ag, r, sess.historico)
+		res, err := harness.Run(ctx, ag, r, historico)
 		if err != nil {
 			return nil, nil, err
 		}
 		rota = append(rota, res.Rota...)
 		uso.Soma(res.Uso)
-		if strings.TrimSpace(res.Resposta) != "" {
+		if strings.TrimSpace(res.Resposta) != "" && (res.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 			partes = append(partes, res.Resposta)
 		}
 		if res.Transbordo != "" {
@@ -363,45 +372,59 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 
 	// atendente: pendências viram resumo para o humano
 	if extracao.Atendente || transbordo != "" {
-		var pend []string
-		for _, p := range cart.Abertos() {
-			if p.Estado == pedidos.ComAtendente {
-				continue
+		if sess.Destino.Conector != "atende-emulado" {
+			seguras := partes[:0]
+			for _, parte := range partes {
+				if !harness.AnunciaTransferencia(parte) {
+					seguras = append(seguras, parte)
+				}
 			}
-			cc, ok := contratos[p.Caso]
-			if !ok {
-				continue
+			partes = seguras
+			partes = append(partes, "Não consigo transferir esta conversa para um atendente por este canal. Seus pedidos permanecem registrados e posso continuar ajudando por aqui.")
+			precisaRedigir = false
+			perguntas = nil
+			transbordo = ""
+		} else {
+			var pend []string
+			for _, p := range cart.Abertos() {
+				if p.Estado == pedidos.ComAtendente {
+					continue
+				}
+				cc, ok := contratos[p.Caso]
+				if !ok {
+					continue
+				}
+				resumo := pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6))
+				pedidos.AoAtendente(p, resumo)
+				anota(p, "atendente")
+				faltam := p.Faltando(cc.ct)
+				var nomes []string
+				for _, f := range faltam {
+					nomes = append(nomes, f.Titulo)
+				}
+				if len(nomes) > 0 {
+					pend = append(pend, p.Protocolo+" ("+p.CasoNome+": falta "+strings.Join(nomes, ", ")+")")
+				} else {
+					pend = append(pend, p.Protocolo+" ("+p.CasoNome+")")
+				}
 			}
-			resumo := pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6))
-			pedidos.AoAtendente(p, resumo)
-			anota(p, "atendente")
-			faltam := p.Faltando(cc.ct)
-			var nomes []string
-			for _, f := range faltam {
-				nomes = append(nomes, f.Titulo)
+			if transbordo == "" {
+				transbordo = "o morador pediu um atendente"
 			}
-			if len(nomes) > 0 {
-				pend = append(pend, p.Protocolo+" ("+p.CasoNome+": falta "+strings.Join(nomes, ", ")+")")
-			} else {
-				pend = append(pend, p.Protocolo+" ("+p.CasoNome+")")
+			if len(pend) > 0 {
+				transbordo += "; pedidos pendentes: " + strings.Join(pend, "; ")
+				passo("pedido", "ao atendente: "+strings.Join(pend, "; "))
 			}
+			if len(partes) == 0 {
+				if extracao.Atendente {
+					partes = append(partes, "Certo, vou passar você para um atendente da administração. Ele já recebe o que conversamos até aqui.")
+				} else {
+					partes = append(partes, "Vou passar o que ficou pendente para um atendente da administração, que segue com você por aqui.")
+				}
+				precisaRedigir = true
+			}
+			perguntas = nil // quem pergunta agora é o atendente
 		}
-		if transbordo == "" {
-			transbordo = "o morador pediu um atendente"
-		}
-		if len(pend) > 0 {
-			transbordo += "; pedidos pendentes: " + strings.Join(pend, "; ")
-			passo("pedido", "ao atendente: "+strings.Join(pend, "; "))
-		}
-		if len(partes) == 0 {
-			if extracao.Atendente {
-				partes = append(partes, "Certo, vou passar você para um atendente da administração. Ele já recebe o que conversamos até aqui.")
-			} else {
-				partes = append(partes, "Vou passar o que ficou pendente para um atendente da administração, que segue com você por aqui.")
-			}
-			precisaRedigir = true
-		}
-		perguntas = nil // quem pergunta agora é o atendente
 	}
 
 	if err := s.Pedidos.Gravar(ctx, cart); err != nil && s.Log != nil {
@@ -415,7 +438,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	}
 	resposta := conteudo
 	if precisaRedigir {
-		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(sess.historico) > 0)
+		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(historico) > 0)
 		switch {
 		case err != nil:
 			passo("aviso", "redação falhou, conteúdo vai cru: "+err.Error())
@@ -426,8 +449,8 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	}
 	passo("entrega", corta(resposta, 160))
 
-	msgs := make([]*schema.Message, 0, len(sess.historico)+2)
-	msgs = append(msgs, sess.historico...)
+	msgs := make([]*schema.Message, 0, len(historico)+2)
+	msgs = append(msgs, historico...)
 	msgs = append(msgs, schema.UserMessage(texto), schema.AssistantMessage(resposta, nil))
 	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo}, turnos, nil
 }
@@ -475,6 +498,16 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	if !ok {
 		return nil, nil, pedidos.Saida{}, fmt.Errorf("protocolo %s não está aberto neste servidor", protocoloAtende)
 	}
+	sess.workMu.Lock()
+	defer sess.workMu.Unlock()
+	sess.mu.Lock()
+	encerrada := sess.Encerrada
+	sess.mu.Unlock()
+	if encerrada {
+		return sess, nil, pedidos.Saida{}, errors.New("o protocolo está encerrado")
+	}
+	desbloquear := s.bloquearPedidos(sess.Contato.Phone)
+	defer desbloquear()
 	ag, err := s.agenteDaSessao(ctx, sess)
 	if err != nil {
 		return sess, nil, pedidos.Saida{}, err
@@ -510,6 +543,12 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	if confirmar {
 		pedidos.Confirmar(p, "sim", atendente) // fica registrado quem confirmou em nome do morador
 	}
+	sess.mu.Lock()
+	encerrada = sess.Encerrada
+	sess.mu.Unlock()
+	if encerrada {
+		return sess, p, pedidos.Saida{}, errors.New("o protocolo está encerrado")
+	}
 	saida := pedidos.Avancar(ctx, cc.ct, p, &cart, ambienteHarness{ag: ag})
 	if saida.Tipo == "confirmar" && !confirmar {
 		// volta ao atendente: ele confirma com o morador e marca "confirmar"
@@ -525,12 +564,19 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 		if saida.Tipo == "erro" {
 			texto = "Não consegui concluir " + strings.ToLower(p.CasoNome) + ": " + saida.Texto
 		}
-		sess.registrar(Turno{Quem: "concierge", Texto: texto, Agente: ag.Def.Rel, Pedidos: []PedidoTurno{{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: saida.Tipo}}})
-		sess.historico = append(sess.historico, schema.AssistantMessage(texto, nil))
+		var errEnvio error
 		if s.Sender != nil {
-			if err := s.Sender.Enviar(ctx, sess.Protocolo, texto); err != nil {
-				sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
-			}
+			ctxEnvio, finalizar := sess.contextoEntregaManual(ctx)
+			errEnvio = s.Sender.Enviar(ctxEnvio, sess.Destino, texto)
+			finalizar()
+		}
+		if entregue := textoEntregue(texto, errEnvio); entregue != "" {
+			sess.registrar(Turno{Quem: "concierge", Texto: entregue, Agente: ag.Def.Rel, Pedidos: []PedidoTurno{{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: saida.Tipo}}})
+			sess.historicoAdicionar(schema.AssistantMessage(entregue, nil))
+		}
+		if errEnvio != nil {
+			sess.registrar(Turno{Quem: "erro", Texto: errEnvio.Error()})
+			return sess, p, saida, errEnvio
 		}
 	}
 	return sess, p, saida, nil
@@ -541,6 +587,8 @@ func (s *Servico) CancelarPedido(ctx context.Context, phone, protocoloPedido, at
 	if s.Pedidos == nil {
 		return nil, errors.New("pedidos desligados")
 	}
+	desbloquear := s.bloquearPedidos(phone)
+	defer desbloquear()
 	cart, err := s.Pedidos.Ler(ctx, s.Account, phone)
 	if err != nil {
 		return nil, err
