@@ -1,6 +1,7 @@
 package pedidos
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -91,6 +92,13 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 		case "escolher":
 			slot := ct.Slots[passo.Slot]
 			ops := opcoesDoPedido(p.Dados[slot.De], slot, p)
+			if slot.Strict && len(ops) == 0 {
+				msg := slot.Vazio
+				if msg == "" {
+					msg = "não há opções para " + strings.ToLower(slot.Titulo)
+				}
+				return falha(p, msg)
+			}
 			if condicaoEscolha(slot.AutoFirstIf, p) && len(ops) > 1 {
 				ops = ops[:1]
 			}
@@ -167,16 +175,42 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 					return falha(p, "liberações para depois de amanhã ou datas futuras devem ser feitas pelo app Gruvi: https://gruvi.link/guest")
 				}
 			}
-			if p.Confirmacao == nil || p.Confirmacao.Resposta == "" {
-				texto, err := Render(passo.Texto, ct.Vars(p))
-				if err != nil {
-					return falha(p, "confirmação: "+err.Error())
+			texto, err := Render(passo.Texto, ct.Vars(p))
+			if err != nil {
+				return falha(p, "confirmação: "+err.Error())
+			}
+			valores, err := json.Marshal(p.Valores)
+			if err != nil {
+				return falha(p, "valores da confirmação: "+err.Error())
+			}
+			valoresMudaram := false
+			if p.Confirmacao != nil && len(p.Confirmacao.Valores) > 0 {
+				var anteriores bytes.Buffer
+				if err := json.Compact(&anteriores, p.Confirmacao.Valores); err != nil {
+					return falha(p, "valores anteriores da confirmação: "+err.Error())
 				}
+				valoresMudaram = !bytes.Equal(anteriores.Bytes(), valores)
+			}
+			if p.Confirmacao != nil && p.Confirmacao.Resposta != "nao" &&
+				(p.Confirmacao.Texto != "" && p.Confirmacao.Texto != texto || valoresMudaram) {
+				entregue := false
+				p.Confirmacao.Resposta = ""
+				p.Confirmacao.Por = ""
+				p.Confirmacao.Quando = time.Time{}
+				p.Confirmacao.Entregue = &entregue
+			}
+			if p.Confirmacao == nil || p.Confirmacao.Resposta == "" {
 				if p.Confirmacao == nil {
-					p.Confirmacao = &Confirmacao{Texto: texto, Pedida: time.Now(), Vezes: 1}
+					entregue := false
+					p.Confirmacao = &Confirmacao{Texto: texto, Pedida: time.Now(), Vezes: 1, Entregue: &entregue, Valores: append(json.RawMessage(nil), valores...)}
 					p.registrar("confirmacao", "pedida: "+texto, "")
 				} else {
+					if p.Confirmacao.Texto != texto {
+						entregue := false
+						p.Confirmacao.Entregue = &entregue
+					}
 					p.Confirmacao.Texto = texto
+					p.Confirmacao.Valores = append(json.RawMessage(nil), valores...)
 					p.Confirmacao.Vezes++
 				}
 				p.mudar(Confirmando, "")

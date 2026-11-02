@@ -67,7 +67,6 @@ steps:
       ask: Deseja reutilizar o motivo de visita {{.reuso_label}}?
   - collect: [visitante_nome, visitante_telefone, data_visita, categoria_motivo]
   - resource: gruvi.bff.building-operation.fetch-visit-reasons-controller-handle
-    skip_if: reutilizou_motivo
     with:
       filter_visitor_type: "{{.categoria_motivo}}"
     save_as: motivos

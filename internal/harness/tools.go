@@ -413,6 +413,9 @@ func (ag *Agente) ExecutarPassoCaso(ctx context.Context, nome string, params map
 }
 
 func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao string) (saida, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	nome := strings.TrimSpace(in.Nome)
 	nomeMCP, aliasMCP := nomeToolMCP(nome)
 	chamarMCP := toolsMCPObrigatorias[nome]
@@ -517,6 +520,9 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 		}
 		if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" {
 			normalizarTelefonesVisitantes(params)
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 		res, err := ag.cfg.MCP.CallTool(ctx, nomeMCP, params)
 		if err != nil {

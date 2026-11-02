@@ -337,13 +337,14 @@ type Servico struct {
 	Mapeamento *admin.Store
 	// Pedidos é o registro de pedidos por contato (nil = desligado: a conversa segue só
 	// pelo orquestrador). ExtratorPedidos detecta os pedidos na mensagem (nil = Regras).
-	Pedidos         pedidos.Store
-	ExtratorPedidos pedidos.Extrator
-	pedidoMu        sync.Mutex
-	pedidoLocks     map[string]*sync.Mutex
-	memoriaMu       sync.Mutex
-	memoriaLocks    map[string]*sync.Mutex
-	memoriaRevisoes map[string]uint64
+	Pedidos          pedidos.Store
+	ExtratorPedidos  pedidos.Extrator
+	pedidoMu         sync.Mutex
+	pedidoLocks      map[string]*sync.Mutex
+	pedidosPendentes map[string]pedidos.Carteira
+	memoriaMu        sync.Mutex
+	memoriaLocks     map[string]*sync.Mutex
+	memoriaRevisoes  map[string]uint64
 }
 
 func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, chave string) func() {
@@ -363,6 +364,39 @@ func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, 
 
 func (s *Servico) bloquearPedidos(phone string) func() {
 	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, s.Account+":"+pedidos.NormalizarTelefone(phone))
+}
+
+func (s *Servico) carregarCarteira(ctx context.Context, phone string) (pedidos.Carteira, error) {
+	chave := s.Account + ":" + pedidos.NormalizarTelefone(phone)
+	s.pedidoMu.Lock()
+	pendente, existe := s.pedidosPendentes[chave]
+	s.pedidoMu.Unlock()
+	if existe {
+		if err := s.Pedidos.Gravar(ctx, pendente); err != nil {
+			return pedidos.Carteira{}, fmt.Errorf("pedidos: estado pendente ainda não pôde ser salvo: %w", err)
+		}
+		s.pedidoMu.Lock()
+		delete(s.pedidosPendentes, chave)
+		s.pedidoMu.Unlock()
+	}
+	return s.Pedidos.Ler(ctx, s.Account, phone)
+}
+
+func (s *Servico) salvarCarteira(ctx context.Context, cart pedidos.Carteira) error {
+	chave := s.Account + ":" + pedidos.NormalizarTelefone(cart.Telefone)
+	if err := s.Pedidos.Gravar(ctx, cart); err != nil {
+		s.pedidoMu.Lock()
+		if s.pedidosPendentes == nil {
+			s.pedidosPendentes = map[string]pedidos.Carteira{}
+		}
+		s.pedidosPendentes[chave] = cart
+		s.pedidoMu.Unlock()
+		return fmt.Errorf("pedidos: estado não foi salvo e permanece pendente de recuperação: %w", err)
+	}
+	s.pedidoMu.Lock()
+	delete(s.pedidosPendentes, chave)
+	s.pedidoMu.Unlock()
+	return nil
 }
 
 func (s *Servico) bloquearMemoria(phone string) func() {
@@ -444,18 +478,37 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		}
 		return sess, nil
 	}
+	ctxTurno, cancelarTurno := context.WithCancel(ctx)
+	sess.cancelarTurno = cancelarTurno
 	sess.Processando = true
 	sess.mu.Unlock()
 	defer func() {
 		sess.mu.Lock()
+		sess.cancelarTurno = nil
 		sess.Processando = false
 		sess.mu.Unlock()
+		cancelarTurno()
 	}()
+	ctx = ctxTurno
 	texto := strings.TrimSpace(msg.Texto)
 	if texto == "" {
 		return sess, fmt.Errorf("evento %s sem texto (tipo %s)", msg.ID, msg.Tipo)
 	}
 	sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: msg.ID})
+	historico := sess.historicoSnapshot()
+	baseHistorico := len(historico)
+	historicoRegistrado := false
+	interrompido := func() bool {
+		sess.mu.Lock()
+		defer sess.mu.Unlock()
+		return sess.Encerrada || sess.AtendimentoHumano || sess.revisaoEstado != msg.Revisao
+	}
+	defer func() {
+		if !historicoRegistrado && interrompido() {
+			mensagens := append(append([]*schema.Message(nil), historico...), schema.UserMessage(texto))
+			sess.historicoAtualizar(baseHistorico, mensagens)
+		}
+	}()
 	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
 	sess.mu.Lock()
 	transbordado := sess.Transbordo != nil && sess.Transbordo.Ativo
@@ -470,6 +523,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	if identidadeVazia {
 		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone)
 		if err != nil {
+			if errors.Is(err, context.Canceled) && interrompido() {
+				return sess, nil
+			}
 			sess.mu.Lock()
 			sess.IdentErro = err.Error()
 			sess.mu.Unlock()
@@ -499,13 +555,14 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	ag, err := harness.Build(ctx, s.Cat, def, cfg)
 	if err != nil {
+		if errors.Is(err, context.Canceled) && interrompido() {
+			return sess, nil
+		}
 		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
 		return sess, err
 	}
 	var res *harness.Resultado
 	var pedidosTurno []PedidoTurno
-	historico := sess.historicoSnapshot()
-	baseHistorico := len(historico)
 	if s.Pedidos != nil {
 		res, pedidosTurno, err = s.turnoComPedidos(ctx, sess, ag, texto, historico)
 	} else if plano != nil && plano.Pendente != "" {
@@ -515,6 +572,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		res, err = harness.Run(ctx, ag, texto, historico)
 	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) && interrompido() {
+			return sess, nil
+		}
 		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
 		return sess, err
 	}
@@ -563,6 +623,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 				mensagens = mensagens[:len(mensagens)-1]
 			}
 			sess.historicoAtualizar(baseHistorico, mensagens)
+			historicoRegistrado = true
 			if parcial != nil {
 				uso := res.Uso
 				sess.registrar(Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo, Plano: res.Plano, Pedidos: pedidosTurno})
@@ -579,11 +640,13 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 				mensagens = mensagens[:len(mensagens)-1]
 			}
 			sess.historicoAtualizar(baseHistorico, mensagens)
+			historicoRegistrado = true
 			sess.registrar(Turno{Quem: "erro", Texto: erroEntrega.Error()})
 			return sess, erroEntrega
 		}
 	}
 	sess.historicoAtualizar(baseHistorico, res.Mensagens)
+	historicoRegistrado = true
 	sess.mu.Lock()
 	sess.Plano = nil
 	if res.Plano != nil && res.Plano.Pendente != "" {
@@ -596,6 +659,15 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	if erroEntrega != nil {
 		sess.registrar(Turno{Quem: "erro", Texto: erroEntrega.Error()})
 		return sess, erroEntrega
+	}
+	if s.Pedidos != nil {
+		ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		err := s.marcarConfirmacoesEntregues(ctxSalvar, sess.Contato.Phone, pedidosTurno, res.Resposta)
+		cancelar()
+		if err != nil {
+			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+			return sess, err
+		}
 	}
 	// a memória relacional é extraída depois de responder (fora do caminho crítico): o
 	// morador não espera a chamada extra ao modelo; o turno recebe os fatos quando saírem
@@ -632,6 +704,9 @@ func (s *Servico) RegistrarHumano(msg entrada.Mensagem) bool {
 	}
 	sess.AtendimentoHumano = true
 	sess.revisaoEstado++
+	if sess.cancelarTurno != nil {
+		sess.cancelarTurno()
+	}
 	if sess.cancelarEntrega != nil {
 		sess.cancelarEntrega()
 	}
@@ -660,6 +735,9 @@ func (s *Servico) Encerrar(msg entrada.Mensagem) bool {
 	defer sess.mu.Unlock()
 	sess.Encerrada = true
 	sess.revisaoEstado++
+	if sess.cancelarTurno != nil {
+		sess.cancelarTurno()
+	}
 	if sess.cancelarEntrega != nil {
 		sess.cancelarEntrega()
 	}

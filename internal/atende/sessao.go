@@ -47,6 +47,7 @@ type Sessao struct {
 	mcpResultados   map[string]any
 	revisaoEstado   uint64
 	cancelarEntrega context.CancelFunc
+	cancelarTurno   context.CancelFunc
 	mu              sync.Mutex
 	workMu          sync.Mutex
 }
