@@ -67,22 +67,43 @@ func (e *EmMemoria) SalvarCondominio(_ context.Context, c Condominio) (Mapeament
 	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarCondominio(c) })
 }
 
-func (e *EmMemoria) RemoverCondominio(_ context.Context, id string) (Mapeamento, error) {
-	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.removerCondominio(id) })
+func (e *EmMemoria) RemoverCondominio(_ context.Context, alvo Alvo) (Mapeamento, error) {
+	id := alvo.Condominio
+	return e.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.removerCondominio(id) }))
 }
 
-func (e *EmMemoria) SalvarHabilitacao(_ context.Context, condoID, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
-	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarHabilitacao(condoID, caso, h, limpar) })
+func (e *EmMemoria) SalvarHabilitacao(_ context.Context, alvo Alvo, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
+	condoID := alvo.Condominio
+	return e.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarHabilitacao(condoID, caso, h, limpar) }))
 }
 
-func (e *EmMemoria) SalvarOrientacao(_ context.Context, condoID string, o Orientacao) (Mapeamento, error) {
-	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarOrientacao(condoID, o) })
+func (e *EmMemoria) SalvarOrientacao(_ context.Context, alvo Alvo, o Orientacao) (Mapeamento, error) {
+	condoID := alvo.Condominio
+	return e.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarOrientacao(condoID, o) }))
 }
 
-func (e *EmMemoria) SalvarAjustes(_ context.Context, condoID string, ajustes map[string]map[string]any) (Mapeamento, error) {
-	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarAjustes(condoID, ajustes) })
+func (e *EmMemoria) SalvarAjustes(_ context.Context, alvo Alvo, ajustes map[string]map[string]any) (Mapeamento, error) {
+	condoID := alvo.Condominio
+	return e.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarAjustes(condoID, ajustes) }))
 }
 
-func (e *EmMemoria) SalvarPayload(_ context.Context, condoID, recurso string, payload map[string]any) (Mapeamento, error) {
-	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, payload) })
+func (e *EmMemoria) SalvarPayload(_ context.Context, alvo Alvo, recurso string, payload map[string]any) (Mapeamento, error) {
+	condoID := alvo.Condominio
+	return e.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, payload) }))
+}
+
+func (e *EmMemoria) CriarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarAdministradora(a) })
+}
+
+func (e *EmMemoria) EditarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarAdministradora(a) })
+}
+
+func (e *EmMemoria) CriarCondominio(_ context.Context, c Condominio) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarCondominio(c) })
+}
+
+func (e *EmMemoria) EditarCondominio(_ context.Context, c Condominio, visto Chaves) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarCondominio(c, visto) })
 }

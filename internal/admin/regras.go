@@ -16,6 +16,12 @@ import (
 // ErrInvalido marca o pedido que as regras do mapeamento recusam (o Admin responde 400).
 var ErrInvalido = errors.New("mapeamento inválido")
 
+// ErrJaExiste marca a criação de um id que já está no mapeamento (o Admin responde 409).
+var ErrJaExiste = errors.New("já existe")
+
+// ErrNaoEncontrado marca a edição de um id que não está no mapeamento (o Admin responde 404).
+var ErrNaoEncontrado = errors.New("não encontrado")
+
 func invalido(formato string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalido, fmt.Sprintf(formato, args...))
 }
@@ -68,6 +74,30 @@ func (m Mapeamento) salvarAdministradora(a Administradora) (Mapeamento, error) {
 	return m, nil
 }
 
+// criarAdministradora recusa um id que já existe, em vez de sobrescrever.
+func (m Mapeamento) criarAdministradora(a Administradora) (Mapeamento, error) {
+	a, err := prepararAdministradora(a)
+	if err != nil {
+		return m, err
+	}
+	if _, existe := m.Administradora(a.ID); existe {
+		return m, fmt.Errorf("administradora %s: %w", a.ID, ErrJaExiste)
+	}
+	return m.salvarAdministradora(a)
+}
+
+// editarAdministradora só altera a que já existe.
+func (m Mapeamento) editarAdministradora(a Administradora) (Mapeamento, error) {
+	a, err := prepararAdministradora(a)
+	if err != nil {
+		return m, err
+	}
+	if _, existe := m.Administradora(a.ID); !existe {
+		return m, fmt.Errorf("administradora %s: %w", a.ID, ErrNaoEncontrado)
+	}
+	return m.salvarAdministradora(a)
+}
+
 // removerAdministradora recusa enquanto ela tiver condomínios (mova-os antes, para não
 // perder mapeamento sem querer).
 func (m Mapeamento) removerAdministradora(id string) (Mapeamento, error) {
@@ -90,6 +120,67 @@ func (m Mapeamento) salvarCondominio(c Condominio) (Mapeamento, error) {
 	m.Condominios = comItem(m.Condominios, c, func(x Condominio) bool { return x.ID == c.ID })
 	slices.SortFunc(m.Condominios, compararCondominios)
 	return m, nil
+}
+
+// criarCondominio recusa um id que já existe, em vez de sobrescrever (e tomar o condomínio
+// de outra administradora).
+func (m Mapeamento) criarCondominio(c Condominio) (Mapeamento, error) {
+	c, err := prepararCondominio(c)
+	if err != nil {
+		return m, err
+	}
+	if _, existe := m.Condominio(c.ID); existe {
+		return m, fmt.Errorf("condomínio %s: %w", c.ID, ErrJaExiste)
+	}
+	return m.salvarCondominio(c)
+}
+
+// Chaves são a dona e as chaves de roteamento (company do Gruvi e tenant do ATENDE) de um
+// condomínio: o que a autorização de uma edição olhou.
+type Chaves struct{ Administradora, CompanyID, Tenant string }
+
+// Chaves do condomínio.
+func (c Condominio) Chaves() Chaves {
+	return Chaves{Administradora: c.Administradora, CompanyID: c.CompanyID, Tenant: c.Tenant}
+}
+
+// editarCondominio só altera o que já existe e ainda tem as chaves com que o pedido foi
+// autorizado (visto); se elas mudaram no meio, é conflito e o pedido deve ser refeito.
+func (m Mapeamento) editarCondominio(c Condominio, visto Chaves) (Mapeamento, error) {
+	c, err := prepararCondominio(c)
+	if err != nil {
+		return m, err
+	}
+	atual, existe := m.Condominio(c.ID)
+	if !existe {
+		return m, fmt.Errorf("condomínio %s: %w", c.ID, ErrNaoEncontrado)
+	}
+	if atual.Chaves() != visto {
+		return m, fmt.Errorf("condomínio %s mudou de dona ou de chaves: %w", c.ID, ErrConflitoConcorrente)
+	}
+	return m.salvarCondominio(c)
+}
+
+// conferirDona recusa a escrita se o condomínio do alvo existe e mudou de dona desde a
+// autorização. O padrão "*" não tem dona.
+func (m Mapeamento) conferirDona(a Alvo) error {
+	if a.Condominio == Padrao {
+		return nil
+	}
+	if c, existe := m.Condominio(a.Condominio); existe && c.Administradora != a.Dona {
+		return fmt.Errorf("condomínio %s mudou de administradora: %w", a.Condominio, ErrConflitoConcorrente)
+	}
+	return nil
+}
+
+// comDona antepõe à regra a conferência da dona vista na autorização.
+func comDona(a Alvo, r regra) regra {
+	return func(m Mapeamento) (Mapeamento, error) {
+		if err := m.conferirDona(a); err != nil {
+			return m, err
+		}
+		return r(m)
+	}
 }
 
 // removerCondominio apaga o condomínio e tudo que era dele.

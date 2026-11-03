@@ -91,6 +91,18 @@ func TestCarregarUsuarioDesconhecido(t *testing.T) {
 	}
 }
 
+func TestUsuarioDevSemeadoEAdminDaSuperlogica(t *testing.T) {
+	b := bancotest.Novo(t)
+
+	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "admin-superlogica", escopo.Implantacao{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !acesso.Permitido(a, acesso.AdministradorasEditar, acesso.Escopo{Tipo: acesso.TipoSuperlogica}) {
+		t.Fatalf("usuário de dev sem admin na Superlógica: %+v", a.Atribuicoes)
+	}
+}
+
 func TestPapeisSemeadosIguaisAosIniciais(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)

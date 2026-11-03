@@ -30,12 +30,16 @@ func NovoContato(administradoraID, condominioID, telefone string) (Contato, erro
 func (c Contato) Chave() string { return c.AdministradoraID + ":" + c.Telefone }
 
 // Mascarado é o contato para log e mensagem de erro: o telefone sem o miolo.
-func (c Contato) Mascarado() string {
+func (c Contato) Mascarado() string { return c.AdministradoraID + ":" + MascararTelefone(c.Telefone) }
+
+// MascararTelefone normaliza o telefone e esconde o miolo, para log: 5519****2710.
+func MascararTelefone(telefone string) string {
 	const visiveis = 4
-	if len(c.Telefone) <= 2*visiveis {
-		return c.AdministradoraID + ":****"
+	t := normalizarTelefone(telefone)
+	if len(t) <= 2*visiveis {
+		return "****"
 	}
-	return c.AdministradoraID + ":" + c.Telefone[:visiveis] + "****" + c.Telefone[len(c.Telefone)-visiveis:]
+	return t[:visiveis] + "****" + t[len(t)-visiveis:]
 }
 
 // reAdministradora é o formato de id do Admin; também serve de nome de pasta seguro.

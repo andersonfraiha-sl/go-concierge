@@ -41,6 +41,55 @@ func testarRepositorio(t *testing.T, novo func(t *testing.T) Repositorio) {
 	t.Run("padrao regravado", func(t *testing.T) { cenarioPadraoRegravado(t, novo(t)) })
 	t.Run("ordem", func(t *testing.T) { cenarioOrdem(t, novo(t)) })
 	t.Run("escritas simultaneas", func(t *testing.T) { cenarioEscritasSimultaneas(t, novo(t)) })
+	t.Run("criar e editar", func(t *testing.T) { cenarioCriarEditar(t, novo(t)) })
+}
+
+// cenarioCriarEditar: criar recusa id que já existe (sem sobrescrever); editar recusa o que
+// não existe e o condomínio que mudou de dona depois de a requisição ser autorizada.
+func cenarioCriarEditar(t *testing.T, r Repositorio) {
+	ctx := t.Context()
+	ok := exigir(t)
+	erro := func(motivo string, alvo error) func(Mapeamento, error) {
+		return func(_ Mapeamento, err error) {
+			t.Helper()
+			if !errors.Is(err, alvo) {
+				t.Fatalf("%s: quero %v, veio %v", motivo, alvo, err)
+			}
+		}
+	}
+	ok(r.CriarAdministradora(ctx, Administradora{ID: "adm-a", Nome: "Alfa"}))
+	ok(r.CriarAdministradora(ctx, Administradora{ID: "adm-b", Nome: "Beta"}))
+	erro("administradora repetida, mesmo com outra caixa", ErrJaExiste)(r.CriarAdministradora(ctx, Administradora{ID: " ADM-A ", Nome: "Outra"}))
+	erro("editar administradora inexistente", ErrNaoEncontrado)(r.EditarAdministradora(ctx, Administradora{ID: "adm-z", Nome: "Z"}))
+	ok(r.EditarAdministradora(ctx, Administradora{ID: "adm-b", Nome: "Beta 2"}))
+
+	ok(r.CriarCondominio(ctx, Condominio{ID: "c1", Nome: "C1", Administradora: "adm-a", Account: "acc", CompanyID: "10", Tenant: "t1"}))
+	vistoA := Chaves{Administradora: "adm-a", CompanyID: "10", Tenant: "t1"}
+	erro("condomínio repetido", ErrJaExiste)(r.CriarCondominio(ctx, Condominio{ID: "c1", Nome: "Intruso", Administradora: "adm-b"}))
+	erro("editar condomínio inexistente", ErrNaoEncontrado)(r.EditarCondominio(ctx, Condominio{ID: "c9", Nome: "C9"}, Chaves{}))
+	erro("dona mudou desde a autorização", ErrConflitoConcorrente)(r.EditarCondominio(ctx, Condominio{ID: "c1", Nome: "C1", Administradora: "adm-b"}, Chaves{Administradora: "adm-b", CompanyID: "10", Tenant: "t1"}))
+	erro("company mudou desde a autorização", ErrConflitoConcorrente)(r.EditarCondominio(ctx, Condominio{ID: "c1", Nome: "C1", Administradora: "adm-a"}, Chaves{Administradora: "adm-a", CompanyID: "99", Tenant: "t1"}))
+	// escritas por condomínio conferem a dona vista na autorização
+	ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}, "faq", Habilitacao{Habilitado: true}, false))
+	ok(r.EditarCondominio(ctx, Condominio{ID: "c1", Nome: "C1 novo", Administradora: "adm-b", Account: "acc", CompanyID: "10", Tenant: "t1"}, vistoA))
+	movido := func(motivo string) func(Mapeamento, error) { return erro(motivo, ErrConflitoConcorrente) }
+	movido("habilitação com a dona antiga")(r.SalvarHabilitacao(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}, "faq", Habilitacao{}, false))
+	movido("orientação com a dona antiga")(r.SalvarOrientacao(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}, Orientacao{Geral: "x"}))
+	movido("ajustes com a dona antiga")(r.SalvarAjustes(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}, map[string]map[string]any{"r": {"x": 1}}))
+	movido("payload com a dona antiga")(r.SalvarPayload(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}, "r", map[string]any{"x": 1}))
+	movido("remover com a dona antiga")(r.RemoverCondominio(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}))
+	ok(r.SalvarOrientacao(ctx, Alvo{Condominio: Padrao, Dona: "qualquer"}, Orientacao{Geral: "padrão não tem dona"}))
+
+	m := ok(r.Ler(ctx))
+	if a, _ := m.Administradora("adm-a"); a.Nome != "Alfa" {
+		t.Fatalf("criar repetido sobrescreveu: %+v", a)
+	}
+	if a, _ := m.Administradora("adm-b"); a.Nome != "Beta 2" {
+		t.Fatalf("editar administradora: %+v", a)
+	}
+	if c, _ := m.Condominio("c1"); c.Nome != "C1 novo" || c.Administradora != "adm-b" {
+		t.Fatalf("editar condomínio: %+v", c)
+	}
 }
 
 // cenarioOrdem: administradoras por id; condomínios por nome e, no empate, por id. ResolverCondominio
@@ -85,7 +134,7 @@ func cenarioEscritasSimultaneas(t *testing.T, r Repositorio) {
 		var wg sync.WaitGroup
 		for _, id := range condos {
 			wg.Go(func() {
-				_, err := r.SalvarAjustes(ctx, id, map[string]map[string]any{"areas.reservar": {"rodada": rodada}})
+				_, err := r.SalvarAjustes(ctx, Alvo{Condominio: id}, map[string]map[string]any{"areas.reservar": {"rodada": rodada}})
 				erros <- err
 			})
 		}
@@ -132,13 +181,13 @@ func cenarioMapeamento(t *testing.T, r Repositorio) {
 	ok(r.SalvarCondominio(ctx, Condominio{ID: "cond-x", Nome: "Residencial X", Account: "cond-001", CompanyID: "5982", Tenant: "t1"}))
 	nao("id inválido")(r.SalvarCondominio(ctx, Condominio{ID: "Cond Y", Nome: "Y"}))
 	// padrão: reserva desabilitada para todos; X reabilita só para proprietário
-	ok(r.SalvarHabilitacao(ctx, Padrao, "reserva_area_comum", Habilitacao{Habilitado: false}, false))
-	ok(r.SalvarHabilitacao(ctx, "cond-x", "reserva_area_comum", Habilitacao{Habilitado: true, Papeis: []string{"proprietario"}}, false))
-	nao("condomínio desconhecido")(r.SalvarHabilitacao(ctx, "cond-z", "x", Habilitacao{}, false))
+	ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: Padrao}, "reserva_area_comum", Habilitacao{Habilitado: false}, false))
+	ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: "cond-x"}, "reserva_area_comum", Habilitacao{Habilitado: true, Papeis: []string{"proprietario"}}, false))
+	nao("condomínio desconhecido")(r.SalvarHabilitacao(ctx, Alvo{Condominio: "cond-z"}, "x", Habilitacao{}, false))
 	// payloads: padrão e sobreposição do condomínio
-	ok(r.SalvarPayload(ctx, Padrao, "areas.reservar", map[string]any{"antecedencia_min_dias": 2, "max_dias": 60}))
-	ok(r.SalvarPayload(ctx, "cond-x", "areas.reservar", map[string]any{"max_dias": 30, "areas": []any{"salão", "churrasqueira"}}))
-	ok(r.SalvarPayload(ctx, "cond-x", "unidades.listar", map[string]any{"company_id": "5982"}))
+	ok(r.SalvarPayload(ctx, Alvo{Condominio: Padrao}, "areas.reservar", map[string]any{"antecedencia_min_dias": 2, "max_dias": 60}))
+	ok(r.SalvarPayload(ctx, Alvo{Condominio: "cond-x"}, "areas.reservar", map[string]any{"max_dias": 30, "areas": []any{"salão", "churrasqueira"}}))
+	ok(r.SalvarPayload(ctx, Alvo{Condominio: "cond-x"}, "unidades.listar", map[string]any{"company_id": "5982"}))
 
 	m := ok(r.Ler(ctx))
 	if c, achou := m.Condominio("cond-x"); !achou || c.Account != "cond-001" || c.CompanyID != "5982" || c.Tenant != "t1" {
@@ -165,15 +214,15 @@ func cenarioMapeamento(t *testing.T, r Repositorio) {
 	if !strings.Contains(ctxPrompt, "Contexto do condomínio (Residencial X)") || !strings.Contains(ctxPrompt, "`areas.reservar`") {
 		t.Fatalf("contexto:\n%s", ctxPrompt)
 	}
-	ok(r.SalvarHabilitacao(ctx, "cond-x", "reserva_area_comum", Habilitacao{}, true))
+	ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: "cond-x"}, "reserva_area_comum", Habilitacao{}, true))
 	if h, de := ok(r.Ler(ctx)).HabilitacaoEfetiva("cond-x", "reserva_area_comum"); de != Padrao || h.Habilitado {
 		t.Fatalf("limpar devolve ao padrão: %+v %s", h, de)
 	}
-	ok(r.SalvarPayload(ctx, "cond-x", "unidades.listar", nil))
+	ok(r.SalvarPayload(ctx, Alvo{Condominio: "cond-x"}, "unidades.listar", nil))
 	if _, tem := ok(r.Ler(ctx)).Payloads["cond-x"]["unidades.listar"]; tem {
 		t.Fatal("payload nil apaga o recurso")
 	}
-	ok(r.RemoverCondominio(ctx, "cond-x"))
+	ok(r.RemoverCondominio(ctx, Alvo{Condominio: "cond-x"}))
 	m = ok(r.Ler(ctx))
 	if len(m.Condominios) != 0 || m.Payloads["cond-x"] != nil || m.Habilitacoes["cond-x"] != nil {
 		t.Fatal("remover deveria limpar tudo do condomínio")
@@ -192,9 +241,9 @@ func cenarioAdministradoras(t *testing.T, r Repositorio) {
 	ok(r.SalvarCondominio(ctx, Condominio{ID: "c1", Nome: "C1", Administradora: "adm-a"}))
 	ok(r.SalvarCondominio(ctx, Condominio{ID: "c2", Nome: "C2", Administradora: "adm-b"}))
 	nao("administradora desconhecida")(r.SalvarCondominio(ctx, Condominio{ID: "c3", Nome: "C3", Administradora: "adm-zzz"}))
-	ok(r.SalvarHabilitacao(ctx, Padrao, "faq", Habilitacao{Habilitado: false}, false))
-	ok(r.SalvarHabilitacao(ctx, "c2", "faq", Habilitacao{Habilitado: true}, false))
-	ok(r.SalvarPayload(ctx, "c1", "unidades.listar", map[string]any{"x": 1}))
+	ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: Padrao}, "faq", Habilitacao{Habilitado: false}, false))
+	ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: "c2", Dona: "adm-b"}, "faq", Habilitacao{Habilitado: true}, false))
+	ok(r.SalvarPayload(ctx, Alvo{Condominio: "c1", Dona: "adm-a"}, "unidades.listar", map[string]any{"x": 1}))
 
 	m := ok(r.Ler(ctx))
 	if !slices.Equal(m.Administradoras, []Administradora{{ID: "adm-a", Nome: "Alfa"}, {ID: "adm-b", Nome: "Beta"}}) {
@@ -232,12 +281,12 @@ func cenarioOrientacoes(t *testing.T, r Repositorio) {
 	ctx := t.Context()
 	ok, nao := exigir(t), func(m string) func(Mapeamento, error) { return recusar(t, m) }
 	ok(r.SalvarCondominio(ctx, Condominio{ID: "c1", Nome: "C1"}))
-	ok(r.SalvarOrientacao(ctx, Padrao, Orientacao{Geral: "Trate todos por você."}))
-	ok(r.SalvarOrientacao(ctx, "c1", Orientacao{Geral: "A piscina fecha às 22h.", PorCaso: map[string]string{"reserva-area-comum": "Churrasqueira só aos fins de semana.", "faq": "  "}}))
-	nao("condomínio desconhecido")(r.SalvarOrientacao(ctx, "zz", Orientacao{Geral: "x"}))
-	nao("ajuste sem recurso")(r.SalvarAjustes(ctx, "c1", map[string]map[string]any{"": {"x": 1}}))
-	ok(r.SalvarPayload(ctx, "c1", "areas.reservar", map[string]any{"do_backdoor": true, "max_dias": 60}))
-	ok(r.SalvarAjustes(ctx, "c1", map[string]map[string]any{"areas.reservar": {"antecedencia_min_dias": 2, "max_dias": ""}, "unidades.listar": {"company_id": "5982"}}))
+	ok(r.SalvarOrientacao(ctx, Alvo{Condominio: Padrao}, Orientacao{Geral: "Trate todos por você."}))
+	ok(r.SalvarOrientacao(ctx, Alvo{Condominio: "c1"}, Orientacao{Geral: "A piscina fecha às 22h.", PorCaso: map[string]string{"reserva-area-comum": "Churrasqueira só aos fins de semana.", "faq": "  "}}))
+	nao("condomínio desconhecido")(r.SalvarOrientacao(ctx, Alvo{Condominio: "zz"}, Orientacao{Geral: "x"}))
+	nao("ajuste sem recurso")(r.SalvarAjustes(ctx, Alvo{Condominio: "c1"}, map[string]map[string]any{"": {"x": 1}}))
+	ok(r.SalvarPayload(ctx, Alvo{Condominio: "c1"}, "areas.reservar", map[string]any{"do_backdoor": true, "max_dias": 60}))
+	ok(r.SalvarAjustes(ctx, Alvo{Condominio: "c1"}, map[string]map[string]any{"areas.reservar": {"antecedencia_min_dias": 2, "max_dias": ""}, "unidades.listar": {"company_id": "5982"}}))
 
 	m := ok(r.Ler(ctx))
 	o := m.OrientacaoDe("c1")
@@ -255,15 +304,15 @@ func cenarioOrientacoes(t *testing.T, r Repositorio) {
 	if !strings.Contains(ctxPrompt, "## Orientações da administradora") || !strings.Contains(ctxPrompt, "22h") || !strings.Contains(ctxPrompt, "areas.reservar") {
 		t.Fatalf("contexto: %s", ctxPrompt)
 	}
-	ok(r.SalvarAjustes(ctx, "c1", map[string]map[string]any{"unidades.listar": {"company_id": nil}}))
+	ok(r.SalvarAjustes(ctx, Alvo{Condominio: "c1"}, map[string]map[string]any{"unidades.listar": {"company_id": nil}}))
 	if _, tem := ok(r.Ler(ctx)).Payloads["c1"]["unidades.listar"]; tem {
 		t.Fatal("recurso sem chaves sai do payload")
 	}
-	ok(r.SalvarOrientacao(ctx, Padrao, Orientacao{Geral: "  "}))
+	ok(r.SalvarOrientacao(ctx, Alvo{Condominio: Padrao}, Orientacao{Geral: "  "}))
 	if _, tem := ok(r.Ler(ctx)).Orientacoes[Padrao]; tem {
 		t.Fatal("orientação vazia apaga")
 	}
-	ok(r.RemoverCondominio(ctx, "c1"))
+	ok(r.RemoverCondominio(ctx, Alvo{Condominio: "c1"}))
 	if _, tem := ok(r.Ler(ctx)).Orientacoes["c1"]; tem {
 		t.Fatal("remover o condomínio leva a orientação junto")
 	}
@@ -274,11 +323,11 @@ func cenarioPadraoRegravado(t *testing.T, r Repositorio) {
 	ctx := t.Context()
 	ok := exigir(t)
 	for _, habilitado := range []bool{false, true} {
-		ok(r.SalvarHabilitacao(ctx, Padrao, "faq", Habilitacao{Habilitado: habilitado, Papeis: []string{"sindico", "morador"}}, false))
-		ok(r.SalvarPayload(ctx, Padrao, "areas.reservar", map[string]any{"max_dias": 10}))
-		ok(r.SalvarOrientacao(ctx, Padrao, Orientacao{Geral: "Olá."}))
+		ok(r.SalvarHabilitacao(ctx, Alvo{Condominio: Padrao}, "faq", Habilitacao{Habilitado: habilitado, Papeis: []string{"sindico", "morador"}}, false))
+		ok(r.SalvarPayload(ctx, Alvo{Condominio: Padrao}, "areas.reservar", map[string]any{"max_dias": 10}))
+		ok(r.SalvarOrientacao(ctx, Alvo{Condominio: Padrao}, Orientacao{Geral: "Olá."}))
 	}
-	ok(r.SalvarAjustes(ctx, Padrao, map[string]map[string]any{"areas.reservar": {"max_dias": 20}}))
+	ok(r.SalvarAjustes(ctx, Alvo{Condominio: Padrao}, map[string]map[string]any{"areas.reservar": {"max_dias": 20}}))
 	m := ok(r.Ler(ctx))
 	h := m.Habilitacoes[Padrao]["faq"]
 	if !h.Habilitado || !slices.Equal(h.Papeis, []string{"sindico", "morador"}) {

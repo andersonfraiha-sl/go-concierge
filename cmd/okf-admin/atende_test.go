@@ -321,7 +321,8 @@ func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Memorias: st}, memorias: st, implantacao: tt.implantacao}
+			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Memorias: st}, memorias: st, implantacao: tt.implantacao,
+				acessos: acessosFake{atribuicoes: usuariosTeste(), mapeamento: mapeamentoTeste(t)}, autenticador: autenticadorDev{padrao: "admin"}}
 			mux := http.NewServeMux()
 			s.rotasAtende(mux)
 			w := httptest.NewRecorder()
@@ -366,6 +367,7 @@ func servidorComSessoes(t *testing.T, implantacao escopo.Implantacao) *servidor 
 	return &servidor{
 		atende:      &atende.Servico{Sessoes: atende.NewSessoes(st), Implantacao: implantacao},
 		implantacao: implantacao, outbox: &atende.Outbox{}, emulador: atende.NewEmulador(),
+		acessos: acessosFake{atribuicoes: usuariosTeste(), mapeamento: mapeamentoTeste(t)}, autenticador: autenticadorDev{padrao: "admin"},
 	}
 }
 
@@ -385,15 +387,15 @@ func TestSessoesFicamNaImplantacao(t *testing.T) {
 		{"lista sem fixa traz todas", escopo.Implantacao{}, "GET", "/api/atende/sessoes", "", 200, `"id":"s-b"`},
 		{"lista filtrada sem fixa", escopo.Implantacao{}, "GET", "/api/atende/sessoes?administradora=adm-b", "", 200, `"id":"s-b"`},
 		{"le a propria", fixa, "GET", "/api/atende/sessao?id=s-a", "", 200, `"id":"s-a"`},
-		{"le alheia", fixa, "GET", "/api/atende/sessao?id=s-b", "", 404, ""},
-		{"le alheia por protocolo", fixa, "GET", "/api/atende/sessao?protocolo=P-s-b", "", 404, ""},
+		{"le alheia", fixa, "GET", "/api/atende/sessao?id=s-b", "", 403, "SEM_PERMISSAO"},
+		{"le alheia por protocolo", fixa, "GET", "/api/atende/sessao?protocolo=P-s-b", "", 403, "SEM_PERMISSAO"},
 		{"le de outra administradora pedida", escopo.Implantacao{}, "GET", "/api/atende/sessao?id=s-a&administradora=adm-b", "", 404, ""},
-		{"saidas de alheia", fixa, "GET", "/api/atende/saidas?id=s-b", "", 404, ""},
+		{"saidas de alheia", fixa, "GET", "/api/atende/saidas?id=s-b", "", 403, "SEM_PERMISSAO"},
 		{"assume a propria", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-a","acao":"assumir"}`, 200, `"ativo":true`},
-		{"assume alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"assumir"}`, 404, ""},
-		{"devolve alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"devolver"}`, 404, ""},
-		{"preenche pedido de alheia", fixa, "POST", "/api/pedidos/acao", `{"sessao_id":"s-b","acao":"preencher"}`, 404, ""},
-		{"apaga alheia", fixa, "DELETE", "/api/atende/sessao?id=s-b", "", 404, ""},
+		{"assume alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"assumir"}`, 403, "SEM_PERMISSAO"},
+		{"devolve alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"devolver"}`, 403, "SEM_PERMISSAO"},
+		{"preenche pedido de alheia", fixa, "POST", "/api/pedidos/acao", `{"sessao_id":"s-b","acao":"preencher"}`, 403, "SEM_PERMISSAO"},
+		{"apaga alheia", fixa, "DELETE", "/api/atende/sessao?id=s-b", "", 403, "SEM_PERMISSAO"},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -405,7 +407,7 @@ func TestSessoesFicamNaImplantacao(t *testing.T) {
 			if w.Code != c.status || !strings.Contains(w.Body.String(), c.trecho) {
 				t.Fatalf("status %d: %s", w.Code, w.Body.String())
 			}
-			if c.status == 404 && strings.Contains(w.Body.String(), "s-b") {
+			if c.status >= 400 && strings.Contains(w.Body.String(), "s-b") {
 				t.Fatalf("resposta revela a sessão alheia: %s", w.Body.String())
 			}
 			if _, ok, err := s.atende.Sessoes.Get(t.Context(), "s-b"); err != nil || !ok {

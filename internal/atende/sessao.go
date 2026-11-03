@@ -372,6 +372,14 @@ func (sess *Sessao) contato() escopo.Contato {
 	return sess.escopo
 }
 
+// Administradora é a administradora gravada quando a conversa resolveu o condomínio (vazia
+// até resolver). Não muda se o condomínio trocar de dona depois.
+func (sess *Sessao) Administradora() string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.AdministradoraID
+}
+
 // companyDoCondominio é a company do Gruvi do condomínio resolvido (vazia até resolver).
 func (sess *Sessao) companyDoCondominio() string {
 	sess.mu.Lock()
