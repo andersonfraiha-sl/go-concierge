@@ -14,8 +14,16 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
-	// Vazio is the client for interacting with the Vazio builders.
-	Vazio *VazioClient
+	// Administradora is the client for interacting with the Administradora builders.
+	Administradora *AdministradoraClient
+	// Condominio is the client for interacting with the Condominio builders.
+	Condominio *CondominioClient
+	// Habilitacao is the client for interacting with the Habilitacao builders.
+	Habilitacao *HabilitacaoClient
+	// Orientacao is the client for interacting with the Orientacao builders.
+	Orientacao *OrientacaoClient
+	// Payload is the client for interacting with the Payload builders.
+	Payload *PayloadClient
 
 	// lazily loaded.
 	client     *Client
@@ -147,7 +155,11 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
-	tx.Vazio = NewVazioClient(tx.config)
+	tx.Administradora = NewAdministradoraClient(tx.config)
+	tx.Condominio = NewCondominioClient(tx.config)
+	tx.Habilitacao = NewHabilitacaoClient(tx.config)
+	tx.Orientacao = NewOrientacaoClient(tx.config)
+	tx.Payload = NewPayloadClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.
@@ -157,7 +169,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Vazio.QueryXXX(), the query will be executed
+// applies a query, for example: Administradora.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

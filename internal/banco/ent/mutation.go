@@ -3,7 +3,20 @@
 package ent
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/predicate"
+	"go-concierge/internal/banco/ent/schema"
+	"sync"
+
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/sql"
 )
 
 const (
@@ -15,5 +28,2893 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeVazio = "Vazio"
+	TypeAdministradora = "Administradora"
+	TypeCondominio     = "Condominio"
+	TypeHabilitacao    = "Habilitacao"
+	TypeOrientacao     = "Orientacao"
+	TypePayload        = "Payload"
 )
+
+// AdministradoraMutation represents an operation that mutates the Administradora nodes in the graph.
+type AdministradoraMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *string
+	nome               *string
+	clearedFields      map[string]struct{}
+	condominios        map[string]struct{}
+	removedcondominios map[string]struct{}
+	clearedcondominios bool
+	done               bool
+	oldValue           func(context.Context) (*Administradora, error)
+	predicates         []predicate.Administradora
+}
+
+var _ ent.Mutation = (*AdministradoraMutation)(nil)
+
+// administradoraOption allows management of the mutation configuration using functional options.
+type administradoraOption func(*AdministradoraMutation)
+
+// newAdministradoraMutation creates new mutation for the Administradora entity.
+func newAdministradoraMutation(c config, op Op, opts ...administradoraOption) *AdministradoraMutation {
+	m := &AdministradoraMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAdministradora,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAdministradoraID sets the ID field of the mutation.
+func withAdministradoraID(id string) administradoraOption {
+	return func(m *AdministradoraMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Administradora
+		)
+		m.oldValue = func(ctx context.Context) (*Administradora, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Administradora.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAdministradora sets the old Administradora of the mutation.
+func withAdministradora(node *Administradora) administradoraOption {
+	return func(m *AdministradoraMutation) {
+		m.oldValue = func(context.Context) (*Administradora, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AdministradoraMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AdministradoraMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Administradora entities.
+func (m *AdministradoraMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AdministradoraMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AdministradoraMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Administradora.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetNome sets the "nome" field.
+func (m *AdministradoraMutation) SetNome(s string) {
+	m.nome = &s
+}
+
+// Nome returns the value of the "nome" field in the mutation.
+func (m *AdministradoraMutation) Nome() (r string, exists bool) {
+	v := m.nome
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNome returns the old "nome" field's value of the Administradora entity.
+// If the Administradora object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AdministradoraMutation) OldNome(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNome is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNome requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNome: %w", err)
+	}
+	return oldValue.Nome, nil
+}
+
+// ResetNome resets all changes to the "nome" field.
+func (m *AdministradoraMutation) ResetNome() {
+	m.nome = nil
+}
+
+// AddCondominioIDs adds the "condominios" edge to the Condominio entity by ids.
+func (m *AdministradoraMutation) AddCondominioIDs(ids ...string) {
+	if m.condominios == nil {
+		m.condominios = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.condominios[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCondominios clears the "condominios" edge to the Condominio entity.
+func (m *AdministradoraMutation) ClearCondominios() {
+	m.clearedcondominios = true
+}
+
+// CondominiosCleared reports if the "condominios" edge to the Condominio entity was cleared.
+func (m *AdministradoraMutation) CondominiosCleared() bool {
+	return m.clearedcondominios
+}
+
+// RemoveCondominioIDs removes the "condominios" edge to the Condominio entity by IDs.
+func (m *AdministradoraMutation) RemoveCondominioIDs(ids ...string) {
+	if m.removedcondominios == nil {
+		m.removedcondominios = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.condominios, ids[i])
+		m.removedcondominios[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCondominios returns the removed IDs of the "condominios" edge to the Condominio entity.
+func (m *AdministradoraMutation) RemovedCondominiosIDs() (ids []string) {
+	for id := range m.removedcondominios {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CondominiosIDs returns the "condominios" edge IDs in the mutation.
+func (m *AdministradoraMutation) CondominiosIDs() (ids []string) {
+	for id := range m.condominios {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCondominios resets all changes to the "condominios" edge.
+func (m *AdministradoraMutation) ResetCondominios() {
+	m.condominios = nil
+	m.clearedcondominios = false
+	m.removedcondominios = nil
+}
+
+// Where appends a list predicates to the AdministradoraMutation builder.
+func (m *AdministradoraMutation) Where(ps ...predicate.Administradora) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AdministradoraMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AdministradoraMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Administradora, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AdministradoraMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AdministradoraMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Administradora).
+func (m *AdministradoraMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AdministradoraMutation) Fields() []string {
+	fields := make([]string, 0, 1)
+	if m.nome != nil {
+		fields = append(fields, administradora.FieldNome)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AdministradoraMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case administradora.FieldNome:
+		return m.Nome()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AdministradoraMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case administradora.FieldNome:
+		return m.OldNome(ctx)
+	}
+	return nil, fmt.Errorf("unknown Administradora field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AdministradoraMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case administradora.FieldNome:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNome(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Administradora field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AdministradoraMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AdministradoraMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AdministradoraMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Administradora numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AdministradoraMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AdministradoraMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AdministradoraMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Administradora nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AdministradoraMutation) ResetField(name string) error {
+	switch name {
+	case administradora.FieldNome:
+		m.ResetNome()
+		return nil
+	}
+	return fmt.Errorf("unknown Administradora field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AdministradoraMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.condominios != nil {
+		edges = append(edges, administradora.EdgeCondominios)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AdministradoraMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case administradora.EdgeCondominios:
+		ids := make([]ent.Value, 0, len(m.condominios))
+		for id := range m.condominios {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AdministradoraMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedcondominios != nil {
+		edges = append(edges, administradora.EdgeCondominios)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AdministradoraMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case administradora.EdgeCondominios:
+		ids := make([]ent.Value, 0, len(m.removedcondominios))
+		for id := range m.removedcondominios {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AdministradoraMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcondominios {
+		edges = append(edges, administradora.EdgeCondominios)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AdministradoraMutation) EdgeCleared(name string) bool {
+	switch name {
+	case administradora.EdgeCondominios:
+		return m.clearedcondominios
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AdministradoraMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Administradora unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AdministradoraMutation) ResetEdge(name string) error {
+	switch name {
+	case administradora.EdgeCondominios:
+		m.ResetCondominios()
+		return nil
+	}
+	return fmt.Errorf("unknown Administradora edge %s", name)
+}
+
+// CondominioMutation represents an operation that mutates the Condominio nodes in the graph.
+type CondominioMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *string
+	nome                  *string
+	account               *string
+	company_id            *string
+	tenant                *string
+	clearedFields         map[string]struct{}
+	administradora        *string
+	clearedadministradora bool
+	habilitacoes          map[int]struct{}
+	removedhabilitacoes   map[int]struct{}
+	clearedhabilitacoes   bool
+	payloads              map[int]struct{}
+	removedpayloads       map[int]struct{}
+	clearedpayloads       bool
+	orientacoes           map[int]struct{}
+	removedorientacoes    map[int]struct{}
+	clearedorientacoes    bool
+	done                  bool
+	oldValue              func(context.Context) (*Condominio, error)
+	predicates            []predicate.Condominio
+}
+
+var _ ent.Mutation = (*CondominioMutation)(nil)
+
+// condominioOption allows management of the mutation configuration using functional options.
+type condominioOption func(*CondominioMutation)
+
+// newCondominioMutation creates new mutation for the Condominio entity.
+func newCondominioMutation(c config, op Op, opts ...condominioOption) *CondominioMutation {
+	m := &CondominioMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCondominio,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCondominioID sets the ID field of the mutation.
+func withCondominioID(id string) condominioOption {
+	return func(m *CondominioMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Condominio
+		)
+		m.oldValue = func(ctx context.Context) (*Condominio, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Condominio.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCondominio sets the old Condominio of the mutation.
+func withCondominio(node *Condominio) condominioOption {
+	return func(m *CondominioMutation) {
+		m.oldValue = func(context.Context) (*Condominio, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CondominioMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CondominioMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Condominio entities.
+func (m *CondominioMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CondominioMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CondominioMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Condominio.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetNome sets the "nome" field.
+func (m *CondominioMutation) SetNome(s string) {
+	m.nome = &s
+}
+
+// Nome returns the value of the "nome" field in the mutation.
+func (m *CondominioMutation) Nome() (r string, exists bool) {
+	v := m.nome
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNome returns the old "nome" field's value of the Condominio entity.
+// If the Condominio object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CondominioMutation) OldNome(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNome is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNome requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNome: %w", err)
+	}
+	return oldValue.Nome, nil
+}
+
+// ResetNome resets all changes to the "nome" field.
+func (m *CondominioMutation) ResetNome() {
+	m.nome = nil
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *CondominioMutation) SetAdministradoraID(s string) {
+	m.administradora = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *CondominioMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the Condominio entity.
+// If the Condominio object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CondominioMutation) OldAdministradoraID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (m *CondominioMutation) ClearAdministradoraID() {
+	m.administradora = nil
+	m.clearedFields[condominio.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraIDCleared returns if the "administradora_id" field was cleared in this mutation.
+func (m *CondominioMutation) AdministradoraIDCleared() bool {
+	_, ok := m.clearedFields[condominio.FieldAdministradoraID]
+	return ok
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *CondominioMutation) ResetAdministradoraID() {
+	m.administradora = nil
+	delete(m.clearedFields, condominio.FieldAdministradoraID)
+}
+
+// SetAccount sets the "account" field.
+func (m *CondominioMutation) SetAccount(s string) {
+	m.account = &s
+}
+
+// Account returns the value of the "account" field in the mutation.
+func (m *CondominioMutation) Account() (r string, exists bool) {
+	v := m.account
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccount returns the old "account" field's value of the Condominio entity.
+// If the Condominio object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CondominioMutation) OldAccount(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccount: %w", err)
+	}
+	return oldValue.Account, nil
+}
+
+// ResetAccount resets all changes to the "account" field.
+func (m *CondominioMutation) ResetAccount() {
+	m.account = nil
+}
+
+// SetCompanyID sets the "company_id" field.
+func (m *CondominioMutation) SetCompanyID(s string) {
+	m.company_id = &s
+}
+
+// CompanyID returns the value of the "company_id" field in the mutation.
+func (m *CondominioMutation) CompanyID() (r string, exists bool) {
+	v := m.company_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompanyID returns the old "company_id" field's value of the Condominio entity.
+// If the Condominio object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CondominioMutation) OldCompanyID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompanyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompanyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompanyID: %w", err)
+	}
+	return oldValue.CompanyID, nil
+}
+
+// ResetCompanyID resets all changes to the "company_id" field.
+func (m *CondominioMutation) ResetCompanyID() {
+	m.company_id = nil
+}
+
+// SetTenant sets the "tenant" field.
+func (m *CondominioMutation) SetTenant(s string) {
+	m.tenant = &s
+}
+
+// Tenant returns the value of the "tenant" field in the mutation.
+func (m *CondominioMutation) Tenant() (r string, exists bool) {
+	v := m.tenant
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTenant returns the old "tenant" field's value of the Condominio entity.
+// If the Condominio object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CondominioMutation) OldTenant(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTenant is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTenant requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTenant: %w", err)
+	}
+	return oldValue.Tenant, nil
+}
+
+// ResetTenant resets all changes to the "tenant" field.
+func (m *CondominioMutation) ResetTenant() {
+	m.tenant = nil
+}
+
+// ClearAdministradora clears the "administradora" edge to the Administradora entity.
+func (m *CondominioMutation) ClearAdministradora() {
+	m.clearedadministradora = true
+	m.clearedFields[condominio.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraCleared reports if the "administradora" edge to the Administradora entity was cleared.
+func (m *CondominioMutation) AdministradoraCleared() bool {
+	return m.AdministradoraIDCleared() || m.clearedadministradora
+}
+
+// AdministradoraIDs returns the "administradora" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AdministradoraID instead. It exists only for internal usage by the builders.
+func (m *CondominioMutation) AdministradoraIDs() (ids []string) {
+	if id := m.administradora; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAdministradora resets all changes to the "administradora" edge.
+func (m *CondominioMutation) ResetAdministradora() {
+	m.administradora = nil
+	m.clearedadministradora = false
+}
+
+// AddHabilitacoIDs adds the "habilitacoes" edge to the Habilitacao entity by ids.
+func (m *CondominioMutation) AddHabilitacoIDs(ids ...int) {
+	if m.habilitacoes == nil {
+		m.habilitacoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.habilitacoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearHabilitacoes clears the "habilitacoes" edge to the Habilitacao entity.
+func (m *CondominioMutation) ClearHabilitacoes() {
+	m.clearedhabilitacoes = true
+}
+
+// HabilitacoesCleared reports if the "habilitacoes" edge to the Habilitacao entity was cleared.
+func (m *CondominioMutation) HabilitacoesCleared() bool {
+	return m.clearedhabilitacoes
+}
+
+// RemoveHabilitacoIDs removes the "habilitacoes" edge to the Habilitacao entity by IDs.
+func (m *CondominioMutation) RemoveHabilitacoIDs(ids ...int) {
+	if m.removedhabilitacoes == nil {
+		m.removedhabilitacoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.habilitacoes, ids[i])
+		m.removedhabilitacoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedHabilitacoes returns the removed IDs of the "habilitacoes" edge to the Habilitacao entity.
+func (m *CondominioMutation) RemovedHabilitacoesIDs() (ids []int) {
+	for id := range m.removedhabilitacoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// HabilitacoesIDs returns the "habilitacoes" edge IDs in the mutation.
+func (m *CondominioMutation) HabilitacoesIDs() (ids []int) {
+	for id := range m.habilitacoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetHabilitacoes resets all changes to the "habilitacoes" edge.
+func (m *CondominioMutation) ResetHabilitacoes() {
+	m.habilitacoes = nil
+	m.clearedhabilitacoes = false
+	m.removedhabilitacoes = nil
+}
+
+// AddPayloadIDs adds the "payloads" edge to the Payload entity by ids.
+func (m *CondominioMutation) AddPayloadIDs(ids ...int) {
+	if m.payloads == nil {
+		m.payloads = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.payloads[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPayloads clears the "payloads" edge to the Payload entity.
+func (m *CondominioMutation) ClearPayloads() {
+	m.clearedpayloads = true
+}
+
+// PayloadsCleared reports if the "payloads" edge to the Payload entity was cleared.
+func (m *CondominioMutation) PayloadsCleared() bool {
+	return m.clearedpayloads
+}
+
+// RemovePayloadIDs removes the "payloads" edge to the Payload entity by IDs.
+func (m *CondominioMutation) RemovePayloadIDs(ids ...int) {
+	if m.removedpayloads == nil {
+		m.removedpayloads = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.payloads, ids[i])
+		m.removedpayloads[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPayloads returns the removed IDs of the "payloads" edge to the Payload entity.
+func (m *CondominioMutation) RemovedPayloadsIDs() (ids []int) {
+	for id := range m.removedpayloads {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PayloadsIDs returns the "payloads" edge IDs in the mutation.
+func (m *CondominioMutation) PayloadsIDs() (ids []int) {
+	for id := range m.payloads {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPayloads resets all changes to the "payloads" edge.
+func (m *CondominioMutation) ResetPayloads() {
+	m.payloads = nil
+	m.clearedpayloads = false
+	m.removedpayloads = nil
+}
+
+// AddOrientacoIDs adds the "orientacoes" edge to the Orientacao entity by ids.
+func (m *CondominioMutation) AddOrientacoIDs(ids ...int) {
+	if m.orientacoes == nil {
+		m.orientacoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.orientacoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearOrientacoes clears the "orientacoes" edge to the Orientacao entity.
+func (m *CondominioMutation) ClearOrientacoes() {
+	m.clearedorientacoes = true
+}
+
+// OrientacoesCleared reports if the "orientacoes" edge to the Orientacao entity was cleared.
+func (m *CondominioMutation) OrientacoesCleared() bool {
+	return m.clearedorientacoes
+}
+
+// RemoveOrientacoIDs removes the "orientacoes" edge to the Orientacao entity by IDs.
+func (m *CondominioMutation) RemoveOrientacoIDs(ids ...int) {
+	if m.removedorientacoes == nil {
+		m.removedorientacoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.orientacoes, ids[i])
+		m.removedorientacoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedOrientacoes returns the removed IDs of the "orientacoes" edge to the Orientacao entity.
+func (m *CondominioMutation) RemovedOrientacoesIDs() (ids []int) {
+	for id := range m.removedorientacoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// OrientacoesIDs returns the "orientacoes" edge IDs in the mutation.
+func (m *CondominioMutation) OrientacoesIDs() (ids []int) {
+	for id := range m.orientacoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetOrientacoes resets all changes to the "orientacoes" edge.
+func (m *CondominioMutation) ResetOrientacoes() {
+	m.orientacoes = nil
+	m.clearedorientacoes = false
+	m.removedorientacoes = nil
+}
+
+// Where appends a list predicates to the CondominioMutation builder.
+func (m *CondominioMutation) Where(ps ...predicate.Condominio) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CondominioMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CondominioMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Condominio, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CondominioMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CondominioMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Condominio).
+func (m *CondominioMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CondominioMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.nome != nil {
+		fields = append(fields, condominio.FieldNome)
+	}
+	if m.administradora != nil {
+		fields = append(fields, condominio.FieldAdministradoraID)
+	}
+	if m.account != nil {
+		fields = append(fields, condominio.FieldAccount)
+	}
+	if m.company_id != nil {
+		fields = append(fields, condominio.FieldCompanyID)
+	}
+	if m.tenant != nil {
+		fields = append(fields, condominio.FieldTenant)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CondominioMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case condominio.FieldNome:
+		return m.Nome()
+	case condominio.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case condominio.FieldAccount:
+		return m.Account()
+	case condominio.FieldCompanyID:
+		return m.CompanyID()
+	case condominio.FieldTenant:
+		return m.Tenant()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CondominioMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case condominio.FieldNome:
+		return m.OldNome(ctx)
+	case condominio.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case condominio.FieldAccount:
+		return m.OldAccount(ctx)
+	case condominio.FieldCompanyID:
+		return m.OldCompanyID(ctx)
+	case condominio.FieldTenant:
+		return m.OldTenant(ctx)
+	}
+	return nil, fmt.Errorf("unknown Condominio field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CondominioMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case condominio.FieldNome:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNome(v)
+		return nil
+	case condominio.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case condominio.FieldAccount:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccount(v)
+		return nil
+	case condominio.FieldCompanyID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompanyID(v)
+		return nil
+	case condominio.FieldTenant:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTenant(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Condominio field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CondominioMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CondominioMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CondominioMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Condominio numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CondominioMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(condominio.FieldAdministradoraID) {
+		fields = append(fields, condominio.FieldAdministradoraID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CondominioMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CondominioMutation) ClearField(name string) error {
+	switch name {
+	case condominio.FieldAdministradoraID:
+		m.ClearAdministradoraID()
+		return nil
+	}
+	return fmt.Errorf("unknown Condominio nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CondominioMutation) ResetField(name string) error {
+	switch name {
+	case condominio.FieldNome:
+		m.ResetNome()
+		return nil
+	case condominio.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case condominio.FieldAccount:
+		m.ResetAccount()
+		return nil
+	case condominio.FieldCompanyID:
+		m.ResetCompanyID()
+		return nil
+	case condominio.FieldTenant:
+		m.ResetTenant()
+		return nil
+	}
+	return fmt.Errorf("unknown Condominio field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CondominioMutation) AddedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.administradora != nil {
+		edges = append(edges, condominio.EdgeAdministradora)
+	}
+	if m.habilitacoes != nil {
+		edges = append(edges, condominio.EdgeHabilitacoes)
+	}
+	if m.payloads != nil {
+		edges = append(edges, condominio.EdgePayloads)
+	}
+	if m.orientacoes != nil {
+		edges = append(edges, condominio.EdgeOrientacoes)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CondominioMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case condominio.EdgeAdministradora:
+		if id := m.administradora; id != nil {
+			return []ent.Value{*id}
+		}
+	case condominio.EdgeHabilitacoes:
+		ids := make([]ent.Value, 0, len(m.habilitacoes))
+		for id := range m.habilitacoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case condominio.EdgePayloads:
+		ids := make([]ent.Value, 0, len(m.payloads))
+		for id := range m.payloads {
+			ids = append(ids, id)
+		}
+		return ids
+	case condominio.EdgeOrientacoes:
+		ids := make([]ent.Value, 0, len(m.orientacoes))
+		for id := range m.orientacoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CondominioMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.removedhabilitacoes != nil {
+		edges = append(edges, condominio.EdgeHabilitacoes)
+	}
+	if m.removedpayloads != nil {
+		edges = append(edges, condominio.EdgePayloads)
+	}
+	if m.removedorientacoes != nil {
+		edges = append(edges, condominio.EdgeOrientacoes)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CondominioMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case condominio.EdgeHabilitacoes:
+		ids := make([]ent.Value, 0, len(m.removedhabilitacoes))
+		for id := range m.removedhabilitacoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case condominio.EdgePayloads:
+		ids := make([]ent.Value, 0, len(m.removedpayloads))
+		for id := range m.removedpayloads {
+			ids = append(ids, id)
+		}
+		return ids
+	case condominio.EdgeOrientacoes:
+		ids := make([]ent.Value, 0, len(m.removedorientacoes))
+		for id := range m.removedorientacoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CondominioMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 4)
+	if m.clearedadministradora {
+		edges = append(edges, condominio.EdgeAdministradora)
+	}
+	if m.clearedhabilitacoes {
+		edges = append(edges, condominio.EdgeHabilitacoes)
+	}
+	if m.clearedpayloads {
+		edges = append(edges, condominio.EdgePayloads)
+	}
+	if m.clearedorientacoes {
+		edges = append(edges, condominio.EdgeOrientacoes)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CondominioMutation) EdgeCleared(name string) bool {
+	switch name {
+	case condominio.EdgeAdministradora:
+		return m.clearedadministradora
+	case condominio.EdgeHabilitacoes:
+		return m.clearedhabilitacoes
+	case condominio.EdgePayloads:
+		return m.clearedpayloads
+	case condominio.EdgeOrientacoes:
+		return m.clearedorientacoes
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CondominioMutation) ClearEdge(name string) error {
+	switch name {
+	case condominio.EdgeAdministradora:
+		m.ClearAdministradora()
+		return nil
+	}
+	return fmt.Errorf("unknown Condominio unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CondominioMutation) ResetEdge(name string) error {
+	switch name {
+	case condominio.EdgeAdministradora:
+		m.ResetAdministradora()
+		return nil
+	case condominio.EdgeHabilitacoes:
+		m.ResetHabilitacoes()
+		return nil
+	case condominio.EdgePayloads:
+		m.ResetPayloads()
+		return nil
+	case condominio.EdgeOrientacoes:
+		m.ResetOrientacoes()
+		return nil
+	}
+	return fmt.Errorf("unknown Condominio edge %s", name)
+}
+
+// HabilitacaoMutation represents an operation that mutates the Habilitacao nodes in the graph.
+type HabilitacaoMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	caso              *string
+	habilitado        *bool
+	papeis            *schema.Papeis
+	clearedFields     map[string]struct{}
+	condominio        *string
+	clearedcondominio bool
+	done              bool
+	oldValue          func(context.Context) (*Habilitacao, error)
+	predicates        []predicate.Habilitacao
+}
+
+var _ ent.Mutation = (*HabilitacaoMutation)(nil)
+
+// habilitacaoOption allows management of the mutation configuration using functional options.
+type habilitacaoOption func(*HabilitacaoMutation)
+
+// newHabilitacaoMutation creates new mutation for the Habilitacao entity.
+func newHabilitacaoMutation(c config, op Op, opts ...habilitacaoOption) *HabilitacaoMutation {
+	m := &HabilitacaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeHabilitacao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withHabilitacaoID sets the ID field of the mutation.
+func withHabilitacaoID(id int) habilitacaoOption {
+	return func(m *HabilitacaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Habilitacao
+		)
+		m.oldValue = func(ctx context.Context) (*Habilitacao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Habilitacao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withHabilitacao sets the old Habilitacao of the mutation.
+func withHabilitacao(node *Habilitacao) habilitacaoOption {
+	return func(m *HabilitacaoMutation) {
+		m.oldValue = func(context.Context) (*Habilitacao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m HabilitacaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m HabilitacaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *HabilitacaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *HabilitacaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Habilitacao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *HabilitacaoMutation) SetCondominioID(s string) {
+	m.condominio = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *HabilitacaoMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the Habilitacao entity.
+// If the Habilitacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *HabilitacaoMutation) OldCondominioID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ClearCondominioID clears the value of the "condominio_id" field.
+func (m *HabilitacaoMutation) ClearCondominioID() {
+	m.condominio = nil
+	m.clearedFields[habilitacao.FieldCondominioID] = struct{}{}
+}
+
+// CondominioIDCleared returns if the "condominio_id" field was cleared in this mutation.
+func (m *HabilitacaoMutation) CondominioIDCleared() bool {
+	_, ok := m.clearedFields[habilitacao.FieldCondominioID]
+	return ok
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *HabilitacaoMutation) ResetCondominioID() {
+	m.condominio = nil
+	delete(m.clearedFields, habilitacao.FieldCondominioID)
+}
+
+// SetCaso sets the "caso" field.
+func (m *HabilitacaoMutation) SetCaso(s string) {
+	m.caso = &s
+}
+
+// Caso returns the value of the "caso" field in the mutation.
+func (m *HabilitacaoMutation) Caso() (r string, exists bool) {
+	v := m.caso
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCaso returns the old "caso" field's value of the Habilitacao entity.
+// If the Habilitacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *HabilitacaoMutation) OldCaso(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCaso is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCaso requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCaso: %w", err)
+	}
+	return oldValue.Caso, nil
+}
+
+// ResetCaso resets all changes to the "caso" field.
+func (m *HabilitacaoMutation) ResetCaso() {
+	m.caso = nil
+}
+
+// SetHabilitado sets the "habilitado" field.
+func (m *HabilitacaoMutation) SetHabilitado(b bool) {
+	m.habilitado = &b
+}
+
+// Habilitado returns the value of the "habilitado" field in the mutation.
+func (m *HabilitacaoMutation) Habilitado() (r bool, exists bool) {
+	v := m.habilitado
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHabilitado returns the old "habilitado" field's value of the Habilitacao entity.
+// If the Habilitacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *HabilitacaoMutation) OldHabilitado(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHabilitado is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHabilitado requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHabilitado: %w", err)
+	}
+	return oldValue.Habilitado, nil
+}
+
+// ResetHabilitado resets all changes to the "habilitado" field.
+func (m *HabilitacaoMutation) ResetHabilitado() {
+	m.habilitado = nil
+}
+
+// SetPapeis sets the "papeis" field.
+func (m *HabilitacaoMutation) SetPapeis(s schema.Papeis) {
+	m.papeis = &s
+}
+
+// Papeis returns the value of the "papeis" field in the mutation.
+func (m *HabilitacaoMutation) Papeis() (r schema.Papeis, exists bool) {
+	v := m.papeis
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPapeis returns the old "papeis" field's value of the Habilitacao entity.
+// If the Habilitacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *HabilitacaoMutation) OldPapeis(ctx context.Context) (v schema.Papeis, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPapeis is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPapeis requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPapeis: %w", err)
+	}
+	return oldValue.Papeis, nil
+}
+
+// ResetPapeis resets all changes to the "papeis" field.
+func (m *HabilitacaoMutation) ResetPapeis() {
+	m.papeis = nil
+}
+
+// ClearCondominio clears the "condominio" edge to the Condominio entity.
+func (m *HabilitacaoMutation) ClearCondominio() {
+	m.clearedcondominio = true
+	m.clearedFields[habilitacao.FieldCondominioID] = struct{}{}
+}
+
+// CondominioCleared reports if the "condominio" edge to the Condominio entity was cleared.
+func (m *HabilitacaoMutation) CondominioCleared() bool {
+	return m.CondominioIDCleared() || m.clearedcondominio
+}
+
+// CondominioIDs returns the "condominio" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CondominioID instead. It exists only for internal usage by the builders.
+func (m *HabilitacaoMutation) CondominioIDs() (ids []string) {
+	if id := m.condominio; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCondominio resets all changes to the "condominio" edge.
+func (m *HabilitacaoMutation) ResetCondominio() {
+	m.condominio = nil
+	m.clearedcondominio = false
+}
+
+// Where appends a list predicates to the HabilitacaoMutation builder.
+func (m *HabilitacaoMutation) Where(ps ...predicate.Habilitacao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the HabilitacaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *HabilitacaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Habilitacao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *HabilitacaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *HabilitacaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Habilitacao).
+func (m *HabilitacaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *HabilitacaoMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.condominio != nil {
+		fields = append(fields, habilitacao.FieldCondominioID)
+	}
+	if m.caso != nil {
+		fields = append(fields, habilitacao.FieldCaso)
+	}
+	if m.habilitado != nil {
+		fields = append(fields, habilitacao.FieldHabilitado)
+	}
+	if m.papeis != nil {
+		fields = append(fields, habilitacao.FieldPapeis)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *HabilitacaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case habilitacao.FieldCondominioID:
+		return m.CondominioID()
+	case habilitacao.FieldCaso:
+		return m.Caso()
+	case habilitacao.FieldHabilitado:
+		return m.Habilitado()
+	case habilitacao.FieldPapeis:
+		return m.Papeis()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *HabilitacaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case habilitacao.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case habilitacao.FieldCaso:
+		return m.OldCaso(ctx)
+	case habilitacao.FieldHabilitado:
+		return m.OldHabilitado(ctx)
+	case habilitacao.FieldPapeis:
+		return m.OldPapeis(ctx)
+	}
+	return nil, fmt.Errorf("unknown Habilitacao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *HabilitacaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case habilitacao.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case habilitacao.FieldCaso:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCaso(v)
+		return nil
+	case habilitacao.FieldHabilitado:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHabilitado(v)
+		return nil
+	case habilitacao.FieldPapeis:
+		v, ok := value.(schema.Papeis)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPapeis(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Habilitacao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *HabilitacaoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *HabilitacaoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *HabilitacaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Habilitacao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *HabilitacaoMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(habilitacao.FieldCondominioID) {
+		fields = append(fields, habilitacao.FieldCondominioID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *HabilitacaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *HabilitacaoMutation) ClearField(name string) error {
+	switch name {
+	case habilitacao.FieldCondominioID:
+		m.ClearCondominioID()
+		return nil
+	}
+	return fmt.Errorf("unknown Habilitacao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *HabilitacaoMutation) ResetField(name string) error {
+	switch name {
+	case habilitacao.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case habilitacao.FieldCaso:
+		m.ResetCaso()
+		return nil
+	case habilitacao.FieldHabilitado:
+		m.ResetHabilitado()
+		return nil
+	case habilitacao.FieldPapeis:
+		m.ResetPapeis()
+		return nil
+	}
+	return fmt.Errorf("unknown Habilitacao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *HabilitacaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.condominio != nil {
+		edges = append(edges, habilitacao.EdgeCondominio)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *HabilitacaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case habilitacao.EdgeCondominio:
+		if id := m.condominio; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *HabilitacaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *HabilitacaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *HabilitacaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcondominio {
+		edges = append(edges, habilitacao.EdgeCondominio)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *HabilitacaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case habilitacao.EdgeCondominio:
+		return m.clearedcondominio
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *HabilitacaoMutation) ClearEdge(name string) error {
+	switch name {
+	case habilitacao.EdgeCondominio:
+		m.ClearCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown Habilitacao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *HabilitacaoMutation) ResetEdge(name string) error {
+	switch name {
+	case habilitacao.EdgeCondominio:
+		m.ResetCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown Habilitacao edge %s", name)
+}
+
+// OrientacaoMutation represents an operation that mutates the Orientacao nodes in the graph.
+type OrientacaoMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	geral             *string
+	por_caso          *map[string]string
+	clearedFields     map[string]struct{}
+	condominio        *string
+	clearedcondominio bool
+	done              bool
+	oldValue          func(context.Context) (*Orientacao, error)
+	predicates        []predicate.Orientacao
+}
+
+var _ ent.Mutation = (*OrientacaoMutation)(nil)
+
+// orientacaoOption allows management of the mutation configuration using functional options.
+type orientacaoOption func(*OrientacaoMutation)
+
+// newOrientacaoMutation creates new mutation for the Orientacao entity.
+func newOrientacaoMutation(c config, op Op, opts ...orientacaoOption) *OrientacaoMutation {
+	m := &OrientacaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeOrientacao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withOrientacaoID sets the ID field of the mutation.
+func withOrientacaoID(id int) orientacaoOption {
+	return func(m *OrientacaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Orientacao
+		)
+		m.oldValue = func(ctx context.Context) (*Orientacao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Orientacao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withOrientacao sets the old Orientacao of the mutation.
+func withOrientacao(node *Orientacao) orientacaoOption {
+	return func(m *OrientacaoMutation) {
+		m.oldValue = func(context.Context) (*Orientacao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m OrientacaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m OrientacaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *OrientacaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *OrientacaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Orientacao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *OrientacaoMutation) SetCondominioID(s string) {
+	m.condominio = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *OrientacaoMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the Orientacao entity.
+// If the Orientacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OrientacaoMutation) OldCondominioID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ClearCondominioID clears the value of the "condominio_id" field.
+func (m *OrientacaoMutation) ClearCondominioID() {
+	m.condominio = nil
+	m.clearedFields[orientacao.FieldCondominioID] = struct{}{}
+}
+
+// CondominioIDCleared returns if the "condominio_id" field was cleared in this mutation.
+func (m *OrientacaoMutation) CondominioIDCleared() bool {
+	_, ok := m.clearedFields[orientacao.FieldCondominioID]
+	return ok
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *OrientacaoMutation) ResetCondominioID() {
+	m.condominio = nil
+	delete(m.clearedFields, orientacao.FieldCondominioID)
+}
+
+// SetGeral sets the "geral" field.
+func (m *OrientacaoMutation) SetGeral(s string) {
+	m.geral = &s
+}
+
+// Geral returns the value of the "geral" field in the mutation.
+func (m *OrientacaoMutation) Geral() (r string, exists bool) {
+	v := m.geral
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGeral returns the old "geral" field's value of the Orientacao entity.
+// If the Orientacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OrientacaoMutation) OldGeral(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGeral is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGeral requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGeral: %w", err)
+	}
+	return oldValue.Geral, nil
+}
+
+// ResetGeral resets all changes to the "geral" field.
+func (m *OrientacaoMutation) ResetGeral() {
+	m.geral = nil
+}
+
+// SetPorCaso sets the "por_caso" field.
+func (m *OrientacaoMutation) SetPorCaso(value map[string]string) {
+	m.por_caso = &value
+}
+
+// PorCaso returns the value of the "por_caso" field in the mutation.
+func (m *OrientacaoMutation) PorCaso() (r map[string]string, exists bool) {
+	v := m.por_caso
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPorCaso returns the old "por_caso" field's value of the Orientacao entity.
+// If the Orientacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OrientacaoMutation) OldPorCaso(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPorCaso is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPorCaso requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPorCaso: %w", err)
+	}
+	return oldValue.PorCaso, nil
+}
+
+// ResetPorCaso resets all changes to the "por_caso" field.
+func (m *OrientacaoMutation) ResetPorCaso() {
+	m.por_caso = nil
+}
+
+// ClearCondominio clears the "condominio" edge to the Condominio entity.
+func (m *OrientacaoMutation) ClearCondominio() {
+	m.clearedcondominio = true
+	m.clearedFields[orientacao.FieldCondominioID] = struct{}{}
+}
+
+// CondominioCleared reports if the "condominio" edge to the Condominio entity was cleared.
+func (m *OrientacaoMutation) CondominioCleared() bool {
+	return m.CondominioIDCleared() || m.clearedcondominio
+}
+
+// CondominioIDs returns the "condominio" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CondominioID instead. It exists only for internal usage by the builders.
+func (m *OrientacaoMutation) CondominioIDs() (ids []string) {
+	if id := m.condominio; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCondominio resets all changes to the "condominio" edge.
+func (m *OrientacaoMutation) ResetCondominio() {
+	m.condominio = nil
+	m.clearedcondominio = false
+}
+
+// Where appends a list predicates to the OrientacaoMutation builder.
+func (m *OrientacaoMutation) Where(ps ...predicate.Orientacao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the OrientacaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *OrientacaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Orientacao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *OrientacaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *OrientacaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Orientacao).
+func (m *OrientacaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *OrientacaoMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.condominio != nil {
+		fields = append(fields, orientacao.FieldCondominioID)
+	}
+	if m.geral != nil {
+		fields = append(fields, orientacao.FieldGeral)
+	}
+	if m.por_caso != nil {
+		fields = append(fields, orientacao.FieldPorCaso)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *OrientacaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case orientacao.FieldCondominioID:
+		return m.CondominioID()
+	case orientacao.FieldGeral:
+		return m.Geral()
+	case orientacao.FieldPorCaso:
+		return m.PorCaso()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *OrientacaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case orientacao.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case orientacao.FieldGeral:
+		return m.OldGeral(ctx)
+	case orientacao.FieldPorCaso:
+		return m.OldPorCaso(ctx)
+	}
+	return nil, fmt.Errorf("unknown Orientacao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OrientacaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case orientacao.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case orientacao.FieldGeral:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGeral(v)
+		return nil
+	case orientacao.FieldPorCaso:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPorCaso(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Orientacao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *OrientacaoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *OrientacaoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *OrientacaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Orientacao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *OrientacaoMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(orientacao.FieldCondominioID) {
+		fields = append(fields, orientacao.FieldCondominioID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *OrientacaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *OrientacaoMutation) ClearField(name string) error {
+	switch name {
+	case orientacao.FieldCondominioID:
+		m.ClearCondominioID()
+		return nil
+	}
+	return fmt.Errorf("unknown Orientacao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *OrientacaoMutation) ResetField(name string) error {
+	switch name {
+	case orientacao.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case orientacao.FieldGeral:
+		m.ResetGeral()
+		return nil
+	case orientacao.FieldPorCaso:
+		m.ResetPorCaso()
+		return nil
+	}
+	return fmt.Errorf("unknown Orientacao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *OrientacaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.condominio != nil {
+		edges = append(edges, orientacao.EdgeCondominio)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *OrientacaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case orientacao.EdgeCondominio:
+		if id := m.condominio; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *OrientacaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *OrientacaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *OrientacaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcondominio {
+		edges = append(edges, orientacao.EdgeCondominio)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *OrientacaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case orientacao.EdgeCondominio:
+		return m.clearedcondominio
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *OrientacaoMutation) ClearEdge(name string) error {
+	switch name {
+	case orientacao.EdgeCondominio:
+		m.ClearCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown Orientacao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *OrientacaoMutation) ResetEdge(name string) error {
+	switch name {
+	case orientacao.EdgeCondominio:
+		m.ResetCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown Orientacao edge %s", name)
+}
+
+// PayloadMutation represents an operation that mutates the Payload nodes in the graph.
+type PayloadMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	recurso           *string
+	dados             *map[string]interface{}
+	clearedFields     map[string]struct{}
+	condominio        *string
+	clearedcondominio bool
+	done              bool
+	oldValue          func(context.Context) (*Payload, error)
+	predicates        []predicate.Payload
+}
+
+var _ ent.Mutation = (*PayloadMutation)(nil)
+
+// payloadOption allows management of the mutation configuration using functional options.
+type payloadOption func(*PayloadMutation)
+
+// newPayloadMutation creates new mutation for the Payload entity.
+func newPayloadMutation(c config, op Op, opts ...payloadOption) *PayloadMutation {
+	m := &PayloadMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePayload,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPayloadID sets the ID field of the mutation.
+func withPayloadID(id int) payloadOption {
+	return func(m *PayloadMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Payload
+		)
+		m.oldValue = func(ctx context.Context) (*Payload, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Payload.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPayload sets the old Payload of the mutation.
+func withPayload(node *Payload) payloadOption {
+	return func(m *PayloadMutation) {
+		m.oldValue = func(context.Context) (*Payload, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PayloadMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PayloadMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PayloadMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PayloadMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Payload.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *PayloadMutation) SetCondominioID(s string) {
+	m.condominio = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *PayloadMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the Payload entity.
+// If the Payload object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PayloadMutation) OldCondominioID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ClearCondominioID clears the value of the "condominio_id" field.
+func (m *PayloadMutation) ClearCondominioID() {
+	m.condominio = nil
+	m.clearedFields[payload.FieldCondominioID] = struct{}{}
+}
+
+// CondominioIDCleared returns if the "condominio_id" field was cleared in this mutation.
+func (m *PayloadMutation) CondominioIDCleared() bool {
+	_, ok := m.clearedFields[payload.FieldCondominioID]
+	return ok
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *PayloadMutation) ResetCondominioID() {
+	m.condominio = nil
+	delete(m.clearedFields, payload.FieldCondominioID)
+}
+
+// SetRecurso sets the "recurso" field.
+func (m *PayloadMutation) SetRecurso(s string) {
+	m.recurso = &s
+}
+
+// Recurso returns the value of the "recurso" field in the mutation.
+func (m *PayloadMutation) Recurso() (r string, exists bool) {
+	v := m.recurso
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRecurso returns the old "recurso" field's value of the Payload entity.
+// If the Payload object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PayloadMutation) OldRecurso(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRecurso is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRecurso requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRecurso: %w", err)
+	}
+	return oldValue.Recurso, nil
+}
+
+// ResetRecurso resets all changes to the "recurso" field.
+func (m *PayloadMutation) ResetRecurso() {
+	m.recurso = nil
+}
+
+// SetDados sets the "dados" field.
+func (m *PayloadMutation) SetDados(value map[string]interface{}) {
+	m.dados = &value
+}
+
+// Dados returns the value of the "dados" field in the mutation.
+func (m *PayloadMutation) Dados() (r map[string]interface{}, exists bool) {
+	v := m.dados
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDados returns the old "dados" field's value of the Payload entity.
+// If the Payload object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PayloadMutation) OldDados(ctx context.Context) (v map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDados is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDados requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDados: %w", err)
+	}
+	return oldValue.Dados, nil
+}
+
+// ResetDados resets all changes to the "dados" field.
+func (m *PayloadMutation) ResetDados() {
+	m.dados = nil
+}
+
+// ClearCondominio clears the "condominio" edge to the Condominio entity.
+func (m *PayloadMutation) ClearCondominio() {
+	m.clearedcondominio = true
+	m.clearedFields[payload.FieldCondominioID] = struct{}{}
+}
+
+// CondominioCleared reports if the "condominio" edge to the Condominio entity was cleared.
+func (m *PayloadMutation) CondominioCleared() bool {
+	return m.CondominioIDCleared() || m.clearedcondominio
+}
+
+// CondominioIDs returns the "condominio" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CondominioID instead. It exists only for internal usage by the builders.
+func (m *PayloadMutation) CondominioIDs() (ids []string) {
+	if id := m.condominio; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCondominio resets all changes to the "condominio" edge.
+func (m *PayloadMutation) ResetCondominio() {
+	m.condominio = nil
+	m.clearedcondominio = false
+}
+
+// Where appends a list predicates to the PayloadMutation builder.
+func (m *PayloadMutation) Where(ps ...predicate.Payload) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PayloadMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PayloadMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Payload, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PayloadMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PayloadMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Payload).
+func (m *PayloadMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PayloadMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.condominio != nil {
+		fields = append(fields, payload.FieldCondominioID)
+	}
+	if m.recurso != nil {
+		fields = append(fields, payload.FieldRecurso)
+	}
+	if m.dados != nil {
+		fields = append(fields, payload.FieldDados)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PayloadMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case payload.FieldCondominioID:
+		return m.CondominioID()
+	case payload.FieldRecurso:
+		return m.Recurso()
+	case payload.FieldDados:
+		return m.Dados()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PayloadMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case payload.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case payload.FieldRecurso:
+		return m.OldRecurso(ctx)
+	case payload.FieldDados:
+		return m.OldDados(ctx)
+	}
+	return nil, fmt.Errorf("unknown Payload field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PayloadMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case payload.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case payload.FieldRecurso:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRecurso(v)
+		return nil
+	case payload.FieldDados:
+		v, ok := value.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDados(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Payload field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PayloadMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PayloadMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PayloadMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Payload numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PayloadMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(payload.FieldCondominioID) {
+		fields = append(fields, payload.FieldCondominioID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PayloadMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PayloadMutation) ClearField(name string) error {
+	switch name {
+	case payload.FieldCondominioID:
+		m.ClearCondominioID()
+		return nil
+	}
+	return fmt.Errorf("unknown Payload nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PayloadMutation) ResetField(name string) error {
+	switch name {
+	case payload.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case payload.FieldRecurso:
+		m.ResetRecurso()
+		return nil
+	case payload.FieldDados:
+		m.ResetDados()
+		return nil
+	}
+	return fmt.Errorf("unknown Payload field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PayloadMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.condominio != nil {
+		edges = append(edges, payload.EdgeCondominio)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PayloadMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case payload.EdgeCondominio:
+		if id := m.condominio; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PayloadMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PayloadMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PayloadMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcondominio {
+		edges = append(edges, payload.EdgeCondominio)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PayloadMutation) EdgeCleared(name string) bool {
+	switch name {
+	case payload.EdgeCondominio:
+		return m.clearedcondominio
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PayloadMutation) ClearEdge(name string) error {
+	switch name {
+	case payload.EdgeCondominio:
+		m.ClearCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown Payload unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PayloadMutation) ResetEdge(name string) error {
+	switch name {
+	case payload.EdgeCondominio:
+		m.ResetCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown Payload edge %s", name)
+}

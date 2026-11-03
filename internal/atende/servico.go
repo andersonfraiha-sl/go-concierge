@@ -334,7 +334,7 @@ type Servico struct {
 	Extrator memoria.Extrator
 	// Mapeamento é o Admin da administradora (nil = tudo habilitado, sem payloads):
 	// resolve o condomínio da conversa, filtra os casos de uso e injeta os payloads.
-	Mapeamento *admin.Store
+	Mapeamento admin.Repositorio
 	// Pedidos é o registro de pedidos por contato (nil = desligado: a conversa segue só
 	// pelo orquestrador). ExtratorPedidos detecta os pedidos na mensagem (nil = Regras).
 	Pedidos          pedidos.Store
@@ -815,7 +815,7 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 	// quais definições (payloads) valem para os recursos
 	var contexto []string
 	if s.Mapeamento != nil {
-		if m, err := s.Mapeamento.Ler(); err == nil {
+		if m, err := s.Mapeamento.Ler(ctx); err == nil {
 			condo, ok := m.Resolver(identidade.CompanyID, sess.Tenant, s.Account)
 			condoID := admin.Padrao
 			if ok {

@@ -7,12 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 
 	"go-concierge/internal/banco/ent/migrate"
+
+	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/payload"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
+	"entgo.io/ent/dialect/sql/sqlgraph"
 
 	stdsql "database/sql"
 )
@@ -22,8 +30,16 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
-	// Vazio is the client for interacting with the Vazio builders.
-	Vazio *VazioClient
+	// Administradora is the client for interacting with the Administradora builders.
+	Administradora *AdministradoraClient
+	// Condominio is the client for interacting with the Condominio builders.
+	Condominio *CondominioClient
+	// Habilitacao is the client for interacting with the Habilitacao builders.
+	Habilitacao *HabilitacaoClient
+	// Orientacao is the client for interacting with the Orientacao builders.
+	Orientacao *OrientacaoClient
+	// Payload is the client for interacting with the Payload builders.
+	Payload *PayloadClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -35,7 +51,11 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
-	c.Vazio = NewVazioClient(c.config)
+	c.Administradora = NewAdministradoraClient(c.config)
+	c.Condominio = NewCondominioClient(c.config)
+	c.Habilitacao = NewHabilitacaoClient(c.config)
+	c.Orientacao = NewOrientacaoClient(c.config)
+	c.Payload = NewPayloadClient(c.config)
 }
 
 type (
@@ -126,9 +146,13 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Vazio:  NewVazioClient(cfg),
+		ctx:            ctx,
+		config:         cfg,
+		Administradora: NewAdministradoraClient(cfg),
+		Condominio:     NewCondominioClient(cfg),
+		Habilitacao:    NewHabilitacaoClient(cfg),
+		Orientacao:     NewOrientacaoClient(cfg),
+		Payload:        NewPayloadClient(cfg),
 	}, nil
 }
 
@@ -146,16 +170,20 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Vazio:  NewVazioClient(cfg),
+		ctx:            ctx,
+		config:         cfg,
+		Administradora: NewAdministradoraClient(cfg),
+		Condominio:     NewCondominioClient(cfg),
+		Habilitacao:    NewHabilitacaoClient(cfg),
+		Orientacao:     NewOrientacaoClient(cfg),
+		Payload:        NewPayloadClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Vazio.
+//		Administradora.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -177,58 +205,841 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.Administradora.Use(hooks...)
+	c.Condominio.Use(hooks...)
+	c.Habilitacao.Use(hooks...)
+	c.Orientacao.Use(hooks...)
+	c.Payload.Use(hooks...)
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Vazio.Intercept(interceptors...)
+	c.Administradora.Intercept(interceptors...)
+	c.Condominio.Intercept(interceptors...)
+	c.Habilitacao.Intercept(interceptors...)
+	c.Orientacao.Intercept(interceptors...)
+	c.Payload.Intercept(interceptors...)
 }
 
 // Mutate implements the ent.Mutator interface.
 func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
+	case *AdministradoraMutation:
+		return c.Administradora.mutate(ctx, m)
+	case *CondominioMutation:
+		return c.Condominio.mutate(ctx, m)
+	case *HabilitacaoMutation:
+		return c.Habilitacao.mutate(ctx, m)
+	case *OrientacaoMutation:
+		return c.Orientacao.mutate(ctx, m)
+	case *PayloadMutation:
+		return c.Payload.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
 }
 
-// VazioClient is a client for the Vazio schema.
-type VazioClient struct {
+// AdministradoraClient is a client for the Administradora schema.
+type AdministradoraClient struct {
 	config
 }
 
-// NewVazioClient returns a client for the Vazio from the given config.
-func NewVazioClient(c config) *VazioClient {
-	return &VazioClient{config: c}
+// NewAdministradoraClient returns a client for the Administradora from the given config.
+func NewAdministradoraClient(c config) *AdministradoraClient {
+	return &AdministradoraClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `administradora.Hooks(f(g(h())))`.
+func (c *AdministradoraClient) Use(hooks ...Hook) {
+	c.hooks.Administradora = append(c.hooks.Administradora, hooks...)
 }
 
 // Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `vazio.Intercept(f(g(h())))`.
-func (c *VazioClient) Intercept(interceptors ...Interceptor) {
-	c.inters.Vazio = append(c.inters.Vazio, interceptors...)
+// A call to `Intercept(f, g, h)` equals to `administradora.Intercept(f(g(h())))`.
+func (c *AdministradoraClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Administradora = append(c.inters.Administradora, interceptors...)
 }
 
-// Query returns a query builder for Vazio.
-func (c *VazioClient) Query() *VazioQuery {
-	return &VazioQuery{
+// Create returns a builder for creating a Administradora entity.
+func (c *AdministradoraClient) Create() *AdministradoraCreate {
+	mutation := newAdministradoraMutation(c.config, OpCreate)
+	return &AdministradoraCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Administradora entities.
+func (c *AdministradoraClient) CreateBulk(builders ...*AdministradoraCreate) *AdministradoraCreateBulk {
+	return &AdministradoraCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AdministradoraClient) MapCreateBulk(slice any, setFunc func(*AdministradoraCreate, int)) *AdministradoraCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AdministradoraCreateBulk{err: fmt.Errorf("calling to AdministradoraClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AdministradoraCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AdministradoraCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Administradora.
+func (c *AdministradoraClient) Update() *AdministradoraUpdate {
+	mutation := newAdministradoraMutation(c.config, OpUpdate)
+	return &AdministradoraUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AdministradoraClient) UpdateOne(_m *Administradora) *AdministradoraUpdateOne {
+	mutation := newAdministradoraMutation(c.config, OpUpdateOne, withAdministradora(_m))
+	return &AdministradoraUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AdministradoraClient) UpdateOneID(id string) *AdministradoraUpdateOne {
+	mutation := newAdministradoraMutation(c.config, OpUpdateOne, withAdministradoraID(id))
+	return &AdministradoraUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Administradora.
+func (c *AdministradoraClient) Delete() *AdministradoraDelete {
+	mutation := newAdministradoraMutation(c.config, OpDelete)
+	return &AdministradoraDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AdministradoraClient) DeleteOne(_m *Administradora) *AdministradoraDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AdministradoraClient) DeleteOneID(id string) *AdministradoraDeleteOne {
+	builder := c.Delete().Where(administradora.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AdministradoraDeleteOne{builder}
+}
+
+// Query returns a query builder for Administradora.
+func (c *AdministradoraClient) Query() *AdministradoraQuery {
+	return &AdministradoraQuery{
 		config: c.config,
-		ctx:    &QueryContext{Type: TypeVazio},
+		ctx:    &QueryContext{Type: TypeAdministradora},
 		inters: c.Interceptors(),
 	}
 }
 
+// Get returns a Administradora entity by its id.
+func (c *AdministradoraClient) Get(ctx context.Context, id string) (*Administradora, error) {
+	return c.Query().Where(administradora.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AdministradoraClient) GetX(ctx context.Context, id string) *Administradora {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCondominios queries the condominios edge of a Administradora.
+func (c *AdministradoraClient) QueryCondominios(_m *Administradora) *CondominioQuery {
+	query := (&CondominioClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(administradora.Table, administradora.FieldID, id),
+			sqlgraph.To(condominio.Table, condominio.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, administradora.CondominiosTable, administradora.CondominiosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AdministradoraClient) Hooks() []Hook {
+	return c.hooks.Administradora
+}
+
 // Interceptors returns the client interceptors.
-func (c *VazioClient) Interceptors() []Interceptor {
-	return c.inters.Vazio
+func (c *AdministradoraClient) Interceptors() []Interceptor {
+	return c.inters.Administradora
+}
+
+func (c *AdministradoraClient) mutate(ctx context.Context, m *AdministradoraMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AdministradoraCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AdministradoraUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AdministradoraUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AdministradoraDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Administradora mutation op: %q", m.Op())
+	}
+}
+
+// CondominioClient is a client for the Condominio schema.
+type CondominioClient struct {
+	config
+}
+
+// NewCondominioClient returns a client for the Condominio from the given config.
+func NewCondominioClient(c config) *CondominioClient {
+	return &CondominioClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `condominio.Hooks(f(g(h())))`.
+func (c *CondominioClient) Use(hooks ...Hook) {
+	c.hooks.Condominio = append(c.hooks.Condominio, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `condominio.Intercept(f(g(h())))`.
+func (c *CondominioClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Condominio = append(c.inters.Condominio, interceptors...)
+}
+
+// Create returns a builder for creating a Condominio entity.
+func (c *CondominioClient) Create() *CondominioCreate {
+	mutation := newCondominioMutation(c.config, OpCreate)
+	return &CondominioCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Condominio entities.
+func (c *CondominioClient) CreateBulk(builders ...*CondominioCreate) *CondominioCreateBulk {
+	return &CondominioCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CondominioClient) MapCreateBulk(slice any, setFunc func(*CondominioCreate, int)) *CondominioCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CondominioCreateBulk{err: fmt.Errorf("calling to CondominioClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CondominioCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CondominioCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Condominio.
+func (c *CondominioClient) Update() *CondominioUpdate {
+	mutation := newCondominioMutation(c.config, OpUpdate)
+	return &CondominioUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CondominioClient) UpdateOne(_m *Condominio) *CondominioUpdateOne {
+	mutation := newCondominioMutation(c.config, OpUpdateOne, withCondominio(_m))
+	return &CondominioUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CondominioClient) UpdateOneID(id string) *CondominioUpdateOne {
+	mutation := newCondominioMutation(c.config, OpUpdateOne, withCondominioID(id))
+	return &CondominioUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Condominio.
+func (c *CondominioClient) Delete() *CondominioDelete {
+	mutation := newCondominioMutation(c.config, OpDelete)
+	return &CondominioDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CondominioClient) DeleteOne(_m *Condominio) *CondominioDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CondominioClient) DeleteOneID(id string) *CondominioDeleteOne {
+	builder := c.Delete().Where(condominio.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CondominioDeleteOne{builder}
+}
+
+// Query returns a query builder for Condominio.
+func (c *CondominioClient) Query() *CondominioQuery {
+	return &CondominioQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCondominio},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Condominio entity by its id.
+func (c *CondominioClient) Get(ctx context.Context, id string) (*Condominio, error) {
+	return c.Query().Where(condominio.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CondominioClient) GetX(ctx context.Context, id string) *Condominio {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAdministradora queries the administradora edge of a Condominio.
+func (c *CondominioClient) QueryAdministradora(_m *Condominio) *AdministradoraQuery {
+	query := (&AdministradoraClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(condominio.Table, condominio.FieldID, id),
+			sqlgraph.To(administradora.Table, administradora.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, condominio.AdministradoraTable, condominio.AdministradoraColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryHabilitacoes queries the habilitacoes edge of a Condominio.
+func (c *CondominioClient) QueryHabilitacoes(_m *Condominio) *HabilitacaoQuery {
+	query := (&HabilitacaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(condominio.Table, condominio.FieldID, id),
+			sqlgraph.To(habilitacao.Table, habilitacao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, condominio.HabilitacoesTable, condominio.HabilitacoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPayloads queries the payloads edge of a Condominio.
+func (c *CondominioClient) QueryPayloads(_m *Condominio) *PayloadQuery {
+	query := (&PayloadClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(condominio.Table, condominio.FieldID, id),
+			sqlgraph.To(payload.Table, payload.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, condominio.PayloadsTable, condominio.PayloadsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryOrientacoes queries the orientacoes edge of a Condominio.
+func (c *CondominioClient) QueryOrientacoes(_m *Condominio) *OrientacaoQuery {
+	query := (&OrientacaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(condominio.Table, condominio.FieldID, id),
+			sqlgraph.To(orientacao.Table, orientacao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, condominio.OrientacoesTable, condominio.OrientacoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CondominioClient) Hooks() []Hook {
+	return c.hooks.Condominio
+}
+
+// Interceptors returns the client interceptors.
+func (c *CondominioClient) Interceptors() []Interceptor {
+	return c.inters.Condominio
+}
+
+func (c *CondominioClient) mutate(ctx context.Context, m *CondominioMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CondominioCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CondominioUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CondominioUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CondominioDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Condominio mutation op: %q", m.Op())
+	}
+}
+
+// HabilitacaoClient is a client for the Habilitacao schema.
+type HabilitacaoClient struct {
+	config
+}
+
+// NewHabilitacaoClient returns a client for the Habilitacao from the given config.
+func NewHabilitacaoClient(c config) *HabilitacaoClient {
+	return &HabilitacaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `habilitacao.Hooks(f(g(h())))`.
+func (c *HabilitacaoClient) Use(hooks ...Hook) {
+	c.hooks.Habilitacao = append(c.hooks.Habilitacao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `habilitacao.Intercept(f(g(h())))`.
+func (c *HabilitacaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Habilitacao = append(c.inters.Habilitacao, interceptors...)
+}
+
+// Create returns a builder for creating a Habilitacao entity.
+func (c *HabilitacaoClient) Create() *HabilitacaoCreate {
+	mutation := newHabilitacaoMutation(c.config, OpCreate)
+	return &HabilitacaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Habilitacao entities.
+func (c *HabilitacaoClient) CreateBulk(builders ...*HabilitacaoCreate) *HabilitacaoCreateBulk {
+	return &HabilitacaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *HabilitacaoClient) MapCreateBulk(slice any, setFunc func(*HabilitacaoCreate, int)) *HabilitacaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &HabilitacaoCreateBulk{err: fmt.Errorf("calling to HabilitacaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*HabilitacaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &HabilitacaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Habilitacao.
+func (c *HabilitacaoClient) Update() *HabilitacaoUpdate {
+	mutation := newHabilitacaoMutation(c.config, OpUpdate)
+	return &HabilitacaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *HabilitacaoClient) UpdateOne(_m *Habilitacao) *HabilitacaoUpdateOne {
+	mutation := newHabilitacaoMutation(c.config, OpUpdateOne, withHabilitacao(_m))
+	return &HabilitacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *HabilitacaoClient) UpdateOneID(id int) *HabilitacaoUpdateOne {
+	mutation := newHabilitacaoMutation(c.config, OpUpdateOne, withHabilitacaoID(id))
+	return &HabilitacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Habilitacao.
+func (c *HabilitacaoClient) Delete() *HabilitacaoDelete {
+	mutation := newHabilitacaoMutation(c.config, OpDelete)
+	return &HabilitacaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *HabilitacaoClient) DeleteOne(_m *Habilitacao) *HabilitacaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *HabilitacaoClient) DeleteOneID(id int) *HabilitacaoDeleteOne {
+	builder := c.Delete().Where(habilitacao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &HabilitacaoDeleteOne{builder}
+}
+
+// Query returns a query builder for Habilitacao.
+func (c *HabilitacaoClient) Query() *HabilitacaoQuery {
+	return &HabilitacaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeHabilitacao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Habilitacao entity by its id.
+func (c *HabilitacaoClient) Get(ctx context.Context, id int) (*Habilitacao, error) {
+	return c.Query().Where(habilitacao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *HabilitacaoClient) GetX(ctx context.Context, id int) *Habilitacao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCondominio queries the condominio edge of a Habilitacao.
+func (c *HabilitacaoClient) QueryCondominio(_m *Habilitacao) *CondominioQuery {
+	query := (&CondominioClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(habilitacao.Table, habilitacao.FieldID, id),
+			sqlgraph.To(condominio.Table, condominio.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, habilitacao.CondominioTable, habilitacao.CondominioColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *HabilitacaoClient) Hooks() []Hook {
+	return c.hooks.Habilitacao
+}
+
+// Interceptors returns the client interceptors.
+func (c *HabilitacaoClient) Interceptors() []Interceptor {
+	return c.inters.Habilitacao
+}
+
+func (c *HabilitacaoClient) mutate(ctx context.Context, m *HabilitacaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&HabilitacaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&HabilitacaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&HabilitacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&HabilitacaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Habilitacao mutation op: %q", m.Op())
+	}
+}
+
+// OrientacaoClient is a client for the Orientacao schema.
+type OrientacaoClient struct {
+	config
+}
+
+// NewOrientacaoClient returns a client for the Orientacao from the given config.
+func NewOrientacaoClient(c config) *OrientacaoClient {
+	return &OrientacaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `orientacao.Hooks(f(g(h())))`.
+func (c *OrientacaoClient) Use(hooks ...Hook) {
+	c.hooks.Orientacao = append(c.hooks.Orientacao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `orientacao.Intercept(f(g(h())))`.
+func (c *OrientacaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Orientacao = append(c.inters.Orientacao, interceptors...)
+}
+
+// Create returns a builder for creating a Orientacao entity.
+func (c *OrientacaoClient) Create() *OrientacaoCreate {
+	mutation := newOrientacaoMutation(c.config, OpCreate)
+	return &OrientacaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Orientacao entities.
+func (c *OrientacaoClient) CreateBulk(builders ...*OrientacaoCreate) *OrientacaoCreateBulk {
+	return &OrientacaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *OrientacaoClient) MapCreateBulk(slice any, setFunc func(*OrientacaoCreate, int)) *OrientacaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &OrientacaoCreateBulk{err: fmt.Errorf("calling to OrientacaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*OrientacaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &OrientacaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Orientacao.
+func (c *OrientacaoClient) Update() *OrientacaoUpdate {
+	mutation := newOrientacaoMutation(c.config, OpUpdate)
+	return &OrientacaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *OrientacaoClient) UpdateOne(_m *Orientacao) *OrientacaoUpdateOne {
+	mutation := newOrientacaoMutation(c.config, OpUpdateOne, withOrientacao(_m))
+	return &OrientacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *OrientacaoClient) UpdateOneID(id int) *OrientacaoUpdateOne {
+	mutation := newOrientacaoMutation(c.config, OpUpdateOne, withOrientacaoID(id))
+	return &OrientacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Orientacao.
+func (c *OrientacaoClient) Delete() *OrientacaoDelete {
+	mutation := newOrientacaoMutation(c.config, OpDelete)
+	return &OrientacaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *OrientacaoClient) DeleteOne(_m *Orientacao) *OrientacaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *OrientacaoClient) DeleteOneID(id int) *OrientacaoDeleteOne {
+	builder := c.Delete().Where(orientacao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &OrientacaoDeleteOne{builder}
+}
+
+// Query returns a query builder for Orientacao.
+func (c *OrientacaoClient) Query() *OrientacaoQuery {
+	return &OrientacaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeOrientacao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Orientacao entity by its id.
+func (c *OrientacaoClient) Get(ctx context.Context, id int) (*Orientacao, error) {
+	return c.Query().Where(orientacao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *OrientacaoClient) GetX(ctx context.Context, id int) *Orientacao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCondominio queries the condominio edge of a Orientacao.
+func (c *OrientacaoClient) QueryCondominio(_m *Orientacao) *CondominioQuery {
+	query := (&CondominioClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(orientacao.Table, orientacao.FieldID, id),
+			sqlgraph.To(condominio.Table, condominio.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, orientacao.CondominioTable, orientacao.CondominioColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *OrientacaoClient) Hooks() []Hook {
+	return c.hooks.Orientacao
+}
+
+// Interceptors returns the client interceptors.
+func (c *OrientacaoClient) Interceptors() []Interceptor {
+	return c.inters.Orientacao
+}
+
+func (c *OrientacaoClient) mutate(ctx context.Context, m *OrientacaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&OrientacaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&OrientacaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&OrientacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&OrientacaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Orientacao mutation op: %q", m.Op())
+	}
+}
+
+// PayloadClient is a client for the Payload schema.
+type PayloadClient struct {
+	config
+}
+
+// NewPayloadClient returns a client for the Payload from the given config.
+func NewPayloadClient(c config) *PayloadClient {
+	return &PayloadClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `payload.Hooks(f(g(h())))`.
+func (c *PayloadClient) Use(hooks ...Hook) {
+	c.hooks.Payload = append(c.hooks.Payload, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `payload.Intercept(f(g(h())))`.
+func (c *PayloadClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Payload = append(c.inters.Payload, interceptors...)
+}
+
+// Create returns a builder for creating a Payload entity.
+func (c *PayloadClient) Create() *PayloadCreate {
+	mutation := newPayloadMutation(c.config, OpCreate)
+	return &PayloadCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Payload entities.
+func (c *PayloadClient) CreateBulk(builders ...*PayloadCreate) *PayloadCreateBulk {
+	return &PayloadCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PayloadClient) MapCreateBulk(slice any, setFunc func(*PayloadCreate, int)) *PayloadCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PayloadCreateBulk{err: fmt.Errorf("calling to PayloadClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PayloadCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PayloadCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Payload.
+func (c *PayloadClient) Update() *PayloadUpdate {
+	mutation := newPayloadMutation(c.config, OpUpdate)
+	return &PayloadUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PayloadClient) UpdateOne(_m *Payload) *PayloadUpdateOne {
+	mutation := newPayloadMutation(c.config, OpUpdateOne, withPayload(_m))
+	return &PayloadUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PayloadClient) UpdateOneID(id int) *PayloadUpdateOne {
+	mutation := newPayloadMutation(c.config, OpUpdateOne, withPayloadID(id))
+	return &PayloadUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Payload.
+func (c *PayloadClient) Delete() *PayloadDelete {
+	mutation := newPayloadMutation(c.config, OpDelete)
+	return &PayloadDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PayloadClient) DeleteOne(_m *Payload) *PayloadDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PayloadClient) DeleteOneID(id int) *PayloadDeleteOne {
+	builder := c.Delete().Where(payload.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PayloadDeleteOne{builder}
+}
+
+// Query returns a query builder for Payload.
+func (c *PayloadClient) Query() *PayloadQuery {
+	return &PayloadQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePayload},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Payload entity by its id.
+func (c *PayloadClient) Get(ctx context.Context, id int) (*Payload, error) {
+	return c.Query().Where(payload.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PayloadClient) GetX(ctx context.Context, id int) *Payload {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCondominio queries the condominio edge of a Payload.
+func (c *PayloadClient) QueryCondominio(_m *Payload) *CondominioQuery {
+	query := (&CondominioClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(payload.Table, payload.FieldID, id),
+			sqlgraph.To(condominio.Table, condominio.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, payload.CondominioTable, payload.CondominioColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PayloadClient) Hooks() []Hook {
+	return c.hooks.Payload
+}
+
+// Interceptors returns the client interceptors.
+func (c *PayloadClient) Interceptors() []Interceptor {
+	return c.inters.Payload
+}
+
+func (c *PayloadClient) mutate(ctx context.Context, m *PayloadMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PayloadCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PayloadUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PayloadUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PayloadDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Payload mutation op: %q", m.Op())
+	}
 }
 
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
+		Administradora, Condominio, Habilitacao, Orientacao, Payload []ent.Hook
 	}
 	inters struct {
-		Vazio []ent.Interceptor
+		Administradora, Condominio, Habilitacao, Orientacao, Payload []ent.Interceptor
 	}
 )
 

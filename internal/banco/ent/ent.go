@@ -6,7 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go-concierge/internal/banco/ent/vazio"
+	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/payload"
 	"reflect"
 	"sync"
 
@@ -73,7 +77,11 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			vazio.Table: vazio.ValidColumn,
+			administradora.Table: administradora.ValidColumn,
+			condominio.Table:     condominio.ValidColumn,
+			habilitacao.Table:    habilitacao.ValidColumn,
+			orientacao.Table:     orientacao.ValidColumn,
+			payload.Table:        payload.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

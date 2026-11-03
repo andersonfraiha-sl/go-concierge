@@ -6,5 +6,17 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
-// Vazio is the predicate function for vazio builders.
-type Vazio func(*sql.Selector)
+// Administradora is the predicate function for administradora builders.
+type Administradora func(*sql.Selector)
+
+// Condominio is the predicate function for condominio builders.
+type Condominio func(*sql.Selector)
+
+// Habilitacao is the predicate function for habilitacao builders.
+type Habilitacao func(*sql.Selector)
+
+// Orientacao is the predicate function for orientacao builders.
+type Orientacao func(*sql.Selector)
+
+// Payload is the predicate function for payload builders.
+type Payload func(*sql.Selector)

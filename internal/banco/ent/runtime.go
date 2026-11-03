@@ -2,8 +2,71 @@
 
 package ent
 
+import (
+	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/schema"
+)
+
 // The init function reads all schema descriptors with runtime code
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	administradoraFields := schema.Administradora{}.Fields()
+	_ = administradoraFields
+	// administradoraDescNome is the schema descriptor for nome field.
+	administradoraDescNome := administradoraFields[1].Descriptor()
+	// administradora.NomeValidator is a validator for the "nome" field. It is called by the builders before save.
+	administradora.NomeValidator = administradoraDescNome.Validators[0].(func(string) error)
+	// administradoraDescID is the schema descriptor for id field.
+	administradoraDescID := administradoraFields[0].Descriptor()
+	// administradora.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	administradora.IDValidator = administradoraDescID.Validators[0].(func(string) error)
+	condominioFields := schema.Condominio{}.Fields()
+	_ = condominioFields
+	// condominioDescNome is the schema descriptor for nome field.
+	condominioDescNome := condominioFields[1].Descriptor()
+	// condominio.NomeValidator is a validator for the "nome" field. It is called by the builders before save.
+	condominio.NomeValidator = condominioDescNome.Validators[0].(func(string) error)
+	// condominioDescAccount is the schema descriptor for account field.
+	condominioDescAccount := condominioFields[3].Descriptor()
+	// condominio.DefaultAccount holds the default value on creation for the account field.
+	condominio.DefaultAccount = condominioDescAccount.Default.(string)
+	// condominioDescCompanyID is the schema descriptor for company_id field.
+	condominioDescCompanyID := condominioFields[4].Descriptor()
+	// condominio.DefaultCompanyID holds the default value on creation for the company_id field.
+	condominio.DefaultCompanyID = condominioDescCompanyID.Default.(string)
+	// condominioDescTenant is the schema descriptor for tenant field.
+	condominioDescTenant := condominioFields[5].Descriptor()
+	// condominio.DefaultTenant holds the default value on creation for the tenant field.
+	condominio.DefaultTenant = condominioDescTenant.Default.(string)
+	// condominioDescID is the schema descriptor for id field.
+	condominioDescID := condominioFields[0].Descriptor()
+	// condominio.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	condominio.IDValidator = condominioDescID.Validators[0].(func(string) error)
+	habilitacaoFields := schema.Habilitacao{}.Fields()
+	_ = habilitacaoFields
+	// habilitacaoDescCaso is the schema descriptor for caso field.
+	habilitacaoDescCaso := habilitacaoFields[1].Descriptor()
+	// habilitacao.CasoValidator is a validator for the "caso" field. It is called by the builders before save.
+	habilitacao.CasoValidator = habilitacaoDescCaso.Validators[0].(func(string) error)
+	// habilitacaoDescPapeis is the schema descriptor for papeis field.
+	habilitacaoDescPapeis := habilitacaoFields[3].Descriptor()
+	// habilitacao.DefaultPapeis holds the default value on creation for the papeis field.
+	habilitacao.DefaultPapeis = habilitacaoDescPapeis.Default.(schema.Papeis)
+	orientacaoFields := schema.Orientacao{}.Fields()
+	_ = orientacaoFields
+	// orientacaoDescGeral is the schema descriptor for geral field.
+	orientacaoDescGeral := orientacaoFields[1].Descriptor()
+	// orientacao.DefaultGeral holds the default value on creation for the geral field.
+	orientacao.DefaultGeral = orientacaoDescGeral.Default.(string)
+	payloadFields := schema.Payload{}.Fields()
+	_ = payloadFields
+	// payloadDescRecurso is the schema descriptor for recurso field.
+	payloadDescRecurso := payloadFields[1].Descriptor()
+	// payload.RecursoValidator is a validator for the "recurso" field. It is called by the builders before save.
+	payload.RecursoValidator = payloadDescRecurso.Validators[0].(func(string) error)
 }

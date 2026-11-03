@@ -146,7 +146,7 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 }
 
 func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
-	m, err := s.admin.Ler()
+	m, err := s.admin.Ler(r.Context())
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -183,9 +183,9 @@ func (s *servidor) adminAdministradora(w http.ResponseWriter, r *http.Request) {
 	if a.ID == "" {
 		a.ID = slug(a.Nome)
 	}
-	m, err := s.admin.SalvarAdministradora(a)
+	m, err := s.admin.SalvarAdministradora(r.Context(), a)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -197,9 +197,9 @@ func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Req
 		writeErr(w, 400, errors.New("informe id"))
 		return
 	}
-	m, err := s.admin.RemoverAdministradora(id)
+	m, err := s.admin.RemoverAdministradora(r.Context(), id)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -214,9 +214,9 @@ func (s *servidor) adminCondominio(w http.ResponseWriter, r *http.Request) {
 	if c.ID == "" {
 		c.ID = slug(c.Nome)
 	}
-	m, err := s.admin.SalvarCondominio(c)
+	m, err := s.admin.SalvarCondominio(r.Context(), c)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -228,9 +228,9 @@ func (s *servidor) adminRemoverCondominio(w http.ResponseWriter, r *http.Request
 		writeErr(w, 400, errors.New("informe id"))
 		return
 	}
-	m, err := s.admin.RemoverCondominio(id)
+	m, err := s.admin.RemoverCondominio(r.Context(), id)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -251,9 +251,9 @@ func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
 	if corpo.Condominio == "" {
 		corpo.Condominio = admin.Padrao
 	}
-	m, err := s.admin.SalvarHabilitacao(corpo.Condominio, corpo.Caso, admin.Habilitacao{Habilitado: corpo.Habilitado, Papeis: corpo.Papeis}, corpo.Limpar)
+	m, err := s.admin.SalvarHabilitacao(r.Context(), corpo.Condominio, corpo.Caso, admin.Habilitacao{Habilitado: corpo.Habilitado, Papeis: corpo.Papeis}, corpo.Limpar)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -278,9 +278,9 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 	} else if corpo.Payload == nil {
 		corpo.Payload = map[string]any{}
 	}
-	m, err := s.admin.SalvarPayload(corpo.Condominio, corpo.Recurso, corpo.Payload)
+	m, err := s.admin.SalvarPayload(r.Context(), corpo.Condominio, corpo.Recurso, corpo.Payload)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -333,9 +333,9 @@ func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
 	if corpo.Condominio == "" {
 		corpo.Condominio = admin.Padrao
 	}
-	m, err := s.admin.SalvarOrientacao(corpo.Condominio, admin.Orientacao{Geral: corpo.Geral, PorCaso: corpo.PorCaso})
+	m, err := s.admin.SalvarOrientacao(r.Context(), corpo.Condominio, admin.Orientacao{Geral: corpo.Geral, PorCaso: corpo.PorCaso})
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -353,12 +353,20 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 	if corpo.Condominio == "" {
 		corpo.Condominio = admin.Padrao
 	}
-	m, err := s.admin.SalvarAjustes(corpo.Condominio, corpo.Ajustes)
+	m, err := s.admin.SalvarAjustes(r.Context(), corpo.Condominio, corpo.Ajustes)
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusAdmin(err), err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
+}
+
+// statusAdmin: o que a regra do mapeamento recusa é erro do pedido; o resto é do servidor.
+func statusAdmin(err error) int {
+	if errors.Is(err, admin.ErrInvalido) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
 }
 
 // responderMapeamento devolve o mapeamento já recortado pela administradora do

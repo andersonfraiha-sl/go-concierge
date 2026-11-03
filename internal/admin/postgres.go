@@ -1,0 +1,293 @@
+package admin
+
+import (
+	"context"
+	stdsql "database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"entgo.io/ent/dialect/sql"
+
+	"go-concierge/internal/banco/ent"
+	entadministradora "go-concierge/internal/banco/ent/administradora"
+	entcondominio "go-concierge/internal/banco/ent/condominio"
+	enthabilitacao "go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/predicate"
+	"go-concierge/internal/banco/ent/schema"
+)
+
+// timeoutConsulta limita cada leitura ou escrita do mapeamento (vale também para as rotas HTTP).
+const timeoutConsulta = 3 * time.Second
+
+// Postgres guarda o mapeamento nas tabelas administradoras, condominios, habilitacoes,
+// payloads e orientacoes. condominio_id NULL é o padrão ("*").
+type Postgres struct {
+	cli *ent.Client
+}
+
+func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
+
+func (p *Postgres) Ler(ctx context.Context) (Mapeamento, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
+	defer cancel()
+	return ler(ctx, p.cli)
+}
+
+// gravacao escreve no banco o que a regra mudou, lendo do mapeamento novo.
+type gravacao func(ctx context.Context, cli *ent.Client, novo Mapeamento) error
+
+// alterar roda numa transação serializável: lê, valida com a regra pura, grava e relê. A
+// serialização impede que duas escritas simultâneas percam uma à outra (os ajustes mesclam
+// chave a chave) e que o padrão de orientações ganhe duas linhas.
+func (p *Postgres) alterar(ctx context.Context, operacao string, r regra, gravar gravacao) (Mapeamento, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
+	defer cancel()
+	tx, err := p.cli.BeginTx(ctx, &stdsql.TxOptions{Isolation: stdsql.LevelSerializable})
+	if err != nil {
+		return Mapeamento{}, fmt.Errorf("%s: abrir transação: %w", operacao, err)
+	}
+	m, err := alterarNa(ctx, tx.Client(), r, gravar)
+	if err != nil {
+		if errDesfazer := tx.Rollback(); errDesfazer != nil {
+			err = errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
+		}
+		return Mapeamento{}, fmt.Errorf("%s: %w", operacao, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return Mapeamento{}, fmt.Errorf("%s: confirmar transação: %w", operacao, err)
+	}
+	return m, nil
+}
+
+func alterarNa(ctx context.Context, cli *ent.Client, r regra, gravar gravacao) (Mapeamento, error) {
+	atual, err := ler(ctx, cli)
+	if err != nil {
+		return Mapeamento{}, err
+	}
+	novo, err := r(atual)
+	if err != nil {
+		return Mapeamento{}, err
+	}
+	if err := gravar(ctx, cli, novo); err != nil {
+		return Mapeamento{}, err
+	}
+	return ler(ctx, cli)
+}
+
+func (p *Postgres) SalvarAdministradora(ctx context.Context, a Administradora) (Mapeamento, error) {
+	a, err := prepararAdministradora(a)
+	if err != nil {
+		return Mapeamento{}, err
+	}
+	return p.alterar(ctx, "salvar administradora "+a.ID,
+		func(m Mapeamento) (Mapeamento, error) { return m.salvarAdministradora(a) },
+		func(ctx context.Context, cli *ent.Client, _ Mapeamento) error {
+			return cli.Administradora.Create().SetID(a.ID).SetNome(a.Nome).
+				OnConflictColumns(entadministradora.FieldID).UpdateNewValues().Exec(ctx)
+		})
+}
+
+func (p *Postgres) RemoverAdministradora(ctx context.Context, id string) (Mapeamento, error) {
+	return p.alterar(ctx, "remover administradora "+id,
+		func(m Mapeamento) (Mapeamento, error) { return m.removerAdministradora(id) },
+		func(ctx context.Context, cli *ent.Client, _ Mapeamento) error {
+			_, err := cli.Administradora.Delete().Where(entadministradora.ID(id)).Exec(ctx)
+			return err
+		})
+}
+
+func (p *Postgres) SalvarCondominio(ctx context.Context, c Condominio) (Mapeamento, error) {
+	c, err := prepararCondominio(c)
+	if err != nil {
+		return Mapeamento{}, err
+	}
+	return p.alterar(ctx, "salvar condomínio "+c.ID,
+		func(m Mapeamento) (Mapeamento, error) { return m.salvarCondominio(c) },
+		func(ctx context.Context, cli *ent.Client, _ Mapeamento) error {
+			upsert := cli.Condominio.Create().SetID(c.ID).SetNome(c.Nome).
+				SetNillableAdministradoraID(opcional(c.Administradora)).
+				SetAccount(c.Account).SetCompanyID(c.CompanyID).SetTenant(c.Tenant).
+				OnConflictColumns(entcondominio.FieldID).UpdateNewValues()
+			if c.Administradora == "" {
+				// UpdateNewValues só regrava o que foi setado; sem dona, a coluna tem de virar NULL
+				upsert = upsert.ClearAdministradoraID()
+			}
+			return upsert.Exec(ctx)
+		})
+}
+
+func (p *Postgres) RemoverCondominio(ctx context.Context, id string) (Mapeamento, error) {
+	return p.alterar(ctx, "remover condomínio "+id,
+		func(m Mapeamento) (Mapeamento, error) { return m.removerCondominio(id) },
+		func(ctx context.Context, cli *ent.Client, _ Mapeamento) error {
+			// habilitações, payloads e orientações do condomínio saem pelo ON DELETE CASCADE
+			_, err := cli.Condominio.Delete().Where(entcondominio.ID(id)).Exec(ctx)
+			return err
+		})
+}
+
+func (p *Postgres) SalvarHabilitacao(ctx context.Context, condoID, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
+	return p.alterar(ctx, "salvar habilitação "+condoID+"/"+caso,
+		func(m Mapeamento) (Mapeamento, error) { return m.salvarHabilitacao(condoID, caso, h, limpar) },
+		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
+			h, existe := novo.Habilitacoes[condoID][caso]
+			if !existe {
+				_, err := cli.Habilitacao.Delete().Where(doCondominio[predicate.Habilitacao](condoID), enthabilitacao.Caso(caso)).Exec(ctx)
+				return err
+			}
+			return cli.Habilitacao.Create().SetNillableCondominioID(condominioID(condoID)).
+				SetCaso(caso).SetHabilitado(h.Habilitado).SetPapeis(schema.Papeis(h.Papeis)).
+				OnConflict(alvoUpsert(condoID, enthabilitacao.FieldCaso)...).UpdateNewValues().Exec(ctx)
+		})
+}
+
+func (p *Postgres) SalvarOrientacao(ctx context.Context, condoID string, o Orientacao) (Mapeamento, error) {
+	return p.alterar(ctx, "salvar orientação "+condoID,
+		func(m Mapeamento) (Mapeamento, error) { return m.salvarOrientacao(condoID, o) },
+		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
+			// por que não upsert: a do padrão (NULL) não tem índice único que sirva de alvo;
+			// apagar e recriar é seguro na transação serializável
+			if _, err := cli.Orientacao.Delete().Where(doCondominio[predicate.Orientacao](condoID)).Exec(ctx); err != nil {
+				return err
+			}
+			o, existe := novo.Orientacoes[condoID]
+			if !existe {
+				return nil
+			}
+			return cli.Orientacao.Create().SetNillableCondominioID(condominioID(condoID)).
+				SetGeral(o.Geral).SetPorCaso(o.PorCaso).Exec(ctx)
+		})
+}
+
+func (p *Postgres) SalvarAjustes(ctx context.Context, condoID string, ajustes map[string]map[string]any) (Mapeamento, error) {
+	return p.alterar(ctx, "salvar ajustes "+condoID,
+		func(m Mapeamento) (Mapeamento, error) { return m.salvarAjustes(condoID, ajustes) },
+		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
+			for recurso := range ajustes {
+				if err := gravarPayload(ctx, cli, novo, condoID, recurso); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+}
+
+func (p *Postgres) SalvarPayload(ctx context.Context, condoID, recurso string, dados map[string]any) (Mapeamento, error) {
+	return p.alterar(ctx, "salvar payload "+condoID+"/"+recurso,
+		func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, dados) },
+		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
+			return gravarPayload(ctx, cli, novo, condoID, recurso)
+		})
+}
+
+// gravarPayload deixa a linha condomínio × recurso igual ao mapeamento novo.
+func gravarPayload(ctx context.Context, cli *ent.Client, novo Mapeamento, condoID, recurso string) error {
+	dados, existe := novo.Payloads[condoID][recurso]
+	if !existe {
+		_, err := cli.Payload.Delete().Where(doCondominio[predicate.Payload](condoID), payload.Recurso(recurso)).Exec(ctx)
+		return err
+	}
+	return cli.Payload.Create().SetNillableCondominioID(condominioID(condoID)).
+		SetRecurso(recurso).SetDados(dados).
+		OnConflict(alvoUpsert(condoID, payload.FieldRecurso)...).UpdateNewValues().Exec(ctx)
+}
+
+func ler(ctx context.Context, cli *ent.Client) (Mapeamento, error) {
+	var m Mapeamento
+	adms, err := cli.Administradora.Query().All(ctx)
+	if err != nil {
+		return m, fmt.Errorf("ler administradoras: %w", err)
+	}
+	condos, err := cli.Condominio.Query().All(ctx)
+	if err != nil {
+		return m, fmt.Errorf("ler condomínios: %w", err)
+	}
+	habs, err := cli.Habilitacao.Query().All(ctx)
+	if err != nil {
+		return m, fmt.Errorf("ler habilitações: %w", err)
+	}
+	pays, err := cli.Payload.Query().All(ctx)
+	if err != nil {
+		return m, fmt.Errorf("ler payloads: %w", err)
+	}
+	oris, err := cli.Orientacao.Query().All(ctx)
+	if err != nil {
+		return m, fmt.Errorf("ler orientações: %w", err)
+	}
+	return montar(adms, condos, habs, pays, oris), nil
+}
+
+// montar traduz as linhas do ent para o Mapeamento do domínio.
+func montar(adms []*ent.Administradora, condos []*ent.Condominio, habs []*ent.Habilitacao, pays []*ent.Payload, oris []*ent.Orientacao) Mapeamento {
+	m := Mapeamento{
+		Habilitacoes: map[string]map[string]Habilitacao{},
+		Payloads:     map[string]map[string]map[string]any{},
+		Orientacoes:  map[string]Orientacao{},
+	}
+	for _, a := range adms {
+		m.Administradoras = append(m.Administradoras, Administradora{ID: a.ID, Nome: a.Nome})
+	}
+	for _, c := range condos {
+		m.Condominios = append(m.Condominios, Condominio{ID: c.ID, Nome: c.Nome, Administradora: valor(c.AdministradoraID),
+			Account: c.Account, CompanyID: c.CompanyID, Tenant: c.Tenant})
+	}
+	for _, h := range habs {
+		m.Habilitacoes = comEntrada(m.Habilitacoes, chave(h.CondominioID), h.Caso, Habilitacao{Habilitado: h.Habilitado, Papeis: h.Papeis}, false)
+	}
+	for _, p := range pays {
+		m.Payloads = comEntrada(m.Payloads, chave(p.CondominioID), p.Recurso, p.Dados, false)
+	}
+	for _, o := range oris {
+		m.Orientacoes[chave(o.CondominioID)] = Orientacao{Geral: o.Geral, PorCaso: o.PorCaso}
+	}
+	m.normalizar()
+	return m
+}
+
+const colunaCondominio = "condominio_id"
+
+// doCondominio filtra as linhas do condomínio, ou as do padrão (condominio_id NULL).
+func doCondominio[P ~func(*sql.Selector)](condoID string) P {
+	if condoID == Padrao {
+		return P(sql.FieldIsNull(colunaCondominio))
+	}
+	return P(sql.FieldEQ(colunaCondominio, condoID))
+}
+
+// alvoUpsert aponta o ON CONFLICT para o índice parcial certo: o do padrão ou o dos condomínios.
+func alvoUpsert(condoID, coluna string) []sql.ConflictOption {
+	if condoID == Padrao {
+		return []sql.ConflictOption{sql.ConflictColumns(coluna), sql.ConflictWhere(sql.IsNull(colunaCondominio))}
+	}
+	return []sql.ConflictOption{sql.ConflictColumns(colunaCondominio, coluna), sql.ConflictWhere(sql.NotNull(colunaCondominio))}
+}
+
+func condominioID(condoID string) *string {
+	if condoID == Padrao {
+		return nil
+	}
+	return &condoID
+}
+
+func chave(condoID *string) string {
+	if condoID == nil {
+		return Padrao
+	}
+	return *condoID
+}
+
+func opcional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func valor(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}

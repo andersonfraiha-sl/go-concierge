@@ -8,6 +8,66 @@ import (
 	"go-concierge/internal/banco/ent"
 )
 
+// The AdministradoraFunc type is an adapter to allow the use of ordinary
+// function as Administradora mutator.
+type AdministradoraFunc func(context.Context, *ent.AdministradoraMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AdministradoraFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AdministradoraMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdministradoraMutation", m)
+}
+
+// The CondominioFunc type is an adapter to allow the use of ordinary
+// function as Condominio mutator.
+type CondominioFunc func(context.Context, *ent.CondominioMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CondominioFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CondominioMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CondominioMutation", m)
+}
+
+// The HabilitacaoFunc type is an adapter to allow the use of ordinary
+// function as Habilitacao mutator.
+type HabilitacaoFunc func(context.Context, *ent.HabilitacaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f HabilitacaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.HabilitacaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.HabilitacaoMutation", m)
+}
+
+// The OrientacaoFunc type is an adapter to allow the use of ordinary
+// function as Orientacao mutator.
+type OrientacaoFunc func(context.Context, *ent.OrientacaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f OrientacaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.OrientacaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OrientacaoMutation", m)
+}
+
+// The PayloadFunc type is an adapter to allow the use of ordinary
+// function as Payload mutator.
+type PayloadFunc func(context.Context, *ent.PayloadMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PayloadFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PayloadMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PayloadMutation", m)
+}
+
 // Condition is a hook condition function.
 type Condition func(context.Context, ent.Mutation) bool
 

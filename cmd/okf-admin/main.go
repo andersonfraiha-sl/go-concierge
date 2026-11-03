@@ -25,6 +25,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ type servidor struct {
 	emulador            *atende.Emulador
 	provedor            string
 	memorias            memoria.Store
-	admin               *admin.Store
+	admin               admin.Repositorio
 	banco               banco.Banco
 }
 
@@ -176,21 +177,10 @@ func main() {
 	}
 
 	// Admin da administradora: mapeamento condomínio × casos de uso × payloads
-	s.admin = admin.NewStore(env.Ou("ADMIN_DIR", filepath.Join(cat.Root, "var", "admin")) + string(filepath.Separator) + "mapeamento.json")
-	if m, err := s.admin.Ler(); err == nil && len(m.Condominios) == 0 {
-		// primeiro uso: uma administradora de exemplo, dona do condomínio de exemplo
-		// (ligado à account, ao Gruvi e ao tenant do ATENDE)
-		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
-		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))})
-	} else if err == nil && len(m.Administradoras) == 0 {
-		// mapeamento de antes das administradoras: cria a de exemplo e dá a ela os condomínios sem dona
-		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
-		for _, c := range m.Condominios {
-			if c.Administradora == "" {
-				c.Administradora = "adm-exemplo"
-				_, _ = s.admin.SalvarCondominio(c)
-			}
-		}
+	s.admin = admin.NovoPostgres(db.Ent)
+	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
+	if err := semearMapeamento(s.admin, exemplo); err != nil {
+		log.Fatal(err)
 	}
 	s.atende.Mapeamento = s.admin
 
@@ -246,6 +236,35 @@ func abrirBanco(url string, migrar bool) (banco.Banco, error) {
 		return banco.Banco{}, errors.Join(err, db.Fechar())
 	}
 	return db, nil
+}
+
+// semearMapeamento: no primeiro uso, a administradora de exemplo, dona do condomínio de
+// exemplo (ligado à account, ao Gruvi e ao tenant do ATENDE); num mapeamento de antes das
+// administradoras, ela recebe os condomínios sem dona.
+func semearMapeamento(repo admin.Repositorio, exemplo admin.Condominio) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
+	defer cancel()
+	m, err := repo.Ler(ctx)
+	if err != nil {
+		return fmt.Errorf("semear mapeamento: %w", err)
+	}
+	if len(m.Condominios) > 0 && len(m.Administradoras) > 0 {
+		return nil
+	}
+	if _, err := repo.SalvarAdministradora(ctx, admin.Administradora{ID: exemplo.Administradora, Nome: "Administradora exemplo"}); err != nil {
+		return fmt.Errorf("semear mapeamento: %w", err)
+	}
+	semDona := []admin.Condominio{exemplo}
+	if len(m.Condominios) > 0 {
+		semDona = slices.DeleteFunc(m.Condominios, func(c admin.Condominio) bool { return c.Administradora != "" })
+	}
+	for _, c := range semDona {
+		c.Administradora = exemplo.Administradora
+		if _, err := repo.SalvarCondominio(ctx, c); err != nil {
+			return fmt.Errorf("semear mapeamento: %w", err)
+		}
+	}
+	return nil
 }
 
 // healthz responde 503 quando o Postgres não responde em timeoutHealthz.

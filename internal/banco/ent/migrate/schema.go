@@ -3,13 +3,175 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
+	"entgo.io/ent/schema/field"
 )
 
 var (
+	// AdministradorasColumns holds the columns for the "administradoras" table.
+	AdministradorasColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "nome", Type: field.TypeString},
+	}
+	// AdministradorasTable holds the schema information for the "administradoras" table.
+	AdministradorasTable = &schema.Table{
+		Name:       "administradoras",
+		Columns:    AdministradorasColumns,
+		PrimaryKey: []*schema.Column{AdministradorasColumns[0]},
+	}
+	// CondominiosColumns holds the columns for the "condominios" table.
+	CondominiosColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "nome", Type: field.TypeString},
+		{Name: "account", Type: field.TypeString, Default: ""},
+		{Name: "company_id", Type: field.TypeString, Default: ""},
+		{Name: "tenant", Type: field.TypeString, Default: ""},
+		{Name: "administradora_id", Type: field.TypeString, Nullable: true},
+	}
+	// CondominiosTable holds the schema information for the "condominios" table.
+	CondominiosTable = &schema.Table{
+		Name:       "condominios",
+		Columns:    CondominiosColumns,
+		PrimaryKey: []*schema.Column{CondominiosColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "condominios_administradoras_condominios",
+				Columns:    []*schema.Column{CondominiosColumns[5]},
+				RefColumns: []*schema.Column{AdministradorasColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+	}
+	// HabilitacoesColumns holds the columns for the "habilitacoes" table.
+	HabilitacoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "caso", Type: field.TypeString},
+		{Name: "habilitado", Type: field.TypeBool},
+		{Name: "papeis", Type: field.TypeOther, SchemaType: map[string]string{"postgres": "text[]"}},
+		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+	}
+	// HabilitacoesTable holds the schema information for the "habilitacoes" table.
+	HabilitacoesTable = &schema.Table{
+		Name:       "habilitacoes",
+		Columns:    HabilitacoesColumns,
+		PrimaryKey: []*schema.Column{HabilitacoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "habilitacoes_condominios_habilitacoes",
+				Columns:    []*schema.Column{HabilitacoesColumns[4]},
+				RefColumns: []*schema.Column{CondominiosColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "habilitacao_condominio_id_caso",
+				Unique:  true,
+				Columns: []*schema.Column{HabilitacoesColumns[4], HabilitacoesColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "condominio_id IS NOT NULL",
+				},
+			},
+			{
+				Name:    "habilitacao_caso",
+				Unique:  true,
+				Columns: []*schema.Column{HabilitacoesColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "condominio_id IS NULL",
+				},
+			},
+		},
+	}
+	// OrientacoesColumns holds the columns for the "orientacoes" table.
+	OrientacoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "geral", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "por_caso", Type: field.TypeJSON},
+		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+	}
+	// OrientacoesTable holds the schema information for the "orientacoes" table.
+	OrientacoesTable = &schema.Table{
+		Name:       "orientacoes",
+		Columns:    OrientacoesColumns,
+		PrimaryKey: []*schema.Column{OrientacoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "orientacoes_condominios_orientacoes",
+				Columns:    []*schema.Column{OrientacoesColumns[3]},
+				RefColumns: []*schema.Column{CondominiosColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "orientacao_condominio_id",
+				Unique:  true,
+				Columns: []*schema.Column{OrientacoesColumns[3]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "condominio_id IS NOT NULL",
+				},
+			},
+		},
+	}
+	// PayloadsColumns holds the columns for the "payloads" table.
+	PayloadsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "recurso", Type: field.TypeString},
+		{Name: "dados", Type: field.TypeJSON},
+		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+	}
+	// PayloadsTable holds the schema information for the "payloads" table.
+	PayloadsTable = &schema.Table{
+		Name:       "payloads",
+		Columns:    PayloadsColumns,
+		PrimaryKey: []*schema.Column{PayloadsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "payloads_condominios_payloads",
+				Columns:    []*schema.Column{PayloadsColumns[3]},
+				RefColumns: []*schema.Column{CondominiosColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "payload_condominio_id_recurso",
+				Unique:  true,
+				Columns: []*schema.Column{PayloadsColumns[3], PayloadsColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "condominio_id IS NOT NULL",
+				},
+			},
+			{
+				Name:    "payload_recurso",
+				Unique:  true,
+				Columns: []*schema.Column{PayloadsColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "condominio_id IS NULL",
+				},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
-	Tables = []*schema.Table{}
+	Tables = []*schema.Table{
+		AdministradorasTable,
+		CondominiosTable,
+		HabilitacoesTable,
+		OrientacoesTable,
+		PayloadsTable,
+	}
 )
 
 func init() {
+	CondominiosTable.ForeignKeys[0].RefTable = AdministradorasTable
+	HabilitacoesTable.ForeignKeys[0].RefTable = CondominiosTable
+	HabilitacoesTable.Annotation = &entsql.Annotation{
+		Table: "habilitacoes",
+	}
+	OrientacoesTable.ForeignKeys[0].RefTable = CondominiosTable
+	OrientacoesTable.Annotation = &entsql.Annotation{
+		Table: "orientacoes",
+	}
+	PayloadsTable.ForeignKeys[0].RefTable = CondominiosTable
 }
