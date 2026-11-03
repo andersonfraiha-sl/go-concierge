@@ -22,7 +22,7 @@ const timeoutConsulta = 3 * time.Second
 
 // Postgres guarda a memória em duas tabelas: memoria_contatos (o nome e quando mudou, uma
 // linha por contato) e memoria_fatos (uma linha por fato). Ler e Listar vão pelo ent; Gravar
-// grava as duas numa transação, o contato pelo ent e os fatos pelo sqlc.
+// grava as duas num comando só do sqlc.
 type Postgres struct {
 	b banco.Banco
 }
@@ -66,37 +66,18 @@ func (p *Postgres) lerContato(ctx context.Context, c escopo.Contato) (Memoria, e
 	return m, nil
 }
 
-// Gravar troca a memória do contato pela recebida: o nome e AtualizadaEm são regravados, as
-// chaves que saíram são apagadas e as demais gravadas por cima. Tudo ou nada.
+// Gravar troca a memória do contato pela recebida, num comando só: o nome e AtualizadaEm são
+// regravados, as chaves que saíram são apagadas e as demais gravadas por cima.
 func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, m Memoria) error {
 	if err := validarContato(c); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	guardada := comoGuardada(c, m, time.Now())
-	err := p.b.EmTransacao(ctx, func(ctx context.Context, t banco.Transacao) error {
-		if err := gravarContato(ctx, t.Ent, guardada); err != nil {
-			return err
-		}
-		return t.SQL(func(q *sqlc.Queries) error { return q.GravarFatos(ctx, paramsDeGravacao(guardada)) })
-	})
-	if err != nil {
+	if err := p.b.SQL.GravarFatos(ctx, paramsDeGravacao(comoGuardada(c, m, time.Now()))); err != nil {
 		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), err)
 	}
 	return nil
-}
-
-func gravarContato(ctx context.Context, cli *ent.Client, m Memoria) error {
-	return cli.MemoriaContato.Create().
-		SetAdministradoraID(m.AdministradoraID).
-		SetTelefone(m.Telefone).
-		SetNome(m.Nome).
-		SetAtualizadaEm(m.AtualizadaEm).
-		OnConflictColumns(memoriacontato.FieldAdministradoraID, memoriacontato.FieldTelefone).
-		UpdateNome().
-		UpdateAtualizadaEm().
-		Exec(ctx)
 }
 
 // Listar devolve as memórias da administradora, a atualizada por último primeiro.
@@ -159,14 +140,16 @@ func confiancaDe(real float32) float64 {
 	return v
 }
 
-// paramsDeGravacao põe os fatos da memória guardada (sem chave repetida, que o ON CONFLICT
+// paramsDeGravacao põe a memória guardada (comoGuardada: sem chave repetida, que o ON CONFLICT
 // recusaria) em colunas; os arrays nunca são nil, que o pgx mandaria como NULL e a cláusula
 // "chave <> ALL(NULL)" não apagaria nada.
 func paramsDeGravacao(m Memoria) sqlc.GravarFatosParams {
-	fatos := semChavesRepetidas(m.Fatos)
+	fatos := m.Fatos
 	p := sqlc.GravarFatosParams{
 		AdministradoraID: m.AdministradoraID,
 		Telefone:         m.Telefone,
+		Nome:             m.Nome,
+		AtualizadaEm:     pgtype.Timestamptz{Time: m.AtualizadaEm, Valid: true},
 		Chaves:           make([]string, 0, len(fatos)),
 		Condominios:      make([]string, 0, len(fatos)),
 		Textos:           make([]string, 0, len(fatos)),

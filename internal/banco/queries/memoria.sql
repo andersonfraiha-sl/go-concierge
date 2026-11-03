@@ -1,6 +1,13 @@
--- por que não ent: apagar as chaves que saíram e fazer upsert das restantes num comando só; o ent faria uma ida por fato
+-- por que não ent: gravar o contato, apagar as chaves que saíram e fazer upsert das restantes num comando só, atômico; o ent faria uma ida por fato e precisaria de uma transação com o sqlc
 -- name: GravarFatos :exec
-WITH saidas AS (
+WITH contato AS (
+    INSERT INTO memoria_contatos (administradora_id, telefone, nome, atualizada_em)
+    VALUES (@administradora_id::text, @telefone::text, @nome::text, @atualizada_em::timestamptz)
+    ON CONFLICT (administradora_id, telefone) DO UPDATE
+    SET nome = EXCLUDED.nome,
+        atualizada_em = EXCLUDED.atualizada_em
+),
+saidas AS (
     DELETE FROM memoria_fatos
     WHERE administradora_id = @administradora_id::text
       AND telefone = @telefone::text

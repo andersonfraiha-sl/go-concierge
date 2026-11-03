@@ -12,7 +12,14 @@ import (
 )
 
 const gravarFatos = `-- name: GravarFatos :exec
-WITH saidas AS (
+WITH contato AS (
+    INSERT INTO memoria_contatos (administradora_id, telefone, nome, atualizada_em)
+    VALUES ($1::text, $2::text, $9::text, $10::timestamptz)
+    ON CONFLICT (administradora_id, telefone) DO UPDATE
+    SET nome = EXCLUDED.nome,
+        atualizada_em = EXCLUDED.atualizada_em
+),
+saidas AS (
     DELETE FROM memoria_fatos
     WHERE administradora_id = $1::text
       AND telefone = $2::text
@@ -39,9 +46,11 @@ type GravarFatosParams struct {
 	Fontes           []string
 	Quandos          []pgtype.Timestamptz
 	Confiancas       []float32
+	Nome             string
+	AtualizadaEm     pgtype.Timestamptz
 }
 
-// por que não ent: apagar as chaves que saíram e fazer upsert das restantes num comando só; o ent faria uma ida por fato
+// por que não ent: gravar o contato, apagar as chaves que saíram e fazer upsert das restantes num comando só, atômico; o ent faria uma ida por fato e precisaria de uma transação com o sqlc
 // várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
 func (q *Queries) GravarFatos(ctx context.Context, arg GravarFatosParams) error {
 	_, err := q.db.Exec(ctx, gravarFatos,
@@ -53,6 +62,8 @@ func (q *Queries) GravarFatos(ctx context.Context, arg GravarFatosParams) error 
 		arg.Fontes,
 		arg.Quandos,
 		arg.Confiancas,
+		arg.Nome,
+		arg.AtualizadaEm,
 	)
 	return err
 }
