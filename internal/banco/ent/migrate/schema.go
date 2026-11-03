@@ -159,6 +159,31 @@ var (
 			},
 		},
 	}
+	// MemoriaFatosColumns holds the columns for the "memoria_fatos" table.
+	MemoriaFatosColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "administradora_id", Type: field.TypeString},
+		{Name: "telefone", Type: field.TypeString},
+		{Name: "chave", Type: field.TypeString},
+		{Name: "condominio_id", Type: field.TypeString, Default: ""},
+		{Name: "texto", Type: field.TypeString, Size: 2147483647},
+		{Name: "fonte", Type: field.TypeString, Default: ""},
+		{Name: "quando", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "confianca", Type: field.TypeFloat32, Default: 0, SchemaType: map[string]string{"postgres": "real"}},
+	}
+	// MemoriaFatosTable holds the schema information for the "memoria_fatos" table.
+	MemoriaFatosTable = &schema.Table{
+		Name:       "memoria_fatos",
+		Columns:    MemoriaFatosColumns,
+		PrimaryKey: []*schema.Column{MemoriaFatosColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "memoriafato_administradora_id_telefone_chave",
+				Unique:  true,
+				Columns: []*schema.Column{MemoriaFatosColumns[1], MemoriaFatosColumns[2], MemoriaFatosColumns[3]},
+			},
+		},
+	}
 	// OrientacoesColumns holds the columns for the "orientacoes" table.
 	OrientacoesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -293,6 +318,7 @@ var (
 		ConcessoesTable,
 		CondominiosTable,
 		HabilitacoesTable,
+		MemoriaFatosTable,
 		OrientacoesTable,
 		PapeisTable,
 		PapelPermissoesTable,
@@ -322,6 +348,9 @@ func init() {
 	HabilitacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	HabilitacoesTable.Annotation = &entsql.Annotation{
 		Table: "habilitacoes",
+	}
+	MemoriaFatosTable.Annotation = &entsql.Annotation{
+		Table: "memoria_fatos",
 	}
 	OrientacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	OrientacoesTable.Annotation = &entsql.Annotation{

@@ -11,6 +11,7 @@ import (
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
@@ -87,6 +88,7 @@ func checkColumn(t, c string) error {
 			concessao.Table:      concessao.ValidColumn,
 			condominio.Table:     condominio.ValidColumn,
 			habilitacao.Table:    habilitacao.ValidColumn,
+			memoriafato.Table:    memoriafato.ValidColumn,
 			orientacao.Table:     orientacao.ValidColumn,
 			papel.Table:          papel.ValidColumn,
 			papelpermissao.Table: papelpermissao.ValidColumn,

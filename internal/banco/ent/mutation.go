@@ -11,6 +11,7 @@ import (
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
@@ -19,6 +20,7 @@ import (
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/banco/ent/usuario"
 	"sync"
+	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -38,6 +40,7 @@ const (
 	TypeConcessao      = "Concessao"
 	TypeCondominio     = "Condominio"
 	TypeHabilitacao    = "Habilitacao"
+	TypeMemoriaFato    = "MemoriaFato"
 	TypeOrientacao     = "Orientacao"
 	TypePapel          = "Papel"
 	TypePapelPermissao = "PapelPermissao"
@@ -3151,6 +3154,746 @@ func (m *HabilitacaoMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Habilitacao edge %s", name)
+}
+
+// MemoriaFatoMutation represents an operation that mutates the MemoriaFato nodes in the graph.
+type MemoriaFatoMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	administradora_id *string
+	telefone          *string
+	chave             *string
+	condominio_id     *string
+	texto             *string
+	fonte             *string
+	quando            *time.Time
+	confianca         *float32
+	addconfianca      *float32
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*MemoriaFato, error)
+	predicates        []predicate.MemoriaFato
+}
+
+var _ ent.Mutation = (*MemoriaFatoMutation)(nil)
+
+// memoriafatoOption allows management of the mutation configuration using functional options.
+type memoriafatoOption func(*MemoriaFatoMutation)
+
+// newMemoriaFatoMutation creates new mutation for the MemoriaFato entity.
+func newMemoriaFatoMutation(c config, op Op, opts ...memoriafatoOption) *MemoriaFatoMutation {
+	m := &MemoriaFatoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMemoriaFato,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMemoriaFatoID sets the ID field of the mutation.
+func withMemoriaFatoID(id int) memoriafatoOption {
+	return func(m *MemoriaFatoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MemoriaFato
+		)
+		m.oldValue = func(ctx context.Context) (*MemoriaFato, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MemoriaFato.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMemoriaFato sets the old MemoriaFato of the mutation.
+func withMemoriaFato(node *MemoriaFato) memoriafatoOption {
+	return func(m *MemoriaFatoMutation) {
+		m.oldValue = func(context.Context) (*MemoriaFato, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MemoriaFatoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MemoriaFatoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MemoriaFatoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MemoriaFatoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MemoriaFato.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *MemoriaFatoMutation) SetAdministradoraID(s string) {
+	m.administradora_id = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *MemoriaFatoMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *MemoriaFatoMutation) ResetAdministradoraID() {
+	m.administradora_id = nil
+}
+
+// SetTelefone sets the "telefone" field.
+func (m *MemoriaFatoMutation) SetTelefone(s string) {
+	m.telefone = &s
+}
+
+// Telefone returns the value of the "telefone" field in the mutation.
+func (m *MemoriaFatoMutation) Telefone() (r string, exists bool) {
+	v := m.telefone
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTelefone returns the old "telefone" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldTelefone(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTelefone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTelefone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTelefone: %w", err)
+	}
+	return oldValue.Telefone, nil
+}
+
+// ResetTelefone resets all changes to the "telefone" field.
+func (m *MemoriaFatoMutation) ResetTelefone() {
+	m.telefone = nil
+}
+
+// SetChave sets the "chave" field.
+func (m *MemoriaFatoMutation) SetChave(s string) {
+	m.chave = &s
+}
+
+// Chave returns the value of the "chave" field in the mutation.
+func (m *MemoriaFatoMutation) Chave() (r string, exists bool) {
+	v := m.chave
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChave returns the old "chave" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldChave(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChave is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChave requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChave: %w", err)
+	}
+	return oldValue.Chave, nil
+}
+
+// ResetChave resets all changes to the "chave" field.
+func (m *MemoriaFatoMutation) ResetChave() {
+	m.chave = nil
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *MemoriaFatoMutation) SetCondominioID(s string) {
+	m.condominio_id = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *MemoriaFatoMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldCondominioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *MemoriaFatoMutation) ResetCondominioID() {
+	m.condominio_id = nil
+}
+
+// SetTexto sets the "texto" field.
+func (m *MemoriaFatoMutation) SetTexto(s string) {
+	m.texto = &s
+}
+
+// Texto returns the value of the "texto" field in the mutation.
+func (m *MemoriaFatoMutation) Texto() (r string, exists bool) {
+	v := m.texto
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTexto returns the old "texto" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldTexto(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTexto is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTexto requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTexto: %w", err)
+	}
+	return oldValue.Texto, nil
+}
+
+// ResetTexto resets all changes to the "texto" field.
+func (m *MemoriaFatoMutation) ResetTexto() {
+	m.texto = nil
+}
+
+// SetFonte sets the "fonte" field.
+func (m *MemoriaFatoMutation) SetFonte(s string) {
+	m.fonte = &s
+}
+
+// Fonte returns the value of the "fonte" field in the mutation.
+func (m *MemoriaFatoMutation) Fonte() (r string, exists bool) {
+	v := m.fonte
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFonte returns the old "fonte" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldFonte(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFonte is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFonte requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFonte: %w", err)
+	}
+	return oldValue.Fonte, nil
+}
+
+// ResetFonte resets all changes to the "fonte" field.
+func (m *MemoriaFatoMutation) ResetFonte() {
+	m.fonte = nil
+}
+
+// SetQuando sets the "quando" field.
+func (m *MemoriaFatoMutation) SetQuando(t time.Time) {
+	m.quando = &t
+}
+
+// Quando returns the value of the "quando" field in the mutation.
+func (m *MemoriaFatoMutation) Quando() (r time.Time, exists bool) {
+	v := m.quando
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuando returns the old "quando" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldQuando(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuando is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuando requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuando: %w", err)
+	}
+	return oldValue.Quando, nil
+}
+
+// ResetQuando resets all changes to the "quando" field.
+func (m *MemoriaFatoMutation) ResetQuando() {
+	m.quando = nil
+}
+
+// SetConfianca sets the "confianca" field.
+func (m *MemoriaFatoMutation) SetConfianca(f float32) {
+	m.confianca = &f
+	m.addconfianca = nil
+}
+
+// Confianca returns the value of the "confianca" field in the mutation.
+func (m *MemoriaFatoMutation) Confianca() (r float32, exists bool) {
+	v := m.confianca
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConfianca returns the old "confianca" field's value of the MemoriaFato entity.
+// If the MemoriaFato object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaFatoMutation) OldConfianca(ctx context.Context) (v float32, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConfianca is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConfianca requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConfianca: %w", err)
+	}
+	return oldValue.Confianca, nil
+}
+
+// AddConfianca adds f to the "confianca" field.
+func (m *MemoriaFatoMutation) AddConfianca(f float32) {
+	if m.addconfianca != nil {
+		*m.addconfianca += f
+	} else {
+		m.addconfianca = &f
+	}
+}
+
+// AddedConfianca returns the value that was added to the "confianca" field in this mutation.
+func (m *MemoriaFatoMutation) AddedConfianca() (r float32, exists bool) {
+	v := m.addconfianca
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetConfianca resets all changes to the "confianca" field.
+func (m *MemoriaFatoMutation) ResetConfianca() {
+	m.confianca = nil
+	m.addconfianca = nil
+}
+
+// Where appends a list predicates to the MemoriaFatoMutation builder.
+func (m *MemoriaFatoMutation) Where(ps ...predicate.MemoriaFato) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MemoriaFatoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MemoriaFatoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MemoriaFato, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MemoriaFatoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MemoriaFatoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MemoriaFato).
+func (m *MemoriaFatoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MemoriaFatoMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.administradora_id != nil {
+		fields = append(fields, memoriafato.FieldAdministradoraID)
+	}
+	if m.telefone != nil {
+		fields = append(fields, memoriafato.FieldTelefone)
+	}
+	if m.chave != nil {
+		fields = append(fields, memoriafato.FieldChave)
+	}
+	if m.condominio_id != nil {
+		fields = append(fields, memoriafato.FieldCondominioID)
+	}
+	if m.texto != nil {
+		fields = append(fields, memoriafato.FieldTexto)
+	}
+	if m.fonte != nil {
+		fields = append(fields, memoriafato.FieldFonte)
+	}
+	if m.quando != nil {
+		fields = append(fields, memoriafato.FieldQuando)
+	}
+	if m.confianca != nil {
+		fields = append(fields, memoriafato.FieldConfianca)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MemoriaFatoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case memoriafato.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case memoriafato.FieldTelefone:
+		return m.Telefone()
+	case memoriafato.FieldChave:
+		return m.Chave()
+	case memoriafato.FieldCondominioID:
+		return m.CondominioID()
+	case memoriafato.FieldTexto:
+		return m.Texto()
+	case memoriafato.FieldFonte:
+		return m.Fonte()
+	case memoriafato.FieldQuando:
+		return m.Quando()
+	case memoriafato.FieldConfianca:
+		return m.Confianca()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MemoriaFatoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case memoriafato.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case memoriafato.FieldTelefone:
+		return m.OldTelefone(ctx)
+	case memoriafato.FieldChave:
+		return m.OldChave(ctx)
+	case memoriafato.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case memoriafato.FieldTexto:
+		return m.OldTexto(ctx)
+	case memoriafato.FieldFonte:
+		return m.OldFonte(ctx)
+	case memoriafato.FieldQuando:
+		return m.OldQuando(ctx)
+	case memoriafato.FieldConfianca:
+		return m.OldConfianca(ctx)
+	}
+	return nil, fmt.Errorf("unknown MemoriaFato field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MemoriaFatoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case memoriafato.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case memoriafato.FieldTelefone:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTelefone(v)
+		return nil
+	case memoriafato.FieldChave:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChave(v)
+		return nil
+	case memoriafato.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case memoriafato.FieldTexto:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTexto(v)
+		return nil
+	case memoriafato.FieldFonte:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFonte(v)
+		return nil
+	case memoriafato.FieldQuando:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuando(v)
+		return nil
+	case memoriafato.FieldConfianca:
+		v, ok := value.(float32)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConfianca(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaFato field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MemoriaFatoMutation) AddedFields() []string {
+	var fields []string
+	if m.addconfianca != nil {
+		fields = append(fields, memoriafato.FieldConfianca)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MemoriaFatoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case memoriafato.FieldConfianca:
+		return m.AddedConfianca()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MemoriaFatoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case memoriafato.FieldConfianca:
+		v, ok := value.(float32)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddConfianca(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaFato numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MemoriaFatoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MemoriaFatoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MemoriaFatoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown MemoriaFato nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MemoriaFatoMutation) ResetField(name string) error {
+	switch name {
+	case memoriafato.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case memoriafato.FieldTelefone:
+		m.ResetTelefone()
+		return nil
+	case memoriafato.FieldChave:
+		m.ResetChave()
+		return nil
+	case memoriafato.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case memoriafato.FieldTexto:
+		m.ResetTexto()
+		return nil
+	case memoriafato.FieldFonte:
+		m.ResetFonte()
+		return nil
+	case memoriafato.FieldQuando:
+		m.ResetQuando()
+		return nil
+	case memoriafato.FieldConfianca:
+		m.ResetConfianca()
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaFato field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MemoriaFatoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MemoriaFatoMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MemoriaFatoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MemoriaFatoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MemoriaFatoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MemoriaFatoMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MemoriaFatoMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown MemoriaFato unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MemoriaFatoMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown MemoriaFato edge %s", name)
 }
 
 // OrientacaoMutation represents an operation that mutates the Orientacao nodes in the graph.

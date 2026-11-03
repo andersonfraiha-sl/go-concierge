@@ -18,6 +18,7 @@ import (
 	"github.com/pressly/goose/v3/lock"
 
 	"go-concierge/internal/banco/ent"
+	"go-concierge/internal/banco/sqlc"
 )
 
 const timeoutConexao = 5 * time.Second
@@ -29,6 +30,7 @@ var migrations embed.FS
 type Banco struct {
 	Pool *pgxpool.Pool
 	Ent  *ent.Client
+	SQL  *sqlc.Queries
 }
 
 // Abrir conecta ao Postgres de url e confirma a conexão com um ping.
@@ -47,7 +49,7 @@ func Abrir(ctx context.Context, url string) (Banco, error) {
 		return Banco{}, fmt.Errorf("ping no postgres: %w", err)
 	}
 	drv := entsql.OpenDB(dialect.Postgres, stdlib.OpenDBFromPool(pool))
-	return Banco{Pool: pool, Ent: ent.NewClient(ent.Driver(drv))}, nil
+	return Banco{Pool: pool, Ent: ent.NewClient(ent.Driver(drv)), SQL: sqlc.New(pool)}, nil
 }
 
 // Fechar encerra o ent e depois o pool que ele usa (fechar o ent não fecha o pool).

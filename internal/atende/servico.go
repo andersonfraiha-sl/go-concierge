@@ -424,7 +424,9 @@ func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave s
 	}
 	if chave == "" {
 		m.Fatos = []memoria.Fato{}
-	} else if !m.Esquecer(chave) {
+	} else if semFato, esqueceu := m.Esquecer(chave); esqueceu {
+		m = semFato
+	} else {
 		return m, fmt.Errorf("%w: %s", ErrFatoNaoEncontrado, chave)
 	}
 	if m.Fatos == nil {
@@ -1104,7 +1106,7 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	fatos, err := ex.Extrair(ctx, mensagem, resposta, *mem)
 	if err != nil {
 		if s.Log != nil {
-			s.Log.Printf("atende: extrator de memória: %v", err)
+			s.Log.Printf("atende: WARN extrator de memória: %v", err)
 		}
 		return nil
 	}
@@ -1126,10 +1128,15 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 		mem.Nome = sess.Identidade.Name
 	}
 	var novos []memoria.Fato
+	agora := time.Now()
 	for _, f := range fatos {
 		f.Fonte = sess.Protocolo
 		f.CondominioID = contato.CondominioID
-		if mem.Upsert(f) {
+		if f.Quando.IsZero() {
+			f.Quando = agora
+		}
+		if atualizada, mudou := mem.Upsert(f); mudou {
+			*mem = atualizada
 			novos = append(novos, f)
 		}
 	}

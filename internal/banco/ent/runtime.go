@@ -8,6 +8,7 @@ import (
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
@@ -94,6 +95,32 @@ func init() {
 	habilitacaoDescPapeis := habilitacaoFields[3].Descriptor()
 	// habilitacao.DefaultPapeis holds the default value on creation for the papeis field.
 	habilitacao.DefaultPapeis = habilitacaoDescPapeis.Default.(schema.Papeis)
+	memoriafatoFields := schema.MemoriaFato{}.Fields()
+	_ = memoriafatoFields
+	// memoriafatoDescAdministradoraID is the schema descriptor for administradora_id field.
+	memoriafatoDescAdministradoraID := memoriafatoFields[0].Descriptor()
+	// memoriafato.AdministradoraIDValidator is a validator for the "administradora_id" field. It is called by the builders before save.
+	memoriafato.AdministradoraIDValidator = memoriafatoDescAdministradoraID.Validators[0].(func(string) error)
+	// memoriafatoDescTelefone is the schema descriptor for telefone field.
+	memoriafatoDescTelefone := memoriafatoFields[1].Descriptor()
+	// memoriafato.TelefoneValidator is a validator for the "telefone" field. It is called by the builders before save.
+	memoriafato.TelefoneValidator = memoriafatoDescTelefone.Validators[0].(func(string) error)
+	// memoriafatoDescChave is the schema descriptor for chave field.
+	memoriafatoDescChave := memoriafatoFields[2].Descriptor()
+	// memoriafato.ChaveValidator is a validator for the "chave" field. It is called by the builders before save.
+	memoriafato.ChaveValidator = memoriafatoDescChave.Validators[0].(func(string) error)
+	// memoriafatoDescCondominioID is the schema descriptor for condominio_id field.
+	memoriafatoDescCondominioID := memoriafatoFields[3].Descriptor()
+	// memoriafato.DefaultCondominioID holds the default value on creation for the condominio_id field.
+	memoriafato.DefaultCondominioID = memoriafatoDescCondominioID.Default.(string)
+	// memoriafatoDescFonte is the schema descriptor for fonte field.
+	memoriafatoDescFonte := memoriafatoFields[5].Descriptor()
+	// memoriafato.DefaultFonte holds the default value on creation for the fonte field.
+	memoriafato.DefaultFonte = memoriafatoDescFonte.Default.(string)
+	// memoriafatoDescConfianca is the schema descriptor for confianca field.
+	memoriafatoDescConfianca := memoriafatoFields[7].Descriptor()
+	// memoriafato.DefaultConfianca holds the default value on creation for the confianca field.
+	memoriafato.DefaultConfianca = memoriafatoDescConfianca.Default.(float32)
 	orientacaoFields := schema.Orientacao{}.Fields()
 	_ = orientacaoFields
 	// orientacaoDescGeral is the schema descriptor for geral field.
