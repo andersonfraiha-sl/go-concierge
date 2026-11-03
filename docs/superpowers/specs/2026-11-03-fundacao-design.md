@@ -71,6 +71,19 @@ Payloads do Nexus e histórico do Eino ficam em `jsonb`, validados na borda (exc
 - O Console continua emulando um telefone; o seletor de condomínio dele define company/tenant da mensagem forjada.
 - `DEFAULT_ACCOUNT_ID` só sobrevive como valor do emulador em dev.
 
+### Modo de implantação: todas ou uma administradora
+
+O mesmo binário roda nos dois modos; muda a configuração, não o código.
+
+| | `ADMINISTRADORA_ID` vazio (padrão) | `ADMINISTRADORA_ID=<id>` |
+|---|---|---|
+| Quem atende | todas as administradoras | só essa |
+| Mensagem de condomínio de outra administradora | atendida normalmente | transbordo + log de aviso |
+| Studio/Admin | escopo vem só do usuário | escopo do usuário **intersectado** com a administradora fixa: nem um admin Superlógica enxerga outra por esse processo |
+| Banco | um Postgres para todas | pode ser um Postgres próprio; o esquema é o mesmo e as colunas `administradora_id` continuam preenchidas |
+
+Implementação: um valor `Implantacao` montado no boot e passado ao resolvedor de condomínio e ao middleware de acesso; a restrição é uma função pura (`Implantacao.Permite(administradoraID) bool`) aplicada nos dois pontos. Nenhum `if` espalhado pelos handlers.
+
 ## 4. Acesso: papéis com herança e escopo
 
 ### Conceitos
@@ -148,6 +161,7 @@ Vale para todo código novo e para o que esta fase tocar:
 - Testes de tabela de `Permitido` cobrindo: herança, concessão do Avançado, administradora vizinha negada, condomínio fora do escopo negado.
 - Um usuário `gestor_administradora` da administradora A recebe `403` em toda rota que aponta para dado da administradora B.
 - Duas mensagens de condomínios de administradoras diferentes no mesmo processo: cada uma usa a account do seu condomínio e grava com a administradora certa.
+- Com `ADMINISTRADORA_ID=A`: mensagem de condomínio da B vai para transbordo, e um admin Superlógica recebe `403` em dado da B nesse processo.
 - Webhook do ATENDE sem assinatura válida → `401`.
 - `go vet` e `go test ./...` verdes.
 
@@ -157,7 +171,8 @@ Vale para todo código novo e para o que esta fase tocar:
 
 ## 8b. Decisões do Felipe nesta conversa
 
-- Um concierge para todas as administradoras.
+- Um concierge para todas as administradoras, com a opção de rodar um por administradora (`ADMINISTRADORA_ID`), mesma funcionalidade.
+- Documento aprovado em 2026-11-03.
 - Login decidido depois; Fundação só com modo dev.
 - HMAC do webhook ligado nesta fase (reverte a decisão anterior do Anderson; avisar o Anderson).
 
