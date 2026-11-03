@@ -1,5 +1,9 @@
 import { lazy, type ReactNode, Suspense } from 'react';
-import { createBrowserRouter, Navigate } from 'react-router';
+import { createBrowserRouter } from 'react-router';
+// Nome do arquivo difere de rotaInicial.ts por mais que o caso da letra:
+// Windows/macOS têm sistema de arquivos insensível a maiúsculas e os dois
+// nomes colidiriam, fazendo o TypeScript resolver o import errado.
+import { RotaInicial } from './RotaInicialRedirect';
 import { StudioLayout } from './StudioLayout';
 
 // Uma tela por chunk: quem abre o Studio baixa só a tela que está vendo.
@@ -34,7 +38,7 @@ export function criarRotas() {
         path: '/',
         element: <StudioLayout />,
         children: [
-          { index: true, element: <Navigate to="/concierge" replace /> },
+          { index: true, element: <RotaInicial /> },
           { path: 'skills', element: tela(<SkillsPage />) },
           // A aba aberta fica em ?aba=
           { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
