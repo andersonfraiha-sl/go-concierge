@@ -2,7 +2,8 @@ import type { Bloco, Fluxo } from './tipos';
 
 export const ALTURA_BLOCO = 72;
 export const ESPACO = 48;
-export const LARGURA_BLOCO = 280;
+// Largura do desenho aprovado (docs/superpowers/design/studio-fase2/Fluxo.dc.html).
+export const LARGURA_BLOCO = 420;
 
 const clamp = (valor: number, minimo: number, maximo: number): number =>
   Math.max(minimo, Math.min(valor, maximo));

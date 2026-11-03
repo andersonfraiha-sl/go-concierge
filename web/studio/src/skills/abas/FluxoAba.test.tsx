@@ -5,6 +5,7 @@ import type { Eu } from '@/acesso/eu';
 import fixture from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
+import { SOMBRA_DO_BLOCO_EM_EDICAO, tokens } from '@/theme/tokens';
 import { FluxoAba } from './FluxoAba';
 
 const construtor: Eu = {
@@ -410,6 +411,57 @@ describe('FluxoAba', () => {
     expect(screen.queryByRole('button', { name: 'Excluir bloco' })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toBeDisabled();
     expect(container.querySelectorAll('.react-flow__node.draggable')).toHaveLength(0);
+  });
+
+  it('numbersBlocksInOrder', async () => {
+    responderCom(rotas(construtor));
+    montar();
+    expect(within(await bloco('Buscar dados')).getByText('1.')).toBeInTheDocument();
+    expect(within(await bloco('Pedir escolha')).getByText('2.')).toBeInTheDocument();
+    expect(within(await bloco('Responder')).getByText('6.')).toBeInTheDocument();
+  });
+
+  it('marksBlockTypeWithLeftBar', async () => {
+    responderCom(rotas(construtor));
+    montar();
+    expect(await bloco('Buscar dados')).toHaveStyle({
+      borderLeftColor: tokens.color.studio.category.integrate,
+    });
+    expect(await bloco('Confirmar')).toHaveStyle({
+      borderLeftColor: tokens.color.studio.category.send,
+    });
+    expect(await bloco('Gravar no sistema')).toHaveStyle({
+      borderLeftColor: tokens.color.studio.category.logic,
+    });
+  });
+
+  it('onlyEditedBlockHasShadow', async () => {
+    responderCom(rotas(construtor));
+    montar();
+    await selecionar('Confirmar');
+    expect(await bloco('Confirmar')).toHaveStyle({ boxShadow: SOMBRA_DO_BLOCO_EM_EDICAO });
+    expect(await bloco('Buscar dados')).toHaveStyle({ boxShadow: 'none' });
+  });
+
+  it('showsReadOnlyBadgeForGestor', async () => {
+    responderCom(rotas(construtor));
+    const { unmount } = montar();
+    await bloco('Responder');
+    expect(screen.queryByText('Só leitura')).not.toBeInTheDocument();
+    unmount();
+
+    responderCom(rotas(gestor));
+    montar();
+    expect(await screen.findByText('Só leitura')).toBeInTheDocument();
+  });
+
+  it('hidesEditingControlsForGestor', async () => {
+    responderCom(rotas(gestor));
+    montar();
+    await selecionar('Buscar dados');
+    expect(screen.queryByRole('button', { name: /Adicionar bloco/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Excluir bloco' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Como o morador vê' })).toBeInTheDocument();
   });
 });
 

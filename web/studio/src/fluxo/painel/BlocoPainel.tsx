@@ -4,7 +4,8 @@ import { type ReactNode, useState } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import type { Bloco, Informacao, ProblemaFluxo } from '@/fluxo/modelo/tipos';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { tokens } from '@/theme/tokens';
+import { RAIOS, tokens } from '@/theme/tokens';
+import { ComoOMoradorVe } from './ComoOMoradorVe';
 import { CamposDoBloco, type CatalogoDeFerramentas } from './camposPorTipo';
 
 type Props = {
@@ -68,6 +69,25 @@ export function BlocoPainel({
         informacoes={informacoes}
         onMudar={onMudar}
       />
+      <Box
+        component="section"
+        aria-label="Como o morador vê"
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          p: 2,
+          borderRadius: `${RAIOS.painel}px`,
+          bgcolor: tokens.color.background.subtle,
+          border: 1,
+          borderColor: tokens.color.border.subtle,
+        }}
+      >
+        <Typography variant="caption" sx={{ fontWeight: 600, color: tokens.color.text.secondary }}>
+          Como o morador vê
+        </Typography>
+        <ComoOMoradorVe bloco={bloco} />
+      </Box>
       {podeExcluir && (
         <>
           <Divider />

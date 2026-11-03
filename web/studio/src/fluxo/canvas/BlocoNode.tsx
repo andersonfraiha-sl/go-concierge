@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import { ALTURA_BLOCO, ESPACO, LARGURA_BLOCO } from '@/fluxo/modelo/edicao';
 import type { Bloco, ProblemaFluxo } from '@/fluxo/modelo/tipos';
-import { tokens } from '@/theme/tokens';
+import { RAIOS, SOMBRA_DO_BLOCO_EM_EDICAO, tokens } from '@/theme/tokens';
 import { BotaoMais } from './ArestaComMais';
 
 export type DadosDoBloco = {
@@ -42,10 +42,14 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
         borderColor: selecionado
           ? tokens.color.studio.nodeSelected
           : tokens.color.studio.nodeBorder,
-        borderLeft: `4px solid ${cor}`,
-        borderRadius: 1.5,
+        borderLeftWidth: 4,
+        borderRadius: `${RAIOS.cartao}px`,
         cursor: 'pointer',
         transition: 'border-color 120ms ease',
+      }}
+      style={{
+        borderLeftColor: cor,
+        boxShadow: selecionado ? SOMBRA_DO_BLOCO_EM_EDICAO : 'none',
       }}
     >
       <Handle type="target" position={Position.Top} isConnectable={false} style={ALCA_INVISIVEL} />
@@ -56,6 +60,13 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
           posicao={{ x: LARGURA_BLOCO / 2, y: -ESPACO / 2 }}
         />
       )}
+      <Typography
+        component="span"
+        aria-hidden="true"
+        sx={{ width: 18, flexShrink: 0, fontSize: 11, fontWeight: 600, color: cor }}
+      >
+        {indice + 1}.
+      </Typography>
       <Box
         sx={{
           width: 32,
