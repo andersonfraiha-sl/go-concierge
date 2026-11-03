@@ -76,7 +76,7 @@ export function salvarFluxo(nome: string, corpo: { versao: string; fluxo: Fluxo 
 }
 
 /** Mutation que, ao dar certo, refaz a lista de skills. */
-function useMutationDeSkills<V>(enviar: (variaveis: V) => Promise<unknown>) {
+function useMutationDeSkills<V, R>(enviar: (variaveis: V) => Promise<R>) {
   const cliente = useQueryClient();
   return useMutation({
     mutationFn: enviar,
