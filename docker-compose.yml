@@ -35,7 +35,7 @@ services:
       # o front, servido do disco: mexeu em web/okf, é só recarregar a página
       - ./web/okf:/app/web:ro
     ports:
-      - "${CONCIERGE_PORT:-8090}:8090"
+      - "127.0.0.1:${CONCIERGE_PORT:-8090}:8090"
     depends_on:
       postgres:
         condition: service_healthy
