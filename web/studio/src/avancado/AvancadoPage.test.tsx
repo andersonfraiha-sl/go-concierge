@@ -262,6 +262,25 @@ describe('AvancadoPage', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
   });
 
+  it('keepsLineNumbersAlignedWithAVeryLongLine', async () => {
+    const linhaMuitoLonga = 'x'.repeat(400);
+    const conteudo = [linhaMuitoLonga, 'linha 2', 'linha 3', 'linha 4', 'linha 5'].join('\n');
+    responderCom(
+      rotas(construtor, {
+        'GET /api/arquivo': () => json({ caminho: 'rules/politicas.md', conteudo }),
+      }),
+    );
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await screen.findByLabelText('Conteúdo de rules/politicas.md');
+    const numerosExibidos = (
+      await screen.findByText(
+        (_, elemento) => elemento?.tagName === 'PRE' && /^1\n/.test(elemento.textContent ?? ''),
+      )
+    ).textContent;
+    expect(numerosExibidos).toBe('1\n2\n3\n4\n5');
+  });
+
   it('gestorWithGrantReadsOnly', async () => {
     responderCom(rotas(gestorAvancado));
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
