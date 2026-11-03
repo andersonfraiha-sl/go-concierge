@@ -222,8 +222,7 @@ func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, text
 	for i, parte := range partes {
 		formatada := FormatarMensagem(parte)
 		corpo, err := json.Marshal(map[string]any{
-			"contact": map[string]string{"phone": "5519981621916"},
-			// "contact": map[string]string{"phone": destino.Telefone},
+			"contact": map[string]string{"phone": destino.Telefone},
 			"message": map[string]string{"type": "text", "text": formatada},
 		})
 		if err != nil {
