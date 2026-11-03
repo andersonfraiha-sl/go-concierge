@@ -91,6 +91,30 @@ export function useProjecao(caminho: string) {
 export const MODOS_DE_ORQUESTRACAO = ['router', 'planning', 'react'] as const;
 export type ModoDeOrquestracao = (typeof MODOS_DE_ORQUESTRACAO)[number];
 
+/** Nome, descrição e quando usar cada modo, para a aba Orquestração. */
+export const MODOS: Record<
+  ModoDeOrquestracao,
+  { nome: string; descricao: string; quando: string }
+> = {
+  router: {
+    nome: 'Router',
+    descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.',
+    quando: 'Pedidos de um item só.',
+  },
+  planning: {
+    nome: 'Planning',
+    descricao:
+      'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
+    quando: 'Mensagens com vários pedidos; menos idas e vindas.',
+  },
+  react: {
+    nome: 'ReAct',
+    descricao:
+      'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
+    quando: 'Pedidos abertos, em que o próximo passo depende do resultado do anterior.',
+  },
+};
+
 const ModoSchema = z.enum(MODOS_DE_ORQUESTRACAO);
 
 const AjusteSchema = z.object({
@@ -131,6 +155,8 @@ export const LIMITES_DE_ORQUESTRACAO = [
     max: 1,
     passo: 0.05,
     texto: 'entre 0,5 e 1',
+    ajuda:
+      'Abaixo disso, o item vira pergunta de confirmação ao morador antes de executar (0,5 a 1).',
   },
   {
     campo: 'max_itens',
@@ -139,6 +165,7 @@ export const LIMITES_DE_ORQUESTRACAO = [
     max: 10,
     passo: 1,
     texto: 'entre 1 e 10',
+    ajuda: 'Quantos pedidos o plano aceita de uma vez (1 a 10).',
   },
   {
     campo: 'max_iteracoes',
@@ -147,6 +174,7 @@ export const LIMITES_DE_ORQUESTRACAO = [
     max: 15,
     passo: 1,
     texto: 'entre 1 e 15',
+    ajuda: 'Passos de pensar e agir por mensagem; no limite, junta o que já tem (1 a 15).',
   },
 ] as const satisfies ReadonlyArray<{
   campo: keyof Orquestracao;
@@ -155,6 +183,7 @@ export const LIMITES_DE_ORQUESTRACAO = [
   max: number;
   passo: number;
   texto: string;
+  ajuda: string;
 }>;
 
 export type LimiteFurado = {
