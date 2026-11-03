@@ -1,10 +1,12 @@
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import { Box, IconButton, Paper, TextField, Typography } from '@mui/material';
+import { Box, IconButton, Paper, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { chaveDoArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 
 type Props = {
@@ -44,14 +46,14 @@ function Editor({
   inicial,
 }: Props & { inicial: string }): ReactNode {
   const cliente = useQueryClient();
-  const [texto, setTexto] = useState(inicial);
+  const { control } = useForm({ defaultValues: { texto: inicial } });
   // Mantém o cache em dia: voltar à aba remonta o editor a partir do que foi salvo, não do que foi lido.
   const salvar = async (conteudo: string): Promise<void> => {
     await salvarArquivo({ agente, caminho, conteudo });
     cliente.setQueryData(chaveDoArquivo(agente, caminho), { caminho, conteudo });
   };
   const { estado, tentarDeNovo } = useAutosave({
-    valor: texto,
+    valor: useWatch({ control, name: 'texto' }),
     salvar,
     bloqueio: descartar ? 'arquivo em exclusão' : null,
   });
@@ -69,13 +71,13 @@ function Editor({
           </IconButton>
         )}
       </Box>
-      <TextField
+      <CampoTexto
+        control={control}
+        name="texto"
         multiline
         minRows={4}
         fullWidth
         disabled={!editavel}
-        value={texto}
-        onChange={(e) => setTexto(e.target.value)}
         slotProps={{ htmlInput: { 'aria-label': titulo } }}
       />
     </Paper>

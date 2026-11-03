@@ -1,3 +1,4 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Box,
   Button,
@@ -11,13 +12,14 @@ import {
   Link as LinkExterno,
   Tab,
   Tabs,
-  TextField,
   Typography,
 } from '@mui/material';
 import { type ReactNode, useState } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router';
+import { z } from 'zod';
 import { usePodeEditarCondominio } from '@/acesso/eu';
-import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { paraIdentificador } from '@/skills/contratos';
 import { AdministradorasAba } from './AdministradorasAba';
@@ -167,52 +169,61 @@ function CartaoDeCondominio({ id, titulo, legenda, destaque = false }: CartaoPro
 
 type NovoProps = { aberto: boolean; estado: Estado; onFechar: () => void };
 
+const esquemaDoNovo = (estado: Estado) =>
+  z.object({
+    nome: z
+      .string()
+      .refine((nome) => paraIdentificador(nome) !== '', 'Use letras ou números no nome.')
+      .refine((nome) => {
+        const id = paraIdentificador(nome);
+        return id !== PADRAO && !estado.mapeamento.condominios.some((c) => c.id === id);
+      }, 'Já existe um condomínio com esse nome.'),
+    administradora: z.string(),
+  });
+
 function NovoCondominio({ aberto, estado, onFechar }: NovoProps): ReactNode {
   const escopo = useEscopo() ?? null;
   const { executar, gravando } = useExecutar();
   const navegar = useNavigate();
-  const { mostrar } = useSnackbar();
-  const [nome, setNome] = useState('');
-  const [administradora, setAdministradora] = useState('');
-  const donaDoNovo = escopo ?? administradora;
+  const { control, handleSubmit, reset } = useForm({
+    resolver: zodResolver(esquemaDoNovo(estado)),
+    defaultValues: { nome: '', administradora: '' },
+  });
+  const nome = useWatch({ control, name: 'nome' });
 
-  async function criar(): Promise<void> {
+  const criar = handleSubmit(async ({ nome, administradora }) => {
     const id = paraIdentificador(nome);
-    if (id === '') return mostrar('Use letras ou números no nome.', 'error');
-    if (id === PADRAO || estado.mapeamento.condominios.some((c) => c.id === id)) {
-      return mostrar('Já existe um condomínio com esse nome.', 'error');
-    }
     const novo: Condominio = {
       id,
       nome: nome.trim(),
-      administradora_id: donaDoNovo,
+      administradora_id: escopo ?? administradora,
       account: '',
       company_id: '',
       tenant: '',
     };
     const criado = await executar((e) => salvarCondominio(novo, e), 'Condomínio criado.');
     if (!criado) return;
-    setNome('');
+    reset();
     onFechar();
     void navegar(`/condominios/${encodeURIComponent(id)}`);
-  }
+  });
 
   return (
     <Dialog open={aberto} onClose={onFechar} fullWidth maxWidth="xs">
       <DialogTitle>Novo condomínio</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <TextField
-          autoFocus
-          label="Nome"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          sx={{ mt: 1 }}
-        />
+        <CampoTexto control={control} name="nome" autoFocus label="Nome" sx={{ mt: 1 }} />
         {escopo === null && (
-          <SeletorDeAdministradora
-            administradoras={estado.administradoras}
-            valor={administradora}
-            onMudar={setAdministradora}
+          <Controller
+            control={control}
+            name="administradora"
+            render={({ field }) => (
+              <SeletorDeAdministradora
+                administradoras={estado.administradoras}
+                valor={field.value}
+                onMudar={field.onChange}
+              />
+            )}
           />
         )}
       </DialogContent>

@@ -1,5 +1,6 @@
 import { ButtonBase, InputBase, Typography } from '@mui/material';
 import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 
 type Props = {
   valor: string;
@@ -11,7 +12,8 @@ type Props = {
 const estiloTitulo = { fontSize: 18, fontWeight: 600 } as const;
 
 export function InlineTitle({ valor, editavel, onMudar, rotulo }: Props): ReactNode {
-  const [rascunho, setRascunho] = useState<string | null>(null);
+  const [editando, setEditando] = useState(false);
+  const { control, getValues, reset } = useForm({ defaultValues: { rascunho: valor } });
   const cancelado = useRef(false);
 
   if (!editavel) {
@@ -22,13 +24,14 @@ export function InlineTitle({ valor, editavel, onMudar, rotulo }: Props): ReactN
     );
   }
 
-  if (rascunho === null) {
+  if (!editando) {
     return (
       <ButtonBase
         aria-label={`Editar ${rotulo}`}
         onClick={() => {
           cancelado.current = false;
-          setRascunho(valor);
+          reset({ rascunho: valor });
+          setEditando(true);
         }}
         sx={{ ...estiloTitulo, justifyContent: 'flex-start', borderRadius: 1, px: 0.5 }}
       >
@@ -38,8 +41,8 @@ export function InlineTitle({ valor, editavel, onMudar, rotulo }: Props): ReactN
   }
 
   const confirmar = () => {
-    const aparado = rascunho.trim();
-    setRascunho(null);
+    const aparado = getValues('rascunho').trim();
+    setEditando(false);
     if (!cancelado.current && aparado !== '' && aparado !== valor) onMudar(aparado);
   };
 
@@ -47,19 +50,25 @@ export function InlineTitle({ valor, editavel, onMudar, rotulo }: Props): ReactN
     if (e.key === 'Enter') confirmar();
     if (e.key === 'Escape') {
       cancelado.current = true;
-      setRascunho(null);
+      setEditando(false);
     }
   };
 
   return (
-    <InputBase
-      autoFocus
-      inputProps={{ 'aria-label': rotulo }}
-      value={rascunho}
-      onChange={(e) => setRascunho(e.target.value)}
-      onBlur={confirmar}
-      onKeyDown={aoTeclar}
-      sx={{ ...estiloTitulo, minWidth: 200 }}
+    <Controller
+      control={control}
+      name="rascunho"
+      render={({ field }) => (
+        <InputBase
+          autoFocus
+          inputProps={{ 'aria-label': rotulo }}
+          value={field.value}
+          onChange={field.onChange}
+          onBlur={confirmar}
+          onKeyDown={aoTeclar}
+          sx={{ ...estiloTitulo, minWidth: 200 }}
+        />
+      )}
     />
   );
 }

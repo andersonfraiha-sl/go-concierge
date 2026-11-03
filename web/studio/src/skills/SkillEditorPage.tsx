@@ -1,9 +1,11 @@
 import { Box, CircularProgress, Tab, Tabs } from '@mui/material';
-import { type ReactNode, useRef, useState } from 'react';
+import { type ReactNode, useRef } from 'react';
+import { type Control, Controller, useForm } from 'react-hook-form';
 import { useParams, useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { useValoresDoFormulario } from '@/shared/autosave/useValoresDoFormulario';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { InlineTitle } from '@/shared/ui/InlineTitle';
 import { ConhecimentoAba } from './abas/ConhecimentoAba';
@@ -61,7 +63,8 @@ export function SkillEditorPage(): ReactNode {
 type EditorProps = { nome: string; caminho: string; textosLidos: Textos; versaoLida: string };
 
 function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactNode {
-  const [textos, setTextos] = useState(textosLidos);
+  const { control } = useForm({ defaultValues: textosLidos });
+  const textos = useValoresDoFormulario(control);
   const versao = useRef(versaoLida);
   const editavel = usePodeEditar('skills.editar_textos');
   const [params, setParams] = useSearchParams();
@@ -81,11 +84,17 @@ function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactN
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <InlineTitle
-          rotulo="Nome da skill"
-          valor={textos.titulo}
-          editavel={editavel}
-          onMudar={(titulo) => setTextos({ ...textos, titulo })}
+        <Controller
+          control={control}
+          name="titulo"
+          render={({ field }) => (
+            <InlineTitle
+              rotulo="Nome da skill"
+              valor={field.value}
+              editavel={editavel}
+              onMudar={field.onChange}
+            />
+          )}
         />
         <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
       </Box>
@@ -102,9 +111,8 @@ function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactN
         aba={aba}
         nome={nome}
         caminho={caminho}
-        textos={textos}
+        control={control}
         editavel={editavel}
-        onMudar={setTextos}
       />
     </Box>
   );
@@ -114,22 +122,14 @@ type ConteudoProps = {
   aba: AbaId;
   nome: string;
   caminho: string;
-  textos: Textos;
+  control: Control<Textos>;
   editavel: boolean;
-  onMudar: (textos: Textos) => void;
 };
 
-function ConteudoDaAba({
-  aba,
-  nome,
-  caminho,
-  textos,
-  editavel,
-  onMudar,
-}: ConteudoProps): ReactNode {
+function ConteudoDaAba({ aba, nome, caminho, control, editavel }: ConteudoProps): ReactNode {
   switch (aba) {
     case 'quando-usar':
-      return <QuandoUsarAba textos={textos} editavel={editavel} onMudar={onMudar} />;
+      return <QuandoUsarAba control={control} editavel={editavel} />;
     case 'fluxo':
       return <FluxoAba nome={nome} caminho={caminho} />;
     case 'regras':

@@ -1,8 +1,12 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import AddIcon from '@mui/icons-material/Add';
 import { Box, Button, MenuItem, TextField, Typography } from '@mui/material';
-import { type ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { z } from 'zod';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { type Informacao, InformacaoSchema } from '@/fluxo/modelo/tipos';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { paraIdentificador } from '@/skills/contratos';
 
 type Props = {
@@ -156,6 +160,16 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
   );
 }
 
+const esquemaDaNova = (existentes: string[]) =>
+  z.object({
+    texto: z
+      .string()
+      .refine(
+        (texto) => !existentes.includes(nomeDaInformacao(texto)),
+        'Já existe uma informação com esse nome.',
+      ),
+  });
+
 function NovaInformacao({
   existentes,
   onAdicionar,
@@ -163,30 +177,33 @@ function NovaInformacao({
   existentes: string[];
   onAdicionar: (nome: string) => void;
 }): ReactNode {
-  const [texto, setTexto] = useState('');
-  const nome = nomeDaInformacao(texto);
+  // onChange: a repetição aparece enquanto se digita, não só ao tentar adicionar.
+  const { control, handleSubmit, reset } = useForm({
+    mode: 'onChange',
+    resolver: zodResolver(esquemaDaNova(existentes)),
+    defaultValues: { texto: '' },
+  });
+  const nome = nomeDaInformacao(useWatch({ control, name: 'texto' }));
   const repetida = existentes.includes(nome);
-  const adicionar = () => {
-    if (nome === '' || repetida) return;
-    onAdicionar(nome);
-    setTexto('');
-  };
+  const adicionar = handleSubmit(({ texto }) => {
+    if (nomeDaInformacao(texto) === '') return;
+    onAdicionar(nomeDaInformacao(texto));
+    reset();
+  });
   return (
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-      <TextField
+      <CampoTexto
+        control={control}
+        name="texto"
         size="small"
         fullWidth
         label="Nome da nova informação"
-        value={texto}
-        error={repetida}
-        helperText={repetida ? 'Já existe uma informação com esse nome.' : undefined}
-        onChange={(e) => setTexto(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && adicionar()}
+        onKeyDown={(e) => e.key === 'Enter' && void adicionar()}
       />
       <Button
         startIcon={<AddIcon />}
         disabled={nome === '' || repetida}
-        onClick={adicionar}
+        onClick={() => void adicionar()}
         sx={{ flexShrink: 0 }}
       >
         Adicionar informação

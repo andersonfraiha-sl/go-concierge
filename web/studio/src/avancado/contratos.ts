@@ -157,12 +157,17 @@ export const LIMITES_DE_ORQUESTRACAO = [
   texto: string;
 }>;
 
-/** Mensagens de quem ficou fora dos limites; lista vazia quando o ajuste vale. */
-export function validarOrquestracao(ajuste: Orquestracao): string[] {
+export type LimiteFurado = {
+  campo: (typeof LIMITES_DE_ORQUESTRACAO)[number]['campo'];
+  mensagem: string;
+};
+
+/** Campos fora dos limites, com a mensagem; lista vazia quando o ajuste vale. */
+export function validarOrquestracao(ajuste: Orquestracao): LimiteFurado[] {
   return LIMITES_DE_ORQUESTRACAO.filter(({ campo, min, max }) => {
     const valor = ajuste[campo];
     return Number.isNaN(valor) || valor < min || valor > max;
-  }).map(({ rotulo, texto }) => `${rotulo} deve ficar ${texto}.`);
+  }).map(({ campo, rotulo, texto }) => ({ campo, mensagem: `${rotulo} deve ficar ${texto}.` }));
 }
 
 // ---- importar e exportar ----

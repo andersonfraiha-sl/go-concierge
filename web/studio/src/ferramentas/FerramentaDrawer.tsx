@@ -1,3 +1,4 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Alert,
   Box,
@@ -13,9 +14,12 @@ import {
 } from '@mui/material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { ApiError } from '@/shared/api/http';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import {
   ferramentaNova,
@@ -44,17 +48,58 @@ const VISIBILIDADES = { private: 'Só morador identificado', public: 'Qualquer c
 
 const rotuloDoCampo = (rotulo: string) => ({ htmlInput: { 'aria-label': rotulo } });
 
+type Definicao = Ferramenta['definicoes'][number];
+// Os tipos do react-hook-form não instanciam sobre JSON recursivo (TS2589): no formulário o
+// padrão do ajuste é opaco, e amostra e schema ficam de fora (a amostra é editada como texto).
+type RecursoNoFormulario = Omit<Ferramenta, 'amostra' | 'schema' | 'definicoes'> & {
+  definicoes: (Omit<Definicao, 'default'> & { default?: unknown })[];
+};
+
+const ValorJson = z.json();
+
+/** Devolve ao recurso o que ficou fora do formulário; o padrão veio do servidor, então é JSON. */
+function recursoCompleto(inicial: Ferramenta, recurso: RecursoNoFormulario): Ferramenta {
+  return {
+    ...inicial,
+    ...recurso,
+    definicoes: recurso.definicoes.map(({ default: padrao, ...definicao }) => ({
+      ...definicao,
+      ...(padrao === undefined ? {} : { default: ValorJson.parse(padrao) }),
+    })),
+  };
+}
+
+type Valores = { recurso: RecursoNoFormulario; textoAmostra: string };
+
+const valoresIniciais = (inicial: Ferramenta, ferramenta: Ferramenta | null): Valores => ({
+  recurso: inicial,
+  textoAmostra: ferramenta ? textoDaAmostra(ferramenta) : '',
+});
+
+// O recurso chega já validado pela borda da API; aqui só valem as regras do que se digita.
+const FormularioSchema = z
+  .object({ recurso: z.custom<RecursoNoFormulario>(), textoAmostra: z.string() })
+  .superRefine(({ recurso, textoAmostra }, contexto) => {
+    if (recurso.name.trim() === '') {
+      contexto.addIssue({ code: 'custom', path: ['recurso', 'name'], message: 'Informe o nome.' });
+    }
+    if (!lerAmostra(textoAmostra).ok) {
+      contexto.addIssue({ code: 'custom', path: ['textoAmostra'], message: 'JSON inválido' });
+    }
+  });
+
 export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): ReactNode {
   const clienteDeConsultas = useQueryClient();
   const { mostrar } = useSnackbar();
   const original = ferramenta?.name ?? '';
-  const [rascunho, setRascunho] = useState<Ferramenta>(ferramenta ?? ferramentaNova());
-  const [textoAmostra, setTextoAmostra] = useState(ferramenta ? textoDaAmostra(ferramenta) : '');
-  const [erroAmostra, setErroAmostra] = useState(false);
-  const [erroNome, setErroNome] = useState(false);
+  const inicial = ferramenta ?? ferramentaNova();
   const [recusadaPeloServidor, setRecusadaPeloServidor] = useState(false);
-  const [mensagemDeErro, setMensagemDeErro] = useState<string | null>(null);
   const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
+  const { control, handleSubmit, setError, formState } = useForm({
+    resolver: zodResolver(FormularioSchema),
+    defaultValues: valoresIniciais(inicial, ferramenta),
+  });
+  const mensagemDeErro = formState.errors.root?.message;
 
   const foraDoStudio = (ferramenta !== null && mantidaFora(ferramenta)) || recusadaPeloServidor;
   const travado = !podeEditar || foraDoStudio;
@@ -67,7 +112,7 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
     };
   const aoFalhar = (erro: Error) => {
     if (erro instanceof ApiError && erro.status === 409) return setRecusadaPeloServidor(true);
-    setMensagemDeErro(erro.message);
+    setError('root', { message: erro.message });
   };
 
   const salvar = useMutation({
@@ -81,20 +126,11 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
     onError: aoFalhar,
   });
 
-  const mudar = (parcial: Partial<Ferramenta>) =>
-    setRascunho((atual) => ({ ...atual, ...parcial }));
-  const mudarConexao = (parcial: Partial<NonNullable<Ferramenta['conexao']>>) =>
-    mudar({ conexao: { ...rascunho.conexao, ...parcial } });
-
-  const enviar = () => {
-    setMensagemDeErro(null);
+  const enviar = handleSubmit(({ recurso, textoAmostra }) => {
     const amostra = lerAmostra(textoAmostra);
-    const semNome = rascunho.name.trim() === '';
-    setErroNome(semNome);
-    setErroAmostra(!amostra.ok);
-    if (semNome || !amostra.ok) return;
-    salvar.mutate({ original, recurso: paraGravar(rascunho, amostra) });
-  };
+    if (!amostra.ok) return;
+    salvar.mutate({ original, recurso: paraGravar(recursoCompleto(inicial, recurso), amostra) });
+  });
 
   return (
     <Drawer
@@ -108,10 +144,7 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
       <Box
         component="form"
         noValidate
-        onSubmit={(evento) => {
-          evento.preventDefault();
-          enviar();
-        }}
+        onSubmit={(evento) => void enviar(evento)}
         sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}
       >
         <Typography variant="h6" component="h2">
@@ -120,253 +153,257 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
         {foraDoStudio && <Alert severity="info">{AVISO_FORA_DO_STUDIO}</Alert>}
         {mensagemDeErro && <Alert severity="error">{mensagemDeErro}</Alert>}
 
-        <TextField
-          label="Nome"
-          value={rascunho.name}
-          disabled={travado}
-          error={erroNome}
-          helperText={erroNome ? 'Informe o nome.' : undefined}
-          onChange={(e) => mudar({ name: e.target.value })}
-        />
-        <TextField
-          label="Título"
-          value={rascunho.titulo ?? ''}
-          disabled={travado}
-          onChange={(e) => mudar({ titulo: e.target.value })}
-        />
-        <TextField
-          select
-          label="Tipo"
-          value={rascunho.kind}
-          disabled={travado}
-          onChange={(e) => mudar({ kind: e.target.value })}
-        >
-          {tiposComAtual(rascunho.kind).map(([valor, rotulo]) => (
+        <CampoTexto control={control} name="recurso.name" label="Nome" disabled={travado} />
+        <CampoTexto control={control} name="recurso.titulo" label="Título" disabled={travado} />
+        <CampoTexto control={control} name="recurso.kind" select label="Tipo" disabled={travado}>
+          {tiposComAtual(inicial.kind).map(([valor, rotulo]) => (
             <MenuItem key={valor} value={valor}>
               {rotulo}
             </MenuItem>
           ))}
-        </TextField>
-        <TextField
+        </CampoTexto>
+        <CampoTexto
+          control={control}
+          name="recurso.visibility"
           select
           label="Visibilidade"
-          value={rascunho.visibility}
           disabled={travado}
-          onChange={(e) => mudar({ visibility: e.target.value })}
         >
           {Object.entries(VISIBILIDADES).map(([valor, rotulo]) => (
             <MenuItem key={valor} value={valor}>
               {rotulo}
             </MenuItem>
           ))}
-        </TextField>
-        <FormControlLabel
-          label="Grava no sistema"
-          control={
-            <Switch
-              checked={rascunho.write}
-              disabled={travado}
-              onChange={(e) => mudar({ write: e.target.checked })}
+        </CampoTexto>
+        <Controller
+          control={control}
+          name="recurso.write"
+          render={({ field }) => (
+            <FormControlLabel
+              label="Grava no sistema"
+              control={
+                <Switch
+                  checked={field.value}
+                  disabled={travado}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                />
+              }
             />
-          }
+          )}
         />
-        <TextField
+        <CampoTexto
+          control={control}
+          name="recurso.description"
           label="Descrição"
-          value={rascunho.description}
           disabled={travado}
           multiline
           minRows={2}
-          onChange={(e) => mudar({ description: e.target.value })}
         />
 
-        <ListaEditavel<Ferramenta['params'][number]>
-          titulo="Parâmetros"
-          adicionar="Adicionar parâmetro"
-          linhas={rascunho.params}
-          desabilitado={travado}
-          criarLinha={() => ({ name: '', type: 'string', required: false })}
-          onMudar={(params) => mudar({ params })}
-          renderLinha={(p, mudarLinha) => (
-            <>
-              <TextField
-                size="small"
-                placeholder="unidade_id"
-                value={p.name}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Nome do parâmetro')}
-                onChange={(e) => mudarLinha({ name: e.target.value })}
-              />
-              <TextField
-                select
-                size="small"
-                value={p.type ?? 'string'}
-                disabled={travado}
-                slotProps={{ ...rotuloDoCampo('Tipo do parâmetro'), select: { native: true } }}
-                onChange={(e) => mudarLinha({ type: e.target.value })}
-              >
-                {TIPOS_DE_DADO.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </TextField>
-              <FormControlLabel
-                label="Obrigatório"
-                control={
-                  <Checkbox
+        <Controller
+          control={control}
+          name="recurso.params"
+          render={({ field }) => (
+            <ListaEditavel<Ferramenta['params'][number]>
+              titulo="Parâmetros"
+              adicionar="Adicionar parâmetro"
+              linhas={field.value}
+              desabilitado={travado}
+              criarLinha={() => ({ name: '', type: 'string', required: false })}
+              onMudar={field.onChange}
+              renderLinha={(p, mudarLinha) => (
+                <>
+                  <TextField
                     size="small"
-                    checked={p.required ?? false}
+                    placeholder="unidade_id"
+                    value={p.name}
                     disabled={travado}
-                    onChange={(e) => mudarLinha({ required: e.target.checked })}
+                    slotProps={rotuloDoCampo('Nome do parâmetro')}
+                    onChange={(e) => mudarLinha({ name: e.target.value })}
                   />
-                }
-              />
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="O que é, formato, exemplo"
-                value={p.description ?? ''}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Descrição do parâmetro')}
-                onChange={(e) => mudarLinha({ description: e.target.value })}
-              />
-            </>
+                  <TextField
+                    select
+                    size="small"
+                    value={p.type ?? 'string'}
+                    disabled={travado}
+                    slotProps={{ ...rotuloDoCampo('Tipo do parâmetro'), select: { native: true } }}
+                    onChange={(e) => mudarLinha({ type: e.target.value })}
+                  >
+                    {TIPOS_DE_DADO.map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
+                  </TextField>
+                  <FormControlLabel
+                    label="Obrigatório"
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={p.required ?? false}
+                        disabled={travado}
+                        onChange={(e) => mudarLinha({ required: e.target.checked })}
+                      />
+                    }
+                  />
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="O que é, formato, exemplo"
+                    value={p.description ?? ''}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Descrição do parâmetro')}
+                    onChange={(e) => mudarLinha({ description: e.target.value })}
+                  />
+                </>
+              )}
+            />
           )}
         />
 
-        <ListaEditavel<Ferramenta['saida'][number]>
-          titulo="Saída"
-          adicionar="Adicionar campo de saída"
-          linhas={rascunho.saida}
-          desabilitado={travado}
-          criarLinha={() => ({ name: '' })}
-          onMudar={(saida) => mudar({ saida })}
-          renderLinha={(s, mudarLinha) => (
-            <>
-              <TextField
-                size="small"
-                placeholder="itens"
-                value={s.name}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Nome do campo de saída')}
-                onChange={(e) => mudarLinha({ name: e.target.value })}
-              />
-              <TextField
-                size="small"
-                placeholder="data.items[].id"
-                value={s.path ?? ''}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Caminho do campo de saída')}
-                onChange={(e) => mudarLinha({ path: e.target.value })}
-              />
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="O que o campo significa"
-                value={s.description ?? ''}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Descrição do campo de saída')}
-                onChange={(e) => mudarLinha({ description: e.target.value })}
-              />
-            </>
+        <Controller
+          control={control}
+          name="recurso.saida"
+          render={({ field }) => (
+            <ListaEditavel<Ferramenta['saida'][number]>
+              titulo="Saída"
+              adicionar="Adicionar campo de saída"
+              linhas={field.value}
+              desabilitado={travado}
+              criarLinha={() => ({ name: '' })}
+              onMudar={field.onChange}
+              renderLinha={(s, mudarLinha) => (
+                <>
+                  <TextField
+                    size="small"
+                    placeholder="itens"
+                    value={s.name}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Nome do campo de saída')}
+                    onChange={(e) => mudarLinha({ name: e.target.value })}
+                  />
+                  <TextField
+                    size="small"
+                    placeholder="data.items[].id"
+                    value={s.path ?? ''}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Caminho do campo de saída')}
+                    onChange={(e) => mudarLinha({ path: e.target.value })}
+                  />
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="O que o campo significa"
+                    value={s.description ?? ''}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Descrição do campo de saída')}
+                    onChange={(e) => mudarLinha({ description: e.target.value })}
+                  />
+                </>
+              )}
+            />
           )}
         />
-        <TextField
+        <CampoTexto
+          control={control}
+          name="recurso.output"
           label="Resultado principal"
-          value={rascunho.output ?? ''}
           disabled={travado}
-          onChange={(e) => mudar({ output: e.target.value })}
         />
 
         <Stack component="section" aria-label="Conexão" spacing={1.5}>
           <Typography variant="subtitle2" component="h3">
             Conexão
           </Typography>
-          <TextField
+          <CampoTexto
+            control={control}
+            name="recurso.conexao.metodo"
             select
             label="Método"
-            value={rascunho.conexao?.metodo ?? ''}
             disabled={travado}
             slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-            onChange={(e) => mudarConexao({ metodo: e.target.value })}
           >
             {METODOS.map((metodo) => (
               <option key={metodo} value={metodo}>
                 {metodo || '—'}
               </option>
             ))}
-          </TextField>
-          <TextField
+          </CampoTexto>
+          <CampoTexto
+            control={control}
+            name="recurso.conexao.url"
             label="Endereço"
-            value={rascunho.conexao?.url ?? ''}
             disabled={travado}
-            onChange={(e) => mudarConexao({ url: e.target.value })}
           />
-          <TextField
+          <CampoTexto
+            control={control}
+            name="recurso.conexao.corpo"
             label="Corpo da chamada"
-            value={rascunho.conexao?.corpo ?? ''}
             disabled={travado}
             multiline
             minRows={2}
-            onChange={(e) => mudarConexao({ corpo: e.target.value })}
           />
         </Stack>
 
-        <TextField
+        <CampoTexto
+          control={control}
+          name="textoAmostra"
           label="Amostra de retorno"
-          value={textoAmostra}
           disabled={travado}
           multiline
           minRows={4}
-          error={erroAmostra}
-          helperText={erroAmostra ? 'JSON inválido' : undefined}
           slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
-          onChange={(e) => setTextoAmostra(e.target.value)}
         />
 
-        <ListaEditavel<Ferramenta['definicoes'][number]>
-          titulo="Ajustes por condomínio"
-          adicionar="Adicionar ajuste"
-          linhas={rascunho.definicoes}
-          desabilitado={travado}
-          criarLinha={() => ({ name: '', label: '', options: [] })}
-          onMudar={(definicoes) => mudar({ definicoes })}
-          renderLinha={(d, mudarLinha) => (
-            <>
-              <TextField
-                size="small"
-                placeholder="prazo_dias"
-                value={d.name}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Nome do ajuste')}
-                onChange={(e) => mudarLinha({ name: e.target.value })}
-              />
-              <TextField
-                size="small"
-                placeholder="Como aparece para o condomínio"
-                value={d.label}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Rótulo do ajuste')}
-                onChange={(e) => mudarLinha({ label: e.target.value })}
-              />
-              <TextField
-                size="small"
-                placeholder="Opções, separadas por vírgula"
-                value={d.options.join(',')}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Opções do ajuste')}
-                onChange={(e) => mudarLinha({ options: e.target.value.split(',') })}
-              />
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="Para que serve"
-                value={d.description ?? ''}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Descrição do ajuste')}
-                onChange={(e) => mudarLinha({ description: e.target.value })}
-              />
-            </>
+        <Controller
+          control={control}
+          name="recurso.definicoes"
+          render={({ field }) => (
+            <ListaEditavel<RecursoNoFormulario['definicoes'][number]>
+              titulo="Ajustes por condomínio"
+              adicionar="Adicionar ajuste"
+              linhas={field.value}
+              desabilitado={travado}
+              criarLinha={() => ({ name: '', label: '', options: [] })}
+              onMudar={field.onChange}
+              renderLinha={(d, mudarLinha) => (
+                <>
+                  <TextField
+                    size="small"
+                    placeholder="prazo_dias"
+                    value={d.name}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Nome do ajuste')}
+                    onChange={(e) => mudarLinha({ name: e.target.value })}
+                  />
+                  <TextField
+                    size="small"
+                    placeholder="Como aparece para o condomínio"
+                    value={d.label}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Rótulo do ajuste')}
+                    onChange={(e) => mudarLinha({ label: e.target.value })}
+                  />
+                  <TextField
+                    size="small"
+                    placeholder="Opções, separadas por vírgula"
+                    value={d.options.join(',')}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Opções do ajuste')}
+                    onChange={(e) => mudarLinha({ options: e.target.value.split(',') })}
+                  />
+                  <TextField
+                    size="small"
+                    fullWidth
+                    placeholder="Para que serve"
+                    value={d.description ?? ''}
+                    disabled={travado}
+                    slotProps={rotuloDoCampo('Descrição do ajuste')}
+                    onChange={(e) => mudarLinha({ description: e.target.value })}
+                  />
+                </>
+              )}
+            />
           )}
         />
 

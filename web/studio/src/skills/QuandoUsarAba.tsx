@@ -1,44 +1,50 @@
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { Box, Button, Chip, IconButton, TextField, Typography } from '@mui/material';
-import { type KeyboardEvent, type ReactNode, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
+import { type Control, Controller, useForm, useWatch } from 'react-hook-form';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import type { Textos } from './contratos';
 
 type Props = {
-  textos: Textos;
+  control: Control<Textos>;
   editavel: boolean;
-  onMudar: (textos: Textos) => void;
 };
 
-export function QuandoUsarAba({ textos, editavel, onMudar }: Props): ReactNode {
+export function QuandoUsarAba({ control, editavel }: Props): ReactNode {
+  const temFluxo = useWatch({ control, name: 'temFluxo' });
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <SectionCard
         titulo="Quando usar"
         ajuda="Diga em uma frase quando a assistente deve usar esta skill."
       >
-        <TextField
+        <CampoTexto
+          control={control}
+          name="quandoUsar"
           multiline
           minRows={2}
           fullWidth
           disabled={!editavel}
-          value={textos.quandoUsar}
-          onChange={(e) => onMudar({ ...textos, quandoUsar: e.target.value })}
           slotProps={{ htmlInput: { 'aria-label': 'Quando usar' } }}
         />
       </SectionCard>
-      {textos.temFluxo && (
+      {temFluxo && (
         <>
-          <PalavrasChave
-            palavras={textos.palavrasChave}
-            editavel={editavel}
-            onMudar={(palavrasChave) => onMudar({ ...textos, palavrasChave })}
+          <Controller
+            control={control}
+            name="palavrasChave"
+            render={({ field }) => (
+              <PalavrasChave palavras={field.value} editavel={editavel} onMudar={field.onChange} />
+            )}
           />
-          <FrasesDeExemplo
-            frases={textos.frasesDeExemplo}
-            editavel={editavel}
-            onMudar={(frasesDeExemplo) => onMudar({ ...textos, frasesDeExemplo })}
+          <Controller
+            control={control}
+            name="frasesDeExemplo"
+            render={({ field }) => (
+              <FrasesDeExemplo frases={field.value} editavel={editavel} onMudar={field.onChange} />
+            )}
           />
         </>
       )}
@@ -53,11 +59,11 @@ function PalavrasChave({
   editavel,
   onMudar,
 }: ListaProps & { palavras: string[]; onMudar: (palavras: string[]) => void }): ReactNode {
-  const [rascunho, setRascunho] = useState('');
+  const { control, getValues, reset } = useForm({ defaultValues: { rascunho: '' } });
 
   const adicionar = () => {
-    const palavra = rascunho.trim();
-    setRascunho('');
+    const palavra = getValues('rascunho').trim();
+    reset();
     if (palavra !== '' && !palavras.includes(palavra)) onMudar([...palavras, palavra]);
   };
   const aoTeclar = (e: KeyboardEvent) => {
@@ -83,11 +89,11 @@ function PalavrasChave({
         ))}
       </Box>
       {editavel && (
-        <TextField
+        <CampoTexto
+          control={control}
+          name="rascunho"
           size="small"
           placeholder="Adicionar palavra e apertar Enter"
-          value={rascunho}
-          onChange={(e) => setRascunho(e.target.value)}
           onKeyDown={aoTeclar}
           onBlur={adicionar}
           slotProps={{ htmlInput: { 'aria-label': 'Nova palavra-chave' } }}

@@ -1,3 +1,4 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Box,
   Button,
@@ -11,6 +12,8 @@ import {
   Typography,
 } from '@mui/material';
 import { type ReactNode, useState } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
+import { z } from 'zod';
 import {
   type Arquivo,
   excluirArquivo,
@@ -21,6 +24,7 @@ import {
   useArquivo,
 } from '@/catalogo/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
@@ -205,10 +209,10 @@ function EditorCarregado({
 }: EditorProps & { conteudoInicial: string }): ReactNode {
   const { mostrar } = useSnackbar();
   const recarregar = useRecarregarAvancado();
-  const [texto, setTexto] = useState(conteudoInicial);
   const [excluindo, setExcluindo] = useState(false);
+  const { control, handleSubmit } = useForm({ defaultValues: { texto: conteudoInicial } });
 
-  const salvar = async (): Promise<void> => {
+  const salvar = handleSubmit(async ({ texto }) => {
     try {
       await salvarArquivo({ agente, caminho, conteudo: texto });
       await recarregar();
@@ -216,7 +220,7 @@ function EditorCarregado({
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
     }
-  };
+  });
 
   const excluir = async (): Promise<void> => {
     setExcluindo(false);
@@ -247,12 +251,12 @@ function EditorCarregado({
         )
       }
     >
-      <TextField
+      <CampoTexto
+        control={control}
+        name="texto"
         multiline
         minRows={16}
         fullWidth
-        value={texto}
-        onChange={(evento) => setTexto(evento.target.value)}
         slotProps={{
           htmlInput: {
             readOnly: !editar,
@@ -296,6 +300,11 @@ function Problemas({ problemas }: { problemas: Problema[] }): ReactNode {
   );
 }
 
+const NovoArquivoSchema = z.object({
+  pasta: z.enum(PASTAS_DE_ARQUIVOS),
+  nome: z.string().refine((nome) => nome.trim() !== ''),
+});
+
 type NovoProps = {
   aberto: boolean;
   onCriar: (caminho: string) => Promise<void>;
@@ -303,47 +312,48 @@ type NovoProps = {
 };
 
 function NovoArquivoDialog({ aberto, onCriar, onFechar }: NovoProps): ReactNode {
-  const [pasta, setPasta] = useState<PastaDeArquivos>(PASTA_INICIAL);
-  const [nome, setNome] = useState(SUGESTAO_DE_NOME[PASTA_INICIAL]);
+  const { control, handleSubmit, setValue } = useForm({
+    resolver: zodResolver(NovoArquivoSchema),
+    defaultValues: { pasta: PASTA_INICIAL, nome: SUGESTAO_DE_NOME[PASTA_INICIAL] },
+  });
+  const nome = useWatch({ control, name: 'nome' });
+  const criar = handleSubmit(({ pasta, nome }) => onCriar(caminhoNaPasta(pasta, nome.trim())));
 
-  const escolherPasta = (valor: string): void => {
+  const escolherPasta = (valor: string, mudarPasta: (pasta: PastaDeArquivos) => void): void => {
     const escolhida = PASTAS_DE_ARQUIVOS.find((p) => p === valor);
     if (!escolhida) return;
-    setPasta(escolhida);
-    setNome(SUGESTAO_DE_NOME[escolhida]);
+    mudarPasta(escolhida);
+    setValue('nome', SUGESTAO_DE_NOME[escolhida]);
   };
 
   return (
     <Dialog open={aberto} onClose={onFechar} fullWidth maxWidth="xs">
       <DialogTitle>Novo arquivo</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <TextField
-          select
-          size="small"
-          label="Pasta"
-          value={pasta}
-          onChange={(evento) => escolherPasta(evento.target.value)}
-        >
-          {PASTAS_DE_ARQUIVOS.map((p) => (
-            <MenuItem key={p} value={p}>
-              {p}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          size="small"
-          label="Nome do arquivo"
-          value={nome}
-          onChange={(evento) => setNome(evento.target.value)}
+        <Controller
+          control={control}
+          name="pasta"
+          render={({ field }) => (
+            <TextField
+              select
+              size="small"
+              label="Pasta"
+              value={field.value}
+              onChange={(evento) => escolherPasta(evento.target.value, field.onChange)}
+            >
+              {PASTAS_DE_ARQUIVOS.map((p) => (
+                <MenuItem key={p} value={p}>
+                  {p}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         />
+        <CampoTexto control={control} name="nome" size="small" label="Nome do arquivo" />
       </DialogContent>
       <DialogActions>
         <Button onClick={onFechar}>Cancelar</Button>
-        <Button
-          variant="contained"
-          disabled={nome.trim() === ''}
-          onClick={() => void onCriar(caminhoNaPasta(pasta, nome.trim()))}
-        >
+        <Button variant="contained" disabled={nome.trim() === ''} onClick={() => void criar()}>
           Criar
         </Button>
       </DialogActions>

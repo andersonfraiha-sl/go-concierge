@@ -1,15 +1,18 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  TextField,
   Typography,
 } from '@mui/material';
-import { type FormEvent, type ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { z } from 'zod';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { paraIdentificador } from '@/skills/contratos';
+import { CampoTexto } from './CampoTexto';
 
 export type NomeEscolhido = { nome: string; titulo: string };
 
@@ -22,7 +25,13 @@ type Props = {
   onCancelar: () => void;
 };
 
-/** Monte só quando aberto: o estado do campo nasce de `tituloInicial`. */
+const NomeSchema = z.object({
+  nome: z
+    .string()
+    .refine((nome) => paraIdentificador(nome) !== '', 'Use letras ou números no nome.'),
+});
+
+/** Monte só quando aberto: o campo nasce de `tituloInicial`. */
 export function NomeDialog({
   titulo,
   tituloInicial,
@@ -30,39 +39,32 @@ export function NomeDialog({
   onEnviar,
   onCancelar,
 }: Props): ReactNode {
-  const [nome, setNome] = useState(tituloInicial);
-  const [erro, setErro] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const identificador = paraIdentificador(nome);
+  const { control, handleSubmit, setError, formState } = useForm({
+    resolver: zodResolver(NomeSchema),
+    defaultValues: { nome: tituloInicial },
+  });
+  const identificador = paraIdentificador(useWatch({ control, name: 'nome' }));
 
-  const enviar = async (e: FormEvent) => {
-    e.preventDefault();
-    if (identificador === '' || enviando) return;
-    setEnviando(true);
-    setErro(null);
+  const enviar = handleSubmit(async ({ nome }) => {
     try {
-      await onEnviar({ nome: identificador, titulo: nome.trim() });
+      await onEnviar({ nome: paraIdentificador(nome), titulo: nome.trim() });
     } catch (causa) {
-      setErro(mensagemDe(causa));
-    } finally {
-      setEnviando(false);
+      setError('nome', { message: mensagemDe(causa) });
     }
-  };
+  });
 
   return (
     <Dialog open fullWidth maxWidth="xs" onClose={onCancelar}>
       <form onSubmit={(e) => void enviar(e)}>
         <DialogTitle>{titulo}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <TextField
+          <CampoTexto
+            control={control}
+            name="nome"
             autoFocus
             fullWidth
             margin="dense"
             label="Nome"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            error={erro !== null}
-            helperText={erro}
           />
           <Typography variant="caption" color="text.secondary">
             Identificador: {identificador}
@@ -70,7 +72,11 @@ export function NomeDialog({
         </DialogContent>
         <DialogActions>
           <Button onClick={onCancelar}>Cancelar</Button>
-          <Button type="submit" variant="contained" disabled={identificador === '' || enviando}>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={identificador === '' || formState.isSubmitting}
+          >
             {confirmar}
           </Button>
         </DialogActions>
