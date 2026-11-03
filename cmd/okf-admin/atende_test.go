@@ -211,6 +211,35 @@ func TestWebhookIgnoraEventoDesconhecidoERecusaConexaoDivergente(t *testing.T) {
 	}
 }
 
+// O token B2C é de um telefone só. Sem o mock (fora de dev) o morador de outro número é
+// recusado; com o mock (dev) o evento passa como se viesse do telefone de teste.
+func TestWebhookMockTelefoneB2C(t *testing.T) {
+	tests := []struct {
+		name     string
+		mock     string
+		wantCode int
+	}{
+		{"desligado fora de dev", "", http.StatusForbidden},
+		{"ligado em dev", "5511900000000", http.StatusAccepted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &atende.Servico{
+				Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Sender: &atende.Outbox{}, Mapeamento: mapeamentoTeste(t),
+				TelefoneB2C: "5511900000000", Log: log.New(io.Discard, "", 0),
+			}
+			s := &servidor{atende: svc, log: log.New(io.Discard, "", 0), telefoneMockB2C: tt.mock,
+				atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key", atendeAPISecret: segredoTeste}
+			corpo := strings.Replace(corpoEventoTeste(atende.EventoProtocoloCriado, "tenant-1", "551940402710"), `"phone":""`, `"phone":"5519981621916"`, 1)
+			w := httptest.NewRecorder()
+			s.webhookAtende(w, requisicaoAssinadaTeste(corpo))
+			if w.Code != tt.wantCode {
+				t.Fatalf("status %d, want %d: %s", w.Code, tt.wantCode, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestWebhookEmuladoIgnoraEventoHumanoDesconhecido(t *testing.T) {
 	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())}}
 	w := httptest.NewRecorder()

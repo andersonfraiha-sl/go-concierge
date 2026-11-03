@@ -200,12 +200,10 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		return
 	}
 	msg := ev.Normalizar()
-	if !emulado && s.atende.TelefoneB2C != "" {
-		// Mock temporário: o token B2C está vinculado a um único telefone,
-		// mesmo quando a mensagem de teste chega de outro número pelo ATENDE.
-		// msg.Contato.Phone = ev.Data.Contact.Phone
-		msg.Contato.Phone = s.atende.TelefoneB2C
-		msg.Destino.Telefone = s.atende.TelefoneB2C
+	if !emulado && s.telefoneMockB2C != "" {
+		// só em dev: o token B2C é de um telefone só, então todo morador vira ele
+		msg.Contato.Phone = s.telefoneMockB2C
+		msg.Destino.Telefone = s.telefoneMockB2C
 	}
 	if emulado {
 		if !s.condominioEmulado(w, r, &msg) {

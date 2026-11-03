@@ -42,3 +42,13 @@ func validarConfig(c Config) error {
 	}
 	return nil
 }
+
+// telefoneMockB2C: o token B2C é de um telefone só. Com AMBIENTE=dev (e só nele), o webhook
+// real troca o telefone de todo evento por esse, para testar com qualquer número. Fora de
+// dev devolve vazio: misturaria os moradores num contato só.
+func telefoneMockB2C(ambiente, telefoneB2C string) string {
+	if ambiente != "dev" {
+		return ""
+	}
+	return telefoneB2C
+}

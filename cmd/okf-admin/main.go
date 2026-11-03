@@ -69,6 +69,7 @@ type servidor struct {
 	atendeAPIKey        string
 	atendeTenant        string
 	atendeTelefoneCanal string
+	telefoneMockB2C     string // só com AMBIENTE=dev: todo evento real vira este telefone (vazio = desligado)
 	emulador            *atende.Emulador
 	provedor            string
 	memorias            memoria.Store
@@ -201,6 +202,11 @@ func main() {
 	}
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
+	}
+	s.telefoneMockB2C = telefoneMockB2C(cfg.Ambiente, s.atende.TelefoneB2C)
+	if s.telefoneMockB2C != "" {
+		slog.Warn("webhook: mock B2C ligado, todo morador do ATENDE é tratado como o telefone de teste",
+			"operacao", "mock_telefone_b2c", "ambiente", cfg.Ambiente, "telefone", escopo.MascararTelefone(s.telefoneMockB2C))
 	}
 	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {

@@ -36,3 +36,20 @@ func TestValidarConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestTelefoneMockB2CSoEmDev(t *testing.T) {
+	tests := []struct {
+		ambiente, telefone, want string
+	}{
+		{"dev", "5511900000000", "5511900000000"},
+		{"dev", "", ""},
+		{"", "5511900000000", ""},
+		{"hml", "5511900000000", ""},
+		{"prd", "5511900000000", ""},
+	}
+	for _, tt := range tests {
+		if got := telefoneMockB2C(tt.ambiente, tt.telefone); got != tt.want {
+			t.Errorf("telefoneMockB2C(%q, %q) = %q, want %q", tt.ambiente, tt.telefone, got, tt.want)
+		}
+	}
+}
