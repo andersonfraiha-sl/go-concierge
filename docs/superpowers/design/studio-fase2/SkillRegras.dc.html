@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Studio · Skill · Regras</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1034F2}a:hover{color:#0A24B8}
+</style>
+</helmet>
+<div style="min-height: 980px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #22252B; display: flex; flex-direction: column; position: relative">
+  <header style="height: 58px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC; display: flex; align-items: center; gap: 13px; padding: 0 34px">
+    <a href="Main.dc.html" aria-label="Voltar para Skills" style="width: 34px; height: 34px; border-radius: 9px; border: 1px solid #E4E7EC; display: flex; align-items: center; justify-content: center; color: #536379"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></a>
+    <div style="width: 34px; height: 34px; border-radius: 9px; background: #FFF3E6; color: #C25E00; display: flex; align-items: center; justify-content: center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 1 0-4M17 19a2 2 0 1 1 0-4"></path></svg></div>
+    <div style="display: flex; flex-direction: column; line-height: 1.25">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px; color: #071950">Agendamento de mudança</span>
+      <span style="font-size: 12px; color: #637792">Skills · registra no sistema</span>
+    </div>
+    <div style="flex: 1"></div>
+    
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #1B7A33"><span style="width: 7px; height: 7px; border-radius: 50%; background: #1B993B"></span>Salvo às 14:32</span>
+    <button type="button" style="height: 36px; padding: 0 16px; border: 1px solid #E4E7EC; background: #FFFFFF; border-radius: 9px; font: 500 13px Inter, sans-serif; color: #323B49; cursor: pointer">Testar no Console</button>
+    <a href="Copiloto.dc.html" aria-pressed="false" style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #DBDFE5; background: #FFFFFF; color: #071950; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-decoration: none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg>Copiloto</a>
+  </header>
+  <nav aria-label="Abas da skill" style="background: #FFFFFF; border-bottom: 1px solid #E4E7EC; padding: 0 34px; display: flex; gap: 26px">
+    <a href="SkillQuandoUsar.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Quando usar</a>
+    <a href="Fluxo.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Fluxo</a>
+    <a href="SkillRegras.dc.html" aria-current="page" style="padding: 13px 0; font-size: 14px; color: #1034F2; font-weight: 600; text-decoration: none; border-bottom: 2px solid #1034F2">Regras</a>
+    <a href="SkillRegras.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Base de conhecimento</a>
+    <a href="SkillFerramentas.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Ferramentas</a>
+  </nav>
+  <div style="display: flex; flex: 1">
+    <main style="flex: 1 1 auto; min-width: 0; padding: 34px 55px; box-sizing: border-box; display: flex; flex-direction: column; gap: 21px">
+<section aria-labelledby="t-regras" style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 13px; padding: 21px; display: flex; flex-direction: column; gap: 13px">
+  <div style="display: flex; align-items: flex-start; gap: 13px"><div style="flex: 1"><h2 id="t-regras" style="margin: 0; font-size: 15px; font-weight: 600">Regras</h2><p style="margin: 5px 0 0; font-size: 13px; color: #637792; line-height: 1.5">Orientações que a skill sempre segue ao responder.</p></div><button type="button" style="height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid #E4E7EC; background: #FFFFFF; color: #323B49; font: 500 13px Inter, sans-serif; display: inline-flex; align-items: center; gap: 6px; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Nova regra</button></div>
+  <div style="border: 1px solid #EDEFF2; border-radius: 12px; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 13px; background: #F8F9FB; border-bottom: 1px solid #EDEFF2">
+      <span style="flex: 1; font-size: 14px; font-weight: 600">Horário permitido</span>
+      <span style="font-size: 12px; color: #1B7A33">Salvo</span>
+      <button type="button" aria-label="Excluir Horário permitido" style="width: 28px; height: 28px; border: 0; background: transparent; color: #A7B1C2; border-radius: 7px; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+    </div>
+    <div role="textbox" aria-multiline="true" aria-label="Texto de Horário permitido" style="padding: 13px; font-size: 14px; line-height: 1.6; color: #22252B">Mudanças só de segunda a sábado, das 8h às 18h. Domingo e feriado não pode: explique e ofereça o próximo dia útil.</div>
+  </div>
+  <div style="border: 1px solid #EDEFF2; border-radius: 12px; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 13px; background: #F8F9FB; border-bottom: 1px solid #EDEFF2">
+      <span style="flex: 1; font-size: 14px; font-weight: 600">Antecedência</span>
+      <span style="font-size: 12px; color: #1B7A33">Salvo</span>
+      <button type="button" aria-label="Excluir Antecedência" style="width: 28px; height: 28px; border: 0; background: transparent; color: #A7B1C2; border-radius: 7px; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+    </div>
+    <div role="textbox" aria-multiline="true" aria-label="Texto de Antecedência" style="padding: 13px; font-size: 14px; line-height: 1.6; color: #22252B">Agende com pelo menos 2 dias de antecedência. Para amanhã, peça para o morador falar com a portaria.</div>
+  </div>
+  <div style="border: 1px solid #EDEFF2; border-radius: 12px; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 13px; background: #F8F9FB; border-bottom: 1px solid #EDEFF2">
+      <span style="flex: 1; font-size: 14px; font-weight: 600">Elevador de serviço</span>
+      <span style="font-size: 12px; color: #1B7A33">Salvo</span>
+      <button type="button" aria-label="Excluir Elevador de serviço" style="width: 28px; height: 28px; border: 0; background: transparent; color: #A7B1C2; border-radius: 7px; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+    </div>
+    <div role="textbox" aria-multiline="true" aria-label="Texto de Elevador de serviço" style="padding: 13px; font-size: 14px; line-height: 1.6; color: #22252B">Lembre que o elevador precisa de proteção nas paredes e que o zelador acompanha a mudança.</div>
+  </div>
+</section>
+    </main>
+    <aside aria-label="Resumo da skill" style="flex: 0 0 400px; background: #FFFFFF; border-left: 1px solid #E4E7EC; padding: 34px; box-sizing: border-box; display: flex; flex-direction: column; gap: 21px">
+      <div style="display: flex; align-items: flex-start; gap: 13px"><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #637792; text-transform: uppercase; letter-spacing: 0.06em">Aba ao lado</div><h2 style="margin: 8px 0 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 700; color: #071950">Base de conhecimento</h2><p style="margin: 8px 0 0; font-size: 13px; color: #637792; line-height: 1.6">Documentos que a skill consulta para responder.</p></div></div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 11px; font-weight: 600; color: #637792; text-transform: uppercase; letter-spacing: 0.06em">Desta skill</div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; gap: 10px; align-items: center; padding: 10px 13px; border: 1px solid #EDEFF2; border-radius: 10px"><span style="color: #7789A3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"></path></svg></span><span style="flex: 1; font-size: 14px; font-weight: 500">Taxa de mudança</span><span style="font-size: 12px; color: #7789A3">Texto · 1 KB</span></div><div style="display: flex; gap: 10px; align-items: center; padding: 10px 13px; border: 1px solid #EDEFF2; border-radius: 10px"><span style="color: #7789A3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"></path></svg></span><span style="flex: 1; font-size: 14px; font-weight: 500">Checklist da mudança</span><span style="font-size: 12px; color: #7789A3">PDF · 84 KB</span></div></div><button type="button" style="height: 34px; padding: 0 14px; border-radius: 9px; border: 1px dashed #A7B1C2; background: #FFFFFF; color: #536379; font: 500 13px Inter, sans-serif; display: inline-flex; align-items: center; gap: 6px; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Novo documento</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div style="font-size: 11px; font-weight: 600; color: #637792; text-transform: uppercase; letter-spacing: 0.06em">Comuns a todas</div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; gap: 10px; align-items: center; padding: 10px 13px; border: 1px solid #EDEFF2; border-radius: 10px"><span style="color: #7789A3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"></path></svg></span><span style="flex: 1; font-size: 14px; font-weight: 500">Regimento interno</span><span style="font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; background: #F1F3F6; color: #536379; white-space: nowrap">Vem do Concierge</span><span style="font-size: 12px; color: #7789A3">1,2 MB</span></div><div style="display: flex; gap: 10px; align-items: center; padding: 10px 13px; border: 1px solid #EDEFF2; border-radius: 10px"><span style="color: #7789A3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7M9 8h3"></path></svg></span><span style="flex: 1; font-size: 14px; font-weight: 500">Perguntas frequentes</span><span style="font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; background: #F1F3F6; color: #536379; white-space: nowrap">Vem do Concierge</span><span style="font-size: 12px; color: #7789A3">8 KB</span></div></div><p style="margin: 0; font-size: 12px; color: #7789A3">Para mudar, <a href="Concierge.dc.html" style="font-weight: 600">abra o Concierge</a>.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
