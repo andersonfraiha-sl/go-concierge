@@ -21,7 +21,7 @@ export function Topbar() {
         bgcolor: 'background.paper',
       }}
     >
-      <Typography variant="h6" component="div" color="primary" sx={{ fontWeight: 700 }}>
+      <Typography variant="h6" component="div" sx={{ color: 'secondary.main' }}>
         Studio
       </Typography>
       {eu && (

@@ -20,6 +20,7 @@ export function StudioLayout() {
       <Topbar />
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />
+        {/* Lugar do painel do Copiloto, montado pela Task 25. */}
         <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
           <Outlet />
         </Box>

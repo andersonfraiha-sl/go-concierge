@@ -1,6 +1,5 @@
 import type { Components, Theme } from '@mui/material/styles';
-import { alpha } from '@mui/material/styles';
-import { tokens } from './tokens';
+import { RAIOS, tokens } from './tokens';
 
 export const componentOverrides: Components<Theme> = {
   MuiCssBaseline: {
@@ -21,22 +20,46 @@ export const componentOverrides: Components<Theme> = {
   MuiAppBar: {
     styleOverrides: { root: { boxShadow: 'none' } },
   },
-  MuiCard: { defaultProps: { variant: 'outlined' } },
-  MuiPaper: { defaultProps: { elevation: 0 } },
+  MuiCard: {
+    defaultProps: { variant: 'outlined' },
+    styleOverrides: { root: { borderRadius: RAIOS.cartao, boxShadow: 'none' } },
+  },
+  MuiPaper: {
+    defaultProps: { elevation: 0 },
+    styleOverrides: { root: { backgroundImage: 'none', boxShadow: 'none' } },
+  },
+  MuiTab: {
+    styleOverrides: { root: { textTransform: 'none' } },
+  },
+  MuiTabs: {
+    styleOverrides: {
+      root: { gap: '26px' },
+      indicator: { height: 2 },
+    },
+  },
+  MuiSwitch: {
+    styleOverrides: {
+      root: { width: 40, height: 22, padding: 0 },
+    },
+  },
+  MuiChip: {
+    styleOverrides: { root: { borderRadius: RAIOS.chip } },
+  },
   MuiListItemButton: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: 1,
+        minHeight: 40,
+        borderRadius: RAIOS.menu,
         '&:hover': {
           color: theme.palette.primary.main,
           fontWeight: 600,
           '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
         },
         '&.Mui-selected': {
-          backgroundColor: alpha(theme.palette.primary.main, 0.08),
+          backgroundColor: tokens.color.background.tint,
           color: theme.palette.primary.main,
           fontWeight: 600,
-          '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.12) },
+          '&:hover': { backgroundColor: tokens.color.background.tint },
           '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
         },
       }),
