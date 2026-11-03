@@ -185,7 +185,7 @@ func (s *servidor) adminAdministradora(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := s.admin.SalvarAdministradora(r.Context(), a)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -199,7 +199,7 @@ func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Req
 	}
 	m, err := s.admin.RemoverAdministradora(r.Context(), id)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -216,7 +216,7 @@ func (s *servidor) adminCondominio(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := s.admin.SalvarCondominio(r.Context(), c)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -230,7 +230,7 @@ func (s *servidor) adminRemoverCondominio(w http.ResponseWriter, r *http.Request
 	}
 	m, err := s.admin.RemoverCondominio(r.Context(), id)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -253,7 +253,7 @@ func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := s.admin.SalvarHabilitacao(r.Context(), corpo.Condominio, corpo.Caso, admin.Habilitacao{Habilitado: corpo.Habilitado, Papeis: corpo.Papeis}, corpo.Limpar)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -280,7 +280,7 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := s.admin.SalvarPayload(r.Context(), corpo.Condominio, corpo.Recurso, corpo.Payload)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -335,7 +335,7 @@ func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := s.admin.SalvarOrientacao(r.Context(), corpo.Condominio, admin.Orientacao{Geral: corpo.Geral, PorCaso: corpo.PorCaso})
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
@@ -355,18 +355,31 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := s.admin.SalvarAjustes(r.Context(), corpo.Condominio, corpo.Ajustes)
 	if err != nil {
-		writeErr(w, statusAdmin(err), err)
+		s.responderErroAdmin(w, err)
 		return
 	}
 	s.responderMapeamento(w, r, m)
 }
 
-// statusAdmin: o que a regra do mapeamento recusa é erro do pedido; o resto é do servidor.
-func statusAdmin(err error) int {
-	if errors.Is(err, admin.ErrInvalido) {
-		return http.StatusBadRequest
+// codigoConflitoConcorrente é o código que o Admin recebe para repetir o pedido.
+const codigoConflitoConcorrente = "CONFLITO_CONCORRENTE"
+
+// responderErroAdmin: o que a regra do mapeamento recusa é erro do pedido (400); conflito
+// com outra escrita é temporário (503, sem o texto do driver, que fica só no log); o resto
+// é do servidor.
+func (s *servidor) responderErroAdmin(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, admin.ErrInvalido):
+		writeErr(w, http.StatusBadRequest, err)
+	case errors.Is(err, admin.ErrConflitoConcorrente):
+		s.log.Printf("okf-admin: mapeamento: %v", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error":  "outra alteração do mapeamento aconteceu ao mesmo tempo; tente de novo",
+			"codigo": codigoConflitoConcorrente,
+		})
+	default:
+		writeErr(w, http.StatusInternalServerError, err)
 	}
-	return http.StatusInternalServerError
 }
 
 // responderMapeamento devolve o mapeamento já recortado pela administradora do
