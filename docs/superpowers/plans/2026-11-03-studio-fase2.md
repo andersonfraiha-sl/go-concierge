@@ -22,6 +22,8 @@ Os caminhos da análise apontam para `studio/src/...` da branch `feat/studio-rea
 
 ## Global Constraints
 
+- **As telas aprovadas em `docs/superpowers/design/studio-fase2` são a referência visual; tokens e textos delas valem sobre o plano em caso de conflito.** Cada task de UI abaixo nomeia a(s) tela(s) (`*.dc.html`) que deve conferir antes de implementar; `canvas.json` tem o título de cada uma.
+- O front segue, em paralelo, as regras do Atende que estão sendo adicionadas ao projeto: Biome (lint/format), `react-hook-form` + `zodResolver` em todo formulário, componentes com menos de 200 linhas, rotas com `lazy()`, zero cor hexadecimal fora de `tokens.ts`, e Zod em toda borda de API (`contratos.ts` de cada módulo).
 - Valem todas as Global Constraints de `docs/superpowers/plans/2026-11-03-studio.md`, com três trocas: (a) tipografia e visual pelo desenho aprovado (abaixo), não Lato; (b) no vocabulário, "Assistente" vira "Concierge"; (c) a aba "Projeção" do Avançado passa a se chamar "Prompt montado".
 - **Desenho aprovado (tokens exatos, em `web/studio/src/theme/tokens.ts`, Task 0):**
   - Espaçamento em proporção áurea: 8 / 13 / 21 / 34 / 55 px (`theme.spacing(1..5)`).
@@ -83,6 +85,7 @@ A ferramenta antiga com código fora do padrão `grupo.acao` também está cober
 | `web/studio/src/skills/NovaSkillDialog.tsx` (novo) | criar skill com resumo e critério | 13 |
 | `web/studio/src/app/RotaInicial.tsx`, `rotaInicial.ts` (novos) | rota inicial por papel | 16 |
 | `web/studio/src/avancado/IdentidadeAba.tsx`, `AjustesTecnicosAba.tsx` (novos) | identidade técnica; payload livre | 21, 22 |
+| `web/studio/src/concierge/BoasVindasAba.tsx` (novo) | boas-vindas e "quem pode conversar" do Concierge | 32 |
 
 ---
 
@@ -92,6 +95,8 @@ A ferramenta antiga com código fora do padrão `grupo.acao` também está cober
 - Modify: `web/studio/src/theme/tokens.ts`, `web/studio/src/theme/theme.ts`, `web/studio/package.json` (+ `@fontsource/jetbrains-mono`, versão exata mais nova, `npm install --save-exact`), `web/studio/src/main.tsx` (importar a fonte)
 - Modify: `web/studio/src/app/Topbar.tsx`, `app/StudioLayout.tsx` (o `Sidebar.tsx` não muda aqui: largura vem de `tokens.layout` e o item ativo do override do tema; o rótulo "Concierge" é da Task 3)
 - Test: `web/studio/src/theme/theme.test.ts` (recriar; a st16 apagou)
+
+**Board:** `docs/superpowers/design/studio-fase2/Main.dc.html` e `Condominio.dc.html` (header 58, sidebar 236, tipos, cores e cartões sem sombra aparecem nas duas; qualquer tela serve para conferir espaçamento e fontes).
 
 **Interfaces:**
 - Produces em `tokens.ts`: `ESPACOS = [0, 8, 13, 21, 34, 55] as const`; `TIPOS = { overline: 11, caption: 12, body2: 13, body1: 14, subtitle1: 15, h6: 17, h5: 21, h4: 26 } as const` (h1/h2/h3 = 26, `h5` é o título de página); `RAIOS = { campo: 8, chip: 9, menu: 10, painel: 12, cartao: 13 } as const`; `SOMBRA_DO_BLOCO_EM_EDICAO = '0 8px 21px rgba(16,52,242,.12)'`; cores das Global Constraints em `tokens.color` (`primary.main`, `primary.dark` = hover, `navy`, `text.{primary,strong,secondary,tertiary,muted}`, `border.{default,strong,subtle}`, `background.{default,paper,subtle,tint}`, `success`, `warning`, `danger`, `realceDoCopiloto`, `conector`); `FONTE_MONO = '"JetBrains Mono", ui-monospace, monospace'`; `tokens.layout = { sidebarWidth: 236, sidebarCollapsedWidth: 56, navbarHeight: 58, painelLateral: 400, copiloto: 380 }`.
@@ -228,6 +233,8 @@ Regras que a tabela fixa: `summary` aparado vence; senão colapsa espaços da de
 - Modify: `app/router.tsx` (`{ path: 'concierge', element: <ConciergePage /> }`, sai `assistente`), `app/Sidebar.tsx` (`{ rotulo: 'Concierge', destino: '/concierge', … }`), `avancado/AvancadoPage.tsx`, `avancado/OrquestracaoAba.tsx`, `condominios/CondominiosPage.tsx`, `condominios/OrientacoesSecao.tsx`, `condominios/SkillsSecao.tsx`, `skills/QuandoUsarAba.tsx`, `skills/SkillsPage.tsx`, `skills/abas/ConhecimentoAba.tsx`, `ferramentas/contratos.ts`, `vocabulario.test.ts`
 - Test: `app/StudioLayout.test.tsx`, `acesso/GuardaAvancado.test.tsx`, `avancado/AvancadoPage.test.tsx`, `condominios/CondominiosPage.test.tsx`, `skills/SkillsPage.test.tsx`, `skills/abas/ConhecimentoAba.test.tsx`, `concierge/ConciergePage.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Concierge.dc.html` e `Main.dc.html` (item "Concierge" na sidebar, em vez de "Assistente").
+
 **Interfaces:**
 - Produces: `export function ConciergePage(): ReactNode` em `concierge/ConciergePage.tsx`; rota `/concierge`. O campo `assistente` da API (`SkillsSchema`, `skillsFalsas`) **não muda** (contrato com o Go).
 
@@ -326,6 +333,8 @@ func TestDadosDoStudioSemVocabularioTecnico(t *testing.T) {
 **Files:**
 - Create: `web/studio/src/condominios/SkillDoCondominioDrawer.tsx`, `SkillDoCondominioDrawer.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Condominio.dc.html` (drawer "O que o concierge faz aqui": cabeçalho, "Quem pode usar", "Orientação desta skill", "Voltar ao Padrão", "Ver o fluxo").
+
 **Interfaces:**
 - Consumes: `origemDe`, `rotuloDoPapel`, `exemploDeOrientacao` (Task 4); `ferramentasDaSkill`, `salvarHabilitacao`, `salvarOrientacao`, `salvarAjustes`, `habilitacaoDe`, `PADRAO` (contratos); `CampoAjuste`; `iconeDaSkill`; `useAutosave`, `SaveIndicator`; `usePodeEditar`, `useEu`, `pode`.
 - Produces:
@@ -357,6 +366,8 @@ Com `editavel` falso, tudo desabilitado.
 - Create: `web/studio/src/condominios/ajustes.ts`, `ajustes.test.ts`, `PreencherComIA.tsx`, `CampoAjuste.test.tsx`
 - Modify: `condominios/CampoAjuste.tsx`, `condominios/AjustesSecao.tsx`, `condominios/AjustesSecao.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Condominio.dc.html` (bloco "Ajustes", campos com placeholder do padrão e "Dias à frente para liberar" como exemplo de unidade).
+
 **Interfaces:**
 - Consumes: `ferramentasGerais` (Task 4), `sugerirAjustes`, `salvarAjustes`.
 - Produces: `separarUnidade(rotulo: string): { rotulo: string; unidade: string | null }` (parêntese no fim com até 12 caracteres vira unidade: `'Antecedência mínima da reserva (dias)'` → `{ rotulo: 'Antecedência mínima da reserva', unidade: 'dias' }`; sem parêntese → `unidade: null`). `PreencherComIA({ condominio, ferramentas, valores, onPreencher })` com `onPreencher: (recurso: string, campos: Record<string, Valor>) => void`. Props de `CampoAjuste` não mudam.
@@ -377,6 +388,8 @@ Com `editavel` falso, tudo desabilitado.
 **Files:**
 - Modify: `web/studio/src/condominios/OrientacoesSecao.tsx`, `OrientacoesSecao.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Condominio.dc.html` (seção "Orientações para este condomínio": `"Vale para todas as conversas daqui. Escreva como falaria com um porteiro novo."`).
+
 **Interfaces:**
 - Props de `OrientacoesSecao` perdem `titulos` (`{ estado, condominio, editavel }`); `CondominioPage` muda na Task 17.
 
@@ -392,6 +405,8 @@ Com `editavel` falso, tudo desabilitado.
 
 **Files:**
 - Modify: `web/studio/src/condominios/CondominiosPage.tsx`, `CondominiosPage.test.tsx`
+
+**Board:** `docs/superpowers/design/studio-fase2/Condominios.dc.html` (tabela com "Situação", "Skills ativas", chips "Faltam ids" e "Sem administradora", linha "Padrão (todos)" fixa).
 
 **Interfaces:**
 - Consumes: `linhasDeSkills`, `contarLigadas` (Task 4), `faltamIds`, `contemBusca`.
@@ -411,6 +426,8 @@ Com `editavel` falso, tudo desabilitado.
 - Modify: `web/studio/src/condominios/AdministradorasAba.tsx`
 - Create: `condominios/AdministradorasAba.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Condominios.dc.html` (aba "Administradoras": nome, id e contagem de condomínios).
+
 **Interfaces:**
 - Consumes: `InlineTitle` (`shared/ui/InlineTitle.tsx`), `salvarAdministradora`.
 - Produces: link `` `/condominios?aba=condominios&administradora=${encodeURIComponent(id)}` ``.
@@ -428,6 +445,8 @@ Com `editavel` falso, tudo desabilitado.
 **Files:**
 - Create: `web/studio/src/condominios/identificacao.ts`, `identificacao.test.ts`
 - Modify: `condominios/IdentificacaoSecao.tsx`, `IdentificacaoSecao.test.tsx`
+
+**Board:** `docs/superpowers/design/studio-fase2/Condominio.dc.html` (seção "Identificação" com id e placeholders de formato; chip "Faltam ids" na ficha e na lista).
 
 **Interfaces:**
 - Produces: `type CampoDeIdentificacao = 'nome' | 'account' | 'company_id' | 'tenant'`; `validarIdentificacao(c: Condominio): Partial<Record<CampoDeIdentificacao, string>>`:
@@ -449,6 +468,8 @@ Com `editavel` falso, tudo desabilitado.
 **Files:**
 - Modify: `web/studio/src/ferramentas/FerramentaDrawer.tsx`, `ferramentas/contratos.ts`, `ferramentas/FerramentasPage.test.tsx` (só os testes que o redesenho quebra)
 - Create: `ferramentas/FerramentaDrawer.test.tsx`, `ferramentas/contratos.test.ts`
+
+**Board:** `docs/superpowers/design/studio-fase2/Ferramentas.dc.html` (seções Básico/Parâmetros/Saída/Conexão/Amostra/Ajustes por condomínio, "Código" com helper `grupo.acao`).
 
 **Interfaces:**
 - Produces em `ferramentas/contratos.ts`:
@@ -473,6 +494,8 @@ Com `editavel` falso, tudo desabilitado.
 - Modify: `web/studio/src/skills/QuandoUsarAba.tsx`, `skills/SkillsPage.tsx`, `skills/contratos.ts`, `skills/SkillEditorPage.test.tsx`, `skills/SkillsPage.test.tsx`
 - Create: `skills/NovaSkillDialog.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/SkillQuandoUsar.dc.html` (contador `63/90`, campos "Resumo" e "Como reconhecer o pedido" separados) e `SkillsVazio.dc.html` (diálogo "Nova skill").
+
 **Interfaces:**
 - Consumes: `Textos.resumo` (Task 4; Go na Task 2 grava também para skill sem caso).
 - Produces: `export const LIMITE_DO_RESUMO = 90` em `skills/contratos.ts`; `preencherTextosNovos(nome: string, novos: { resumo: string; quandoUsar: string }): Promise<void>` (lê `GET /api/skills/:nome`, grava `PUT …/textos` com a versão lida; não chama nada se os dois vierem vazios). `NovaSkillDialog({ onEnviar, onCancelar })` com `onEnviar: (nova: { nome: string; titulo: string; resumo: string; quandoUsar: string }) => Promise<void>`. `NomeDialog` continua só para duplicar.
@@ -485,19 +508,22 @@ Com `editavel` falso, tudo desabilitado.
 
 ---
 
-### Task 14: Persona com aviso e modelo (front)
+### Task 14: Persona com aviso, modelo e tom (front)
 
 **Files:**
 - Modify: `web/studio/src/concierge/ConciergePage.tsx`, `concierge/ConciergePage.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Concierge.dc.html` (aba "Persona e tom de voz": botões de tom `Acolhedor/Direto/Formal/Descontraído`, ajuda `"Até 3 frases. Use lista quando houver passos."`).
+
 **Interfaces:**
 - Consumes: `lerModeloDeArquivo(CAMINHO_PERSONA)` (`catalogo/contratos.ts`).
+- Produces: `TONS: Record<'acolhedor' | 'direto' | 'formal' | 'descontraido', string>` em `ConciergePage.tsx` com a frase de tom que cada botão insere (ex.: `acolhedor` → `'Fale como um vizinho prestativo e gentil: frases curtas, calorosas, sem gírias.'`). Clicar num botão troca só a frase de tom dentro do texto (acha e substitui a frase de tom anterior, se houver, senão acrescenta); não mexe no resto da persona. Mesmo autosave de 1000 ms que já existe.
 
-- [ ] **Step 1: Testes que falham**: `warnsWhenPersonaIsEmpty` (`'Sem persona, o concierge responde sem um jeito próprio de falar.'`), `fillsPersonaFromTemplate` (botão `Usar o modelo` → `GET /api/arquivo/modelo?caminho=persona.md` → campo preenchido → 1 s depois `PUT /api/arquivo`), `gestorSeesNoTemplateButton`.
+- [ ] **Step 1: Testes que falham**: `warnsWhenPersonaIsEmpty` (`'Sem persona, o concierge responde sem um jeito próprio de falar.'`), `fillsPersonaFromTemplate` (botão `Usar o modelo` → `GET /api/arquivo/modelo?caminho=persona.md` → campo preenchido → 1 s depois `PUT /api/arquivo`), `gestorSeesNoTemplateButton`, `pickingToneReplacesToneSentenceOnly` (`it.each` dos 4 tons: clicar troca só a frase de tom, mantém o resto do texto), `gestorSeesNoToneButtons`.
 - [ ] **Step 2:** `npx vitest run src/concierge` → FAIL.
-- [ ] **Step 3:** `Alert severity="warning"` acima do campo quando `persona.trim() === ''`; botão só para quem edita; falha do modelo vai para o snackbar com a mensagem do erro.
+- [ ] **Step 3:** `Alert severity="warning"` acima do campo quando `persona.trim() === ''`; botão só para quem edita; falha do modelo vai para o snackbar com a mensagem do erro; 4 `Chip`/`Button` de tom acima do campo, só para quem edita.
 - [ ] **Step 4:** Mesmo comando → PASS.
-- [ ] **Step 5:** `git add web/studio/src/concierge` e `git commit -m "feat: warn on empty persona and offer the template"`.
+- [ ] **Step 5:** `git add web/studio/src/concierge` e `git commit -m "feat: warn on empty persona and offer template and tone"`.
 
 ---
 
@@ -506,6 +532,8 @@ Com `editavel` falso, tudo desabilitado.
 **Files:**
 - Modify: `web/studio/src/avancado/OrquestracaoAba.tsx`, `avancado/contratos.ts` (`LIMITES_DE_ORQUESTRACAO`)
 - Create: `avancado/OrquestracaoAba.test.tsx` (renderiza a aba direto; `AvancadoPage.test.tsx` é da Task 30)
+
+**Board:** `docs/superpowers/design/studio-fase2/Avancado.dc.html` (aba "Orquestração" dentro do desenho do Avançado; sem mock próprio no canvas, seguir o padrão de `helperText` das outras abas do Avançado).
 
 **Interfaces:**
 - Produces: cada item de `LIMITES_DE_ORQUESTRACAO` ganha `ajuda: string`; `MODOS` ganha `quando: string`.
@@ -554,6 +582,8 @@ Com `editavel` falso, tudo desabilitado.
 **Files:**
 - Modify: `web/studio/src/condominios/SkillsSecao.tsx`, `SkillsSecao.test.tsx`, `condominios/CondominioPage.tsx` (`OrientacoesSecao` sem `titulos`)
 
+**Board:** `docs/superpowers/design/studio-fase2/Condominio.dc.html` (seção "O que o concierge faz aqui": `"8 de 10 ligadas · 2 diferentes do Padrão"`, grupos "Registram no sistema"/"Consultas e dúvidas", switch "Só o que muda do Padrão").
+
 **Interfaces:**
 - Consumes: `linhasDeSkills`, `filtrarLinhas`, `agruparPorCategoria`, `contarLigadas`, `rotuloDePapeis`, `ROTULO_DA_CATEGORIA` (Task 4); `iconeDaSkill`; `SkillDoCondominioDrawer` (Task 6).
 - Props de `SkillsSecao` não mudam.
@@ -579,6 +609,8 @@ Desenho (§5.2 da análise + canvas aprovado, tela Condomínio):
 - Create: `web/studio/src/condominios/MatrizDeSkills.tsx`, `MatrizDeSkills.test.tsx`
 - Modify: `condominios/CondominiosPage.tsx` (aba `skills`, rótulo `"Visão por skill"`, entre Condomínios e Administradoras, visível para quem tem `condominios.habilitar`)
 
+**Board:** `docs/superpowers/design/studio-fase2/CondominiosMatriz.dc.html` (`"clique na célula para ver papéis, orientação e ajustes"`, ponto de `"decisão deste condomínio"`, `"sem ponto: segue o Padrão"`).
+
 **Interfaces:**
 - Consumes: `habilitacaoDe`, `salvarHabilitacao`, `PADRAO`, `agruparPorCategoria`, `linhasDeSkills` (para ordem e títulos), `SkillDoCondominioDrawer`, `useExecutar`.
 - Produces: `MatrizDeSkills({ estado, titulos, editavel }: { estado: Estado; titulos: ReadonlyMap<string, string>; editavel: boolean }): ReactNode`.
@@ -598,6 +630,8 @@ Tabela com rolagem horizontal; primeira coluna (skill) fixa (`position: sticky`)
 **Files:**
 - Modify: `web/studio/src/skills/SkillCard.tsx`, `skills/SkillsPage.tsx`, `skills/SkillsPage.test.tsx`, `avancado/contratos.ts` (`useArvore`)
 
+**Board:** `docs/superpowers/design/studio-fase2/Main.dc.html` (4 cartões de número, grupos "Registram no sistema"/"Consultas e dúvidas") e `SkillsVazio.dc.html` (estado vazio; os chips "Ou peça ao Copiloto" são da Task 28).
+
 **Interfaces:**
 - Produces: `useArvore(opcoes?: { enabled?: boolean })`; `SkillCard` ganha `variante: 'completo' | 'compacto'` e `problemas?: { erros: number; avisos: number }` (ausente = não mostra).
 
@@ -616,6 +650,8 @@ Desenho (canvas, tela Skills): 4 cartões de número no topo (título 12 px `tex
 **Files:**
 - Modify: `web/studio/src/ferramentas/FerramentasPage.tsx`, `ferramentas/FerramentasPage.test.tsx`, `skills/abas/FerramentasAba.tsx`, `skills/abas/FerramentasAba.test.tsx`, `fluxo/painel/InformacoesPainel.tsx`, `skills/abas/FluxoAba.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Ferramentas.dc.html`, `SkillFerramentas.dc.html` (aba Ferramentas da skill, sem descrição técnica para o gestor) e `FluxoGestor.dc.html` (painel de Informações sem o id técnico).
+
 - [ ] **Step 1: Testes que falham**: `hidesToolDescriptionFromGestor` (página Ferramentas), `hidesToolDescriptionInSkillFromGestor` (aba Ferramentas da skill), `hidesInformationIdWhenReadOnly` (painel de Informações sem `unidade_id` para quem não edita).
 - [ ] **Step 2:** `npx vitest run src/ferramentas src/skills/abas` → FAIL.
 - [ ] **Step 3:** Descrição da ferramenta só com `usePodeEditar('ferramentas.editar')` (a busca continua olhando a descrição); `info.nome` só quando `editavel`; placeholder da Pergunta `'Ex.: Para que dia é a reserva?'`. Sem título, a ferramenta aparece como `'Ferramenta sem nome'` para quem não edita.
@@ -629,6 +665,8 @@ Desenho (canvas, tela Skills): 4 cartões de número no topo (título 12 px `tex
 **Files:**
 - Create: `web/studio/src/avancado/IdentidadeAba.tsx`, `avancado/IdentidadeAba.test.tsx`
 - Modify: `avancado/AvancadoPage.tsx` (aba `{ id: 'identidade', rotulo: 'Identidade', porItem: true }` depois de Arquivos), `catalogo/contratos.ts`
+
+**Board:** `docs/superpowers/design/studio-fase2/Avancado.dc.html` (aba "Identidade": `tipo`, `modelo`, `nome`, `descricao`).
 
 **Interfaces:**
 - Consumes: `PUT /api/agente/config` (Task 1); `useTextos`, `salvarTextos` (`visibilidade`, Task 2/4).
@@ -649,6 +687,8 @@ Formulário com botão `Salvar` (padrão do Avançado): **Tipo** (`''` `Automát
 **Files:**
 - Create: `web/studio/src/avancado/AjustesTecnicosAba.tsx`, `avancado/AjustesTecnicosAba.test.tsx`, `avancado/payloadLivre.ts`, `avancado/payloadLivre.test.ts`
 - Modify: `avancado/AvancadoPage.tsx` (aba `{ id: 'ajustes', rotulo: 'Ajustes por condomínio (técnico)', porItem: false }`)
+
+**Board:** `docs/superpowers/design/studio-fase2/Avancado.dc.html` (aba "Ajustes por condomínio (técnico)", chip `"Mudanças aqui afetam todos os condomínios"`).
 
 **Interfaces:**
 - Consumes: `useEstado`, `salvarPayload`, `PADRAO` (Task 4); `ListaEditavel` (`ferramentas/ListaEditavel.tsx`).
@@ -763,6 +803,8 @@ Select de condomínio (Padrão + condomínios do escopo); tabela com todo `estad
 - Create: `web/studio/src/copiloto/contratos.ts`, `contratos.test.ts`, `CopilotoProvider.tsx`, `PainelDoCopiloto.tsx`, `PainelDoCopiloto.test.tsx`, `BolhaDeMensagem.tsx`, `Compositor.tsx`, `EstadoVazio.tsx`, `CartaoDeProposta.tsx`
 - Modify: `app/Topbar.tsx` (botão), `app/StudioLayout.tsx` (provider + painel à esquerda do `main`), `app/StudioLayout.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Copiloto.dc.html` (painel aberto na skill, referência principal do layout, bolhas e cartões de proposta) e, para o botão no header em cada tela, `ConciergeCopiloto.dc.html`, `CondominioCopiloto.dc.html`, `AvancadoCopiloto.dc.html`.
+
 **Interfaces:**
 - Produces em `copiloto/contratos.ts` (espelho do Go da Task 23/24, Zod na borda): `TipoDeOperacaoSchema` (`z.enum` dos 9 tipos), `OperacaoSchema` (`z.discriminatedUnion('tipo', …)` com os campos de cada tipo), `PropostaSchema = { id, resumo, operacao }`, `RespostaDoCopilotoSchema = { mensagem, propostas, recusas: { indice, motivo }[] }`, `ContextoDoCopiloto` (`{ tela: Tela; skill?: string; condominio?: string; agente?: string; caminho?: string }`), `LIMITE_DA_MENSAGEM = 4000`, `TAMANHO_DO_HISTORICO = 20`, `PRAZO_DO_COPILOTO_MS = 95_000`; `conversar(corpo, sinal: AbortSignal): Promise<RespostaDoCopiloto>`; `useEstadoDoCopiloto()` (`GET /api/copiloto/estado`).
 - Produces em `CopilotoProvider.tsx`:
@@ -795,6 +837,8 @@ Select de condomínio (Padrão + condomínios do escopo); tabela com todo `estad
 - Create: `web/studio/src/copiloto/aplicar.ts`, `aplicar.test.ts`
 - Modify: `copiloto/CopilotoProvider.tsx` (`aplicar` real), `copiloto/CartaoDeProposta.tsx` (confirmação de exclusão, estado aplicada/erro)
 
+**Board:** `docs/superpowers/design/studio-fase2/Copiloto.dc.html` (cartão `"Preparei duas mudanças no passo 3. Confere antes de eu aplicar:"`, botões `Aplicar`/`Descartar`, texto `"Pronto"`).
+
 **Interfaces:**
 - Consumes: `salvarTextos`, `useTextos`/`apiGet` de textos, `salvarFluxo`, `useCriarSkill`, `useExcluirSkill`, `preencherTextosNovos` (Task 13) de `skills/contratos.ts`; `salvarHabilitacao`, `salvarOrientacao`, `salvarAjustes` (`condominios/contratos.ts`); `salvarArquivo`, `CAMINHO_PERSONA` (`catalogo/contratos.ts`).
 - Produces:
@@ -820,6 +864,8 @@ Select de condomínio (Padrão + condomínios do escopo); tabela com todo `estad
 **Files:**
 - Create: `web/studio/src/copiloto/sugestoes.ts`, `sugestoes.test.ts`
 - Modify: `copiloto/EstadoVazio.tsx`
+
+**Board:** `docs/superpowers/design/studio-fase2/ConciergeCopiloto.dc.html` (seção "Sugestões": `"Escreva boas-vindas mais curtas"`, `"Revise a persona para respostas curtas"`) e `Copiloto.dc.html`.
 
 **Interfaces:**
 - Produces: `sugestoesPara(contexto: ContextoDoCopiloto, eu: Eu): string[]` (até 3, só o que a pessoa pode pedir). Textos:
@@ -851,8 +897,10 @@ Select de condomínio (Padrão + condomínios do escopo); tabela com todo `estad
 - Modify: `web/studio/src/skills/SkillsPage.tsx`, `skills/SkillEditorPage.tsx`, `skills/QuandoUsarAba.tsx`, `skills/abas/FluxoAba.tsx`, `condominios/CondominiosPage.tsx`, `condominios/CondominioPage.tsx`, `condominios/SkillsSecao.tsx`, `condominios/OrientacoesSecao.tsx`, `concierge/ConciergePage.tsx`, `ferramentas/FerramentasPage.tsx`, `avancado/ArquivosAba.tsx`
 - Create: `web/studio/src/copiloto/contextoPorTela.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/ConciergeCopiloto.dc.html`, `CondominioCopiloto.dc.html`, `AvancadoCopiloto.dc.html` (contexto de cada tela e realce `#FFF7CC`) e `SkillsVazio.dc.html` (chips `"Crie uma skill de 2ª via de boleto"` / `"Crie uma skill de agendamento de mudança"` / `"Crie uma skill para reservar o salão"` no estado vazio do hub, não no painel).
+
 **Interfaces:**
-- Consumes: `useCopiloto().definirContexto`, `useRealceDoCopiloto` (Task 25).
+- Consumes: `useCopiloto().definirContexto`, `useRealceDoCopiloto` (Task 25); `sugestoesPara` (Task 27).
 - Produces: cada tela chama `definirContexto` ao montar e quando o item muda (dentro de `useEffect` com as dependências do contexto):
 
 | tela | contexto | realce (`alvo`) |
@@ -866,8 +914,10 @@ Select de condomínio (Padrão + condomínios do escopo); tabela com todo `estad
 | `FerramentasPage` | `{ tela: 'ferramentas' }` | nenhum |
 | `ArquivosAba` | `{ tela: 'avancado', agente, caminho }` (só com `studio.avancado`) | editor `arquivo:<agente>:<caminho>` |
 
-- [ ] **Step 1: Testes que falham** em `contextoPorTela.test.tsx`, uma tela por teste, com o `PainelDoCopiloto` aberto e `POST /api/copiloto` gravado: `sendsSkillsHubContext`, `sendsSkillEditorContext`, `sendsFlowContext`, `sendsCondominiosContext`, `sendsCondominioContext`, `sendsConciergeContext`, `sendsToolsContext`, `sendsAdvancedFileContext`, `omitsAdvancedContextWithoutPermission` (gestor sem `studio.avancado`), `highlightsAppliedSkillRow` (aplicar `habilitar_skill` na ficha → linha com fundo `#FFF7CC`), `highlightsAppliedSummaryField`.
-- [ ] **Step 2:** `npx vitest run src/copiloto/contextoPorTela.test.tsx` → FAIL.
+  No estado vazio do hub (`SkillsPage` sem skills, `SkillsVazio.dc.html`), mostrar `"Ou peça ao Copiloto"` com os 3 `Chip` de `sugestoesPara({ tela: 'skills' }, eu)`; clicar abre o painel (`useCopiloto().alternar()` se fechado) e chama `enviar(texto)` direto, sem esperar a pessoa digitar de novo.
+
+- [ ] **Step 1: Testes que falham** em `contextoPorTela.test.tsx`, uma tela por teste, com o `PainelDoCopiloto` aberto e `POST /api/copiloto` gravado: `sendsSkillsHubContext`, `sendsSkillEditorContext`, `sendsFlowContext`, `sendsCondominiosContext`, `sendsCondominioContext`, `sendsConciergeContext`, `sendsToolsContext`, `sendsAdvancedFileContext`, `omitsAdvancedContextWithoutPermission` (gestor sem `studio.avancado`), `highlightsAppliedSkillRow` (aplicar `habilitar_skill` na ficha → linha com fundo `#FFF7CC`), `highlightsAppliedSummaryField`; em `SkillsPage.test.tsx`, `offersCopilotSuggestionsOnEmptyHub` (clicar num chip abre o painel e envia o texto).
+- [ ] **Step 2:** `npx vitest run src/copiloto/contextoPorTela.test.tsx src/skills/SkillsPage.test.tsx` → FAIL.
 - [ ] **Step 3:** Implementar; o realce entra pelo `sx` de cada campo/linha.
 - [ ] **Step 4:** `npm run typecheck && npm test` → PASS.
 - [ ] **Step 5:** `git add web/studio/src` e `git commit -m "feat: give the copilot the context of each studio screen"`.
@@ -880,12 +930,14 @@ Select de condomínio (Padrão + condomínios do escopo); tabela com todo `estad
 - Modify: `web/studio/src/fluxo/canvas/FluxoCanvas.tsx`, `fluxo/canvas/BlocoNode.tsx`, `fluxo/canvas/ArestaComMais.tsx`, `fluxo/painel/BlocoPainel.tsx`, `skills/abas/FluxoAba.tsx`, `skills/abas/FluxoAba.test.tsx`
 - Create: `fluxo/painel/ComoOMoradorVe.tsx`, `fluxo/painel/ComoOMoradorVe.test.tsx`
 
+**Board:** `docs/superpowers/design/studio-fase2/Fluxo.dc.html` (fluxo editável, "Como o morador vê" no painel) e `FluxoGestor.dc.html` (mesma tela para o gestor: badge `"Só leitura"` no header, sem os controles de edição do bloco).
+
 **Interfaces:**
 - Produces: `ComoOMoradorVe({ bloco }: { bloco: Bloco }): ReactNode` (prévia de conversa: a pergunta ou resposta do bloco como bolha do concierge, as opções como chips; blocos sem fala → `"Este passo não aparece para o morador."`).
 
-Desenho (canvas, Skill › Fluxo): fundo pontilhado (`canvasBg` + pontos `canvasDot`); blocos numerados (`1.`, `2.`…) com 420 px de largura, cartão raio 13, borda 1 px, **barra de 4 px à esquerda na cor do tipo** (cores das Global Constraints do plano original), sem sombra, exceto o bloco em edição (`SOMBRA_DO_BLOCO_EM_EDICAO`); conectores de 2 px `#C1CAD6`; painel à direita de 400 px com os campos do bloco, opções como chips e a seção `"Como o morador vê"` no fim.
+Desenho (canvas, Skill › Fluxo): fundo pontilhado (`canvasBg` + pontos `canvasDot`); blocos numerados (`1.`, `2.`…) com 420 px de largura, cartão raio 13, borda 1 px, **barra de 4 px à esquerda na cor do tipo** (cores das Global Constraints do plano original), sem sombra, exceto o bloco em edição (`SOMBRA_DO_BLOCO_EM_EDICAO`); conectores de 2 px `#C1CAD6`; painel à direita de 400 px com os campos do bloco, opções como chips e a seção `"Como o morador vê"` no fim. Sem `skills.editar_fluxo` (gestor, `FluxoGestor.dc.html`): `Chip` `"Só leitura"` ao lado do título "Fluxo", bloco e painel sem campo editável (só `ComoOMoradorVe` e as opções como chips, texto puro), sem `+` de inserir bloco nem drag.
 
-- [ ] **Step 1: Testes que falham**: `numbersBlocksInOrder`, `marksBlockTypeWithLeftBar` (cor da barra = cor do tipo), `onlyEditedBlockHasShadow`, `ComoOMoradorVe.test.tsx` (`previewsQuestionAndOptions`, `explainsSilentSteps`).
+- [ ] **Step 1: Testes que falham**: `numbersBlocksInOrder`, `marksBlockTypeWithLeftBar` (cor da barra = cor do tipo), `onlyEditedBlockHasShadow`, `showsReadOnlyBadgeForGestor` (sem `skills.editar_fluxo`), `hidesEditingControlsForGestor`, `ComoOMoradorVe.test.tsx` (`previewsQuestionAndOptions`, `explainsSilentSteps`).
 - [ ] **Step 2:** `npx vitest run src/skills/abas/FluxoAba.test.tsx src/fluxo` → FAIL.
 - [ ] **Step 3:** Implementar só o visual e a prévia; o modelo do fluxo não muda.
 - [ ] **Step 4:** Mesmo comando → PASS.
@@ -898,6 +950,8 @@ Desenho (canvas, Skill › Fluxo): fundo pontilhado (`canvasBg` + pontos `canvas
 **Files:**
 - Modify: `web/studio/src/avancado/AvancadoPage.tsx`, `avancado/ArquivosAba.tsx`, `avancado/AvancadoPage.test.tsx`
 - Create: `avancado/gruposDeArquivos.ts`, `gruposDeArquivos.test.ts`
+
+**Board:** `docs/superpowers/design/studio-fase2/Avancado.dc.html` (árvore agrupada "Raiz"/"Rotas"/etc., editor com números de linha, chip `"Mudanças aqui afetam todos os condomínios"`).
 
 **Interfaces:**
 - Produces: `agruparArquivos(arquivos: Record<string, Arquivo[]>): { grupo: 'Raiz' | 'Conhecimento' | 'Rotas' | 'Modelos e testes'; arquivos: Arquivo[] }[]` (Raiz: `agent.yaml`, `persona.md`, `caso.yaml`, `rules/`, `workflows/`; Conhecimento: `knowledge/`; Rotas: `routers/`; Modelos e testes: `assets/`, `evals/`; grupo vazio some).
@@ -954,6 +1008,28 @@ Desenho (canvas, Avançado): aba `"Projeção"` passa a `"Prompt montado"` (id `
 
 ---
 
+### Task 32: Boas-vindas, Regras gerais, Base de conhecimento comum e Transbordo no Concierge (front)
+
+O canvas aprovado mostra a página Concierge com seis blocos: Identidade, Persona e tom de voz (Task 14), Boas-vindas, Regras gerais, Base de conhecimento comum, Transbordo para atendente. Os três últimos **já existem no Go** como capacidades genéricas por agente (`rules/`, `knowledge/`), só nunca foram apontadas para o agente raiz `concierge`: `RegrasAba` e `ConhecimentoAba` (`skills/abas/*.tsx`) recebem `caminho` e listam os arquivos daquele agente, inclusive o rótulo "Vem do Concierge" para o que os filhos herdam (`ConhecimentoAba.tsx`, `documentosHerdadosDe`). Aqui elas são reaproveitadas apontando para `caminho: 'concierge'`, sem rota nova.
+
+**Files:**
+- Modify: `web/studio/src/concierge/ConciergePage.tsx`, `concierge/ConciergePage.test.tsx` (abas `persona | boas-vindas | regras | conhecimento | transbordo`, URL `?aba=`)
+- Create: `web/studio/src/concierge/BoasVindasAba.tsx`, `BoasVindasAba.test.tsx`
+
+**Board:** `docs/superpowers/design/studio-fase2/Concierge.dc.html` (blocos "Boas-vindas", "Regras gerais", "Base de conhecimento comum", "Transbordo para atendente") e `ConciergeCopiloto.dc.html`.
+
+**Interfaces:**
+- Consumes: `RegrasAba`, `ConhecimentoAba` (`skills/abas/RegrasAba.tsx`, `ConhecimentoAba.tsx`, já genéricas por `caminho`) apontadas para `caminho: 'concierge'`; `useTextos`/`salvarTextos` (`Visibilidade`, Task 2/4) para "Quem pode conversar"; `DocumentoEditavel` (`skills/abas/DocumentoEditavel.tsx`) para o texto de Transbordo.
+- Produces: `ConciergePage` ganha `Tabs` com as 5 abas (`persona | boas-vindas | regras | conhecimento | transbordo`, lidas/gravadas em `?aba=` como `CondominiosPage`); `BoasVindasAba({ assistente }: { assistente: string }): ReactNode`: texto livre (`DocumentoEditavel` apontado para `concierge/rules/boas-vindas.md`, criado vazio se não existir) com ajuda `"Como o concierge se apresenta e com quem ele conversa."`, e rádio "Quem pode conversar" (`Morador identificado` = `private`, `Qualquer contato` = `public`) gravando a `Visibilidade` do agente `concierge` por `salvarTextos` (mesma função da Task 4/21, lendo a versão atual antes de gravar). A aba "Regras gerais" é `<RegrasAba caminho="concierge" />` com o título trocado para `"Regras gerais"` via prop opcional `titulo` (default mantém `"Regras"` para as skills); "Base de conhecimento comum" é `<ConhecimentoAba caminho="concierge" titulo="Base de conhecimento comum" />`. "Transbordo" reaproveita o mesmo padrão de documento único da Boas-vindas, apontado para `concierge/rules/transbordo.md`, ajuda `"Quando o concierge passa a conversa para uma pessoa da equipe."`.
+
+- [ ] **Step 1: Testes que falham**: `ConciergePage.test.tsx`: `showsAllFiveConciergeTabs`, `opensTabFromQuery` (`?aba=regras`); `BoasVindasAba.test.tsx`: `savesWelcomeTextOneSecondAfterTyping`, `savesWhoCanTalkAsVisibility` (rádio `Qualquer contato` → `PUT …/textos` com `visibilidade: 'public'`); `RegrasAba.test.tsx` (ajustar): `titledRegrasGeraisForConcierge` (`<RegrasAba caminho="concierge" titulo="Regras gerais" />` mostra o título novo, resto do componente sem mudança de comportamento); idem para `ConhecimentoAba.test.tsx` com `"Base de conhecimento comum"`.
+- [ ] **Step 2:** `npx vitest run src/concierge` → FAIL.
+- [ ] **Step 3:** Implementar; `RegrasAba`/`ConhecimentoAba` ganham prop opcional `titulo?: string` (default o texto atual) para não quebrar o uso nas skills.
+- [ ] **Step 4:** Mesmo comando → PASS; `npm run typecheck && npm test`.
+- [ ] **Step 5:** `git add web/studio/src/concierge web/studio/src/skills/abas` e `git commit -m "feat: add welcome, rules, knowledge and handoff tabs to concierge page"`.
+
+---
+
 ## Parallel groups
 
 Tasks de uma mesma onda não dividem arquivo; cada onda começa quando a anterior está commitada.
@@ -962,11 +1038,11 @@ Tasks de uma mesma onda não dividem arquivo; cada onda começa quando a anterio
 |---|---|---|
 | 1 | 0, 1, 2, 3, 4 | nada (a Task 0 não toca `Sidebar.tsx` nem `StudioLayout.test.tsx`, que são da Task 3) |
 | 2 | 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 23, 25, 29, 30 | 5 precisa do `resumo` (2); 6-11 precisam dos contratos, do modelo puro e dos testes já separados (4); 12-16, 29 e 30 mexem em arquivos que a Task 3 editou; 25 mexe na casca da Task 0; 23 usa os tipos do fluxo e roda junto |
-| 3 | 17, 18, 19, 20, 21, 24, 26, 27 | 17 e 18 usam o drawer (6) e vêm depois de 8 e 9; 19 depois de 13 (`SkillsPage`); 20 depois de 12 e 29 (`FerramentasPage.test.tsx`, `FluxoAba.test.tsx`); 21 depois de 30 (`AvancadoPage.tsx`); 24 usa 23; 26 e 27 usam o painel (25), 26 também `preencherTextosNovos` (13) |
-| 4 | 22, 28 | 22: `AvancadoPage.tsx` é da 21; 28 mexe nas telas que 13, 17, 18, 19 e 29 acabaram de mudar |
+| 3 | 17, 18, 19, 20, 21, 24, 26, 27, 32 | 17 e 18 usam o drawer (6) e vêm depois de 8 e 9; 19 depois de 13 (`SkillsPage`); 20 depois de 12 e 29 (`FerramentasPage.test.tsx`, `FluxoAba.test.tsx`); 21 depois de 30 (`AvancadoPage.tsx`); 24 usa 23; 26 e 27 usam o painel (25), 26 também `preencherTextosNovos` (13); 32 mexe em `ConciergePage.tsx`, que é da 14 (wave 2) |
+| 4 | 22, 28 | 22: `AvancadoPage.tsx` é da 21; 28 mexe nas telas que 13, 17, 18, 19, 29 e 32 acabaram de mudar |
 | 5 | 31 | checklist sobre tudo |
 
-Arquivos compartilhados que forçam a ordem: `CondominioPage.test.tsx` é separado na Task 4 justamente para 6, 7, 8 e 11 rodarem juntas; `OrquestracaoAba.test.tsx` nasce na 15 para a 30 ficar com `AvancadoPage.test.tsx`; `ferramentas/contratos.ts` (3 → 12); `skills/SkillsPage.tsx` (3 → 13 → 19 → 28); `avancado/AvancadoPage.tsx` (3 → 30 → 21 → 22); `avancado/contratos.ts` (15 → 19); `condominios/CondominiosPage.tsx` (3 → 9 → 18 → 28); `app/StudioLayout.tsx` (0 → 25); `cmd/okf-admin/main.go` (1 → 24 → 31); `skills/abas/FluxoAba.tsx` (29 → 28).
+Arquivos compartilhados que forçam a ordem: `CondominioPage.test.tsx` é separado na Task 4 justamente para 6, 7, 8 e 11 rodarem juntas; `OrquestracaoAba.test.tsx` nasce na 15 para a 30 ficar com `AvancadoPage.test.tsx`; `ferramentas/contratos.ts` (3 → 12); `skills/SkillsPage.tsx` (3 → 13 → 19 → 28); `avancado/AvancadoPage.tsx` (3 → 30 → 21 → 22); `avancado/contratos.ts` (15 → 19); `condominios/CondominiosPage.tsx` (3 → 9 → 18 → 28); `app/StudioLayout.tsx` (0 → 25); `cmd/okf-admin/main.go` (1 → 24 → 31); `skills/abas/FluxoAba.tsx` (29 → 28); `concierge/ConciergePage.tsx` (3 → 14 → 32 → 28); `skills/abas/RegrasAba.tsx`, `ConhecimentoAba.tsx` (prop `titulo` novo na 32, sem mudar o uso das Tasks 6/17/19 nas skills).
 
 ## Decisões deste plano
 
@@ -984,3 +1060,5 @@ Arquivos compartilhados que forçam a ordem: `CondominioPage.test.tsx` é separa
 - Copiloto: modelo `MODEL_COPILOTO`, senão `MODEL_PLANNER`, senão o do provedor; sem provedor, `503` e o painel mostra "Indisponível".
 - Cartões de número do hub: `Skills`, `Registram no sistema`, `Consultas e dúvidas` e `Com problema` (construtor) ou `Ferramentas` (gestor); o canvas não fixa os rótulos.
 - A aba "Projeção" muda só o rótulo; o id `projecao` na URL fica.
+- Concierge (Task 32): "Regras gerais" e "Base de conhecimento comum" do canvas são `RegrasAba`/`ConhecimentoAba` já existentes apontadas para o agente raiz `concierge` (os dois componentes já leem por `caminho` e já tratam herança, `"Vem do Concierge"`); nenhuma rota Go nova. "Boas-vindas" e "Transbordo" ficam como um documento de texto cada (`concierge/rules/boas-vindas.md`, `concierge/rules/transbordo.md`), no mesmo padrão de "Regras" de uma skill — não uma lista estruturada de gatilhos.
+- Concierge (Task 14): "Tom" do canvas (Acolhedor/Direto/Formal/Descontraído) entra como atalhos que escrevem uma frase pronta dentro da persona (igual ao "Usar o modelo"), não como um campo novo no Go; "Identidade" (Nome/Primeiro nome do canvas) é só a prévia `"Oi, {primeiro nome}"` do texto já existente na persona ("Trate o morador pelo primeiro nome…"), sem campo nem persistência nova. **Decisão pendente do Felipe**: se o nível de estrutura do canvas (campos de Identidade e Tom como dados próprios, não texto dentro da persona) for necessário de verdade, isso é uma Fase 3 com schema novo — fica fora desta fase por ora.
