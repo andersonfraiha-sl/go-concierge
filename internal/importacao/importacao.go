@@ -2,8 +2,17 @@
 // repositórios de hoje. É a única leitura de arquivo que sobrou: as pastas de memórias e
 // pedidos eram por account, e aqui cada account vira a administradora do condomínio dela.
 //
-// Importar é idempotente: os repositórios gravam por upsert, então rodar de novo mantém as
-// mesmas linhas e as mesmas contagens.
+// Garantias, e o que elas não são:
+//   - Não há uma transação por área: os repositórios não expõem transação entre chamadas.
+//     Cada gravação (um item do mapeamento, um contato) é atômica sozinha.
+//   - Tudo o que dá para recusar é recusado antes da primeira gravação da área (JSON
+//     quebrado, account que não resolve, telefone curto): a área falha sem escrever nada.
+//   - Uma falha no meio da área, já gravando, deixa a área parcial; rodar de novo completa,
+//     porque as Stores substituem o estado do contato e o mapeamento é upsert.
+//   - Arquivos que caem no mesmo contato (mesmo telefone em duas accounts da mesma
+//     administradora, ou 11… e 5511… na mesma account) são mesclados antes de gravar.
+//
+// Lidos conta o que veio dos arquivos; Gravados, o que as Stores confirmam ter guardado.
 package importacao
 
 import (
@@ -19,7 +28,6 @@ import (
 	"strings"
 
 	"go-concierge/internal/admin"
-	"go-concierge/internal/escopo"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/pedidos"
 )
@@ -34,7 +42,8 @@ const (
 	AvisoProtocolosRedesenhados = "aviso_protocolos_redesenhados"
 )
 
-// Contagem de uma área: itens lidos dos arquivos e itens gravados no destino.
+// Contagem de uma área: itens lidos dos arquivos e itens gravados no destino. Uma área que
+// falha antes de gravar volta zerada.
 type Contagem struct{ Lidos, Gravados int }
 
 // Relatorio é a contagem por área.
@@ -55,6 +64,15 @@ type Destinos struct {
 	Mapeamento admin.Repositorio
 	Memorias   memoria.Store
 	Pedidos    pedidos.Store
+	// Aviso, se informado, recebe cada ocorrência que não falha a importação (um protocolo
+	// redesenhado por colisão entre administradoras, "P-ANTIGO → P-NOVO").
+	Aviso func(string)
+}
+
+func (d Destinos) avisar(texto string) {
+	if d.Aviso != nil {
+		d.Aviso(texto)
+	}
 }
 
 // Importar lê <dir>/admin/mapeamento.json, <dir>/memorias/<account>/<telefone>.json e
@@ -74,14 +92,14 @@ func Importar(ctx context.Context, dir string, destino Destinos) (Relatorio, err
 	c, err := importarMapeamento(ctx, filepath.Join(dir, "admin", "mapeamento.json"), destino.Mapeamento)
 	registrar(AreaMapeamento, c, err)
 
-	donas, err := donasPorAccount(ctx, destino.Mapeamento)
+	contas, err := resolverAccounts(ctx, destino.Mapeamento)
 	if err != nil {
 		return rel, errors.Join(append(erros, fmt.Errorf("importar memorias e pedidos: %w", err))...)
 	}
-	c, err = importarMemorias(ctx, filepath.Join(dir, "memorias"), donas, destino.Memorias)
+	c, err = importarMemorias(ctx, filepath.Join(dir, "memorias"), contas, destino.Memorias)
 	registrar(AreaMemorias, c, err)
 
-	c, redesenhados, err := importarPedidos(ctx, filepath.Join(dir, "pedidos"), donas, destino.Pedidos)
+	c, redesenhados, err := importarPedidos(ctx, filepath.Join(dir, "pedidos"), contas, destino)
 	registrar(AreaPedidos, c, err)
 	if redesenhados > 0 {
 		rel[AvisoProtocolosRedesenhados] = Contagem{Lidos: redesenhados, Gravados: redesenhados}
@@ -104,9 +122,9 @@ func importarMapeamento(ctx context.Context, caminho string, repo admin.Reposito
 	} else if err != nil {
 		return Contagem{}, err
 	}
-	var c Contagem
-	for _, g := range gravacoesDoMapeamento(m.Normalizado(), repo) {
-		c.Lidos++
+	gravacoes := gravacoesDoMapeamento(m.Normalizado(), repo)
+	c := Contagem{Lidos: len(gravacoes)}
+	for _, g := range gravacoes {
 		if err := g.grava(ctx); err != nil {
 			return c, fmt.Errorf("%s: %w", g.nome, err)
 		}
@@ -164,186 +182,61 @@ func gravacoesDoMapeamento(m admin.Mapeamento, repo admin.Repositorio) []gravaca
 // dona é o lugar de uma account no mapeamento: a administradora e o condomínio do contato.
 type dona struct{ administradoraID, condominioID string }
 
-// donasPorAccount lê o mapeamento já gravado: vale a administradora do condomínio da account
-// (o primeiro, na ordem do mapeamento). Condomínio sem administradora não serve de dono.
-func donasPorAccount(ctx context.Context, repo admin.Repositorio) (map[string]dona, error) {
+// contas diz o que cada account do mapeamento gravado resolve: uma dona, ou um problema.
+type contas struct {
+	donas    map[string]dona
+	semAdm   map[string][]string // account → condomínios sem administradora
+	ambiguas map[string][]string // account → administradoras (mais de uma)
+}
+
+// resolverAccounts lê o mapeamento já gravado. Vale o primeiro condomínio (na ordem do
+// mapeamento) da única administradora que a account tem.
+func resolverAccounts(ctx context.Context, repo admin.Repositorio) (contas, error) {
 	m, err := repo.Ler(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("ler mapeamento: %w", err)
+		return contas{}, fmt.Errorf("ler mapeamento: %w", err)
 	}
-	donas := map[string]dona{}
+	r := contas{donas: map[string]dona{}, semAdm: map[string][]string{}, ambiguas: map[string][]string{}}
+	administradoras := map[string][]string{}
 	for _, c := range m.Condominios {
-		if _, jaTem := donas[c.Account]; c.Account == "" || c.Administradora == "" || jaTem {
-			continue
-		}
-		donas[c.Account] = dona{administradoraID: c.Administradora, condominioID: c.ID}
-	}
-	return donas, nil
-}
-
-// arquivoDeContato é um <account>/<telefone>.json já traduzido para o contato dono dele.
-type arquivoDeContato struct {
-	contato escopo.Contato
-	caminho string
-}
-
-// descobrir lista os arquivos de <raiz>/<account>/*.json. Account sem dona no mapeamento é
-// erro (listadas todas) e nada é devolvido: a área não grava nada.
-func descobrir(raiz string, donas map[string]dona) ([]arquivoDeContato, error) {
-	contas, err := os.ReadDir(raiz)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("listar %s: %w", raiz, err)
-	}
-	var out []arquivoDeContato
-	var orfas []string
-	for _, conta := range contas {
-		if !conta.IsDir() {
-			continue
-		}
-		d, ok := donas[conta.Name()]
-		if !ok {
-			orfas = append(orfas, conta.Name())
-			continue
-		}
-		arquivos, err := arquivosDaConta(filepath.Join(raiz, conta.Name()), d)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, arquivos...)
-	}
-	if len(orfas) > 0 {
-		return nil, fmt.Errorf("accounts sem condomínio no mapeamento: %s", strings.Join(orfas, ", "))
-	}
-	return out, nil
-}
-
-func arquivosDaConta(pasta string, d dona) ([]arquivoDeContato, error) {
-	entradas, err := os.ReadDir(pasta)
-	if err != nil {
-		return nil, fmt.Errorf("listar %s: %w", pasta, err)
-	}
-	var out []arquivoDeContato
-	for _, e := range entradas {
-		telefone, ehJSON := strings.CutSuffix(e.Name(), ".json")
-		if e.IsDir() || !ehJSON {
-			continue
-		}
-		c, err := escopo.NovoContato(d.administradoraID, d.condominioID, telefone)
-		if err != nil {
-			return nil, fmt.Errorf("account %s: arquivo sem telefone válido: %w", filepath.Base(pasta), err)
-		}
-		out = append(out, arquivoDeContato{contato: c, caminho: filepath.Join(pasta, e.Name())})
-	}
-	return out, nil
-}
-
-// ---- memórias ------------------------------------------------------------------------
-
-func importarMemorias(ctx context.Context, raiz string, donas map[string]dona, st memoria.Store) (Contagem, error) {
-	arquivos, err := descobrir(raiz, donas)
-	if err != nil {
-		return Contagem{}, err
-	}
-	lidas, err := lerTodos(arquivos, func(a arquivoDeContato, m *memoria.Memoria) {
-		for i := range m.Fatos {
-			if m.Fatos[i].CondominioID == "" {
-				m.Fatos[i].CondominioID = a.contato.CondominioID
+		switch {
+		case c.Account == "":
+		case c.Administradora == "":
+			r.semAdm[c.Account] = append(r.semAdm[c.Account], c.ID)
+		default:
+			if _, tem := r.donas[c.Account]; !tem {
+				r.donas[c.Account] = dona{administradoraID: c.Administradora, condominioID: c.ID}
+			}
+			if !slices.Contains(administradoras[c.Account], c.Administradora) {
+				administradoras[c.Account] = append(administradoras[c.Account], c.Administradora)
 			}
 		}
-	})
-	if err != nil {
-		return Contagem{Lidos: len(arquivos)}, fmt.Errorf("memórias: %w", err)
 	}
-	c := Contagem{Lidos: len(lidas)}
-	for _, l := range lidas {
-		// Gravar escreve o nome do contato junto dos fatos; nunca as linhas direto.
-		if err := st.Gravar(ctx, l.contato, l.valor); err != nil {
-			return c, err
+	for account, adms := range administradoras {
+		if len(adms) > 1 {
+			r.ambiguas[account] = slices.Sorted(slices.Values(adms))
+			delete(r.donas, account)
 		}
-		c.Gravados++
 	}
-	return c, nil
+	return r, nil
 }
 
-// ---- pedidos -------------------------------------------------------------------------
-
-func importarPedidos(ctx context.Context, raiz string, donas map[string]dona, st pedidos.Store) (Contagem, int, error) {
-	arquivos, err := descobrir(raiz, donas)
-	if err != nil {
-		return Contagem{}, 0, err
+// problema diz por que a account não resolve; vazio se resolve.
+func (r contas) problema(account string) string {
+	switch {
+	case len(r.ambiguas[account]) > 0:
+		return fmt.Sprintf("account %s em mais de uma administradora (%s)", account, strings.Join(r.ambiguas[account], ", "))
+	case r.temDona(account):
+		return ""
+	case len(r.semAdm[account]) > 0:
+		return fmt.Sprintf("account %s: condomínio sem administradora (%s)", account, strings.Join(r.semAdm[account], ", "))
 	}
-	lidas, err := lerTodos(arquivos, func(a arquivoDeContato, cart *pedidos.Carteira) {
-		for _, p := range cart.Pedidos {
-			if p.CondominioID == "" {
-				p.CondominioID = a.contato.CondominioID
-			}
-		}
-	})
-	if err != nil {
-		return Contagem{}, 0, fmt.Errorf("pedidos: %w", err)
-	}
-	var c Contagem
-	for _, l := range lidas {
-		c.Lidos += len(l.valor.Pedidos)
-	}
-	redesenhados := 0
-	for _, l := range lidas {
-		protocolos := protocolosDe(l.valor)
-		if err := st.Gravar(ctx, l.contato, l.valor); err != nil {
-			return c, redesenhados, err
-		}
-		c.Gravados += len(l.valor.Pedidos)
-		redesenhados += diferentes(protocolos, protocolosDe(l.valor))
-	}
-	return c, redesenhados, nil
+	return fmt.Sprintf("account %s sem condomínio no mapeamento", account)
 }
 
-func protocolosDe(cart pedidos.Carteira) []string {
-	return slices.Collect(func(yield func(string) bool) {
-		for _, p := range cart.Pedidos {
-			if !yield(p.Protocolo) {
-				return
-			}
-		}
-	})
-}
-
-// diferentes conta as posições em que o protocolo mudou: a Store adota o redesenhado no pedido.
-func diferentes(antes, depois []string) int {
-	n := 0
-	for i := range antes {
-		if antes[i] != depois[i] {
-			n++
-		}
-	}
-	return n
-}
+func (r contas) temDona(account string) bool { _, ok := r.donas[account]; return ok }
 
 // ---- leitura -------------------------------------------------------------------------
-
-type lido[T any] struct {
-	contato escopo.Contato
-	valor   T
-}
-
-// lerTodos decodifica todos os arquivos antes de qualquer gravação: JSON quebrado derruba a
-// área inteira antes de escrever. ajustar completa o que o formato antigo não tinha.
-func lerTodos[T any](arquivos []arquivoDeContato, ajustar func(arquivoDeContato, *T)) ([]lido[T], error) {
-	out := make([]lido[T], 0, len(arquivos))
-	for _, a := range arquivos {
-		var v T
-		if err := lerJSON(a.caminho, &v); err != nil {
-			// o erro de arquivo traz o caminho, que tem o telefone: só o contato mascarado fica
-			return nil, fmt.Errorf("contato %s: %w", a.contato.Mascarado(), semCaminho(err))
-		}
-		ajustar(a, &v)
-		out = append(out, lido[T]{contato: a.contato, valor: v})
-	}
-	return out, nil
-}
 
 func lerJSON(caminho string, destino any) error {
 	raw, err := os.ReadFile(caminho)

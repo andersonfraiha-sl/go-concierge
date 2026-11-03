@@ -219,24 +219,29 @@ func TestImportarErroNaoVazaTelefone(t *testing.T) {
 	})
 }
 
+// ocuparProtocolo grava, em outra administradora, um pedido com o protocolo do testdata.
+func ocuparProtocolo(t *testing.T, d Destinos, outraAdm string) {
+	t.Helper()
+	if _, err := d.Mapeamento.SalvarAdministradora(t.Context(), admin.Administradora{ID: outraAdm, Nome: "Outra"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Mapeamento.SalvarCondominio(t.Context(), admin.Condominio{ID: "cond-b", Nome: "B", Administradora: outraAdm}); err != nil {
+		t.Fatal(err)
+	}
+	outra, err := escopo.NovoContato(outraAdm, "cond-b", "11977770000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ocupa := &pedidos.Pedido{Protocolo: "P-AAAAAAAA", Caso: "x", Estado: "coletando"}
+	if err := d.Pedidos.Gravar(t.Context(), outra, pedidos.Carteira{Pedidos: []*pedidos.Pedido{ocupa}}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestImportarRelataProtocoloRedesenhado(t *testing.T) {
 	emCadaDestino(t, func(t *testing.T, novo func(*testing.T) Destinos) {
 		d := novo(t)
-		const outraAdm = "adm-b"
-		if _, err := d.Mapeamento.SalvarAdministradora(t.Context(), admin.Administradora{ID: outraAdm, Nome: "Outra"}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := d.Mapeamento.SalvarCondominio(t.Context(), admin.Condominio{ID: "cond-b", Nome: "B", Administradora: outraAdm}); err != nil {
-			t.Fatal(err)
-		}
-		outra, err := escopo.NovoContato(outraAdm, "cond-b", "11977770000")
-		if err != nil {
-			t.Fatal(err)
-		}
-		ocupa := &pedidos.Pedido{Protocolo: "P-AAAAAAAA", Caso: "x", Estado: "coletando"}
-		if err := d.Pedidos.Gravar(t.Context(), outra, pedidos.Carteira{Pedidos: []*pedidos.Pedido{ocupa}}); err != nil {
-			t.Fatal(err)
-		}
+		ocuparProtocolo(t, d, "adm-b")
 
 		rel := importar(t, "testdata", d)
 
