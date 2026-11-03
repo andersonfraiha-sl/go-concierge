@@ -6,10 +6,11 @@ import { useForm } from 'react-hook-form';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { ApiError } from '@/shared/api/http';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { CamposDeAjustes } from './CamposDeAjustes';
 import { CamposDeConexao } from './CamposDeConexao';
-import { CamposDeEntradaESaida } from './CamposDeEntradaESaida';
+import { CamposDeParametros, CamposDeSaida } from './CamposDeEntradaESaida';
 import { CamposDeIdentificacao } from './CamposDeIdentificacao';
 import {
   ferramentaNova,
@@ -20,7 +21,12 @@ import {
   salvarFerramenta,
   tituloDe,
 } from './contratos';
-import { FormularioSchema, recursoCompleto, valoresIniciais } from './formularioDaFerramenta';
+import {
+  criarEsquemaDoFormulario,
+  recursoCompleto,
+  valoresIniciais,
+} from './formularioDaFerramenta';
+import { SecaoDoDrawer } from './SecaoDoDrawer';
 
 type Props = {
   /** `null` abre o formulário de uma ferramenta nova. */
@@ -31,6 +37,16 @@ type Props = {
 
 const AVISO_FORA_DO_STUDIO = 'Esta ferramenta é mantida fora do Studio.';
 
+const SECOES = [
+  'Básico',
+  'Parâmetros',
+  'Saída',
+  'Conexão',
+  'Amostra',
+  'Ajustes por condomínio',
+] as const;
+type Secao = (typeof SECOES)[number];
+
 export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): ReactNode {
   const clienteDeConsultas = useQueryClient();
   const { mostrar } = useSnackbar();
@@ -38,14 +54,28 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
   const inicial = ferramenta ?? ferramentaNova();
   const [recusadaPeloServidor, setRecusadaPeloServidor] = useState(false);
   const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
+  const [secoesAbertas, setSecoesAbertas] = useState<ReadonlySet<Secao>>(
+    () => new Set<Secao>(['Básico']),
+  );
   const { control, handleSubmit, setError, formState } = useForm({
-    resolver: zodResolver(FormularioSchema),
+    resolver: zodResolver(criarEsquemaDoFormulario(original)),
     defaultValues: valoresIniciais(inicial, ferramenta),
   });
   const mensagemDeErro = formState.errors.root?.message;
 
   const foraDoStudio = (ferramenta !== null && mantidaFora(ferramenta)) || recusadaPeloServidor;
   const travado = !podeEditar || foraDoStudio;
+
+  const alternarSecao = (secao: Secao) => () =>
+    setSecoesAbertas((atuais) => {
+      const novas = new Set(atuais);
+      if (novas.has(secao)) {
+        novas.delete(secao);
+      } else {
+        novas.add(secao);
+      }
+      return novas;
+    });
 
   const aoConcluir =
     (mensagem: string) => (catalogo: Awaited<ReturnType<typeof salvarFerramenta>>) => {
@@ -88,7 +118,7 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
         component="form"
         noValidate
         onSubmit={(evento) => void enviar(evento)}
-        sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}
+        sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}
       >
         <Typography variant="h6" component="h2">
           {ferramenta ? tituloDe(ferramenta) : 'Nova ferramenta'}
@@ -96,10 +126,57 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
         {foraDoStudio && <Alert severity="info">{AVISO_FORA_DO_STUDIO}</Alert>}
         {mensagemDeErro && <Alert severity="error">{mensagemDeErro}</Alert>}
 
-        <CamposDeIdentificacao control={control} travado={travado} tipoInicial={inicial.kind} />
-        <CamposDeEntradaESaida control={control} travado={travado} />
-        <CamposDeConexao control={control} travado={travado} />
-        <CamposDeAjustes control={control} travado={travado} />
+        <SecaoDoDrawer
+          titulo="Básico"
+          aberta={secoesAbertas.has('Básico')}
+          onAlternar={alternarSecao('Básico')}
+        >
+          <CamposDeIdentificacao control={control} travado={travado} tipoInicial={inicial.kind} />
+        </SecaoDoDrawer>
+        <SecaoDoDrawer
+          titulo="Parâmetros"
+          aberta={secoesAbertas.has('Parâmetros')}
+          onAlternar={alternarSecao('Parâmetros')}
+        >
+          <CamposDeParametros control={control} travado={travado} />
+        </SecaoDoDrawer>
+        <SecaoDoDrawer
+          titulo="Saída"
+          aberta={secoesAbertas.has('Saída')}
+          onAlternar={alternarSecao('Saída')}
+        >
+          <CamposDeSaida control={control} travado={travado} />
+        </SecaoDoDrawer>
+        <SecaoDoDrawer
+          titulo="Conexão"
+          aberta={secoesAbertas.has('Conexão')}
+          onAlternar={alternarSecao('Conexão')}
+        >
+          <CamposDeConexao control={control} travado={travado} />
+        </SecaoDoDrawer>
+        <SecaoDoDrawer
+          titulo="Amostra"
+          aberta={secoesAbertas.has('Amostra')}
+          onAlternar={alternarSecao('Amostra')}
+        >
+          <CampoTexto
+            control={control}
+            name="textoAmostra"
+            label="Amostra de retorno"
+            disabled={travado}
+            multiline
+            minRows={4}
+            slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
+          />
+        </SecaoDoDrawer>
+        <SecaoDoDrawer
+          titulo="Ajustes por condomínio"
+          aberta={secoesAbertas.has('Ajustes por condomínio')}
+          onAlternar={alternarSecao('Ajustes por condomínio')}
+        >
+          <CamposDeAjustes control={control} travado={travado} />
+        </SecaoDoDrawer>
+
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
           {ferramenta && (
             <Button

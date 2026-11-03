@@ -67,6 +67,65 @@ export function ferramentaNova(): Ferramenta {
   };
 }
 
+/** Valores aceitos pelo servidor em `conexao.metodo`, com o rótulo que o Studio mostra. */
+export const METODOS: Record<string, string> = {
+  '': '—',
+  GET: 'GET',
+  POST: 'POST',
+  PUT: 'PUT',
+  PATCH: 'PATCH',
+  DELETE: 'DELETE',
+  MCP: 'Servidor de ferramentas',
+};
+
+export const TIPOS_DE_AJUSTE: Record<string, string> = {
+  string: 'Texto curto',
+  text: 'Texto longo',
+  number: 'Número',
+  boolean: 'Sim/não',
+  select: 'Escolha',
+};
+
+export type Cabecalho = { chave: string; valor: string };
+
+export function cabecalhosEmLista(headers: Record<string, string> | undefined): Cabecalho[] {
+  return Object.entries(headers ?? {}).map(([chave, valor]) => ({ chave, valor }));
+}
+
+export function listaEmCabecalhos(lista: readonly Cabecalho[]): Record<string, string> | undefined {
+  const comChave = lista
+    .map((cabecalho) => ({ chave: cabecalho.chave.trim(), valor: cabecalho.valor }))
+    .filter((cabecalho) => cabecalho.chave !== '');
+  return comChave.length === 0
+    ? undefined
+    : Object.fromEntries(comChave.map((cabecalho) => [cabecalho.chave, cabecalho.valor]));
+}
+
+const ValorSchema = z.json();
+export type Valor = z.infer<typeof ValorSchema>;
+
+/** Converte o texto digitado em "Padrão" para o tipo do ajuste; texto vazio é "sem padrão". */
+export function padraoDoAjuste(tipo: string | undefined, texto: string): Valor | undefined {
+  if (texto === '') return undefined;
+  if (tipo === 'number') {
+    const numero = Number(texto);
+    return Number.isFinite(numero) ? numero : undefined;
+  }
+  if (tipo === 'boolean') {
+    if (texto === 'sim') return true;
+    if (texto === 'não') return false;
+    return undefined;
+  }
+  return texto;
+}
+
+const PADRAO_DO_CODIGO = /^[a-z0-9_-]+(\.[a-z0-9_-]+)+$/;
+const MENSAGEM_CODIGO_INVALIDO = 'Use grupo.acao, em minúsculas, como reservas.criar.';
+
+export function validarCodigo(codigo: string): string | null {
+  return PADRAO_DO_CODIGO.test(codigo) ? null : MENSAGEM_CODIGO_INVALIDO;
+}
+
 export type Amostra = { ok: true; valor: Ferramenta['amostra'] } | { ok: false };
 
 export function lerAmostra(texto: string): Amostra {
@@ -116,7 +175,7 @@ export function paraGravar(rascunho: Ferramenta, amostra: Amostra & { ok: true }
       .map((d) => ({
         ...d,
         name: d.name.trim(),
-        options: d.options.map((o) => o.trim()).filter((o) => o !== ''),
+        options: d.type === 'select' ? d.options.map((o) => o.trim()).filter((o) => o !== '') : [],
       })),
     conexao: temConexao ? conexao : undefined,
     amostra: amostra.valor,
