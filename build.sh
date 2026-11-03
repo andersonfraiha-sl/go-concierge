@@ -11,22 +11,24 @@ cd "$(dirname "$0")"
 
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado" >&2; exit 1; }
 
-# node_modules num volume anônimo: o npm ci do Linux não sobrescreve o node_modules do Windows.
+# node_modules num volume anônimo: o pnpm install do Linux não sobrescreve o node_modules do Windows.
+# node:26-alpine não traz corepack; instala o pnpm pinado em package.json (packageManager) via npm.
+PNPM="npm install -g pnpm@12.16.1 >/dev/null"
 STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -e HUSKY=0 -v $PWD:/src -v /src/web/studio/node_modules -w /src/web/studio node:26-alpine"
 GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-alpine"
 
 case "${1:-}" in
   --test)
-    eval "$STUDIO" sh -c "'npm ci && npm run lint && npm test'"
+    eval "$STUDIO" sh -c "'$PNPM && pnpm install --frozen-lockfile && pnpm run lint && pnpm test'"
     eval "$GO" sh -c "'gofmt -l . && go vet ./... && go test ./...'"
     ;;
   --run)
-    eval "$STUDIO" sh -c "'npm ci && npm run lint && npm test && npm run build'"
+    eval "$STUDIO" sh -c "'$PNPM && pnpm install --frozen-lockfile && pnpm run lint && pnpm test && pnpm run build'"
     eval "$GO" sh -c "'go vet ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o bin/okf-admin.exe ./cmd/okf-admin'"
     exec ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
     ;;
   *)
-    eval "$STUDIO" sh -c "'npm ci && npm run lint && npm test && npm run build'"
+    eval "$STUDIO" sh -c "'$PNPM && pnpm install --frozen-lockfile && pnpm run lint && pnpm test && pnpm run build'"
     eval "$GO" sh -c "'gofmt -w . && go mod tidy && go vet ./... && go test ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin.exe ./cmd/okf-admin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run.exe ./cmd/okf-run && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin ./cmd/okf-admin && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run ./cmd/okf-run'"
     echo "binários em bin/: okf-admin e okf-run (.exe Windows e Linux)"
     ;;

@@ -135,7 +135,7 @@ e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
 ## A interface (okf-admin)
 
 ```bash
-./build.sh            # Studio (npm test + build) + gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (em contêiner, sem Go nem Node locais)
+./build.sh            # Studio (pnpm test + build) + gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (em contêiner, sem Go nem Node locais)
 ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
 ```
 
@@ -143,7 +143,7 @@ Duas áreas: o **Studio** (`/studio/`, onde `/` redireciona) e o **Console** (`/
 emulador do ATENDE: a conversa do morador como o atendente a vê). O Studio é o front em
 React de `web/studio/`, compilado para `web/studio/dist` e embutido no binário (só o `dist`,
 nunca o código-fonte nem `node_modules`); sem compilar, `/studio/` responde 503
-`STUDIO_NAO_COMPILADO`. Em desenvolvimento, `npm --prefix web/studio run dev`
+`STUDIO_NAO_COMPILADO`. Em desenvolvimento, `pnpm --dir web/studio run dev`
 serve o Studio com o proxy de `/api` para o okf-admin em 8090.
 
 No Studio: as skills (Quando usar, Fluxo, Regras, Base de conhecimento, Ferramentas), o

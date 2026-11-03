@@ -11,6 +11,7 @@
     "lint:fix": "biome check --fix .",
     "prepare": "cd ../.. && husky web/studio/.husky"
   },
+  "packageManager": "pnpm@12.16.1",
   "lint-staged": {
     "*": "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
   },

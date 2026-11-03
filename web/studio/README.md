@@ -6,14 +6,14 @@ Front React do go-concierge. O build sai em `dist/`, que o servidor Go embute e 
 
 Rodar dentro de `web/studio`:
 
-| Comando            | O que faz                                                    |
-| ------------------ | ------------------------------------------------------------ |
-| `npm ci`           | Instala as dependências e liga o gancho de pre-commit        |
-| `npm run dev`      | Vite em modo dev, com `/api` apontando para `127.0.0.1:8090` |
-| `npm run lint`     | Biome (lint, formatação e ordem de imports)                  |
-| `npm run lint:fix` | Corrige o que o Biome sabe corrigir sozinho                  |
-| `npm test`         | Suíte inteira do Vitest                                      |
-| `npm run build`    | `tsc` e build do Vite em `dist/`                             |
+| Comando             | O que faz                                                    |
+| ------------------- | ------------------------------------------------------------ |
+| `pnpm install`      | Instala as dependências e liga o gancho de pre-commit        |
+| `pnpm run dev`      | Vite em modo dev, com `/api` apontando para `127.0.0.1:8090` |
+| `pnpm run lint`     | Biome (lint, formatação e ordem de imports)                  |
+| `pnpm run lint:fix` | Corrige o que o Biome sabe corrigir sozinho                  |
+| `pnpm test`         | Suíte inteira do Vitest                                      |
+| `pnpm run build`    | `tsc` e build do Vite em `dist/`                             |
 
 Da raiz do repositório, `./build.sh` roda lint, testes e build do Studio num contêiner Node antes de compilar o Go.
 
@@ -21,7 +21,7 @@ O pre-commit (husky, ligado a partir desta pasta) só roda quando o commit toca 
 
 ## Regras de código
 
-- **Biome antes de commitar.** `npm run lint` limpo; o build e o pre-commit quebram em erro.
+- **Biome antes de commitar.** `pnpm run lint` limpo; o build e o pre-commit quebram em erro.
 - **Zod na borda.** Toda resposta de API passa por `apiGet`/`apiEnviar` com schema; nada de `as` em resposta.
 - **Formulário.** `react-hook-form` em todo campo editável, com `zodResolver` quando há regra de envio; zero `useState` para campo. Estado de tela (aberto, fechado, confirmando) pode ser `useState`.
 - **Autosave.** O valor do formulário entra no `useAutosave` por `useWatch` (campo único) ou `useValoresDoFormulario` (objeto).

@@ -2,10 +2,12 @@
 # O Studio é compilado no estágio front e embutido no binário pelo go:embed.
 FROM node:26-alpine AS front
 WORKDIR /src/web/studio
-COPY web/studio/package.json web/studio/package-lock.json ./
-RUN npm ci
+# node:26-alpine não traz corepack; instala o pnpm pinado em package.json (packageManager).
+RUN npm install -g pnpm@12.16.1
+COPY web/studio/package.json web/studio/pnpm-lock.yaml web/studio/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY web/studio/ ./
-RUN npm run build
+RUN pnpm run build
 
 FROM golang:1.27-alpine AS build
 WORKDIR /src
