@@ -158,9 +158,14 @@ const (
 	casoTurno  = "agendar_mudanca"
 )
 
-func eventoDoTurno(tb testing.TB) Evento {
+// textoSemPedido é a pergunta do eventoExemplo: o concierge responde sem abrir pedido.
+const textoSemPedido = "posso fazer barulho depois das 22h?"
+
+func eventoDoTurno(tb testing.TB) Evento { return eventoCom(tb, textoTurno) }
+
+func eventoCom(tb testing.TB, texto string) Evento {
 	tb.Helper()
-	ev, err := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", textoTurno, 1)))
+	ev, err := Parse([]byte(strings.Replace(eventoExemplo, textoSemPedido, texto, 1)))
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -298,6 +303,30 @@ func BenchmarkTurnoMockQuente(b *testing.B) {
 	relatar(b, medidas)
 }
 
+// BenchmarkTurnoMockQuenteNovoPedido: o segundo turno da conversa, com o contato quente,
+// abre o pedido (a gravação vai antes da resposta); o primeiro turno, uma pergunta sem
+// pedido, roda fora do cronômetro.
+func BenchmarkTurnoMockQuenteNovoPedido(b *testing.B) {
+	svc, db, contador := servicoNoPostgres(b)
+	pergunta, agendamento := eventoCom(b, textoSemPedido), eventoDoTurno(b)
+	exigirAgendamento(b, svc, db, mensagemDoMorador(agendamento, 0, 0))
+	medidas := make([]medida, 0, b.N)
+	b.ResetTimer()
+	for i := 1; i <= b.N; i++ {
+		b.StopTimer()
+		novaConversa(b, svc, db)
+		if _, err := svc.Processar(context.Background(), mensagemDoMorador(pergunta, i, 0)); err != nil {
+			b.Fatal(err)
+		}
+		svc.Aguardar()
+		msg := mensagemDoMorador(agendamento, i, 1)
+		b.StartTimer()
+		medidas = append(medidas, medir(b, svc, contador, msg))
+	}
+	b.StopTimer()
+	relatar(b, medidas)
+}
+
 // BenchmarkIdaAoBanco mede o piso de uma ida ao banco neste ambiente: SELECT 1.
 func BenchmarkIdaAoBanco(b *testing.B) {
 	db := bancotest.Novo(b)
@@ -320,19 +349,29 @@ func BenchmarkIdaAoBanco(b *testing.B) {
 	b.ReportMetric(float64(percentil(latencias, 0.95).Microseconds())/1000, "p95-ms")
 }
 
-// O turno de um contato frio vai ao banco uma vez antes da resposta (o lote que carrega
-// sessão, memória e pedidos); o turno seguinte da mesma conversa, nenhuma. A carteira e a
-// sessão chegam ao banco depois da resposta.
+// Antes da resposta: o turno de um contato frio vai ao banco uma vez (o lote que carrega
+// sessão, memória e pedidos); um turno que abre pedido grava a carteira antes da resposta,
+// uma ida; um turno sem mudança de pedido com o contato quente não vai ao banco. A sessão
+// chega ao banco depois da resposta.
 func TestTurnoNoPostgresIdasAntesDaResposta(t *testing.T) {
 	svc, db, contador := servicoNoPostgres(t)
-	ev := eventoDoTurno(t)
-	frio := medir(t, svc, contador, mensagemDoMorador(ev, 1, 0))
-	exigirAgendamento(t, svc, db, mensagemDoMorador(ev, 1, 1))
-	quente := medir(t, svc, contador, mensagemDoMorador(ev, 1, 2))
-	if frio.idas != 1 || quente.idas != 0 {
-		t.Fatalf("idas antes da resposta: frio %d, quente %d; want 1 e 0", frio.idas, quente.idas)
+	pergunta, agendamento := eventoCom(t, textoSemPedido), eventoDoTurno(t)
+	tests := []struct {
+		nome string
+		msg  entrada.Mensagem
+		idas int
+	}{
+		{"contato frio, sem pedido", mensagemDoMorador(pergunta, 1, 0), 1},
+		{"contato quente, pedido novo", mensagemDoMorador(agendamento, 1, 1), 1},
+		{"contato quente, pedido sem mudança", mensagemDoMorador(agendamento, 1, 2), 0},
 	}
-	roteada := normalizarRoteamento(mensagemDoMorador(ev, 1, 2))
+	for _, tt := range tests {
+		if got := medir(t, svc, contador, tt.msg).idas; got != tt.idas {
+			t.Fatalf("%s: %d idas antes da resposta, want %d", tt.nome, got, tt.idas)
+		}
+	}
+	exigirAgendamento(t, svc, db, mensagemDoMorador(agendamento, 1, 3))
+	roteada := normalizarRoteamento(mensagemDoMorador(agendamento, 1, 3))
 	if _, achou, err := NovoSessaoPostgres(db).Carregar(t.Context(), idSessao(roteada.Origem, roteada.ConversaID)); err != nil || !achou {
 		t.Fatalf("sessão não gravada depois da resposta: %v", err)
 	}

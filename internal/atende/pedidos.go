@@ -181,6 +181,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	if err != nil {
 		return nil, nil, fmt.Errorf("pedidos de %s: %w", contato.Mascarado(), err)
 	}
+	estadosAntes := estadosDe(cart)
 
 	ex := s.ExtratorPedidos
 	if ex == nil {
@@ -474,9 +475,25 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		}
 	}
 
-	// a carteira vai ao banco depois da resposta, junto com a sessão (gravarDepoisDaResposta);
-	// o que a resposta não pode perder (execução iniciada) já foi gravado acima
-	s.adiarCarteira(contato, cart)
+	if abriuOuMudouDeEstado(estadosAntes, cart) {
+		// a resposta cita o pedido aberto ou o estado novo: ele vai ao banco antes dela, e uma
+		// falha aqui fecha o turno sem prometer o que não foi gravado. Se o protocolo de um
+		// pedido novo era de outro contato, a gravação o trocou, e a resposta já sai com o novo.
+		antes := protocolosDe(cart)
+		if err := s.salvarCarteira(ctx, contato, cart); err != nil {
+			return nil, nil, err
+		}
+		if r := renomeador(antes, protocolosDe(cart)); r != nil {
+			partes, perguntas, transbordo = renomearTodos(r, partes), renomearTodos(r, perguntas), r.Replace(transbordo)
+			for i := range turnos {
+				turnos[i].Protocolo, turnos[i].confirmacaoTexto = r.Replace(turnos[i].Protocolo), r.Replace(turnos[i].confirmacaoTexto)
+			}
+		}
+	} else {
+		// o resto (valores preenchidos, eventos) vai depois da resposta, junto com a sessão
+		// (gravarDepoisDaResposta)
+		s.adiarCarteira(contato, cart)
+	}
 
 	conteudo := strings.TrimSpace(strings.Join(append(partes, perguntas...), "\n\n"))
 	if conteudo == "" {
@@ -741,4 +758,46 @@ func (s *Servico) RemoverPedido(ctx context.Context, contato escopo.Contato, pro
 		return err
 	}
 	return s.Pedidos.Gravar(ctx, contato, cart)
+}
+
+// estadosDe guarda o estado de cada pedido da carteira, pelo protocolo.
+func estadosDe(cart pedidos.Carteira) map[string]string {
+	out := make(map[string]string, len(cart.Pedidos))
+	for _, p := range cart.Pedidos {
+		out[p.Protocolo] = p.Estado
+	}
+	return out
+}
+
+// abriuOuMudouDeEstado: algum pedido é novo na carteira ou mudou de estado (confirmado,
+// cancelado, com o atendente…) desde estadosAntes.
+func abriuOuMudouDeEstado(estadosAntes map[string]string, cart pedidos.Carteira) bool {
+	for _, p := range cart.Pedidos {
+		if estado, existia := estadosAntes[p.Protocolo]; !existia || estado != p.Estado {
+			return true
+		}
+	}
+	return false
+}
+
+// renomeador troca cada protocolo de antes pelo de depois, na mesma posição; nil se nenhum mudou.
+func renomeador(antes, depois []string) *strings.Replacer {
+	var pares []string
+	for i := range antes {
+		if antes[i] != depois[i] {
+			pares = append(pares, antes[i], depois[i])
+		}
+	}
+	if len(pares) == 0 {
+		return nil
+	}
+	return strings.NewReplacer(pares...)
+}
+
+func renomearTodos(r *strings.Replacer, textos []string) []string {
+	out := make([]string, len(textos))
+	for i, t := range textos {
+		out[i] = r.Replace(t)
+	}
+	return out
 }
