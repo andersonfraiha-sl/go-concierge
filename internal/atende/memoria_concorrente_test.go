@@ -2,7 +2,6 @@ package atende
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 
@@ -10,12 +9,6 @@ import (
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/memoria"
 )
-
-func TestMain(m *testing.M) {
-	codigo := m.Run()
-	bancotest.Encerrar()
-	os.Exit(codigo)
-}
 
 // TestGravarConcorrente: Ler → Upsert → Gravar sob o lock do contato não perde fato, mesmo
 // com o Gravar trocando a lista inteira de fatos do contato no Postgres.

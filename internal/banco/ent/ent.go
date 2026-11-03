@@ -19,6 +19,7 @@ import (
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/pedido"
 	"go-concierge/internal/banco/ent/pedidoevento"
+	"go-concierge/internal/banco/ent/sessao"
 	"go-concierge/internal/banco/ent/usuario"
 	"reflect"
 	"sync"
@@ -99,6 +100,7 @@ func checkColumn(t, c string) error {
 			payload.Table:        payload.ValidColumn,
 			pedido.Table:         pedido.ValidColumn,
 			pedidoevento.Table:   pedidoevento.ValidColumn,
+			sessao.Table:         sessao.ValidColumn,
 			usuario.Table:        usuario.ValidColumn,
 		})
 	})

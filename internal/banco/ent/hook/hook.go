@@ -164,6 +164,18 @@ func (f PedidoEventoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PedidoEventoMutation", m)
 }
 
+// The SessaoFunc type is an adapter to allow the use of ordinary
+// function as Sessao mutator.
+type SessaoFunc func(context.Context, *ent.SessaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SessaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SessaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SessaoMutation", m)
+}
+
 // The UsuarioFunc type is an adapter to allow the use of ordinary
 // function as Usuario mutator.
 type UsuarioFunc func(context.Context, *ent.UsuarioMutation) (ent.Value, error)

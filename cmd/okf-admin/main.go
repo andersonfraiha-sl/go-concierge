@@ -172,7 +172,7 @@ func main() {
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
-		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
+		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db.Ent)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 	}
 	if mcpModo == "b2c" {

@@ -580,14 +580,23 @@ func (s *Servico) Carteira(ctx context.Context, contato escopo.Contato) (pedidos
 
 // PreencherPedido: o atendente informa os parâmetros que faltavam (e, se for o caso,
 // confirma em nome do morador); o motor avança e, concluído, o resultado vai ao morador.
+// A sessão é persistida no fim, mesmo quando o preenchimento falha.
 func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocoloPedido, atendente string, valores map[string]any, confirmar bool) (*Sessao, *pedidos.Pedido, pedidos.Saida, error) {
 	if s.Pedidos == nil {
 		return nil, nil, pedidos.Saida{}, errors.New("pedidos desligados")
 	}
-	sess, ok := s.Sessoes.Get(protocoloAtende)
-	if !ok {
-		return nil, nil, pedidos.Saida{}, fmt.Errorf("protocolo %s não está aberto neste servidor", protocoloAtende)
+	sess, ok, err := s.Sessao(ctx, protocoloAtende)
+	if err != nil {
+		return nil, nil, pedidos.Saida{}, fmt.Errorf("sessão do protocolo %s: %w", protocoloAtende, err)
 	}
+	if !ok {
+		return nil, nil, pedidos.Saida{}, fmt.Errorf("%w: %s não está aberto neste servidor", ErrProtocoloDesconhecido, protocoloAtende)
+	}
+	res, p, saida, err := s.preencherPedido(ctx, sess, protocoloPedido, atendente, valores, confirmar)
+	return res, p, saida, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
+}
+
+func (s *Servico) preencherPedido(ctx context.Context, sess *Sessao, protocoloPedido, atendente string, valores map[string]any, confirmar bool) (*Sessao, *pedidos.Pedido, pedidos.Saida, error) {
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()
 	sess.mu.Lock()

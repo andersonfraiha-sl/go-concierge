@@ -27,7 +27,7 @@ func servicoComPedidos(t *testing.T) (*Servico, *Outbox, *pedidos.Arquivos) {
 	st := pedidos.NewArquivos(t.TempDir())
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
-		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(), Sender: out,
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: out,
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pedidos: st,

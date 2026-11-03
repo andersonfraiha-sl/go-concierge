@@ -40,6 +40,8 @@ type Tx struct {
 	Pedido *PedidoClient
 	// PedidoEvento is the client for interacting with the PedidoEvento builders.
 	PedidoEvento *PedidoEventoClient
+	// Sessao is the client for interacting with the Sessao builders.
+	Sessao *SessaoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 
@@ -186,6 +188,7 @@ func (tx *Tx) init() {
 	tx.Payload = NewPayloadClient(tx.config)
 	tx.Pedido = NewPedidoClient(tx.config)
 	tx.PedidoEvento = NewPedidoEventoClient(tx.config)
+	tx.Sessao = NewSessaoClient(tx.config)
 	tx.Usuario = NewUsuarioClient(tx.config)
 }
 

@@ -33,7 +33,7 @@ func TestMudancaDeAtendimentoAntesDaEscritaInterrompeVisita(t *testing.T) {
 			msg := ev.Normalizar()
 			msg.ID, msg.Texto = "interrupcao-2", "sim"
 			msg.Origem, msg.Destino = sess.Origem, sess.Destino
-			msg, _ = svc.PrepararMensagem(msg)
+			msg, _ = preparar(t, svc, msg)
 			fim := make(chan error, 1)
 			go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 			select {
@@ -44,10 +44,10 @@ func TestMudancaDeAtendimentoAntesDaEscritaInterrompeVisita(t *testing.T) {
 			if caso == "humano" {
 				humana := msg
 				humana.Autor, humana.Texto = "atendente", "atendimento assumido"
-				if !svc.RegistrarHumano(humana) {
+				if !registrarHumano(t, svc, humana) {
 					t.Fatal("sessão não encontrada")
 				}
-			} else if !svc.Encerrar(msg) {
+			} else if !encerrar(t, svc, msg) {
 				t.Fatal("sessão não encontrada")
 			}
 			close(liberar)
@@ -155,7 +155,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	msg := ev.Normalizar()
 	msg.ID, msg.Texto = "escrita-2", "sim"
 	msg.Origem, msg.Destino = sess.Origem, sess.Destino
-	msg, _ = svc.PrepararMensagem(msg)
+	msg, _ = preparar(t, svc, msg)
 	fim := make(chan error, 1)
 	go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 	select {
@@ -165,7 +165,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	}
 	humana := msg
 	humana.Autor, humana.Texto = "atendente", "atendimento assumido"
-	if !svc.RegistrarHumano(humana) {
+	if !registrarHumano(t, svc, humana) {
 		t.Fatal("sessão não encontrada")
 	}
 	select {
@@ -321,7 +321,7 @@ func TestFechamentoAntesDaEscritaManualInterrompeVisita(t *testing.T) {
 	ev, _ := Parse([]byte(eventoExemplo))
 	msg := ev.Normalizar()
 	msg.Origem, msg.Destino = sess.Origem, sess.Destino
-	if !svc.Encerrar(msg) {
+	if !encerrar(t, svc, msg) {
 		t.Fatal("sessão não encontrada")
 	}
 	close(bloqueado.liberar)
@@ -406,7 +406,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	msg.ID, msg.Texto = "sessao-a", "quero liberar Ana Souza hoje"
 	msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
 	msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: msg.ConversaID, Telefone: msg.Contato.Phone}
-	msg, sessA := svc.PrepararMensagem(msg)
+	msg, sessA := preparar(t, svc, msg)
 	fim := make(chan error, 1)
 	go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 	select {
@@ -422,7 +422,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	outra := msg
 	outra.ConversaID = "outro-protocolo"
 	outra.Destino.Protocolo = outra.ConversaID
-	sessB := svc.Sessoes.Abrir(outra)
+	sessB := abrir(t, svc.Sessoes, outra)
 	sessA.mu.Lock()
 	identidade := sessA.Identidade
 	sessA.mu.Unlock()
@@ -475,7 +475,7 @@ func TestFechamentoDuranteEscritaManualPreservaEstadoIncerto(t *testing.T) {
 	ev, _ := Parse([]byte(eventoExemplo))
 	msg := ev.Normalizar()
 	msg.Origem, msg.Destino = sess.Origem, sess.Destino
-	if !svc.Encerrar(msg) {
+	if !encerrar(t, svc, msg) {
 		t.Fatal("sessão não encontrada")
 	}
 	select {

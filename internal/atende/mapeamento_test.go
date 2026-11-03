@@ -26,7 +26,7 @@ func TestAgenteDaSessaoSemMapeamentoFalha(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := &Servico{Cat: cat, Agente: "agentes/concierge", Sessoes: NewSessoes(), Mapeamento: mapeamentoIndisponivel{}}
+	svc := &Servico{Cat: cat, Agente: "agentes/concierge", Sessoes: NewSessoes(NovaSessaoEmMemoria()), Mapeamento: mapeamentoIndisponivel{}}
 
 	_, err = svc.agenteDaSessao(t.Context(), &Sessao{ID: "s1"})
 

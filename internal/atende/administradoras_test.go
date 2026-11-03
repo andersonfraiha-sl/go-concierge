@@ -71,7 +71,7 @@ func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico,
 	st := memoria.NewArquivos(t.TempDir())
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
-		Cat: cat, Agente: "agentes/concierge", Sessoes: NewSessoes(), Sender: &Outbox{},
+		Cat: cat, Agente: "agentes/concierge", Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: &Outbox{},
 		Config:     harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
 		Mapeamento: mapeamentoDeTeste(t), Implantacao: imp, Memorias: st,
 	}
