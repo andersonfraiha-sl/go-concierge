@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compila e testa o go-concierge sem Go local: tudo roda no contêiner golang:1.26-alpine,
+# Compila e testa o go-concierge sem Go local: tudo roda no contêiner golang:1.27-alpine,
 # com o cache de módulos compartilhado com o sl-concierge.
 #
 #   ./build.sh            # gofmt + vet + test + binários em bin/ (Windows e Linux)
@@ -10,7 +10,7 @@ cd "$(dirname "$0")"
 
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado" >&2; exit 1; }
 
-GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.26-alpine"
+GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-alpine"
 
 case "${1:-}" in
   --test)

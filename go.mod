@@ -1,9 +1,9 @@
 module go-concierge
 
-go 1.26
+go 1.27.3
 
 require (
-	github.com/cloudwego/eino v0.9.9
+	github.com/cloudwego/eino v0.9.22
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.13
 	gopkg.in/yaml.v3 v3.0.1
 )
