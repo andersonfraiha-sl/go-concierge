@@ -11,3 +11,7 @@ mcp/.env
 mcp/node_modules/
 mcp/**/session-*.json
 mcp/**/.session-*.json
+studio/node_modules/
+web/studio/dist/
+studio/node_modules/
+web/studio/dist/
