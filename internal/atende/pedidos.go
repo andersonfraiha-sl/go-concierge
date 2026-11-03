@@ -474,9 +474,9 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		}
 	}
 
-	if err := s.salvarCarteira(ctx, contato, cart); err != nil {
-		return nil, nil, err
-	}
+	// a carteira vai ao banco depois da resposta, junto com a sessão (gravarDepoisDaResposta);
+	// o que a resposta não pode perder (execução iniciada) já foi gravado acima
+	s.adiarCarteira(contato, cart)
 
 	conteudo := strings.TrimSpace(strings.Join(append(partes, perguntas...), "\n\n"))
 	if conteudo == "" {
@@ -519,7 +519,7 @@ func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, contato escop
 	}
 	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
-	cart, err := s.carregarCarteira(ctx, contato)
+	cart, err := s.carteiraDoTurno(ctx, contato)
 	if err != nil {
 		return err
 	}
@@ -538,7 +538,7 @@ func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, contato escop
 		alterada = true
 	}
 	if alterada {
-		return s.salvarCarteira(ctx, contato, cart)
+		s.adiarCarteira(contato, cart)
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
+	"github.com/jackc/pgx/v5"
 
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
@@ -100,13 +101,16 @@ type Sessoes struct {
 	store SessaoStore
 	mu    sync.Mutex
 	m     map[string]*Sessao
+	// ausentes: IDs que um lote acabou de procurar no store e não achou; o Abrir seguinte
+	// cria a sessão sem perguntar de novo ao banco
+	ausentes map[string]bool
 }
 
 // limiteLista: quantas sessões a listagem do Console devolve.
 const limiteLista = 200
 
 func NewSessoes(store SessaoStore) *Sessoes {
-	return &Sessoes{store: store, m: map[string]*Sessao{}}
+	return &Sessoes{store: store, m: map[string]*Sessao{}, ausentes: map[string]bool{}}
 }
 
 // Abrir devolve a sessão do protocolo (do cache, do store ou nova, com os dados do evento).
@@ -172,9 +176,14 @@ func (s *Sessoes) porProtocolo(protocolo string) (*Sessao, bool) {
 func (s *Sessoes) carregar(ctx context.Context, id string) (*Sessao, bool, error) {
 	s.mu.Lock()
 	sess, ok := s.m[id]
+	ausente := s.ausentes[id]
+	delete(s.ausentes, id)
 	s.mu.Unlock()
 	if ok {
 		return sess, true, nil
+	}
+	if ausente {
+		return nil, false, nil
 	}
 	r, ok, err := s.store.Carregar(ctx, id)
 	if err != nil || !ok {
@@ -185,6 +194,39 @@ func (s *Sessoes) carregar(ctx context.Context, id string) (*Sessao, bool, error
 		return nil, false, err
 	}
 	return s.adotar(sess), true, nil
+}
+
+// sessaoEmLote é o store que lê a sessão dentro de um pgx.Batch.
+type sessaoEmLote interface {
+	CarregarNoLote(lote *pgx.Batch, id string, guardar func(RegistroSessao, bool))
+	SalvarNoLote(lote *pgx.Batch, r RegistroSessao)
+}
+
+// aquecerNoLote põe no lote a leitura da sessão, se ela não está viva neste processo e o
+// store lê em lote. Sessão que não volta do store é lembrada como ausente.
+func (s *Sessoes) aquecerNoLote(lote *pgx.Batch, id string) {
+	st, ok := s.store.(sessaoEmLote)
+	if !ok {
+		return
+	}
+	s.mu.Lock()
+	_, viva := s.m[id]
+	s.mu.Unlock()
+	if viva {
+		return
+	}
+	st.CarregarNoLote(lote, id, func(r RegistroSessao, achou bool) {
+		if !achou {
+			s.mu.Lock()
+			s.ausentes[id] = true
+			s.mu.Unlock()
+			return
+		}
+		if sess, err := RestaurarSessao(r); err == nil {
+			s.adotar(sess)
+		}
+		// registro ilegível: o Abrir lê de novo pelo store e devolve o erro
+	})
 }
 
 // adotar põe a sessão no cache, a menos que outra chamada já tenha posto uma com o

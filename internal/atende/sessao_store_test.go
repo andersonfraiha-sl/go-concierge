@@ -33,7 +33,7 @@ func TestContratoSessaoStoreEmMemoria(t *testing.T) {
 }
 
 func TestContratoSessaoStorePostgres(t *testing.T) {
-	testarSessaoStore(t, func(t *testing.T) SessaoStore { return NovoSessaoPostgres(bancotest.Novo(t).Ent) })
+	testarSessaoStore(t, func(t *testing.T) SessaoStore { return NovoSessaoPostgres(bancotest.Novo(t)) })
 }
 
 // testarSessaoStore é o contrato que toda implementação de SessaoStore cumpre.
@@ -166,7 +166,7 @@ func TestSessaoSobreviveRestart(t *testing.T) {
 		novo func(t *testing.T) SessaoStore
 	}{
 		{"em memória", func(*testing.T) SessaoStore { return NovaSessaoEmMemoria() }},
-		{"postgres", func(t *testing.T) SessaoStore { return NovoSessaoPostgres(bancotest.Novo(t).Ent) }},
+		{"postgres", func(t *testing.T) SessaoStore { return NovoSessaoPostgres(bancotest.Novo(t)) }},
 	}
 	for _, c := range stores {
 		t.Run(c.nome, func(t *testing.T) { sessaoSobreviveRestart(t, c.novo(t)) })

@@ -26,7 +26,8 @@ const timeoutConsulta = 3 * time.Second
 // Postgres guarda o mapeamento nas tabelas administradoras, condominios, habilitacoes,
 // payloads e orientacoes. condominio_id NULL é o padrão ("*").
 type Postgres struct {
-	cli *ent.Client
+	cli       *ent.Client
+	aoAlterar func(Mapeamento) // recebe o mapeamento de cada escrita confirmada (o Cache)
 }
 
 func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
@@ -61,6 +62,9 @@ func (p *Postgres) alterar(ctx context.Context, operacao string, r regra, gravar
 	for tentativa := 1; ; tentativa++ {
 		m, err := emTransacao(ctx, p.cli, serializavel, aplicar)
 		if err == nil {
+			if p.aoAlterar != nil {
+				p.aoAlterar(m)
+			}
 			return m, nil
 		}
 		if !falhaDeSerializacao(err) {

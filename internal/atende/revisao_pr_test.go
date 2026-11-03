@@ -414,7 +414,8 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("entrega inicial não iniciou")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
+	// a carteira do turno só vai ao banco depois da resposta; pelo serviço ela já aparece
+	cart, _, err := svc.Carteira(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil || len(cart.Pedidos) != 1 {
 		t.Fatalf("pedido não encontrado: %v", err)
 	}

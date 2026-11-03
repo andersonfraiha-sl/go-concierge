@@ -2,62 +2,92 @@ package atende
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"go-concierge/internal/banco"
 	"go-concierge/internal/banco/ent"
 	entsessao "go-concierge/internal/banco/ent/sessao"
+	"go-concierge/internal/banco/sqlc"
 )
 
 // timeoutSessao limita cada leitura ou escrita de sessão no Postgres.
 const timeoutSessao = 3 * time.Second
 
-// SessaoPostgres guarda as sessões do ATENDE na tabela sessoes.
+// SessaoPostgres guarda as sessões do ATENDE na tabela sessoes. Carregar e Salvar vão pelo
+// pgx (cabem nos lotes do turno); Listar e Remover, pelo ent.
 type SessaoPostgres struct {
-	cli *ent.Client
+	b banco.Banco
 }
 
-func NovoSessaoPostgres(cli *ent.Client) *SessaoPostgres { return &SessaoPostgres{cli: cli} }
+func NovoSessaoPostgres(b banco.Banco) *SessaoPostgres { return &SessaoPostgres{b: b} }
 
 func (p *SessaoPostgres) Salvar(ctx context.Context, r RegistroSessao) error {
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
-	err := p.cli.Sessao.Create().
-		SetID(r.ID).
-		SetAdministradoraID(r.AdministradoraID).
-		SetCondominioID(r.CondominioID).
-		SetProtocolo(r.Protocolo).
-		SetAtualizadaEm(r.AtualizadaEm).
-		SetDados(json.RawMessage(r.Dados)).
-		OnConflictColumns(entsessao.FieldID).
-		UpdateNewValues().
-		Exec(ctx)
-	if err != nil {
+	if err := p.b.SQL.SalvarSessao(ctx, paramsDaSessao(r)); err != nil {
 		return fmt.Errorf("salvar sessão %s: %w", r.ID, err)
 	}
 	return nil
 }
 
+// SalvarNoLote põe no lote a gravação da sessão; o erro volta no Close do lote.
+func (p *SessaoPostgres) SalvarNoLote(lote *pgx.Batch, r RegistroSessao) {
+	// o enfileirador do lote não executa nada nem devolve erro aqui
+	_ = banco.NoLote(lote).SalvarSessao(context.Background(), paramsDaSessao(r))
+}
+
+func paramsDaSessao(r RegistroSessao) sqlc.SalvarSessaoParams {
+	return sqlc.SalvarSessaoParams{
+		ID: r.ID, AdministradoraID: r.AdministradoraID, CondominioID: r.CondominioID, Protocolo: r.Protocolo,
+		AtualizadaEm: pgtype.Timestamptz{Time: r.AtualizadaEm, Valid: true}, Dados: r.Dados,
+	}
+}
+
 func (p *SessaoPostgres) Carregar(ctx context.Context, id string) (RegistroSessao, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
-	linha, err := p.cli.Sessao.Get(ctx, id)
-	if ent.IsNotFound(err) {
-		return RegistroSessao{}, false, nil
-	}
-	if err != nil {
+	var r RegistroSessao
+	var achou bool
+	lote := &pgx.Batch{}
+	p.CarregarNoLote(lote, id, func(lido RegistroSessao, ok bool) { r, achou = lido, ok })
+	if err := p.b.Pool.SendBatch(ctx, lote).Close(); err != nil {
 		return RegistroSessao{}, false, fmt.Errorf("carregar sessão %s: %w", id, err)
 	}
-	return registroDaLinha(linha), true, nil
+	return r, achou, nil
+}
+
+// sqlCarregarSessao: por que não ent nem sqlc: entra no pgx.Batch que carrega o turno a frio
+// (sessão, memória e pedidos numa ida), e o sqlc não junta queries diferentes num lote.
+const sqlCarregarSessao = `SELECT id, administradora_id, condominio_id, protocolo, atualizada_em, dados FROM sessoes WHERE id = $1`
+
+// CarregarNoLote põe no lote a leitura da sessão; guardar recebe o registro (ok=false se a
+// sessão não existe) quando o lote roda.
+func (p *SessaoPostgres) CarregarNoLote(lote *pgx.Batch, id string, guardar func(RegistroSessao, bool)) {
+	lote.Queue(sqlCarregarSessao, id).QueryRow(func(row pgx.Row) error {
+		var r RegistroSessao
+		err := row.Scan(&r.ID, &r.AdministradoraID, &r.CondominioID, &r.Protocolo, &r.AtualizadaEm, &r.Dados)
+		if errors.Is(err, pgx.ErrNoRows) {
+			guardar(RegistroSessao{}, false)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		guardar(r, true)
+		return nil
+	})
 }
 
 func (p *SessaoPostgres) Listar(ctx context.Context, administradoraID string, limite int) ([]RegistroSessao, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
-	q := p.cli.Sessao.Query()
+	q := p.b.Ent.Sessao.Query()
 	if administradoraID != "" {
 		q = q.Where(entsessao.AdministradoraID(administradoraID))
 	}
@@ -75,7 +105,7 @@ func (p *SessaoPostgres) Listar(ctx context.Context, administradoraID string, li
 func (p *SessaoPostgres) Remover(ctx context.Context, id string) error {
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
-	if _, err := p.cli.Sessao.Delete().Where(entsessao.ID(id)).Exec(ctx); err != nil {
+	if _, err := p.b.Ent.Sessao.Delete().Where(entsessao.ID(id)).Exec(ctx); err != nil {
 		return fmt.Errorf("remover sessão %s: %w", id, err)
 	}
 	return nil

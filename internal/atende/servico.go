@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/entrada"
@@ -349,6 +351,173 @@ type Servico struct {
 	memoriaMu        sync.Mutex
 	memoriaLocks     map[string]*sync.Mutex
 	memoriaRevisoes  map[string]uint64
+	// Pool envia os lotes do turno: a leitura a frio antes da resposta e as escritas depois
+	// dela, uma ida ao banco cada. nil (stores sem Postgres) = cada store lê e grava sozinho.
+	Pool *pgxpool.Pool
+}
+
+// aquecivelNoLote é o store com cache por contato que lê o contato frio dentro de um lote.
+type aquecivelNoLote interface {
+	AquecerNoLote(lote *pgx.Batch, c escopo.Contato)
+}
+
+// pedidosEmLote é o store de pedidos que grava dentro de um lote.
+type pedidosEmLote interface {
+	GravarNoLote(lote *pgx.Batch, c escopo.Contato, cart pedidos.Carteira) (confirmar func(), err error)
+}
+
+// aquecer carrega numa ida ao banco o que o turno vai ler e este processo ainda não tem: a
+// sessão do protocolo e a memória e os pedidos do contato. A falha aqui não para o turno:
+// cada store lê sozinho depois, e o erro aparece lá.
+func (s *Servico) aquecer(ctx context.Context, msg entrada.Mensagem) {
+	if s.Pool == nil {
+		return
+	}
+	lote := &pgx.Batch{}
+	roteada := normalizarRoteamento(msg)
+	s.Sessoes.aquecerNoLote(lote, idSessao(roteada.Origem, roteada.ConversaID))
+	if contato, ok := s.contatoDaMensagem(ctx, msg); ok {
+		for _, st := range []any{s.Memorias, s.Pedidos} {
+			if a, ok := st.(aquecivelNoLote); ok {
+				a.AquecerNoLote(lote, contato)
+			}
+		}
+	}
+	if lote.Len() == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
+	defer cancel()
+	if err := s.Pool.SendBatch(ctx, lote).Close(); err != nil {
+		slog.WarnContext(ctx, "atende: leitura em lote falhou; cada store lê sozinho", "operacao", "aquecer_turno", "erro", err)
+	}
+}
+
+// contatoDaMensagem resolve o contato pelo mapeamento, sem mexer na sessão; o turno resolve
+// de novo (resolverCondominio) e é lá que um erro vira resposta.
+func (s *Servico) contatoDaMensagem(ctx context.Context, msg entrada.Mensagem) (escopo.Contato, bool) {
+	if s.Mapeamento == nil {
+		return escopo.Contato{}, false
+	}
+	m, err := s.Mapeamento.Ler(ctx)
+	if err != nil {
+		return escopo.Contato{}, false
+	}
+	condo, err := admin.ResolverCondominio(m, s.Implantacao, msg.CompanyID, msg.Tenant)
+	if err != nil {
+		return escopo.Contato{}, false
+	}
+	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
+	return contato, err == nil
+}
+
+// adiarCarteira deixa a carteira do turno para gravar depois da resposta
+// (gravarDepoisDaResposta). Até lá ela é o estado pendente do contato: quem carregar a
+// carteira antes grava a pendente primeiro. Quem chama segura o lock de pedidos do contato.
+func (s *Servico) adiarCarteira(c escopo.Contato, cart pedidos.Carteira) {
+	s.pedidoMu.Lock()
+	defer s.pedidoMu.Unlock()
+	if s.pedidosPendentes == nil {
+		s.pedidosPendentes = map[string]pedidos.Carteira{}
+	}
+	s.pedidosPendentes[c.Chave()] = cart
+}
+
+// carteiraDoTurno é a carteira adiada pelo turno, se houver, ou a carregada. Quem chama
+// segura o lock de pedidos do contato.
+func (s *Servico) carteiraDoTurno(ctx context.Context, c escopo.Contato) (pedidos.Carteira, error) {
+	if cart, adiada := s.carteiraAdiada(c); adiada {
+		return cart, nil
+	}
+	return s.carregarCarteira(ctx, c)
+}
+
+func (s *Servico) carteiraAdiada(c escopo.Contato) (pedidos.Carteira, bool) {
+	s.pedidoMu.Lock()
+	defer s.pedidoMu.Unlock()
+	cart, adiada := s.pedidosPendentes[c.Chave()]
+	return cart, adiada
+}
+
+// gravarDepoisDaResposta grava a sessão e a carteira que o turno adiou numa ida ao banco.
+// Sem lote, ou com o lote recusado (protocolo de outro contato, banco fora), grava uma por
+// uma pelo caminho de sempre, que redesenha o protocolo e guarda a carteira como pendente se
+// falhar. Os erros saem logados com a operação e voltam juntos.
+func (s *Servico) gravarDepoisDaResposta(ctx context.Context, sess *Sessao) error {
+	contato := sess.contato()
+	if s.Pedidos == nil || contato.Telefone == "" {
+		return s.Sessoes.Persistir(ctx, sess)
+	}
+	desbloquear := s.bloquearPedidos(contato)
+	defer desbloquear()
+	cart, adiada := s.carteiraAdiada(contato)
+	if !adiada {
+		return s.Sessoes.Persistir(ctx, sess)
+	}
+	errLote := s.gravarEmLote(ctx, sess, contato, cart)
+	if errLote == nil {
+		s.pedidoMu.Lock()
+		delete(s.pedidosPendentes, contato.Chave())
+		s.pedidoMu.Unlock()
+		return nil
+	}
+	if !errors.Is(errLote, errSemLote) {
+		slog.WarnContext(ctx, "atende: gravação em lote recusada; gravando uma por uma", "operacao", "gravar_pos_resposta", "sessao", sess.ID, "erro", errLote)
+	}
+	return errors.Join(s.gravarCarteiraDepoisDaResposta(ctx, sess, contato, cart), s.Sessoes.Persistir(ctx, sess))
+}
+
+func (s *Servico) gravarCarteiraDepoisDaResposta(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {
+	antes := protocolosDe(cart)
+	if err := s.salvarCarteira(ctx, contato, cart); err != nil {
+		slog.ErrorContext(ctx, "atende: pedidos não gravados depois da resposta", "operacao", "gravar_pedidos_pos_resposta", "sessao", sess.ID, "erro", err)
+		return err
+	}
+	if depois := protocolosDe(cart); !slices.Equal(antes, depois) {
+		// a resposta saiu com um protocolo que já era de outro contato; o pedido foi gravado
+		// com outro, e o morador só o verá na próxima vez que a carteira aparecer
+		slog.ErrorContext(ctx, "atende: protocolo de pedido mudou depois da resposta", "operacao", "gravar_pedidos_pos_resposta", "sessao", sess.ID, "antes", antes, "depois", depois)
+	}
+	return nil
+}
+
+var errSemLote = errors.New("stores sem gravação em lote")
+
+func (s *Servico) gravarEmLote(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {
+	pg, pedidosOK := s.Pedidos.(pedidosEmLote)
+	st, sessoesOK := s.Sessoes.store.(sessaoEmLote)
+	if s.Pool == nil || !pedidosOK || !sessoesOK {
+		return errSemLote
+	}
+	sess.persistMu.Lock()
+	defer sess.persistMu.Unlock()
+	r, err := sess.Registro()
+	if err != nil {
+		return err
+	}
+	lote := &pgx.Batch{}
+	confirmar, err := pg.GravarNoLote(lote, contato, cart)
+	if err != nil {
+		return err
+	}
+	st.SalvarNoLote(lote, r)
+	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
+	defer cancel()
+	if err := s.Pool.SendBatch(ctx, lote).Close(); err != nil {
+		return pedidos.ErroDoLote(err)
+	}
+	if confirmar != nil {
+		confirmar()
+	}
+	return nil
+}
+
+func protocolosDe(cart pedidos.Carteira) []string {
+	out := make([]string, 0, len(cart.Pedidos))
+	for _, p := range cart.Pedidos {
+		out = append(out, p.Protocolo)
+	}
+	return out
 }
 
 func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, chave string) func() {
@@ -474,13 +643,14 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		return nil, err
 	}
 	// a sessão é gravada mesmo com o turno cancelado: o que já aconteceu nele fica
-	return sess, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
+	return sess, errors.Join(err, s.gravarDepoisDaResposta(context.WithoutCancel(ctx), sess))
 }
 
 func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
 	if !s.PermiteTelefone(msg.Contato.Phone) {
 		return nil, fmt.Errorf("telefone diferente do morador configurado para o token B2C")
 	}
+	s.aquecer(ctx, msg)
 	var sess *Sessao
 	var err error
 	if msg.Revisao == 0 {

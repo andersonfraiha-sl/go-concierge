@@ -190,19 +190,21 @@ func main() {
 	if mcpCli != nil {
 		cfgHarness.MCP = mcpCli
 	}
-	s.memorias = memoria.NovoPostgres(db)
+	// o Studio e o turno dividem o cache: as escritas de um aparecem no outro
+	s.memorias = memoria.NovoCache(memoria.NovoPostgres(db))
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
-		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db.Ent)), Timeout: 120 * time.Second, Log: s.log,
+		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
+		Pool: db.Pool,
 	}
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
 	}
 	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {
-		s.atende.Pedidos = pedidos.NovoPostgres(db)
+		s.atende.Pedidos = pedidos.NovoCache(pedidos.NovoPostgres(db))
 		s.atende.ExtratorPedidos = harness.NovoExtratorPedidos(context.Background(), cfgHarness)
 	}
 
@@ -210,12 +212,19 @@ func main() {
 	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev. Sem
 	// GRUVI_COMPANY_ID ele ganha a company "exemplo": condomínio sem company não é atendido,
 	// e sem Gruvi configurado a identidade não é consultada.
-	s.admin = admin.NovoPostgres(db.Ent)
+	adminPG := admin.NovoPostgres(db.Ent)
+	s.admin = adminPG
 	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
 	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
 		log.Fatal(err)
 	}
-	s.atende.Mapeamento = s.admin
+	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
+	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
+	mapeamento := admin.NovoCache(adminPG)
+	if _, err := mapeamento.Ler(context.Background()); err != nil {
+		log.Printf("okf-admin: mapeamento não aquecido no boot, o primeiro turno lê do banco: %v", err)
+	}
+	s.atende.Mapeamento = mapeamento
 
 	// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o repassa,
 	// para testar de fora (Inspector, curl) pela porta do concierge. O token NÃO é injetado:
