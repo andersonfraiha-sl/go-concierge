@@ -1,0 +1,10 @@
+{
+  "account": "cond-001",
+  "telefone": "11999990001",
+  "nome": "Ana",
+  "fatos": [
+    {"chave": "pets", "texto": "tem um cachorro", "quando": "2026-10-01T10:00:00Z"},
+    {"chave": "unidades", "texto": "apto 12", "quando": "2026-10-02T10:00:00Z"}
+  ],
+  "atualizada_em": "2026-10-02T10:00:00Z"
+}

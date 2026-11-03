@@ -455,3 +455,10 @@ func (s *Arquivo) SalvarAjustes(_ context.Context, condoID string, ajustes map[s
 func (s *Arquivo) SalvarPayload(_ context.Context, condoID, recurso string, payload map[string]any) (Mapeamento, error) {
 	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, payload) })
 }
+
+// Normalizado devolve o mapeamento lido de fora (JSON de uma versão antiga, por exemplo) na
+// forma que os repositórios guardam.
+func (m Mapeamento) Normalizado() Mapeamento {
+	m.normalizar()
+	return m
+}
