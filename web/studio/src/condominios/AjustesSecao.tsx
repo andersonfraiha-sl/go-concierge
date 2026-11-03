@@ -1,156 +1,84 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
-import { z } from 'zod';
-import type { Ferramenta } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { CampoAjuste } from './CampoAjuste';
 import {
   type Ajustes,
   type Estado,
+  ferramentasGerais,
   PADRAO,
   salvarAjustes,
-  sugerirAjustes,
   useAplicarMapeamento,
   useEscopo,
   type Valor,
 } from './contratos';
+import { PreencherComIA } from './PreencherComIA';
 
 type Props = { estado: Estado; condominio: string; editavel: boolean };
 
 export function AjustesSecao({ estado, condominio, editavel }: Props): ReactNode {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
+  const ferramentas = ferramentasGerais(estado);
+  const payloadsDoCondominio = estado.mapeamento.payloads[condominio] ?? {};
   // Fora do react-hook-form de propósito: Valor é JSON recursivo e os tipos de caminho do RHF
   // não instanciam sobre ele (TS2589). Cada CampoAjuste já é um campo controlado deste mapa.
-  const [ajustes, setAjustes] = useState<Ajustes>(estado.mapeamento.payloads[condominio] ?? {});
-  const ferramentas = estado.recursos.filter((r) => r.definicoes.length > 0);
+  const [ajustes, setAjustes] = useState<Ajustes>(
+    Object.fromEntries(ferramentas.map((f) => [f.name, payloadsDoCondominio[f.name] ?? {}])),
+  );
 
   const { estado: salvamento, tentarDeNovo } = useAutosave({
     valor: ajustes,
     salvar: async (valor) => {
-      aplicar(await salvarAjustes({ condominio, ajustes: valor }, escopo));
+      // Mescla com o que está no cache agora: o drawer de cada skill grava a própria parte deste
+      // mesmo mapa, e esta seção não pode apagá-la.
+      const atuais = estado.mapeamento.payloads[condominio] ?? {};
+      aplicar(await salvarAjustes({ condominio, ajustes: { ...atuais, ...valor } }, escopo));
     },
   });
 
   const mudar = (recurso: string, campos: Record<string, Valor>): void =>
     setAjustes((atual) => ({ ...atual, [recurso]: { ...atual[recurso], ...campos } }));
 
-  const padraoDe = (recurso: string): Record<string, Valor> =>
+  const herdadoDe = (recurso: string): Record<string, Valor> =>
     condominio === PADRAO ? {} : (estado.mapeamento.payloads[PADRAO]?.[recurso] ?? {});
 
   return (
     <SectionCard
-      titulo="Ajustes"
-      ajuda="Prazos, horários e códigos deste condomínio."
+      titulo="Ajustes gerais"
+      ajuda="Prazos, horários e códigos que não são de uma skill só. Campo vazio vale o padrão."
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
       {ferramentas.length === 0 && (
         <Typography color="text.secondary">
-          Nenhuma ferramenta tem ajustes por condomínio.
+          Os ajustes de cada skill ficam na própria skill, na lista acima.
         </Typography>
+      )}
+      {ferramentas.length > 0 && editavel && (
+        <PreencherComIA
+          condominio={condominio}
+          ferramentas={ferramentas}
+          valores={ajustes}
+          onPreencher={mudar}
+        />
       )}
       {ferramentas.map((ferramenta) => (
-        <AjustesDaFerramenta
-          key={ferramenta.name}
-          ferramenta={ferramenta}
-          condominio={condominio}
-          valores={ajustes[ferramenta.name] ?? {}}
-          padrao={padraoDe(ferramenta.name)}
-          editavel={editavel}
-          onMudar={(campos) => mudar(ferramenta.name, campos)}
-        />
+        <Box key={ferramenta.name} sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Typography variant="subtitle2">{ferramenta.titulo ?? ferramenta.name}</Typography>
+          {ferramenta.definicoes.map((definicao) => (
+            <CampoAjuste
+              key={definicao.name}
+              definicao={definicao}
+              valor={ajustes[ferramenta.name]?.[definicao.name]}
+              herdado={herdadoDe(ferramenta.name)[definicao.name] ?? definicao.default}
+              desabilitado={!editavel}
+              onMudar={(valor) => mudar(ferramenta.name, { [definicao.name]: valor })}
+            />
+          ))}
+        </Box>
       ))}
     </SectionCard>
-  );
-}
-
-const SugestaoSchema = z.object({ frase: z.string().refine((frase) => frase.trim() !== '') });
-
-type FerramentaProps = {
-  ferramenta: Ferramenta;
-  condominio: string;
-  valores: Record<string, Valor>;
-  padrao: Record<string, Valor>;
-  editavel: boolean;
-  onMudar: (campos: Record<string, Valor>) => void;
-};
-
-function AjustesDaFerramenta({
-  ferramenta,
-  condominio,
-  valores,
-  padrao,
-  editavel,
-  onMudar,
-}: FerramentaProps): ReactNode {
-  const escopo = useEscopo() ?? null;
-  const { control, handleSubmit, formState } = useForm({
-    resolver: zodResolver(SugestaoSchema),
-    defaultValues: { frase: '' },
-  });
-  const frase = useWatch({ control, name: 'frase' });
-  const [aviso, setAviso] = useState<string | null>(null);
-
-  const sugerir = handleSubmit(async ({ frase }) => {
-    setAviso(null);
-    try {
-      const sugestao = await sugerirAjustes(
-        { condominio, recurso: ferramenta.name, texto: frase, atual: valores },
-        escopo,
-      );
-      onMudar(sugestao.payload);
-      const semNada = Object.keys(sugestao.payload).length === 0;
-      setAviso(
-        sugestao.nota ||
-          (semNada ? 'Não encontrei nada no texto.' : 'Revise os campos preenchidos.'),
-      );
-    } catch (erro) {
-      setAviso(erro instanceof Error ? erro.message : String(erro));
-    }
-  });
-  const pensando = formState.isSubmitting;
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Typography variant="subtitle2">{ferramenta.titulo ?? ferramenta.name}</Typography>
-      {editavel && (
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-          <CampoTexto
-            control={control}
-            name="frase"
-            size="small"
-            fullWidth
-            label="Descreva em uma frase"
-          />
-          <Button
-            variant="outlined"
-            disabled={pensando || frase.trim() === ''}
-            onClick={() => void sugerir()}
-          >
-            {pensando ? 'Pensando…' : 'Sugerir'}
-          </Button>
-        </Box>
-      )}
-      {aviso !== null && (
-        <Typography variant="caption" color="text.secondary" role="status">
-          {aviso}
-        </Typography>
-      )}
-      {ferramenta.definicoes.map((definicao) => (
-        <CampoAjuste
-          key={definicao.name}
-          definicao={definicao}
-          valor={valores[definicao.name]}
-          herdado={padrao[definicao.name] ?? definicao.default}
-          desabilitado={!editavel}
-          onMudar={(valor) => onMudar({ [definicao.name]: valor })}
-        />
-      ))}
-    </Box>
   );
 }

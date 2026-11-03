@@ -5,35 +5,64 @@ import { estadoFalso, gestor, rotasBase } from './estadoFalso';
 import { abrirCondominio, gravador } from './paginaDeTeste';
 
 describe('AjustesSecao', () => {
+  it('showsOnlyToolsOutsideSkills', async () => {
+    responderCom(rotasBase(gestor));
+    abrirCondominio();
+
+    expect(await screen.findByLabelText('Horário da portaria')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Antecedência mínima (dias)')).not.toBeInTheDocument();
+  });
+
+  it('keepsSkillAdjustmentsWhenSaving', async () => {
+    const ajustes = gravador('PUT /api/admin/ajustes');
+    const comPayloadDaSkill = structuredClone(estadoFalso);
+    comPayloadDaSkill.mapeamento.payloads = {
+      'vila-verde': { 'agenda-mudanca': { antecedencia_dias: 5, turno: 'tarde' } },
+    } as never;
+    responderCom({
+      ...rotasBase(gestor),
+      'GET /api/admin/estado': () => json(comPayloadDaSkill),
+      ...ajustes.handlers,
+    });
+    const { user } = abrirCondominio();
+
+    const campo = await screen.findByLabelText('Horário da portaria');
+    await user.type(campo, '8h às 20h');
+
+    await waitFor(() => expect(ajustes.corpos).toHaveLength(1), { timeout: 3000 });
+    expect(ajustes.corpos[0]).toMatchObject({
+      condominio: 'vila-verde',
+      ajustes: {
+        'agenda-mudanca': { antecedencia_dias: 5, turno: 'tarde' },
+        'horario-portaria': { horario: '8h às 20h' },
+      },
+    });
+  });
+
   it('fillsAdjustmentsFromSuggestion', async () => {
     const ajustes = gravador('PUT /api/admin/ajustes');
     responderCom({
       ...rotasBase(gestor),
       ...ajustes.handlers,
       'POST /api/admin/sugerir-payload': () =>
-        json({
-          payload: { antecedencia_dias: 5, turno: 'tarde' },
-          nota: 'Não entendi o protocolo.',
-        }),
+        json({ payload: { horario: '8h às 20h' }, nota: 'Ajustei o horário.' }),
     });
     const { user } = abrirCondominio();
 
-    // Duas ferramentas têm "Descreva em uma frase": a da skill (1a) e a geral "horario-portaria".
-    const [campoDaSkill] = await screen.findAllByRole('textbox', { name: 'Descreva em uma frase' });
-    if (!campoDaSkill) throw new Error('campo de sugestão não encontrado');
-    await user.type(campoDaSkill, 'cinco dias, só à tarde');
-    const [botaoDaSkill] = screen.getAllByRole('button', { name: 'Sugerir' });
-    if (!botaoDaSkill) throw new Error('botão de sugestão não encontrado');
-    await user.click(botaoDaSkill);
+    await user.click(await screen.findByRole('button', { name: 'Preencher com IA' }));
+    const campoDaFrase = await screen.findByRole('textbox', { name: 'Descreva em uma frase' });
+    await user.type(campoDaFrase, 'abre às oito e fecha às oito da noite');
+    await user.click(screen.getByRole('button', { name: 'Sugerir' }));
 
-    await waitFor(() => expect(screen.getByLabelText('Antecedência mínima (dias)')).toHaveValue(5));
-    expect(screen.getByText('Não entendi o protocolo.')).toBeInTheDocument();
-    expect(ajustes.corpos).toHaveLength(0);
+    await waitFor(() =>
+      expect(screen.getByLabelText('Horário da portaria')).toHaveValue('8h às 20h'),
+    );
+    expect(screen.getByText('Ajustei o horário.')).toBeInTheDocument();
 
     await waitFor(() => expect(ajustes.corpos).toHaveLength(1), { timeout: 3000 });
     expect(ajustes.corpos[0]).toMatchObject({
       condominio: 'vila-verde',
-      ajustes: { 'agenda-mudanca': { antecedencia_dias: 5, turno: 'tarde' } },
+      ajustes: { 'horario-portaria': { horario: '8h às 20h' } },
     });
   });
 
@@ -41,7 +70,7 @@ describe('AjustesSecao', () => {
     const ajustes = gravador('PUT /api/admin/ajustes');
     const comValor = structuredClone(estadoFalso);
     comValor.mapeamento.payloads = {
-      'vila-verde': { 'agenda-mudanca': { antecedencia_dias: 5 } },
+      'vila-verde': { 'horario-portaria': { horario: '6h às 23h' } },
     } as never;
     responderCom({
       ...rotasBase(gestor),
@@ -51,13 +80,13 @@ describe('AjustesSecao', () => {
     const { user } = abrirCondominio();
 
     await user.click(
-      await screen.findByRole('button', { name: 'Usar o padrão: Antecedência mínima (dias)' }),
+      await screen.findByRole('button', { name: 'Usar o padrão: Horário da portaria' }),
     );
 
-    expect(screen.getByLabelText('Antecedência mínima (dias)')).toHaveValue(null);
+    expect(screen.getByLabelText('Horário da portaria')).toHaveValue('');
     await waitFor(() => expect(ajustes.corpos).toHaveLength(1), { timeout: 3000 });
     expect(ajustes.corpos[0]).toMatchObject({
-      ajustes: { 'agenda-mudanca': { antecedencia_dias: '' } },
+      ajustes: { 'horario-portaria': { horario: '' } },
     });
   });
 });
