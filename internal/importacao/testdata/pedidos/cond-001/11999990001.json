@@ -1,0 +1,9 @@
+{
+  "account": "cond-001",
+  "telefone": "11999990001",
+  "pedidos": [
+    {"protocolo": "P-AAAAAAAA", "telefone": "11999990001", "caso": "segunda_via", "estado": "concluido", "valores": {}, "origem": {}, "criado_em": "2026-10-01T10:00:00Z", "atualizado_em": "2026-10-01T11:00:00Z", "historico": []},
+    {"protocolo": "P-BBBBBBBB", "telefone": "11999990001", "caso": "reserva", "estado": "coletando", "valores": {}, "origem": {}, "criado_em": "2026-10-02T10:00:00Z", "atualizado_em": "2026-10-02T11:00:00Z", "historico": []}
+  ],
+  "atualizada_em": "2026-10-02T11:00:00Z"
+}

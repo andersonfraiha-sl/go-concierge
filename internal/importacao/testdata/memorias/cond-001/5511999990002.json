@@ -1,0 +1,7 @@
+{
+  "account": "cond-001",
+  "telefone": "5511999990002",
+  "nome": "Bruno",
+  "fatos": [{"chave": "nome_preferido", "texto": "Bru", "quando": "2026-10-03T10:00:00Z"}],
+  "atualizada_em": "2026-10-03T10:00:00Z"
+}

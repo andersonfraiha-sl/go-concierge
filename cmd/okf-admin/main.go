@@ -3,6 +3,7 @@
 // (emulador do ATENDE) e o webhook do ATENDE.
 //
 //	okf-admin -root ./okf -addr 127.0.0.1:8090
+//	okf-admin importar-json -dir okf/var   (leva os JSON antigos para o Postgres)
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
 // sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
@@ -94,6 +95,9 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarJSON {
+		os.Exit(importarJSON(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")

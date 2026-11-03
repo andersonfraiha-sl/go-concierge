@@ -476,3 +476,10 @@ func (s *Arquivo) CriarCondominio(_ context.Context, c Condominio) (Mapeamento, 
 func (s *Arquivo) EditarCondominio(_ context.Context, c Condominio, visto Chaves) (Mapeamento, error) {
 	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarCondominio(c, visto) })
 }
+
+// Normalizado devolve o mapeamento lido de fora (JSON de uma versão antiga, por exemplo) na
+// forma que os repositórios guardam.
+func (m Mapeamento) Normalizado() Mapeamento {
+	m.normalizar()
+	return m
+}
