@@ -24,6 +24,10 @@ type Tx struct {
 	Condominio *CondominioClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
+	// MemoriaContato is the client for interacting with the MemoriaContato builders.
+	MemoriaContato *MemoriaContatoClient
+	// MemoriaFato is the client for interacting with the MemoriaFato builders.
+	MemoriaFato *MemoriaFatoClient
 	// Orientacao is the client for interacting with the Orientacao builders.
 	Orientacao *OrientacaoClient
 	// Papel is the client for interacting with the Papel builders.
@@ -170,6 +174,8 @@ func (tx *Tx) init() {
 	tx.Concessao = NewConcessaoClient(tx.config)
 	tx.Condominio = NewCondominioClient(tx.config)
 	tx.Habilitacao = NewHabilitacaoClient(tx.config)
+	tx.MemoriaContato = NewMemoriaContatoClient(tx.config)
+	tx.MemoriaFato = NewMemoriaFatoClient(tx.config)
 	tx.Orientacao = NewOrientacaoClient(tx.config)
 	tx.Papel = NewPapelClient(tx.config)
 	tx.PapelPermissao = NewPapelPermissaoClient(tx.config)

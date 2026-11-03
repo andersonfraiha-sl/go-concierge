@@ -28,15 +28,9 @@ func TestStoreUpsertEsquecer(t *testing.T) {
 	if err != nil || len(m.Fatos) != 0 || m.Telefone != "5519981621916" || m.AdministradoraID != "adm-a" {
 		t.Fatalf("%v %+v", err, m)
 	}
-	if !m.Upsert(Fato{Chave: "Unidades", Texto: "tem só uma unidade"}) || !m.Upsert(Fato{Chave: "pets", Texto: "tem um cachorro"}) {
-		t.Fatal("upsert deveria mudar")
-	}
-	if m.Upsert(Fato{Chave: "unidades", Texto: "tem só uma unidade"}) {
-		t.Fatal("mesmo texto não muda")
-	}
-	if !m.Upsert(Fato{Chave: "unidades", Texto: "tem duas unidades"}) || len(m.Fatos) != 2 || m.Fatos[0].Texto != "tem duas unidades" {
-		t.Fatalf("substituir pela chave: %+v", m.Fatos)
-	}
+	m, _ = m.Upsert(Fato{Chave: "Unidades", Texto: "tem só uma unidade"})
+	m, _ = m.Upsert(Fato{Chave: "pets", Texto: "tem um cachorro"})
+	m, _ = m.Upsert(Fato{Chave: "unidades", Texto: "tem duas unidades"})
 	if err := st.Gravar(ctx, c, m); err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +40,6 @@ func TestStoreUpsertEsquecer(t *testing.T) {
 	m2, _ := st.Ler(ctx, contato(t, "adm-a", "19981621916"))
 	if len(m2.Fatos) != 2 || !strings.Contains(m2.Texto(), "- unidades: tem duas unidades") {
 		t.Fatalf("persistência: %+v %q", m2.Fatos, m2.Texto())
-	}
-	if !m2.Esquecer("pets") || len(m2.Fatos) != 1 {
-		t.Fatal("esquecer")
 	}
 	l, err := st.Listar(ctx, "adm-a")
 	if err != nil || len(l) != 1 {

@@ -68,6 +68,30 @@ func (f HabilitacaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.HabilitacaoMutation", m)
 }
 
+// The MemoriaContatoFunc type is an adapter to allow the use of ordinary
+// function as MemoriaContato mutator.
+type MemoriaContatoFunc func(context.Context, *ent.MemoriaContatoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MemoriaContatoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MemoriaContatoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MemoriaContatoMutation", m)
+}
+
+// The MemoriaFatoFunc type is an adapter to allow the use of ordinary
+// function as MemoriaFato mutator.
+type MemoriaFatoFunc func(context.Context, *ent.MemoriaFatoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MemoriaFatoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MemoriaFatoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MemoriaFatoMutation", m)
+}
+
 // The OrientacaoFunc type is an adapter to allow the use of ordinary
 // function as Orientacao mutator.
 type OrientacaoFunc func(context.Context, *ent.OrientacaoMutation) (ent.Value, error)

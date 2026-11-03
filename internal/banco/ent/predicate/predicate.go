@@ -21,6 +21,12 @@ type Condominio func(*sql.Selector)
 // Habilitacao is the predicate function for habilitacao builders.
 type Habilitacao func(*sql.Selector)
 
+// MemoriaContato is the predicate function for memoriacontato builders.
+type MemoriaContato func(*sql.Selector)
+
+// MemoriaFato is the predicate function for memoriafato builders.
+type MemoriaFato func(*sql.Selector)
+
 // Orientacao is the predicate function for orientacao builders.
 type Orientacao func(*sql.Selector)
 

@@ -2,6 +2,9 @@
 # internal/banco/queries começa com "-- por que não ent: <motivo>". O esquema são as
 # próprias migrations goose (geradas pelo Atlas a partir do esquema do ent).
 #   go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
+# O sqlc compila com cgo; sem gcc funcionando (no Windows o MinGW pode falhar), a mesma versão
+# roda pelo Docker, da raiz do repositório:
+#   docker run --rm -v "$PWD:/src" -w /src sqlc/sqlc:1.31.1 generate
 version: "2"
 sql:
   - engine: postgresql
@@ -12,3 +15,4 @@ sql:
         package: sqlc
         out: internal/banco/sqlc
         sql_package: pgx/v5
+        omit_unused_structs: true

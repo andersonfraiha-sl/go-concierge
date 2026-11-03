@@ -4,8 +4,8 @@
 // Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
 // volta ao prompt em toda conversa seguinte daquele telefone.
 //
-// Hoje o armazenamento é um JSON por contato (okf/var/memorias/<administradora>/<telefone>.json);
-// a interface Store permite trocar por Postgres ou pelo recurso `memory` do Nexus.
+// O armazenamento é o Postgres (tabela memoria_fatos); o JSON por contato
+// (okf/var/memorias/<administradora>/<telefone>.json) ainda existe até a importação.
 package memoria
 
 import (
@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -47,42 +48,91 @@ type Memoria struct {
 	AtualizadaEm     time.Time `json:"atualizada_em"`
 }
 
-// Upsert põe ou substitui um fato pela chave. Devolve true se algo mudou.
-func (m *Memoria) Upsert(f Fato) bool {
+// Upsert devolve a memória com o fato posto ou substituído pela chave, e true se algo
+// mudou. Não altera o receptor: o fato sem Quando entra com o instante zero, quem chama
+// decide o relógio.
+func (m Memoria) Upsert(f Fato) (Memoria, bool) {
 	f.Chave = NormalizarChave(f.Chave)
 	f.Texto = strings.TrimSpace(f.Texto)
 	if f.Chave == "" || f.Texto == "" {
-		return false
+		return m, false
 	}
-	if f.Quando.IsZero() {
-		f.Quando = time.Now()
+	i := slices.IndexFunc(m.Fatos, func(atual Fato) bool { return atual.Chave == f.Chave })
+	if i >= 0 && m.Fatos[i].Texto == f.Texto {
+		return m, false
 	}
-	for i, atual := range m.Fatos {
-		if atual.Chave == f.Chave {
-			if atual.Texto == f.Texto {
-				return false
-			}
-			m.Fatos[i] = f
-			m.AtualizadaEm = f.Quando
-			return true
-		}
+	fatos := slices.Clone(m.Fatos)
+	if i >= 0 {
+		fatos[i] = f
+	} else {
+		fatos = append(fatos, f)
 	}
-	m.Fatos = append(m.Fatos, f)
-	m.AtualizadaEm = f.Quando
-	return true
+	m.Fatos, m.AtualizadaEm = fatos, f.Quando
+	return m, true
 }
 
-// Esquecer tira um fato pela chave.
-func (m *Memoria) Esquecer(chave string) bool {
+// Esquecer devolve a memória sem o fato da chave, e true se ele existia. Não altera o receptor.
+func (m Memoria) Esquecer(chave string) (Memoria, bool) {
 	chave = NormalizarChave(chave)
-	for i, f := range m.Fatos {
-		if f.Chave == chave {
-			m.Fatos = append(m.Fatos[:i], m.Fatos[i+1:]...)
-			m.AtualizadaEm = time.Now()
-			return true
-		}
+	ehDaChave := func(f Fato) bool { return f.Chave == chave }
+	if !slices.ContainsFunc(m.Fatos, ehDaChave) {
+		return m, false
 	}
-	return false
+	m.Fatos = slices.DeleteFunc(slices.Clone(m.Fatos), ehDaChave)
+	return m, true
+}
+
+// vazia é a memória de um contato de quem nada se sabe.
+func vazia(c escopo.Contato) Memoria {
+	return Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: []Fato{}}
+}
+
+// comoGuardada é a memória como um Store a guarda: sob o contato, uma chave só por fato (a
+// última vence, no lugar da primeira) e AtualizadaEm preenchida com agora quando vier vazia.
+func comoGuardada(c escopo.Contato, m Memoria, agora time.Time) Memoria {
+	m.AdministradoraID, m.Telefone = c.AdministradoraID, c.Telefone
+	m.Fatos = semChavesRepetidas(m.Fatos)
+	if m.AtualizadaEm.IsZero() {
+		m.AtualizadaEm = agora
+	}
+	return m
+}
+
+func semChavesRepetidas(fatos []Fato) []Fato {
+	out := make([]Fato, 0, len(fatos))
+	posicao := map[string]int{}
+	for _, f := range fatos {
+		if i, repetida := posicao[f.Chave]; repetida {
+			out[i] = f
+			continue
+		}
+		posicao[f.Chave] = len(out)
+		out = append(out, f)
+	}
+	return out
+}
+
+// maisRecentesPrimeiro ordena a listagem: a memória atualizada por último primeiro, telefone no empate.
+func maisRecentesPrimeiro(a, b Memoria) int {
+	if c := b.AtualizadaEm.Compare(a.AtualizadaEm); c != 0 {
+		return c
+	}
+	return strings.Compare(a.Telefone, b.Telefone)
+}
+
+// validarContato: a administradora tem o formato do Admin e o telefone não é vazio.
+func validarContato(c escopo.Contato) error {
+	if !escopo.AdministradoraValida(c.AdministradoraID) || c.Telefone == "" {
+		return errContatoInvalido
+	}
+	return nil
+}
+
+func validarAdministradora(administradoraID string) error {
+	if !escopo.AdministradoraValida(administradoraID) {
+		return fmt.Errorf("memória da administradora %q: %w", administradoraID, errContatoInvalido)
+	}
+	return nil
 }
 
 // Texto é como a memória entra no prompt.
@@ -129,9 +179,12 @@ func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
 
 var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
+// ErrRespostaForaDoFormato: o extrator com modelo recebeu algo que não é o JSON pedido.
+var ErrRespostaForaDoFormato = errors.New("resposta do extrator fora do formato")
+
 func (a *Arquivos) pasta(administradoraID string) (string, error) {
-	if !escopo.AdministradoraValida(administradoraID) {
-		return "", fmt.Errorf("memória da administradora %q: %w", administradoraID, errContatoInvalido)
+	if err := validarAdministradora(administradoraID); err != nil {
+		return "", err
 	}
 	return filepath.Join(a.Dir, administradoraID), nil
 }
