@@ -9,12 +9,14 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
 import {
+  preencherTextosNovos,
   type SkillResumo,
   useCriarSkill,
   useDuplicarSkill,
   useExcluirSkill,
   useSkills,
 } from './contratos';
+import { NovaSkillDialog, type SkillNova } from './NovaSkillDialog';
 import { SkillCard } from './SkillCard';
 
 const FRASE_VAZIA =
@@ -40,8 +42,9 @@ export function SkillsPage(): ReactNode {
   const podeExcluir = usePodeEditar('skills.excluir');
   const fechar = () => setDialogo(null);
 
-  const criarEAbrir = async (nova: NomeEscolhido) => {
-    const criada = await criar.mutateAsync(nova);
+  const criarEAbrir = async (nova: SkillNova) => {
+    const criada = await criar.mutateAsync({ nome: nova.nome, titulo: nova.titulo });
+    await preencherTextosNovos(criada.nome, { resumo: nova.resumo, quandoUsar: nova.quandoUsar });
     mostrar('Skill criada.');
     void navegar(caminhoDoEditor(criada.nome));
   };
@@ -111,15 +114,7 @@ export function SkillsPage(): ReactNode {
         </Box>
       )}
 
-      {dialogo?.tipo === 'nova' && (
-        <NomeDialog
-          titulo="Nova skill"
-          tituloInicial=""
-          confirmar="Criar"
-          onEnviar={criarEAbrir}
-          onCancelar={fechar}
-        />
-      )}
+      {dialogo?.tipo === 'nova' && <NovaSkillDialog onEnviar={criarEAbrir} onCancelar={fechar} />}
       {dialogo?.tipo === 'duplicar' && (
         <NomeDialog
           titulo="Duplicar skill"

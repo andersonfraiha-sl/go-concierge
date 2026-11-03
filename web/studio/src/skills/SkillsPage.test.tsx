@@ -95,23 +95,61 @@ describe('SkillsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('createsSkillAndOpensEditor', async () => {
-    const corpos: unknown[] = [];
+  it('createsSkillWithSummaryAndWhenToUse', async () => {
+    const corposCriar: unknown[] = [];
+    const corposTextos: unknown[] = [];
     responderCom({
       'GET /api/eu': () => json(construtor),
       'GET /api/skills': () => lista([faq]),
       'POST /api/skills': async (req) => {
-        corpos.push(await req.json());
+        corposCriar.push(await req.json());
         return json({ nome: 'reserva-do-salao' }, 201);
+      },
+      'GET /api/skills/reserva-do-salao': () =>
+        json({
+          caminho: 'skills/reserva-do-salao',
+          versao: 'v1',
+          textos: {
+            titulo: 'Reserva do Salão',
+            quandoUsar: '',
+            frasesDeExemplo: [],
+            palavrasChave: [],
+            temFluxo: false,
+            resumo: '',
+            visibilidade: '',
+          },
+        }),
+      'PUT /api/skills/reserva-do-salao/textos': async (req) => {
+        corposTextos.push(await req.json());
+        return json({ versao: 'v2' });
       },
     });
     const { user } = montar();
     await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
     await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Como reconhecer o pedido' }),
+      'O morador quer reservar o salão.',
+    );
     expect(screen.getByText('Identificador: reserva-do-salao')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Criar' }));
     expect(await screen.findByText('Skill criada.')).toBeInTheDocument();
-    expect(corpos).toEqual([{ nome: 'reserva-do-salao', titulo: 'Reserva do Salão' }]);
+    expect(corposCriar).toEqual([{ nome: 'reserva-do-salao', titulo: 'Reserva do Salão' }]);
+    expect(corposTextos).toEqual([
+      {
+        versao: 'v1',
+        textos: {
+          titulo: 'Reserva do Salão',
+          quandoUsar: 'O morador quer reservar o salão.',
+          frasesDeExemplo: [],
+          palavrasChave: [],
+          temFluxo: false,
+          resumo: 'Reserva o salão de festas.',
+          visibilidade: '',
+        },
+      },
+    ]);
     await waitFor(() =>
       expect(screen.getByLabelText('rota')).toHaveTextContent('/skills/reserva-do-salao'),
     );

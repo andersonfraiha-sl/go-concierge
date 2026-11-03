@@ -48,6 +48,8 @@ export const TextosLidosSchema = z.object({
 const VersaoSchema = z.object({ versao: z.string() });
 const NomeSchema = z.object({ nome: z.string() });
 
+export const LIMITE_DO_RESUMO = 90;
+
 const caminhoDaSkill = (nome: string): string => `/api/skills/${encodeURIComponent(nome)}`;
 
 export function useSkills() {
@@ -92,6 +94,16 @@ export function salvarFluxo(
   corpo: { versao: string; fluxo: Fluxo },
 ): Promise<FluxoGravado> {
   return apiEnviar('PUT', `${caminhoDaSkill(nome)}/fluxo`, corpo, FluxoGravadoSchema);
+}
+
+/** Grava resumo e critério de uma skill recém-criada; sem efeito se os dois vierem em branco. */
+export async function preencherTextosNovos(
+  nome: string,
+  novos: { resumo: string; quandoUsar: string },
+): Promise<void> {
+  if (novos.resumo === '' && novos.quandoUsar === '') return;
+  const lido = await apiGet(caminhoDaSkill(nome), TextosLidosSchema);
+  await salvarTextos(nome, { versao: lido.versao, textos: { ...lido.textos, ...novos } });
 }
 
 /** Mutation que, ao dar certo, refaz a lista de skills. */
