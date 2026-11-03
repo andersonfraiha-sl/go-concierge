@@ -1014,6 +1014,7 @@ O canvas aprovado mostra a página Concierge com seis blocos: Identidade, Person
 
 **Files:**
 - Modify: `web/studio/src/concierge/ConciergePage.tsx`, `concierge/ConciergePage.test.tsx` (abas `persona | boas-vindas | regras | conhecimento | transbordo`, URL `?aba=`)
+- Modify: `skills/abas/RegrasAba.tsx`, `RegrasAba.test.tsx`, `skills/abas/ConhecimentoAba.tsx`, `ConhecimentoAba.test.tsx` (prop `titulo?: string` opcional)
 - Create: `web/studio/src/concierge/BoasVindasAba.tsx`, `BoasVindasAba.test.tsx`
 
 **Board:** `docs/superpowers/design/studio-fase2/Concierge.dc.html` (blocos "Boas-vindas", "Regras gerais", "Base de conhecimento comum", "Transbordo para atendente") e `ConciergeCopiloto.dc.html`.
