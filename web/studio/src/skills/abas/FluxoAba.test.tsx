@@ -1,10 +1,10 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import fixture from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { useState } from 'react';
 import { FluxoAba } from './FluxoAba';
 
 const construtor: Eu = {
@@ -22,8 +22,22 @@ const ferramentas = {
   origem: 'nexus',
   conferido: true,
   recursos: [
-    { name: 'unidades.listar', titulo: 'Listar unidades', kind: 'api', visibility: 'private', write: false, description: '' },
-    { name: 'mudancas.agendar', titulo: 'Agendar mudança', kind: 'api', visibility: 'private', write: true, description: '' },
+    {
+      name: 'unidades.listar',
+      titulo: 'Listar unidades',
+      kind: 'api',
+      visibility: 'private',
+      write: false,
+      description: '',
+    },
+    {
+      name: 'mudancas.agendar',
+      titulo: 'Agendar mudança',
+      kind: 'api',
+      visibility: 'private',
+      write: true,
+      description: '',
+    },
   ],
 };
 
@@ -41,14 +55,18 @@ function rotas(eu: Eu, extras: Record<string, Rota> = {}): Record<string, Rota> 
 }
 
 /** PUT que guarda o corpo recebido e responde com a próxima versão. */
-function putQueGuarda(corpos: unknown[], resposta: () => Response = () => json({ versao: 'v2', problemas: [] })): Rota {
+function putQueGuarda(
+  corpos: unknown[],
+  resposta: () => Response = () => json({ versao: 'v2', problemas: [] }),
+): Rota {
   return async (req) => {
     corpos.push(await req.json());
     return resposta();
   };
 }
 
-const montar = () => renderComProvedores(<FluxoAba nome="agendar-mudanca" caminho="skills/agendar-mudanca" />);
+const montar = () =>
+  renderComProvedores(<FluxoAba nome="agendar-mudanca" caminho="skills/agendar-mudanca" />);
 
 /** Simula a troca de aba do editor: a aba sai da tela e volta, com o mesmo cache de consultas. */
 function ComTrocaDeAba() {
@@ -68,7 +86,9 @@ function silenciarGravacaoAoSair() {
   const erros = vi.spyOn(console, 'error').mockImplementation(() => {});
   return async (sair: () => void) => {
     sair();
-    await waitFor(() => expect(erros).toHaveBeenCalledWith('salvar ao sair da tela', expect.anything()));
+    await waitFor(() =>
+      expect(erros).toHaveBeenCalledWith('salvar ao sair da tela', expect.anything()),
+    );
     erros.mockRestore();
   };
 }
@@ -78,7 +98,8 @@ const rotulosDosBlocos = (): (string | null)[] =>
     .getAllByRole('article')
     .map((bloco) => bloco.getAttribute('aria-label'));
 
-const bloco = (rotulo: string): Promise<HTMLElement> => screen.findByRole('article', { name: rotulo });
+const bloco = (rotulo: string): Promise<HTMLElement> =>
+  screen.findByRole('article', { name: rotulo });
 
 /** Clique sem mousedown: o d3-drag do nó arrastável lê `event.view`, que o user-event deixa nulo no jsdom. */
 const selecionar = async (rotulo: string): Promise<void> => {
@@ -92,17 +113,33 @@ function medirNoJsdom(): void {
   class ResizeObserverQueMede {
     constructor(private readonly callback: ResizeObserverCallback) {}
     observe(target: Element): void {
-      const contentRect = { x: 0, y: 0, top: 0, left: 0, width: 800, height: 600, bottom: 600, right: 800 };
+      const contentRect = {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        width: 800,
+        height: 600,
+        bottom: 600,
+        right: 800,
+      };
       // Depois do commit: o React Flow só guarda o DOM do canvas no efeito do pai, que roda após o dos nós.
       setTimeout(() => {
-        if (target.isConnected) this.callback([{ target, contentRect } as ResizeObserverEntry], this as unknown as ResizeObserver);
+        if (target.isConnected)
+          this.callback(
+            [{ target, contentRect } as ResizeObserverEntry],
+            this as unknown as ResizeObserver,
+          );
       }, 0);
     }
     unobserve(): void {}
     disconnect(): void {}
   }
   for (const alvo of [globalThis, window]) {
-    Object.defineProperty(alvo, 'ResizeObserver', { value: ResizeObserverQueMede, configurable: true });
+    Object.defineProperty(alvo, 'ResizeObserver', {
+      value: ResizeObserverQueMede,
+      configurable: true,
+    });
   }
   Object.defineProperties(HTMLElement.prototype, {
     offsetHeight: { configurable: true, get: () => 600 },
@@ -126,14 +163,18 @@ describe('FluxoAba', () => {
       'Responder',
     ]);
     expect(within(await bloco('Buscar dados')).getByText('Listar unidades')).toBeInTheDocument();
-    await waitFor(() => expect(container.querySelectorAll('.react-flow__node.draggable')).toHaveLength(5));
+    await waitFor(() =>
+      expect(container.querySelectorAll('.react-flow__node.draggable')).toHaveLength(5),
+    );
   });
 
   it('insertsBlockFromPlusBetweenBlocks', async () => {
     responderCom(rotas(construtor));
     const { user } = montar();
     await bloco('Responder');
-    const [entrePrimeiroESegundo] = await screen.findAllByRole('button', { name: 'Adicionar bloco aqui' });
+    const [entrePrimeiroESegundo] = await screen.findAllByRole('button', {
+      name: 'Adicionar bloco aqui',
+    });
     if (!entrePrimeiroESegundo) throw new Error('sem + entre blocos');
     await user.click(entrePrimeiroESegundo);
     await user.click(screen.getByRole('menuitem', { name: /^Confirmar/ }));
@@ -141,19 +182,25 @@ describe('FluxoAba', () => {
     expect(rotulosDosBlocos()[1]).toBe('Confirmar');
     const painel = screen.getByRole('region', { name: 'Bloco selecionado' });
     expect(within(painel).getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument();
-    expect(within(painel).getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveValue('');
+    expect(within(painel).getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveValue(
+      '',
+    );
   });
 
   it('marksGravarWithoutConfirmar', async () => {
     const corpos: unknown[] = [];
-    responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda(corpos) }));
+    responderCom(
+      rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda(corpos) }),
+    );
     const { user } = montar();
     await selecionar('Confirmar');
     await user.click(screen.getByRole('button', { name: 'Excluir bloco' }));
     const dialogo = screen.getByRole('dialog', { name: 'Excluir o bloco "Confirmar"?' });
     await user.click(within(dialogo).getByRole('button', { name: 'Excluir' }));
 
-    expect(await screen.findByLabelText('Erro: Coloque um Confirmar antes de gravar no sistema.')).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText('Erro: Coloque um Confirmar antes de gravar no sistema.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Não salvo: corrija o bloco marcado')).toBeInTheDocument();
     await selecionar('Gravar no sistema');
     expect(screen.getByText('Coloque um Confirmar antes de gravar no sistema.')).toBeVisible();
@@ -163,7 +210,9 @@ describe('FluxoAba', () => {
 
   it('savesOneSecondAfterEdit', async () => {
     const corpos: unknown[] = [];
-    responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda(corpos) }));
+    responderCom(
+      rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda(corpos) }),
+    );
     const { user } = montar();
     await selecionar('Confirmar');
     const campo = screen.getByRole('textbox', { name: 'Pergunta de confirmação' });
@@ -172,7 +221,11 @@ describe('FluxoAba', () => {
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos[0]).toMatchObject({
       versao: fixture.versao,
-      fluxo: { blocos: expect.arrayContaining([expect.objectContaining({ id: 'b4', texto: 'Posso agendar?' })]) },
+      fluxo: {
+        blocos: expect.arrayContaining([
+          expect.objectContaining({ id: 'b4', texto: 'Posso agendar?' }),
+        ]),
+      },
     });
     expect(await screen.findByText(/Salvo às/)).toBeInTheDocument();
   });
@@ -183,25 +236,38 @@ describe('FluxoAba', () => {
         {
           codigo: 'FLUXO_INVALIDO',
           mensagem: 'O fluxo tem problemas.',
-          problemas: [{ blocoId: 'b5', codigo: 'RECURSO_RECUSADO', nivel: 'erro', mensagem: 'A ferramenta recusou os dados.' }],
+          problemas: [
+            {
+              blocoId: 'b5',
+              codigo: 'RECURSO_RECUSADO',
+              nivel: 'erro',
+              mensagem: 'A ferramenta recusou os dados.',
+            },
+          ],
         },
         422,
       );
-    responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda([], rejeicao) }));
+    responderCom(
+      rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda([], rejeicao) }),
+    );
     const conferirSaida = silenciarGravacaoAoSair();
     const { user, unmount } = montar();
     await selecionar('Confirmar');
     await user.type(screen.getByRole('textbox', { name: 'Pergunta de confirmação' }), '!');
     expect(await screen.findByText('Falha ao salvar', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(
-      within(await bloco('Gravar no sistema')).getByLabelText('Erro: A ferramenta recusou os dados.'),
+      within(await bloco('Gravar no sistema')).getByLabelText(
+        'Erro: A ferramenta recusou os dados.',
+      ),
     ).toBeInTheDocument();
     await conferirSaida(unmount);
   });
 
   it('showsConflictAndKeepsEdit', async () => {
     const conflito = () => json({ codigo: 'VERSAO_ANTIGA', mensagem: CONFLITO }, 409);
-    responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda([], conflito) }));
+    responderCom(
+      rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda([], conflito) }),
+    );
     const conferirSaida = silenciarGravacaoAoSair();
     const { user, unmount } = montar();
     await selecionar('Confirmar');
@@ -210,7 +276,9 @@ describe('FluxoAba', () => {
     await user.type(campo, 'Posso agendar?');
     expect(await screen.findByText('Falha ao salvar', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByLabelText(CONFLITO)).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveValue('Posso agendar?');
+    expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveValue(
+      'Posso agendar?',
+    );
     await conferirSaida(unmount);
   });
 
@@ -220,7 +288,8 @@ describe('FluxoAba', () => {
     const putComVersao: Rota = async (req) => {
       const corpo = await req.json();
       corpos.push(corpo);
-      if (corpo.versao !== versaoAtual) return json({ codigo: 'VERSAO_ANTIGA', mensagem: CONFLITO }, 409);
+      if (corpo.versao !== versaoAtual)
+        return json({ codigo: 'VERSAO_ANTIGA', mensagem: CONFLITO }, 409);
       versaoAtual = `v${corpos.length + 1}`;
       return json({ versao: versaoAtual, problemas: [] });
     };
@@ -244,7 +313,9 @@ describe('FluxoAba', () => {
 
   it('keepsStructuredValueReadOnly', async () => {
     const visitantes = { campo: 'visitantes', valor: ['Ana', 'Bia'] };
-    const blocos = fixture.fluxo.blocos.map((b) => (b.id === 'b5' && 'com' in b ? { ...b, com: [...b.com, visitantes] } : b));
+    const blocos = fixture.fluxo.blocos.map((b) =>
+      b.id === 'b5' && 'com' in b ? { ...b, com: [...b.com, visitantes] } : b,
+    );
     const comLista = { ...fixture, fluxo: { ...fixture.fluxo, blocos } };
     const corpos: { fluxo: { blocos: { id: string; com?: unknown }[] } }[] = [];
     responderCom(
@@ -259,7 +330,9 @@ describe('FluxoAba', () => {
     expect(valores).toHaveLength(4);
     expect(valores[0]).toBeEnabled();
     expect(valores[3]).toBeDisabled();
-    expect(screen.getByText('Este valor só pode ser editado na área Avançado.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Este valor só pode ser editado na área Avançado.'),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByRole('textbox', { name: 'Guardar resultado em' }), '_novo');
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
@@ -270,16 +343,22 @@ describe('FluxoAba', () => {
   it('showsFlowLevelServerProblem', async () => {
     const comAviso = {
       ...fixture,
-      problemas: [{ codigo: 'SEM_GATILHO', nivel: 'aviso', mensagem: 'Nenhuma frase leva a esta skill.' }],
+      problemas: [
+        { codigo: 'SEM_GATILHO', nivel: 'aviso', mensagem: 'Nenhuma frase leva a esta skill.' },
+      ],
     };
-    responderCom(rotas(construtor, { 'GET /api/skills/agendar-mudanca/fluxo': () => json(comAviso) }));
+    responderCom(
+      rotas(construtor, { 'GET /api/skills/agendar-mudanca/fluxo': () => json(comAviso) }),
+    );
     montar();
     expect(await screen.findByText('Nenhuma frase leva a esta skill.')).toBeInTheDocument();
   });
 
   it('showsToolsLoadError', async () => {
     responderCom(
-      rotas(construtor, { 'GET /api/nexus/recursos': () => json({ codigo: 'ERRO', mensagem: 'Caiu.' }, 500) }),
+      rotas(construtor, {
+        'GET /api/nexus/recursos': () => json({ codigo: 'ERRO', mensagem: 'Caiu.' }, 500),
+      }),
     );
     montar();
     await selecionar('Buscar dados');
@@ -291,20 +370,30 @@ describe('FluxoAba', () => {
     const comAviso = {
       ...fixture,
       problemas: [
-        { blocoId: 'b1', codigo: 'FERRAMENTA_DESCONHECIDA', nivel: 'aviso', mensagem: 'A ferramenta unidades.listar não existe.' },
+        {
+          blocoId: 'b1',
+          codigo: 'FERRAMENTA_DESCONHECIDA',
+          nivel: 'aviso',
+          mensagem: 'A ferramenta unidades.listar não existe.',
+        },
       ],
     };
-    responderCom(rotas(construtor, { 'GET /api/skills/agendar-mudanca/fluxo': () => json(comAviso) }));
+    responderCom(
+      rotas(construtor, { 'GET /api/skills/agendar-mudanca/fluxo': () => json(comAviso) }),
+    );
     montar();
     const buscar = await bloco('Buscar dados');
-    expect(within(buscar).getByLabelText('Aviso: A ferramenta unidades.listar não existe.')).toBeInTheDocument();
+    expect(
+      within(buscar).getByLabelText('Aviso: A ferramenta unidades.listar não existe.'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Não salvo/)).not.toBeInTheDocument();
   });
 
   it('showsNoFlowMessage', async () => {
     responderCom(
       rotas(construtor, {
-        'GET /api/skills/agendar-mudanca/fluxo': () => json({ codigo: 'SEM_FLUXO', mensagem: 'Skill sem fluxo.' }, 404),
+        'GET /api/skills/agendar-mudanca/fluxo': () =>
+          json({ codigo: 'SEM_FLUXO', mensagem: 'Skill sem fluxo.' }, 404),
       }),
     );
     montar();
@@ -328,7 +417,11 @@ describe('FluxoAba em tela estreita', () => {
   beforeAll(medirNoJsdom);
   const original = window.matchMedia;
   afterEach(() => {
-    Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original });
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: original,
+    });
   });
 
   it('narrowScreenIsReadOnly', async () => {

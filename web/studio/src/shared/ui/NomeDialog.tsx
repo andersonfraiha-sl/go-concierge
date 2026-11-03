@@ -1,5 +1,13 @@
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { type FormEvent, type ReactNode, useState } from 'react';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { paraIdentificador } from '@/skills/contratos';
 
@@ -15,7 +23,13 @@ type Props = {
 };
 
 /** Monte só quando aberto: o estado do campo nasce de `tituloInicial`. */
-export function NomeDialog({ titulo, tituloInicial, confirmar, onEnviar, onCancelar }: Props): ReactNode {
+export function NomeDialog({
+  titulo,
+  tituloInicial,
+  confirmar,
+  onEnviar,
+  onCancelar,
+}: Props): ReactNode {
   const [nome, setNome] = useState(tituloInicial);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);

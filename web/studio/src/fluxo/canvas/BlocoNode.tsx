@@ -1,7 +1,7 @@
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { Box, Tooltip, Typography } from '@mui/material';
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { Handle, type Node, type NodeProps, Position } from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import { ALTURA_BLOCO, ESPACO, LARGURA_BLOCO } from '@/fluxo/modelo/edicao';
@@ -39,7 +39,9 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
         bgcolor: tokens.color.studio.nodeBg,
         border: selecionado ? 2 : 1,
         borderStyle: 'solid',
-        borderColor: selecionado ? tokens.color.studio.nodeSelected : tokens.color.studio.nodeBorder,
+        borderColor: selecionado
+          ? tokens.color.studio.nodeSelected
+          : tokens.color.studio.nodeBorder,
         borderLeft: `4px solid ${cor}`,
         borderRadius: 1.5,
         cursor: 'pointer',
@@ -47,7 +49,13 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
       }}
     >
       <Handle type="target" position={Position.Top} isConnectable={false} style={ALCA_INVISIVEL} />
-      {indice === 0 && <BotaoMais indice={0} rotulo="Adicionar bloco no início" posicao={{ x: LARGURA_BLOCO / 2, y: -ESPACO / 2 }} />}
+      {indice === 0 && (
+        <BotaoMais
+          indice={0}
+          rotulo="Adicionar bloco no início"
+          posicao={{ x: LARGURA_BLOCO / 2, y: -ESPACO / 2 }}
+        />
+      )}
       <Box
         sx={{
           width: 32,
@@ -71,7 +79,12 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
         </Typography>
       </Box>
       <SeloDeProblema problemas={problemas} />
-      <Handle type="source" position={Position.Bottom} isConnectable={false} style={ALCA_INVISIVEL} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={false}
+        style={ALCA_INVISIVEL}
+      />
     </Box>
   );
 }

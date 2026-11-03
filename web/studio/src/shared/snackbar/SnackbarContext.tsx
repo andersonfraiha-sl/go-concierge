@@ -1,5 +1,5 @@
 import { Alert, Snackbar, type SnackbarCloseReason } from '@mui/material';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useState } from 'react';
 
 type Tipo = 'success' | 'error' | 'info';
 type Aviso = { mensagem: string; tipo: Tipo };

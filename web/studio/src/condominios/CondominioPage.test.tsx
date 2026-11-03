@@ -19,7 +19,10 @@ function gravador(rota: string) {
 }
 
 const abrir = (id = 'vila-verde') =>
-  renderComProvedores(<CondominioPage />, { rota: `/condominios/${id}`, caminho: '/condominios/:id' });
+  renderComProvedores(<CondominioPage />, {
+    rota: `/condominios/${id}`,
+    caminho: '/condominios/:id',
+  });
 
 describe('CondominioPage', () => {
   it('togglesSkill', async () => {
@@ -27,10 +30,16 @@ describe('CondominioPage', () => {
     responderCom({ ...rotasBase(gestor), ...handlers });
     const { user } = abrir();
 
-    await user.click(await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }));
+    await user.click(
+      await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
+    );
 
     await waitFor(() =>
-      expect(corpos[0]).toMatchObject({ condominio: 'vila-verde', caso: 'agendar-mudanca', habilitado: false }),
+      expect(corpos[0]).toMatchObject({
+        condominio: 'vila-verde',
+        caso: 'agendar-mudanca',
+        habilitado: false,
+      }),
     );
   });
 
@@ -40,13 +49,21 @@ describe('CondominioPage', () => {
     comDecisao.mapeamento.habilitacoes['vila-verde'] = {
       'agendar-mudanca': { habilitado: false, papeis: [] },
     } as never;
-    responderCom({ ...rotasBase(gestor), 'GET /api/admin/estado': () => json(comDecisao), ...handlers });
+    responderCom({
+      ...rotasBase(gestor),
+      'GET /api/admin/estado': () => json(comDecisao),
+      ...handlers,
+    });
     const { user } = abrir();
 
     await user.click(await screen.findByRole('button', { name: 'Usar o padrão: Agendar mudança' }));
 
     await waitFor(() =>
-      expect(corpos[0]).toMatchObject({ condominio: 'vila-verde', caso: 'agendar-mudanca', limpar: true }),
+      expect(corpos[0]).toMatchObject({
+        condominio: 'vila-verde',
+        caso: 'agendar-mudanca',
+        limpar: true,
+      }),
     );
   });
 
@@ -58,7 +75,11 @@ describe('CondominioPage', () => {
     await user.click(await screen.findByRole('button', { name: 'síndico em Agendar mudança' }));
 
     await waitFor(() =>
-      expect(corpos[0]).toMatchObject({ caso: 'agendar-mudanca', habilitado: true, papeis: ['sindico'] }),
+      expect(corpos[0]).toMatchObject({
+        caso: 'agendar-mudanca',
+        habilitado: true,
+        papeis: ['sindico'],
+      }),
     );
   });
 
@@ -67,11 +88,18 @@ describe('CondominioPage', () => {
     responderCom({ ...rotasBase(gestor), ...handlers });
     const { user } = abrir();
 
-    await user.type(await screen.findByRole('textbox', { name: 'Para todas as skills' }), 'Fale com o zelador');
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Para todas as skills' }),
+      'Fale com o zelador',
+    );
     expect(corpos).toHaveLength(0);
 
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
-    expect(corpos[0]).toEqual({ condominio: 'vila-verde', geral: 'Fale com o zelador', por_caso: {} });
+    expect(corpos[0]).toEqual({
+      condominio: 'vila-verde',
+      geral: 'Fale com o zelador',
+      por_caso: {},
+    });
   });
 
   it('fillsAdjustmentsFromSuggestion', async () => {
@@ -80,11 +108,17 @@ describe('CondominioPage', () => {
       ...rotasBase(gestor),
       ...ajustes.handlers,
       'POST /api/admin/sugerir-payload': () =>
-        json({ payload: { antecedencia_dias: 5, turno: 'tarde' }, nota: 'Não entendi o protocolo.' }),
+        json({
+          payload: { antecedencia_dias: 5, turno: 'tarde' },
+          nota: 'Não entendi o protocolo.',
+        }),
     });
     const { user } = abrir();
 
-    await user.type(await screen.findByRole('textbox', { name: 'Descreva em uma frase' }), 'cinco dias, só à tarde');
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Descreva em uma frase' }),
+      'cinco dias, só à tarde',
+    );
     await user.click(screen.getByRole('button', { name: 'Sugerir' }));
 
     await waitFor(() => expect(screen.getByLabelText('Antecedência mínima (dias)')).toHaveValue(5));
@@ -134,7 +168,9 @@ describe('CondominioPage', () => {
     responderCom(rotasBase(construtor));
     abrir('*');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Padrão (todos)' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Padrão (todos)' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
   });
 
@@ -142,7 +178,9 @@ describe('CondominioPage', () => {
     responderCom(rotasBase(gestor));
     abrir('*');
 
-    expect(await screen.findByText('Vale para todas as administradoras; só a Superlógica muda.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Vale para todas as administradoras; só a Superlógica muda.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
     expect(screen.getByRole('textbox', { name: 'Para todas as skills' })).toBeDisabled();
   });
@@ -150,20 +188,36 @@ describe('CondominioPage', () => {
   it('clearsAdjustmentOverrideWithUsarOPadrao', async () => {
     const ajustes = gravador('PUT /api/admin/ajustes');
     const comValor = structuredClone(estadoFalso);
-    comValor.mapeamento.payloads = { 'vila-verde': { 'agenda-mudanca': { antecedencia_dias: 5 } } } as never;
-    responderCom({ ...rotasBase(gestor), 'GET /api/admin/estado': () => json(comValor), ...ajustes.handlers });
+    comValor.mapeamento.payloads = {
+      'vila-verde': { 'agenda-mudanca': { antecedencia_dias: 5 } },
+    } as never;
+    responderCom({
+      ...rotasBase(gestor),
+      'GET /api/admin/estado': () => json(comValor),
+      ...ajustes.handlers,
+    });
     const { user } = abrir();
 
-    await user.click(await screen.findByRole('button', { name: 'Usar o padrão: Antecedência mínima (dias)' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Usar o padrão: Antecedência mínima (dias)' }),
+    );
 
     expect(screen.getByLabelText('Antecedência mínima (dias)')).toHaveValue(null);
     await waitFor(() => expect(ajustes.corpos).toHaveLength(1), { timeout: 3000 });
-    expect(ajustes.corpos[0]).toMatchObject({ ajustes: { 'agenda-mudanca': { antecedencia_dias: '' } } });
+    expect(ajustes.corpos[0]).toMatchObject({
+      ajustes: { 'agenda-mudanca': { antecedencia_dias: '' } },
+    });
   });
 
   describe('em tela estreita', () => {
     const original = window.matchMedia;
-    afterEach(() => Object.defineProperty(window, 'matchMedia', { value: original, configurable: true, writable: true }));
+    afterEach(() =>
+      Object.defineProperty(window, 'matchMedia', {
+        value: original,
+        configurable: true,
+        writable: true,
+      }),
+    );
 
     it('staysReadOnlyBelow900px', async () => {
       Object.defineProperty(window, 'matchMedia', {
@@ -183,7 +237,9 @@ describe('CondominioPage', () => {
       responderCom(rotasBase(construtor));
       abrir();
 
-      expect(await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
+      expect(
+        await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
+      ).toBeDisabled();
       expect(screen.getByRole('textbox', { name: 'Para todas as skills' })).toBeDisabled();
       expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
     });

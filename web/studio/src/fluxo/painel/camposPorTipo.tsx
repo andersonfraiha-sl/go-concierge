@@ -9,10 +9,10 @@ import {
   Switch,
   TextField,
 } from '@mui/material';
-import { useId, type ReactNode } from 'react';
+import { type ReactNode, useId } from 'react';
 import type { Ferramenta } from '@/catalogo/contratos';
-import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { tituloDe } from '@/ferramentas/contratos';
+import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import type { Bloco, Informacao, TipoBloco } from '@/fluxo/modelo/tipos';
 
 type BlocoDo<T extends TipoBloco> = Extract<Bloco, { tipo: T }>;
@@ -48,7 +48,12 @@ const CAMPOS: { [T in TipoBloco]: (props: CamposProps<T>) => ReactNode } = {
   ),
   formulario: ({ bloco, editavel, onMudar }) => (
     <>
-      <Texto rotulo="Campos vêm de" valor={bloco.de} editavel={editavel} onMudar={(de) => onMudar({ ...bloco, de })} />
+      <Texto
+        rotulo="Campos vêm de"
+        valor={bloco.de}
+        editavel={editavel}
+        onMudar={(de) => onMudar({ ...bloco, de })}
+      />
       <Texto
         rotulo="Guardar respostas em"
         valor={bloco.guardarEm}
@@ -90,11 +95,22 @@ const CAMPOS: { [T in TipoBloco]: (props: CamposProps<T>) => ReactNode } = {
         editavel={editavel}
         onMudar={(confirmacao) => onMudar({ ...bloco, confirmacao })}
       />
-      <Texto rotulo="Pergunta" valor={bloco.pergunta} editavel={editavel} onMudar={(pergunta) => onMudar({ ...bloco, pergunta })} />
+      <Texto
+        rotulo="Pergunta"
+        valor={bloco.pergunta}
+        editavel={editavel}
+        onMudar={(pergunta) => onMudar({ ...bloco, pergunta })}
+      />
     </>
   ),
   responder: ({ bloco, editavel, onMudar }) => (
-    <Texto rotulo="Resposta" valor={bloco.texto} editavel={editavel} linhas={5} onMudar={(texto) => onMudar({ ...bloco, texto })} />
+    <Texto
+      rotulo="Resposta"
+      valor={bloco.texto}
+      editavel={editavel}
+      linhas={5}
+      onMudar={(texto) => onMudar({ ...bloco, texto })}
+    />
   ),
 };
 
@@ -108,7 +124,13 @@ function renderizar<T extends TipoBloco>(tipo: T, props: CamposProps<T>): ReactN
   return <Campos {...props} />;
 }
 
-type TextoProps = { rotulo: string; valor: string; editavel: boolean; linhas?: number; onMudar: (valor: string) => void };
+type TextoProps = {
+  rotulo: string;
+  valor: string;
+  editavel: boolean;
+  linhas?: number;
+  onMudar: (valor: string) => void;
+};
 
 function Texto({ rotulo, valor, editavel, linhas, onMudar }: TextoProps): ReactNode {
   return (
@@ -128,15 +150,26 @@ function Texto({ rotulo, valor, editavel, linhas, onMudar }: TextoProps): ReactN
 const ferramentasDe = (catalogo: CatalogoDeFerramentas): readonly Ferramenta[] =>
   catalogo.estado === 'pronto' ? catalogo.ferramentas : [];
 
-function CamposDeFerramenta({ bloco, editavel, catalogo, onMudar }: CamposProps<'buscar_dados' | 'gravar_no_sistema'>): ReactNode {
+function CamposDeFerramenta({
+  bloco,
+  editavel,
+  catalogo,
+  onMudar,
+}: CamposProps<'buscar_dados' | 'gravar_no_sistema'>): ReactNode {
   const escolher = (recurso: string) => {
     const escolhida = ferramentasDe(catalogo).find((f) => f.name === recurso);
-    const tipo = escolhida === undefined ? bloco.tipo : escolhida.write ? 'gravar_no_sistema' : 'buscar_dados';
+    const tipo =
+      escolhida === undefined ? bloco.tipo : escolhida.write ? 'gravar_no_sistema' : 'buscar_dados';
     onMudar({ ...bloco, tipo, recurso });
   };
   return (
     <>
-      <SeletorDeFerramenta valor={bloco.recurso} catalogo={catalogo} editavel={editavel} onMudar={escolher} />
+      <SeletorDeFerramenta
+        valor={bloco.recurso}
+        catalogo={catalogo}
+        editavel={editavel}
+        onMudar={escolher}
+      />
       <ListaEditavel
         titulo="Dados enviados"
         adicionar="Adicionar dado"
@@ -146,9 +179,19 @@ function CamposDeFerramenta({ bloco, editavel, catalogo, onMudar }: CamposProps<
         onMudar={(com) => onMudar({ ...bloco, com })}
         renderLinha={(linha, mudar) => (
           <>
-            <Texto rotulo="Campo" valor={linha.campo} editavel={editavel} onMudar={(campo) => mudar({ campo })} />
+            <Texto
+              rotulo="Campo"
+              valor={linha.campo}
+              editavel={editavel}
+              onMudar={(campo) => mudar({ campo })}
+            />
             {typeof linha.valor === 'string' ? (
-              <Texto rotulo="Valor" valor={linha.valor} editavel={editavel} onMudar={(valor) => mudar({ valor })} />
+              <Texto
+                rotulo="Valor"
+                valor={linha.valor}
+                editavel={editavel}
+                onMudar={(valor) => mudar({ valor })}
+              />
             ) : (
               <ValorEstruturado valor={linha.valor} />
             )}
@@ -185,7 +228,12 @@ const AVISO_DO_CATALOGO: Record<CatalogoDeFerramentas['estado'], string | undefi
   pronto: undefined,
 };
 
-type SeletorProps = { valor: string; catalogo: CatalogoDeFerramentas; editavel: boolean; onMudar: (nome: string) => void };
+type SeletorProps = {
+  valor: string;
+  catalogo: CatalogoDeFerramentas;
+  editavel: boolean;
+  onMudar: (nome: string) => void;
+};
 
 function SeletorDeFerramenta({ valor, catalogo, editavel, onMudar }: SeletorProps): ReactNode {
   const ferramentas = ferramentasDe(catalogo);
@@ -215,15 +263,29 @@ function SeletorDeFerramenta({ valor, catalogo, editavel, onMudar }: SeletorProp
       <ListSubheader>Gravações</ListSubheader>
       {opcoes(true)}
       {foraDaLista && (
-        <MenuItem value={valor}>{catalogo.estado === 'pronto' ? `${valor} (não encontrada)` : valor}</MenuItem>
+        <MenuItem value={valor}>
+          {catalogo.estado === 'pronto' ? `${valor} (não encontrada)` : valor}
+        </MenuItem>
       )}
     </TextField>
   );
 }
 
-function CamposDePedirEscolha({ bloco, editavel, onMudar }: CamposProps<'pedir_escolha'>): ReactNode {
-  const texto = (rotulo: string, chave: 'param' | 'titulo' | 'de' | 'rotulo' | 'valor' | 'pergunta' | 'seVazio') => (
-    <Texto rotulo={rotulo} valor={bloco[chave]} editavel={editavel} onMudar={(valor) => onMudar({ ...bloco, [chave]: valor })} />
+function CamposDePedirEscolha({
+  bloco,
+  editavel,
+  onMudar,
+}: CamposProps<'pedir_escolha'>): ReactNode {
+  const texto = (
+    rotulo: string,
+    chave: 'param' | 'titulo' | 'de' | 'rotulo' | 'valor' | 'pergunta' | 'seVazio',
+  ) => (
+    <Texto
+      rotulo={rotulo}
+      valor={bloco[chave]}
+      editavel={editavel}
+      onMudar={(valor) => onMudar({ ...bloco, [chave]: valor })}
+    />
   );
   return (
     <>
@@ -256,7 +318,13 @@ type SelecaoProps = {
   onMudar: (nomes: string[]) => void;
 };
 
-function SelecaoDeInformacoes({ rotulo, valor, informacoes, editavel, onMudar }: SelecaoProps): ReactNode {
+function SelecaoDeInformacoes({
+  rotulo,
+  valor,
+  informacoes,
+  editavel,
+  onMudar,
+}: SelecaoProps): ReactNode {
   const titulo = (nome: string): string => informacoes.find((i) => i.nome === nome)?.titulo || nome;
   const semCadastro = valor.filter((nome) => !informacoes.some((i) => i.nome === nome));
   const nomes = [...informacoes.map((i) => i.nome), ...semCadastro];

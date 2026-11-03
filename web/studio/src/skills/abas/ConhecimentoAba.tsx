@@ -1,12 +1,12 @@
 import AddIcon from '@mui/icons-material/Add';
 import { Box, Button, Chip, Paper, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
-import { useAgente, type Arquivo } from '@/catalogo/contratos';
+import { type ReactNode, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
-import { ErroComRetry } from '@/shared/ui/ErroComRetry';
-import { NomeDialog } from '@/shared/ui/NomeDialog';
+import { type Arquivo, useAgente } from '@/catalogo/contratos';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
+import { NomeDialog } from '@/shared/ui/NomeDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   documentosDe,
@@ -37,10 +37,17 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
   );
 
   return (
-    <SectionCard titulo="Base de conhecimento" ajuda="Documentos que a skill consulta para responder." acao={botaoNovo}>
+    <SectionCard
+      titulo="Base de conhecimento"
+      ajuda="Documentos que a skill consulta para responder."
+      acao={botaoNovo}
+    >
       {agente.isPending && <Typography variant="caption">Carregando…</Typography>}
       {agente.isError && (
-        <ErroComRetry mensagem="Não foi possível carregar os documentos." onTentarDeNovo={() => void agente.refetch()} />
+        <ErroComRetry
+          mensagem="Não foi possível carregar os documentos."
+          onTentarDeNovo={() => void agente.refetch()}
+        />
       )}
       {agente.isSuccess && proprios.length + herdados.length === 0 && (
         <EmptyState frase="Esta skill ainda não tem documentos." />

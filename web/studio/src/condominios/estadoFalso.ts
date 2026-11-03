@@ -33,7 +33,10 @@ export const estadoFalso = {
         tenant: 'atende-1',
       },
     ],
-    habilitacoes: { '*': { 'reserva-do-salao': { habilitado: false, papeis: null } }, 'vila-verde': {} },
+    habilitacoes: {
+      '*': { 'reserva-do-salao': { habilitado: false, papeis: null } },
+      'vila-verde': {},
+    },
     payloads: {},
     orientacoes: {},
     atualizado_em: '2026-11-03T10:00:00Z',
@@ -69,7 +72,12 @@ export const estadoFalso = {
       description: 'Agenda a mudança.',
       params: null,
       definicoes: [
-        { name: 'antecedencia_dias', label: 'Antecedência mínima (dias)', type: 'number', default: 2 },
+        {
+          name: 'antecedencia_dias',
+          label: 'Antecedência mínima (dias)',
+          type: 'number',
+          default: 2,
+        },
         { name: 'turno', label: 'Turno', type: 'select', options: ['manhã', 'tarde'] },
         { name: 'exige_protocolo', label: 'Exige protocolo', type: 'boolean' },
       ],
@@ -112,4 +120,7 @@ export const rotasBase = (eu: Eu) => ({
   'GET /api/skills': () => json(skillsFalsas),
 });
 
-export const respostaMapeamento = { mapeamento: estadoFalso.mapeamento, administradoras: estadoFalso.administradoras };
+export const respostaMapeamento = {
+  mapeamento: estadoFalso.mapeamento,
+  administradoras: estadoFalso.administradoras,
+};

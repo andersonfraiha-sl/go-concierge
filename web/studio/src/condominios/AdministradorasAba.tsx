@@ -1,18 +1,24 @@
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import { Box, Button, IconButton, Paper, TextField, Typography } from '@mui/material';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { type FormEvent, type ReactNode, useState } from 'react';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { paraIdentificador } from '@/skills/contratos';
-import { removerAdministradora, salvarAdministradora, type Administradora, type Condominio } from './contratos';
+import {
+  type Administradora,
+  type Condominio,
+  removerAdministradora,
+  salvarAdministradora,
+} from './contratos';
 import { useExecutar } from './useExecutar';
 
 type Props = { administradoras: Administradora[]; condominios: Condominio[] };
 
 export function AdministradorasAba({ administradoras, condominios }: Props): ReactNode {
   const { executar, gravando } = useExecutar();
-  const temCondominios = (a: Administradora): boolean => condominios.some((c) => c.administradora_id === a.id);
+  const temCondominios = (a: Administradora): boolean =>
+    condominios.some((c) => c.administradora_id === a.id);
   const { mostrar } = useSnackbar();
   const [nome, setNome] = useState('');
   const [aRemover, setARemover] = useState<Administradora | null>(null);
@@ -21,20 +27,36 @@ export function AdministradorasAba({ administradoras, condominios }: Props): Rea
     evento.preventDefault();
     const id = paraIdentificador(nome);
     if (id === '') return mostrar('Use letras ou números no nome.', 'error');
-    if (administradoras.some((a) => a.id === id)) return mostrar('Já existe uma administradora com esse nome.', 'error');
-    const criada = await executar((escopo) => salvarAdministradora({ id, nome: nome.trim() }, escopo), 'Administradora criada.');
+    if (administradoras.some((a) => a.id === id))
+      return mostrar('Já existe uma administradora com esse nome.', 'error');
+    const criada = await executar(
+      (escopo) => salvarAdministradora({ id, nome: nome.trim() }, escopo),
+      'Administradora criada.',
+    );
     if (criada) setNome('');
   }
 
   async function remover(administradora: Administradora): Promise<void> {
     setARemover(null);
-    await executar((escopo) => removerAdministradora(administradora.id, escopo), 'Administradora removida.');
+    await executar(
+      (escopo) => removerAdministradora(administradora.id, escopo),
+      'Administradora removida.',
+    );
   }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box component="form" onSubmit={(e) => void criar(e)} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-        <TextField size="small" label="Nome da administradora" value={nome} onChange={(e) => setNome(e.target.value)} />
+      <Box
+        component="form"
+        onSubmit={(e) => void criar(e)}
+        sx={{ display: 'flex', gap: 1, alignItems: 'center' }}
+      >
+        <TextField
+          size="small"
+          label="Nome da administradora"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+        />
         <Button type="submit" variant="contained" disabled={gravando || nome.trim() === ''}>
           Criar administradora
         </Button>
@@ -48,7 +70,15 @@ export function AdministradorasAba({ administradoras, condominios }: Props): Rea
             <Box
               component="li"
               key={a.id}
-              sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, borderBottom: 1, borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                px: 2,
+                py: 1,
+                borderBottom: 1,
+                borderColor: 'divider',
+                '&:last-child': { borderBottom: 0 },
+              }}
             >
               <Typography sx={{ flex: 1 }}>{a.nome}</Typography>
               {temCondominios(a) && (

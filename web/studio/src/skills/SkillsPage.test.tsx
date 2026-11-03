@@ -14,7 +14,11 @@ const construtor: Eu = {
   administradoraId: null,
   dev: false,
 };
-const gestor: Eu = { ...construtor, papel: 'gestor', permissoes: ['skills.ler', 'skills.editar_textos'] };
+const gestor: Eu = {
+  ...construtor,
+  papel: 'gestor',
+  permissoes: ['skills.ler', 'skills.editar_textos'],
+};
 
 const mudanca = {
   nome: 'agendar-mudanca',
@@ -53,7 +57,10 @@ function montar() {
 
 describe('SkillsPage', () => {
   it('listsSkillCards', async () => {
-    responderCom({ 'GET /api/eu': () => json(construtor), 'GET /api/skills': () => lista([mudanca, faq]) });
+    responderCom({
+      'GET /api/eu': () => json(construtor),
+      'GET /api/skills': () => lista([mudanca, faq]),
+    });
     montar();
     const cartao = await screen.findByRole('article', { name: 'Agendar mudança' });
     expect(within(cartao).getByText('Reserva o elevador para a mudança.')).toBeInTheDocument();
@@ -83,7 +90,9 @@ describe('SkillsPage', () => {
     });
     const { user } = montar();
     await user.click(await screen.findByRole('button', { name: 'Tentar de novo' }));
-    expect(await screen.findByRole('article', { name: 'Perguntas frequentes' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('article', { name: 'Perguntas frequentes' }),
+    ).toBeInTheDocument();
   });
 
   it('createsSkillAndOpensEditor', async () => {
@@ -103,7 +112,9 @@ describe('SkillsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Criar' }));
     expect(await screen.findByText('Skill criada.')).toBeInTheDocument();
     expect(corpos).toEqual([{ nome: 'reserva-do-salao', titulo: 'Reserva do Salão' }]);
-    await waitFor(() => expect(screen.getByLabelText('rota')).toHaveTextContent('/skills/reserva-do-salao'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('rota')).toHaveTextContent('/skills/reserva-do-salao'),
+    );
   });
 
   it('duplicatesSkillStartingFromCopyName', async () => {
@@ -118,10 +129,14 @@ describe('SkillsPage', () => {
     });
     const { user } = montar();
     await user.click(await screen.findByRole('button', { name: 'Duplicar Perguntas frequentes' }));
-    expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue('Cópia de Perguntas frequentes');
+    expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue(
+      'Cópia de Perguntas frequentes',
+    );
     await user.click(screen.getByRole('button', { name: 'Duplicar' }));
     expect(await screen.findByText('Skill duplicada.')).toBeInTheDocument();
-    expect(corpos).toEqual([{ nome: 'copia-de-perguntas-frequentes', titulo: 'Cópia de Perguntas frequentes' }]);
+    expect(corpos).toEqual([
+      { nome: 'copia-de-perguntas-frequentes', titulo: 'Cópia de Perguntas frequentes' },
+    ]);
   });
 
   it('showsNameErrorFromServer', async () => {
@@ -151,7 +166,9 @@ describe('SkillsPage', () => {
     });
     const { user } = montar();
     await user.click(await screen.findByRole('button', { name: 'Excluir Perguntas frequentes' }));
-    expect(screen.getByText('Excluir "Perguntas frequentes"? O fluxo e as regras somem junto.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Excluir "Perguntas frequentes"? O fluxo e as regras somem junto.'),
+    ).toBeInTheDocument();
     expect(chamadas).toEqual([]);
     await user.click(screen.getByRole('button', { name: 'Excluir' }));
     expect(await screen.findByText('Skill excluída.')).toBeInTheDocument();
@@ -178,15 +195,24 @@ describe('SkillsPage em tela estreita', () => {
       value: (query: string) => ({ ...original(query), matches: true }),
     });
     try {
-      responderCom({ 'GET /api/eu': () => json(construtor), 'GET /api/skills': () => lista([faq]) });
+      responderCom({
+        'GET /api/eu': () => json(construtor),
+        'GET /api/skills': () => lista([faq]),
+      });
       montar();
       await screen.findByRole('article', { name: 'Perguntas frequentes' });
-      expect(screen.getByRole('button', { name: 'Abrir Perguntas frequentes' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Abrir Perguntas frequentes' }),
+      ).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Nova skill' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Duplicar/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Excluir/ })).not.toBeInTheDocument();
     } finally {
-      Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original });
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: original,
+      });
     }
   });
 });

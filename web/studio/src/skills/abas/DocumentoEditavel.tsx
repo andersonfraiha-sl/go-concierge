@@ -1,7 +1,7 @@
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { Box, IconButton, Paper, TextField, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { chaveDoArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
@@ -24,7 +24,10 @@ export function DocumentoEditavel(props: Props): ReactNode {
   if (arquivo.isPending) return <Typography variant="caption">Carregando {titulo}…</Typography>;
   if (arquivo.isError) {
     return (
-      <ErroComRetry mensagem={`Não foi possível abrir ${titulo}.`} onTentarDeNovo={() => void arquivo.refetch()} />
+      <ErroComRetry
+        mensagem={`Não foi possível abrir ${titulo}.`}
+        onTentarDeNovo={() => void arquivo.refetch()}
+      />
     );
   }
   return <Editor {...props} inicial={arquivo.data.conteudo} />;

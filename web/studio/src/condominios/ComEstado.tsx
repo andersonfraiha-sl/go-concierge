@@ -15,6 +15,7 @@ export function ComEstado({ consulta, children }: Props): ReactNode {
       />
     );
   }
-  if (consulta.data === undefined) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (consulta.data === undefined)
+    return <Typography color="text.secondary">Carregando…</Typography>;
   return children(consulta.data);
 }

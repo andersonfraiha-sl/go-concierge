@@ -1,6 +1,6 @@
 import { Box, Button, Tab, Tabs, TextField, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
 import { CAMINHO_PERSONA, salvarArquivo, useAgente } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
@@ -32,7 +32,13 @@ function PersonaDoAgente({ assistente }: { assistente: string }): ReactNode {
   return <PersonaEditor assistente={assistente} personaInicial={agente.data.agente.persona} />;
 }
 
-function PersonaEditor({ assistente, personaInicial }: { assistente: string; personaInicial: string }): ReactNode {
+function PersonaEditor({
+  assistente,
+  personaInicial,
+}: {
+  assistente: string;
+  personaInicial: string;
+}): ReactNode {
   const editavel = usePodeEditar('skills.editar_textos');
   const cliente = useQueryClient();
   const [persona, setPersona] = useState(personaInicial);

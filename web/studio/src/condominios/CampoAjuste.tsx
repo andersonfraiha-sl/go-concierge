@@ -14,12 +14,24 @@ type Props = {
   onMudar: (valor: Valor) => void;
 };
 
-const textoDe = (valor: Valor | undefined): string => (valor === undefined || valor === null ? '' : String(valor));
+const textoDe = (valor: Valor | undefined): string =>
+  valor === undefined || valor === null ? '' : String(valor);
 
-export function CampoAjuste({ definicao, valor, herdado, desabilitado, onMudar }: Props): ReactNode {
+export function CampoAjuste({
+  definicao,
+  valor,
+  herdado,
+  desabilitado,
+  onMudar,
+}: Props): ReactNode {
   const rotulo = definicao.label || definicao.name;
   const dica = textoDe(herdado) === '' ? 'Sem padrão' : `Padrão: ${textoDe(herdado)}`;
-  const comum = { label: rotulo, disabled: desabilitado, helperText: definicao.description ?? dica, fullWidth: true } as const;
+  const comum = {
+    label: rotulo,
+    disabled: desabilitado,
+    helperText: definicao.description ?? dica,
+    fullWidth: true,
+  } as const;
 
   const temDecisao = valor !== undefined && valor !== '';
   const usarOPadrao = (
@@ -33,7 +45,13 @@ export function CampoAjuste({ definicao, valor, herdado, desabilitado, onMudar }
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <FormControlLabel
           label={`${rotulo} (${temDecisao ? (valor ? 'sim' : 'não') : dica.toLowerCase()})`}
-          control={<Switch checked={valor === true} disabled={desabilitado} onChange={(_, ligado) => onMudar(ligado)} />}
+          control={
+            <Switch
+              checked={valor === true}
+              disabled={desabilitado}
+              onChange={(_, ligado) => onMudar(ligado)}
+            />
+          }
         />
         {temDecisao && !desabilitado && usarOPadrao}
       </Box>

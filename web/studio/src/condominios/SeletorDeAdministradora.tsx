@@ -9,7 +9,12 @@ type SeletorProps = {
   desabilitado?: boolean;
 };
 
-export function SeletorDeAdministradora({ administradoras, valor, onMudar, desabilitado = false }: SeletorProps): ReactNode {
+export function SeletorDeAdministradora({
+  administradoras,
+  valor,
+  onMudar,
+  desabilitado = false,
+}: SeletorProps): ReactNode {
   return (
     <TextField
       select

@@ -1,18 +1,18 @@
 import { Box, Button, TextField, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { CampoAjuste } from './CampoAjuste';
 import {
+  type Ajustes,
+  type Estado,
   PADRAO,
   salvarAjustes,
   sugerirAjustes,
   useAplicarMapeamento,
   useEscopo,
-  type Ajustes,
-  type Estado,
   type Valor,
 } from './contratos';
 
@@ -44,7 +44,9 @@ export function AjustesSecao({ estado, condominio, editavel }: Props): ReactNode
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
       {ferramentas.length === 0 && (
-        <Typography color="text.secondary">Nenhuma ferramenta tem ajustes por condomínio.</Typography>
+        <Typography color="text.secondary">
+          Nenhuma ferramenta tem ajustes por condomínio.
+        </Typography>
       )}
       {ferramentas.map((ferramenta) => (
         <AjustesDaFerramenta
@@ -70,7 +72,14 @@ type FerramentaProps = {
   onMudar: (campos: Record<string, Valor>) => void;
 };
 
-function AjustesDaFerramenta({ ferramenta, condominio, valores, padrao, editavel, onMudar }: FerramentaProps): ReactNode {
+function AjustesDaFerramenta({
+  ferramenta,
+  condominio,
+  valores,
+  padrao,
+  editavel,
+  onMudar,
+}: FerramentaProps): ReactNode {
   const escopo = useEscopo() ?? null;
   const [frase, setFrase] = useState('');
   const [pensando, setPensando] = useState(false);
@@ -86,7 +95,10 @@ function AjustesDaFerramenta({ ferramenta, condominio, valores, padrao, editavel
       );
       onMudar(sugestao.payload);
       const semNada = Object.keys(sugestao.payload).length === 0;
-      setAviso(sugestao.nota || (semNada ? 'Não encontrei nada no texto.' : 'Revise os campos preenchidos.'));
+      setAviso(
+        sugestao.nota ||
+          (semNada ? 'Não encontrei nada no texto.' : 'Revise os campos preenchidos.'),
+      );
     } catch (erro) {
       setAviso(erro instanceof Error ? erro.message : String(erro));
     } finally {
@@ -106,7 +118,11 @@ function AjustesDaFerramenta({ ferramenta, condominio, valores, padrao, editavel
             value={frase}
             onChange={(e) => setFrase(e.target.value)}
           />
-          <Button variant="outlined" disabled={pensando || frase.trim() === ''} onClick={() => void sugerir()}>
+          <Button
+            variant="outlined"
+            disabled={pensando || frase.trim() === ''}
+            onClick={() => void sugerir()}
+          >
             {pensando ? 'Pensando…' : 'Sugerir'}
           </Button>
         </Box>

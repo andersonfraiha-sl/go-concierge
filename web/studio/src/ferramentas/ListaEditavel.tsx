@@ -27,12 +27,16 @@ export function ListaEditavel<T>({
   const tirarLinha = (indice: number) => onMudar(linhas.filter((_, i) => i !== indice));
 
   return (
-    <Box component="section" aria-label={titulo} sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <Box
+      component="section"
+      aria-label={titulo}
+      sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+    >
       <Typography variant="subtitle2" component="h3">
         {titulo}
       </Typography>
       {linhas.map((linha, indice) => (
-        // Sem id estável nas linhas: a posição é a identidade enquanto a lista só cresce pelo fim.
+        // biome-ignore lint/suspicious/noArrayIndexKey: linhas não têm id estável; a posição é a identidade enquanto a lista só cresce pelo fim.
         <Box key={indice} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           <Box sx={{ flex: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {renderLinha(linha, (parcial) => mudarLinha(indice, parcial))}
@@ -48,7 +52,12 @@ export function ListaEditavel<T>({
         </Box>
       ))}
       <Box>
-        <Button size="small" startIcon={<AddIcon />} disabled={desabilitado} onClick={() => onMudar([...linhas, criarLinha()])}>
+        <Button
+          size="small"
+          startIcon={<AddIcon />}
+          disabled={desabilitado}
+          onClick={() => onMudar([...linhas, criarLinha()])}
+        >
           {adicionar}
         </Button>
       </Box>

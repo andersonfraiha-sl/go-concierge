@@ -19,12 +19,18 @@ export function ProjecaoAba({ caminho }: { caminho: string }): ReactNode {
   }
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <SectionCard titulo="Prompt montado" ajuda="O texto que o modelo recebe para este item. Só leitura.">
+      <SectionCard
+        titulo="Prompt montado"
+        ajuda="O texto que o modelo recebe para este item. Só leitura."
+      >
         <Typography component="pre" sx={ESTILO_DE_CODIGO}>
           {projecao.data.projecao}
         </Typography>
       </SectionCard>
-      <SectionCard titulo="Roteador" ajuda="O texto que escolhe a rota entre as skills. Só leitura.">
+      <SectionCard
+        titulo="Roteador"
+        ajuda="O texto que escolhe a rota entre as skills. Só leitura."
+      >
         <Typography component="pre" sx={ESTILO_DE_CODIGO}>
           {projecao.data.roteador}
         </Typography>

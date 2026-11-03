@@ -11,11 +11,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useState, type ReactNode } from 'react';
-import { useFerramentas, type Ferramenta } from '@/catalogo/contratos';
+import { type ReactNode, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
+import { type Ferramenta, useFerramentas } from '@/catalogo/contratos';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { CLASSES, classeDe, GRUPOS, tituloDe, type Classe } from './contratos';
+import { CLASSES, type Classe, classeDe, GRUPOS, tituloDe } from './contratos';
 import { FerramentaDrawer } from './FerramentaDrawer';
 
 /** `null` = ferramenta nova; `undefined` = drawer fechado. */
@@ -46,7 +46,9 @@ export function FerramentasPage(): ReactNode {
           <Typography variant="h5" component="h1">
             Ferramentas
           </Typography>
-          <Typography color="text.secondary">Sistemas que as skills consultam e onde gravam.</Typography>
+          <Typography color="text.secondary">
+            Sistemas que as skills consultam e onde gravam.
+          </Typography>
         </Box>
         {podeEditar && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAberta(null)}>
@@ -55,17 +57,34 @@ export function FerramentasPage(): ReactNode {
         )}
       </Box>
 
-      <TextField label="Filtrar" size="small" value={filtro} onChange={(e) => setFiltro(e.target.value)} sx={{ maxWidth: 360 }} />
+      <TextField
+        label="Filtrar"
+        size="small"
+        value={filtro}
+        onChange={(e) => setFiltro(e.target.value)}
+        sx={{ maxWidth: 360 }}
+      />
 
-      {consulta.isPending && <CircularProgress aria-label="Carregando ferramentas" sx={{ alignSelf: 'center' }} />}
+      {consulta.isPending && (
+        <CircularProgress aria-label="Carregando ferramentas" sx={{ alignSelf: 'center' }} />
+      )}
       {consulta.isError && (
-        <Alert severity="error" action={<Button color="inherit" onClick={() => void consulta.refetch()}>Tentar de novo</Button>}>
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" onClick={() => void consulta.refetch()}>
+              Tentar de novo
+            </Button>
+          }
+        >
           Não deu para carregar as ferramentas.
         </Alert>
       )}
       {consulta.isSuccess && (
         <Grupos
-          ferramentas={consulta.data.recursos.filter((f) => contemTexto(f, filtro.trim().toLowerCase()))}
+          ferramentas={consulta.data.recursos.filter((f) =>
+            contemTexto(f, filtro.trim().toLowerCase()),
+          )}
           temFiltro={filtro.trim() !== ''}
           podeEditar={podeEditar}
           onAbrir={setAberta}
@@ -93,23 +112,46 @@ type GruposProps = {
 
 function Grupos({ ferramentas, temFiltro, podeEditar, onAbrir }: GruposProps): ReactNode {
   if (ferramentas.length === 0) {
-    return <EmptyState frase={temFiltro ? 'Nenhuma ferramenta com esse texto.' : 'Ainda não há ferramentas.'} />;
+    return (
+      <EmptyState
+        frase={temFiltro ? 'Nenhuma ferramenta com esse texto.' : 'Ainda não há ferramentas.'}
+      />
+    );
   }
   return agruparPorClasse(ferramentas).map(([classe, grupo]) => (
-    <Box key={classe} component="section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+    <Box
+      key={classe}
+      component="section"
+      sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}
+    >
       <Typography variant="subtitle1" component="h2">
         {GRUPOS[classe]}
       </Typography>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2,
+          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+        }}
+      >
         {grupo.map((ferramenta) => (
-          <CartaoDeFerramenta key={ferramenta.name} ferramenta={ferramenta} clicavel={podeEditar} onAbrir={onAbrir} />
+          <CartaoDeFerramenta
+            key={ferramenta.name}
+            ferramenta={ferramenta}
+            clicavel={podeEditar}
+            onAbrir={onAbrir}
+          />
         ))}
       </Box>
     </Box>
   ));
 }
 
-type CartaoProps = { ferramenta: Ferramenta; clicavel: boolean; onAbrir: (ferramenta: Ferramenta) => void };
+type CartaoProps = {
+  ferramenta: Ferramenta;
+  clicavel: boolean;
+  onAbrir: (ferramenta: Ferramenta) => void;
+};
 
 function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): ReactNode {
   const conteudo = (
@@ -120,12 +162,26 @@ function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): Rea
       <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
         {ferramenta.description}
       </Typography>
-      {ferramenta.write && <Chip size="small" color="warning" variant="outlined" label="Grava no sistema" sx={{ alignSelf: 'flex-start' }} />}
+      {ferramenta.write && (
+        <Chip
+          size="small"
+          color="warning"
+          variant="outlined"
+          label="Grava no sistema"
+          sx={{ alignSelf: 'flex-start' }}
+        />
+      )}
     </CardContent>
   );
   return (
     <Card variant="outlined">
-      {clicavel ? <CardActionArea sx={{ height: '100%' }} onClick={() => onAbrir(ferramenta)}>{conteudo}</CardActionArea> : conteudo}
+      {clicavel ? (
+        <CardActionArea sx={{ height: '100%' }} onClick={() => onAbrir(ferramenta)}>
+          {conteudo}
+        </CardActionArea>
+      ) : (
+        conteudo
+      )}
     </Card>
   );
 }

@@ -80,13 +80,12 @@ export function useAutosave<T>({
     return flush(haOQueGravar);
   }, [flush, haOQueGravar]);
 
+  // Cada mudança de valor reinicia o atraso: o efeito marca a pendência e reagenda o timer.
   useEffect(() => {
-    if (Object.is(valor, valorBase.current)) return;
-    valorBase.current = valor;
-    pendente.current = true;
-  }, [valor]);
-
-  useEffect(() => {
+    if (!Object.is(valor, valorBase.current)) {
+      valorBase.current = valor;
+      pendente.current = true;
+    }
     if (!pendente.current || falhou.current || bloqueio !== null) return;
     const timer = setTimeout(() => void flush(haOQueGravar), atrasoMs);
     return () => clearTimeout(timer);
@@ -105,6 +104,7 @@ export function useAutosave<T>({
     };
   }, []);
 
-  const estado: EstadoSalvamento = bloqueio === null ? interno : { tipo: 'bloqueado', motivo: bloqueio };
+  const estado: EstadoSalvamento =
+    bloqueio === null ? interno : { tipo: 'bloqueado', motivo: bloqueio };
   return { estado, tentarDeNovo: salvarAgora, salvarAgora };
 }

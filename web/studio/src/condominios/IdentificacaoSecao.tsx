@@ -1,9 +1,15 @@
 import { Box, Button, TextField } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { removerCondominio, salvarCondominio, useEscopo, type Administradora, type Condominio } from './contratos';
+import {
+  type Administradora,
+  type Condominio,
+  removerCondominio,
+  salvarCondominio,
+  useEscopo,
+} from './contratos';
 import { SeletorDeAdministradora } from './SeletorDeAdministradora';
 import { useExecutar } from './useExecutar';
 
@@ -16,7 +22,10 @@ export function IdentificacaoSecao({ condominio, administradoras }: Props): Reac
   const [rascunho, setRascunho] = useState<Condominio>(condominio);
   const [removendo, setRemovendo] = useState(false);
 
-  const campo = (rotulo: string, chave: 'nome' | 'account' | 'company_id' | 'tenant'): ReactNode => (
+  const campo = (
+    rotulo: string,
+    chave: 'nome' | 'account' | 'company_id' | 'tenant',
+  ): ReactNode => (
     <TextField
       label={rotulo}
       value={rascunho[chave]}
@@ -26,7 +35,10 @@ export function IdentificacaoSecao({ condominio, administradoras }: Props): Reac
 
   async function remover(): Promise<void> {
     setRemovendo(false);
-    const removido = await executar((escopo) => removerCondominio(condominio.id, escopo), 'Condomínio removido.');
+    const removido = await executar(
+      (escopo) => removerCondominio(condominio.id, escopo),
+      'Condomínio removido.',
+    );
     if (removido) void navegar('/condominios');
   }
 
@@ -51,7 +63,12 @@ export function IdentificacaoSecao({ condominio, administradoras }: Props): Reac
         <Button
           variant="contained"
           disabled={gravando || rascunho.nome.trim() === ''}
-          onClick={() => void executar((escopo) => salvarCondominio({ ...rascunho, nome: rascunho.nome.trim() }, escopo), 'Identificação salva.')}
+          onClick={() =>
+            void executar(
+              (escopo) => salvarCondominio({ ...rascunho, nome: rascunho.nome.trim() }, escopo),
+              'Identificação salva.',
+            )
+          }
         >
           Salvar
         </Button>

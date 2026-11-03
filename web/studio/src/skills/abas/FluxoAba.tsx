@@ -1,33 +1,33 @@
 import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { type ReactNode, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
+import { usePodeEditar } from '@/acesso/eu';
 import { useFerramentas } from '@/catalogo/contratos';
 import { tituloDe } from '@/ferramentas/contratos';
 import { FluxoCanvas } from '@/fluxo/canvas/FluxoCanvas';
 import { novoBloco } from '@/fluxo/modelo/catalogo';
 import { atualizarBloco, inserirBloco, moverBloco, removerBloco } from '@/fluxo/modelo/edicao';
 import {
-  ProblemaFluxoSchema,
   type Bloco,
   type Fluxo,
   type FluxoLido,
   type Informacao,
   type ProblemaFluxo,
+  ProblemaFluxoSchema,
   type TipoBloco,
 } from '@/fluxo/modelo/tipos';
 import { validarFluxo } from '@/fluxo/modelo/validar';
 import { BlocoPainel } from '@/fluxo/painel/BlocoPainel';
 import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { InformacoesPainel } from '@/fluxo/painel/InformacoesPainel';
-import { usePodeEditar } from '@/acesso/eu';
 import { ApiError } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { tokens } from '@/theme/tokens';
-import { chaveDoFluxo, useFluxo, salvarFluxo } from '../contratos';
+import { chaveDoFluxo, salvarFluxo, useFluxo } from '../contratos';
 
 type Props = { nome: string; caminho: string };
 
@@ -45,10 +45,15 @@ export function FluxoAba({ nome }: Props): ReactNode {
   if (lido.isPending) return <CircularProgress aria-label="Carregando fluxo" />;
   if (lido.isError) {
     if (ehSemFluxo(lido.error)) {
-      return <EmptyState frase="Esta skill não tem fluxo: ela responde pela base de conhecimento." />;
+      return (
+        <EmptyState frase="Esta skill não tem fluxo: ela responde pela base de conhecimento." />
+      );
     }
     return (
-      <Alert severity="error" action={<Button onClick={() => void lido.refetch()}>Tentar de novo</Button>}>
+      <Alert
+        severity="error"
+        action={<Button onClick={() => void lido.refetch()}>Tentar de novo</Button>}
+      >
         {lido.error.message}
       </Alert>
     );
@@ -65,10 +70,15 @@ function problemasDaRecusa(erro: unknown): ProblemaFluxo[] | null {
   return lida.success ? lida.data.problemas : null;
 }
 
-const chaveDoProblema = (p: ProblemaFluxo): string => `${p.blocoId ?? ''}|${p.codigo}|${p.mensagem}`;
+const chaveDoProblema = (p: ProblemaFluxo): string =>
+  `${p.blocoId ?? ''}|${p.codigo}|${p.mensagem}`;
 
 /** Os locais valem sempre; os do servidor, os do fluxo todo e os de blocos que ainda existem, sem repetir os locais. */
-function juntarProblemas(locais: ProblemaFluxo[], doServidor: ProblemaFluxo[], blocos: readonly Bloco[]): ProblemaFluxo[] {
+function juntarProblemas(
+  locais: ProblemaFluxo[],
+  doServidor: ProblemaFluxo[],
+  blocos: readonly Bloco[],
+): ProblemaFluxo[] {
   const ids = new Set(blocos.map((b) => b.id));
   const jaVistos = new Set(locais.map(chaveDoProblema));
   const aindaValidos = doServidor.filter(
@@ -126,7 +136,11 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
         versao.current = gravado.versao;
         setProblemasDoServidor(gravado.problemas);
         // A aba sai da tela ao trocar de aba; ao voltar, o cache precisa ter a versão e o fluxo gravados.
-        cliente.setQueryData<FluxoLido>(chaveDoFluxo(nome), { versao: gravado.versao, fluxo: valor, problemas: gravado.problemas });
+        cliente.setQueryData<FluxoLido>(chaveDoFluxo(nome), {
+          versao: gravado.versao,
+          fluxo: valor,
+          problemas: gravado.problemas,
+        });
       } catch (erro) {
         const recusados = problemasDaRecusa(erro);
         if (recusados !== null) setProblemasDoServidor(recusados);
@@ -144,16 +158,29 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
     setFluxo((atual) => removerBloco(atual, id));
     setSelecionado(null);
   };
-  const mudarInformacoes = (informacoes: Informacao[]) => setFluxo((atual) => ({ ...atual, informacoes }));
+  const mudarInformacoes = (informacoes: Informacao[]) =>
+    setFluxo((atual) => ({ ...atual, informacoes }));
 
   const blocoSelecionado = fluxo.blocos.find((b) => b.id === selecionado);
   const doFluxoTodo = problemas.filter((p) => p.blocoId === undefined);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: ALTURA_DA_AREA, minHeight: ALTURA_MINIMA_DA_AREA }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+        height: ALTURA_DA_AREA,
+        minHeight: ALTURA_MINIMA_DA_AREA,
+      }}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minHeight: 32 }}>
         {doFluxoTodo.map((p) => (
-          <Typography key={chaveDoProblema(p)} variant="caption" sx={{ color: corDoNivel(p.nivel) }}>
+          <Typography
+            key={chaveDoProblema(p)}
+            variant="caption"
+            sx={{ color: corDoNivel(p.nivel) }}
+          >
             {p.mensagem}
           </Typography>
         ))}
@@ -161,7 +188,17 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
           <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
         </Box>
       </Box>
-      <Box sx={{ display: 'flex', flex: 1, minHeight: 0, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flex: 1,
+          minHeight: 0,
+          border: 1,
+          borderColor: 'divider',
+          borderRadius: 1,
+          overflow: 'hidden',
+        }}
+      >
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <FluxoCanvas
             fluxo={fluxo}
@@ -176,7 +213,14 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
         </Box>
         <Box
           component="aside"
-          sx={{ width: LARGURA_PAINEL, flexShrink: 0, borderLeft: 1, borderColor: 'divider', overflowY: 'auto', bgcolor: 'background.paper' }}
+          sx={{
+            width: LARGURA_PAINEL,
+            flexShrink: 0,
+            borderLeft: 1,
+            borderColor: 'divider',
+            overflowY: 'auto',
+            bgcolor: 'background.paper',
+          }}
         >
           {blocoSelecionado ? (
             <BlocoPainel
@@ -190,7 +234,11 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
               onExcluir={excluir}
             />
           ) : (
-            <InformacoesPainel informacoes={fluxo.informacoes} editavel={editavel} onMudar={mudarInformacoes} />
+            <InformacoesPainel
+              informacoes={fluxo.informacoes}
+              editavel={editavel}
+              onMudar={mudarInformacoes}
+            />
           )}
         </Box>
       </Box>

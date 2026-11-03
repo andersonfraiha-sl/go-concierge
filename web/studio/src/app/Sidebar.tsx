@@ -1,3 +1,4 @@
+import type { SvgIconComponent } from '@mui/icons-material';
 import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
 import BuildOutlined from '@mui/icons-material/BuildOutlined';
 import ChatBubbleOutlined from '@mui/icons-material/ChatBubbleOutlined';
@@ -16,30 +17,53 @@ import {
   ListItemText,
   Tooltip,
 } from '@mui/material';
-import type { SvgIconComponent } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router';
 import { ErroAcesso } from '@/acesso/ErroAcesso';
-import { pode, useEu, type Eu } from '@/acesso/eu';
+import { type Eu, pode, useEu } from '@/acesso/eu';
 import { tokens } from '@/theme/tokens';
 
 type ItemMenu = { rotulo: string; destino: string; Icone: SvgIconComponent };
 type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean };
 
 const ITENS_SPA = [
-  { rotulo: 'Concierge', destino: '/assistente', Icone: ChatBubbleOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
-  { rotulo: 'Skills', destino: '/skills', Icone: ExtensionOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
-  { rotulo: 'Ferramentas', destino: '/ferramentas', Icone: BuildOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
+  {
+    rotulo: 'Concierge',
+    destino: '/assistente',
+    Icone: ChatBubbleOutlined,
+    visivelPara: (eu) => pode(eu, 'skills.ler'),
+  },
+  {
+    rotulo: 'Skills',
+    destino: '/skills',
+    Icone: ExtensionOutlined,
+    visivelPara: (eu) => pode(eu, 'skills.ler'),
+  },
+  {
+    rotulo: 'Ferramentas',
+    destino: '/ferramentas',
+    Icone: BuildOutlined,
+    visivelPara: (eu) => pode(eu, 'skills.ler'),
+  },
   {
     rotulo: 'Condomínios',
     destino: '/condominios',
     Icone: ApartmentOutlined,
     visivelPara: (eu) => pode(eu, 'condominios.habilitar') || pode(eu, 'condominios.editar'),
   },
-  { rotulo: 'Avançado', destino: '/avancado', Icone: TuneOutlined, visivelPara: (eu) => pode(eu, 'studio.avancado') },
+  {
+    rotulo: 'Avançado',
+    destino: '/avancado',
+    Icone: TuneOutlined,
+    visivelPara: (eu) => pode(eu, 'studio.avancado'),
+  },
 ] as const satisfies readonly ItemSpa[];
 
 // Fora do SPA: navegação completa, sem o basename das rotas.
-const ITEM_ATENDENTE = { rotulo: 'Atendente', destino: '/console', Icone: HeadsetMicOutlined } satisfies ItemMenu;
+const ITEM_ATENDENTE = {
+  rotulo: 'Atendente',
+  destino: '/console',
+  Icone: HeadsetMicOutlined,
+} satisfies ItemMenu;
 
 type Props = { recolhido: boolean; aoAlternar: () => void };
 
@@ -61,7 +85,8 @@ export function Sidebar({ recolhido, aoAlternar }: Props) {
         borderRight: 1,
         borderColor: 'divider',
         bgcolor: 'background.paper',
-        transition: (tema) => tema.transitions.create('width', { duration: tema.transitions.duration.shorter }),
+        transition: (tema) =>
+          tema.transitions.create('width', { duration: tema.transitions.duration.shorter }),
       }}
     >
       <List sx={{ p: 1, flex: 1 }}>
@@ -116,7 +141,12 @@ function ItemDoMenu({ item, recolhido, selecionado, aoNavegar }: ItemProps) {
         <ListItemIcon sx={{ minWidth: recolhido ? 0 : 40, color: 'inherit' }}>
           <Icone fontSize="small" />
         </ListItemIcon>
-        {!recolhido && <ListItemText primary={rotulo} slotProps={{ primary: { sx: { fontWeight: 'inherit' } } }} />}
+        {!recolhido && (
+          <ListItemText
+            primary={rotulo}
+            slotProps={{ primary: { sx: { fontWeight: 'inherit' } } }}
+          />
+        )}
       </ListItemButton>
     </Tooltip>
   );

@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix ."
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -23,6 +25,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.4",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",

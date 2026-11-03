@@ -1,7 +1,13 @@
 import AddIcon from '@mui/icons-material/Add';
 import { IconButton } from '@mui/material';
-import { BaseEdge, EdgeLabelRenderer, getStraightPath, type Edge, type EdgeProps } from '@xyflow/react';
-import { createContext, useContext, type MouseEvent, type ReactNode } from 'react';
+import {
+  BaseEdge,
+  type Edge,
+  EdgeLabelRenderer,
+  type EdgeProps,
+  getStraightPath,
+} from '@xyflow/react';
+import { createContext, type MouseEvent, type ReactNode, useContext } from 'react';
 import { tokens } from '@/theme/tokens';
 
 /** O "+" só pede: quem abre o menu e insere é o canvas. */
@@ -50,14 +56,29 @@ export function BotaoMais({ indice, rotulo, posicao }: BotaoMaisProps): ReactNod
 
 export type ArestaComMaisTipo = Edge<{ indice: number }, 'comMais'>;
 
-export function ArestaComMais({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps<ArestaComMaisTipo>): ReactNode {
+export function ArestaComMais({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  data,
+}: EdgeProps<ArestaComMaisTipo>): ReactNode {
   const [caminho, meioX, meioY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
   return (
     <>
-      <BaseEdge id={id} path={caminho} style={{ stroke: tokens.color.studio.nodeBorder, strokeWidth: 1.5 }} />
+      <BaseEdge
+        id={id}
+        path={caminho}
+        style={{ stroke: tokens.color.studio.nodeBorder, strokeWidth: 1.5 }}
+      />
       {data && (
         <EdgeLabelRenderer>
-          <BotaoMais indice={data.indice} rotulo="Adicionar bloco aqui" posicao={{ x: meioX, y: meioY }} />
+          <BotaoMais
+            indice={data.indice}
+            rotulo="Adicionar bloco aqui"
+            posicao={{ x: meioX, y: meioY }}
+          />
         </EdgeLabelRenderer>
       )}
     </>

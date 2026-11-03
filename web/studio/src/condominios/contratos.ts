@@ -99,7 +99,13 @@ export const salvarCondominio = (condominio: Condominio, escopo: Escopo) =>
 export const removerCondominio = (id: string, escopo: Escopo) => apagar('condominio', escopo, id);
 
 export const salvarHabilitacao = (
-  corpo: { condominio: string; caso: string; habilitado: boolean; papeis: string[]; limpar: boolean },
+  corpo: {
+    condominio: string;
+    caso: string;
+    habilitado: boolean;
+    papeis: string[];
+    limpar: boolean;
+  },
   escopo: Escopo,
 ) => gravar('habilitacao', escopo, corpo);
 
@@ -114,7 +120,8 @@ export const salvarAjustes = (corpo: { condominio: string; ajustes: Ajustes }, e
 export const salvarAdministradora = (administradora: Administradora, escopo: Escopo) =>
   gravar('administradora', escopo, administradora);
 
-export const removerAdministradora = (id: string, escopo: Escopo) => apagar('administradora', escopo, id);
+export const removerAdministradora = (id: string, escopo: Escopo) =>
+  apagar('administradora', escopo, id);
 
 export function sugerirAjustes(
   corpo: { condominio: string; recurso: string; texto: string; atual: Record<string, Valor> },
@@ -141,8 +148,14 @@ export function useEstado() {
 export function useAplicarMapeamento(): (resposta: RespostaMapeamento) => void {
   const cliente = useQueryClient();
   return (resposta) =>
-    cliente.setQueriesData<Estado>({ queryKey: ['estado-condominios'] }, (estado) =>
-      estado && { ...estado, mapeamento: resposta.mapeamento, administradoras: resposta.administradoras },
+    cliente.setQueriesData<Estado>(
+      { queryKey: ['estado-condominios'] },
+      (estado) =>
+        estado && {
+          ...estado,
+          mapeamento: resposta.mapeamento,
+          administradoras: resposta.administradoras,
+        },
     );
 }
 

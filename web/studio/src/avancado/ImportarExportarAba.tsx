@@ -1,9 +1,15 @@
 import { Box, Button, TextField, Typography } from '@mui/material';
-import { useRef, useState, type ReactNode } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { importarZip, mensagemDeErro, urlExportar, useRecarregarAvancado, type NoDaArvore } from './contratos';
+import {
+  importarZip,
+  mensagemDeErro,
+  type NoDaArvore,
+  urlExportar,
+  useRecarregarAvancado,
+} from './contratos';
 
 type Props = { no: NoDaArvore; editar: boolean };
 
@@ -44,7 +50,10 @@ function Importar(): ReactNode {
   };
 
   return (
-    <SectionCard titulo="Importar" ajuda="Instala um zip exportado por aqui. Arquivos com o mesmo nome são substituídos.">
+    <SectionCard
+      titulo="Importar"
+      ajuda="Instala um zip exportado por aqui. Arquivos com o mesmo nome são substituídos."
+    >
       <TextField
         size="small"
         label="Instalar em"
@@ -69,7 +78,11 @@ function Importar(): ReactNode {
         />
       </Box>
       <Box>
-        <Button variant="contained" disabled={destino.trim() === '' || !zip} onClick={() => setConfirmando(true)}>
+        <Button
+          variant="contained"
+          disabled={destino.trim() === '' || !zip}
+          onClick={() => setConfirmando(true)}
+        >
           Importar
         </Button>
       </Box>

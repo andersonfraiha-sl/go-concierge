@@ -59,6 +59,8 @@ describe('AssistentePage', () => {
     responderCom(rotas(gestor));
     renderComProvedores(<AssistentePage />);
     expect(await screen.findByDisplayValue('Você é gentil.')).toHaveAttribute('readonly');
-    expect(screen.getByText('A voz da assistente em todas as respostas ao morador.')).toBeInTheDocument();
+    expect(
+      screen.getByText('A voz da assistente em todas as respostas ao morador.'),
+    ).toBeInTheDocument();
   });
 });

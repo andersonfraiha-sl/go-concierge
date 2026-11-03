@@ -8,7 +8,7 @@ import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
 import ReplayOutlined from '@mui/icons-material/ReplayOutlined';
 import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined';
-import { BlocoSchema, TIPOS_BLOCO, type Bloco, type TipoBloco } from './tipos';
+import { type Bloco, BlocoSchema, TIPOS_BLOCO, type TipoBloco } from './tipos';
 
 type DescricaoDoBloco = { rotulo: string; descricao: string; cor: string; Icone: SvgIconComponent };
 
@@ -69,7 +69,9 @@ export const BLOCOS: Record<TipoBloco, DescricaoDoBloco> = {
   },
 };
 
-export const TIPOS_INSERIVEIS: readonly TipoBloco[] = TIPOS_BLOCO.filter((tipo) => tipo !== 'responder');
+export const TIPOS_INSERIVEIS: readonly TipoBloco[] = TIPOS_BLOCO.filter(
+  (tipo) => tipo !== 'responder',
+);
 
 /** Bloco vazio: o parse preenche os defaults de cada tipo. */
 export function novoBloco(tipo: TipoBloco, id: string): Bloco {

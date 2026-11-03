@@ -32,8 +32,14 @@ export function SkillCard({ skill, onAbrir, onDuplicar, onExcluir }: Props): Rea
           {skill.descricao}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-          {skill.escrita && <Chip size="small" color="warning" variant="outlined" label="Grava no sistema" />}
-          <Chip size="small" variant="outlined" label={rotuloDeFerramentas(skill.recursos.length)} />
+          {skill.escrita && (
+            <Chip size="small" color="warning" variant="outlined" label="Grava no sistema" />
+          )}
+          <Chip
+            size="small"
+            variant="outlined"
+            label={rotuloDeFerramentas(skill.recursos.length)}
+          />
         </Box>
       </CardContent>
       <CardActions>

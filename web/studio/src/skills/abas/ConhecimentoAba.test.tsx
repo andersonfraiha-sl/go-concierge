@@ -13,11 +13,15 @@ describe('ConhecimentoAba', () => {
       'GET /api/agente': () =>
         json(
           agenteLido({
-            documentos: [arquivo(caminhoDeDocumento('faq.md')), arquivo(caminhoDeDocumento('tabela.pdf'), 2048)],
+            documentos: [
+              arquivo(caminhoDeDocumento('faq.md')),
+              arquivo(caminhoDeDocumento('tabela.pdf'), 2048),
+            ],
             herdados: [arquivo(caminhoDeDocumento('regras-gerais.md'), 512)],
           }),
         ),
-      'GET /api/arquivo': () => json({ caminho: caminhoDeDocumento('faq.md'), conteudo: 'Perguntas.' }),
+      'GET /api/arquivo': () =>
+        json({ caminho: caminhoDeDocumento('faq.md'), conteudo: 'Perguntas.' }),
     });
     renderComProvedores(<ConhecimentoAba nome="agendar-mudanca" caminho={AGENTE} />);
 
@@ -31,7 +35,8 @@ describe('ConhecimentoAba', () => {
   });
 
   const faq = caminhoDeDocumento('faq.md');
-  const montar = () => renderComProvedores(<ConhecimentoAba nome="agendar-mudanca" caminho={AGENTE} />);
+  const montar = () =>
+    renderComProvedores(<ConhecimentoAba nome="agendar-mudanca" caminho={AGENTE} />);
   const rotasBase = () => ({
     'GET /api/eu': () => json(construtor),
     'GET /api/agente': () => json(agenteLido({ documentos: [arquivo(faq)] })),
@@ -52,7 +57,9 @@ describe('ConhecimentoAba', () => {
     await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Guia da mudança');
     await user.click(screen.getByRole('button', { name: 'Criar' }));
     await waitFor(() => expect(corpos).toHaveLength(1));
-    expect(corpos).toEqual([{ agente: AGENTE, caminho: caminhoDeDocumento('guia-da-mudanca.md'), conteudo: '' }]);
+    expect(corpos).toEqual([
+      { agente: AGENTE, caminho: caminhoDeDocumento('guia-da-mudanca.md'), conteudo: '' },
+    ]);
   });
 
   it('deletesDocumentAfterConfirmation', async () => {
@@ -76,7 +83,9 @@ describe('ConhecimentoAba', () => {
     responderCom({
       ...rotasBase(),
       'GET /api/agente': () =>
-        falhar ? json({ codigo: 'ERRO', mensagem: 'boom' }, 500) : json(agenteLido({ documentos: [arquivo(faq)] })),
+        falhar
+          ? json({ codigo: 'ERRO', mensagem: 'boom' }, 500)
+          : json(agenteLido({ documentos: [arquivo(faq)] })),
     });
     const { user } = montar();
     const tentar = await screen.findByRole('button', { name: 'Tentar de novo' });

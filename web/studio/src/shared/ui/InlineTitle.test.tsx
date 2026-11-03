@@ -7,7 +7,9 @@ const semAcao = () => undefined;
 
 function montar(opcoes: { editavel?: boolean; onMudar?: (v: string) => void } = {}) {
   const { editavel = true, onMudar = semAcao } = opcoes;
-  return render(<InlineTitle valor="Cobrança" rotulo="Nome da skill" editavel={editavel} onMudar={onMudar} />);
+  return render(
+    <InlineTitle valor="Cobrança" rotulo="Nome da skill" editavel={editavel} onMudar={onMudar} />,
+  );
 }
 
 describe('InlineTitle', () => {

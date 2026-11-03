@@ -1,9 +1,15 @@
 import { Box, TextField } from '@mui/material';
-import { useState, type ReactNode } from 'react';
-import { useAutosave } from '@/shared/autosave/useAutosave';
+import { type ReactNode, useState } from 'react';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
+import { useAutosave } from '@/shared/autosave/useAutosave';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { salvarOrientacao, useAplicarMapeamento, useEscopo, type Estado, type Orientacao } from './contratos';
+import {
+  type Estado,
+  type Orientacao,
+  salvarOrientacao,
+  useAplicarMapeamento,
+  useEscopo,
+} from './contratos';
 
 type Props = {
   estado: Estado;
@@ -20,12 +26,16 @@ const semTextosVazios = (porCaso: Record<string, string>): Record<string, string
 export function OrientacoesSecao({ estado, condominio, titulos, editavel }: Props): ReactNode {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
-  const [orientacao, setOrientacao] = useState<Orientacao>(estado.mapeamento.orientacoes[condominio] ?? SEM_ORIENTACAO);
+  const [orientacao, setOrientacao] = useState<Orientacao>(
+    estado.mapeamento.orientacoes[condominio] ?? SEM_ORIENTACAO,
+  );
 
   const { estado: salvamento, tentarDeNovo } = useAutosave({
     valor: orientacao,
     salvar: async ({ geral, por_caso }) => {
-      aplicar(await salvarOrientacao({ condominio, geral, por_caso: semTextosVazios(por_caso) }, escopo));
+      aplicar(
+        await salvarOrientacao({ condominio, geral, por_caso: semTextosVazios(por_caso) }, escopo),
+      );
     },
   });
 

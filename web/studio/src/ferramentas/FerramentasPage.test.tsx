@@ -5,10 +5,42 @@ import { renderComProvedores } from '@/test/render';
 import { FerramentasPage } from './FerramentasPage';
 
 const recursos = [
-  { name: 'unidades.consultar', titulo: 'Consultar unidade', kind: 'api', visibility: 'private', write: false, description: 'Busca a unidade', params: null },
-  { name: 'mudancas.agendar', titulo: 'Agendar mudança', kind: 'api', visibility: 'private', write: true, description: 'Agenda a mudança', params: [{ name: 'data', type: 'string', required: true }] },
-  { name: 'manual', kind: 'knowledge', visibility: 'public', write: false, description: 'Manual do condomínio', params: null },
-  { name: 'mcp.externa', titulo: 'Ferramenta externa', kind: 'api', visibility: 'private', write: false, description: 'Vem de fora', origem: 'mcp', params: null },
+  {
+    name: 'unidades.consultar',
+    titulo: 'Consultar unidade',
+    kind: 'api',
+    visibility: 'private',
+    write: false,
+    description: 'Busca a unidade',
+    params: null,
+  },
+  {
+    name: 'mudancas.agendar',
+    titulo: 'Agendar mudança',
+    kind: 'api',
+    visibility: 'private',
+    write: true,
+    description: 'Agenda a mudança',
+    params: [{ name: 'data', type: 'string', required: true }],
+  },
+  {
+    name: 'manual',
+    kind: 'knowledge',
+    visibility: 'public',
+    write: false,
+    description: 'Manual do condomínio',
+    params: null,
+  },
+  {
+    name: 'mcp.externa',
+    titulo: 'Ferramenta externa',
+    kind: 'api',
+    visibility: 'private',
+    write: false,
+    description: 'Vem de fora',
+    origem: 'mcp',
+    params: null,
+  },
 ];
 
 const catalogo = { account: 'superlogica', origem: 'instantaneo', conferido: true, recursos };
@@ -77,19 +109,24 @@ describe('FerramentasPage', () => {
     abrirPagina();
     const { user } = renderComProvedores(<FerramentasPage />);
     await user.click(await screen.findByText('Ferramenta externa'));
-    expect(await screen.findByText('Esta ferramenta é mantida fora do Studio.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Esta ferramenta é mantida fora do Studio.'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Nome')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
   });
 
   it('marksToolAsExternalWhenServerRefuses', async () => {
     abrirPagina(euComEdicao, {
-      'PUT /api/nexus/recurso': () => json({ codigo: 'CATALOGO_AO_VIVO', mensagem: 'edite lá' }, 409),
+      'PUT /api/nexus/recurso': () =>
+        json({ codigo: 'CATALOGO_AO_VIVO', mensagem: 'edite lá' }, 409),
     });
     const { user } = renderComProvedores(<FerramentasPage />);
     await user.click(await screen.findByText('Consultar unidade'));
     await user.click(await screen.findByRole('button', { name: 'Salvar' }));
-    expect(await screen.findByText('Esta ferramenta é mantida fora do Studio.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Esta ferramenta é mantida fora do Studio.'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Nome')).toBeDisabled();
   });
 
@@ -132,7 +169,9 @@ describe('FerramentasPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Remover' }));
     const confirmacao = await screen.findByRole('dialog', { name: 'Remover ferramenta' });
     expect(
-      within(confirmacao).getByText('Remover a ferramenta "Agendar mudança"? As skills que usam deixam de achá-la.'),
+      within(confirmacao).getByText(
+        'Remover a ferramenta "Agendar mudança"? As skills que usam deixam de achá-la.',
+      ),
     ).toBeInTheDocument();
     await user.click(within(confirmacao).getByRole('button', { name: 'Remover' }));
     await waitFor(() => expect(consulta).toBe('mudancas.agendar'));

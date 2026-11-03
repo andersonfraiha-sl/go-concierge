@@ -63,14 +63,19 @@ describe('CondominiosPage', () => {
       'GET /api/admin/estado': () => json(comVazia),
       'DELETE /api/admin/administradora': (req) => {
         removida = new URL(req.url).searchParams.get('id') ?? '';
-        return json({ mapeamento: estadoFalso.mapeamento, administradoras: estadoFalso.administradoras });
+        return json({
+          mapeamento: estadoFalso.mapeamento,
+          administradoras: estadoFalso.administradoras,
+        });
       },
     });
     const { user } = renderComProvedores(<CondominiosPage />);
 
     await user.click(await screen.findByRole('tab', { name: 'Administradoras' }));
     await user.click(await screen.findByRole('button', { name: 'Remover Administradora Vazia' }));
-    expect(screen.getByText('Remover "Administradora Vazia"? Não dá para desfazer.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Remover "Administradora Vazia"? Não dá para desfazer.'),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remover' }));
 
     await screen.findByText('Administradora removida.');
@@ -83,7 +88,9 @@ describe('CondominiosPage', () => {
 
     await user.click(await screen.findByRole('tab', { name: 'Administradoras' }));
 
-    expect(await screen.findByRole('button', { name: 'Remover Administradora Exemplo' })).toBeDisabled();
+    expect(
+      await screen.findByRole('button', { name: 'Remover Administradora Exemplo' }),
+    ).toBeDisabled();
     expect(screen.getByText('Mova os condomínios dela antes de remover.')).toBeInTheDocument();
   });
 

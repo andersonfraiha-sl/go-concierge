@@ -38,7 +38,10 @@ describe('contratos de condomínios', () => {
 
   it('entregaPapeisVaziosNaHabilitacaoSemPapeis', () => {
     const estado = EstadoSchema.parse(estadoFalso);
-    expect(estado.mapeamento.habilitacoes['*']?.['reserva-do-salao']).toEqual({ habilitado: false, papeis: [] });
+    expect(estado.mapeamento.habilitacoes['*']?.['reserva-do-salao']).toEqual({
+      habilitado: false,
+      papeis: [],
+    });
   });
 });
 

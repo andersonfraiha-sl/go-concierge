@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import fixture from './agendar-mudanca.fixture.json';
 import { novoBloco, resumoDoBloco, TIPOS_INSERIVEIS } from './catalogo';
 import { atualizarBloco, indiceAoSoltar, inserirBloco, moverBloco, removerBloco } from './edicao';
-import { BlocoSchema, FluxoLidoSchema, InformacaoSchema, TIPOS_BLOCO, type Bloco, type Fluxo, type TipoBloco } from './tipos';
+import {
+  type Bloco,
+  BlocoSchema,
+  type Fluxo,
+  FluxoLidoSchema,
+  InformacaoSchema,
+  TIPOS_BLOCO,
+  type TipoBloco,
+} from './tipos';
 import { validarFluxo } from './validar';
 
 const fluxoDe = (...blocos: Bloco[]): Fluxo => ({ blocos, informacoes: [] });
@@ -32,7 +40,10 @@ describe('FluxoLidoSchema', () => {
   it('preencheDefaultsDeCampoQueVeioComOmitempty', () => {
     const lido = FluxoLidoSchema.parse(fixture);
     expect(lido.fluxo.blocos[0]).toMatchObject({ tipo: 'buscar_dados', com: [] });
-    expect(lido.fluxo.blocos[2]).toMatchObject({ tipo: 'perguntar', campos: ['data_mudanca', 'periodo_mudanca'] });
+    expect(lido.fluxo.blocos[2]).toMatchObject({
+      tipo: 'perguntar',
+      campos: ['data_mudanca', 'periodo_mudanca'],
+    });
   });
 });
 
@@ -59,6 +70,8 @@ function blocosDeTipos(...tipos: TipoBloco[]): Bloco[] {
       case 'montar_texto':
       case 'responder':
         return bloco(tipo, id, { texto: 't' });
+      default:
+        throw new Error(`tipo sem bloco de teste: ${tipo satisfies never}`);
     }
   });
 }
@@ -67,7 +80,9 @@ const comCampos = (blocos: Bloco[], indice: number, campos: Record<string, unkno
   blocos.map((b, i) => (i === indice ? bloco(b.tipo, b.id, { ...b, ...campos }) : b));
 
 const problema = (blocoId: string | undefined, codigo: string, mensagem: string) =>
-  blocoId === undefined ? { codigo, nivel: 'erro', mensagem } : { blocoId, codigo, nivel: 'erro', mensagem };
+  blocoId === undefined
+    ? { codigo, nivel: 'erro', mensagem }
+    : { blocoId, codigo, nivel: 'erro', mensagem };
 
 const informacao = (campos: Record<string, unknown>): Fluxo['informacoes'][number] =>
   InformacaoSchema.parse({ nome: 'cor', ...campos });
@@ -77,7 +92,14 @@ describe('validarFluxo', () => {
     {
       caso: 'fluxo completo',
       fluxo: fluxoDe(
-        ...blocosDeTipos('buscar_dados', 'pedir_escolha', 'perguntar', 'confirmar', 'gravar_no_sistema', 'responder'),
+        ...blocosDeTipos(
+          'buscar_dados',
+          'pedir_escolha',
+          'perguntar',
+          'confirmar',
+          'gravar_no_sistema',
+          'responder',
+        ),
       ),
       esperado: [],
     },
@@ -88,12 +110,22 @@ describe('validarFluxo', () => {
     },
     {
       caso: 'cada confirmar vale uma gravacao',
-      fluxo: fluxoDe(...blocosDeTipos('confirmar', 'gravar_no_sistema', 'gravar_no_sistema', 'responder')),
+      fluxo: fluxoDe(
+        ...blocosDeTipos('confirmar', 'gravar_no_sistema', 'gravar_no_sistema', 'responder'),
+      ),
       esperado: [problema('b3', 'GRAVAR_SEM_CONFIRMAR', MSG_CONFIRMAR)],
     },
     {
       caso: 'um confirmar nao vale para duas gravacoes',
-      fluxo: fluxoDe(...blocosDeTipos('confirmar', 'confirmar', 'gravar_no_sistema', 'gravar_no_sistema', 'responder')),
+      fluxo: fluxoDe(
+        ...blocosDeTipos(
+          'confirmar',
+          'confirmar',
+          'gravar_no_sistema',
+          'gravar_no_sistema',
+          'responder',
+        ),
+      ),
       esperado: [problema('b4', 'GRAVAR_SEM_CONFIRMAR', MSG_CONFIRMAR)],
     },
     {
@@ -104,12 +136,16 @@ describe('validarFluxo', () => {
     {
       caso: 'sem responder',
       fluxo: fluxoDe(...blocosDeTipos('buscar_dados')),
-      esperado: [problema(undefined, 'SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.')],
+      esperado: [
+        problema(undefined, 'SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.'),
+      ],
     },
     {
       caso: 'fluxo sem nenhum bloco',
       fluxo: fluxoDe(),
-      esperado: [problema(undefined, 'SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.')],
+      esperado: [
+        problema(undefined, 'SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.'),
+      ],
     },
     {
       caso: 'responder fora do fim',
@@ -124,7 +160,9 @@ describe('validarFluxo', () => {
     {
       caso: 'so responder',
       fluxo: fluxoDe(...blocosDeTipos('responder')),
-      esperado: [problema(undefined, 'FLUXO_VAZIO', 'Adicione ao menos um bloco antes do Responder.')],
+      esperado: [
+        problema(undefined, 'FLUXO_VAZIO', 'Adicione ao menos um bloco antes do Responder.'),
+      ],
     },
     {
       caso: 'recurso vazio',
@@ -139,7 +177,9 @@ describe('validarFluxo', () => {
           extra: { save_as: 'x', timeout: 3 },
         }),
       ),
-      esperado: [problema('b1', 'EXTRA_REPETE_CAMPO', 'Este bloco tem um campo extra repetido: save_as.')],
+      esperado: [
+        problema('b1', 'EXTRA_REPETE_CAMPO', 'Este bloco tem um campo extra repetido: save_as.'),
+      ],
     },
     {
       caso: 'extra da informacao repete campo',
@@ -147,14 +187,25 @@ describe('validarFluxo', () => {
         blocos: blocosDeTipos('buscar_dados', 'responder'),
         informacoes: [informacao({ tipo: 'string', extra: { type: 'x', help: 'ok' } })],
       },
-      esperado: [problema(undefined, 'EXTRA_REPETE_CAMPO', 'A informação cor tem um campo extra repetido: type.')],
+      esperado: [
+        problema(
+          undefined,
+          'EXTRA_REPETE_CAMPO',
+          'A informação cor tem um campo extra repetido: type.',
+        ),
+      ],
     },
     {
       caso: 'extra repete campo de escolha',
       fluxo: fluxoDe(
-        ...comCampos(blocosDeTipos('pedir_escolha', 'responder'), 0, { titulo: 'T', extra: { title: 't' } }),
+        ...comCampos(blocosDeTipos('pedir_escolha', 'responder'), 0, {
+          titulo: 'T',
+          extra: { title: 't' },
+        }),
       ),
-      esperado: [problema('b1', 'EXTRA_REPETE_CAMPO', 'Este bloco tem um campo extra repetido: title.')],
+      esperado: [
+        problema('b1', 'EXTRA_REPETE_CAMPO', 'Este bloco tem um campo extra repetido: title.'),
+      ],
     },
     {
       caso: 'opcoes simples com rotulo diferente',
@@ -191,7 +242,9 @@ describe('validarFluxo', () => {
   });
 
   it('ignoraExtraQueNaoRepeteChave', () => {
-    const blocos = comCampos(blocosDeTipos('buscar_dados', 'responder'), 0, { extra: { with: 'texto solto' } });
+    const blocos = comCampos(blocosDeTipos('buscar_dados', 'responder'), 0, {
+      extra: { with: 'texto solto' },
+    });
     const informacoes = [informacao({ extra: { options: [] } })];
     expect(validarFluxo({ blocos, informacoes })).toEqual([]);
   });
@@ -210,8 +263,12 @@ describe('validarFluxo', () => {
       bloco('responder', 'b2', { texto: 't' }),
       bloco('buscar_dados', 'b3', { recurso: '' }),
     ];
-    const informacoes = [informacao({ opcoesSimples: true, opcoes: [{ valor: 'a', rotulo: 'A' }] })];
-    expect(validarFluxo({ blocos, informacoes }).map((p) => `${p.blocoId ?? '-'}:${p.codigo}`)).toEqual([
+    const informacoes = [
+      informacao({ opcoesSimples: true, opcoes: [{ valor: 'a', rotulo: 'A' }] }),
+    ];
+    expect(
+      validarFluxo({ blocos, informacoes }).map((p) => `${p.blocoId ?? '-'}:${p.codigo}`),
+    ).toEqual([
       'b1:BLOCO_INCOMPLETO',
       'b1:EXTRA_REPETE_CAMPO',
       'b3:BLOCO_INCOMPLETO',
@@ -230,7 +287,10 @@ describe('validarFluxo', () => {
 
   it('semResponderVemDepoisDosProblemasDeBloco', () => {
     const blocos = comCampos(blocosDeTipos('buscar_dados'), 0, { recurso: '' });
-    expect(validarFluxo(fluxoDe(...blocos)).map((p) => p.codigo)).toEqual(['BLOCO_INCOMPLETO', 'SEM_RESPONDER']);
+    expect(validarFluxo(fluxoDe(...blocos)).map((p) => p.codigo)).toEqual([
+      'BLOCO_INCOMPLETO',
+      'SEM_RESPONDER',
+    ]);
   });
 
   it.each([
@@ -254,7 +314,11 @@ describe('validarFluxo', () => {
   });
 
   it('aceitaFluxoComListasNulasDoGo', () => {
-    const lido = FluxoLidoSchema.parse({ fluxo: { blocos: null, informacoes: null }, versao: 'v', problemas: null });
+    const lido = FluxoLidoSchema.parse({
+      fluxo: { blocos: null, informacoes: null },
+      versao: 'v',
+      problemas: null,
+    });
     expect(lido).toMatchObject({ fluxo: { blocos: [], informacoes: [] }, problemas: [] });
   });
 });
@@ -333,7 +397,10 @@ describe('catalogo de blocos', () => {
   const titulo = (nome: string) => `TITULO(${nome})`;
 
   it.each([
-    { b: bloco('buscar_dados', 'a', { recurso: 'unidades.listar' }), esperado: 'TITULO(unidades.listar)' },
+    {
+      b: bloco('buscar_dados', 'a', { recurso: 'unidades.listar' }),
+      esperado: 'TITULO(unidades.listar)',
+    },
     { b: bloco('gravar_no_sistema', 'a', { recurso: 'x.y' }), esperado: 'TITULO(x.y)' },
     { b: bloco('pedir_escolha', 'a', { pergunta: 'Qual unidade?' }), esperado: 'Qual unidade?' },
     { b: bloco('perguntar', 'a', { campos: ['data', 'periodo'] }), esperado: 'data, periodo' },

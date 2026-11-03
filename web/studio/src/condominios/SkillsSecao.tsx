@@ -1,7 +1,7 @@
 import { Box, Button, Chip, Switch, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { habilitacaoDe, salvarHabilitacao, type Caso, type Estado } from './contratos';
+import { type Caso, type Estado, habilitacaoDe, salvarHabilitacao } from './contratos';
 import { useExecutar } from './useExecutar';
 
 const ROTULO_PAPEL: Record<string, string> = {
@@ -30,7 +30,10 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
 
   const usarOPadrao = (caso: Caso): Promise<boolean> =>
     executar((escopo) =>
-      salvarHabilitacao({ condominio, caso: caso.nome, habilitado: true, papeis: [], limpar: true }, escopo),
+      salvarHabilitacao(
+        { condominio, caso: caso.nome, habilitado: true, papeis: [], limpar: true },
+        escopo,
+      ),
     );
 
   return (
@@ -42,7 +45,15 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
         const titulo = titulos.get(caso.nome) ?? caso.titulo;
         const { habilitacao, propria } = habilitacaoDe(estado.mapeamento, condominio, caso.nome);
         return (
-          <Box key={caso.nome} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, opacity: habilitacao.habilitado ? 1 : 0.7 }}>
+          <Box
+            key={caso.nome}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.5,
+              opacity: habilitacao.habilitado ? 1 : 0.7,
+            }}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Switch
                 checked={habilitacao.habilitado}
@@ -57,7 +68,12 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
                 </Typography>
               </Box>
               {propria && editavel && (
-                <Button size="small" disabled={gravando} aria-label={`Usar o padrão: ${titulo}`} onClick={() => void usarOPadrao(caso)}>
+                <Button
+                  size="small"
+                  disabled={gravando}
+                  aria-label={`Usar o padrão: ${titulo}`}
+                  onClick={() => void usarOPadrao(caso)}
+                >
                   Usar o padrão
                 </Button>
               )}
@@ -65,7 +81,9 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', pl: 7 }}>
               {estado.papeis.map((papel) => {
                 const marcado = habilitacao.papeis.includes(papel);
-                const proximos = marcado ? habilitacao.papeis.filter((p) => p !== papel) : [...habilitacao.papeis, papel];
+                const proximos = marcado
+                  ? habilitacao.papeis.filter((p) => p !== papel)
+                  : [...habilitacao.papeis, papel];
                 return (
                   <Chip
                     key={papel}

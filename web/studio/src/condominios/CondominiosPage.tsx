@@ -14,7 +14,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { usePodeEditarCondominio } from '@/acesso/eu';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
@@ -22,8 +22,15 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { paraIdentificador } from '@/skills/contratos';
 import { AdministradorasAba } from './AdministradorasAba';
 import { ComEstado } from './ComEstado';
+import {
+  type Condominio,
+  type Estado,
+  PADRAO,
+  salvarCondominio,
+  useEscopo,
+  useEstado,
+} from './contratos';
 import { SeletorDeAdministradora } from './SeletorDeAdministradora';
-import { PADRAO, salvarCondominio, useEscopo, useEstado, type Condominio, type Estado } from './contratos';
 import { useExecutar } from './useExecutar';
 
 type Aba = 'condominios' | 'administradoras';
@@ -37,7 +44,11 @@ const TELAS_ANTIGAS = [
 
 function TelasAntigas(): ReactNode {
   return (
-    <Box component="nav" aria-label="Tela antiga" sx={{ display: 'flex', gap: 1.5, typography: 'caption' }}>
+    <Box
+      component="nav"
+      aria-label="Tela antiga"
+      sx={{ display: 'flex', gap: 1.5, typography: 'caption' }}
+    >
       <Typography variant="caption" color="text.secondary">
         Tela antiga:
       </Typography>
@@ -88,7 +99,10 @@ export function CondominiosPage(): ReactNode {
             {aba === 'condominios' ? (
               <ListaDeCondominios estado={estado} />
             ) : (
-              <AdministradorasAba administradoras={estado.administradoras} condominios={estado.mapeamento.condominios} />
+              <AdministradorasAba
+                administradoras={estado.administradoras}
+                condominios={estado.mapeamento.condominios}
+              />
             )}
             <NovoCondominio aberto={criando} estado={estado} onFechar={() => setCriando(false)} />
             {podeVerAdministradoras && <TelasAntigas />}
@@ -102,11 +116,18 @@ export function CondominiosPage(): ReactNode {
 function ListaDeCondominios({ estado }: { estado: Estado }): ReactNode {
   const { condominios } = estado.mapeamento;
   const donaDe = (condominio: Condominio): string =>
-    estado.administradoras.find((a) => a.id === condominio.administradora_id)?.nome ?? 'Sem administradora';
+    estado.administradoras.find((a) => a.id === condominio.administradora_id)?.nome ??
+    'Sem administradora';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2,
+          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+        }}
+      >
         <CartaoDeCondominio
           id={PADRAO}
           titulo="Padrão (todos)"
@@ -161,7 +182,14 @@ function NovoCondominio({ aberto, estado, onFechar }: NovoProps): ReactNode {
     if (id === PADRAO || estado.mapeamento.condominios.some((c) => c.id === id)) {
       return mostrar('Já existe um condomínio com esse nome.', 'error');
     }
-    const novo: Condominio = { id, nome: nome.trim(), administradora_id: donaDoNovo, account: '', company_id: '', tenant: '' };
+    const novo: Condominio = {
+      id,
+      nome: nome.trim(),
+      administradora_id: donaDoNovo,
+      account: '',
+      company_id: '',
+      tenant: '',
+    };
     const criado = await executar((e) => salvarCondominio(novo, e), 'Condomínio criado.');
     if (!criado) return;
     setNome('');
@@ -173,14 +201,28 @@ function NovoCondominio({ aberto, estado, onFechar }: NovoProps): ReactNode {
     <Dialog open={aberto} onClose={onFechar} fullWidth maxWidth="xs">
       <DialogTitle>Novo condomínio</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <TextField autoFocus label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} sx={{ mt: 1 }} />
+        <TextField
+          autoFocus
+          label="Nome"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          sx={{ mt: 1 }}
+        />
         {escopo === null && (
-          <SeletorDeAdministradora administradoras={estado.administradoras} valor={administradora} onMudar={setAdministradora} />
+          <SeletorDeAdministradora
+            administradoras={estado.administradoras}
+            valor={administradora}
+            onMudar={setAdministradora}
+          />
         )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onFechar}>Cancelar</Button>
-        <Button variant="contained" disabled={gravando || nome.trim() === ''} onClick={() => void criar()}>
+        <Button
+          variant="contained"
+          disabled={gravando || nome.trim() === ''}
+          onClick={() => void criar()}
+        >
           Criar condomínio
         </Button>
       </DialogActions>

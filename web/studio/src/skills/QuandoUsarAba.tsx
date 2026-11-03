@@ -1,7 +1,7 @@
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { Box, Button, Chip, IconButton, TextField, Typography } from '@mui/material';
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { type KeyboardEvent, type ReactNode, useState } from 'react';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import type { Textos } from './contratos';
 
@@ -14,7 +14,10 @@ type Props = {
 export function QuandoUsarAba({ textos, editavel, onMudar }: Props): ReactNode {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <SectionCard titulo="Quando usar" ajuda="Diga em uma frase quando a assistente deve usar esta skill.">
+      <SectionCard
+        titulo="Quando usar"
+        ajuda="Diga em uma frase quando a assistente deve usar esta skill."
+      >
         <TextField
           multiline
           minRows={2}
@@ -99,13 +102,14 @@ function FrasesDeExemplo({
   editavel,
   onMudar,
 }: ListaProps & { frases: string[]; onMudar: (frases: string[]) => void }): ReactNode {
-  const trocar = (posicao: number, texto: string) => onMudar(frases.map((f, i) => (i === posicao ? texto : f)));
+  const trocar = (posicao: number, texto: string) =>
+    onMudar(frases.map((f, i) => (i === posicao ? texto : f)));
   const remover = (posicao: number) => onMudar(frases.filter((_, i) => i !== posicao));
 
   return (
     <SectionCard titulo="Frases de exemplo" ajuda="Frases que um morador diria para pedir isto.">
       {frases.map((frase, posicao) => (
-        // A posição é a identidade: a frase muda a cada tecla, então o texto não serve de chave.
+        // biome-ignore lint/suspicious/noArrayIndexKey: a frase muda a cada tecla, então o texto não serve de chave; a posição é a identidade.
         <Box key={posicao} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <TextField
             size="small"
@@ -116,14 +120,22 @@ function FrasesDeExemplo({
             slotProps={{ htmlInput: { 'aria-label': `Frase de exemplo ${posicao + 1}` } }}
           />
           {editavel && (
-            <IconButton aria-label={`Remover frase ${posicao + 1}`} onClick={() => remover(posicao)}>
+            <IconButton
+              aria-label={`Remover frase ${posicao + 1}`}
+              onClick={() => remover(posicao)}
+            >
               <DeleteOutlinedIcon fontSize="small" />
             </IconButton>
           )}
         </Box>
       ))}
       {editavel && (
-        <Button size="small" startIcon={<AddIcon />} sx={{ alignSelf: 'flex-start' }} onClick={() => onMudar([...frases, ''])}>
+        <Button
+          size="small"
+          startIcon={<AddIcon />}
+          sx={{ alignSelf: 'flex-start' }}
+          onClick={() => onMudar([...frases, ''])}
+        >
           Adicionar frase
         </Button>
       )}

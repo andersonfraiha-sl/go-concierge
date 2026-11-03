@@ -9,7 +9,9 @@ describe('criarTema', () => {
   it('usaAsFontesDoConsole', () => {
     const { typography } = criarTema();
     expect(typography.fontFamily).toBe('"Argumentum", "Inter", system-ui, sans-serif');
-    expect(typography.h1.fontFamily).toBe('"Paralucent", "Plus Jakarta Sans", system-ui, sans-serif');
+    expect(typography.h1.fontFamily).toBe(
+      '"Paralucent", "Plus Jakarta Sans", system-ui, sans-serif',
+    );
   });
 
   it('usaOsTokensDoConsole', () => {

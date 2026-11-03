@@ -17,7 +17,12 @@ const base: Eu = {
 
 describe('acesso na barra lateral e no topo', () => {
   it('hidesAdvancedForGestor', async () => {
-    const gestor: Eu = { ...base, papel: 'gestor', permissoes: ['skills.ler'], administradoraId: 'adm-1' };
+    const gestor: Eu = {
+      ...base,
+      papel: 'gestor',
+      permissoes: ['skills.ler'],
+      administradoraId: 'adm-1',
+    };
     responderCom({ 'GET /api/eu': () => json(gestor) });
 
     renderComProvedores(<StudioLayout />);

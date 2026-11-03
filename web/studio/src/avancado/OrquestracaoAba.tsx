@@ -1,33 +1,52 @@
-import { Alert, Box, Button, FormControlLabel, Radio, RadioGroup, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   LIMITES_DE_ORQUESTRACAO,
   MODOS_DE_ORQUESTRACAO,
+  type ModoDeOrquestracao,
   mensagemDeErro,
+  type Orquestracao,
+  type OrquestracaoLida,
   salvarOrquestracao,
   useOrquestracao,
   validarOrquestracao,
-  type ModoDeOrquestracao,
-  type Orquestracao,
-  type OrquestracaoLida,
 } from './contratos';
 
 const MODOS: Record<ModoDeOrquestracao, { nome: string; descricao: string }> = {
-  router: { nome: 'Router', descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.' },
+  router: {
+    nome: 'Router',
+    descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.',
+  },
   planning: {
     nome: 'Planning',
-    descricao: 'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
+    descricao:
+      'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
   },
   react: {
     nome: 'ReAct',
-    descricao: 'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
+    descricao:
+      'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
   },
 };
 
-type Rascunho = { modo: ModoDeOrquestracao; bind_confidence: string; max_itens: string; max_iteracoes: string };
+type Rascunho = {
+  modo: ModoDeOrquestracao;
+  bind_confidence: string;
+  max_itens: string;
+  max_iteracoes: string;
+};
 
 const rascunhoDe = (ajuste: Orquestracao): Rascunho => ({
   modo: ajuste.modo,
@@ -97,7 +116,8 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
     >
       {lida.ambiente !== '' && (
         <Alert severity="warning">
-          O ambiente está forçando o modo {lida.ambiente}. O que você salvar aqui só vale quando essa trava sair.
+          O ambiente está forçando o modo {lida.ambiente}. O que você salvar aqui só vale quando
+          essa trava sair.
         </Alert>
       )}
       <RadioGroup

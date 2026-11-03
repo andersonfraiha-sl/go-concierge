@@ -1,14 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
+  type Arquivo,
   caminhoDeDocumento,
+  caminhoDeRegra,
   chaveDoAgente,
   chaveDoArquivo,
-  caminhoDeRegra,
   excluirArquivo,
-  salvarArquivo,
-  type Arquivo,
   type RecursoDeclarado,
+  salvarArquivo,
 } from '@/catalogo/contratos';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
@@ -24,14 +24,16 @@ const ORIGEM_FLUXO = 'caso.yaml';
 
 export const regrasDe = (agente: Agente): Arquivo[] => agente.arquivos[PASTA_REGRAS] ?? [];
 export const documentosDe = (agente: Agente): Arquivo[] => agente.arquivos[PASTA_DOCUMENTOS] ?? [];
-export const documentosHerdadosDe = (agente: Agente): Arquivo[] => agente.herdados[PASTA_DOCUMENTOS] ?? [];
+export const documentosHerdadosDe = (agente: Agente): Arquivo[] =>
+  agente.herdados[PASTA_DOCUMENTOS] ?? [];
 
 export const ehTexto = (arquivo: Arquivo): boolean => EXTENSAO_DE_TEXTO.test(arquivo.caminho);
 export const vemDoFluxo = (recurso: RecursoDeclarado): boolean => recurso.origem === ORIGEM_FLUXO;
 
 const nomeDoArquivo = (caminho: string): string => caminho.split('/').pop() ?? caminho;
 
-const comPrimeiraMaiuscula = (texto: string): string => texto.charAt(0).toUpperCase() + texto.slice(1);
+const comPrimeiraMaiuscula = (texto: string): string =>
+  texto.charAt(0).toUpperCase() + texto.slice(1);
 
 export function tituloDoDocumento(caminho: string): string {
   const semExtensao = nomeDoArquivo(caminho).replace(EXTENSAO_DE_TEXTO, '');
@@ -39,11 +41,14 @@ export function tituloDoDocumento(caminho: string): string {
 }
 
 export function tituloDaRegra(caminho: string): string {
-  return nomeDoArquivo(caminho) === ARQUIVO_FORMATO_DA_RESPOSTA ? 'Formato da resposta' : tituloDoDocumento(caminho);
+  return nomeDoArquivo(caminho) === ARQUIVO_FORMATO_DA_RESPOSTA
+    ? 'Formato da resposta'
+    : tituloDoDocumento(caminho);
 }
 
 /** Para arquivos que não são texto: mostra o nome como está. */
-export const nomeParaExibir = (arquivo: Arquivo): string => (ehTexto(arquivo) ? tituloDoDocumento(arquivo.caminho) : nomeDoArquivo(arquivo.caminho));
+export const nomeParaExibir = (arquivo: Arquivo): string =>
+  ehTexto(arquivo) ? tituloDoDocumento(arquivo.caminho) : nomeDoArquivo(arquivo.caminho);
 
 export function formatarTamanho(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -59,7 +64,11 @@ const caminhoNovo: Record<Tipo, (nome: string) => string> = {
 };
 
 const avisos: Record<Tipo, { criado: string; excluido: string; repetido: string }> = {
-  regra: { criado: 'Regra criada.', excluido: 'Regra excluída.', repetido: 'Já existe uma regra com esse nome.' },
+  regra: {
+    criado: 'Regra criada.',
+    excluido: 'Regra excluída.',
+    repetido: 'Já existe uma regra com esse nome.',
+  },
   documento: {
     criado: 'Documento criado.',
     excluido: 'Documento excluído.',
@@ -77,7 +86,8 @@ export function useGestaoDeArquivos(agente: string, tipo: Tipo, existentes: read
   /** Rejeita com a mensagem para o campo de nome mostrar. */
   const criar = async (nome: string): Promise<void> => {
     const caminho = caminhoNovo[tipo](nome);
-    if (existentes.some((existente) => existente.caminho === caminho)) throw new Error(avisos[tipo].repetido);
+    if (existentes.some((existente) => existente.caminho === caminho))
+      throw new Error(avisos[tipo].repetido);
     await salvarArquivo({ agente, caminho, conteudo: '' });
     setEmExclusao(null);
     cliente.setQueryData(chaveDoArquivo(agente, caminho), { caminho, conteudo: '' });
