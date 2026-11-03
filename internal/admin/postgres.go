@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"sync"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -26,8 +27,13 @@ const timeoutConsulta = 3 * time.Second
 // Postgres guarda o mapeamento nas tabelas administradoras, condominios, habilitacoes,
 // payloads e orientacoes. condominio_id NULL é o padrão ("*").
 type Postgres struct {
-	cli       *ent.Client
-	aoAlterar func(Mapeamento) // recebe o mapeamento de cada escrita confirmada (o Cache)
+	cli *ent.Client
+	// aoAlterar recebe o mapeamento de cada escrita confirmada e a versão dela (o Cache).
+	// escritas põe em fila as escritas deste processo do começo da transação até o aviso, e
+	// versao cresce nessa ordem: a ordem das versões é a dos commits.
+	aoAlterar func(m Mapeamento, versao uint64)
+	escritas  sync.Mutex
+	versao    uint64
 }
 
 func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
@@ -57,13 +63,18 @@ const codigoFalhaSerializacao = "40001"
 func (p *Postgres) alterar(ctx context.Context, operacao string, r regra, gravar gravacao) (Mapeamento, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
+	// escritas simultâneas no mesmo processo já conflitariam (40001); em fila, a versão
+	// avisada ao cache segue a ordem dos commits
+	p.escritas.Lock()
+	defer p.escritas.Unlock()
 	serializavel := &stdsql.TxOptions{Isolation: stdsql.LevelSerializable}
 	aplicar := func(ctx context.Context, cli *ent.Client) (Mapeamento, error) { return alterarNa(ctx, cli, r, gravar) }
 	for tentativa := 1; ; tentativa++ {
 		m, err := emTransacao(ctx, p.cli, serializavel, aplicar)
 		if err == nil {
+			p.versao++
 			if p.aoAlterar != nil {
-				p.aoAlterar(m)
+				p.aoAlterar(m, p.versao)
 			}
 			return m, nil
 		}
