@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"go-concierge/internal/okf"
 )
 
 func TestStudioEstatico(t *testing.T) {
@@ -84,8 +88,6 @@ func TestRaizVaiParaStudio(t *testing.T) {
 	}{
 		{"/", http.StatusFound, "/studio/"},
 		{"/studio", http.StatusMovedPermanently, "/studio/"},
-		{"/backdoor", http.StatusNotFound, ""},
-		{"/backdoor/orquestracao", http.StatusNotFound, ""},
 		{"/console", http.StatusOK, ""},
 		{"/admin", http.StatusOK, ""},
 	}
@@ -100,5 +102,110 @@ func TestRaizVaiParaStudio(t *testing.T) {
 				t.Errorf("Location = %q, quer %q", got, c.querLocation)
 			}
 		})
+	}
+}
+
+func TestTelasAntigasContinuamNoAr(t *testing.T) {
+	web := fstest.MapFS{}
+	for _, f := range []string{"index.html", "backdoor.html", "orquestracao.html", "administradoras.html", "payloads.html"} {
+		web[f] = &fstest.MapFile{Data: []byte(f)}
+	}
+	s := &servidor{web: web, studio: fstest.MapFS{}}
+	mux := http.NewServeMux()
+	s.rotas(mux)
+	s.rotasStudio(mux)
+	s.rotasAdmin(mux)
+	s.rotasLegado(mux)
+
+	casos := []struct {
+		caminho string
+		arquivo string
+	}{
+		{"/admin", "index.html"},
+		{"/backdoor", "backdoor.html"},
+		{"/backdoor/orquestracao", "orquestracao.html"},
+		{"/backdoor/administradoras", "administradoras.html"},
+		{"/backdoor/payloads", "payloads.html"},
+	}
+	for _, c := range casos {
+		t.Run(c.caminho, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, c.caminho, nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("GET %s = %d, quer 200", c.caminho, rec.Code)
+			}
+			if rec.Body.String() != c.arquivo {
+				t.Errorf("GET %s corpo = %q, quer %q", c.caminho, rec.Body.String(), c.arquivo)
+			}
+		})
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusFound {
+		t.Fatalf("GET / = %d, quer 302", rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "/studio/" {
+		t.Errorf("Location = %q, quer /studio/", got)
+	}
+}
+
+func TestRotasDaTelaAntigaRegistradas(t *testing.T) {
+	s := &servidor{}
+	mux := http.NewServeMux()
+	s.rotas(mux)
+	s.rotasLegado(mux)
+
+	casos := []struct {
+		metodo  string
+		caminho string
+		padrao  string
+	}{
+		{http.MethodGet, "/api/anatomia", "GET /api/anatomia"},
+		{http.MethodPost, "/api/agentes", "POST /api/agentes"},
+		{http.MethodPut, "/api/agente/config", "PUT /api/agente/config"},
+		{http.MethodDelete, "/api/agente", "DELETE /api/agente"},
+		{http.MethodPost, "/api/agentes/mover", "POST /api/agentes/mover"},
+	}
+	for _, c := range casos {
+		t.Run(c.padrao, func(t *testing.T) {
+			_, padrao := mux.Handler(httptest.NewRequest(c.metodo, c.caminho, nil))
+			if padrao != c.padrao {
+				t.Errorf("padrão de %s %s = %q, quer %q", c.metodo, c.caminho, padrao, c.padrao)
+			}
+		})
+	}
+}
+
+// TestExcluirDevolveMudancas confere que o corpo de DELETE /api/agente sempre tem
+// "mudancas" (mesmo vazia): backdoor.js:464 lê r.mudancas.length sem checar undefined, e
+// um corpo sem o campo faz o delete bem-sucedido aparecer como erro na tela.
+func TestExcluirDevolveMudancas(t *testing.T) {
+	raiz := t.TempDir()
+	if err := os.CopyFS(filepath.Join(raiz, "agentes"), os.DirFS(filepath.Join("..", "..", "okf", "agentes"))); err != nil {
+		t.Fatal(err)
+	}
+	cat, err := okf.NewCatalogo(raiz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &servidor{cat: cat}
+	mux := http.NewServeMux()
+	s.rotasLegado(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/agente?agente=agentes/concierge/agentes/faq", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/agente = %d, corpo %s", rec.Code, rec.Body.String())
+	}
+
+	var corpo struct {
+		Mudancas *[]string `json:"mudancas"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &corpo); err != nil {
+		t.Fatalf("corpo não é JSON: %v (%s)", err, rec.Body.String())
+	}
+	if corpo.Mudancas == nil {
+		t.Fatalf("resposta sem mudancas: %s", rec.Body.String())
 	}
 }

@@ -98,7 +98,7 @@
   function desenharAdms() {
     const tb = $('#tabelaAdms tbody');
     const conta = (id) => estado.m.condominios.filter((c) => c.administradora_id === id).length;
-    tb.innerHTML = estado.adms.length ? estado.adms.map((a) => `<tr><td><div class="res-name"><span class="res-icon"><i data-lucide="building"></i></span><div><strong>${esc(a.nome)}</strong></div></div></td><td><code>${esc(a.id)}</code></td><td>${conta(a.id)}</td><td><a class="btn btn-ghost btn-sm" href="/?adm=${encodeURIComponent(a.id)}" title="abrir o Admin como esta administradora"><i data-lucide="settings-2" class="i-sm"></i>Admin</a> <button class="btn btn-ghost btn-sm" data-edit-adm="${esc(a.id)}"><i data-lucide="pen-to-square" class="i-sm"></i>Editar</button></td></tr>`).join('')
+    tb.innerHTML = estado.adms.length ? estado.adms.map((a) => `<tr><td><div class="res-name"><span class="res-icon"><i data-lucide="building"></i></span><div><strong>${esc(a.nome)}</strong></div></div></td><td><code>${esc(a.id)}</code></td><td>${conta(a.id)}</td><td><a class="btn btn-ghost btn-sm" href="/admin?adm=${encodeURIComponent(a.id)}" title="abrir o Admin como esta administradora"><i data-lucide="settings-2" class="i-sm"></i>Admin</a> <button class="btn btn-ghost btn-sm" data-edit-adm="${esc(a.id)}"><i data-lucide="pen-to-square" class="i-sm"></i>Editar</button></td></tr>`).join('')
       : '<tr><td colspan="4"><div class="empty-state"><i data-lucide="building"></i>Nenhuma administradora. Sem administradora, os condomínios não aparecem em nenhum Admin.</div></td></tr>';
     $$('#tabelaAdms button[data-edit-adm]').forEach((b) => b.addEventListener('click', () => abrirAdm(estado.adms.find((a) => a.id === b.dataset.editAdm))));
   }
