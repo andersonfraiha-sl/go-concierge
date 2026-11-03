@@ -265,7 +265,7 @@ func TestCriarMoverClonarExcluir(t *testing.T) {
 	if _, _, err := c.Mover("agentes/pai", "agentes/pai/agentes/regimento", false); err == nil {
 		t.Fatal("deveria recusar mover o pai para dentro do filho")
 	}
-	if _, err := c.ExcluirAgente(cloneRel); err != nil {
+	if _, err := c.excluirAgente(cloneRel); err != nil {
 		t.Fatal(err)
 	}
 	rotas, _ = os.ReadFile(filepath.Join(root, "agentes", "pai", "routers", "rotas.md"))

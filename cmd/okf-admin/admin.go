@@ -18,22 +18,13 @@ import (
 	"go-concierge/internal/okf"
 )
 
-// Admin da administradora: a matriz condomínio × caso de uso (habilitação e papéis),
-// restrita aos condomínios dela (?administradora=<id> emula o login; RLS). O resto é da
-// Superlógica, no Backdoor: administradoras e seus condomínios, casos de uso, tools,
-// recursos e o payload de cada recurso por condomínio.
+// API do mapeamento administradoras → condomínios → skills (habilitação, papéis,
+// orientações, ajustes), restrita aos condomínios da administradora do pedido
+// (?administradora=<id>; RLS). O Studio é quem usa. As duas páginas antigas que ficam
+// (/backdoor/administradoras e /backdoor/payloads) cobrem o que o Studio ainda não faz:
+// renomear administradora e definições livres por recurso.
 
 func (s *servidor) rotasAdmin(mux *http.ServeMux) {
-	mux.HandleFunc("GET /backdoor", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "backdoor.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
 	mux.HandleFunc("GET /backdoor/payloads", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := fs.ReadFile(s.web, "payloads.html")
 		if err != nil {
@@ -46,16 +37,6 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 	})
 	mux.HandleFunc("GET /backdoor/administradoras", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := fs.ReadFile(s.web, "administradoras.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/orquestracao", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "orquestracao.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return

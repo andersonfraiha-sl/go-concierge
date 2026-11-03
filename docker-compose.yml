@@ -2,15 +2,15 @@
 # em Node) e o concierge (okf-admin, em Go) que usa as tools dele como recursos do Nexus.
 #
 #   docker compose up -d --build
-#   Admin/Console/Backdoor: http://127.0.0.1:8090
+#   Studio: http://127.0.0.1:8090/studio/ · Console: http://127.0.0.1:8090/console
 #   (o mcp roda na rede do concierge, porque a POC do MCP só escuta em loopback)
 #
 # Credenciais: mcp/.env é o .env da entrega (BFF, LLM gateway); o .env da raiz tem as do
 # concierge (LLM, Gruvi, ATENDE) e o fluxo B2C (MCP_AUTH=b2c, MCP_B2C_MOBILE…): o concierge
 # obtém o token de morador pelo SMS de dev e o repassa ao MCP por requisição.
 services:
-  # O front (Admin, Console, Backdoor) é servido pelo próprio concierge: web/okf vai embutido
-  # no binário e, aqui, também montado do repositório (-web), para editar sem rebuild.
+  # O front é servido pelo próprio concierge: o Studio vai compilado e embutido no binário;
+  # o Console (web/okf) também, e aqui é montado do repositório (-web), para editar sem rebuild.
   concierge:
     build: .
     env_file:
@@ -24,7 +24,7 @@ services:
       ORQUESTRACAO_MODO: ${ORQUESTRACAO_MODO:-}
     command: ["-root", "/app/okf", "-addr", "0.0.0.0:8090", "-env", "/app/.env", "-web", "/app/web"]
     volumes:
-      # o catálogo editado pelo Admin fica no repositório (agentes, instantâneo, var/)
+      # o catálogo editado pelo Studio fica no repositório (agentes, instantâneo, var/)
       - ./okf:/app/okf
       # o front, servido do disco: mexeu em web/okf, é só recarregar a página
       - ./web/okf:/app/web:ro

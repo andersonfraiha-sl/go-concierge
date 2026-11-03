@@ -1,7 +1,7 @@
 # go-concierge
 
 Concierge de condomínio em Go, do zero, com as ideias do `sl-concierge`. As definições de
-partida (harness Eino, OKF, emulação do ATENDE, Admin da administradora, observador de
+partida (harness Eino, OKF, emulação do ATENDE, Studio, observador de
 sessão) estão em [DEFINICOES.md](DEFINICOES.md).
 
 O que existe hoje: o **cadastro de skills no formato de pasta** (OKF) com a interface de
@@ -9,7 +9,7 @@ administração, e o **harness Eino** que roda essas pastas.
 
 ## OKF: agentes em pasta, recursos no Nexus
 
-Dois mundos. O que é **do agente** fica estático na pasta e se edita no Admin; o que é
+Dois mundos. O que é **do agente** fica estático na pasta e se edita no Studio; o que é
 **infraestrutura** (tools, conteúdos, memórias) vem do **Nexus em tempo de execução**, e
 o agente só declara o que precisa.
 
@@ -88,13 +88,13 @@ durável; em toda conversa seguinte a memória entra na instrução da família 
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
 fatos (`GET`/`DELETE /api/memoria?phone=`).
 
-## Ficha do condomínio (Admin)
+## Ficha do condomínio (Studio › Condomínios)
 
 Cada condomínio tem uma ficha com o que o concierge faz nele (liga/desliga por caso de
 uso), **Orientações ao concierge** (texto livre geral e por caso de uso, injetado no
 prompt), **Ajustes** (formulário gerado das `definicoes` que os recursos declaram no
-catálogo, gravado no payload do condomínio) e **Identificação**. `#/condo/*` é a ficha
-do padrão, que vale para todos. API: `PUT /api/admin/orientacao`, `PUT /api/admin/ajustes`.
+catálogo, gravado no payload do condomínio) e **Identificação**. `/studio/condominios/*` é a
+ficha do padrão, que vale para todos. API: `PUT /api/admin/orientacao`, `PUT /api/admin/ajustes`.
 
 ## Classes de recurso do Nexus
 
@@ -109,7 +109,7 @@ ortogonal à classe: qualquer recurso com `write: true` só entra por um passo d
 `caso.yaml`, depois do `confirm`; os demais o agente declara em `agent.yaml → recursos`
 e chama com `chamar_recurso`.
 
-Cada recurso do instantâneo se edita no Backdoor (lápis no cartão ou "Novo recurso"):
+Cada recurso do instantâneo se edita no Studio, em Ferramentas:
 nome, tipo, visibilidade, efeito (`write`), descrição, **conexão** (método, URL com
 `{{param}}`, headers, corpo), **parâmetros de entrada** e **saída** (resumo e campos
 com caminho no JSON). Fica em `conexao` e `saida` no YAML, documental: quem executa é o
@@ -135,51 +135,31 @@ e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
 ## A interface (okf-admin)
 
 ```bash
-./build.sh            # gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (no contêiner, sem Go local)
+./build.sh            # Studio (npm test + build) + gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (em contêiner, sem Go nem Node locais)
 ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
 ```
 
-Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
-casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
-`?administradora=<id>`) e **Backdoor**
-(`/backdoor`, nosso: casos de uso do concierge, `/backdoor/administradoras` com as
-administradoras e os condomínios de cada uma, `/backdoor/payloads` com o payload de
-cada recurso do Nexus por condomínio).
+Duas áreas: o **Studio** (`/studio/`, onde `/` redireciona) e o **Console** (`/console`, o
+emulador do ATENDE: a conversa do morador como o atendente a vê). O Studio é o front em
+React de `studio/`, compilado para `web/studio/dist` e embutido no binário; sem compilar,
+`/studio/` responde 503 `STUDIO_NAO_COMPILADO`. Em desenvolvimento, `npm --prefix studio run dev`
+serve o Studio com o proxy de `/api` para o okf-admin em 8090.
 
-```bash
-```
+No Studio: as skills (Quando usar, Fluxo, Regras, Base de conhecimento, Ferramentas), o
+Assistente (aba Persona), as Ferramentas, os Condomínios (habilitação, papéis,
+orientações, ajustes, identificação, administradoras) e a área Avançado (arquivos de cada
+pasta, prompt montado e roteador, orquestração, importar e exportar zip).
 
-Três colunas:
-
-- **Esquerda**: a árvore de agentes (arraste para mover, Shift+arraste para clonar; solte
-  no título `agentes/` para levar à raiz) e os **recursos do Nexus** da account, por
-  classe, com o interruptor "este agente usa" (grava `agent.yaml → recursos`). Mover ou
-  clonar acerta o `routers/rotas.md` dos dois pais.
-- **Centro**: a ficha do agente: problemas encontrados, identidade (`agent.yaml`),
-  **persona** (própria ou herdada), **caso de uso** (os passos em linha do tempo),
-  **recursos que usa** (com classe e estado), caixinhas com contagem próprio/herdado
-  (clique no `+` para criar um arquivo com modelo), os **vínculos** (assets,
-  conhecimento, rotas, subagentes, recursos, persona) com o estado de cada um e a dica de
-  correção, os subagentes, o conhecimento OKF (docs tipados e glossário) e o índice que o
-  prompt enxerga.
-- **Direita**: os arquivos (editor, Ctrl+S salva), a **projeção** (o system prompt
-  compilado da pasta, no princípio ICM) e o **roteador** (só o que decide a rota).
-
-`+ novo agente` abre o assistente: onde (raiz ou dentro de um agente), nome, tipo,
-descrição (o critério que o roteador do pai lê), `persona.md` e `caso.yaml` opcionais,
-caixinhas iniciais com arquivo-modelo e os recursos do Nexus que declara. `importar zip`
-instala uma pasta inteira.
+Duas páginas antigas ficam até o Studio cobri-las: `/backdoor/administradoras` (renomear
+uma administradora) e `/backdoor/payloads` (definições livres de um recurso por
+condomínio, inclusive de recursos que não declaram ajustes).
 
 ### API
 
 | método | rota | o que faz |
 |---|---|---|
 | GET | `/api/agentes` | árvore resumida (tipo, descrição, erros, avisos) |
-| POST | `/api/agentes` | cria a pasta a partir do formulário (`NovoAgente`) e registra a rota no pai |
 | GET | `/api/agente?agente=` | ficha completa: arquivos por caixinha (próprios e herdados), vínculos, conhecimento, dados, problemas |
-| PUT | `/api/agente/config` | atualiza `agent.yaml` (nome, tipo, descricao, modelo, fontes, apis, segredos) |
-| DELETE | `/api/agente?agente=` | exclui a pasta e tira a rota do pai |
-| POST | `/api/agentes/mover` | `{origem, destino, clonar}` |
 | POST | `/api/agentes/importar?caminho=` | zip no corpo |
 | GET | `/api/agentes/exportar?agente=` | zip da pasta |
 | GET/PUT/DELETE | `/api/arquivo` | um arquivo dentro de uma caixinha |
@@ -287,7 +267,7 @@ orquestracao:
   max_iteracoes: 6        # react: passos por turno; no limite, consolida o que há
 ```
 
-Onde se controla: a guia **Orquestração** do Backdoor (http://127.0.0.1:8090/backdoor/orquestracao):
+Onde se controla: a aba **Orquestração** da área Avançado do Studio (http://127.0.0.1:8090/studio/avancado):
 escolha o modo e os ajustes e salve; grava o bloco acima no `agent.yaml` do concierge e vale
 a partir da próxima mensagem, sem reiniciar. `ORQUESTRACAO_MODO` no ambiente, quando definida,
 força o modo por cima da guia (ela avisa). Teste no Console: a aba Rota mostra o plano.
@@ -325,7 +305,7 @@ OpenAPIs do BFF do Gruvi, `building-operation.json` e `mobile.json`, em tools MC
 como **fonte de recursos do Nexus** (`internal/mcp`): `tools/list` vira a lista de recursos da
 account (classe `api`, privados, escrita pela anotação `readOnlyHint` ou pelo verbo do nome) e
 `chamar_recurso` executa por `tools/call`. Um agente declara as tools que usa em `recursos:` do
-`agent.yaml`, como qualquer recurso; o Backdoor marca cada uma com **MCP**.
+`agent.yaml`, como qualquer recurso.
 
 O servidor exige um Bearer em cada requisição e repassa esse token ao BFF. Ele valida
 apenas o formato do Bearer; o BFF é responsável pela autenticação e autorização.
@@ -358,9 +338,9 @@ setfacl -R -m u:10001:rwX okf
 find okf -type d -exec setfacl -m d:u:10001:rwx {} +
 ```
 
-Admin, Console e Backdoor em http://127.0.0.1:8090. O catálogo (`okf/`) é montado do repositório,
-então o Admin edita os arquivos de verdade; `web/okf` também é montado (`-web`), então o front
-se edita sem rebuild. O front não tem contêiner próprio: é o concierge que o serve. A POC do MCP
+Studio em http://127.0.0.1:8090/studio/ e Console em http://127.0.0.1:8090/console. O catálogo
+(`okf/`) é montado do repositório, então o Studio edita os arquivos de verdade; `web/okf` também
+é montado (`-web`), então o Console se edita sem rebuild (o Studio vai embutido na imagem). O front não tem contêiner próprio: é o concierge que o serve. A POC do MCP
 só escuta em loopback, por isso o `mcp` roda na rede do contêiner `concierge` e o Explorer
 (porta 3337) não fica acessível do host; para usá-lo, rode o MCP local com
 `cd mcp && npm ci && npm run start:mcp:catalog-agent`.

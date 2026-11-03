@@ -19,13 +19,13 @@ export function renderComProvedores(
   { rota = '/', caminho = '*' }: Opcoes = {},
 ): RenderResult & { user: UserEvent } {
   const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const roteador = createMemoryRouter([{ path: caminho, element: ui }], { initialEntries: [rota] });
+  const rotas = createMemoryRouter([{ path: caminho, element: ui }], { initialEntries: [rota] });
   const resultado = render(
     <QueryClientProvider client={cliente}>
       <ThemeProvider theme={criarTema()}>
         <CssBaseline />
         <SnackbarProvider>
-          <RouterProvider router={roteador} />
+          <RouterProvider router={rotas} />
         </SnackbarProvider>
       </ThemeProvider>
     </QueryClientProvider>,

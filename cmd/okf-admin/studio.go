@@ -32,6 +32,8 @@ func (s *servidor) rotasStudio(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/skills/{nome}", s.studioExcluir)
 	mux.HandleFunc("GET /api/skills/{nome}/fluxo", s.studioLerFluxo)
 	mux.HandleFunc("PUT /api/skills/{nome}/fluxo", s.studioSalvarFluxo)
+	mux.Handle("GET /studio/", studioEstatico(s.studio))
+	mux.Handle("GET /studio", http.RedirectHandler("/studio/", http.StatusMovedPermanently))
 }
 
 // ---- /api/eu ----

@@ -38,7 +38,7 @@ const ITENS_SPA = [
   { rotulo: 'Avançado', destino: '/avancado', Icone: TuneOutlined, visivelPara: (eu) => pode(eu, 'studio.avancado') },
 ] as const satisfies readonly ItemSpa[];
 
-// Fora do SPA: navegação completa, sem o basename do roteador.
+// Fora do SPA: navegação completa, sem o basename das rotas.
 const ITEM_ATENDENTE = { rotulo: 'Atendente', destino: '/console', Icone: HeadsetMicOutlined } satisfies ItemMenu;
 
 type Props = { recolhido: boolean; aoAlternar: () => void };

@@ -44,6 +44,7 @@ import (
 type servidor struct {
 	cat     *okf.Catalogo
 	web     fs.FS
+	studio  fs.FS
 	account string
 	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	log     *log.Logger
@@ -97,7 +98,7 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default()}
+	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", log: log.Default()}
 	var origens []string
 	if mcpCli != nil {
 		origens = append(origens, "MCP "+mcpCli.URL+" ("+mcpModo+")")
@@ -240,15 +241,11 @@ func mcpPath(raw string) string {
 
 func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.Handle("GET /", semCache(http.FileServerFS(s.web)))
+	mux.Handle("GET /{$}", http.RedirectHandler("/studio/", http.StatusFound))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
 
-	mux.HandleFunc("GET /api/anatomia", s.anatomia)
 	mux.HandleFunc("GET /api/agentes", s.arvore)
-	mux.HandleFunc("POST /api/agentes", s.criar)
 	mux.HandleFunc("GET /api/agente", s.agente)
-	mux.HandleFunc("PUT /api/agente/config", s.config)
-	mux.HandleFunc("DELETE /api/agente", s.excluir)
-	mux.HandleFunc("POST /api/agentes/mover", s.mover)
 	mux.HandleFunc("POST /api/agentes/importar", s.importar)
 	mux.HandleFunc("GET /api/agentes/exportar", s.exportar)
 	mux.HandleFunc("GET /api/arquivo", s.lerArquivo)
@@ -263,16 +260,6 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 }
 
 // ---- handlers ------------------------------------------------------------
-
-func (s *servidor) anatomia(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, map[string]any{
-		"caixinhas":    okf.Caixinhas,
-		"tipos_okf":    okf.TiposOKF,
-		"raiz":         []string{okf.AgentYAML, okf.PersonaMD, okf.CasoYAML},
-		"account":      s.account,
-		"nexus_origem": s.nexus,
-	})
-}
 
 func (s *servidor) arvore(w http.ResponseWriter, _ *http.Request) {
 	tree, err := s.cat.Tree()
@@ -355,63 +342,6 @@ func paiRel(rel string) string {
 		return ""
 	}
 	return rel[:i]
-}
-
-func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
-	var n okf.NovoAgente
-	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	rel, mud, err := s.cat.CriarAgente(n)
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 201, map[string]any{"caminho": rel, "mudancas": mud})
-}
-
-func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
-	var corpo struct {
-		Agente string         `json:"agente"`
-		Campos map[string]any `json:"campos"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	if err := s.cat.SalvarConfig(corpo.Agente, corpo.Campos); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"salvo": corpo.Agente})
-}
-
-func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
-	mud, err := s.cat.ExcluirAgente(r.URL.Query().Get("agente"))
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"excluido": r.URL.Query().Get("agente"), "mudancas": mud})
-}
-
-func (s *servidor) mover(w http.ResponseWriter, r *http.Request) {
-	var corpo struct {
-		Origem  string `json:"origem"`
-		Destino string `json:"destino"`
-		Clonar  bool   `json:"clonar"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	rel, mud, err := s.cat.Mover(corpo.Origem, corpo.Destino, corpo.Clonar)
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"caminho": rel, "mudancas": mud})
 }
 
 func (s *servidor) importar(w http.ResponseWriter, r *http.Request) {

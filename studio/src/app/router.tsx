@@ -8,7 +8,7 @@ import { SkillEditorPage } from '@/skills/SkillEditorPage';
 import { SkillsPage } from '@/skills/SkillsPage';
 import { StudioLayout } from './StudioLayout';
 
-export function criarRoteador() {
+export function criarRotas() {
   return createBrowserRouter(
     [
       {

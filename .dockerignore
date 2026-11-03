@@ -8,3 +8,5 @@ okf-admin.log
 okf/var
 okf/**/.rag
 okf/**/__pycache__
+studio/node_modules
+web/studio/dist

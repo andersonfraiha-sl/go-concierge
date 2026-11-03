@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
-import { criarRoteador } from '@/app/router';
+import { criarRotas } from '@/app/router';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
 import { criarTema } from '@/theme/theme';
 
@@ -18,7 +18,7 @@ createRoot(raiz).render(
       <ThemeProvider theme={criarTema()}>
         <CssBaseline />
         <SnackbarProvider>
-          <RouterProvider router={criarRoteador()} />
+          <RouterProvider router={criarRotas()} />
         </SnackbarProvider>
       </ThemeProvider>
     </QueryClientProvider>

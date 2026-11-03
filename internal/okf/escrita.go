@@ -329,8 +329,9 @@ func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string
 	return []string{fmt.Sprintf("agent.yaml: recursos %s %s", map[bool]string{true: "+=", false: "-="}[ligar], nome)}, nil
 }
 
-// ExcluirAgente apaga a pasta (com os subagentes) e tira a rota do pai.
-func (c *Catalogo) ExcluirAgente(agenteRel string) ([]string, error) {
+// excluirAgente apaga a pasta (com os subagentes) e tira a rota do pai. Não trava o
+// catálogo: quem chama é ExcluirSkill, que segura c.mu.
+func (c *Catalogo) excluirAgente(agenteRel string) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err
