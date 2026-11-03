@@ -202,9 +202,16 @@ func FerramentasDesconhecidas(f Fluxo, conhecida func(string) bool) []ProblemaFl
 
 var verbosLeitura = []string{"get-", "list-", "find-", "search-", "read-", "fetch-", "show-", "count-", "check-", "health", "hello", "status"}
 
+// verbosLeituraPT valem como palavra inteira no começo da operação (`listar`, `consultar-dados`,
+// `obter_email`), para "ler" e "ver" não pegarem "lerdo" ou "verificar".
+var verbosLeituraPT = []string{"listar", "consultar", "buscar", "obter", "ler", "ver"}
+
 // EscritaPeloNome("") é true (nome sem verbo de leitura); quem classifica trata recurso vazio antes.
 // EscritaPeloNome deduz pelo último nível do nome (a operação) se a ferramenta grava no sistema.
 func EscritaPeloNome(recurso string) bool {
 	op := strings.ToLower(recurso[strings.LastIndex(recurso, ".")+1:])
-	return !slices.ContainsFunc(verbosLeitura, func(v string) bool { return strings.HasPrefix(op, v) })
+	palavra, _, _ := strings.Cut(strings.ReplaceAll(op, "_", "-"), "-")
+	leitura := slices.ContainsFunc(verbosLeitura, func(v string) bool { return strings.HasPrefix(op, v) }) ||
+		slices.Contains(verbosLeituraPT, palavra)
+	return !leitura
 }
