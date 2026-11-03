@@ -239,6 +239,29 @@ describe('AvancadoPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('renamesProjectionToAssembledPrompt', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    expect(await screen.findByRole('tab', { name: 'Prompt montado' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Projeção' })).not.toBeInTheDocument();
+  });
+
+  it('warnsThatChangesAffectAllCondominios', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    expect(
+      await screen.findByText('Mudanças aqui afetam todos os condomínios'),
+    ).toBeInTheDocument();
+  });
+
+  it('showsLineNumbers', async () => {
+    responderCom(rotas(construtor));
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await screen.findByDisplayValue('Regra antiga');
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
   it('gestorWithGrantReadsOnly', async () => {
     responderCom(rotas(gestorAvancado));
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });

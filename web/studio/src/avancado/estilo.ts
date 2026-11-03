@@ -1,5 +1,7 @@
+import { FONTE_MONO } from '@/theme/tokens';
+
 export const ESTILO_DE_CODIGO = {
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  fontFamily: FONTE_MONO,
   fontSize: 13,
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',

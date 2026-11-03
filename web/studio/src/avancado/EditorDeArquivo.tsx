@@ -1,11 +1,12 @@
 import { Box, Button, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { type Control, useForm, useWatch } from 'react-hook-form';
 import { excluirArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
+import { tokens } from '@/theme/tokens';
 import { mensagemDeErro, useRecarregarAvancado } from './contratos';
 import { ESTILO_DE_CODIGO } from './estilo';
 
@@ -78,20 +79,23 @@ function EditorCarregado({
         )
       }
     >
-      <CampoTexto
-        control={control}
-        name="texto"
-        multiline
-        minRows={16}
-        fullWidth
-        slotProps={{
-          htmlInput: {
-            readOnly: !editar,
-            'aria-label': `Conteúdo de ${caminho}`,
-            style: ESTILO_DE_CODIGO,
-          },
-        }}
-      />
+      <Box sx={{ display: 'flex' }}>
+        <NumerosDeLinha control={control} />
+        <CampoTexto
+          control={control}
+          name="texto"
+          multiline
+          minRows={16}
+          fullWidth
+          slotProps={{
+            htmlInput: {
+              readOnly: !editar,
+              'aria-label': `Conteúdo de ${caminho}`,
+              style: ESTILO_DE_CODIGO,
+            },
+          }}
+        />
+      </Box>
       <ConfirmDialog
         aberto={excluindo}
         titulo={`Excluir ${caminho}?`}
@@ -101,5 +105,33 @@ function EditorCarregado({
         onCancelar={() => setExcluindo(false)}
       />
     </SectionCard>
+  );
+}
+
+type NumerosProps = { control: Control<{ texto: string }> };
+
+// ponytail: a coluna acompanha o número de linhas do texto, não o minRows do
+// campo (que força 16 linhas mínimas); alinhamento pixel a pixel com o
+// textarea, se precisar, pede sincronizar scroll e altura via ref.
+function NumerosDeLinha({ control }: NumerosProps): ReactNode {
+  const texto = useWatch({ control, name: 'texto' });
+  const total = (texto ?? '').split('\n').length;
+  const numeros = Array.from({ length: total }, (_, indice) => indice + 1).join('\n');
+  return (
+    <Typography
+      aria-hidden
+      component="pre"
+      sx={{
+        ...ESTILO_DE_CODIGO,
+        pt: '16.5px',
+        px: 1.5,
+        textAlign: 'right',
+        color: tokens.color.text.muted,
+        borderRight: `1px solid ${tokens.color.border.subtle}`,
+        userSelect: 'none',
+      }}
+    >
+      {numeros}
+    </Typography>
   );
 }

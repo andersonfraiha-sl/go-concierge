@@ -2,6 +2,7 @@ import { Box, Button, Paper, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { type Arquivo, lerModeloDeArquivo, salvarArquivo, useAgente } from '@/catalogo/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
+import { TIPOS, tokens } from '@/theme/tokens';
 import {
   ARQUIVO_DE_CASO,
   ARQUIVO_DE_IDENTIDADE,
@@ -12,13 +13,11 @@ import {
 } from './contratos';
 import { EditorDeArquivo } from './EditorDeArquivo';
 import { ESTILO_DE_CODIGO } from './estilo';
+import { agruparArquivos, type GrupoDeArquivos } from './gruposDeArquivos';
 import { NovoArquivoDialog } from './NovoArquivoDialog';
 import { Problemas } from './ProblemasDoItem';
 
 type Props = { no: NoDaArvore; editar: boolean };
-
-type Entrada = { caminho: string; rotulo?: string; herdado?: boolean };
-type Grupo = { pasta: string; entradas: Entrada[] };
 
 export function ArquivosAba({ no, editar }: Props): ReactNode {
   const agente = useAgente(no.caminho);
@@ -40,7 +39,7 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   }
 
   const { arquivos, herdados, persona, problemas } = agente.data.agente;
-  const grupos = montarGrupos(no, persona !== '', arquivos, herdados);
+  const grupos = agruparArquivos(montarArquivosPorPasta(no, persona !== '', arquivos, herdados));
 
   const criar = async (caminho: string): Promise<void> => {
     try {
@@ -71,7 +70,7 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
             </Button>
           )}
           {grupos.map((grupo) => (
-            <ListaDaPasta key={grupo.pasta} grupo={grupo} aberto={aberto} onAbrir={setAberto} />
+            <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={setAberto} />
           ))}
         </Paper>
         <Box sx={{ flex: 1, minWidth: 320 }}>
@@ -94,60 +93,69 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   );
 }
 
-function montarGrupos(
+/** Arquivos (reais e herdados) de cada pasta, mais os três itens virtuais da raiz. */
+function montarArquivosPorPasta(
   no: NoDaArvore,
   temPersona: boolean,
   arquivos: Record<string, Arquivo[]>,
   herdados: Record<string, Arquivo[]>,
-): Grupo[] {
-  const raiz: Entrada[] = [
-    { caminho: ARQUIVO_DE_IDENTIDADE },
-    ...(temPersona ? [{ caminho: ARQUIVO_DE_PERSONA }] : []),
-    ...(no.caso ? [{ caminho: ARQUIVO_DE_CASO }] : []),
-  ];
+): Record<string, Arquivo[]> {
   const pastas = new Set([...Object.keys(arquivos), ...Object.keys(herdados)]);
-  const dasPastas = [...pastas].map((pasta) => ({
-    pasta,
-    entradas: [
-      ...(arquivos[pasta] ?? []).map((a) => ({ caminho: a.caminho })),
-      ...(herdados[pasta] ?? []).map((a) => ({
-        caminho: a.caminho,
-        herdado: true,
-        rotulo: `${a.caminho} (herdado de ${a.herdado_de ?? 'outro item'})`,
-      })),
-    ],
-  }));
-  return [{ pasta: 'Raiz', entradas: raiz }, ...dasPastas].filter((g) => g.entradas.length > 0);
+  const dasPastas = Object.fromEntries(
+    [...pastas].map((pasta) => [pasta, [...(arquivos[pasta] ?? []), ...(herdados[pasta] ?? [])]]),
+  );
+  return {
+    'agent.yaml': [{ caminho: ARQUIVO_DE_IDENTIDADE, bytes: 0 }],
+    ...(temPersona ? { 'persona.md': [{ caminho: ARQUIVO_DE_PERSONA, bytes: 0 }] } : {}),
+    ...(no.caso ? { 'caso.yaml': [{ caminho: ARQUIVO_DE_CASO, bytes: 0 }] } : {}),
+    ...dasPastas,
+  };
 }
 
-type ListaProps = { grupo: Grupo; aberto: string | null; onAbrir: (caminho: string) => void };
+const rotuloDoArquivo = (arquivo: Arquivo): string =>
+  arquivo.herdado_de ? `${arquivo.caminho} (herdado de ${arquivo.herdado_de})` : arquivo.caminho;
 
-function ListaDaPasta({ grupo, aberto, onAbrir }: ListaProps): ReactNode {
+type ListaProps = {
+  grupo: GrupoDeArquivos;
+  aberto: string | null;
+  onAbrir: (caminho: string) => void;
+};
+
+function ListaDoGrupo({ grupo, aberto, onAbrir }: ListaProps): ReactNode {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary">
-        {grupo.pasta}
+      <Typography
+        sx={{
+          fontSize: TIPOS.overline,
+          fontWeight: 600,
+          color: tokens.color.text.muted,
+          textTransform: 'uppercase',
+          letterSpacing: '.06em',
+        }}
+      >
+        {grupo.grupo}
       </Typography>
-      {grupo.entradas.map((entrada) =>
-        entrada.herdado ? (
-          <Typography key={entrada.caminho} variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
-            {entrada.rotulo}
+      {grupo.arquivos.map((arquivo) =>
+        arquivo.herdado_de ? (
+          <Typography key={arquivo.caminho} variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
+            {rotuloDoArquivo(arquivo)}
           </Typography>
         ) : (
           <Button
-            key={entrada.caminho}
+            key={arquivo.caminho}
             fullWidth
             size="small"
             color="inherit"
-            variant={aberto === entrada.caminho ? 'outlined' : 'text'}
+            variant={aberto === arquivo.caminho ? 'outlined' : 'text'}
             sx={{
               justifyContent: 'flex-start',
               textTransform: 'none',
               fontFamily: ESTILO_DE_CODIGO.fontFamily,
+              fontSize: TIPOS.caption,
             }}
-            onClick={() => onAbrir(entrada.caminho)}
+            onClick={() => onAbrir(arquivo.caminho)}
           >
-            {entrada.caminho}
+            {arquivo.caminho}
           </Button>
         ),
       )}
