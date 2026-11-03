@@ -1118,8 +1118,8 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 		desbloquear := s.bloquearMemoria(contato)
 		m, err := s.Memorias.Ler(ctx, contato)
 		desbloquear()
-		if err != nil && s.Log != nil {
-			s.Log.Printf("atende: memória de %s: %v", contato.Mascarado(), err)
+		if err != nil {
+			slog.WarnContext(ctx, "atende: memória não lida; turno segue sem ela", "operacao", "ler_memoria", "contato", contato.Mascarado(), "erro", err)
 		}
 		mem = m
 		if c := harness.ContextoDeMemoria(mem); c != "" {
@@ -1381,9 +1381,7 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	}
 	fatos, err := ex.Extrair(ctx, mensagem, resposta, *mem)
 	if err != nil {
-		if s.Log != nil {
-			s.Log.Printf("atende: WARN extrator de memória: %v", err)
-		}
+		slog.WarnContext(ctx, "atende: extrator de memória falhou", "operacao", "extrair_memoria", "sessao", sess.ID, "erro", err)
 		return nil
 	}
 	contato := sess.contato()
@@ -1394,9 +1392,7 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	}
 	memAtual, err := s.Memorias.Ler(ctx, contato)
 	if err != nil {
-		if s.Log != nil {
-			s.Log.Printf("atende: leitura da memória para mesclagem: %v", err)
-		}
+		slog.WarnContext(ctx, "atende: memória não lida para mesclagem", "operacao", "mesclar_memoria", "contato", contato.Mascarado(), "erro", err)
 		return nil
 	}
 	*mem = memAtual
@@ -1417,8 +1413,8 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 		}
 	}
 	if len(novos) > 0 {
-		if err := s.Memorias.Gravar(ctx, contato, *mem); err != nil && s.Log != nil {
-			s.Log.Printf("atende: gravar memória: %v", err)
+		if err := s.Memorias.Gravar(ctx, contato, *mem); err != nil {
+			slog.ErrorContext(ctx, "atende: memória não gravada", "operacao", "gravar_memoria", "contato", contato.Mascarado(), "erro", err)
 		}
 	}
 	return novos
