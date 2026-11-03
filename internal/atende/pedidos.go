@@ -225,6 +225,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		turnos = append(turnos, turno)
 	}
 	tocados := map[string]*pedidos.Pedido{}
+	trechos := map[string]string{} // o que o morador disse sobre cada pedido, neste turno
 	var cancelados []string
 
 	for _, c := range extracao.Confirmacoes {
@@ -294,6 +295,9 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			consumida = true
 		}
 		tocados[p.Protocolo] = p
+		if t := strings.TrimSpace(pe.Trecho); t != "" {
+			trechos[p.Protocolo] = t
+		}
 	}
 	// a mensagem inteira foi a resposta a um pedido ("sim", "salão"): não há restante
 	if consumida && normalizar(extracao.Restante) == normalizar(texto) {
@@ -348,9 +352,15 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			partes = append(partes, "Não consegui concluir "+strings.ToLower(p.CasoNome)+": "+saida.Texto+".")
 			precisaRedigir = true
 		case "formulario":
-			// o caso tem formulário dinâmico: segue pelo subagente conversacional
+			// o caso tem formulário dinâmico: segue pelo subagente conversacional, que
+			// recebe só a parte da mensagem que é dele (numa mensagem com dois pedidos, o
+			// subagente não deve ver, nem responder por, o outro)
+			fala := trechos[p.Protocolo]
+			if fala == "" || len(extracao.Pedidos) <= 1 {
+				fala = texto
+			}
 			if sub, ok := ag.Subagentes[p.Agente]; ok {
-				r, err := harness.Run(ctx, sub, texto, historico)
+				r, err := harness.Run(ctx, sub, fala, historico)
 				if err != nil {
 					partes = append(partes, "Não consegui seguir com "+strings.ToLower(p.CasoNome)+".")
 				} else {

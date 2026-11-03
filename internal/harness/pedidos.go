@@ -52,7 +52,7 @@ func NovoExtratorPedidos(ctx context.Context, cfg Config) pedidos.Extrator {
 const promptPedidos = `Você é o detector de PEDIDOS do concierge de um condomínio (WhatsApp). Dada a mensagem do
 morador, os casos de uso disponíveis (com os parâmetros de cada um) e os pedidos já abertos
 deste morador, diga SÓ o que a mensagem contém. Responda SÓ com JSON:
-{"pedidos":[{"protocolo":"P-XXXXX se for um pedido aberto, senão vazio","caso":"id do caso","valores":{"slot":"valor"}}],
+{"pedidos":[{"protocolo":"P-XXXXX se for um pedido aberto, senão vazio","caso":"id do caso","valores":{"slot":"valor"},"trecho":"as palavras do morador sobre ESTE pedido"}],
  "confirmacoes":[{"protocolo":"P-XXXXX","resposta":"sim|nao"}],
  "cancelar":["P-XXXXX"],
  "atendente":false,
@@ -62,6 +62,11 @@ Regras:
   consultar). PERGUNTA sobre regra, permissão ou horário ("posso?", "pode?", "é permitido?",
   "até que horas?") NÃO é pedido: vai em restante, com as palavras do morador;
 - um pedido por intenção; vários pedidos numa mensagem viram vários itens, na ordem;
+- trecho: copie as palavras do morador que falam DESTE pedido (numa mensagem com dois pedidos,
+  cada item leva só a sua parte; nunca a mensagem inteira em todos);
+- só abra um pedido quando um caso de fato cobre o que o morador quer. Serviço que nenhum caso
+  oferece (ex.: cadastrar um novo morador, se não há caso para isso) NÃO vira pedido do caso
+  "parecido": vai em restante, com as palavras do morador, para o concierge explicar;
 - se existe um pedido ABERTO do mesmo caso, use o protocolo dele (não abra outro) e ponha em
   valores só o que a mensagem traz; a resposta a uma pergunta em aberto vai no slot da pergunta;
 - valores: use o nome EXATO do slot; datas em AAAA-MM-DD (hoje é %s, amanhã é %s); opções pelo valor ou rótulo;
