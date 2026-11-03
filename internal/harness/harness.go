@@ -69,8 +69,8 @@ type Config struct {
 	// tools/call, com o token do cliente; nil = esses recursos ficam indisponíveis.
 	MCP           mcp.Caller
 	MCPResultados map[string]any
-	// Identidade do morador nesta execução; o zero é o contato público na account
-	// padrão (DEFAULT_ACCOUNT_ID, senão cond-001).
+	// Identidade do morador nesta execução. Sem AccountID nenhum recurso do Nexus é
+	// chamado: quem monta a Config (o atendimento, pelo condomínio; o okf-run) a define.
 	Identidade Identidade
 	// Sessao identifica a conversa (protocolo) na chave de idempotência; vazio = "local".
 	Sessao string
@@ -103,24 +103,11 @@ type Identidade struct {
 	Role          string `json:"role,omitempty"`
 }
 
-const accountPadrao = "cond-001"
-
 func (c Config) env(k string) string {
 	if c.Env != nil {
 		return c.Env(k)
 	}
 	return os.Getenv(k)
-}
-
-// account é a account em vigor: da identidade, senão DEFAULT_ACCOUNT_ID, senão cond-001.
-func (c Config) account() string {
-	if c.Identidade.AccountID != "" {
-		return c.Identidade.AccountID
-	}
-	if v := strings.TrimSpace(c.env("DEFAULT_ACCOUNT_ID")); v != "" {
-		return v
-	}
-	return accountPadrao
 }
 
 func (c Config) sessao() string {

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"go-concierge/internal/banco/bancotest"
+	"go-concierge/internal/escopo"
 )
 
 func TestMain(m *testing.M) {
@@ -42,14 +43,14 @@ func testarRepositorio(t *testing.T, novo func(t *testing.T) Repositorio) {
 	t.Run("escritas simultaneas", func(t *testing.T) { cenarioEscritasSimultaneas(t, novo(t)) })
 }
 
-// cenarioOrdem: administradoras por id; condomínios por nome e, no empate, por id. Resolver
+// cenarioOrdem: administradoras por id; condomínios por nome e, no empate, por id. ResolverCondominio
 // devolve o primeiro que casa, então a ordem decide o condomínio.
 func cenarioOrdem(t *testing.T, r Repositorio) {
 	ctx := t.Context()
 	ok := exigir(t)
 	ok(r.SalvarAdministradora(ctx, Administradora{ID: "adm-z", Nome: "Aaa"}))
 	ok(r.SalvarAdministradora(ctx, Administradora{ID: "adm-a", Nome: "Zzz"}))
-	for _, c := range []Condominio{{ID: "c-z", Nome: "Mesmo", Account: "acc"}, {ID: "c-a", Nome: "Mesmo", Account: "acc"}, {ID: "c-m", Nome: "Alfa"}} {
+	for _, c := range []Condominio{{ID: "c-z", Nome: "Mesmo", Administradora: "adm-a", Account: "acc", CompanyID: "1", Tenant: "t"}, {ID: "c-a", Nome: "Mesmo", Administradora: "adm-a", Account: "acc", CompanyID: "2", Tenant: "t"}, {ID: "c-m", Nome: "Alfa"}} {
 		ok(r.SalvarCondominio(ctx, c))
 	}
 	m := ok(r.Ler(ctx))
@@ -64,8 +65,8 @@ func cenarioOrdem(t *testing.T, r Repositorio) {
 	if !slices.Equal(adms, []string{"adm-a", "adm-z"}) || !slices.Equal(condos, []string{"c-m", "c-a", "c-z"}) {
 		t.Fatalf("ordem: administradoras %v, condomínios %v", adms, condos)
 	}
-	if c, _ := m.Resolver("", "", "acc"); c.ID != "c-a" {
-		t.Fatalf("empate de account resolve pelo menor id: %s", c.ID)
+	if c, err := ResolverCondominio(m, escopo.Implantacao{}, "", "t"); err != nil || c.ID != "c-a" {
+		t.Fatalf("empate de tenant na mesma administradora resolve pelo menor id: %s %v", c.ID, err)
 	}
 }
 
@@ -140,14 +141,8 @@ func cenarioMapeamento(t *testing.T, r Repositorio) {
 	ok(r.SalvarPayload(ctx, "cond-x", "unidades.listar", map[string]any{"company_id": "5982"}))
 
 	m := ok(r.Ler(ctx))
-	if c, achou := m.Resolver("5982", "", ""); !achou || c.ID != "cond-x" || c.Account != "cond-001" || c.Tenant != "t1" {
-		t.Fatalf("resolver por company: %+v %v", c, achou)
-	}
-	if c, achou := m.Resolver("", "t1", ""); !achou || c.ID != "cond-x" {
-		t.Fatal("resolver por tenant")
-	}
-	if _, achou := m.Resolver("999", "nao", "nao"); achou {
-		t.Fatal("sem casar deveria ser false")
+	if c, achou := m.Condominio("cond-x"); !achou || c.Account != "cond-001" || c.CompanyID != "5982" || c.Tenant != "t1" {
+		t.Fatalf("condomínio gravado: %+v %v", c, achou)
 	}
 	if !m.Habilitado("cond-x", "liberacao_visitante", "morador") {
 		t.Fatal("sem entrada = habilitado")

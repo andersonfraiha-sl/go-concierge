@@ -10,6 +10,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,6 +34,7 @@ import (
 	"go-concierge/internal/atende"
 	"go-concierge/internal/banco"
 	"go-concierge/internal/env"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
@@ -69,6 +71,7 @@ type servidor struct {
 	provedor            string
 	memorias            memoria.Store
 	admin               admin.Repositorio
+	implantacao         escopo.Implantacao // ADMINISTRADORA_ID: o processo atende só essa (vazia = todas)
 	banco               banco.Banco
 }
 
@@ -116,7 +119,8 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db}
+	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
+		implantacao: escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))}}
 	var origens []string
 	if mcpCli != nil {
 		origens = append(origens, "MCP "+mcpCli.URL+" ("+mcpModo+")")
@@ -166,7 +170,7 @@ func main() {
 	}
 	s.memorias = memoria.NewArquivos(env.Ou("MEMORIAS_DIR", filepath.Join(cat.Root, "var", "memorias")))
 	s.atende = &atende.Servico{
-		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,
+		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
@@ -180,9 +184,12 @@ func main() {
 		s.atende.ExtratorPedidos = harness.NovoExtratorPedidos(context.Background(), cfgHarness)
 	}
 
-	// Admin da administradora: mapeamento condomínio × casos de uso × payloads
+	// Admin das administradoras: mapeamento condomínio × casos de uso × payloads. O
+	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev. Sem
+	// GRUVI_COMPANY_ID ele ganha a company "exemplo": condomínio sem company não é atendido,
+	// e sem Gruvi configurado a identidade não é consultada.
 	s.admin = admin.NovoPostgres(db.Ent)
-	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
+	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
 	if err := semearMapeamento(s.admin, os.Getenv("AMBIENTE"), exemplo); err != nil {
 		log.Fatal(err)
 	}

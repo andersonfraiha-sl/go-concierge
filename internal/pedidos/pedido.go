@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 const (
@@ -44,13 +47,14 @@ const (
 
 // Pedido é um caso de uso em andamento para um contato.
 type Pedido struct {
-	Protocolo string `json:"protocolo"`
-	Account   string `json:"account"`
-	Telefone  string `json:"telefone"`
-	Caso      string `json:"caso"`      // id do caso.yaml
-	CasoNome  string `json:"caso_nome"` // name do caso.yaml
-	Agente    string `json:"agente"`    // pasta do subagente (nome), para as permissões
-	Estado    string `json:"estado"`
+	Protocolo        string `json:"protocolo"`
+	AdministradoraID string `json:"administradora_id"`
+	CondominioID     string `json:"condominio_id"` // o condomínio da conversa que abriu o pedido
+	Telefone         string `json:"telefone"`
+	Caso             string `json:"caso"`      // id do caso.yaml
+	CasoNome         string `json:"caso_nome"` // name do caso.yaml
+	Agente           string `json:"agente"`    // pasta do subagente (nome), para as permissões
+	Estado           string `json:"estado"`
 	// Valores são os parâmetros normalizados (slot → valor); Rotulos, o texto humano de
 	// cada um; Origens, quem informou (morador | atendente | sistema | memoria).
 	Valores map[string]any    `json:"valores"`
@@ -192,10 +196,10 @@ func (p *Pedido) Faltando(c *Contrato) []*Slot {
 // ---- carteira: os pedidos de um contato ----------------------------------------------
 
 type Carteira struct {
-	Account      string    `json:"account"`
-	Telefone     string    `json:"telefone"`
-	Pedidos      []*Pedido `json:"pedidos"`
-	AtualizadaEm time.Time `json:"atualizada_em"`
+	AdministradoraID string    `json:"administradora_id"`
+	Telefone         string    `json:"telefone"`
+	Pedidos          []*Pedido `json:"pedidos"`
+	AtualizadaEm     time.Time `json:"atualizada_em"`
 }
 
 func (c *Carteira) Abertos() []*Pedido {
@@ -244,9 +248,10 @@ func (c *Carteira) AbertoDoCaso(caso string) *Pedido {
 	return nil
 }
 
-// Novo abre um pedido para o caso, com protocolo aleatório único na carteira.
-func (c *Carteira) Novo(ct *Contrato, agente string, origem Origem) *Pedido {
-	p := &Pedido{Account: c.Account, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
+// Novo abre um pedido para o caso, no condomínio da conversa, com protocolo aleatório
+// único na carteira.
+func (c *Carteira) Novo(ct *Contrato, agente, condominioID string, origem Origem) *Pedido {
+	p := &Pedido{AdministradoraID: c.AdministradoraID, CondominioID: condominioID, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
 		Valores: map[string]any{}, Rotulos: map[string]string{}, Origens: map[string]string{}, Dados: map[string]any{}, Origem: origem, CriadoEm: time.Now()}
 	for {
 		p.Protocolo = NovoProtocolo()
@@ -287,12 +292,12 @@ func NovoProtocolo() string {
 // ---- armazenamento ----------------------------------------------------------------------
 
 type Store interface {
-	Ler(ctx context.Context, account, telefone string) (Carteira, error)
-	Gravar(ctx context.Context, c Carteira) error
-	Listar(ctx context.Context, account string) ([]Carteira, error)
+	Ler(ctx context.Context, c escopo.Contato) (Carteira, error)
+	Gravar(ctx context.Context, c escopo.Contato, cart Carteira) error
+	Listar(ctx context.Context, administradoraID string) ([]Carteira, error)
 }
 
-// Arquivos guarda uma carteira por telefone em <dir>/<account>/<telefone>.json.
+// Arquivos guarda uma carteira por contato em <dir>/<administradora>/<telefone>.json.
 type Arquivos struct {
 	Dir string
 	mu  sync.Mutex
@@ -302,88 +307,117 @@ func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
 
 var naoDigitos = regexp.MustCompile(`\D+`)
 
-// NormalizarTelefone deixa só os dígitos.
-func NormalizarTelefone(t string) string { return naoDigitos.ReplaceAllString(t, "") }
+var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
-var naoChave = regexp.MustCompile(`[^a-z0-9_-]+`)
-
-func (a *Arquivos) caminho(account, telefone string) (string, error) {
-	tel := naoDigitos.ReplaceAllString(telefone, "")
-	if tel == "" {
-		return "", errors.New("pedidos: telefone vazio")
+func (a *Arquivos) pasta(administradoraID string) (string, error) {
+	if !escopo.AdministradoraValida(administradoraID) {
+		return "", fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
 	}
-	acc := naoChave.ReplaceAllString(strings.ToLower(strings.TrimSpace(account)), "")
-	if acc == "" {
-		acc = "default"
-	}
-	return filepath.Join(a.Dir, acc, tel+".json"), nil
+	return filepath.Join(a.Dir, administradoraID), nil
 }
 
-func (a *Arquivos) Ler(_ context.Context, account, telefone string) (Carteira, error) {
-	c := Carteira{Account: account, Telefone: naoDigitos.ReplaceAllString(telefone, "")}
-	p, err := a.caminho(account, telefone)
+func (a *Arquivos) caminho(c escopo.Contato) (string, error) {
+	pasta, err := a.pasta(c.AdministradoraID)
 	if err != nil {
-		return c, err
+		return "", err
+	}
+	if c.Telefone == "" {
+		return "", errContatoInvalido
+	}
+	return filepath.Join(pasta, c.Telefone+".json"), nil
+}
+
+func (a *Arquivos) Ler(_ context.Context, c escopo.Contato) (Carteira, error) {
+	p, err := a.caminho(c)
+	if err != nil {
+		return Carteira{}, err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	raw, err := os.ReadFile(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return c, nil
-	}
-	if err != nil {
-		return c, err
-	}
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return c, fmt.Errorf("pedidos: %s: %w", p, err)
-	}
-	return c, nil
+	return lerArquivo(p, c)
 }
 
-func (a *Arquivos) Gravar(_ context.Context, c Carteira) error {
-	p, err := a.caminho(c.Account, c.Telefone)
+func lerArquivo(p string, c escopo.Contato) (Carteira, error) {
+	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}
+	raw, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return cart, nil
+	}
+	if err != nil {
+		return cart, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), semCaminho(err))
+	}
+	if err := json.Unmarshal(raw, &cart); err != nil {
+		return cart, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err)
+	}
+	return cart, nil
+}
+
+// Gravar guarda a carteira sob o contato: a administradora e o telefone são os dele.
+func (a *Arquivos) Gravar(_ context.Context, c escopo.Contato, cart Carteira) error {
+	p, err := a.caminho(c)
 	if err != nil {
 		return err
 	}
-	c.AtualizadaEm = time.Now()
-	raw, err := json.MarshalIndent(c, "", "  ")
+	cart.AdministradoraID, cart.Telefone = c.AdministradoraID, c.Telefone
+	cart.AtualizadaEm = time.Now()
+	raw, err := json.MarshalIndent(cart, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("codificar pedidos de %s: %w", c.Mascarado(), err)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return err
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
 	}
-	return os.Rename(tmp, p)
+	if err := os.Rename(tmp, p); err != nil {
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
+	}
+	return nil
 }
 
-func (a *Arquivos) Listar(ctx context.Context, account string) ([]Carteira, error) {
-	acc := naoChave.ReplaceAllString(strings.ToLower(strings.TrimSpace(account)), "")
-	if acc == "" {
-		acc = "default"
+// semCaminho tira do erro de arquivo o caminho, que tem o telefone; quem embrulha
+// identifica o contato mascarado.
+func semCaminho(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return fmt.Errorf("%s: %w", pe.Op, pe.Err)
 	}
-	entradas, err := os.ReadDir(filepath.Join(a.Dir, acc))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+	var le *os.LinkError
+	if errors.As(err, &le) {
+		return fmt.Errorf("%s: %w", le.Op, le.Err)
 	}
+	return err
+}
+
+func (a *Arquivos) Listar(_ context.Context, administradoraID string) ([]Carteira, error) {
+	pasta, err := a.pasta(administradoraID)
 	if err != nil {
 		return nil, err
 	}
-	var out []Carteira
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	entradas, err := os.ReadDir(pasta)
+	if errors.Is(err, os.ErrNotExist) {
+		return []Carteira{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("listar pedidos %s: %w", pasta, err)
+	}
+	out := []Carteira{}
 	for _, e := range entradas {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		c, err := a.Ler(ctx, account, strings.TrimSuffix(e.Name(), ".json"))
+		c := escopo.Contato{AdministradoraID: administradoraID, Telefone: strings.TrimSuffix(e.Name(), ".json")}
+		cart, err := lerArquivo(filepath.Join(pasta, e.Name()), c)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		out = append(out, c)
+		out = append(out, cart)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].AtualizadaEm.After(out[j].AtualizadaEm) })
 	return out, nil

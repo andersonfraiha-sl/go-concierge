@@ -26,6 +26,23 @@
     toastTimer = setTimeout(() => (t.hidden = true), isError ? 7000 : 3500);
   }
 
+  // ---- condomínio emulado --------------------------------------------------------
+  // o seletor vem do mapeamento (GET /api/admin/estado); o condomínio vai ao emulador e
+  // a administradora dele às rotas de memória e pedidos
+  const condominioEscolhido = () => $('#formContato').condominio.value;
+  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || '';
+  const comAdministradora = (caminho) => caminho + (caminho.includes('?') ? '&' : '?') + 'administradora=' + encodeURIComponent(administradora());
+  async function carregarCondominios() {
+    try {
+      const r = await api('/api/admin/estado');
+      const nomes = Object.fromEntries((r.administradoras || []).map((a) => [a.id, a.nome]));
+      const condos = (r.mapeamento.condominios || []).filter((c) => c.administradora_id);
+      const sel = $('#formContato').condominio;
+      sel.innerHTML = '<option value="">nenhum (usa o tenant abaixo)</option>' + condos.map((c) => `<option value="${esc(c.id)}" data-adm="${esc(c.administradora_id)}">${esc(c.nome)} · ${esc(nomes[c.administradora_id] || c.administradora_id)}</option>`).join('');
+      if (condos.length) sel.value = condos[0].id;
+    } catch (err) { toast(err.message, true); }
+  }
+
   // ---- protocolo e evento -----------------------------------------------------
   const novoProtocolo = () => String(Date.now()).slice(-9).padStart(9, '0') + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16); }));
@@ -81,7 +98,8 @@
     digitando(true);
     $('#btnEnviar').disabled = true;
     try {
-      const recebido = await api('/emulador/atende/webhook', { method: 'POST', body: JSON.stringify(ev) });
+      const cond = condominioEscolhido();
+      const recebido = await api('/emulador/atende/webhook' + (cond ? '?condominio=' + encodeURIComponent(cond) : ''), { method: 'POST', body: JSON.stringify(ev) });
       estado.sessaoID = recebido.session_id || estado.sessaoID;
       await acompanhar();
     } catch (err) { toast(err.message, true); digitando(false); }
@@ -239,7 +257,7 @@
     const phone = $('#formContato').phone.value.trim();
     if (!phone) return;
     try {
-      const r = await api('/api/pedidos?phone=' + encodeURIComponent(phone));
+      const r = await api(comAdministradora('/api/pedidos?phone=' + encodeURIComponent(phone)));
       estado.carteira = r.ligado ? r.carteira : null;
       estado.slotsPedidos = r.slots || {};
       desenharPedidos(r);
@@ -256,8 +274,8 @@
     const abertos = peds.filter((p) => !['concluido', 'cancelado', 'falhou'].includes(p.estado)).length;
     $('#badgePedidos').hidden = !abertos; $('#badgePedidos').textContent = abertos;
     const tel = encodeURIComponent($('#formContato').phone.value.trim());
-    $('#btnExportarCsv').href = '/api/pedidos/exportar?formato=csv&phone=' + tel;
-    $('#btnExportarJson').href = '/api/pedidos/exportar?formato=json&phone=' + tel;
+    $('#btnExportarCsv').href = comAdministradora('/api/pedidos/exportar?formato=csv&phone=' + tel);
+    $('#btnExportarJson').href = comAdministradora('/api/pedidos/exportar?formato=json&phone=' + tel);
     $('#pedidosResumo').textContent = peds.length ? `${peds.length} pedido(s) · ${abertos} em aberto · telefone ${$('#formContato').phone.value.trim()}` : '';
     if (!peds.length) { el.innerHTML = '<div class="empty-state"><i data-lucide="clipboard-list"></i>nenhum pedido deste telefone ainda</div>'; icons(); return; }
     const quando = (d) => (d ? new Date(d).toLocaleString('pt-BR') : '—');
@@ -285,11 +303,11 @@
     }).join('');
     $$('#pedidosLista [data-cancelar]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm('Cancelar o pedido ' + b.dataset.cancelar + '?')) return;
-      try { await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'cancelar', phone: $('#formContato').phone.value.trim(), pedido: b.dataset.cancelar, atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', motivo: 'cancelado pelo Console' }) }); estado.chavePedidos = ''; carregarPedidos(); toast('pedido cancelado'); } catch (err) { toast(err.message, true); }
+      try { await api(comAdministradora('/api/pedidos/acao'), { method: 'POST', body: JSON.stringify({ acao: 'cancelar', phone: $('#formContato').phone.value.trim(), pedido: b.dataset.cancelar, atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', motivo: 'cancelado pelo Console' }) }); estado.chavePedidos = ''; carregarPedidos(); toast('pedido cancelado'); } catch (err) { toast(err.message, true); }
     }));
     $$('#pedidosLista [data-remover]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm('Remover o pedido ' + b.dataset.remover + ' do registro? Ele some da lista e da exportação.')) return;
-      try { await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'remover', phone: $('#formContato').phone.value.trim(), pedido: b.dataset.remover }) }); estado.chavePedidos = ''; carregarPedidos(); toast('pedido removido'); } catch (err) { toast(err.message, true); }
+      try { await api(comAdministradora('/api/pedidos/acao'), { method: 'POST', body: JSON.stringify({ acao: 'remover', phone: $('#formContato').phone.value.trim(), pedido: b.dataset.remover }) }); estado.chavePedidos = ''; carregarPedidos(); toast('pedido removido'); } catch (err) { toast(err.message, true); }
     }));
     icons();
   }
@@ -337,7 +355,7 @@
     const phone = $('#formContato').phone.value.trim();
     if (!phone) return;
     try {
-      const r = await api('/api/memoria?phone=' + encodeURIComponent(phone));
+      const r = await api(comAdministradora('/api/memoria?phone=' + encodeURIComponent(phone)));
       desenharMemoria(r.memoria);
     } catch (err) { /* silencioso */ }
   }
@@ -353,11 +371,12 @@
     $('#memoriaTabela').innerHTML = `<table class="res-table larga kv"><thead><tr><th>Chave</th><th>Valor</th><th>Origem</th><th>Quando</th><th></th></tr></thead><tbody>${meta.map(([k, v]) => `<tr class="kv-meta"><td><code>${esc(k)}</code></td><td>${esc(v)}</td><td>contato</td><td></td><td></td></tr>`).join('')}${fatos.length
       ? fatos.map((f) => `<tr><td><code>${esc(f.chave)}</code></td><td><b>${esc(f.texto)}</b></td><td class="mono muted">${f.fonte ? 'protocolo ' + esc(f.fonte) : '—'}</td><td class="muted">${quando(f.quando)}${f.confianca ? ` · conf. ${f.confianca.toFixed(2)}` : ''}</td><td class="acoes"><button class="vote no" title="esquecer" data-chave="${esc(f.chave)}"><i data-lucide="x"></i></button></td></tr>`).join('')
       : '<tr><td colspan="5"><div class="empty-state" style="padding:14px"><i data-lucide="brain"></i>nenhum fato guardado para este telefone ainda</div></td></tr>'}</tbody></table>${fatos.length ? '<div class="form-actions" style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="btnEsquecerTudo"><i data-lucide="eraser" class="i-sm"></i>Esquecer tudo</button></div>' : ''}`;
-    $$('#memoriaTabela button[data-chave]').forEach((b) => b.addEventListener('click', async () => { try { const r = await api(`/api/memoria?phone=${encodeURIComponent(phone())}&chave=${encodeURIComponent(b.dataset.chave)}`, { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('esquecido: ' + b.dataset.chave); } catch (err) { toast(err.message, true); } }));
-    $('#btnEsquecerTudo')?.addEventListener('click', async () => { if (!confirm('Apagar toda a memória deste contato?')) return; try { const r = await api('/api/memoria?phone=' + encodeURIComponent(phone()), { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('memória apagada'); } catch (err) { toast(err.message, true); } });
+    $$('#memoriaTabela button[data-chave]').forEach((b) => b.addEventListener('click', async () => { try { const r = await api(comAdministradora(`/api/memoria?phone=${encodeURIComponent(phone())}&chave=${encodeURIComponent(b.dataset.chave)}`), { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('esquecido: ' + b.dataset.chave); } catch (err) { toast(err.message, true); } }));
+    $('#btnEsquecerTudo')?.addEventListener('click', async () => { if (!confirm('Apagar toda a memória deste contato?')) return; try { const r = await api(comAdministradora('/api/memoria?phone=' + encodeURIComponent(phone())), { method: 'DELETE' }); estado.chaveMemoria = ''; desenharMemoria(r.memoria); toast('memória apagada'); } catch (err) { toast(err.message, true); } });
     icons();
   }
   $('#formContato').phone.addEventListener('change', () => { carregarMemoria(); carregarPedidos(); });
+  $('#formContato').condominio.addEventListener('change', () => { estado.chaveMemoria = estado.chavePedidos = ''; carregarMemoria(); carregarPedidos(); });
 
   async function identificar() {
     const phone = $('#formContato').phone.value.trim();
@@ -373,7 +392,7 @@
   async function carregarSessoes() {
     try {
       const r = await api('/api/atende/sessoes');
-      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
+      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}" data-condominio="${esc(s.condominio || '')}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
       // lixeira: apaga a conversa no servidor; se era a aberta, começa uma nova
       $$('#sessoes .sub-del').forEach((b) => b.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -386,7 +405,7 @@
       }));
       $$('#sessoes .sub').forEach((d) => d.addEventListener('click', async () => {
         const f = $('#formContato');
-        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant;
+        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant; if (d.dataset.condominio) f.condominio.value = d.dataset.condominio;
         const r2 = await api('/api/atende/sessao?id=' + encodeURIComponent(d.dataset.id));
         estado.sessao = r2.sessao;
         estado.recebidas = r2.recebidas || [];
@@ -432,6 +451,6 @@
 
   icons();
   novaConversa();
-  const configCarregada = carregarConfig();
+  const configCarregada = Promise.all([carregarConfig(), carregarCondominios()]);
   configCarregada.then(() => { carregarMemoria(); carregarPedidos(); });
 })();

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/pedidos"
 )
@@ -82,11 +83,11 @@ type storePedidosFalho struct {
 	falhar bool
 }
 
-func (s *storePedidosFalho) Gravar(ctx context.Context, c pedidos.Carteira) error {
+func (s *storePedidosFalho) Gravar(ctx context.Context, contato escopo.Contato, c pedidos.Carteira) error {
 	if s.falhar {
 		return errors.New("gravação indisponível")
 	}
-	return s.Store.Gravar(ctx, c)
+	return s.Store.Gravar(ctx, contato, c)
 }
 
 func TestFalhaAoSalvarVisitaNaoPermiteRepetirEscrita(t *testing.T) {
@@ -172,7 +173,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("escrita em andamento não foi interrompida")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +414,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("entrega inicial não iniciou")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", msg.Contato.Phone)
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil || len(cart.Pedidos) != 1 {
 		t.Fatalf("pedido não encontrado: %v", err)
 	}
@@ -428,6 +429,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	sessB.mu.Lock()
 	sessB.Identidade = identidade
 	sessB.mu.Unlock()
+	sessB.fixarContato(sessA.contato(), sessA.companyDoCondominio())
 	_, p, saida, err := svc.PreencherPedido(context.Background(), sessB.ID, prot, "Ana", map[string]any{"visitante_telefone": "5511888888888"}, true)
 	if err != nil || saida.Tipo != "confirmar" || p.Confirmacao == nil {
 		t.Fatalf("dados alterados deveriam exigir nova confirmação: %+v %v", saida, err)
@@ -441,7 +443,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("entrega inicial não terminou")
 	}
-	cart, err = svc.Pedidos.Ler(context.Background(), "cond-001", msg.Contato.Phone)
+	cart, err = svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -481,7 +483,7 @@ func TestFechamentoDuranteEscritaManualPreservaEstadoIncerto(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("escrita manual não encerrou")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,7 +531,7 @@ func TestConfirmacaoLegadaSemMarcadoresContinuaValida(t *testing.T) {
 	svc.ExtratorPedidos = extratorVisitaMCP()
 	sess := falar(t, svc, "legado-1", "quero liberar Ana Souza hoje")
 	prot := ultimoConcierge(sess).Pedidos[0].Protocolo
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +541,7 @@ func TestConfirmacaoLegadaSemMarcadoresContinuaValida(t *testing.T) {
 	}
 	p.Confirmacao.Entregue = nil
 	p.Confirmacao.Valores = nil
-	if err := svc.Pedidos.Gravar(context.Background(), cart); err != nil {
+	if err := svc.Pedidos.Gravar(context.Background(), contatoDeTeste(t, "adm-a"), cart); err != nil {
 		t.Fatal(err)
 	}
 	falar(t, svc, "legado-2", "sim")

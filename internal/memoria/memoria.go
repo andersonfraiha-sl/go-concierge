@@ -4,7 +4,7 @@
 // Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
 // volta ao prompt em toda conversa seguinte daquele telefone.
 //
-// Hoje o armazenamento é um JSON por contato (okf/var/memorias/<account>/<telefone>.json);
+// Hoje o armazenamento é um JSON por contato (okf/var/memorias/<administradora>/<telefone>.json);
 // a interface Store permite trocar por Postgres ou pelo recurso `memory` do Nexus.
 package memoria
 
@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,26 +21,30 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 // Fato é uma coisa durável sobre a pessoa, identificada por uma chave estável
 // (unidades, nome_preferido, pets, veiculo, horario_preferido…). A mesma chave
 // substitui o fato anterior.
 type Fato struct {
-	Chave     string    `json:"chave"`
-	Texto     string    `json:"texto"`
-	Fonte     string    `json:"fonte,omitempty"` // agente e protocolo que capturou
-	Quando    time.Time `json:"quando"`
-	Confianca float64   `json:"confianca,omitempty"`
+	Chave string `json:"chave"`
+	Texto string `json:"texto"`
+	Fonte string `json:"fonte,omitempty"` // agente e protocolo que capturou
+	// CondominioID: o condomínio da conversa em que o fato foi capturado.
+	CondominioID string    `json:"condominio_id,omitempty"`
+	Quando       time.Time `json:"quando"`
+	Confianca    float64   `json:"confianca,omitempty"`
 }
 
-// Memoria é o que o concierge sabe de um contato.
+// Memoria é o que o concierge sabe de um contato dentro de uma administradora.
 type Memoria struct {
-	Account      string    `json:"account"`
-	Telefone     string    `json:"telefone"`
-	Nome         string    `json:"nome,omitempty"`
-	Fatos        []Fato    `json:"fatos"`
-	AtualizadaEm time.Time `json:"atualizada_em"`
+	AdministradoraID string    `json:"administradora_id"`
+	Telefone         string    `json:"telefone"`
+	Nome             string    `json:"nome,omitempty"`
+	Fatos            []Fato    `json:"fatos"`
+	AtualizadaEm     time.Time `json:"atualizada_em"`
 }
 
 // Upsert põe ou substitui um fato pela chave. Devolve true se algo mudou.
@@ -107,19 +112,14 @@ func NormalizarChave(s string) string {
 	return strings.Trim(s, "_")
 }
 
-var naoDigitos = regexp.MustCompile(`\D`)
-
-// NormalizarTelefone: só dígitos.
-func NormalizarTelefone(t string) string { return naoDigitos.ReplaceAllString(t, "") }
-
-// Store guarda memórias por account e telefone.
+// Store guarda memórias por contato (administradora e telefone).
 type Store interface {
-	Ler(ctx context.Context, account, telefone string) (Memoria, error)
-	Gravar(ctx context.Context, m Memoria) error
-	Listar(ctx context.Context, account string) ([]Memoria, error)
+	Ler(ctx context.Context, c escopo.Contato) (Memoria, error)
+	Gravar(ctx context.Context, c escopo.Contato, m Memoria) error
+	Listar(ctx context.Context, administradoraID string) ([]Memoria, error)
 }
 
-// Arquivos é o Store em JSON: <Dir>/<account>/<telefone>.json.
+// Arquivos é o Store em JSON: <Dir>/<administradora>/<telefone>.json.
 type Arquivos struct {
 	Dir string
 	mu  sync.Mutex
@@ -127,35 +127,47 @@ type Arquivos struct {
 
 func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
 
-func (a *Arquivos) caminho(account, telefone string) (string, error) {
-	tel := NormalizarTelefone(telefone)
-	if tel == "" {
-		return "", errors.New("memoria: telefone vazio")
+var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
+
+func (a *Arquivos) pasta(administradoraID string) (string, error) {
+	if !escopo.AdministradoraValida(administradoraID) {
+		return "", fmt.Errorf("memória da administradora %q: %w", administradoraID, errContatoInvalido)
 	}
-	acc := NormalizarChave(account)
-	if acc == "" {
-		acc = "default"
-	}
-	return filepath.Join(a.Dir, acc, tel+".json"), nil
+	return filepath.Join(a.Dir, administradoraID), nil
 }
 
-func (a *Arquivos) Ler(_ context.Context, account, telefone string) (Memoria, error) {
-	m := Memoria{Account: account, Telefone: NormalizarTelefone(telefone), Fatos: []Fato{}}
-	p, err := a.caminho(account, telefone)
+func (a *Arquivos) caminho(c escopo.Contato) (string, error) {
+	pasta, err := a.pasta(c.AdministradoraID)
 	if err != nil {
-		return m, err
+		return "", err
+	}
+	if c.Telefone == "" {
+		return "", errContatoInvalido
+	}
+	return filepath.Join(pasta, c.Telefone+".json"), nil
+}
+
+func (a *Arquivos) Ler(_ context.Context, c escopo.Contato) (Memoria, error) {
+	p, err := a.caminho(c)
+	if err != nil {
+		return Memoria{}, err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return lerArquivo(p, c)
+}
+
+func lerArquivo(p string, c escopo.Contato) (Memoria, error) {
+	m := Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: []Fato{}}
 	raw, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return m, nil
+	}
 	if err != nil {
-		if os.IsNotExist(err) {
-			return m, nil
-		}
-		return m, err
+		return m, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), semCaminho(err))
 	}
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return m, fmt.Errorf("memoria: %s: %w", p, err)
+		return m, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err)
 	}
 	if m.Fatos == nil {
 		m.Fatos = []Fato{}
@@ -163,49 +175,70 @@ func (a *Arquivos) Ler(_ context.Context, account, telefone string) (Memoria, er
 	return m, nil
 }
 
-func (a *Arquivos) Gravar(_ context.Context, m Memoria) error {
-	p, err := a.caminho(m.Account, m.Telefone)
+// Gravar guarda a memória sob o contato: a administradora e o telefone são os dele.
+func (a *Arquivos) Gravar(_ context.Context, c escopo.Contato, m Memoria) error {
+	p, err := a.caminho(c)
 	if err != nil {
 		return err
 	}
-	m.Telefone = NormalizarTelefone(m.Telefone)
+	m.AdministradoraID, m.Telefone = c.AdministradoraID, c.Telefone
 	if m.AtualizadaEm.IsZero() {
 		m.AtualizadaEm = time.Now()
+	}
+	raw, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return fmt.Errorf("codificar memória de %s: %w", c.Mascarado(), err)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
+		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), semCaminho(err))
 	}
-	raw, _ := json.MarshalIndent(m, "", "  ")
-	return os.WriteFile(p, raw, 0o644)
+	if err := os.WriteFile(p, raw, 0o644); err != nil {
+		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), semCaminho(err))
+	}
+	return nil
 }
 
-func (a *Arquivos) Listar(_ context.Context, account string) ([]Memoria, error) {
-	acc := NormalizarChave(account)
-	if acc == "" {
-		acc = "default"
+// semCaminho tira do erro de arquivo o caminho, que tem o telefone; quem embrulha
+// identifica o contato mascarado.
+func semCaminho(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return fmt.Errorf("%s: %w", pe.Op, pe.Err)
 	}
-	entradas, err := os.ReadDir(filepath.Join(a.Dir, acc))
+	var le *os.LinkError
+	if errors.As(err, &le) {
+		return fmt.Errorf("%s: %w", le.Op, le.Err)
+	}
+	return err
+}
+
+func (a *Arquivos) Listar(_ context.Context, administradoraID string) ([]Memoria, error) {
+	pasta, err := a.pasta(administradoraID)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return []Memoria{}, nil
-		}
 		return nil, err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	entradas, err := os.ReadDir(pasta)
+	if errors.Is(err, os.ErrNotExist) {
+		return []Memoria{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("listar memórias %s: %w", pasta, err)
 	}
 	out := []Memoria{}
 	for _, e := range entradas {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(a.Dir, acc, e.Name()))
+		c := escopo.Contato{AdministradoraID: administradoraID, Telefone: strings.TrimSuffix(e.Name(), ".json")}
+		m, err := lerArquivo(filepath.Join(pasta, e.Name()), c)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		var m Memoria
-		if json.Unmarshal(raw, &m) == nil {
-			out = append(out, m)
-		}
+		out = append(out, m)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].AtualizadaEm.After(out[j].AtualizadaEm) })
 	return out, nil

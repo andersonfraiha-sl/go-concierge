@@ -108,23 +108,25 @@ func (e extratorBloqueado) Extrair(_ context.Context, _, _ string, _ memoria.Mem
 func TestEsquecimentoNaoRessuscitaExtracaoEmAndamento(t *testing.T) {
 	ctx := context.Background()
 	store := memoria.NewArquivos(t.TempDir())
-	m := memoria.Memoria{Account: "conta", Telefone: "5511999999999", Fatos: []memoria.Fato{{Chave: "nome", Texto: "texto antigo"}}}
-	if err := store.Gravar(ctx, m); err != nil {
+	contato := contatoDeTeste(t, "adm-a")
+	m := memoria.Memoria{Fatos: []memoria.Fato{{Chave: "nome", Texto: "texto antigo"}}}
+	if err := store.Gravar(ctx, contato, m); err != nil {
 		t.Fatal(err)
 	}
 	ex := extratorBloqueado{iniciado: make(chan struct{}), liberar: make(chan struct{})}
-	svc := &Servico{Account: "conta", Memorias: store, Extrator: ex}
-	sess := &Sessao{Protocolo: "p", Contato: entrada.Contato{Phone: m.Telefone}}
-	revisao := svc.revisaoMemoria(m.Telefone)
+	svc := &Servico{Memorias: store, Extrator: ex}
+	sess := &Sessao{Protocolo: "p", Contato: entrada.Contato{Phone: contato.Telefone}}
+	sess.fixarContato(contato, "5982")
+	revisao := svc.revisaoMemoria(contato)
 	fim := make(chan struct{})
 	go func() { svc.lembrar(ctx, &m, sess, "oi", "oi", revisao); close(fim) }()
 	<-ex.iniciado
-	if _, err := svc.EsquecerMemoria(ctx, m.Telefone, "nome"); err != nil {
+	if _, err := svc.EsquecerMemoria(ctx, contato, "nome"); err != nil {
 		t.Fatal(err)
 	}
 	close(ex.liberar)
 	<-fim
-	atual, err := store.Ler(ctx, "conta", m.Telefone)
+	atual, err := store.Ler(ctx, contato)
 	if err != nil || len(atual.Fatos) != 0 {
 		t.Fatalf("fato esquecido reapareceu: %+v erro=%v", atual.Fatos, err)
 	}

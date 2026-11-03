@@ -32,7 +32,7 @@ func servicoParaBenchmark(b *testing.B) *Servico {
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	return &Servico{
-		Cat: cat, Agente: "agentes/concierge", Account: "cond-001", Sessoes: NewSessoes(), Sender: &Outbox{},
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(b), Sessoes: NewSessoes(), Sender: &Outbox{},
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: &mcpServicoFalso{}},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pedidos:  pedidos.NewArquivos(b.TempDir()),
@@ -68,7 +68,7 @@ func exigirAgendamento(b *testing.B, svc *Servico, msg entrada.Mensagem) {
 	if ultimoConcierge(sess).Texto == "" {
 		b.Fatal("turno sem resposta do concierge")
 	}
-	carteira, err := svc.Pedidos.Ler(context.Background(), svc.Account, msg.Contato.Phone)
+	carteira, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(b, "adm-a"))
 	if err != nil {
 		b.Fatal(err)
 	}

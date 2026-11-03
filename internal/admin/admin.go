@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 // Padrao é a chave do mapeamento comum a todos os condomínios.
@@ -217,25 +219,53 @@ func (m Mapeamento) Condominio(id string) (Condominio, bool) {
 	return Condominio{}, false
 }
 
-// Resolver acha o condomínio pelos ids que chegam em tempo de execução: company do
-// Gruvi, tenant do ATENDE ou account do Nexus. Sem casar, devolve ok=false (vale o padrão).
-func (m Mapeamento) Resolver(companyID, tenant, account string) (Condominio, bool) {
+var (
+	ErrCondominioDesconhecido = errors.New("condomínio não identificado")
+	ErrForaDaImplantacao      = errors.New("condomínio de outra administradora")
+	ErrCondominioAmbiguo      = errors.New("condomínio ambíguo entre administradoras")
+	ErrCondominioIncompleto   = errors.New("condomínio sem administradora, account ou company")
+)
+
+// ResolverCondominio acha o condomínio da mensagem pela company do Gruvi ou, só quando
+// ela não vem, pelo tenant do ATENDE. Se os que casam são de mais de uma administradora, é ambíguo;
+// na mesma administradora vale o primeiro na ordem do mapeamento (nome, depois id). Só
+// é atendido o condomínio completo (administradora, account e company) e permitido pela
+// implantação.
+func ResolverCondominio(m Mapeamento, imp escopo.Implantacao, companyID, tenant string) (Condominio, error) {
+	// a company, quando vem, decide sozinha: uma company que não casa não cai no tenant
+	casa := func(c Condominio) bool { return c.CompanyID == companyID }
+	if companyID == "" {
+		casa = func(c Condominio) bool { return tenant != "" && c.Tenant == tenant }
+	}
+	candidatos := condominiosPor(m, casa)
+	if len(candidatos) == 0 {
+		return Condominio{}, fmt.Errorf("company %q, tenant %q: %w", companyID, tenant, ErrCondominioDesconhecido)
+	}
+	if deMaisDeUmaAdministradora(candidatos) {
+		return Condominio{}, fmt.Errorf("company %q, tenant %q: %w", companyID, tenant, ErrCondominioAmbiguo)
+	}
+	c := slices.MinFunc(candidatos, compararCondominios)
+	if c.Administradora == "" || c.Account == "" || c.CompanyID == "" {
+		return Condominio{}, fmt.Errorf("condomínio %s: %w", c.ID, ErrCondominioIncompleto)
+	}
+	if !imp.Permite(c.Administradora) {
+		return Condominio{}, fmt.Errorf("condomínio %s: %w", c.ID, ErrForaDaImplantacao)
+	}
+	return c, nil
+}
+
+func condominiosPor(m Mapeamento, casa func(Condominio) bool) []Condominio {
+	var out []Condominio
 	for _, c := range m.Condominios {
-		if companyID != "" && c.CompanyID == companyID {
-			return c, true
+		if casa(c) {
+			out = append(out, c)
 		}
 	}
-	for _, c := range m.Condominios {
-		if tenant != "" && c.Tenant == tenant {
-			return c, true
-		}
-	}
-	for _, c := range m.Condominios {
-		if account != "" && c.Account == account {
-			return c, true
-		}
-	}
-	return Condominio{}, false
+	return out
+}
+
+func deMaisDeUmaAdministradora(cs []Condominio) bool {
+	return slices.ContainsFunc(cs, func(c Condominio) bool { return c.Administradora != cs[0].Administradora })
 }
 
 // Habilitado diz se o caso de uso vale no condomínio para o papel: a entrada do

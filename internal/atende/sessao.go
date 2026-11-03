@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -29,7 +30,9 @@ type Sessao struct {
 	Canal             map[string]string `json:"canal"`
 	Identidade        gruvi.Identidade  `json:"identidade"`
 	IdentErro         string            `json:"identidade_erro,omitempty"`
-	Condominio        string            `json:"condominio,omitempty"` // id no Admin ("*" = padrão)
+	Condominio        string            `json:"condominio,omitempty"` // id no Admin, resolvido pela mensagem
+	AdministradoraID  string            `json:"administradora_id,omitempty"`
+	CompanyID         string            `json:"company_id,omitempty"` // company do Gruvi do condomínio resolvido
 	Turnos            []Turno           `json:"turnos"`
 	CriadaEm          time.Time         `json:"criada_em"`
 	AtualizadaEm      time.Time         `json:"atualizada_em"`
@@ -43,6 +46,7 @@ type Sessao struct {
 	// a próxima mensagem retoma por harness.Continuar em vez de planejar de novo.
 	Plano *harness.Plano `json:"plano,omitempty"`
 
+	escopo          escopo.Contato // o contato na administradora resolvida (vazio até resolver)
 	historico       []*schema.Message
 	mcpResultados   map[string]any
 	revisaoEstado   uint64
@@ -230,6 +234,26 @@ func (sess *Sessao) historicoAdicionar(mensagem *schema.Message) {
 	sess.mu.Lock()
 	sess.historico = append(sess.historico, mensagem)
 	sess.mu.Unlock()
+}
+
+// contato é o morador na administradora do condomínio resolvido para a conversa.
+func (sess *Sessao) contato() escopo.Contato {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.escopo
+}
+
+// companyDoCondominio é a company do Gruvi do condomínio resolvido (vazia até resolver).
+func (sess *Sessao) companyDoCondominio() string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.CompanyID
+}
+
+func (sess *Sessao) fixarContato(c escopo.Contato, companyID string) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.escopo, sess.AdministradoraID, sess.Condominio, sess.CompanyID = c, c.AdministradoraID, c.CondominioID, companyID
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.
