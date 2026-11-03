@@ -88,11 +88,15 @@ func main() {
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
 	dotenv := flag.String("env", ".env", "arquivo NOME=valor (LLM_MODE e chaves, NEXUS_*, DEFAULT_ACCOUNT_ID, GRUVI_*, ATENDE_*)")
-	migrar := flag.Bool("migrar", migrarPorPadrao(os.Getenv("AMBIENTE")), "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev)")
+	migrar := flag.Bool("migrar", false, "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev, lido também do -env)")
 	flag.Parse()
 	env.Carregar(*dotenv)
+	deveMigrar := migrarPorPadrao(os.Getenv("AMBIENTE"))
+	if flagInformada("migrar") {
+		deveMigrar = *migrar
+	}
 
-	db, err := abrirBanco(os.Getenv("DATABASE_URL"), *migrar)
+	db, err := abrirBanco(os.Getenv("DATABASE_URL"), deveMigrar)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -229,15 +233,25 @@ func migrarPorPadrao(ambiente string) bool {
 	return ambiente == "" || ambiente == "dev"
 }
 
+// flagInformada diz se a flag veio na linha de comando (e não do padrão).
+func flagInformada(nome string) bool {
+	informada := false
+	flag.Visit(func(f *flag.Flag) { informada = informada || f.Name == nome })
+	return informada
+}
+
+const comoSubirPostgres = "suba o Postgres com ./build.sh --run, ou com docker compose up -d postgres e " +
+	"DATABASE_URL=postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable"
+
 func abrirBanco(url string, migrar bool) (banco.Banco, error) {
 	if url == "" {
-		return banco.Banco{}, errors.New("DATABASE_URL vazia: o concierge precisa do Postgres")
+		return banco.Banco{}, errors.New("DATABASE_URL vazia: " + comoSubirPostgres)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
 	defer cancel()
 	db, err := banco.Abrir(ctx, url)
 	if err != nil {
-		return banco.Banco{}, err
+		return banco.Banco{}, fmt.Errorf("%w (%s)", err, comoSubirPostgres)
 	}
 	if !migrar {
 		return db, nil

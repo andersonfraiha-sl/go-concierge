@@ -42,14 +42,26 @@ func TestMigrarIdempotente(t *testing.T) {
 	}
 }
 
-// TestEsquemaEmDia falha quando alguém muda o esquema do ent sem gerar a migration: o Atlas
-// compara o banco migrado com o esquema do ent e não pode sobrar diferença.
+// TestEsquemaEmDia falha quando alguém muda o esquema do ent sem gerar a migration, ou põe
+// coluna ou índice à mão numa migration: o Atlas compara o banco migrado com o esquema do
+// ent, nos dois sentidos, e não pode sobrar diferença.
 func TestEsquemaEmDia(t *testing.T) {
 	b := bancotest.Novo(t)
 	plano := atlasmigrate.OpenMemDir(t.Name())
 	defer plano.Close()
 	drv := entsql.OpenDB(dialect.Postgres, stdlib.OpenDBFromPool(b.Pool))
-	m, err := schema.NewMigrate(drv, schema.WithDir(plano), schema.WithErrNoPlan(true), schema.WithDialect(dialect.Postgres))
+	defer func() {
+		if err := drv.Close(); err != nil {
+			t.Errorf("fechar driver do ent: %v", err)
+		}
+	}()
+	m, err := schema.NewMigrate(drv,
+		schema.WithDir(plano),
+		schema.WithErrNoPlan(true),
+		schema.WithDialect(dialect.Postgres),
+		schema.WithDropColumn(true),
+		schema.WithDropIndex(true),
+	)
 	if err != nil {
 		t.Fatalf("abrir migrador do ent: %v", err)
 	}
