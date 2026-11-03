@@ -27,7 +27,8 @@ type PedidoTurno struct {
 	Protocolo          string `json:"protocolo"`
 	Caso               string `json:"caso"`
 	Estado             string `json:"estado"`
-	Evento             string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | atendente
+	Evento             string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | transbordo_pendente
+	Resumo             string `json:"resumo,omitempty"`
 	confirmacaoTexto   string
 	confirmacaoValores json.RawMessage
 }
@@ -348,8 +349,12 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				if err != nil {
 					partes = append(partes, "Não consegui seguir com "+strings.ToLower(p.CasoNome)+".")
 				} else {
-					if r.Transbordo == "" || sess.Destino.Conector == "atende-emulado" {
+					if strings.TrimSpace(r.Resposta) != "" && (r.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 						partes = append(partes, r.Resposta)
+					} else if r.Transbordo != "" && sess.Destino.Conector == "atende" {
+						if resposta := removerPromessasTransbordo(r.Resposta); strings.TrimSpace(resposta) != "" {
+							partes = append(partes, resposta)
+						}
 					}
 					rota = append(rota, r.Rota...)
 					uso.Soma(r.Uso)
@@ -376,6 +381,10 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		uso.Soma(res.Uso)
 		if strings.TrimSpace(res.Resposta) != "" && (res.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 			partes = append(partes, res.Resposta)
+		} else if res.Transbordo != "" && sess.Destino.Conector == "atende" {
+			if resposta := removerPromessasTransbordo(res.Resposta); strings.TrimSpace(resposta) != "" {
+				partes = append(partes, resposta)
+			}
 		}
 		if res.Transbordo != "" {
 			transbordo = res.Transbordo
@@ -413,7 +422,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 
 	// atendente: pendências viram resumo para o humano
 	if extracao.Atendente || transbordo != "" {
-		if sess.Destino.Conector != "atende-emulado" {
+		if sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 			seguras := partes[:0]
 			for _, parte := range partes {
 				if !harness.AnunciaTransferencia(parte) {
@@ -436,8 +445,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 					continue
 				}
 				resumo := pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6))
-				pedidos.AoAtendente(p, resumo)
-				anota(p, "atendente")
+				turnos = append(turnos, PedidoTurno{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: "transbordo_pendente", Resumo: resumo})
 				faltam := p.Faltando(cc.ct)
 				var nomes []string
 				for _, f := range faltam {
@@ -456,11 +464,11 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				transbordo += "; pedidos pendentes: " + strings.Join(pend, "; ")
 				passo("pedido", "ao atendente: "+strings.Join(pend, "; "))
 			}
-			if len(partes) == 0 {
+			if len(partes) == 0 && sess.Destino.Conector != "atende" {
 				if extracao.Atendente {
-					partes = append(partes, "Certo, vou passar você para um atendente da administração. Ele já recebe o que conversamos até aqui.")
+					partes = append(partes, "Vou solicitar o atendimento de uma pessoa da administração. Ainda não tenho confirmação de que ela assumiu a conversa.")
 				} else {
-					partes = append(partes, "Vou passar o que ficou pendente para um atendente da administração, que segue com você por aqui.")
+					partes = append(partes, "Vou solicitar que uma pessoa da administração continue com você. Ainda não tenho confirmação de que ela assumiu a conversa.")
 				}
 				precisaRedigir = true
 			}
@@ -474,10 +482,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 
 	conteudo := strings.TrimSpace(strings.Join(append(partes, perguntas...), "\n\n"))
 	if conteudo == "" {
-		conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
-		precisaRedigir = true
+		if transbordo == "" || sess.Destino.Conector != "atende" {
+			conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
+			precisaRedigir = true
+		}
 	}
 	resposta := conteudo
+	if transbordo != "" && sess.Destino.Conector == "atende" {
+		resposta = conteudo
+		aviso := "Não consegui solicitar um atendente por este canal agora. Posso continuar ajudando por aqui."
+		if s.transferidorDisponivel(sess.Destino) {
+			aviso = "Vou solicitar que uma pessoa da administração assuma este protocolo. Ainda não tenho confirmação de que ela assumiu a conversa."
+		}
+		if strings.TrimSpace(resposta) != "" {
+			resposta += "\n\n"
+		}
+		resposta += aviso
+		precisaRedigir = false
+	}
 	if precisaRedigir {
 		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(historico) > 0)
 		switch {
@@ -535,6 +557,33 @@ func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, phone string,
 		return s.salvarCarteira(ctx, cart)
 	}
 	return nil
+}
+
+func (s *Servico) marcarPedidosAoAtendente(ctx context.Context, phone string, turnos []PedidoTurno) error {
+	pendentes := map[string]string{}
+	for _, turno := range turnos {
+		if turno.Evento == "transbordo_pendente" {
+			pendentes[turno.Protocolo] = turno.Resumo
+		}
+	}
+	if len(pendentes) == 0 || s.Pedidos == nil {
+		return nil
+	}
+	desbloquear := s.bloquearPedidos(phone)
+	defer desbloquear()
+	cart, err := s.carregarCarteira(ctx, phone)
+	if err != nil {
+		return err
+	}
+	for protocolo, resumo := range pendentes {
+		if p := cart.Por(protocolo); p != nil {
+			switch p.Estado {
+			case pedidos.Coletando, pedidos.Pronto, pedidos.Confirmando:
+				pedidos.AoAtendente(p, resumo)
+			}
+		}
+	}
+	return s.salvarCarteira(ctx, cart)
 }
 
 // ---- ações do atendente ------------------------------------------------------------------

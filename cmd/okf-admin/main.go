@@ -131,11 +131,13 @@ func main() {
 	replyURLLegada := os.Getenv("ATENDE_REPLY_URL")
 	s.outbox = &atende.Outbox{}
 	s.emulador = atende.NewEmulador()
+	transferidores := atende.TransferidoresPorConector{Emulado: &atende.TransferidorEmulado{Outbox: s.outbox}}
 	s.replyURL = "http://" + *addr + "/emulador/atende/messages"
 	s.replyEmulada = true
 	s.outbox.Emulado = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	if s.atendeBaseURL != "" && s.atendeAPIKey != "" {
 		s.outbox.ATENDE = &atende.ATENDESender{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
+		transferidores.ATENDE = &atende.ATENDETransferidor{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
@@ -148,7 +150,7 @@ func main() {
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,
 		Config: cfgHarness,
-		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
+		Gruvi:  s.gruvi, Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 	}
 	if mcpModo == "b2c" {
