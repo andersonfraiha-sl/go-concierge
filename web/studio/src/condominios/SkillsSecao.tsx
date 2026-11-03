@@ -37,9 +37,9 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
     );
 
   return (
-    <SectionCard titulo="Skills neste condomínio" ajuda="Ligue o que a assistente pode fazer aqui.">
+    <SectionCard titulo="Skills neste condomínio" ajuda="Ligue o que o concierge pode fazer aqui.">
       {estado.casos.length === 0 && (
-        <Typography color="text.secondary">A assistente ainda não tem skills.</Typography>
+        <Typography color="text.secondary">O concierge ainda não tem skills.</Typography>
       )}
       {estado.casos.map((caso) => {
         const titulo = titulos.get(caso.nome) ?? caso.titulo;

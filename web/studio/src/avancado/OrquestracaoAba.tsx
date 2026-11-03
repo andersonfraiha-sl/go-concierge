@@ -112,7 +112,7 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
   return (
     <SectionCard
       titulo="Orquestração"
-      ajuda="Como a assistente decide o que fazer com cada mensagem."
+      ajuda="Como o concierge decide o que fazer com cada mensagem."
       acao={
         editar && (
           <Button

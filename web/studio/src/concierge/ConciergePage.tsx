@@ -10,7 +10,7 @@ import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { useSkills } from '@/skills/contratos';
 
-export function AssistentePage(): ReactNode {
+export function ConciergePage(): ReactNode {
   const skills = useSkills();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -55,7 +55,7 @@ function PersonaEditor({
   return (
     <SectionCard
       titulo="Persona"
-      ajuda="A voz da assistente em todas as respostas ao morador."
+      ajuda="A voz do concierge em todas as respostas ao morador."
       acao={<SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
       <CampoTexto

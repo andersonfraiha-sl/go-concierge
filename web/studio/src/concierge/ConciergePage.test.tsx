@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { AssistentePage } from './AssistentePage';
+import { ConciergePage } from './ConciergePage';
 
 const construtor: Eu = {
   id: 'u1',
@@ -39,11 +39,11 @@ function rotas(eu: Eu, aoSalvar: (corpo: unknown) => void = () => {}) {
   };
 }
 
-describe('AssistentePage', () => {
+describe('ConciergePage', () => {
   it('savesPersonaOneSecondAfterTyping', async () => {
     const corpos: unknown[] = [];
     responderCom(rotas(construtor, (c) => corpos.push(c)));
-    const { user } = renderComProvedores(<AssistentePage />);
+    const { user } = renderComProvedores(<ConciergePage />);
     const campo = await screen.findByDisplayValue('Você é gentil.');
     await user.type(campo, ' Sempre.');
     expect(corpos).toHaveLength(0);
@@ -57,10 +57,10 @@ describe('AssistentePage', () => {
 
   it('gestorReadsPersona', async () => {
     responderCom(rotas(gestor));
-    renderComProvedores(<AssistentePage />);
+    renderComProvedores(<ConciergePage />);
     expect(await screen.findByDisplayValue('Você é gentil.')).toHaveAttribute('readonly');
     expect(
-      screen.getByText('A voz da assistente em todas as respostas ao morador.'),
+      screen.getByText('A voz do concierge em todas as respostas ao morador.'),
     ).toBeInTheDocument();
   });
 });

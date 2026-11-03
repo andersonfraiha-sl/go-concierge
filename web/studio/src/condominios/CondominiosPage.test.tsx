@@ -14,7 +14,7 @@ describe('CondominiosPage', () => {
     expect(cartoes[0]).toHaveTextContent('Padrão (todos)');
     expect(cartoes[0]).toHaveTextContent('Vale para todo condomínio que não tem decisão própria.');
     expect(cartoes[1]).toHaveTextContent('Vila Verde');
-    expect(screen.getByText('Diga o que a assistente faz em cada condomínio.')).toBeInTheDocument();
+    expect(screen.getByText('Diga o que o concierge faz em cada condomínio.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Novo condomínio' })).toBeInTheDocument();
   });
 

@@ -28,7 +28,7 @@ type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean };
 const ITENS_SPA = [
   {
     rotulo: 'Concierge',
-    destino: '/assistente',
+    destino: '/concierge',
     Icone: ChatBubbleOutlined,
     visivelPara: (eu) => pode(eu, 'skills.ler'),
   },

@@ -18,7 +18,7 @@ export function QuandoUsarAba({ control, editavel }: Props): ReactNode {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <SectionCard
         titulo="Quando usar"
-        ajuda="Diga em uma frase quando a assistente deve usar esta skill."
+        ajuda="Diga em uma frase quando o concierge deve usar esta skill."
       >
         <CampoTexto
           control={control}

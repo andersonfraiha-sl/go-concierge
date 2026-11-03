@@ -96,7 +96,7 @@ export function AvancadoPage(): ReactNode {
         </Box>
       )}
       {aba.porItem && arvore.isSuccess && !no && (
-        <EmptyState frase="Ainda não há assistente nem skills para mostrar." />
+        <EmptyState frase="Ainda não há concierge nem skills para mostrar." />
       )}
       {aba.desenhar(no ? { no, editar } : null, editar)}
     </Box>
