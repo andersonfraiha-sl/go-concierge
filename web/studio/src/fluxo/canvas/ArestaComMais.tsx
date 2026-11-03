@@ -67,11 +67,7 @@ export function ArestaComMais({
   const [caminho, meioX, meioY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
   return (
     <>
-      <BaseEdge
-        id={id}
-        path={caminho}
-        style={{ stroke: tokens.color.studio.nodeBorder, strokeWidth: 1.5 }}
-      />
+      <BaseEdge id={id} path={caminho} style={{ stroke: tokens.color.conector, strokeWidth: 2 }} />
       {data && (
         <EdgeLabelRenderer>
           <BotaoMais

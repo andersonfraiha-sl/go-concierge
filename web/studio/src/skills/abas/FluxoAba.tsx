@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { Alert, Box, Button, Chip, CircularProgress, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useMemo, useRef, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
@@ -27,7 +28,7 @@ import {
 
 type Props = { nome: string; caminho: string };
 
-const LARGURA_PAINEL = 360;
+const LARGURA_PAINEL = tokens.layout.painelLateral;
 // Título da skill, abas e margens do editor acima da aba; o resto da janela é do canvas.
 const ALTURA_DO_CABECALHO_DO_EDITOR = 160;
 const ALTURA_DA_AREA = `calc(100vh - ${tokens.layout.navbarHeight + ALTURA_DO_CABECALHO_DO_EDITOR}px)`;
@@ -127,6 +128,14 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minHeight: 32 }}>
+        {!editavel && (
+          <Chip
+            icon={<LockOutlinedIcon fontSize="small" />}
+            label="Só leitura"
+            size="small"
+            sx={{ bgcolor: tokens.color.background.subtle, color: tokens.color.text.secondary }}
+          />
+        )}
         {doFluxoTodo.map((p) => (
           <Typography
             key={chaveDoProblema(p)}
