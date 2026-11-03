@@ -1,6 +1,8 @@
 package okf
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"testing"
@@ -40,8 +42,10 @@ func TestValidarFluxo(t *testing.T) {
 	buscarVazio := blocosDeTipos(BlocoBuscar, BlocoResponder)
 	buscarVazio[0].Recurso = ""
 	extraDuplicado := blocosDeTipos(BlocoBuscar, BlocoResponder)
+	extraDuplicado[0].GuardarEm = "x"
 	extraDuplicado[0].Extra = map[string]any{"save_as": "x", "timeout": 3}
 	extraEmEscolha := blocosDeTipos(BlocoEscolha, BlocoResponder)
+	extraEmEscolha[0].Titulo = "T"
 	extraEmEscolha[0].Extra = map[string]any{"title": "t"}
 
 	tests := []struct {
@@ -62,7 +66,7 @@ func TestValidarFluxo(t *testing.T) {
 		{"extra repete campo do bloco", Fluxo{Blocos: extraDuplicado}, []ProblemaFluxo{prob("b1", "EXTRA_REPETE_CAMPO", "Este bloco tem um campo extra repetido: save_as.")}},
 		{"extra da informacao repete campo", Fluxo{
 			Blocos:      blocosDeTipos(BlocoBuscar, BlocoResponder),
-			Informacoes: []Informacao{{Nome: "cor", Extra: map[string]any{"type": "x", "help": "ok"}}},
+			Informacoes: []Informacao{{Nome: "cor", Tipo: "string", Extra: map[string]any{"type": "x", "help": "ok"}}},
 		}, []ProblemaFluxo{prob("", "EXTRA_REPETE_CAMPO", "A informação cor tem um campo extra repetido: type.")}},
 		{"extra repete campo de escolha", Fluxo{Blocos: extraEmEscolha}, []ProblemaFluxo{prob("b1", "EXTRA_REPETE_CAMPO", "Este bloco tem um campo extra repetido: title.")}},
 		{"opcoes simples com rotulo diferente", Fluxo{
@@ -92,6 +96,53 @@ func TestValidarFluxoExigeCampoDeCadaTipo(t *testing.T) {
 			got := problemasDeBlocos([]Bloco{vazio})
 			if !slices.ContainsFunc(got, func(pr ProblemaFluxo) bool { return pr.Codigo == "BLOCO_INCOMPLETO" && pr.BlocoID == "b1" }) {
 				t.Fatalf("sem BLOCO_INCOMPLETO: %+v", got)
+			}
+		})
+	}
+}
+
+func TestValidarFluxoIgnoraExtraQueNaoRepete(t *testing.T) {
+	semCom := blocosDeTipos(BlocoBuscar, BlocoResponder)
+	semCom[0].Extra = map[string]any{"with": "texto solto"}
+	f := Fluxo{
+		Blocos:      semCom,
+		Informacoes: []Informacao{{Nome: "cor", Extra: map[string]any{"options": []any{}}}},
+	}
+	if got := ValidarFluxo(f); len(got) != 0 {
+		t.Fatalf("extra sem campo equivalente não repete chave: %+v", got)
+	}
+}
+
+func TestSkillsRealmenteExistentesSaoGravaveis(t *testing.T) {
+	catalogo, err := LerRecursosFixture("../../okf/nexus/cond-001.yaml")
+	if err != nil {
+		t.Fatalf("ler catálogo: %v", err)
+	}
+	escritaDoCatalogo := func(recurso string) bool {
+		i := slices.IndexFunc(catalogo, func(r Recurso) bool { return r.Name == recurso })
+		if i < 0 {
+			return EscritaPeloNome(recurso)
+		}
+		return catalogo[i].Write
+	}
+	arquivos, err := filepath.Glob("../../okf/agentes/*/agentes/*/caso.yaml")
+	if err != nil || len(arquivos) == 0 {
+		t.Fatalf("nenhum caso.yaml encontrado: %v", err)
+	}
+	for _, arq := range arquivos {
+		t.Run(filepath.Base(filepath.Dir(arq)), func(t *testing.T) {
+			raw, err := os.ReadFile(arq)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f, err := FluxoDeYAML(raw, escritaDoCatalogo)
+			if err != nil {
+				t.Fatalf("ler fluxo: %v", err)
+			}
+			for _, pr := range ValidarFluxo(Reclassificar(f, escritaDoCatalogo)) {
+				if pr.Nivel == nivelErro {
+					t.Errorf("skill sem alteração não pode ter erro: %+v", pr)
+				}
 			}
 		})
 	}

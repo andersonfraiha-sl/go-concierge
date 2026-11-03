@@ -46,18 +46,40 @@ var obrigatorios = map[TipoBloco]obrigatorio{
 	BlocoResponder:    {"a resposta", texto(func(b Bloco) string { return b.Texto })},
 }
 
-// chavesDoBloco são as chaves que a gravação escreve para o tipo; no Extra, repetiriam a chave no arquivo.
-var chavesDoBloco = map[TipoBloco][]string{
-	BlocoBuscar:       {"resource", "with", "save_as"},
-	BlocoGravar:       {"resource", "with", "save_as"},
-	BlocoEscolha:      {"param", "title", "from", "label", "value", "ask", "empty", "reuse"},
-	BlocoFormulario:   {"fields_from", "save_as"},
-	BlocoReaproveitar: {"slot", "slots", "confirm", "from", "label", "value", "ask"},
-	tipoInformacao:    {"name", "title", "ask", "type", "options"},
+// tiposComExtra são os blocos cuja gravação escreve o Extra junto das chaves próprias.
+var tiposComExtra = []TipoBloco{BlocoBuscar, BlocoGravar, BlocoEscolha, BlocoFormulario, BlocoReaproveitar}
+
+// chavesEmitidas são as chaves que a gravação escreve para este bloco (sem o Extra). Só estas
+// repetiriam uma chave do Extra no arquivo.
+func chavesEmitidas(b Bloco) []string {
+	b.Extra = nil
+	pares, err := passoDe(b)
+	if err != nil {
+		return nil
+	}
+	if interno, ok := pares[0].valor.([]par); ok && len(pares) == 1 {
+		pares = interno
+	}
+	chaves := make([]string, len(pares))
+	for i, p := range pares {
+		chaves[i] = p.chave
+	}
+	return chaves
 }
 
-// tipoInformacao reaproveita a tabela de chaves para os parâmetros do caso (não é um bloco).
-const tipoInformacao TipoBloco = "informacao"
+// chavesDaInformacao: espelha paramsNo; options só é escrito quando há Opcoes.
+func chavesDaInformacao(info Informacao) []string {
+	chaves := []string{"name"}
+	for chave, texto := range map[string]string{"title": info.Titulo, "ask": info.Pergunta, "type": info.Tipo} {
+		if texto != "" {
+			chaves = append(chaves, chave)
+		}
+	}
+	if len(info.Opcoes) > 0 {
+		chaves = append(chaves, "options")
+	}
+	return chaves
+}
 
 // ValidarFluxo devolve todos os erros que impedem gravar o fluxo; nunca nil.
 func ValidarFluxo(f Fluxo) []ProblemaFluxo {
@@ -73,7 +95,7 @@ func problemasDeBlocos(blocos []Bloco) []ProblemaFluxo {
 		if o, ok := obrigatorios[b.Tipo]; ok && !o.preench(b) {
 			problemas = append(problemas, erro(b.ID, "BLOCO_INCOMPLETO", "Preencha "+o.rotulo+"."))
 		}
-		problemas = append(problemas, extrasRepetidos(b.ID, b.Tipo, b.Extra, "Este bloco")...)
+		problemas = append(problemas, extrasRepetidos(b.ID, blocoEmiteExtra(b), b.Extra, "Este bloco")...)
 	}
 	return append(problemas, gravacoesSemConfirmar(blocos)...)
 }
@@ -96,10 +118,17 @@ func gravacoesSemConfirmar(blocos []Bloco) []ProblemaFluxo {
 	return problemas
 }
 
-func extrasRepetidos(blocoID string, tipo TipoBloco, extra map[string]any, quem string) []ProblemaFluxo {
+func blocoEmiteExtra(b Bloco) []string {
+	if !slices.Contains(tiposComExtra, b.Tipo) {
+		return nil
+	}
+	return chavesEmitidas(b)
+}
+
+func extrasRepetidos(blocoID string, emitidas []string, extra map[string]any, quem string) []ProblemaFluxo {
 	var problemas []ProblemaFluxo
 	for _, chave := range slices.Sorted(maps.Keys(extra)) {
-		if slices.Contains(chavesDoBloco[tipo], chave) {
+		if slices.Contains(emitidas, chave) {
 			problemas = append(problemas, erro(blocoID, "EXTRA_REPETE_CAMPO", quem+" tem um campo extra repetido: "+chave+"."))
 		}
 	}
@@ -132,7 +161,7 @@ func problemasDeResponder(blocos []Bloco) []ProblemaFluxo {
 func problemasDeInformacoes(informacoes []Informacao) []ProblemaFluxo {
 	var problemas []ProblemaFluxo
 	for _, info := range informacoes {
-		problemas = append(problemas, extrasRepetidos("", tipoInformacao, info.Extra, "A informação "+info.Nome)...)
+		problemas = append(problemas, extrasRepetidos("", chavesDaInformacao(info), info.Extra, "A informação "+info.Nome)...)
 		if info.OpcoesSimples && slices.ContainsFunc(info.Opcoes, func(o Opcao) bool { return o.Rotulo != o.Valor }) {
 			mensagem := fmt.Sprintf("A informação %s tem opções simples com rótulo diferente do valor; o rótulo se perderia.", info.Nome)
 			problemas = append(problemas, erro("", "OPCAO_ROTULO_PERDIDO", mensagem))
