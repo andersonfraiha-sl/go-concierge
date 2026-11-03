@@ -11,7 +11,7 @@ const base: Eu = {
   dev: false,
 };
 
-const casos: { eu: Eu; esperado: '/condominios' | '/skills' }[] = [
+const casos: { eu: Eu; esperado: '/condominios' | '/concierge' }[] = [
   {
     eu: {
       ...base,
@@ -21,10 +21,14 @@ const casos: { eu: Eu; esperado: '/condominios' | '/skills' }[] = [
     },
     esperado: '/condominios',
   },
-  { eu: { ...base, papel: 'construtor', administradoraId: null }, esperado: '/skills' },
+  { eu: { ...base, papel: 'construtor', administradoraId: null }, esperado: '/concierge' },
   {
     eu: { ...base, papel: 'gestor', administradoraId: 'adm-exemplo', permissoes: [] },
-    esperado: '/skills',
+    esperado: '/concierge',
+  },
+  {
+    eu: { ...base, papel: 'admin', administradoraId: null, permissoes: ['condominios.habilitar'] },
+    esperado: '/concierge',
   },
 ];
 
