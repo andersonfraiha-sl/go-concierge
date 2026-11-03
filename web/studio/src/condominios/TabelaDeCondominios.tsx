@@ -109,7 +109,7 @@ export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
             <TableRow>
               <TableCell scope="col">Condomínio</TableCell>
               {mostraAdministradora && <TableCell scope="col">Administradora</TableCell>}
-              <TableCell scope="col">Skills ligadas</TableCell>
+              <TableCell scope="col">Skills ativas</TableCell>
               <TableCell scope="col">Situação</TableCell>
             </TableRow>
           </TableHead>

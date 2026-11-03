@@ -32,6 +32,14 @@ estadoComVarios.mapeamento.condominios = [
     company_id: 'gruvi-3',
     tenant: 'atende-3',
   },
+  {
+    id: 'sem-nada',
+    nome: 'Condomínio Sem Nada',
+    administradora_id: '',
+    account: 'acc-4',
+    company_id: 'gruvi-4',
+    tenant: '',
+  },
 ];
 
 const renderComVarios = (eu = construtor) => {
@@ -46,6 +54,7 @@ describe('CondominiosPage', () => {
     const linha = (await screen.findByText('Condomínio Vila Verde')).closest('tr');
     expect(linha).not.toBeNull();
     expect(within(linha as HTMLElement).getByText('1 de 2')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Skills ativas' })).toBeInTheDocument();
     expect(screen.getByText('Diga o que o concierge faz em cada condomínio.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Novo condomínio' })).toBeInTheDocument();
   });
@@ -104,6 +113,14 @@ describe('CondominiosPage', () => {
 
     const linha = (await screen.findByText('Edifício Solar')).closest('tr');
     expect(within(linha as HTMLElement).getByText('Sem administradora')).toBeInTheDocument();
+  });
+
+  it('prioritizesMissingIdsOverMissingAdministradora', async () => {
+    renderComVarios();
+
+    const linha = (await screen.findByText('Condomínio Sem Nada')).closest('tr');
+    expect(within(linha as HTMLElement).getByText('Faltam ids')).toBeInTheDocument();
+    expect(within(linha as HTMLElement).queryByText('Sem administradora')).not.toBeInTheDocument();
   });
 
   it('hidesAdministradoraColumnForGestor', async () => {
