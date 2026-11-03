@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { pode, podeNoCatalogo, usePodeEditar, type Eu } from './eu';
+import { pode, podeNoCatalogo, useEu, usePodeEditar, type Eu } from './eu';
 
 const construtor: Eu = {
   id: 'u1',
@@ -33,7 +33,10 @@ describe('permissões', () => {
 });
 
 function Probe() {
-  return <span>{usePodeEditar('skills.editar_fluxo') ? 'edita' : 'le'}</span>;
+  const { data: eu } = useEu();
+  const edita = usePodeEditar('skills.editar_fluxo');
+  if (!eu) return <span>carregando</span>;
+  return <span>{`${eu.nome}: ${edita ? 'edita' : 'le'}`}</span>;
 }
 
 function simularTela(estreita: boolean) {
@@ -50,16 +53,13 @@ describe('usePodeEditar', () => {
     responderCom({ 'GET /api/eu': () => json(construtor) });
     simularTela(true);
     renderComProvedores(<Probe />);
-    // espera o /api/eu chegar: antes dele o hook também devolve "le"
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 50));
-    expect(screen.getByText('le')).toBeInTheDocument();
+    expect(await screen.findByText('Ana: le')).toBeInTheDocument();
   });
 
   it('allowsEditingOnWideScreen', async () => {
     responderCom({ 'GET /api/eu': () => json(construtor) });
     simularTela(false);
     renderComProvedores(<Probe />);
-    expect(await screen.findByText('edita')).toBeInTheDocument();
+    expect(await screen.findByText('Ana: edita')).toBeInTheDocument();
   });
 });

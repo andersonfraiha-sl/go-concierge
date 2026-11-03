@@ -26,7 +26,7 @@ export function Topbar() {
       </Typography>
       {eu && (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {eu.dev && <DevRoleSwitch />}
+          {eu.dev && <DevRoleSwitch papelAtual={eu.papel} />}
           <Typography variant="body2">{eu.nome}</Typography>
         </Box>
       )}

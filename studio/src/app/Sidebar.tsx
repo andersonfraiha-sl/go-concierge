@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import type { SvgIconComponent } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router';
+import { ErroAcesso } from '@/acesso/ErroAcesso';
 import { pode, useEu, type Eu } from '@/acesso/eu';
 import { tokens } from '@/theme/tokens';
 
@@ -44,7 +45,7 @@ type Props = { recolhido: boolean; aoAlternar: () => void };
 
 export function Sidebar({ recolhido, aoAlternar }: Props) {
   const { pathname } = useLocation();
-  const { data: eu } = useEu();
+  const { data: eu, isError, refetch } = useEu();
   const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
   const largura = recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth;
 
@@ -73,6 +74,7 @@ export function Sidebar({ recolhido, aoAlternar }: Props) {
             aoNavegar={{ component: NavLink, to: item.destino }}
           />
         ))}
+        {isError && !recolhido && <ErroAcesso aoTentar={() => void refetch()} />}
         <Divider sx={{ my: 1 }} />
         <ItemDoMenu
           item={ITEM_ATENDENTE}

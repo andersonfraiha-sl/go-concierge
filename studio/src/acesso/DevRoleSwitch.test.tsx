@@ -53,6 +53,28 @@ describe('acesso na barra lateral e no topo', () => {
     expect(new Headers(ultima?.[1]?.headers).get('X-Studio-Papel')).toBe('gestor');
   });
 
+  it('showsRoleFromServerNotFromStorage', async () => {
+    localStorage.setItem(CHAVE_PAPEL_DEV, 'construtor');
+    responderCom({ 'GET /api/eu': () => json({ ...base, papel: 'gestor_avancado' }) });
+
+    renderComProvedores(<StudioLayout />);
+
+    expect(await screen.findByRole('combobox', { name: 'Ver como' })).toHaveTextContent(
+      'Administradora com Avançado',
+    );
+  });
+
+  it('showsRetryInsteadOfNoAccessWhenEuFails', async () => {
+    responderCom({ 'GET /api/eu': () => json({ codigo: 'X', mensagem: 'falhou' }, 500) });
+
+    const { user } = renderComProvedores(<StudioLayout />);
+
+    expect(await screen.findByText('Não foi possível carregar seu acesso.')).toBeInTheDocument();
+    expect(screen.queryByText('Você não tem acesso a esta área.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+  });
+
   it('hidesSwitchOutsideDev', async () => {
     responderCom({ 'GET /api/eu': () => json({ ...base, dev: false }) });
 
