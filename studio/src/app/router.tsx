@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router';
+import { GuardaAvancado } from '@/acesso/GuardaAvancado';
 import { AssistentePage } from '@/assistente/AssistentePage';
-import { AvancadoPage } from '@/avancado/AvancadoPage';
 import { CondominioPage } from '@/condominios/CondominioPage';
 import { CondominiosPage } from '@/condominios/CondominiosPage';
 import { FerramentasPage } from '@/ferramentas/FerramentasPage';
@@ -24,7 +24,7 @@ export function criarRoteador() {
           { path: 'condominios', element: <CondominiosPage /> },
           { path: 'condominios/:id', element: <CondominioPage /> },
           // A aba aberta fica em ?aba=
-          { path: 'avancado', element: <AvancadoPage /> },
+          { path: 'avancado', element: <GuardaAvancado /> },
         ],
       },
     ],

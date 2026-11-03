@@ -18,17 +18,25 @@ import {
 } from '@mui/material';
 import type { SvgIconComponent } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router';
+import { ErroAcesso } from '@/acesso/ErroAcesso';
+import { pode, useEu, type Eu } from '@/acesso/eu';
 import { tokens } from '@/theme/tokens';
 
 type ItemMenu = { rotulo: string; destino: string; Icone: SvgIconComponent };
+type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean };
 
 const ITENS_SPA = [
-  { rotulo: 'Skills', destino: '/skills', Icone: ExtensionOutlined },
-  { rotulo: 'Assistente', destino: '/assistente', Icone: ChatBubbleOutlined },
-  { rotulo: 'Ferramentas', destino: '/ferramentas', Icone: BuildOutlined },
-  { rotulo: 'Condomínios', destino: '/condominios', Icone: ApartmentOutlined },
-  { rotulo: 'Avançado', destino: '/avancado', Icone: TuneOutlined },
-] as const satisfies readonly ItemMenu[];
+  { rotulo: 'Skills', destino: '/skills', Icone: ExtensionOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
+  { rotulo: 'Assistente', destino: '/assistente', Icone: ChatBubbleOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
+  { rotulo: 'Ferramentas', destino: '/ferramentas', Icone: BuildOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
+  {
+    rotulo: 'Condomínios',
+    destino: '/condominios',
+    Icone: ApartmentOutlined,
+    visivelPara: (eu) => pode(eu, 'condominios.habilitar') || pode(eu, 'condominios.editar'),
+  },
+  { rotulo: 'Avançado', destino: '/avancado', Icone: TuneOutlined, visivelPara: (eu) => pode(eu, 'studio.avancado') },
+] as const satisfies readonly ItemSpa[];
 
 // Fora do SPA: navegação completa, sem o basename do roteador.
 const ITEM_ATENDENTE = { rotulo: 'Atendente', destino: '/console', Icone: HeadsetMicOutlined } satisfies ItemMenu;
@@ -37,6 +45,8 @@ type Props = { recolhido: boolean; aoAlternar: () => void };
 
 export function Sidebar({ recolhido, aoAlternar }: Props) {
   const { pathname } = useLocation();
+  const { data: eu, isError, refetch } = useEu();
+  const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
   const largura = recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth;
 
   return (
@@ -55,7 +65,7 @@ export function Sidebar({ recolhido, aoAlternar }: Props) {
       }}
     >
       <List sx={{ p: 1, flex: 1 }}>
-        {ITENS_SPA.map((item) => (
+        {itensVisiveis.map((item) => (
           <ItemDoMenu
             key={item.destino}
             item={item}
@@ -64,6 +74,7 @@ export function Sidebar({ recolhido, aoAlternar }: Props) {
             aoNavegar={{ component: NavLink, to: item.destino }}
           />
         ))}
+        {isError && !recolhido && <ErroAcesso aoTentar={() => void refetch()} />}
         <Divider sx={{ my: 1 }} />
         <ItemDoMenu
           item={ITEM_ATENDENTE}

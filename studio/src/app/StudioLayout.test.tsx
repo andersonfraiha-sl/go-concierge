@@ -1,13 +1,28 @@
 import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { StudioLayout } from './StudioLayout';
 
+const eu = {
+  id: 'u1',
+  nome: 'Ana',
+  papel: 'construtor',
+  permissoes: ['skills.ler', 'condominios.editar', 'studio.avancado'],
+  administradoraId: null,
+  dev: false,
+};
+
 describe('StudioLayout', () => {
-  it('mostraStudioNoTopoESeisItensDeNavegacao', () => {
+  beforeEach(() => {
+    responderCom({ 'GET /api/eu': () => json(eu) });
+  });
+
+  it('mostraStudioNoTopoESeisItensDeNavegacao', async () => {
     renderComProvedores(<StudioLayout />);
 
     expect(screen.getByText('Studio')).toBeInTheDocument();
+    await screen.findByRole('link', { name: 'Skills' });
     const rotulos = ['Skills', 'Assistente', 'Ferramentas', 'Condomínios', 'Avançado', 'Atendente'];
     for (const rotulo of rotulos) {
       expect(screen.getByRole('link', { name: rotulo })).toBeInTheDocument();
