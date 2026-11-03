@@ -5,9 +5,11 @@ import (
 	stdsql "database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"go-concierge/internal/banco/ent"
 	entadministradora "go-concierge/internal/banco/ent/administradora"
@@ -32,31 +34,75 @@ func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
 func (p *Postgres) Ler(ctx context.Context) (Mapeamento, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	return ler(ctx, p.cli)
+	// uma foto só das cinco tabelas, mesmo com uma escrita no meio
+	foto := &stdsql.TxOptions{Isolation: stdsql.LevelRepeatableRead, ReadOnly: true}
+	return emTransacao(ctx, p.cli, foto, ler)
 }
 
 // gravacao escreve no banco o que a regra mudou, lendo do mapeamento novo.
 type gravacao func(ctx context.Context, cli *ent.Client, novo Mapeamento) error
 
+// tentativasSerializacao: quantas vezes alterar tenta antes de desistir por conflito.
+const tentativasSerializacao = 3
+
+// codigoFalhaSerializacao é o SQLSTATE 40001 (serialization_failure).
+const codigoFalhaSerializacao = "40001"
+
 // alterar roda numa transação serializável: lê, valida com a regra pura, grava e relê. A
 // serialização impede que duas escritas simultâneas percam uma à outra (os ajustes mesclam
-// chave a chave) e que o padrão de orientações ganhe duas linhas.
+// chave a chave) e que o padrão de orientações ganhe duas linhas. Como toda escrita lê as
+// tabelas inteiras, escritas simultâneas conflitam: o Postgres aborta uma (40001) e ela é
+// refeita, até tentativasSerializacao vezes dentro do mesmo timeoutConsulta.
 func (p *Postgres) alterar(ctx context.Context, operacao string, r regra, gravar gravacao) (Mapeamento, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	tx, err := p.cli.BeginTx(ctx, &stdsql.TxOptions{Isolation: stdsql.LevelSerializable})
-	if err != nil {
-		return Mapeamento{}, fmt.Errorf("%s: abrir transação: %w", operacao, err)
+	serializavel := &stdsql.TxOptions{Isolation: stdsql.LevelSerializable}
+	aplicar := func(ctx context.Context, cli *ent.Client) (Mapeamento, error) { return alterarNa(ctx, cli, r, gravar) }
+	for tentativa := 1; ; tentativa++ {
+		m, err := emTransacao(ctx, p.cli, serializavel, aplicar)
+		if err == nil {
+			return m, nil
+		}
+		if !falhaDeSerializacao(err) {
+			return Mapeamento{}, fmt.Errorf("%s: %w", operacao, err)
+		}
+		if tentativa == tentativasSerializacao || esperarNovaTentativa(ctx, tentativa) != nil {
+			return Mapeamento{}, fmt.Errorf("%s: %w após %d tentativas: %w", operacao, ErrConflitoConcorrente, tentativa, err)
+		}
 	}
-	m, err := alterarNa(ctx, tx.Client(), r, gravar)
+}
+
+func falhaDeSerializacao(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == codigoFalhaSerializacao
+}
+
+// esperarNovaTentativa espaça as tentativas com um pouco de acaso, para os dois lados do
+// conflito não colidirem de novo no mesmo instante.
+func esperarNovaTentativa(ctx context.Context, tentativa int) error {
+	espera := time.Duration(tentativa) * (10*time.Millisecond + rand.N(20*time.Millisecond))
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(espera):
+		return nil
+	}
+}
+
+func emTransacao(ctx context.Context, cli *ent.Client, opcoes *stdsql.TxOptions, fn func(context.Context, *ent.Client) (Mapeamento, error)) (Mapeamento, error) {
+	tx, err := cli.BeginTx(ctx, opcoes)
+	if err != nil {
+		return Mapeamento{}, fmt.Errorf("abrir transação: %w", err)
+	}
+	m, err := fn(ctx, tx.Client())
 	if err != nil {
 		if errDesfazer := tx.Rollback(); errDesfazer != nil {
 			err = errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
 		}
-		return Mapeamento{}, fmt.Errorf("%s: %w", operacao, err)
+		return Mapeamento{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return Mapeamento{}, fmt.Errorf("%s: confirmar transação: %w", operacao, err)
+		return Mapeamento{}, fmt.Errorf("confirmar transação: %w", err)
 	}
 	return m, nil
 }
@@ -196,11 +242,11 @@ func gravarPayload(ctx context.Context, cli *ent.Client, novo Mapeamento, condoI
 
 func ler(ctx context.Context, cli *ent.Client) (Mapeamento, error) {
 	var m Mapeamento
-	adms, err := cli.Administradora.Query().All(ctx)
+	adms, err := cli.Administradora.Query().Order(entadministradora.ByID()).All(ctx)
 	if err != nil {
 		return m, fmt.Errorf("ler administradoras: %w", err)
 	}
-	condos, err := cli.Condominio.Query().All(ctx)
+	condos, err := cli.Condominio.Query().Order(entcondominio.ByNome(), entcondominio.ByID()).All(ctx)
 	if err != nil {
 		return m, fmt.Errorf("ler condomínios: %w", err)
 	}
