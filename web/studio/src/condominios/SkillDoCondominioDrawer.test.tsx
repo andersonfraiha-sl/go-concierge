@@ -145,7 +145,7 @@ describe('SkillDoCondominioDrawer', () => {
     responderCom(rotasBase(gestor));
     abrirDrawer();
 
-    expect(await screen.findByText('Padrão: 2')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Antecedência mínima')).toHaveAttribute('placeholder', '2');
   });
 
   it('savesSkillGuidanceKeepingGeneral', async () => {
@@ -185,7 +185,7 @@ describe('SkillDoCondominioDrawer', () => {
     });
     const { user } = abrirDrawer();
 
-    const campo = await screen.findByLabelText('Antecedência mínima (dias)');
+    const campo = await screen.findByLabelText('Antecedência mínima');
     await user.clear(campo);
     await user.type(campo, '5');
 
@@ -255,7 +255,7 @@ describe('SkillDoCondominioDrawer', () => {
     expect(screen.getByRole('button', { name: 'Todos' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'síndico' })).toBeDisabled();
     expect(screen.getByPlaceholderText(/^Ex\.:/)).toBeDisabled();
-    expect(screen.getByLabelText('Antecedência mínima (dias)')).toBeDisabled();
+    expect(screen.getByLabelText('Antecedência mínima')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Voltar ao Padrão' })).not.toBeInTheDocument();
   });
 });
