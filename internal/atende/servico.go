@@ -745,6 +745,20 @@ func (s *Servico) Encerrar(ctx context.Context, msg entrada.Mensagem) (bool, err
 	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool { sess.encerrar(msg); return true })
 }
 
+// Sessao devolve a sessão pelo ID interno ou protocolo, só se ela for de uma
+// administradora desta implantação: o store é compartilhado, e uma sessão alheia é
+// tratada como inexistente (não se revela que existe).
+func (s *Servico) Sessao(ctx context.Context, id string) (*Sessao, bool, error) {
+	sess, ok, err := s.Sessoes.Get(ctx, id)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+	if !s.Implantacao.Permite(sess.administradora()) {
+		return nil, false, nil
+	}
+	return sess, true, nil
+}
+
 // mudarExistente aplica mudar à sessão do evento, se existir, e persiste o que mudou.
 func (s *Servico) mudarExistente(ctx context.Context, msg entrada.Mensagem, mudar func(*Sessao) bool) (bool, error) {
 	sess, ok, err := s.Sessoes.Existente(ctx, msg)
@@ -757,9 +771,28 @@ func (s *Servico) mudarExistente(ctx context.Context, msg entrada.Mensagem, muda
 	return true, s.Sessoes.Persistir(ctx, sess)
 }
 
+// jaRegistrado: o evento já virou um turno de quem (o canal reenviou o webhook). Chame
+// com sess.mu.
+func (sess *Sessao) jaRegistrado(eventoID, quem string) bool {
+	return eventoID != "" && slices.ContainsFunc(sess.Turnos, func(t Turno) bool { return t.EventoID == eventoID && t.Quem == quem })
+}
+
+// autorHumano: quem fala no turno de um evento humano.
+func autorHumano(msg entrada.Mensagem) string {
+	if msg.Autor == "atendente" {
+		return "atendente"
+	}
+	return "morador"
+}
+
+// registrarHumano devolve true quando há o que persistir: o evento novo aplicado, ou um
+// reenvio (nada muda, só a gravação é refeita).
 func (sess *Sessao) registrarHumano(msg entrada.Mensagem) bool {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.jaRegistrado(msg.ID, autorHumano(msg)) {
+		return true
+	}
 	if sess.Encerrada {
 		return false
 	}
@@ -773,10 +806,9 @@ func (sess *Sessao) registrarHumano(msg entrada.Mensagem) bool {
 	}
 	texto := strings.TrimSpace(msg.Texto)
 	if texto != "" {
-		quem := "morador"
+		quem := autorHumano(msg)
 		fala := schema.UserMessage(texto)
-		if msg.Autor == "atendente" {
-			quem = "atendente"
+		if quem == "atendente" {
 			fala = schema.AssistantMessage("[atendente humano] "+texto, nil)
 		}
 		turno := Turno{Quem: quem, Texto: texto, EventoID: msg.ID, Quando: time.Now()}
@@ -790,6 +822,9 @@ func (sess *Sessao) registrarHumano(msg entrada.Mensagem) bool {
 func (sess *Sessao) encerrar(msg entrada.Mensagem) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.jaRegistrado(msg.ID, "sistema") {
+		return
+	}
 	sess.Encerrada = true
 	sess.revisaoEstado++
 	if sess.cancelarTurno != nil {
@@ -1050,15 +1085,18 @@ func (s *Servico) Assumir(ctx context.Context, protocolo, atendente, motivo stri
 	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.assumir(sess, atendente, motivo) })
 }
 
+// ErrProtocoloDesconhecido: não há sessão do protocolo visível nesta implantação.
+var ErrProtocoloDesconhecido = errors.New("protocolo desconhecido")
+
 // noProtocolo roda op na sessão do protocolo, com o trabalho dela travado, e persiste
 // a sessão em seguida (mesmo que op falhe: o que já mudou fica gravado).
 func (s *Servico) noProtocolo(ctx context.Context, protocolo string, op func(*Sessao) (*Sessao, error)) (*Sessao, error) {
-	sess, ok, err := s.Sessoes.Get(ctx, protocolo)
+	sess, ok, err := s.Sessao(ctx, protocolo)
 	if err != nil {
 		return nil, fmt.Errorf("sessão do protocolo %s: %w", protocolo, err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
+		return nil, fmt.Errorf("%w: %s", ErrProtocoloDesconhecido, protocolo)
 	}
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()

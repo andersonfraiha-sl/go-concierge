@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"go-concierge/internal/entrada"
 	"io"
 	"log"
 	"net/http"
@@ -338,4 +340,116 @@ func listarSessoes(t *testing.T, s *atende.Sessoes) []*atende.Sessao {
 		t.Fatalf("listar sessões: %v", err)
 	}
 	return sessoes
+}
+
+// storeFalho falha toda gravação; leituras vão ao store em memória.
+type storeFalho struct{ *atende.SessaoEmMemoria }
+
+func (storeFalho) Salvar(context.Context, atende.RegistroSessao) error {
+	return errors.New("postgres fora")
+}
+
+// servidorComSessoes: sessões de adm-a (s-a) e de adm-b (s-b) num store compartilhado.
+func servidorComSessoes(t *testing.T, implantacao escopo.Implantacao) *servidor {
+	t.Helper()
+	st := atende.NovaSessaoEmMemoria()
+	for id, adm := range map[string]string{"s-a": "adm-a", "s-b": "adm-b"} {
+		sess := &atende.Sessao{ID: id, AdministradoraID: adm, Protocolo: "P-" + id, Destino: entrada.Destino{Conector: "atende-emulado"}, AtualizadaEm: time.Now()}
+		r, err := sess.Registro()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := st.Salvar(t.Context(), r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return &servidor{
+		atende:      &atende.Servico{Sessoes: atende.NewSessoes(st), Implantacao: implantacao},
+		implantacao: implantacao, outbox: &atende.Outbox{}, emulador: atende.NewEmulador(),
+	}
+}
+
+func TestSessoesFicamNaImplantacao(t *testing.T) {
+	fixa := escopo.Implantacao{AdministradoraFixa: "adm-a"}
+	casos := []struct {
+		nome        string
+		implantacao escopo.Implantacao
+		metodo, url string
+		corpo       string
+		status      int
+		trecho      string
+	}{
+		{"lista da fixa", fixa, "GET", "/api/atende/sessoes", "", 200, `"id":"s-a"`},
+		{"lista de outra administradora", fixa, "GET", "/api/atende/sessoes?administradora=adm-b", "", 403, "FORA_DA_IMPLANTACAO"},
+		{"lista com administradora invalida", fixa, "GET", "/api/atende/sessoes?administradora=..%2Fx", "", 400, "ADMINISTRADORA_INVALIDA"},
+		{"lista sem fixa traz todas", escopo.Implantacao{}, "GET", "/api/atende/sessoes", "", 200, `"id":"s-b"`},
+		{"lista filtrada sem fixa", escopo.Implantacao{}, "GET", "/api/atende/sessoes?administradora=adm-b", "", 200, `"id":"s-b"`},
+		{"le a propria", fixa, "GET", "/api/atende/sessao?id=s-a", "", 200, `"id":"s-a"`},
+		{"le alheia", fixa, "GET", "/api/atende/sessao?id=s-b", "", 404, ""},
+		{"le alheia por protocolo", fixa, "GET", "/api/atende/sessao?protocolo=P-s-b", "", 404, ""},
+		{"le de outra administradora pedida", escopo.Implantacao{}, "GET", "/api/atende/sessao?id=s-a&administradora=adm-b", "", 404, ""},
+		{"saidas de alheia", fixa, "GET", "/api/atende/saidas?id=s-b", "", 404, ""},
+		{"assume a propria", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-a","acao":"assumir"}`, 200, `"ativo":true`},
+		{"assume alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"assumir"}`, 404, ""},
+		{"devolve alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"devolver"}`, 404, ""},
+		{"preenche pedido de alheia", fixa, "POST", "/api/pedidos/acao", `{"sessao_id":"s-b","acao":"preencher"}`, 404, ""},
+		{"apaga alheia", fixa, "DELETE", "/api/atende/sessao?id=s-b", "", 404, ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			s := servidorComSessoes(t, c.implantacao)
+			mux := http.NewServeMux()
+			s.rotasAtende(mux)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest(c.metodo, c.url, strings.NewReader(c.corpo)))
+			if w.Code != c.status || !strings.Contains(w.Body.String(), c.trecho) {
+				t.Fatalf("status %d: %s", w.Code, w.Body.String())
+			}
+			if c.status == 404 && strings.Contains(w.Body.String(), "s-b") {
+				t.Fatalf("resposta revela a sessão alheia: %s", w.Body.String())
+			}
+			if _, ok, err := s.atende.Sessoes.Get(t.Context(), "s-b"); err != nil || !ok {
+				t.Fatalf("sessão alheia sumiu do store: ok=%v err=%v", ok, err)
+			}
+		})
+	}
+	t.Run("lista da fixa nao traz alheia", func(t *testing.T) {
+		s := servidorComSessoes(t, fixa)
+		w := httptest.NewRecorder()
+		s.atendeSessoes(w, httptest.NewRequest("GET", "/api/atende/sessoes", nil))
+		if strings.Contains(w.Body.String(), `"id":"s-b"`) {
+			t.Fatalf("lista trouxe sessão de outra administradora: %s", w.Body.String())
+		}
+	})
+}
+
+func TestFalhaAoPersistirResponde500(t *testing.T) {
+	novo := func(t *testing.T) *servidor {
+		s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(storeFalho{atende.NovaSessaoEmMemoria()})}, outbox: &atende.Outbox{}, emulador: atende.NewEmulador()}
+		msg := entrada.Mensagem{ConversaID: "protocolo-teste", Origem: entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}}
+		if _, err := s.atende.Sessoes.Abrir(t.Context(), msg); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	t.Run("webhook humano", func(t *testing.T) {
+		s := novo(t)
+		w := httptest.NewRecorder()
+		s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710"))))
+		if w.Code != 500 {
+			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("transbordo", func(t *testing.T) {
+		s := novo(t)
+		sessoes := listarSessoes(t, s.atende.Sessoes)
+		if len(sessoes) != 1 {
+			t.Fatalf("sessões: %d", len(sessoes))
+		}
+		w := httptest.NewRecorder()
+		s.atendeTransbordo(w, httptest.NewRequest("POST", "/api/atende/transbordo", strings.NewReader(`{"sessao_id":"`+sessoes[0].ID+`","acao":"assumir"}`)))
+		if w.Code != 500 {
+			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+		}
+	})
 }

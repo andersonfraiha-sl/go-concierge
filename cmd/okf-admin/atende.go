@@ -58,13 +58,20 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 // administradoraDaRota: a administradora pedida (?administradora=), ou a fixa da
 // implantação. Sem nenhuma ou fora do formato, 400; fora da implantação, 403.
 func (s *servidor) administradoraDaRota(w http.ResponseWriter, r *http.Request) (string, bool) {
-	adm := strings.TrimSpace(r.URL.Query().Get("administradora"))
-	if adm == "" {
-		adm = s.implantacao.AdministradoraFixa
-	}
-	if adm == "" {
+	adm, ok := s.administradoraOpcional(w, r)
+	if ok && adm == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_OBRIGATORIA", "error": "informe administradora"})
 		return "", false
+	}
+	return adm, ok
+}
+
+// administradoraOpcional: como administradoraDaRota, mas sem nenhuma (nem pedida nem
+// fixa) devolve "" (todas as administradoras).
+func (s *servidor) administradoraOpcional(w http.ResponseWriter, r *http.Request) (string, bool) {
+	adm := cmp.Or(strings.TrimSpace(r.URL.Query().Get("administradora")), s.implantacao.AdministradoraFixa)
+	if adm == "" {
+		return "", true
 	}
 	if !escopo.AdministradoraValida(adm) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_INVALIDA", "error": "administradora com formato inválido"})
@@ -289,7 +296,10 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 // atendeSessoes: as sessões da administradora pedida (?administradora=) ou da fixa da
 // implantação; sem nenhuma, todas.
 func (s *servidor) atendeSessoes(w http.ResponseWriter, r *http.Request) {
-	adm := cmp.Or(strings.TrimSpace(r.URL.Query().Get("administradora")), s.implantacao.AdministradoraFixa)
+	adm, ok := s.administradoraOpcional(w, r)
+	if !ok {
+		return
+	}
 	sessoes, err := s.atende.Sessoes.Lista(r.Context(), adm)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -298,18 +308,30 @@ func (s *servidor) atendeSessoes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"sessoes": sessoes})
 }
 
-// sessaoDaRota: a sessão pelo identificador (ID interno ou protocolo). Responde 404 ou
-// 500 e devolve false quando não há sessão para seguir.
+// sessaoDaRota: a sessão pelo identificador (ID interno ou protocolo), visível nesta
+// implantação e, com ?administradora=, dessa administradora. Sessão alheia responde 404,
+// como inexistente. Devolve false quando a resposta já foi escrita.
 func (s *servidor) sessaoDaRota(w http.ResponseWriter, r *http.Request, identificador string) (*atende.Sessao, bool) {
-	sess, ok, err := s.atende.Sessoes.Get(r.Context(), identificador)
+	sess, ok, err := s.atende.Sessao(r.Context(), identificador)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return nil, false
+	}
+	if adm := strings.TrimSpace(r.URL.Query().Get("administradora")); ok && adm != "" && sess.AdministradoraID != adm {
+		ok = false
 	}
 	if !ok {
 		writeErr(w, 404, errNaoEncontrado)
 	}
 	return sess, ok
+}
+
+// statusDaFalha: persistência que falhou é do servidor (500); o resto é do pedido (400).
+func statusDaFalha(err error) int {
+	if errors.Is(err, atende.ErrSessaoNaoPersistida) {
+		return http.StatusInternalServerError
+	}
+	return http.StatusBadRequest
 }
 
 func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
@@ -341,22 +363,26 @@ func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 	if corpo.SessaoID != "" {
 		corpo.Protocolo = corpo.SessaoID
 	}
+	alvo, ok := s.sessaoDaRota(w, r, corpo.Protocolo)
+	if !ok {
+		return
+	}
 	var (
 		sess *atende.Sessao
 		err  error
 	)
 	switch corpo.Acao {
 	case "assumir":
-		sess, err = s.atende.Assumir(r.Context(), corpo.Protocolo, corpo.Atendente, corpo.Motivo)
+		sess, err = s.atende.Assumir(r.Context(), alvo.ID, corpo.Atendente, corpo.Motivo)
 	case "responder":
-		sess, err = s.atende.Responder(r.Context(), corpo.Protocolo, corpo.Atendente, corpo.Texto)
+		sess, err = s.atende.Responder(r.Context(), alvo.ID, corpo.Atendente, corpo.Texto)
 	case "devolver":
-		sess, err = s.atende.Devolver(r.Context(), corpo.Protocolo)
+		sess, err = s.atende.Devolver(r.Context(), alvo.ID)
 	default:
 		err = errors.New("acao: assumir | responder | devolver")
 	}
 	if err != nil {
-		writeErr(w, 400, err)
+		writeErr(w, statusDaFalha(err), err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
@@ -474,9 +500,13 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	switch corpo.Acao {
 	case "preencher":
-		sess, p, saida, err := s.atende.PreencherPedido(ctx, corpo.Protocolo, corpo.Pedido, corpo.Atendente, corpo.Valores, corpo.Confirmar)
+		alvo, ok := s.sessaoDaRota(w, r, corpo.Protocolo)
+		if !ok {
+			return
+		}
+		sess, p, saida, err := s.atende.PreencherPedido(ctx, alvo.ID, corpo.Pedido, corpo.Atendente, corpo.Valores, corpo.Confirmar)
 		if err != nil {
-			writeErr(w, 400, err)
+			writeErr(w, statusDaFalha(err), err)
 			return
 		}
 		writeJSON(w, 200, map[string]any{"pedido": p, "saida": saida, "sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})

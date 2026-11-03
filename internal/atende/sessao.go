@@ -3,6 +3,7 @@ package atende
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -198,6 +199,9 @@ func (s *Sessoes) adotar(sess *Sessao) *Sessao {
 	return sess
 }
 
+// ErrSessaoNaoPersistida: a sessão mudou em memória, mas não foi gravada no store.
+var ErrSessaoNaoPersistida = errors.New("sessão não persistida")
+
 // Persistir grava a sessão no store. A falha é logada (ERROR) e devolvida.
 func (s *Sessoes) Persistir(ctx context.Context, sess *Sessao) error {
 	sess.persistMu.Lock()
@@ -208,7 +212,7 @@ func (s *Sessoes) Persistir(ctx context.Context, sess *Sessao) error {
 	}
 	if err != nil {
 		slog.ErrorContext(ctx, "atende: sessão não persistida", "operacao", "persistir_sessao", "sessao", sess.ID, "erro", err)
-		return fmt.Errorf("persistir sessão %s: %w", sess.ID, err)
+		return fmt.Errorf("%w %s: %w", ErrSessaoNaoPersistida, sess.ID, err)
 	}
 	return nil
 }

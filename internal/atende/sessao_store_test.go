@@ -1,17 +1,22 @@
 package atende
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/okf"
@@ -173,7 +178,10 @@ func sessaoSobreviveRestart(t *testing.T, st SessaoStore) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fix, _ := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
+	fix, err := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	novoServico := func() *Servico {
@@ -184,11 +192,11 @@ func sessaoSobreviveRestart(t *testing.T, st SessaoStore) {
 		}
 	}
 	svc := novoServico()
-	ev, _ := Parse([]byte(eventoExemplo))
+	ev := parseEvento(t, eventoExemplo)
 	if _, err := svc.Processar(t.Context(), ev.Normalizar()); err != nil {
 		t.Fatal(err)
 	}
-	ev2, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "até que horas a piscina abre?", 1)))
+	ev2 := parseEvento(t, strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "até que horas a piscina abre?", 1))
 	ev2.ID = "evt_2"
 	antes, err := svc.Processar(t.Context(), ev2.Normalizar())
 	if err != nil {
@@ -211,7 +219,7 @@ func sessaoSobreviveRestart(t *testing.T, st SessaoStore) {
 
 	// a próxima mensagem depois do restart continua a mesma conversa
 	svc3 := novoServico()
-	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "e a academia?", 1)))
+	ev3 := parseEvento(t, strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "e a academia?", 1))
 	ev3.ID = "evt_3"
 	continuada, err := svc3.Processar(context.Background(), ev3.Normalizar())
 	if err != nil {
@@ -268,4 +276,112 @@ func encerrar(t testing.TB, svc *Servico, msg entrada.Mensagem) bool {
 		t.Errorf("encerrar: %v", err)
 	}
 	return ok
+}
+
+func parseEvento(t *testing.T, raw string) *Evento {
+	t.Helper()
+	ev, err := Parse([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}
+
+// storeFalho falha as primeiras `falhas` gravações; o resto vai ao store em memória.
+type storeFalho struct {
+	*SessaoEmMemoria
+	mu     sync.Mutex
+	falhas int
+}
+
+func (f *storeFalho) Salvar(ctx context.Context, r RegistroSessao) error {
+	f.mu.Lock()
+	falhar := f.falhas > 0
+	f.falhas--
+	f.mu.Unlock()
+	if falhar {
+		return errors.New("postgres fora")
+	}
+	return f.SessaoEmMemoria.Salvar(ctx, r)
+}
+
+func TestEventoReenviadoNaoDuplicaTurno(t *testing.T) {
+	casos := []struct {
+		nome   string
+		aplica func(*Servico, context.Context, entrada.Mensagem) (bool, error)
+	}{
+		{"mensagem humana", (*Servico).RegistrarHumano},
+		{"fechamento", (*Servico).Encerrar},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			st := &storeFalho{SessaoEmMemoria: NovaSessaoEmMemoria(), falhas: 1}
+			svc := &Servico{Sessoes: NewSessoes(st)}
+			msg := entrada.Mensagem{ID: "evt-humano", ConversaID: "P-3", Tenant: "tenant", Autor: "atendente", Texto: "oi", Contato: entrada.Contato{Phone: "5511999"}}
+			sess := abrir(t, svc.Sessoes, msg)
+			if _, err := c.aplica(svc, t.Context(), msg); !errors.Is(err, ErrSessaoNaoPersistida) {
+				t.Fatalf("primeira entrega deveria falhar ao persistir: %v", err)
+			}
+			if ok, err := c.aplica(svc, t.Context(), msg); err != nil || !ok {
+				t.Fatalf("reenvio deveria só refazer a gravação: ok=%v err=%v", ok, err)
+			}
+			if len(sess.Turnos) != 1 {
+				t.Fatalf("reenvio duplicou o turno: %+v", sess.Turnos)
+			}
+			r, ok, err := st.Carregar(t.Context(), sess.ID)
+			if err != nil || !ok {
+				t.Fatalf("sessão não gravada no reenvio: ok=%v err=%v", ok, err)
+			}
+			gravada, err := RestaurarSessao(r)
+			if err != nil || len(gravada.Turnos) != 1 {
+				t.Fatalf("sessão gravada: %+v err=%v", gravada, err)
+			}
+		})
+	}
+}
+
+func TestPersistirFalhoLogaEProcessarDevolve(t *testing.T) {
+	var log bytes.Buffer
+	anterior := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&log, nil)))
+	t.Cleanup(func() { slog.SetDefault(anterior) })
+
+	svc := &Servico{Sessoes: NewSessoes(&storeFalho{SessaoEmMemoria: NovaSessaoEmMemoria(), falhas: 1})}
+	msg := entrada.Mensagem{ID: "evt-1", ConversaID: "P-4", Tenant: "tenant", Texto: "oi", Contato: entrada.Contato{Phone: "5511999"}}
+	abrir(t, svc.Sessoes, msg).encerrar(entrada.Mensagem{ID: "evt-0"})
+	if _, err := svc.Processar(t.Context(), msg); !errors.Is(err, ErrSessaoNaoPersistida) {
+		t.Fatalf("Processar deveria devolver a falha de persistência: %v", err)
+	}
+	if !strings.Contains(log.String(), "level=ERROR") || !strings.Contains(log.String(), "persistir_sessao") {
+		t.Fatalf("falha de persistência não foi logada como ERROR: %s", log.String())
+	}
+}
+
+func TestSessaoDeOutraAdministradoraNaoAparece(t *testing.T) {
+	st := NovaSessaoEmMemoria()
+	alheia := &Sessao{ID: "s-b", AdministradoraID: "adm-b", Protocolo: "P-b", Destino: entrada.Destino{Conector: "atende-emulado"}}
+	r, err := alheia.Registro()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Salvar(t.Context(), r); err != nil {
+		t.Fatal(err)
+	}
+	svc := &Servico{Sessoes: NewSessoes(st), Implantacao: escopo.Implantacao{AdministradoraFixa: "adm-a"}}
+	if _, ok, err := svc.Sessao(t.Context(), "s-b"); err != nil || ok {
+		t.Fatalf("sessão de outra administradora visível: ok=%v err=%v", ok, err)
+	}
+	operacoes := map[string]func() error{
+		"assumir":  func() error { _, err := svc.Assumir(t.Context(), "s-b", "Ana", "teste"); return err },
+		"devolver": func() error { _, err := svc.Devolver(t.Context(), "s-b"); return err },
+		"responder": func() error {
+			_, err := svc.Responder(t.Context(), "s-b", "Ana", "oi")
+			return err
+		},
+	}
+	for nome, op := range operacoes {
+		if err := op(); !errors.Is(err, ErrProtocoloDesconhecido) {
+			t.Fatalf("%s numa sessão alheia: %v", nome, err)
+		}
+	}
 }
