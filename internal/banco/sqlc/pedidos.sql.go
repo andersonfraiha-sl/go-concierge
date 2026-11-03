@@ -11,32 +11,54 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acrescentarEventos = `-- name: AcrescentarEventos :exec
-INSERT INTO pedido_eventos (protocolo, seq, tipo, texto, por, quando)
-SELECT unnest($1::text[]), unnest($2::bigint[]), unnest($3::text[]),
-       unnest($4::text[]), unnest($5::text[]), unnest($6::timestamptz[])
-ON CONFLICT (protocolo, seq) DO NOTHING
+const gravarPedidos = `-- name: GravarPedidos :exec
+SELECT gravar_pedidos(
+    $1::text, $2::text,
+    $3::text[], $4::text[], $5::text[], $6::text[],
+    $7::text[], $8::timestamptz[], $9::timestamptz[],
+    $10::text[], $11::bigint[], $12::text[],
+    $13::text[], $14::text[], $15::timestamptz[]
+)
 `
 
-type AcrescentarEventosParams struct {
-	Protocolos []string
-	Seqs       []int64
-	Tipos      []string
-	Textos     []string
-	Pors       []string
-	Quandos    []pgtype.Timestamptz
+type GravarPedidosParams struct {
+	AdministradoraID string
+	Telefone         string
+	Protocolos       []string
+	Condominios      []string
+	Casos            []string
+	Estados          []string
+	Dados            []string
+	Criados          []pgtype.Timestamptz
+	Atualizados      []pgtype.Timestamptz
+	EventoProtocolos []string
+	EventoSeqs       []int64
+	EventoTipos      []string
+	EventoTextos     []string
+	EventoPors       []string
+	EventoQuandos    []pgtype.Timestamptz
 }
 
-// por que não ent: acrescentar N eventos ignorando os já gravados num comando só
-// várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
-func (q *Queries) AcrescentarEventos(ctx context.Context, arg AcrescentarEventosParams) error {
-	_, err := q.db.Exec(ctx, acrescentarEventos,
+// por que não ent: apagar, fazer upsert só sobre linhas do contato, conferir os donos e
+// acrescentar os eventos numa ida ao banco, atômica; pelo ent seriam ~7 idas e os eventos
+// ficariam fora da transação (ent fala database/sql, sqlc fala pgx)
+func (q *Queries) GravarPedidos(ctx context.Context, arg GravarPedidosParams) error {
+	_, err := q.db.Exec(ctx, gravarPedidos,
+		arg.AdministradoraID,
+		arg.Telefone,
 		arg.Protocolos,
-		arg.Seqs,
-		arg.Tipos,
-		arg.Textos,
-		arg.Pors,
-		arg.Quandos,
+		arg.Condominios,
+		arg.Casos,
+		arg.Estados,
+		arg.Dados,
+		arg.Criados,
+		arg.Atualizados,
+		arg.EventoProtocolos,
+		arg.EventoSeqs,
+		arg.EventoTipos,
+		arg.EventoTextos,
+		arg.EventoPors,
+		arg.EventoQuandos,
 	)
 	return err
 }

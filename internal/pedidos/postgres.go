@@ -8,7 +8,7 @@ import (
 	"slices"
 	"time"
 
-	"entgo.io/ent/dialect/sql"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"go-concierge/internal/banco"
@@ -23,7 +23,8 @@ import (
 const timeoutConsulta = 3 * time.Second
 
 // Postgres guarda cada pedido numa linha de pedidos (o pedido inteiro em dados) e o
-// histórico em pedido_eventos, só acrescentado. Pedidos vão pelo ent; eventos pelo sqlc.
+// histórico em pedido_eventos, só acrescentado. Leituras vão pelo ent; a gravação, pela função
+// gravar_pedidos via sqlc.
 type Postgres struct {
 	b       banco.Banco
 	sortear func() string // protocolo para o pedido novo que colide
@@ -47,35 +48,61 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Carteira, error) 
 }
 
 // Gravar troca os pedidos do contato pelos da carteira (os que saíram são apagados) e
-// acrescenta ao histórico os eventos novos. A administradora e o telefone são os do contato.
+// acrescenta ao histórico os eventos novos, tudo numa ida ao banco. A administradora e o
+// telefone são os do contato.
 func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, cart Carteira) error {
 	if err := validarContato(c); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	var gravados []Pedido
-	err := emTransacao(ctx, p.b.Ent, func(cli *ent.Client) error {
-		var err error
-		gravados, err = p.gravarNa(ctx, cli, c, copiasDoContato(c, cart.Pedidos))
-		return err
-	})
+	pedidos := copiasDoContato(c, cart.Pedidos)
+	err := p.gravar(ctx, c, pedidos)
+	if errors.Is(err, ErrProtocoloEmUso) {
+		// raro: um pedido novo sorteou o protocolo de outro contato e a gravação foi desfeita
+		pedidos, err = redesenharColisoes(pedidos, p.deOutros(ctx, c), p.sortear)
+		if err == nil {
+			err = p.gravar(ctx, c, pedidos)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err)
 	}
-	adotarProtocolos(cart.Pedidos, gravados)
-	// Os eventos vão depois do commit: o ent fala database/sql e o sqlc fala pgx, e os dois
-	// não dividem transação. dados já tem o histórico inteiro; se esta parte falhar, o erro
-	// volta, o Servico guarda a carteira como pendente e a próxima gravação acrescenta o que
-	// faltou (os já gravados são ignorados).
-	eventos := eventosDe(gravados)
-	if len(eventos.Protocolos) == 0 {
-		return nil
-	}
-	if err := p.b.SQL.AcrescentarEventos(ctx, eventos); err != nil {
-		return fmt.Errorf("pedidos de %s gravados, mas não o histórico: %w", c.Mascarado(), err)
-	}
+	adotarProtocolos(cart.Pedidos, pedidos)
 	return nil
+}
+
+// sqlstateProtocoloAlheio é o erro que gravar_pedidos levanta quando um protocolo já é de
+// outro contato (migration 20261103180000_gravar_pedidos.sql).
+const sqlstateProtocoloAlheio = "CC001"
+
+func (p *Postgres) gravar(ctx context.Context, c escopo.Contato, pedidos []Pedido) error {
+	params, err := paramsDeGravacao(c, pedidos)
+	if err != nil {
+		return err
+	}
+	err = p.b.SQL.GravarPedidos(ctx, params)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == sqlstateProtocoloAlheio {
+		return ErrProtocoloEmUso
+	}
+	return err
+}
+
+// deOutros consulta, dentre os protocolos, os que já são de outro contato. Só roda depois
+// de uma colisão.
+func (p *Postgres) deOutros(ctx context.Context, c escopo.Contato) deOutros {
+	return func(protocolos []string) (map[string]bool, error) {
+		ids, err := p.b.Ent.Pedido.Query().Where(pedido.IDIn(protocolos...), pedido.Not(doContato(c))).IDs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("procurar protocolos de outros contatos: %w", err)
+		}
+		out := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			out[id] = true
+		}
+		return out, nil
+	}
 }
 
 // Listar devolve as carteiras da administradora com algum pedido, a atualizada por último
@@ -135,138 +162,45 @@ func carteiraDe(c escopo.Contato, linhas []*ent.Pedido) (Carteira, error) {
 	return montar(c, pedidos), nil
 }
 
-// linha é o pedido já serializado para a coluna dados.
-type linha struct {
-	pedido Pedido
-	dados  json.RawMessage
-}
-
-func linhasDe(pedidos []Pedido) ([]linha, error) {
-	out := make([]linha, 0, len(pedidos))
-	for _, p := range pedidos {
-		dados, err := json.Marshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("pedido %s: %w", p.Protocolo, err)
-		}
-		out = append(out, linha{pedido: p, dados: dados})
-	}
-	return out, nil
-}
-
-// gravarNa redesenha os protocolos que colidem com os de outro contato e troca os pedidos do
-// contato pelos da carteira; devolve os pedidos como ficaram gravados.
-func (p *Postgres) gravarNa(ctx context.Context, cli *ent.Client, c escopo.Contato, pedidos []Pedido) ([]Pedido, error) {
-	pedidos, err := redesenharColisoes(pedidos, deOutrosNoBanco(ctx, cli, c), p.sortear)
-	if err != nil {
-		return nil, err
-	}
-	linhas, err := linhasDe(pedidos)
-	if err != nil {
-		return nil, fmt.Errorf("codificar pedidos: %w", err)
-	}
-	if err := trocarPedidos(ctx, cli, c, linhas); err != nil {
-		return nil, err
-	}
-	return pedidos, nil
-}
-
-func deOutrosNoBanco(ctx context.Context, cli *ent.Client, c escopo.Contato) deOutros {
-	return func(protocolos []string) (map[string]bool, error) {
-		ids, err := cli.Pedido.Query().Where(pedido.IDIn(protocolos...), pedido.Not(doContato(c))).IDs(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("procurar protocolos de outros contatos: %w", err)
-		}
-		out := make(map[string]bool, len(ids))
-		for _, id := range ids {
-			out[id] = true
-		}
-		return out, nil
-	}
-}
-
-// trocarPedidos grava os pedidos do contato e apaga os que saíram da carteira. O upsert só
-// sobrescreve linha do próprio contato; se outro contato gravou o mesmo protocolo depois da
-// checagem, a contagem não fecha e a transação é desfeita.
-func trocarPedidos(ctx context.Context, cli *ent.Client, c escopo.Contato, linhas []linha) error {
-	protocolos := make([]string, 0, len(linhas))
-	for _, l := range linhas {
-		protocolos = append(protocolos, l.pedido.Protocolo)
-	}
-	if _, err := cli.Pedido.Delete().Where(doContato(c), pedido.IDNotIn(protocolos...)).Exec(ctx); err != nil {
-		return fmt.Errorf("apagar pedidos removidos: %w", err)
-	}
-	if len(linhas) == 0 {
-		return nil
-	}
-	if err := upsertPedidos(ctx, cli, linhas); err != nil {
-		return err
-	}
-	meus, err := cli.Pedido.Query().Where(doContato(c), pedido.IDIn(protocolos...)).Count(ctx)
-	if err != nil {
-		return fmt.Errorf("conferir donos dos pedidos: %w", err)
-	}
-	if meus != len(protocolos) {
-		return ErrProtocoloEmUso
-	}
-	return nil
-}
-
 func doContato(c escopo.Contato) predicate.Pedido {
 	return pedido.And(pedido.AdministradoraID(c.AdministradoraID), pedido.Telefone(c.Telefone))
 }
 
-func upsertPedidos(ctx context.Context, cli *ent.Client, linhas []linha) error {
-	atual, proposto := sql.Table(pedido.Table), sql.Table("excluded")
-	mesmoContato := sql.And(
-		sql.ColumnsEQ(atual.C(pedido.FieldAdministradoraID), proposto.C(pedido.FieldAdministradoraID)),
-		sql.ColumnsEQ(atual.C(pedido.FieldTelefone), proposto.C(pedido.FieldTelefone)),
-	)
-	err := cli.Pedido.MapCreateBulk(linhas, func(cr *ent.PedidoCreate, i int) {
-		p := linhas[i].pedido
-		cr.SetID(p.Protocolo).SetAdministradoraID(p.AdministradoraID).SetCondominioID(p.CondominioID).
-			SetTelefone(p.Telefone).SetCaso(p.Caso).SetEstado(p.Estado).SetDados(linhas[i].dados).
-			SetCriadoEm(p.CriadoEm).SetAtualizadoEm(p.AtualizadoEm)
-	}).
-		OnConflict(sql.ConflictColumns(pedido.FieldID), sql.UpdateWhere(mesmoContato)).
-		UpdateNewValues().
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("gravar pedidos: %w", err)
+// paramsDeGravacao põe os pedidos e o histórico de cada um em colunas; seq é a posição no
+// histórico, contando de 1. Os arrays nunca são nil: nil vira NULL e "protocolo <> ALL(NULL)"
+// não apagaria nada.
+func paramsDeGravacao(c escopo.Contato, pedidos []Pedido) (sqlc.GravarPedidosParams, error) {
+	n := len(pedidos)
+	p := sqlc.GravarPedidosParams{
+		AdministradoraID: c.AdministradoraID, Telefone: c.Telefone,
+		Protocolos: make([]string, 0, n), Condominios: make([]string, 0, n), Casos: make([]string, 0, n),
+		Estados: make([]string, 0, n), Dados: make([]string, 0, n),
+		Criados: make([]pgtype.Timestamptz, 0, n), Atualizados: make([]pgtype.Timestamptz, 0, n),
+		EventoProtocolos: []string{}, EventoSeqs: []int64{}, EventoTipos: []string{},
+		EventoTextos: []string{}, EventoPors: []string{}, EventoQuandos: []pgtype.Timestamptz{},
 	}
-	return nil
-}
-
-// eventosDe põe o histórico de cada pedido em colunas; seq é a posição no histórico,
-// contando de 1.
-func eventosDe(pedidos []Pedido) sqlc.AcrescentarEventosParams {
-	var p sqlc.AcrescentarEventosParams
 	for _, ped := range pedidos {
+		dados, err := json.Marshal(ped)
+		if err != nil {
+			return sqlc.GravarPedidosParams{}, fmt.Errorf("codificar pedido %s: %w", ped.Protocolo, err)
+		}
+		p.Protocolos = append(p.Protocolos, ped.Protocolo)
+		p.Condominios = append(p.Condominios, ped.CondominioID)
+		p.Casos = append(p.Casos, ped.Caso)
+		p.Estados = append(p.Estados, ped.Estado)
+		p.Dados = append(p.Dados, string(dados))
+		p.Criados = append(p.Criados, quando(ped.CriadoEm))
+		p.Atualizados = append(p.Atualizados, quando(ped.AtualizadoEm))
 		for i, e := range ped.Historico {
-			p.Protocolos = append(p.Protocolos, ped.Protocolo)
-			p.Seqs = append(p.Seqs, int64(i+1))
-			p.Tipos = append(p.Tipos, e.Tipo)
-			p.Textos = append(p.Textos, e.Texto)
-			p.Pors = append(p.Pors, e.Por)
-			p.Quandos = append(p.Quandos, pgtype.Timestamptz{Time: e.Quando, Valid: true})
+			p.EventoProtocolos = append(p.EventoProtocolos, ped.Protocolo)
+			p.EventoSeqs = append(p.EventoSeqs, int64(i+1))
+			p.EventoTipos = append(p.EventoTipos, e.Tipo)
+			p.EventoTextos = append(p.EventoTextos, e.Texto)
+			p.EventoPors = append(p.EventoPors, e.Por)
+			p.EventoQuandos = append(p.EventoQuandos, quando(e.Quando))
 		}
 	}
-	return p
+	return p, nil
 }
 
-// emTransacao roda fn numa transação e desfaz tudo se ela falhar.
-func emTransacao(ctx context.Context, cli *ent.Client, fn func(*ent.Client) error) error {
-	tx, err := cli.Tx(ctx)
-	if err != nil {
-		return fmt.Errorf("abrir transação: %w", err)
-	}
-	if err := fn(tx.Client()); err != nil {
-		if errDesfazer := tx.Rollback(); errDesfazer != nil {
-			err = errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
-		}
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("confirmar transação: %w", err)
-	}
-	return nil
-}
+func quando(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
