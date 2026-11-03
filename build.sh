@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compila e testa o go-concierge sem Go nem Node locais: o Studio roda no contêiner
-# node:26-alpine (testes e build em web/studio/dist, que o Go embute) e o Go no
-# golang:1.27-alpine, com o cache de módulos compartilhado com o sl-concierge.
+# node:26.13-trixie-slim (testes e build em web/studio/dist, que o Go embute) e o Go no
+# golang:1.27-trixie, com o cache de módulos compartilhado com o sl-concierge.
 #
 #   ./build.sh            # Studio (lint + test + build) + gofmt + vet + test + binários em bin/ (Windows e Linux)
 #   ./build.sh --test     # só os testes: Studio, vet e Go
@@ -12,10 +12,10 @@ cd "$(dirname "$0")"
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado" >&2; exit 1; }
 
 # node_modules num volume anônimo: o pnpm install do Linux não sobrescreve o node_modules do Windows.
-# node:26-alpine não traz corepack; instala o pnpm pinado em package.json (packageManager) via npm.
+# Node 26 LTS (Debian trixie); instala o pnpm pinado em package.json (packageManager) via npm.
 PNPM="npm install -g pnpm@12.16.1 >/dev/null"
-STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -e HUSKY=0 -v $PWD:/src -v /src/web/studio/node_modules -w /src/web/studio node:26-alpine"
-GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-alpine"
+STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -e HUSKY=0 -v $PWD:/src -v /src/web/studio/node_modules -w /src/web/studio node:26.13-trixie-slim"
+GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-trixie"
 
 case "${1:-}" in
   --test)
