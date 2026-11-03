@@ -24,6 +24,7 @@ Os caminhos da análise apontam para `studio/src/...` da branch `feat/studio-rea
 
 - **As telas aprovadas em `docs/superpowers/design/studio-fase2` são a referência visual; tokens e textos delas valem sobre o plano em caso de conflito.** Cada task de UI abaixo nomeia a(s) tela(s) (`*.dc.html`) que deve conferir antes de implementar; `canvas.json` tem o título de cada uma.
 - O front segue, em paralelo, as regras do Atende que estão sendo adicionadas ao projeto: Biome (lint/format), `react-hook-form` + `zodResolver` em todo formulário, componentes com menos de 200 linhas, rotas com `lazy()`, zero cor hexadecimal fora de `tokens.ts`, e Zod em toda borda de API (`contratos.ts` de cada módulo).
+- Persistência do Studio continua em arquivo (`okf/agentes/**`, `admin.NewStore`/`mapeamento.json`), herdada do projeto original (`studio-design.md` §3: "Catálogo de skills no banco: continua em arquivo"). É dívida anterior a esta fase, não uma escolha nova; migrar para Postgres (constituição II) é trabalho da Fundação, fora do escopo da fase 2.
 - Valem todas as Global Constraints de `docs/superpowers/plans/2026-11-03-studio.md`, com três trocas: (a) tipografia e visual pelo desenho aprovado (abaixo), não Lato; (b) no vocabulário, "Assistente" vira "Concierge"; (c) a aba "Projeção" do Avançado passa a se chamar "Prompt montado".
 - **Desenho aprovado (tokens exatos, em `web/studio/src/theme/tokens.ts`, Task 0):**
   - Espaçamento em proporção áurea: 8 / 13 / 21 / 34 / 55 px (`theme.spacing(1..5)`).
