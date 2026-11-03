@@ -1,6 +1,6 @@
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, TextField, Typography } from '@mui/material';
 import { useState, type ReactNode } from 'react';
-import { excluirArquivo, lerModeloDeArquivo, salvarArquivo, useAgente, useArquivo, type Problema } from '@/catalogo/contratos';
+import { excluirArquivo, lerModeloDeArquivo, salvarArquivo, useAgente, useArquivo, type Arquivo, type Problema } from '@/catalogo/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
@@ -8,6 +8,7 @@ import {
   ARQUIVO_DE_CASO,
   ARQUIVO_DE_IDENTIDADE,
   ARQUIVO_DE_PERSONA,
+  PASTA_INICIAL,
   PASTAS_DE_ARQUIVOS,
   SUGESTAO_DE_NOME,
   caminhoNaPasta,
@@ -16,7 +17,7 @@ import {
   type NoDaArvore,
   type PastaDeArquivos,
 } from './contratos';
-import { ESTILO_DE_CODIGO } from './ProjecaoAba';
+import { ESTILO_DE_CODIGO } from './estilo';
 
 type Props = { no: NoDaArvore; editar: boolean };
 
@@ -87,8 +88,8 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
 function montarGrupos(
   no: NoDaArvore,
   temPersona: boolean,
-  arquivos: Record<string, Array<{ caminho: string; herdado_de?: string | undefined }>>,
-  herdados: Record<string, Array<{ caminho: string; herdado_de?: string | undefined }>>,
+  arquivos: Record<string, Arquivo[]>,
+  herdados: Record<string, Arquivo[]>,
 ): Grupo[] {
   const raiz: Entrada[] = [
     { caminho: ARQUIVO_DE_IDENTIDADE },
@@ -248,8 +249,8 @@ function Problemas({ problemas }: { problemas: Problema[] }): ReactNode {
 type NovoProps = { aberto: boolean; onCriar: (caminho: string) => Promise<void>; onFechar: () => void };
 
 function NovoArquivoDialog({ aberto, onCriar, onFechar }: NovoProps): ReactNode {
-  const [pasta, setPasta] = useState<PastaDeArquivos>('rules');
-  const [nome, setNome] = useState(SUGESTAO_DE_NOME.rules);
+  const [pasta, setPasta] = useState<PastaDeArquivos>(PASTA_INICIAL);
+  const [nome, setNome] = useState(SUGESTAO_DE_NOME[PASTA_INICIAL]);
 
   const escolherPasta = (valor: string): void => {
     const escolhida = PASTAS_DE_ARQUIVOS.find((p) => p === valor);

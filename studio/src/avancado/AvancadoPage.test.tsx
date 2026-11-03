@@ -155,6 +155,54 @@ describe('AvancadoPage', () => {
     expect(await screen.findByText('Importado em concierge/agentes/nova: 1 arquivos')).toBeInTheDocument();
   });
 
+  it('showsErrorWhenImportFails', async () => {
+    responderCom(
+      rotas(construtor, {
+        'POST /api/agentes/importar': () => json({ codigo: 'ZIP_INVALIDO', mensagem: 'Zip corrompido.' }, 400),
+      }),
+    );
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=importar' });
+    await user.type(await screen.findByLabelText('Instalar em'), 'concierge');
+    await user.upload(screen.getByLabelText('Arquivo zip'), new File(['zip'], 'a.zip', { type: 'application/zip' }));
+    await user.click(screen.getByRole('button', { name: 'Importar' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Importar' }));
+    expect(await screen.findByText('Zip corrompido.')).toBeInTheDocument();
+  });
+
+  it('deletesFileAfterConfirmation', async () => {
+    const excluidos: string[] = [];
+    responderCom(
+      rotas(construtor, {
+        'DELETE /api/arquivo': (req) => {
+          excluidos.push(new URL(req.url).searchParams.get('caminho') ?? '');
+          return json({ excluido: 'rules/politicas.md' });
+        },
+      }),
+    );
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await user.click(await screen.findByRole('button', { name: 'Excluir' }));
+    expect(excluidos).toHaveLength(0);
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Excluir' }));
+    await waitFor(() => expect(excluidos).toEqual(['rules/politicas.md']));
+  });
+
+  it('gestorWithGrantSeesOrchestrationReadOnlyAndNoImport', async () => {
+    responderCom(rotas(gestorAvancado));
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=orquestracao' });
+    expect(await screen.findByLabelText('Itens por plano')).toHaveAttribute('readonly');
+    expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Importar e exportar' }));
+    expect(await screen.findByRole('link', { name: 'Exportar zip' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Instalar em')).not.toBeInTheDocument();
+  });
+
+  it('showsEmptyStateWithoutItems', async () => {
+    responderCom(rotas(construtor, { 'GET /api/agentes': () => json({ agentes: [] }) }));
+    renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    expect(await screen.findByText('Ainda não há assistente nem skills para mostrar.')).toBeInTheDocument();
+  });
+
   it('gestorWithGrantReadsOnly', async () => {
     responderCom(rotas(gestorAvancado));
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });

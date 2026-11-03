@@ -2,14 +2,7 @@ import { Box, Button, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { useProjecao } from './contratos';
-
-export const ESTILO_DE_CODIGO = {
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  fontSize: 13,
-  whiteSpace: 'pre-wrap',
-  overflowWrap: 'anywhere',
-  m: 0,
-} as const;
+import { ESTILO_DE_CODIGO } from './estilo';
 
 export function ProjecaoAba({ caminho }: { caminho: string }): ReactNode {
   const projecao = useProjecao(caminho);

@@ -2,6 +2,7 @@ import { Box, Button, MenuItem, Tab, Tabs, TextField, Typography } from '@mui/ma
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
+import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, useArvore, type NoDaArvore } from './contratos';
@@ -61,6 +62,7 @@ export function AvancadoPage(): ReactNode {
           </Button>
         </Box>
       )}
+      {aba.porItem && arvore.isSuccess && !no && <EmptyState frase="Ainda não há assistente nem skills para mostrar." />}
       {aba.desenhar(no ? { no, editar } : null, editar)}
     </Box>
   );

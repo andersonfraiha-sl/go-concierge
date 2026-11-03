@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { json, responderCom } from '@/test/fetchFalso';
-import { apiEnviar, apiGet, ApiError, CHAVE_PAPEL_DEV } from './http';
+import { apiEnviar, apiEnviarBinario, apiGet, ApiError, CHAVE_PAPEL_DEV } from './http';
 
 const Item = z.object({ nome: z.string() });
 
@@ -112,5 +112,30 @@ describe('apiEnviar', () => {
     });
     await expect(apiEnviar('PUT', '/api/item', { nome: 'b' }, Item)).resolves.toEqual({ nome: 'b' });
     expect(recebido).toEqual({ nome: 'b' });
+  });
+});
+
+describe('apiEnviarBinario', () => {
+  const zip = new Blob(['zip']);
+
+  it('enviaCorpoComTipoEPapelDev', async () => {
+    localStorage.setItem(CHAVE_PAPEL_DEV, 'construtor');
+    const falso = responderCom({ 'POST /api/zip': () => json({ nome: 'a' }) });
+    await expect(apiEnviarBinario('POST', '/api/zip', zip, 'application/zip', Item)).resolves.toEqual({ nome: 'a' });
+    const req = new Request('http://localhost/api/zip', falso.mock.calls[0]?.[1]);
+    expect(req.headers.get('Content-Type')).toBe('application/zip');
+    expect(req.headers.get('X-Studio-Papel')).toBe('construtor');
+  });
+
+  it('traduzFalhaDeRedeEmSemConexao', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('x')));
+    const erro = await capturarErro(apiEnviarBinario('POST', '/api/zip', zip, 'application/zip', Item));
+    expect(erro.codigo).toBe('SEM_CONEXAO');
+  });
+
+  it('mantemCodigoEMensagemDoServidor', async () => {
+    responderCom({ 'POST /api/zip': () => json({ codigo: 'ZIP_INVALIDO', mensagem: 'Zip corrompido.' }, 400) });
+    const erro = await capturarErro(apiEnviarBinario('POST', '/api/zip', zip, 'application/zip', Item));
+    expect([erro.status, erro.codigo, erro.message]).toEqual([400, 'ZIP_INVALIDO', 'Zip corrompido.']);
   });
 });

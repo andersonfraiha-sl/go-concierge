@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { apiEnviar, apiGet, ApiError, CHAVE_PAPEL_DEV } from '@/shared/api/http';
+import { apiEnviar, apiEnviarBinario, apiGet } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
 
 const consulta = (parametros: Record<string, string>): string => new URLSearchParams(parametros).toString();
@@ -53,6 +53,8 @@ export type PastaDeArquivos = (typeof PASTAS_DE_ARQUIVOS)[number];
 export const ARQUIVO_DE_IDENTIDADE = 'agent.yaml';
 export const ARQUIVO_DE_PERSONA = 'persona.md';
 export const ARQUIVO_DE_CASO = 'caso.yaml';
+
+export const PASTA_INICIAL: PastaDeArquivos = 'rules';
 
 export const SUGESTAO_DE_NOME: Record<PastaDeArquivos, string> = {
   rules: 'politicas.md',
@@ -141,37 +143,15 @@ const TIMEOUT_IMPORTACAO_MS = 120_000;
 
 export const urlExportar = (caminho: string): string => `/api/agentes/exportar?${consulta({ agente: caminho })}`;
 
-/** Corpo binário: não passa pelo cliente JSON, mas fala o mesmo formato de erro. */
-export async function importarZip(caminho: string, arquivo: File): Promise<z.infer<typeof ImportadoSchema>> {
-  const cabecalhos = new Headers({ Accept: 'application/json', 'Content-Type': 'application/zip' });
-  const papel = lerPapelDev();
-  if (papel) cabecalhos.set('X-Studio-Papel', papel);
-  const resposta = await fetch(`/api/agentes/importar?${consulta({ caminho })}`, {
-    method: 'POST',
-    headers: cabecalhos,
-    body: arquivo,
-    signal: AbortSignal.timeout(TIMEOUT_IMPORTACAO_MS),
-  });
-  const dados: unknown = await resposta.json().catch(() => null);
-  if (!resposta.ok) throw erroDeImportacao(resposta.status, dados);
-  return ImportadoSchema.parse(dados);
-}
-
-const MensagemSchema = z.object({ mensagem: z.string().optional(), error: z.string().optional() });
-
-function erroDeImportacao(status: number, corpo: unknown): ApiError {
-  const lido = MensagemSchema.safeParse(corpo);
-  const mensagem = (lido.success && (lido.data.mensagem ?? lido.data.error)) || 'Não deu para importar o arquivo.';
-  return new ApiError(status, `HTTP_${status}`, mensagem, corpo);
-}
-
-function lerPapelDev(): string | null {
-  try {
-    return localStorage.getItem(CHAVE_PAPEL_DEV);
-  } catch (cause) {
-    console.warn('ler papel de desenvolvimento:', cause);
-    return null;
-  }
+export function importarZip(caminho: string, arquivo: File): Promise<z.infer<typeof ImportadoSchema>> {
+  return apiEnviarBinario(
+    'POST',
+    `/api/agentes/importar?${consulta({ caminho })}`,
+    arquivo,
+    'application/zip',
+    ImportadoSchema,
+    TIMEOUT_IMPORTACAO_MS,
+  );
 }
 
 /** Refaz tudo que o Avançado mostra depois de mexer em arquivos ou importar. */
