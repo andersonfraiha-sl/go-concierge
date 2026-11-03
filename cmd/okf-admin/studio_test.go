@@ -486,6 +486,16 @@ func handlerDeTeste(t *testing.T) http.Handler {
 // de resumo/ícone) antes de montar as rotas.
 func handlerDeTesteComAjuste(t *testing.T, ajustar func(raiz string)) http.Handler {
 	t.Helper()
+	s := servidorDeTeste(t, ajustar)
+	mux := http.NewServeMux()
+	s.rotasStudio(mux)
+	return mux
+}
+
+// servidorDeTeste monta um servidor sobre uma cópia do catálogo real, sem montar rotas:
+// quem chama decide quais rotasX registrar (Studio, Admin, ...).
+func servidorDeTeste(t *testing.T, ajustar func(raiz string)) *servidor {
+	t.Helper()
 	raiz := t.TempDir()
 	for _, pasta := range []string{"agentes", "nexus"} {
 		if err := os.CopyFS(filepath.Join(raiz, pasta), os.DirFS(filepath.Join("..", "..", "okf", pasta))); err != nil {
@@ -502,10 +512,7 @@ func handlerDeTesteComAjuste(t *testing.T, ajustar func(raiz string)) http.Handl
 		t.Fatal(err)
 	}
 	cat.Recursos = func() []okf.Recurso { return recursos }
-	s := &servidor{cat: cat, atende: &atende.Servico{Agente: "agentes/concierge"}, log: log.New(io.Discard, "", 0)}
-	mux := http.NewServeMux()
-	s.rotasStudio(mux)
-	return mux
+	return &servidor{cat: cat, atende: &atende.Servico{Agente: "agentes/concierge"}, log: log.New(io.Discard, "", 0)}
 }
 
 func chamar(t *testing.T, h http.Handler, p pedido) *httptest.ResponseRecorder {

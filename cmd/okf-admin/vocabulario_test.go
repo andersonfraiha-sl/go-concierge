@@ -2,18 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
 
 	"go-concierge/internal/admin"
-	"go-concierge/internal/atende"
-	"go-concierge/internal/okf"
 )
 
 // termoTecnico pega vocabulário de implementação (Nexus, MCP, YAML, caso de uso,
@@ -25,27 +20,8 @@ var termoTecnico = regexp.MustCompile(`(?i)\bnexus\b|\bmcp\b|\byaml\b|caso de us
 // testar o vocabulário que a tela da administradora recebe.
 func handlerComAdminDeTeste(t *testing.T) http.Handler {
 	t.Helper()
-	raiz := t.TempDir()
-	for _, pasta := range []string{"agentes", "nexus"} {
-		if err := os.CopyFS(filepath.Join(raiz, pasta), os.DirFS(filepath.Join("..", "..", "okf", pasta))); err != nil {
-			t.Fatal(err)
-		}
-	}
-	cat, err := okf.NewCatalogo(raiz)
-	if err != nil {
-		t.Fatal(err)
-	}
-	recursos, err := okf.LerRecursosFixture(filepath.Join(raiz, "nexus", "cond-001.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	cat.Recursos = func() []okf.Recurso { return recursos }
-	s := &servidor{
-		cat:    cat,
-		atende: &atende.Servico{Agente: "agentes/concierge"},
-		log:    log.New(io.Discard, "", 0),
-		admin:  admin.NewStore(filepath.Join(t.TempDir(), "mapeamento.json")),
-	}
+	s := servidorDeTeste(t, func(string) {})
+	s.admin = admin.NewStore(filepath.Join(t.TempDir(), "mapeamento.json"))
 	mux := http.NewServeMux()
 	s.rotasAdmin(mux)
 	s.rotasStudio(mux)
