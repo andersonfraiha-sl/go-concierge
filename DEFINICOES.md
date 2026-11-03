@@ -422,7 +422,7 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
   memoria_fatos, com cache por contato no processo; trocável pelo recurso `memory` do
   Nexus), extração no harness,
   leitura/gravação no serviço do ATENDE, visualização e esquecimento no Console
-  (`GET/DELETE /api/memoria?phone=`).
+  (`GET/DELETE /api/memoria?phone=&administradora=`).
 
 ## 6. Estado e próximos passos
 

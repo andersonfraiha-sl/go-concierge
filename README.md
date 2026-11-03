@@ -63,20 +63,53 @@ Configuração no `.env`: `GRUVI_COMPANY_ID`, `GRUVI_BFF_URL`, `MCP_AUTH=b2c` e
 
 Para a conexão real única, configure `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`,
 `ATENDE_API_SECRET`, `ATENDE_TENANT_ID` e `ATENDE_TENANT_TELEFONE`. O webhook público é
-`POST /webhook/atende`; o Console usa `POST /emulador/atende/webhook`. A verificação HMAC
-com `ATENDE_API_SECRET` está preparada, mas desativada por decisão do usuário nesta etapa.
-Assim, a assinatura não autentica os eventos recebidos. `ATENDE_WEBHOOK_TOKEN` legado
-continua restrito à rota do emulador. `ATENDE_REPLY_URL` e `ATENDE_REPLY_TOKEN` são lidos
+`POST /webhook/atende`; o Console usa `POST /emulador/atende/webhook`. O webhook real
+confere sempre a assinatura HMAC (`X-Atende-Signature`) com `ATENDE_API_SECRET`: evento
+sem assinatura válida recebe 401. Fora de `dev` o boot falha sem o segredo.
+`ATENDE_WEBHOOK_TOKEN` legado continua restrito à rota do emulador. `ATENDE_REPLY_URL` e `ATENDE_REPLY_TOKEN` são lidos
 como compatibilidade para respostas antigas quando a configuração nova de envio não está
 disponível.
 
 Enquanto o token B2C é gerado para um único telefone, o atendimento e a consulta de
-identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`.
+identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`; outro número recebe
+403. Só com `AMBIENTE=dev` o webhook real troca o telefone de todo evento por esse, para
+testar de qualquer celular, e o boot avisa com um WARN. Fora de `dev` isso fica desligado.
 
 As duas rotas convertem os eventos classificados para o contrato compartilhado
 `internal/entrada.Mensagem`; o servidor atribui origens e destinos separados para o ATENDE
 real e o Console emulado. Sessões são consultadas pelo `id` interno; `protocolo` segue
 disponível quando identifica uma sessão sem ambiguidade.
+
+## Acesso
+
+Toda rota `/api/*`, o emulador e o proxy `/mcp/` exigem usuário. Ficam de fora só o
+webhook real (que confere o HMAC), o `/healthz` e as páginas estáticas. Sem usuário a
+resposta é 401; com usuário sem a permissão no alvo, 403.
+
+- `AUTH_MODE`: vazio deixa a API fechada (ainda não há login). `dev` aceita o usuário do
+  cabeçalho `X-Dev-Usuario` ou, sem ele, `AUTH_DEV_USUARIO`. O boot recusa `dev` com
+  `AMBIENTE` diferente de vazio ou `dev`.
+- `AUTH_DEV_USUARIO`: o usuário padrão do modo dev. A migration semeia
+  `admin-superlogica`, que só entra com `AUTH_MODE=dev`.
+- `ADMINISTRADORA_ID`: fixa a implantação numa administradora. Vazio atende todas; com
+  ele, pedidos de outra administradora e do escopo Superlógica são recusados. As rotas de
+  memória e pedidos pedem `administradora` na query (400 `ADMINISTRADORA_OBRIGATORIA`);
+  com a implantação fixa ela vale por padrão.
+
+Os papéis herdam em cadeia, cada um com tudo do anterior:
+
+| Papel | Acrescenta |
+|---|---|
+| `operador_administradora` | ver skills, conversas, pedidos e memória; atender conversas |
+| `gestor_administradora` | habilitar condomínios, editar textos das skills, editar pedidos, esquecer memória |
+| `construtor_superlogica` | editar fluxo, criar e excluir skills, editar ferramentas e condomínios, `studio.avancado` |
+| `admin_superlogica` | editar administradoras e usuários |
+
+O papel vale no escopo em que foi atribuído (Superlógica, administradora ou condomínio).
+Atribuição num condomínio deixa de valer se ele mudar de administradora.
+`studio.avancado` (emulador, configuração do ATENDE, identidade no Gruvi, orquestração) é do construtor
+para cima. Uma administradora pode receber uma concessão que dá essa permissão a um papel
+menor, só dentro dela.
 
 ## Memória relacional por contato
 
@@ -86,7 +119,7 @@ Van", "tenho um cachorro") vira um fato com chave estável na memória do telefo
 troca um extrator (modelo `MODEL_EXTRACT`, ou regras sem modelo) captura o que é
 durável; em toda conversa seguinte a memória entra na instrução da família inteira
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
-fatos (`GET`/`DELETE /api/memoria?phone=`).
+fatos (`GET`/`DELETE /api/memoria?phone=&administradora=`).
 
 ## Ficha do condomínio (Admin)
 
@@ -188,8 +221,8 @@ Para escalar: invalidação entre réplicas (LISTEN/NOTIFY ou checagem de versã
 curto) e locks por contato no banco.
 
 Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
-casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
-`?administradora=<id>`) e **Backdoor**
+casos de uso; o seletor no topo escolhe a administradora (`?administradora=<id>`) e o
+servidor só mostra o que o usuário pode ver nela, veja [Acesso](#acesso)) e **Backdoor**
 (`/backdoor`, nosso: casos de uso do concierge, `/backdoor/administradoras` com as
 administradoras e os condomínios de cada uma, `/backdoor/payloads` com o payload de
 cada recurso do Nexus por condomínio).
@@ -298,7 +331,7 @@ A cada mensagem (`internal/atende/pedidos.go`):
 Onde ver: aba **Pedidos** do Console (ao lado de Memória): protocolo, caso, estado,
 parâmetros com origem, pergunta em aberto, confirmação, resultado e histórico. Os pedidos
 ficam no Postgres (tabelas `pedidos` e `pedido_eventos`); `PEDIDOS=off` desliga
-e a conversa volta a seguir só pelo orquestrador. API: `GET /api/pedidos?phone=`,
+e a conversa volta a seguir só pelo orquestrador. API: `GET /api/pedidos?phone=&administradora=`,
 `POST /api/pedidos/acao` (`preencher`, `cancelar`). Casos com passo `form` (formulário
 dinâmico) ficam registrados, mas seguem pelo subagente conversacional.
 

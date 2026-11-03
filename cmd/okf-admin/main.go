@@ -6,7 +6,8 @@
 //	okf-admin importar-json -dir okf/var   (leva os JSON antigos para o Postgres)
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
-// sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
+// sem Nexus, do instantâneo okf/nexus/<account>.yaml. DEFAULT_ACCOUNT_ID é a account desse
+// catálogo e do condomínio de exemplo de dev; o turno usa a account do condomínio resolvido.
 // A identidade do morador vem do Gruvi com o token B2C configurado para o MCP.
 package main
 
