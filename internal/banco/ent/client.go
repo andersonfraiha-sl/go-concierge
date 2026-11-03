@@ -16,6 +16,7 @@ import (
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
@@ -46,6 +47,8 @@ type Client struct {
 	Condominio *CondominioClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
+	// MemoriaContato is the client for interacting with the MemoriaContato builders.
+	MemoriaContato *MemoriaContatoClient
 	// MemoriaFato is the client for interacting with the MemoriaFato builders.
 	MemoriaFato *MemoriaFatoClient
 	// Orientacao is the client for interacting with the Orientacao builders.
@@ -74,6 +77,7 @@ func (c *Client) init() {
 	c.Concessao = NewConcessaoClient(c.config)
 	c.Condominio = NewCondominioClient(c.config)
 	c.Habilitacao = NewHabilitacaoClient(c.config)
+	c.MemoriaContato = NewMemoriaContatoClient(c.config)
 	c.MemoriaFato = NewMemoriaFatoClient(c.config)
 	c.Orientacao = NewOrientacaoClient(c.config)
 	c.Papel = NewPapelClient(c.config)
@@ -177,6 +181,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Concessao:      NewConcessaoClient(cfg),
 		Condominio:     NewCondominioClient(cfg),
 		Habilitacao:    NewHabilitacaoClient(cfg),
+		MemoriaContato: NewMemoriaContatoClient(cfg),
 		MemoriaFato:    NewMemoriaFatoClient(cfg),
 		Orientacao:     NewOrientacaoClient(cfg),
 		Papel:          NewPapelClient(cfg),
@@ -207,6 +212,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Concessao:      NewConcessaoClient(cfg),
 		Condominio:     NewCondominioClient(cfg),
 		Habilitacao:    NewHabilitacaoClient(cfg),
+		MemoriaContato: NewMemoriaContatoClient(cfg),
 		MemoriaFato:    NewMemoriaFatoClient(cfg),
 		Orientacao:     NewOrientacaoClient(cfg),
 		Papel:          NewPapelClient(cfg),
@@ -243,7 +249,8 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
-		c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Usuario,
+		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
+		c.Payload, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -254,7 +261,8 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
-		c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Usuario,
+		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
+		c.Payload, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -273,6 +281,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Condominio.mutate(ctx, m)
 	case *HabilitacaoMutation:
 		return c.Habilitacao.mutate(ctx, m)
+	case *MemoriaContatoMutation:
+		return c.MemoriaContato.mutate(ctx, m)
 	case *MemoriaFatoMutation:
 		return c.MemoriaFato.mutate(ctx, m)
 	case *OrientacaoMutation:
@@ -1128,6 +1138,139 @@ func (c *HabilitacaoClient) mutate(ctx context.Context, m *HabilitacaoMutation) 
 		return (&HabilitacaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Habilitacao mutation op: %q", m.Op())
+	}
+}
+
+// MemoriaContatoClient is a client for the MemoriaContato schema.
+type MemoriaContatoClient struct {
+	config
+}
+
+// NewMemoriaContatoClient returns a client for the MemoriaContato from the given config.
+func NewMemoriaContatoClient(c config) *MemoriaContatoClient {
+	return &MemoriaContatoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `memoriacontato.Hooks(f(g(h())))`.
+func (c *MemoriaContatoClient) Use(hooks ...Hook) {
+	c.hooks.MemoriaContato = append(c.hooks.MemoriaContato, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `memoriacontato.Intercept(f(g(h())))`.
+func (c *MemoriaContatoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MemoriaContato = append(c.inters.MemoriaContato, interceptors...)
+}
+
+// Create returns a builder for creating a MemoriaContato entity.
+func (c *MemoriaContatoClient) Create() *MemoriaContatoCreate {
+	mutation := newMemoriaContatoMutation(c.config, OpCreate)
+	return &MemoriaContatoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MemoriaContato entities.
+func (c *MemoriaContatoClient) CreateBulk(builders ...*MemoriaContatoCreate) *MemoriaContatoCreateBulk {
+	return &MemoriaContatoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MemoriaContatoClient) MapCreateBulk(slice any, setFunc func(*MemoriaContatoCreate, int)) *MemoriaContatoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MemoriaContatoCreateBulk{err: fmt.Errorf("calling to MemoriaContatoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MemoriaContatoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MemoriaContatoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MemoriaContato.
+func (c *MemoriaContatoClient) Update() *MemoriaContatoUpdate {
+	mutation := newMemoriaContatoMutation(c.config, OpUpdate)
+	return &MemoriaContatoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MemoriaContatoClient) UpdateOne(_m *MemoriaContato) *MemoriaContatoUpdateOne {
+	mutation := newMemoriaContatoMutation(c.config, OpUpdateOne, withMemoriaContato(_m))
+	return &MemoriaContatoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MemoriaContatoClient) UpdateOneID(id int) *MemoriaContatoUpdateOne {
+	mutation := newMemoriaContatoMutation(c.config, OpUpdateOne, withMemoriaContatoID(id))
+	return &MemoriaContatoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MemoriaContato.
+func (c *MemoriaContatoClient) Delete() *MemoriaContatoDelete {
+	mutation := newMemoriaContatoMutation(c.config, OpDelete)
+	return &MemoriaContatoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MemoriaContatoClient) DeleteOne(_m *MemoriaContato) *MemoriaContatoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MemoriaContatoClient) DeleteOneID(id int) *MemoriaContatoDeleteOne {
+	builder := c.Delete().Where(memoriacontato.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MemoriaContatoDeleteOne{builder}
+}
+
+// Query returns a query builder for MemoriaContato.
+func (c *MemoriaContatoClient) Query() *MemoriaContatoQuery {
+	return &MemoriaContatoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMemoriaContato},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MemoriaContato entity by its id.
+func (c *MemoriaContatoClient) Get(ctx context.Context, id int) (*MemoriaContato, error) {
+	return c.Query().Where(memoriacontato.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MemoriaContatoClient) GetX(ctx context.Context, id int) *MemoriaContato {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MemoriaContatoClient) Hooks() []Hook {
+	return c.hooks.MemoriaContato
+}
+
+// Interceptors returns the client interceptors.
+func (c *MemoriaContatoClient) Interceptors() []Interceptor {
+	return c.inters.MemoriaContato
+}
+
+func (c *MemoriaContatoClient) mutate(ctx context.Context, m *MemoriaContatoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MemoriaContatoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MemoriaContatoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MemoriaContatoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MemoriaContatoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MemoriaContato mutation op: %q", m.Op())
 	}
 }
 
@@ -2060,12 +2203,13 @@ func (c *UsuarioClient) mutate(ctx context.Context, m *UsuarioMutation) (Value, 
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaFato,
-		Orientacao, Papel, PapelPermissao, Payload, Usuario []ent.Hook
+		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaContato,
+		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload, Usuario []ent.Hook
 	}
 	inters struct {
-		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaFato,
-		Orientacao, Papel, PapelPermissao, Payload, Usuario []ent.Interceptor
+		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaContato,
+		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
+		Usuario []ent.Interceptor
 	}
 )
 

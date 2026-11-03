@@ -8,6 +8,7 @@ import (
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
+	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
@@ -95,6 +96,20 @@ func init() {
 	habilitacaoDescPapeis := habilitacaoFields[3].Descriptor()
 	// habilitacao.DefaultPapeis holds the default value on creation for the papeis field.
 	habilitacao.DefaultPapeis = habilitacaoDescPapeis.Default.(schema.Papeis)
+	memoriacontatoFields := schema.MemoriaContato{}.Fields()
+	_ = memoriacontatoFields
+	// memoriacontatoDescAdministradoraID is the schema descriptor for administradora_id field.
+	memoriacontatoDescAdministradoraID := memoriacontatoFields[0].Descriptor()
+	// memoriacontato.AdministradoraIDValidator is a validator for the "administradora_id" field. It is called by the builders before save.
+	memoriacontato.AdministradoraIDValidator = memoriacontatoDescAdministradoraID.Validators[0].(func(string) error)
+	// memoriacontatoDescTelefone is the schema descriptor for telefone field.
+	memoriacontatoDescTelefone := memoriacontatoFields[1].Descriptor()
+	// memoriacontato.TelefoneValidator is a validator for the "telefone" field. It is called by the builders before save.
+	memoriacontato.TelefoneValidator = memoriacontatoDescTelefone.Validators[0].(func(string) error)
+	// memoriacontatoDescNome is the schema descriptor for nome field.
+	memoriacontatoDescNome := memoriacontatoFields[2].Descriptor()
+	// memoriacontato.DefaultNome holds the default value on creation for the nome field.
+	memoriacontato.DefaultNome = memoriacontatoDescNome.Default.(string)
 	memoriafatoFields := schema.MemoriaFato{}.Fields()
 	_ = memoriafatoFields
 	// memoriafatoDescAdministradoraID is the schema descriptor for administradora_id field.

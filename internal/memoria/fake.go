@@ -5,17 +5,18 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"go-concierge/internal/escopo"
 )
 
-// Fake é o Store dos testes: guarda só os fatos por contato, como a tabela, e devolve cópias.
+// Fake é o Store dos testes: guarda a memória como o Postgres a guardaria e devolve cópias.
 type Fake struct {
-	mu    sync.Mutex
-	fatos map[string][]Fato // por escopo.Contato.Chave
+	mu       sync.Mutex
+	memorias map[string]Memoria // por escopo.Contato.Chave
 }
 
-func NovoFake() *Fake { return &Fake{fatos: map[string][]Fato{}} }
+func NovoFake() *Fake { return &Fake{memorias: map[string]Memoria{}} }
 
 func (f *Fake) Ler(_ context.Context, c escopo.Contato) (Memoria, error) {
 	if err := validarContato(c); err != nil {
@@ -23,7 +24,11 @@ func (f *Fake) Ler(_ context.Context, c escopo.Contato) (Memoria, error) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return montar(c, append([]Fato{}, f.fatos[c.Chave()]...)), nil
+	m, ok := f.memorias[c.Chave()]
+	if !ok {
+		return vazia(c), nil
+	}
+	return copia(m), nil
 }
 
 func (f *Fake) Gravar(_ context.Context, c escopo.Contato, m Memoria) error {
@@ -32,11 +37,7 @@ func (f *Fake) Gravar(_ context.Context, c escopo.Contato, m Memoria) error {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(m.Fatos) == 0 {
-		delete(f.fatos, c.Chave())
-		return nil
-	}
-	f.fatos[c.Chave()] = slices.Clone(m.Fatos)
+	f.memorias[c.Chave()] = comoGuardada(c, m, time.Now())
 	return nil
 }
 
@@ -47,14 +48,16 @@ func (f *Fake) Listar(_ context.Context, administradoraID string) ([]Memoria, er
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := []Memoria{}
-	for chave, fatos := range f.fatos {
-		telefone, ok := strings.CutPrefix(chave, administradoraID+":")
-		if !ok {
-			continue
+	for chave, m := range f.memorias {
+		if strings.HasPrefix(chave, administradoraID+":") {
+			out = append(out, copia(m))
 		}
-		c := escopo.Contato{AdministradoraID: administradoraID, Telefone: telefone}
-		out = append(out, montar(c, slices.Clone(fatos)))
 	}
 	slices.SortFunc(out, maisRecentesPrimeiro)
 	return out, nil
+}
+
+func copia(m Memoria) Memoria {
+	m.Fatos = append([]Fato{}, m.Fatos...)
+	return m
 }

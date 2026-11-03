@@ -4,6 +4,7 @@ package banco
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ type Banco struct {
 	Pool *pgxpool.Pool
 	Ent  *ent.Client
 	SQL  *sqlc.Queries
+	db   *sql.DB // a visão database/sql do pool, por onde o ent fala
 }
 
 // Abrir conecta ao Postgres de url e confirma a conexão com um ping.
@@ -49,7 +51,55 @@ func Abrir(ctx context.Context, url string) (Banco, error) {
 		return Banco{}, fmt.Errorf("ping no postgres: %w", err)
 	}
 	drv := entsql.OpenDB(dialect.Postgres, stdlib.OpenDBFromPool(pool))
-	return Banco{Pool: pool, Ent: ent.NewClient(ent.Driver(drv)), SQL: sqlc.New(pool)}, nil
+	return Banco{Pool: pool, Ent: ent.NewClient(ent.Driver(drv)), SQL: sqlc.New(pool), db: drv.DB()}, nil
+}
+
+// Transacao é uma transação aberta para o ent e para o sqlc ao mesmo tempo: os dois falam pela
+// mesma conexão, então o que um grava o outro vê, e o commit ou o rollback vale para os dois.
+type Transacao struct {
+	Ent  *ent.Client
+	conn *sql.Conn
+}
+
+// SQL roda fn com as queries do sqlc dentro da transação. Enquanto fn roda, a conexão está
+// presa ao sqlc: não use t.Ent dentro de fn.
+func (t Transacao) SQL(fn func(q *sqlc.Queries) error) error {
+	return t.conn.Raw(func(driverConn any) error {
+		c, ok := driverConn.(*stdlib.Conn)
+		if !ok {
+			return fmt.Errorf("conexão %T não é do pgx", driverConn)
+		}
+		return fn(sqlc.New(c.Conn()))
+	})
+}
+
+// EmTransacao reserva uma conexão, abre a transação e roda fn: confirma se fn devolver nil e
+// desfaz se devolver erro.
+func (b Banco) EmTransacao(ctx context.Context, fn func(ctx context.Context, t Transacao) error) (err error) {
+	conn, err := b.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("reservar conexão: %w", err)
+	}
+	defer func() {
+		if errDevolver := conn.Close(); errDevolver != nil {
+			err = errors.Join(err, fmt.Errorf("devolver conexão: %w", errDevolver))
+		}
+	}()
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("abrir transação: %w", err)
+	}
+	cli := ent.NewClient(ent.Driver(entsql.NewDriver(dialect.Postgres, entsql.Conn{ExecQuerier: tx})))
+	if err := fn(ctx, Transacao{Ent: cli, conn: conn}); err != nil {
+		if errDesfazer := tx.Rollback(); errDesfazer != nil {
+			return errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
+		}
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("confirmar transação: %w", err)
+	}
+	return nil
 }
 
 // Fechar encerra o ent e depois o pool que ele usa (fechar o ent não fecha o pool).

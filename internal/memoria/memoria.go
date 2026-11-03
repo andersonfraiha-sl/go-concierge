@@ -82,15 +82,34 @@ func (m Memoria) Esquecer(chave string) (Memoria, bool) {
 	return m, true
 }
 
-// montar é a memória do contato a partir dos fatos guardados; AtualizadaEm é o fato mais novo.
-func montar(c escopo.Contato, fatos []Fato) Memoria {
-	m := Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: fatos}
-	for _, f := range fatos {
-		if f.Quando.After(m.AtualizadaEm) {
-			m.AtualizadaEm = f.Quando
-		}
+// vazia é a memória de um contato de quem nada se sabe.
+func vazia(c escopo.Contato) Memoria {
+	return Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: []Fato{}}
+}
+
+// comoGuardada é a memória como um Store a guarda: sob o contato, uma chave só por fato (a
+// última vence, no lugar da primeira) e AtualizadaEm preenchida com agora quando vier vazia.
+func comoGuardada(c escopo.Contato, m Memoria, agora time.Time) Memoria {
+	m.AdministradoraID, m.Telefone = c.AdministradoraID, c.Telefone
+	m.Fatos = semChavesRepetidas(m.Fatos)
+	if m.AtualizadaEm.IsZero() {
+		m.AtualizadaEm = agora
 	}
 	return m
+}
+
+func semChavesRepetidas(fatos []Fato) []Fato {
+	out := make([]Fato, 0, len(fatos))
+	posicao := map[string]int{}
+	for _, f := range fatos {
+		if i, repetida := posicao[f.Chave]; repetida {
+			out[i] = f
+			continue
+		}
+		posicao[f.Chave] = len(out)
+		out = append(out, f)
+	}
+	return out
 }
 
 // maisRecentesPrimeiro ordena a listagem: a memória atualizada por último primeiro, telefone no empate.

@@ -35,5 +35,13 @@ func (MemoriaFato) Indexes() []ent.Index {
 }
 
 func (MemoriaFato) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "memoria_fatos"}}
+	return []schema.Annotation{
+		entsql.Annotation{Table: "memoria_fatos"},
+		// o GravarFatos (sqlc) não passa pelos validadores do ent: o banco recusa o vazio
+		entsql.Checks(map[string]string{
+			"memoria_fatos_administradora_preenchida": "administradora_id <> ''",
+			"memoria_fatos_telefone_preenchido":       "telefone <> ''",
+			"memoria_fatos_chave_preenchida":          "chave <> ''",
+		}),
+	}
 }

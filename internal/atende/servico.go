@@ -422,15 +422,9 @@ func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave s
 	if err != nil {
 		return m, err
 	}
-	if chave == "" {
-		m.Fatos = []memoria.Fato{}
-	} else if semFato, esqueceu := m.Esquecer(chave); esqueceu {
-		m = semFato
-	} else {
-		return m, fmt.Errorf("%w: %s", ErrFatoNaoEncontrado, chave)
-	}
-	if m.Fatos == nil {
-		m.Fatos = []memoria.Fato{}
+	m, err = esquecerFatos(m, chave)
+	if err != nil {
+		return m, err
 	}
 	if err := s.Memorias.Gravar(ctx, c, m); err != nil {
 		return m, err
@@ -442,6 +436,19 @@ func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave s
 	s.memoriaRevisoes[c.Chave()]++
 	s.memoriaMu.Unlock()
 	return m, nil
+}
+
+// esquecerFatos tira da memória o fato da chave; a chave vazia esquece todos.
+func esquecerFatos(m memoria.Memoria, chave string) (memoria.Memoria, error) {
+	if chave == "" {
+		m.Fatos = []memoria.Fato{}
+		return m, nil
+	}
+	semFato, esqueceu := m.Esquecer(chave)
+	if !esqueceu {
+		return m, fmt.Errorf("%w: %s", ErrFatoNaoEncontrado, chave)
+	}
+	return semFato, nil
 }
 
 func (s *Servico) PrepararMensagem(msg entrada.Mensagem) (entrada.Mensagem, *Sessao) {
