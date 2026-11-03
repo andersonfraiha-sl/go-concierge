@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { apiEnviar, apiGet } from '@/shared/api/http';
+import { ApiError, apiEnviar, apiGet } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
 import {
   FluxoGravadoSchema,
@@ -60,10 +60,19 @@ export function useTextos(nome: string) {
   });
 }
 
+export const chaveDoFluxo = (nome: string) => ['skill', nome, 'fluxo'] as const;
+
+const TENTATIVAS_PADRAO = 3;
+
+/** 404 é resposta (a skill não tem fluxo), não falha passageira: repetir só atrasa a tela. */
+const repetirSalvo404 = (falhas: number, erro: Error): boolean =>
+  !(erro instanceof ApiError && erro.status === 404) && falhas < TENTATIVAS_PADRAO;
+
 export function useFluxo(nome: string) {
   return useQuery({
-    queryKey: ['skill', nome, 'fluxo'],
+    queryKey: chaveDoFluxo(nome),
     queryFn: () => apiGet(`${caminhoDaSkill(nome)}/fluxo`, FluxoLidoSchema),
+    retry: repetirSalvo404,
   });
 }
 

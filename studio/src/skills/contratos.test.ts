@@ -1,5 +1,9 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook, waitFor } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
-import { paraIdentificador, SkillsSchema, TextosLidosSchema } from './contratos';
+import { json, responderCom } from '@/test/fetchFalso';
+import { paraIdentificador, SkillsSchema, TextosLidosSchema, useFluxo } from './contratos';
 
 describe('paraIdentificador', () => {
   it.each([
@@ -50,5 +54,29 @@ describe('contratos de skills', () => {
 
   it('recusaSkillSemNome', () => {
     expect(SkillsSchema.safeParse({ assistente: 'x', skills: [{}] }).success).toBe(false);
+  });
+});
+
+describe('useFluxo', () => {
+  /** Cliente com as opções padrão do TanStack Query: é o retry de fábrica que está em teste. */
+  const comClientePadrao = () => {
+    const cliente = new QueryClient();
+    return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: cliente }, children);
+  };
+
+  it('doesNotRetryWhenSkillHasNoFlow', async () => {
+    const falso = responderCom({
+      'GET /api/skills/faq/fluxo': () => json({ codigo: 'SEM_FLUXO', mensagem: 'Skill sem fluxo.' }, 404),
+    });
+    const { result } = renderHook(() => useFluxo('faq'), { wrapper: comClientePadrao() });
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 500 });
+    expect(falso).toHaveBeenCalledTimes(1);
+  });
+
+  it('retriesOtherFailures', async () => {
+    responderCom({ 'GET /api/skills/faq/fluxo': () => json({ codigo: 'ERRO', mensagem: 'Caiu.' }, 500) });
+    const { result } = renderHook(() => useFluxo('faq'), { wrapper: comClientePadrao() });
+    await waitFor(() => expect(result.current.failureCount).toBe(1));
+    expect(result.current.isPending).toBe(true);
   });
 });
