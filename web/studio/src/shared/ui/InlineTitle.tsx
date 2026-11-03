@@ -7,18 +7,26 @@ type Props = {
   editavel: boolean;
   onMudar: (v: string) => void;
   rotulo: string;
+  /** Tag renderizada quando não editável; "h1" é o título da página (padrão), "span" para usos em lista. */
+  component?: 'h1' | 'span';
 };
 
 const estiloTitulo = { fontSize: 18, fontWeight: 600 } as const;
 
-export function InlineTitle({ valor, editavel, onMudar, rotulo }: Props): ReactNode {
+export function InlineTitle({
+  valor,
+  editavel,
+  onMudar,
+  rotulo,
+  component = 'h1',
+}: Props): ReactNode {
   const [editando, setEditando] = useState(false);
   const { control, getValues, reset } = useForm({ defaultValues: { rascunho: valor } });
   const cancelado = useRef(false);
 
   if (!editavel) {
     return (
-      <Typography variant="h1" sx={estiloTitulo}>
+      <Typography variant="h1" component={component} sx={estiloTitulo}>
         {valor}
       </Typography>
     );
