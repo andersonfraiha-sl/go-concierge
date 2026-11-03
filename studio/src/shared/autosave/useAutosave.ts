@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { mensagemDe } from '@/shared/api/mensagemDe';
 import { useSingleFlight } from './useSingleFlight';
 
 export const ATRASO_SALVAMENTO_MS = 1000;
@@ -22,8 +23,6 @@ type Resultado = {
   tentarDeNovo: () => Promise<void>;
   salvarAgora: () => Promise<void>;
 };
-
-const mensagemDe = (erro: unknown): string => (erro instanceof Error ? erro.message : String(erro));
 
 /**
  * Grava `atrasoMs` depois da última mudança de referência de `valor`, uma gravação por vez.

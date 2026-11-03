@@ -111,16 +111,19 @@ const ConteudoSchema = z.object({ caminho: z.string(), conteudo: z.string() });
 
 const consulta = (parametros: Record<string, string>): string => new URLSearchParams(parametros).toString();
 
+export const chaveDoAgente = (caminho: string) => ['agente', caminho] as const;
+export const chaveDoArquivo = (agente: string, caminho: string) => ['arquivo', agente, caminho] as const;
+
 export function useAgente(caminho: string) {
   return useQuery({
-    queryKey: ['agente', caminho],
+    queryKey: chaveDoAgente(caminho),
     queryFn: () => apiGet(`/api/agente?${consulta({ agente: caminho })}`, AgenteSchema),
   });
 }
 
 export function useArquivo(agente: string, caminho: string) {
   return useQuery({
-    queryKey: ['arquivo', agente, caminho],
+    queryKey: chaveDoArquivo(agente, caminho),
     queryFn: () => apiGet(`/api/arquivo?${consulta({ agente, caminho })}`, ConteudoSchema),
   });
 }

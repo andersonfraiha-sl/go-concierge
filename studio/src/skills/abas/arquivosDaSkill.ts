@@ -1,12 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   caminhoDeDocumento,
+  chaveDoAgente,
+  chaveDoArquivo,
   caminhoDeRegra,
   excluirArquivo,
   salvarArquivo,
   type Arquivo,
   type RecursoDeclarado,
 } from '@/catalogo/contratos';
+import { mensagemDe } from '@/shared/api/mensagemDe';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { paraIdentificador } from '../contratos';
 
@@ -63,33 +67,41 @@ const avisos: Record<Tipo, { criado: string; excluido: string; repetido: string 
   },
 };
 
-const mensagemDe = (erro: unknown): string => (erro instanceof Error ? erro.message : String(erro));
-
 /** Criar e excluir arquivos de texto da skill, refazendo a leitura do agente e avisando no rodapé. */
 export function useGestaoDeArquivos(agente: string, tipo: Tipo, existentes: readonly Arquivo[]) {
   const cliente = useQueryClient();
   const { mostrar } = useSnackbar();
-  const atualizar = () => cliente.invalidateQueries({ queryKey: ['agente', agente] });
+  const [emExclusao, setEmExclusao] = useState<string | null>(null);
+  const atualizar = () => cliente.invalidateQueries({ queryKey: chaveDoAgente(agente) });
 
   /** Rejeita com a mensagem para o campo de nome mostrar. */
   const criar = async (nome: string): Promise<void> => {
     const caminho = caminhoNovo[tipo](nome);
     if (existentes.some((existente) => existente.caminho === caminho)) throw new Error(avisos[tipo].repetido);
     await salvarArquivo({ agente, caminho, conteudo: '' });
+    setEmExclusao(null);
+    cliente.setQueryData(chaveDoArquivo(agente, caminho), { caminho, conteudo: '' });
     await atualizar();
     mostrar(avisos[tipo].criado);
   };
 
+  /**
+   * `emExclusao` aponta o arquivo até um novo ser criado (ou a exclusão falhar): o editor dele descarta
+   * gravações pendentes, inclusive a do desmonte, que recriaria o arquivo.
+   */
   const excluir = async (caminho: string): Promise<void> => {
+    setEmExclusao(caminho);
     try {
       await excluirArquivo(agente, caminho);
     } catch (erro) {
+      setEmExclusao(null);
       mostrar(mensagemDe(erro), 'error');
       return;
     }
+    cliente.removeQueries({ queryKey: chaveDoArquivo(agente, caminho) });
     await atualizar();
     mostrar(avisos[tipo].excluido);
   };
 
-  return { criar, excluir };
+  return { criar, excluir, emExclusao };
 }

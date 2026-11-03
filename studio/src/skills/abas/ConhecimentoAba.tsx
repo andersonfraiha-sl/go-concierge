@@ -1,12 +1,13 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Alert, Box, Button, Chip, Paper, Typography } from '@mui/material';
+import { Box, Button, Chip, Paper, Typography } from '@mui/material';
 import { useState, type ReactNode } from 'react';
 import { useAgente, type Arquivo } from '@/catalogo/contratos';
 import { usePodeEditar } from '@/acesso/eu';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
+import { NomeDialog } from '@/shared/ui/NomeDialog';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { NovaSkillDialog } from '../NovaSkillDialog';
 import {
   documentosDe,
   documentosHerdadosDe,
@@ -25,7 +26,7 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
   const editavel = usePodeEditar('skills.editar_textos');
   const proprios = agente.data ? documentosDe(agente.data.agente) : [];
   const herdados = agente.data ? documentosHerdadosDe(agente.data.agente) : [];
-  const { criar, excluir } = useGestaoDeArquivos(caminho, 'documento', proprios);
+  const { criar, excluir, emExclusao } = useGestaoDeArquivos(caminho, 'documento', proprios);
   const [criando, setCriando] = useState(false);
   const [excluindo, setExcluindo] = useState<string | null>(null);
 
@@ -39,16 +40,7 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
     <SectionCard titulo="Base de conhecimento" ajuda="Documentos que a skill consulta para responder." acao={botaoNovo}>
       {agente.isPending && <Typography variant="caption">Carregando…</Typography>}
       {agente.isError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" onClick={() => void agente.refetch()}>
-              Tentar de novo
-            </Button>
-          }
-        >
-          Não foi possível carregar os documentos.
-        </Alert>
+        <ErroComRetry mensagem="Não foi possível carregar os documentos." onTentarDeNovo={() => void agente.refetch()} />
       )}
       {agente.isSuccess && proprios.length + herdados.length === 0 && (
         <EmptyState frase="Esta skill ainda não tem documentos." />
@@ -63,6 +55,7 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
               titulo={tituloDoDocumento(documento.caminho)}
               editavel={editavel}
               onExcluir={() => setExcluindo(documento.caminho)}
+              descartar={emExclusao === documento.caminho}
             />
           ) : (
             <LinhaDeArquivo key={documento.caminho} arquivo={documento} />
@@ -73,7 +66,7 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
         ))}
       </Box>
       {criando && (
-        <NovaSkillDialog
+        <NomeDialog
           titulo="Novo documento"
           tituloInicial=""
           confirmar="Criar"

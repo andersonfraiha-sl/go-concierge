@@ -1,9 +1,11 @@
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import { Alert, Box, Button, IconButton, Paper, TextField, Typography } from '@mui/material';
+import { Box, IconButton, Paper, TextField, Typography } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { salvarArquivo, useArquivo } from '@/catalogo/contratos';
+import { chaveDoArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 
 type Props = {
   agente: string;
@@ -11,6 +13,8 @@ type Props = {
   titulo: string;
   editavel: boolean;
   onExcluir?: () => void;
+  /** Arquivo em exclusão: gravações pendentes são descartadas para não recriá-lo. */
+  descartar?: boolean;
 };
 
 export function DocumentoEditavel(props: Props): ReactNode {
@@ -20,27 +24,33 @@ export function DocumentoEditavel(props: Props): ReactNode {
   if (arquivo.isPending) return <Typography variant="caption">Carregando {titulo}…</Typography>;
   if (arquivo.isError) {
     return (
-      <Alert
-        severity="error"
-        action={
-          <Button color="inherit" onClick={() => void arquivo.refetch()}>
-            Tentar de novo
-          </Button>
-        }
-      >
-        Não foi possível abrir {titulo}.
-      </Alert>
+      <ErroComRetry mensagem={`Não foi possível abrir ${titulo}.`} onTentarDeNovo={() => void arquivo.refetch()} />
     );
   }
   return <Editor {...props} inicial={arquivo.data.conteudo} />;
 }
 
 /** Monta só depois da leitura: o texto nasce do conteúdo salvo e é o `valor` estável do autosave. */
-function Editor({ agente, caminho, titulo, editavel, onExcluir, inicial }: Props & { inicial: string }): ReactNode {
+function Editor({
+  agente,
+  caminho,
+  titulo,
+  editavel,
+  onExcluir,
+  descartar = false,
+  inicial,
+}: Props & { inicial: string }): ReactNode {
+  const cliente = useQueryClient();
   const [texto, setTexto] = useState(inicial);
+  // Mantém o cache em dia: voltar à aba remonta o editor a partir do que foi salvo, não do que foi lido.
+  const salvar = async (conteudo: string): Promise<void> => {
+    await salvarArquivo({ agente, caminho, conteudo });
+    cliente.setQueryData(chaveDoArquivo(agente, caminho), { caminho, conteudo });
+  };
   const { estado, tentarDeNovo } = useAutosave({
     valor: texto,
-    salvar: (conteudo) => salvarArquivo({ agente, caminho, conteudo }),
+    salvar,
+    bloqueio: descartar ? 'arquivo em exclusão' : null,
   });
 
   return (
@@ -49,7 +59,7 @@ function Editor({ agente, caminho, titulo, editavel, onExcluir, inicial }: Props
         <Typography variant="subtitle2" sx={{ flex: 1 }}>
           {titulo}
         </Typography>
-        <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
+        {!descartar && <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />}
         {editavel && onExcluir && (
           <IconButton size="small" aria-label={`Excluir ${titulo}`} onClick={onExcluir}>
             <DeleteOutlinedIcon fontSize="small" />

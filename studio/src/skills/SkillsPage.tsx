@@ -1,13 +1,14 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { useCriarSkill, useDuplicarSkill, useExcluirSkill, useSkills, type SkillResumo } from './contratos';
-import { NovaSkillDialog, type NovaSkill } from './NovaSkillDialog';
+import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
 import { SkillCard } from './SkillCard';
 
 const FRASE_VAZIA =
@@ -33,13 +34,13 @@ export function SkillsPage(): ReactNode {
   const podeExcluir = usePodeEditar('skills.excluir');
   const fechar = () => setDialogo(null);
 
-  const criarEAbrir = async (nova: NovaSkill) => {
+  const criarEAbrir = async (nova: NomeEscolhido) => {
     const criada = await criar.mutateAsync(nova);
     mostrar('Skill criada.');
     void navegar(caminhoDoEditor(criada.nome));
   };
 
-  const duplicarEAbrir = async (origem: SkillResumo, nova: NovaSkill) => {
+  const duplicarEAbrir = async (origem: SkillResumo, nova: NomeEscolhido) => {
     const copia = await duplicar.mutateAsync({ origem: origem.nome, ...nova });
     mostrar('Skill duplicada.');
     void navegar(caminhoDoEditor(copia.nome));
@@ -70,9 +71,7 @@ export function SkillsPage(): ReactNode {
 
       {skills.isPending && <CircularProgress aria-label="Carregando skills" sx={{ alignSelf: 'center' }} />}
       {skills.isError && (
-        <Alert severity="error" action={<Button onClick={() => void skills.refetch()}>Tentar de novo</Button>}>
-          {skills.error.message}
-        </Alert>
+        <ErroComRetry mensagem={skills.error.message} onTentarDeNovo={() => void skills.refetch()} />
       )}
       {skills.isSuccess && skills.data.skills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
       {skills.isSuccess && skills.data.skills.length > 0 && (
@@ -92,7 +91,7 @@ export function SkillsPage(): ReactNode {
       )}
 
       {dialogo?.tipo === 'nova' && (
-        <NovaSkillDialog
+        <NomeDialog
           titulo="Nova skill"
           tituloInicial=""
           confirmar="Criar"
@@ -101,7 +100,7 @@ export function SkillsPage(): ReactNode {
         />
       )}
       {dialogo?.tipo === 'duplicar' && (
-        <NovaSkillDialog
+        <NomeDialog
           titulo="Duplicar skill"
           tituloInicial={`Cópia de ${dialogo.origem.titulo}`}
           confirmar="Duplicar"

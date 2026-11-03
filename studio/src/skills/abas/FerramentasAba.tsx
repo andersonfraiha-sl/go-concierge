@@ -1,6 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
 import {
-  Alert,
   Box,
   Button,
   Chip,
@@ -19,19 +18,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
 import {
+  chaveDoAgente,
   useAgente,
   useFerramentas,
   vincularFerramenta,
   type Ferramenta,
   type RecursoDeclarado,
 } from '@/catalogo/contratos';
+import { mensagemDe } from '@/shared/api/mensagemDe';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { vemDoFluxo } from './arquivosDaSkill';
 
 type Props = { nome: string; caminho: string };
-
-const mensagemDe = (erro: unknown): string => (erro instanceof Error ? erro.message : String(erro));
 
 export function FerramentasAba({ caminho }: Props): ReactNode {
   const agente = useAgente(caminho);
@@ -44,7 +44,7 @@ export function FerramentasAba({ caminho }: Props): ReactNode {
   const vincular = async (nome: string, ligar: boolean): Promise<void> => {
     try {
       await vincularFerramenta({ agente: caminho, nome, ligar });
-      await cliente.invalidateQueries({ queryKey: ['agente', caminho] });
+      await cliente.invalidateQueries({ queryKey: chaveDoAgente(caminho) });
     } catch (erro) {
       mostrar(mensagemDe(erro), 'error');
     }
@@ -64,16 +64,7 @@ export function FerramentasAba({ caminho }: Props): ReactNode {
     >
       {agente.isPending && <Typography variant="caption">Carregando…</Typography>}
       {agente.isError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" onClick={() => void agente.refetch()}>
-              Tentar de novo
-            </Button>
-          }
-        >
-          Não foi possível carregar as ferramentas.
-        </Alert>
+        <ErroComRetry mensagem="Não foi possível carregar as ferramentas." onTentarDeNovo={() => void agente.refetch()} />
       )}
       {agente.isSuccess && recursos.length === 0 && (
         <Typography color="text.secondary">Esta skill ainda não usa nenhuma ferramenta.</Typography>
@@ -149,16 +140,7 @@ function AdicionarFerramenta({ jaLigadas, onEscolher, onFechar }: AdicionarProps
       <DialogContent>
         {ferramentas.isPending && <Typography variant="caption">Carregando…</Typography>}
         {ferramentas.isError && (
-          <Alert
-            severity="error"
-            action={
-              <Button color="inherit" onClick={() => void ferramentas.refetch()}>
-                Tentar de novo
-              </Button>
-            }
-          >
-            Não foi possível carregar a lista.
-          </Alert>
+          <ErroComRetry mensagem="Não foi possível carregar a lista." onTentarDeNovo={() => void ferramentas.refetch()} />
         )}
         {ferramentas.isSuccess && disponiveis.length === 0 && (
           <Typography color="text.secondary">Não há mais ferramentas para adicionar.</Typography>
