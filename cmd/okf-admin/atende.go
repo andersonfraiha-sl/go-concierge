@@ -9,9 +9,11 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/entrada"
@@ -24,8 +26,8 @@ import (
 // sessões por protocolo, caixa de saída e consulta de identidade no Gruvi.
 
 func (s *servidor) rotasAtende(mux *http.ServeMux) {
-	mux.HandleFunc("POST /webhook/atende", s.webhookAtende)
-	mux.HandleFunc("POST /emulador/atende/webhook", s.webhookEmulado)
+	mux.HandleFunc("POST /webhook/atende", s.webhookAtende) // público: confere o HMAC
+	mux.Handle("POST /emulador/atende/webhook", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.webhookEmulado))
 	mux.HandleFunc("GET /console", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := fs.ReadFile(s.web, "console.html")
 		if err != nil {
@@ -36,41 +38,33 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Write(raw)
 	})
-	mux.HandleFunc("POST /emulador/atende/messages", s.emulador.Handler)
-	mux.HandleFunc("GET /api/atende/config", s.atendeConfig)
-	mux.HandleFunc("GET /api/atende/sessoes", s.atendeSessoes)
-	mux.HandleFunc("GET /api/atende/sessao", s.atendeSessao)
-	mux.HandleFunc("DELETE /api/atende/sessao", s.atendeReiniciar)
-	mux.HandleFunc("GET /api/atende/saidas", s.atendeSaidas)
-	mux.HandleFunc("POST /api/atende/transbordo", s.atendeTransbordo)
-	mux.HandleFunc("GET /api/atende/identidade", s.atendeIdentidade)
-	mux.HandleFunc("GET /api/pedidos", s.pedidosLer)
-	mux.HandleFunc("POST /api/pedidos/acao", s.pedidosAcao)
-	mux.HandleFunc("GET /api/pedidos/exportar", s.pedidosExportar)
-	mux.HandleFunc("GET /api/memoria", s.memoriaLer)
-	mux.HandleFunc("DELETE /api/memoria", s.memoriaEsquecer)
-	mux.HandleFunc("GET /api/memorias", s.memoriasListar)
+	// a caixa de saída emulada recebe do próprio servidor (o HTTPSender passa pelo usuário
+	// padrão do modo dev)
+	mux.Handle("POST /emulador/atende/messages", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.emulador.Handler))
+	// conversas: a administradora pedida ou, quando há conversa, a gravada nela
+	mux.Handle("GET /api/atende/config", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeConfig))
+	mux.Handle("GET /api/atende/sessoes", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeSessoes))
+	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeIdentidade))
+	mux.Handle("GET /api/atende/sessao", s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSessao))
+	mux.Handle("GET /api/atende/saidas", s.protegida(acesso.ConversasVer, s.alvoSaidas, s.atendeSaidas))
+	mux.Handle("DELETE /api/atende/sessao", s.protegida(acesso.ConversasAtender, s.alvoSessaoDaConsulta, s.atendeReiniciar))
+	mux.Handle("POST /api/atende/transbordo", s.protegida(acesso.ConversasAtender, s.alvoSessaoDoCorpo, s.atendeTransbordo))
+	mux.Handle("GET /api/pedidos", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosLer))
+	mux.Handle("GET /api/pedidos/exportar", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosExportar))
+	mux.Handle("POST /api/pedidos/acao", s.protegida(acesso.PedidosEditar, s.alvoAcaoDePedido, s.pedidosAcao))
+	mux.Handle("GET /api/memoria", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriaLer))
+	mux.Handle("GET /api/memorias", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriasListar))
+	mux.Handle("DELETE /api/memoria", s.protegida(acesso.MemoriaEsquecer, s.alvoAdministradora, s.memoriaEsquecer))
 }
 
 // ---- escopo das rotas de memória e pedidos -----------------------------
 
 // administradoraDaRota: a administradora pedida (?administradora=), ou a fixa da
-// implantação. Sem nenhuma ou fora do formato, 400; fora da implantação, 403.
+// implantação (regras em administradoraPedida).
 func (s *servidor) administradoraDaRota(w http.ResponseWriter, r *http.Request) (string, bool) {
-	adm := strings.TrimSpace(r.URL.Query().Get("administradora"))
-	if adm == "" {
-		adm = s.implantacao.AdministradoraFixa
-	}
-	if adm == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_OBRIGATORIA", "error": "informe administradora"})
-		return "", false
-	}
-	if !escopo.AdministradoraValida(adm) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_INVALIDA", "error": "administradora com formato inválido"})
-		return "", false
-	}
-	if !s.implantacao.Permite(adm) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"codigo": "FORA_DA_IMPLANTACAO", "error": "administradora fora desta implantação"})
+	adm, err := administradoraPedida(r, s.implantacao)
+	if err != nil {
+		responderErroDeAlvo(w, r, err)
 		return "", false
 	}
 	return adm, true
@@ -275,8 +269,18 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (s *servidor) atendeSessoes(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, map[string]any{"sessoes": s.atende.Sessoes.Lista()})
+// atendeSessoes: com administradora pedida, só as conversas gravadas nela; sem, todas (o
+// alvo da rota já exigiu a Superlógica).
+func (s *servidor) atendeSessoes(w http.ResponseWriter, r *http.Request) {
+	sessoes := s.atende.Sessoes.Lista()
+	if s.temAdministradoraPedida(r) {
+		adm, ok := s.administradoraDaRota(w, r)
+		if !ok {
+			return
+		}
+		sessoes = slices.DeleteFunc(sessoes, func(sess *atende.Sessao) bool { return sess.Administradora() != adm })
+	}
+	writeJSON(w, 200, map[string]any{"sessoes": sessoes})
 }
 
 func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {

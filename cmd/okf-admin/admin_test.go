@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,13 +66,15 @@ func TestResponderErroAdmin(t *testing.T) {
 	}{
 		{nome: "regra recusa", err: fmt.Errorf("salvar: %w: nome vazio", admin.ErrInvalido), querStatus: http.StatusBadRequest},
 		{nome: "conflito concorrente", err: fmt.Errorf("salvar: %w: %w", admin.ErrConflitoConcorrente, errors.New(textoDoDriver)), querStatus: http.StatusServiceUnavailable, querCodigo: "CONFLITO_CONCORRENTE"},
-		{nome: "falha do servidor", err: errors.New("banco fora"), querStatus: http.StatusInternalServerError},
+		{nome: "id que já existe", err: fmt.Errorf("criar: %w", admin.ErrJaExiste), querStatus: http.StatusConflict, querCodigo: "JA_EXISTE"},
+		{nome: "id que não existe", err: fmt.Errorf("editar: %w", admin.ErrNaoEncontrado), querStatus: http.StatusNotFound, querCodigo: "NAO_ENCONTRADO"},
+		{nome: "falha do servidor", err: errors.New("banco fora (SQLSTATE 08006)"), querStatus: http.StatusInternalServerError, querCodigo: "ERRO_INTERNO"},
 	}
-	s := &servidor{log: log.New(io.Discard, "", 0)}
+	s := &servidor{log: log.New(io.Discard, "", 0), registro: slog.New(slog.NewJSONHandler(io.Discard, nil))}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			s.responderErroAdmin(w, c.err)
+			s.responderErroAdmin(w, httptest.NewRequest("PUT", "/api/admin/condominio", nil), c.err)
 			var corpo map[string]string
 			if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
 				t.Fatal(err)

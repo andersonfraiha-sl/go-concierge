@@ -25,6 +25,9 @@ services:
       # vence o DATABASE_URL do .env, que aponta para 127.0.0.1 (uso fora do compose)
       DATABASE_URL: postgres://concierge:concierge@postgres:5432/concierge?sslmode=disable
       AMBIENTE: ${AMBIENTE:-dev}
+      # dev: o usuário vem do cabeçalho X-Dev-Usuario ou, sem ele, de AUTH_DEV_USUARIO
+      AUTH_MODE: ${AUTH_MODE:-dev}
+      AUTH_DEV_USUARIO: ${AUTH_DEV_USUARIO:-admin-superlogica}
     command: ["-root", "/app/okf", "-addr", "0.0.0.0:8090", "-env", "/app/.env", "-web", "/app/web"]
     volumes:
       # o catálogo editado pelo Admin fica no repositório (agentes, instantâneo, var/)

@@ -319,7 +319,8 @@ func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(), Memorias: st}, memorias: st, implantacao: tt.implantacao}
+			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(), Memorias: st}, memorias: st, implantacao: tt.implantacao,
+				acessos: acessosFake{atribuicoes: usuariosTeste(), mapeamento: mapeamentoTeste(t)}, autenticador: autenticadorDev{padrao: "admin"}}
 			mux := http.NewServeMux()
 			s.rotasAtende(mux)
 			w := httptest.NewRecorder()

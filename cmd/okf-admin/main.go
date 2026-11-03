@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/banco"
@@ -73,6 +74,11 @@ type servidor struct {
 	admin               admin.Repositorio
 	implantacao         escopo.Implantacao // ADMINISTRADORA_ID: o processo atende só essa (vazia = todas)
 	banco               banco.Banco
+
+	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
+	autenticador Autenticador
+	acessos      carregadorAcesso
+	registro     *slog.Logger
 }
 
 const (
@@ -95,6 +101,12 @@ func main() {
 	migrar := flag.Bool("migrar", false, "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev, lido também do -env)")
 	flag.Parse()
 	env.Carregar(*dotenv)
+	registro := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
+	cfg := Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET")}
+	if err := validarConfig(cfg); err != nil {
+		log.Fatal(err)
+	}
 	deveMigrar := migrarPorPadrao(os.Getenv("AMBIENTE"))
 	if flagInformada("migrar") {
 		deveMigrar = *migrar
@@ -120,7 +132,11 @@ func main() {
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
 	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
-		implantacao: escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))}}
+		implantacao:  escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
+		autenticador: novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
+		acessos:      acesso.NovoPostgres(db.Ent),
+		registro:     registro,
+	}
 	var origens []string
 	if mcpCli != nil {
 		origens = append(origens, "MCP "+mcpCli.URL+" ("+mcpModo+")")
@@ -195,24 +211,20 @@ func main() {
 	}
 	s.atende.Mapeamento = s.admin
 
-	mux := http.NewServeMux()
-	s.rotas(mux)
-	s.rotasAtende(mux)
-	s.rotasAdmin(mux)
+	// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o repassa,
+	// para testar de fora (Inspector, curl) pela porta do concierge. O token NÃO é injetado:
+	// o cliente manda o seu Authorization.
+	var proxy http.Handler
 	if mcpCli != nil {
-		// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o
-		// repassa, para testar de fora (Inspector, curl) pela porta do concierge. O
-		// token NÃO é injetado: o cliente manda o seu Authorization.
-		if proxy, base, err := proxyMCP(mcpCli); err != nil {
+		p, base, err := proxyMCP(mcpCli)
+		if err != nil {
 			log.Printf("okf-admin: proxy do MCP desligado: %v", err)
 		} else {
-			// por método: um "/mcp/" sem método conflitaria com o "GET /" da interface
-			for _, m := range []string{"GET", "POST", "DELETE", "OPTIONS"} {
-				mux.Handle(m+" /mcp/", proxy)
-			}
+			proxy = p
 			log.Printf("okf-admin: MCP exposto em http://%s%s (repassa a %s; Authorization do cliente)", *addr, mcpPath(mcpCli.URL), base)
 		}
 	}
+	handler := s.rotear(proxy)
 
 	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · modelo: %s · gruvi: %v · http://%s", cat.Root, account, s.nexus, s.provedor, s.gruviOK, *addr)
 	if *abrir {
@@ -221,7 +233,7 @@ func main() {
 			abrirNavegador("http://" + *addr)
 		}()
 	}
-	log.Fatal(http.ListenAndServe(*addr, logar(mux)))
+	log.Fatal(http.ListenAndServe(*addr, handler))
 }
 
 // migrarPorPadrao liga as migrations no boot só em desenvolvimento; nos demais ambientes
@@ -346,27 +358,42 @@ func mcpPath(raw string) string {
 }
 
 func (s *servidor) rotas(mux *http.ServeMux) {
-	mux.Handle("GET /", semCache(http.FileServerFS(s.web)))
+	mux.Handle(padraoEstaticos, semCache(http.FileServerFS(s.web)))
 	mux.HandleFunc("GET /healthz", s.healthz)
 
-	mux.HandleFunc("GET /api/anatomia", s.anatomia)
-	mux.HandleFunc("GET /api/agentes", s.arvore)
-	mux.HandleFunc("POST /api/agentes", s.criar)
-	mux.HandleFunc("GET /api/agente", s.agente)
-	mux.HandleFunc("PUT /api/agente/config", s.config)
-	mux.HandleFunc("DELETE /api/agente", s.excluir)
-	mux.HandleFunc("POST /api/agentes/mover", s.mover)
-	mux.HandleFunc("POST /api/agentes/importar", s.importar)
-	mux.HandleFunc("GET /api/agentes/exportar", s.exportar)
-	mux.HandleFunc("GET /api/arquivo", s.lerArquivo)
-	mux.HandleFunc("PUT /api/arquivo", s.salvarArquivo)
-	mux.HandleFunc("DELETE /api/arquivo", s.excluirArquivo)
-	mux.HandleFunc("GET /api/arquivo/modelo", s.modelo)
-	mux.HandleFunc("GET /api/projecao", s.projecao)
-	mux.HandleFunc("GET /api/nexus/recursos", s.recursos)
-	mux.HandleFunc("PUT /api/nexus/recurso", s.salvarRecurso)
-	mux.HandleFunc("DELETE /api/nexus/recurso", s.removerRecurso)
-	mux.HandleFunc("POST /api/agente/recursos", s.vincular)
+	// leitura do catálogo: skills.ler em qualquer escopo
+	for padrao, h := range map[string]http.HandlerFunc{
+		"GET /api/anatomia":         s.anatomia,
+		"GET /api/agentes":          s.arvore,
+		"GET /api/agente":           s.agente,
+		"GET /api/agentes/exportar": s.exportar,
+		"GET /api/arquivo":          s.lerArquivo,
+		"GET /api/arquivo/modelo":   s.modelo,
+		"GET /api/projecao":         s.projecao,
+		"GET /api/nexus/recursos":   s.recursos,
+	} {
+		mux.Handle(padrao, s.protegidaEmAlgum(acesso.SkillsLer, h))
+	}
+	// fluxo dos agentes: skills.editar_fluxo na Superlógica
+	for padrao, h := range map[string]http.HandlerFunc{
+		"POST /api/agentes":          s.criar,
+		"PUT /api/agente/config":     s.config,
+		"DELETE /api/agente":         s.excluir,
+		"POST /api/agentes/mover":    s.mover,
+		"POST /api/agentes/importar": s.importar,
+		"PUT /api/arquivo":           s.salvarArquivo,
+		"DELETE /api/arquivo":        s.excluirArquivo,
+	} {
+		mux.Handle(padrao, s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, h))
+	}
+	// recursos do Nexus: ferramentas.editar na Superlógica
+	for padrao, h := range map[string]http.HandlerFunc{
+		"PUT /api/nexus/recurso":    s.salvarRecurso,
+		"DELETE /api/nexus/recurso": s.removerRecurso,
+		"POST /api/agente/recursos": s.vincular,
+	} {
+		mux.Handle(padrao, s.protegida(acesso.FerramentasEditar, alvoSuperlogica, h))
+	}
 }
 
 // ---- handlers ------------------------------------------------------------
@@ -689,15 +716,6 @@ func writeErr(w http.ResponseWriter, code int, err error) {
 func semCache(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		h.ServeHTTP(w, r)
-	})
-}
-
-func logar(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			log.Printf("%s %s", r.Method, r.URL.RequestURI())
-		}
 		h.ServeHTTP(w, r)
 	})
 }
