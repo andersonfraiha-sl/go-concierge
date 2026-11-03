@@ -93,8 +93,10 @@ func corpoEventoTeste(evento, tenant, canal string) string {
 
 const segredoTeste = "segredo-hmac-teste"
 
-func assinaturaTeste(corpo string) string {
-	mac := hmac.New(sha256.New, []byte(segredoTeste))
+func assinaturaTeste(corpo string) string { return assinaturaComSegredo(segredoTeste, corpo) }
+
+func assinaturaComSegredo(segredo, corpo string) string {
+	mac := hmac.New(sha256.New, []byte(segredo))
 	mac.Write([]byte("1." + corpo))
 	return "t=1,v1=" + hex.EncodeToString(mac.Sum(nil))
 }
@@ -146,10 +148,41 @@ func TestWebhookRealSemSegredoConfiguradoRecusa(t *testing.T) {
 	corpo := corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710")
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpo))
-	r.Header.Set("X-Atende-Signature", assinaturaTeste(corpo))
+	r.Header.Set("X-Atende-Signature", assinaturaComSegredo("", corpo))
 	s.webhookAtende(w, r)
 	if w.Code != 401 {
 		t.Fatalf("sem segredo deveria recusar: status=%d", w.Code)
+	}
+}
+
+func TestWebhookEmuladoAceitaSomenteTokenDoWebhook(t *testing.T) {
+	corpo := corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710")
+	casos := []struct {
+		nome, bearer, assinatura string
+		status                   int
+	}{
+		{"token correto", "token-webhook", "", 202},
+		{"token errado", "outro", "", 401},
+		{"sem token", "", "", 401},
+		{"hmac valido sem token", "", assinaturaTeste(corpo), 401},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			s := servidorWebhookRealTeste()
+			s.webhookToken = "token-webhook"
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpo))
+			if c.bearer != "" {
+				r.Header.Set("Authorization", "Bearer "+c.bearer)
+			}
+			if c.assinatura != "" {
+				r.Header.Set("X-Atende-Signature", c.assinatura)
+			}
+			s.webhookEmulado(w, r)
+			if w.Code != c.status {
+				t.Fatalf("status=%d (esperado %d) body=%s", w.Code, c.status, w.Body.String())
+			}
+		})
 	}
 }
 
