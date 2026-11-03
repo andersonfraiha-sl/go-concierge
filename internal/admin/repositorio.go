@@ -1,6 +1,13 @@
 package admin
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrConflitoConcorrente: outra escrita simultânea venceu todas as tentativas; o pedido pode
+// ser repetido (o Admin responde 503).
+var ErrConflitoConcorrente = errors.New("conflito com outra escrita simultânea")
 
 // Repositorio guarda o mapeamento. Toda escrita aplica a regra pura correspondente ao
 // mapeamento atual e devolve o mapeamento inteiro depois de gravar; o que a regra recusa

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -837,8 +838,11 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 			if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" && (ok || len(cfg.Payloads) > 0 || orient.Geral != "") {
 				contexto = append(contexto, c)
 			}
-		} else if s.Log != nil {
-			s.Log.Printf("atende: mapeamento: %v", err)
+		} else {
+			// falha fechada: sem o mapeamento não se sabe o que a administradora desligou
+			cfg.Casos = func(string, string) bool { return false }
+			slog.ErrorContext(ctx, "atende: mapeamento indisponível; nenhum caso de uso liberado",
+				"operacao", "ler_mapeamento", "sessao", sess.ID, "erro", err)
 		}
 	}
 	s.injetarParametrosMCP(&cfg, sess)

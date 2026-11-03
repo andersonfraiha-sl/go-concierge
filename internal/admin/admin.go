@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -98,7 +99,7 @@ func (m *Mapeamento) normalizar() {
 		}
 		m.AdministradoraLegado = ""
 	}
-	sort.Slice(m.Administradoras, func(i, j int) bool { return m.Administradoras[i].Nome < m.Administradoras[j].Nome })
+	slices.SortFunc(m.Administradoras, compararAdministradoras)
 	if m.Habilitacoes == nil {
 		m.Habilitacoes = map[string]map[string]Habilitacao{}
 	}
@@ -130,7 +131,7 @@ func (m *Mapeamento) normalizar() {
 			m.Payloads[k] = map[string]map[string]any{}
 		}
 	}
-	sort.Slice(m.Condominios, func(i, j int) bool { return m.Condominios[i].Nome < m.Condominios[j].Nome })
+	slices.SortFunc(m.Condominios, compararCondominios)
 }
 
 // Administradora procura pelo id.
