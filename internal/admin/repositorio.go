@@ -14,9 +14,16 @@ var ErrConflitoConcorrente = errors.New("conflito com outra escrita simultânea"
 // volta como ErrInvalido.
 type Repositorio interface {
 	Ler(ctx context.Context) (Mapeamento, error)
+	// Salvar* criam ou atualizam (semente e importação); o Admin usa Criar* (ErrJaExiste) e
+	// Editar* (ErrNaoEncontrado), que não confundem um caso com o outro.
 	SalvarAdministradora(ctx context.Context, a Administradora) (Mapeamento, error)
+	CriarAdministradora(ctx context.Context, a Administradora) (Mapeamento, error)
+	EditarAdministradora(ctx context.Context, a Administradora) (Mapeamento, error)
 	RemoverAdministradora(ctx context.Context, id string) (Mapeamento, error)
 	SalvarCondominio(ctx context.Context, c Condominio) (Mapeamento, error)
+	CriarCondominio(ctx context.Context, c Condominio) (Mapeamento, error)
+	// EditarCondominio recusa com ErrConflitoConcorrente se a dona atual não é donaAtual.
+	EditarCondominio(ctx context.Context, c Condominio, donaAtual string) (Mapeamento, error)
 	RemoverCondominio(ctx context.Context, id string) (Mapeamento, error)
 	SalvarHabilitacao(ctx context.Context, condoID, caso string, h Habilitacao, limpar bool) (Mapeamento, error)
 	SalvarOrientacao(ctx context.Context, condoID string, o Orientacao) (Mapeamento, error)

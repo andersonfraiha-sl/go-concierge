@@ -16,6 +16,12 @@ import (
 // ErrInvalido marca o pedido que as regras do mapeamento recusam (o Admin responde 400).
 var ErrInvalido = errors.New("mapeamento inválido")
 
+// ErrJaExiste marca a criação de um id que já está no mapeamento (o Admin responde 409).
+var ErrJaExiste = errors.New("já existe")
+
+// ErrNaoEncontrado marca a edição de um id que não está no mapeamento (o Admin responde 404).
+var ErrNaoEncontrado = errors.New("não encontrado")
+
 func invalido(formato string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalido, fmt.Sprintf(formato, args...))
 }
@@ -68,6 +74,30 @@ func (m Mapeamento) salvarAdministradora(a Administradora) (Mapeamento, error) {
 	return m, nil
 }
 
+// criarAdministradora recusa um id que já existe, em vez de sobrescrever.
+func (m Mapeamento) criarAdministradora(a Administradora) (Mapeamento, error) {
+	a, err := prepararAdministradora(a)
+	if err != nil {
+		return m, err
+	}
+	if _, existe := m.Administradora(a.ID); existe {
+		return m, fmt.Errorf("administradora %s: %w", a.ID, ErrJaExiste)
+	}
+	return m.salvarAdministradora(a)
+}
+
+// editarAdministradora só altera a que já existe.
+func (m Mapeamento) editarAdministradora(a Administradora) (Mapeamento, error) {
+	a, err := prepararAdministradora(a)
+	if err != nil {
+		return m, err
+	}
+	if _, existe := m.Administradora(a.ID); !existe {
+		return m, fmt.Errorf("administradora %s: %w", a.ID, ErrNaoEncontrado)
+	}
+	return m.salvarAdministradora(a)
+}
+
 // removerAdministradora recusa enquanto ela tiver condomínios (mova-os antes, para não
 // perder mapeamento sem querer).
 func (m Mapeamento) removerAdministradora(id string) (Mapeamento, error) {
@@ -90,6 +120,36 @@ func (m Mapeamento) salvarCondominio(c Condominio) (Mapeamento, error) {
 	m.Condominios = comItem(m.Condominios, c, func(x Condominio) bool { return x.ID == c.ID })
 	slices.SortFunc(m.Condominios, compararCondominios)
 	return m, nil
+}
+
+// criarCondominio recusa um id que já existe, em vez de sobrescrever (e tomar o condomínio
+// de outra administradora).
+func (m Mapeamento) criarCondominio(c Condominio) (Mapeamento, error) {
+	c, err := prepararCondominio(c)
+	if err != nil {
+		return m, err
+	}
+	if _, existe := m.Condominio(c.ID); existe {
+		return m, fmt.Errorf("condomínio %s: %w", c.ID, ErrJaExiste)
+	}
+	return m.salvarCondominio(c)
+}
+
+// editarCondominio só altera o que já existe e ainda tem a dona com que o pedido foi
+// autorizado (donaAtual); se ela mudou no meio, é conflito e o pedido deve ser refeito.
+func (m Mapeamento) editarCondominio(c Condominio, donaAtual string) (Mapeamento, error) {
+	c, err := prepararCondominio(c)
+	if err != nil {
+		return m, err
+	}
+	atual, existe := m.Condominio(c.ID)
+	if !existe {
+		return m, fmt.Errorf("condomínio %s: %w", c.ID, ErrNaoEncontrado)
+	}
+	if atual.Administradora != donaAtual {
+		return m, fmt.Errorf("condomínio %s mudou de administradora: %w", c.ID, ErrConflitoConcorrente)
+	}
+	return m.salvarCondominio(c)
 }
 
 // removerCondominio apaga o condomínio e tudo que era dele.

@@ -455,3 +455,19 @@ func (s *Arquivo) SalvarAjustes(_ context.Context, condoID string, ajustes map[s
 func (s *Arquivo) SalvarPayload(_ context.Context, condoID, recurso string, payload map[string]any) (Mapeamento, error) {
 	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, payload) })
 }
+
+func (s *Arquivo) CriarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
+	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarAdministradora(a) })
+}
+
+func (s *Arquivo) EditarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
+	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarAdministradora(a) })
+}
+
+func (s *Arquivo) CriarCondominio(_ context.Context, c Condominio) (Mapeamento, error) {
+	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarCondominio(c) })
+}
+
+func (s *Arquivo) EditarCondominio(_ context.Context, c Condominio, donaAtual string) (Mapeamento, error) {
+	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarCondominio(c, donaAtual) })
+}

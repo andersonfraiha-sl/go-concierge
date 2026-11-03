@@ -41,6 +41,44 @@ func testarRepositorio(t *testing.T, novo func(t *testing.T) Repositorio) {
 	t.Run("padrao regravado", func(t *testing.T) { cenarioPadraoRegravado(t, novo(t)) })
 	t.Run("ordem", func(t *testing.T) { cenarioOrdem(t, novo(t)) })
 	t.Run("escritas simultaneas", func(t *testing.T) { cenarioEscritasSimultaneas(t, novo(t)) })
+	t.Run("criar e editar", func(t *testing.T) { cenarioCriarEditar(t, novo(t)) })
+}
+
+// cenarioCriarEditar: criar recusa id que já existe (sem sobrescrever); editar recusa o que
+// não existe e o condomínio que mudou de dona depois de a requisição ser autorizada.
+func cenarioCriarEditar(t *testing.T, r Repositorio) {
+	ctx := t.Context()
+	ok := exigir(t)
+	erro := func(motivo string, alvo error) func(Mapeamento, error) {
+		return func(_ Mapeamento, err error) {
+			t.Helper()
+			if !errors.Is(err, alvo) {
+				t.Fatalf("%s: quero %v, veio %v", motivo, alvo, err)
+			}
+		}
+	}
+	ok(r.CriarAdministradora(ctx, Administradora{ID: "adm-a", Nome: "Alfa"}))
+	ok(r.CriarAdministradora(ctx, Administradora{ID: "adm-b", Nome: "Beta"}))
+	erro("administradora repetida, mesmo com outra caixa", ErrJaExiste)(r.CriarAdministradora(ctx, Administradora{ID: " ADM-A ", Nome: "Outra"}))
+	erro("editar administradora inexistente", ErrNaoEncontrado)(r.EditarAdministradora(ctx, Administradora{ID: "adm-z", Nome: "Z"}))
+	ok(r.EditarAdministradora(ctx, Administradora{ID: "adm-b", Nome: "Beta 2"}))
+
+	ok(r.CriarCondominio(ctx, Condominio{ID: "c1", Nome: "C1", Administradora: "adm-a", Account: "acc"}))
+	erro("condomínio repetido", ErrJaExiste)(r.CriarCondominio(ctx, Condominio{ID: "c1", Nome: "Intruso", Administradora: "adm-b"}))
+	erro("editar condomínio inexistente", ErrNaoEncontrado)(r.EditarCondominio(ctx, Condominio{ID: "c9", Nome: "C9"}, ""))
+	erro("dona mudou desde a autorização", ErrConflitoConcorrente)(r.EditarCondominio(ctx, Condominio{ID: "c1", Nome: "C1", Administradora: "adm-b"}, "adm-b"))
+	ok(r.EditarCondominio(ctx, Condominio{ID: "c1", Nome: "C1 novo", Administradora: "adm-b", Account: "acc"}, "adm-a"))
+
+	m := ok(r.Ler(ctx))
+	if a, _ := m.Administradora("adm-a"); a.Nome != "Alfa" {
+		t.Fatalf("criar repetido sobrescreveu: %+v", a)
+	}
+	if a, _ := m.Administradora("adm-b"); a.Nome != "Beta 2" {
+		t.Fatalf("editar administradora: %+v", a)
+	}
+	if c, _ := m.Condominio("c1"); c.Nome != "C1 novo" || c.Administradora != "adm-b" {
+		t.Fatalf("editar condomínio: %+v", c)
+	}
 }
 
 // cenarioOrdem: administradoras por id; condomínios por nome e, no empate, por id. ResolverCondominio

@@ -86,3 +86,19 @@ func (e *EmMemoria) SalvarAjustes(_ context.Context, condoID string, ajustes map
 func (e *EmMemoria) SalvarPayload(_ context.Context, condoID, recurso string, payload map[string]any) (Mapeamento, error) {
 	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, payload) })
 }
+
+func (e *EmMemoria) CriarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarAdministradora(a) })
+}
+
+func (e *EmMemoria) EditarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarAdministradora(a) })
+}
+
+func (e *EmMemoria) CriarCondominio(_ context.Context, c Condominio) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarCondominio(c) })
+}
+
+func (e *EmMemoria) EditarCondominio(_ context.Context, c Condominio, donaAtual string) (Mapeamento, error) {
+	return e.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarCondominio(c, donaAtual) })
+}
