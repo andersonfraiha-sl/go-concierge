@@ -11,7 +11,8 @@ cd "$(dirname "$0")"
 
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado" >&2; exit 1; }
 
-STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src/web/studio node:26-alpine"
+# node_modules num volume anônimo: o npm ci do Linux não sobrescreve o node_modules do Windows.
+STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -v /src/web/studio/node_modules -w /src/web/studio node:26-alpine"
 GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-alpine"
 
 case "${1:-}" in

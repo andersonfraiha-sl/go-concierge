@@ -88,7 +88,7 @@ Termos técnicos (YAML, nomes de pasta, "orquestrador") só aparecem dentro do A
 - Salva sozinho 1s depois da última mudança, uma gravação por vez, e mostra "Salvando…", "Salvo às HH:MM" ou "Falha ao salvar · Tentar de novo".
 - Notificação no rodapé, 4s, para criar, excluir, publicar.
 - Confirmação diz a consequência ("Excluir "X"? O fluxo e as regras somem junto.").
-- Fonte Lato; azul `#1034F2`; cartões sem sombra; textos em PT-BR, segunda pessoa, curtos.
+- Mesma identidade do Console (`web/okf/styles.css`): títulos em "Paralucent", "Plus Jakarta Sans"; texto em "Argumentum", "Inter"; navy `#071950`, slate, raio 8/12 px, perigo `#D61D1E`; azul `#1034F2`; cartões sem sombra; textos em PT-BR, segunda pessoa, curtos.
 - Funciona em telas a partir de 1280px; abaixo de 900px mostra só leitura.
 
 ## 8. Como saber que ficou pronto

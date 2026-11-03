@@ -20,31 +20,14 @@ import (
 
 // API do mapeamento administradoras → condomínios → skills (habilitação, papéis,
 // orientações, ajustes), restrita aos condomínios da administradora do pedido
-// (?administradora=<id>; RLS). O Studio é quem usa. As duas páginas antigas que ficam
-// (/backdoor/administradoras e /backdoor/payloads) cobrem o que o Studio ainda não faz:
-// renomear administradora e definições livres por recurso.
+// (?administradora=<id>; RLS). O Studio é quem usa. Até o Studio cobrir tudo, ficam três
+// telas antigas: /admin (matriz skills × condomínios), /backdoor/administradoras
+// (renomear administradora) e /backdoor/payloads (definições livres por recurso).
 
 func (s *servidor) rotasAdmin(mux *http.ServeMux) {
-	mux.HandleFunc("GET /backdoor/payloads", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "payloads.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/administradoras", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "administradoras.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
+	mux.HandleFunc("GET /admin", s.telaAntiga("index.html"))
+	mux.HandleFunc("GET /backdoor/payloads", s.telaAntiga("payloads.html"))
+	mux.HandleFunc("GET /backdoor/administradoras", s.telaAntiga("administradoras.html"))
 	mux.HandleFunc("GET /api/admin/orquestracao", s.adminOrquestracao)
 	mux.HandleFunc("PUT /api/admin/orquestracao", s.adminSalvarOrquestracao)
 	mux.HandleFunc("GET /api/admin/estado", s.adminEstado)
@@ -340,6 +323,20 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.responderMapeamento(w, r, m)
+}
+
+// telaAntiga serve uma página de web/okf que o Studio ainda não substituiu.
+func (s *servidor) telaAntiga(arquivo string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw, err := fs.ReadFile(s.web, arquivo)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(raw)
+	}
 }
 
 // responderMapeamento devolve o mapeamento já recortado pela administradora do

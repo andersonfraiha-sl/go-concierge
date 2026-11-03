@@ -151,9 +151,10 @@ Assistente (aba Persona), as Ferramentas, os Condomínios (habilitação, papéi
 orientações, ajustes, identificação, administradoras) e a área Avançado (arquivos de cada
 pasta, prompt montado e roteador, orquestração, importar e exportar zip).
 
-Duas páginas antigas ficam até o Studio cobri-las: `/backdoor/administradoras` (renomear
-uma administradora) e `/backdoor/payloads` (definições livres de um recurso por
-condomínio, inclusive de recursos que não declaram ajustes).
+Telas antigas, temporárias (saem na última tarefa da fase 2 do Studio): `/admin` (o Admin
+antigo, com a matriz skills × condomínios), `/backdoor/administradoras` (renomear uma
+administradora) e `/backdoor/payloads` (definições livres de um recurso por condomínio,
+inclusive de recursos que não declaram ajustes). O Studio e o Console têm link para elas.
 
 ### API
 
@@ -268,7 +269,7 @@ orquestracao:
   max_iteracoes: 6        # react: passos por turno; no limite, consolida o que há
 ```
 
-Onde se controla: a aba **Orquestração** da área Avançado do Studio (http://127.0.0.1:8090/studio/avancado):
+Onde se controla: a aba **Orquestração** da área Avançado do Studio (http://127.0.0.1:8090/studio/avancado?aba=orquestracao):
 escolha o modo e os ajustes e salve; grava o bloco acima no `agent.yaml` do concierge e vale
 a partir da próxima mensagem, sem reiniciar. `ORQUESTRACAO_MODO` no ambiente, quando definida,
 força o modo por cima da guia (ela avisa). Teste no Console: a aba Rota mostra o plano.
@@ -284,13 +285,13 @@ cmd/okf-admin      servidor HTTP: o Studio embutido, o Console e o canal ATENDE
 cmd/okf-run        roda um agente pela linha de comando (harness Eino)
 internal/okf       pasta de agente: carga, herança, fronteira, vínculos, conhecimento OKF, projeção, rotas, escrita, catálogo
 internal/harness   adaptador Eino: modelo (Gemini | OpenRouter | Luna | mock), tools nativas, rota, trace e uso
-web/okf            o Console (HTML, CSS, JS, sem dependências nem build; servido do disco com -web)
+web/okf            o Console e as telas antigas (HTML, CSS, JS, sem dependências nem build; servidos do disco com -web)
 web/studio         o Studio (React + MUI): a exceção, compilado em web/studio/dist e embutido; mesma identidade visual do web/okf/styles.css
 okf/               o catálogo de exemplo: concierge (orquestrador) + observador-sessao, regimento, faq
 ```
 
 Próximas peças, na ordem das definições: harness Eino (tools + agentes OKF), emulador do
-ATENDE, sessão com pendências, catálogo de casos de uso YAML, Admin da administradora.
+ATENDE, sessão com pendências, catálogo de casos de uso YAML, Studio.
 
 ## Catálogo MCP oficial e Docker
 
@@ -342,7 +343,8 @@ find okf -type d -exec setfacl -m d:u:10001:rwx {} +
 
 Studio em http://127.0.0.1:8090/studio/ e Console em http://127.0.0.1:8090/console. O catálogo
 (`okf/`) é montado do repositório, então o Studio edita os arquivos de verdade; `web/okf` também
-é montado (`-web`), então o Console se edita sem rebuild (o Studio vai embutido na imagem). O front não tem contêiner próprio: é o concierge que o serve. A POC do MCP
+é montado (`-web`), então o Console e as telas antigas se editam sem rebuild (o `-web` não
+vale para o Studio, que vai sempre embutido no binário). O front não tem contêiner próprio: é o concierge que o serve. A POC do MCP
 só escuta em loopback, por isso o `mcp` roda na rede do contêiner `concierge` e o Explorer
 (porta 3337) não fica acessível do host; para usá-lo, rode o MCP local com
 `cd mcp && npm ci && npm run start:mcp:catalog-agent`.

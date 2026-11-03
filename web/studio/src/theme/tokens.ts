@@ -10,7 +10,7 @@ export const tokens = {
     background: { default: '#F5F6F8', paper: '#ffffff' },
     divider: '#DBDFE5',
     elevation: { outlined: '#DBDFE5' },
-    danger: { main: '#F83333' },
+    danger: { main: '#D61D1E' },
     studio: {
       category: {
         start: '#2E7D32',
@@ -26,7 +26,7 @@ export const tokens = {
       nodeBg: '#ffffff',
       nodeBorder: '#DBDFE5',
       nodeSelected: '#1034f2',
-      issueError: '#F83333',
+      issueError: '#D61D1E',
       issueWarning: '#ef6c00',
     },
   },

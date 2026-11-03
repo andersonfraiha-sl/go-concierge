@@ -25,7 +25,10 @@ func TestStudioEstatico(t *testing.T) {
 		{"raiz serve o index", compilado, "/studio/", 200, "<html>studio</html>", "no-store"},
 		{"rota do cliente cai no index", compilado, "/studio/skills/agendar-mudanca", 200, "<html>studio</html>", "no-store"},
 		{"asset existente fica em cache", compilado, "/studio/assets/a.js", 200, "console.log(1)", "public, max-age=31536000, immutable"},
-		{"asset inexistente", compilado, "/studio/assets/nao.js", 404, "", ""},
+		{"index pelo nome sai sem cache", compilado, "/studio/index.html", 200, "<html>studio</html>", "no-store"},
+		{"asset inexistente", compilado, "/studio/assets/nao.js", 404, "404 page not found", ""},
+		{"asset inexistente sem extensão", compilado, "/studio/assets/nao", 404, "404 page not found", ""},
+		{"arquivo inexistente com extensão", compilado, "/studio/favicon.ico", 404, "404 page not found", ""},
 		{"sem compilar", fstest.MapFS{}, "/studio/", 503, "STUDIO_NAO_COMPILADO", ""},
 	}
 	for _, c := range casos {
@@ -67,7 +70,7 @@ func TestStudioNaoCompiladoRespondeErroDaAPI(t *testing.T) {
 }
 
 func TestRaizVaiParaStudio(t *testing.T) {
-	s := &servidor{web: fstest.MapFS{"console.html": {Data: []byte("console")}}, studio: fstest.MapFS{}}
+	s := &servidor{web: fstest.MapFS{"console.html": {Data: []byte("console")}, "index.html": {Data: []byte("admin antigo")}}, studio: fstest.MapFS{}}
 	mux := http.NewServeMux()
 	s.rotas(mux)
 	s.rotasStudio(mux)
@@ -84,6 +87,7 @@ func TestRaizVaiParaStudio(t *testing.T) {
 		{"/backdoor", http.StatusNotFound, ""},
 		{"/backdoor/orquestracao", http.StatusNotFound, ""},
 		{"/console", http.StatusOK, ""},
+		{"/admin", http.StatusOK, ""},
 	}
 	for _, c := range casos {
 		t.Run(c.caminho, func(t *testing.T) {

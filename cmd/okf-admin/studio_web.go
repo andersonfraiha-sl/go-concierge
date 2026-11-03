@@ -34,7 +34,7 @@ func studioEstatico(arquivos fs.FS) http.Handler {
 			http.ServeFileFS(w, r, arquivos, caminho)
 			return
 		}
-		if path.Ext(caminho) != "" {
+		if !ehRotaDoCliente(caminho) {
 			http.NotFound(w, r)
 			return
 		}
@@ -47,4 +47,10 @@ func studioEstatico(arquivos fs.FS) http.Handler {
 func ehArquivo(arquivos fs.FS, caminho string) bool {
 	info, err := fs.Stat(arquivos, caminho)
 	return err == nil && !info.IsDir()
+}
+
+// ehRotaDoCliente: o que o React Router atende. Nome com extensão ou dentro de assets/ é
+// arquivo do build, e arquivo que falta é 404, não o index.
+func ehRotaDoCliente(caminho string) bool {
+	return path.Ext(caminho) == "" && !strings.HasPrefix(caminho, "assets/")
 }
