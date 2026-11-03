@@ -11,6 +11,7 @@ export const tokens = {
     divider: '#DBDFE5',
     elevation: { outlined: '#DBDFE5' },
     danger: { main: '#D61D1E' },
+    scrollbar: { thumb: '#c1c1c1', thumbHover: '#a8a8a8' },
     studio: {
       category: {
         start: '#2E7D32',

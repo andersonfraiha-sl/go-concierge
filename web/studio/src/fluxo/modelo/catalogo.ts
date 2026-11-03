@@ -8,7 +8,10 @@ import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
 import ReplayOutlined from '@mui/icons-material/ReplayOutlined';
 import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined';
+import { tokens } from '@/theme/tokens';
 import { type Bloco, BlocoSchema, TIPOS_BLOCO, type TipoBloco } from './tipos';
+
+const categoria = tokens.color.studio.category;
 
 type DescricaoDoBloco = { rotulo: string; descricao: string; cor: string; Icone: SvgIconComponent };
 
@@ -16,55 +19,55 @@ export const BLOCOS: Record<TipoBloco, DescricaoDoBloco> = {
   buscar_dados: {
     rotulo: 'Buscar dados',
     descricao: 'Consulta um sistema e guarda o resultado.',
-    cor: '#00838F',
+    cor: categoria.integrate,
     Icone: CloudDownloadOutlined,
   },
   gravar_no_sistema: {
     rotulo: 'Gravar no sistema',
     descricao: 'Registra algo num sistema. Precisa de um Confirmar antes.',
-    cor: '#EF6C00',
+    cor: categoria.logic,
     Icone: SaveOutlined,
   },
   pedir_escolha: {
     rotulo: 'Pedir escolha',
     descricao: 'Mostra opções e guarda a escolhida.',
-    cor: '#7B1FA2',
+    cor: categoria.ask,
     Icone: ListAltOutlined,
   },
   perguntar: {
     rotulo: 'Perguntar',
     descricao: 'Pergunta ao morador o que falta.',
-    cor: '#7B1FA2',
+    cor: categoria.ask,
     Icone: HelpOutlineOutlined,
   },
   formulario: {
     rotulo: 'Formulário',
     descricao: 'Pede vários campos de uma vez.',
-    cor: '#7B1FA2',
+    cor: categoria.ask,
     Icone: DescriptionOutlined,
   },
   confirmar: {
     rotulo: 'Confirmar',
     descricao: 'Pede um sim antes de seguir.',
-    cor: '#1034F2',
+    cor: categoria.send,
     Icone: TaskAltOutlined,
   },
   montar_texto: {
     rotulo: 'Montar texto',
     descricao: 'Escreve um texto com a IA.',
-    cor: '#C2185B',
+    cor: categoria.ai,
     Icone: AutoAwesomeOutlined,
   },
   reaproveitar: {
     rotulo: 'Reaproveitar resposta',
     descricao: 'Oferece usar a resposta dada antes na conversa.',
-    cor: '#7B1FA2',
+    cor: categoria.ask,
     Icone: ReplayOutlined,
   },
   responder: {
     rotulo: 'Responder',
     descricao: 'A resposta final ao morador.',
-    cor: '#455A64',
+    cor: categoria.end,
     Icone: ChatBubbleOutlineOutlined,
   },
 };
