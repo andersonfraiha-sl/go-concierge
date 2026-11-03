@@ -180,8 +180,9 @@ quebra o banco, mas uma réplica não vê o que a outra escreveu:
   réplica e não tem prazo: escrita de outra réplica, ou do `importar-json` com o servidor no
   ar, só aparece aqui depois de reiniciar. Os caches de memória e pedidos são write-through
   e também não são revalidados;
-- a carteira de pedidos do turno vai ao banco depois da resposta, junto com a sessão; se o
-  processo cair nesse intervalo, o pedido aberto no turno se perde.
+- pedido aberto ou que muda de estado no turno vai ao banco antes da resposta; o resto da
+  carteira (valores preenchidos, eventos) vai depois dela, junto com a sessão. Se o processo
+  cair nesse intervalo, essas mudanças menores se perdem.
 
 Para escalar: invalidação entre réplicas (LISTEN/NOTIFY ou checagem de versão com prazo
 curto) e locks por contato no banco.
