@@ -14,8 +14,49 @@ import { type ReactNode, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { contemBusca } from '@/shared/busca';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { tokens } from '@/theme/tokens';
 import { type Condominio, type Estado, faltamIds, PADRAO, useEscopo } from './contratos';
 import { contarLigadas, linhasDeSkills } from './listaDeSkills';
+
+type Situacao = 'base' | 'pronto' | 'faltam-ids' | 'sem-administradora';
+
+/** Cores do badge de Situação: tons do desenho aprovado, vindos de tokens.ts. */
+const BADGE_DA_SITUACAO: Record<Situacao, { rotulo: string; fundo: string; cor: string }> = {
+  base: { rotulo: 'Base', fundo: tokens.color.background.tint, cor: tokens.color.primary.main },
+  pronto: {
+    rotulo: 'Pronto',
+    fundo: tokens.color.success.background,
+    cor: tokens.color.success.main,
+  },
+  'faltam-ids': {
+    rotulo: 'Faltam ids',
+    fundo: tokens.color.warning.background,
+    cor: tokens.color.warning.text,
+  },
+  'sem-administradora': {
+    rotulo: 'Sem administradora',
+    fundo: tokens.color.warning.background,
+    cor: tokens.color.warning.text,
+  },
+};
+
+/** Sem ids trava a integração (mais grave); sem administradora é o próximo alerta; senão, pronto. */
+function situacaoDoCondominio(condominio: Condominio): Situacao {
+  if (faltamIds(condominio)) return 'faltam-ids';
+  if (condominio.administradora_id === '') return 'sem-administradora';
+  return 'pronto';
+}
+
+function SituacaoBadge({ situacao }: { situacao: Situacao }): ReactNode {
+  const badge = BADGE_DA_SITUACAO[situacao];
+  return (
+    <Chip
+      size="small"
+      label={badge.rotulo}
+      sx={{ bgcolor: badge.fundo, color: badge.cor, fontWeight: 500 }}
+    />
+  );
+}
 
 export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
   const [params, setParams] = useSearchParams();
@@ -69,6 +110,7 @@ export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
               <TableCell scope="col">Condomínio</TableCell>
               {mostraAdministradora && <TableCell scope="col">Administradora</TableCell>}
               <TableCell scope="col">Skills ligadas</TableCell>
+              <TableCell scope="col">Situação</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -77,7 +119,7 @@ export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
               nome="Padrão (todos)"
               legenda="Vale para todo condomínio que não tem decisão própria."
               administradora=""
-              chips={[]}
+              situacao="base"
               mostraAdministradora={mostraAdministradora}
               skills={contarLigadas(linhasDeSkills(estado, PADRAO, titulos))}
             />
@@ -87,7 +129,7 @@ export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
                 id={condominio.id}
                 nome={condominio.nome}
                 administradora={donaDe(condominio)}
-                chips={chipsDoCondominio(condominio)}
+                situacao={situacaoDoCondominio(condominio)}
                 mostraAdministradora={mostraAdministradora}
                 skills={contarLigadas(linhasDeSkills(estado, condominio.id, titulos))}
               />
@@ -104,19 +146,12 @@ export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
   );
 }
 
-function chipsDoCondominio(condominio: Condominio): string[] {
-  const chips: string[] = [];
-  if (condominio.administradora_id === '') chips.push('Sem administradora');
-  if (faltamIds(condominio)) chips.push('Faltam ids');
-  return chips;
-}
-
 type LinhaProps = {
   id: string;
   nome: string;
   administradora: string;
   legenda?: string;
-  chips: readonly string[];
+  situacao: Situacao;
   mostraAdministradora: boolean;
   skills: { ligadas: number; total: number };
 };
@@ -126,7 +161,7 @@ function LinhaDeCondominio({
   nome,
   administradora,
   legenda,
-  chips,
+  situacao,
   mostraAdministradora,
   skills,
 }: LinhaProps): ReactNode {
@@ -144,13 +179,6 @@ function LinhaDeCondominio({
             {legenda}
           </Typography>
         )}
-        {chips.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
-            {chips.map((chip) => (
-              <Chip key={chip} label={chip} size="small" />
-            ))}
-          </Box>
-        )}
       </TableCell>
       {mostraAdministradora && (
         <TableCell>
@@ -160,6 +188,9 @@ function LinhaDeCondominio({
         </TableCell>
       )}
       <TableCell>{`${skills.ligadas} de ${skills.total}`}</TableCell>
+      <TableCell>
+        <SituacaoBadge situacao={situacao} />
+      </TableCell>
     </TableRow>
   );
 }

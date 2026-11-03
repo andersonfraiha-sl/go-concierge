@@ -57,6 +57,15 @@ describe('CondominiosPage', () => {
     const linhas = screen.getAllByRole('row');
     expect(linhas[1]).toHaveTextContent('Padrão (todos)');
     expect(linhas[1]).toHaveTextContent('Vale para todo condomínio que não tem decisão própria.');
+    expect(within(linhas[1] as HTMLElement).getByText('Base')).toBeInTheDocument();
+  });
+
+  it('showsStatusColumnWithReadyBadge', async () => {
+    renderComVarios();
+
+    expect(await screen.findByRole('columnheader', { name: 'Situação' })).toBeInTheDocument();
+    const linha = (await screen.findByText('Condomínio Vila Verde')).closest('tr');
+    expect(within(linha as HTMLElement).getByText('Pronto')).toBeInTheDocument();
   });
 
   it('filtersBySearch', async () => {
