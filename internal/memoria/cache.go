@@ -7,8 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-
+	"go-concierge/internal/banco"
 	"go-concierge/internal/escopo"
 )
 
@@ -60,7 +59,7 @@ func (c *Cache) Listar(ctx context.Context, administradoraID string) ([]Memoria,
 }
 
 // AquecerNoLote põe no lote a leitura da memória, se o contato ainda não está quente.
-func (c *Cache) AquecerNoLote(lote *pgx.Batch, contato escopo.Contato) {
+func (c *Cache) AquecerNoLote(ctx context.Context, lote *banco.Lote, contato escopo.Contato) {
 	if validarContato(contato) != nil {
 		return
 	}
@@ -70,7 +69,7 @@ func (c *Cache) AquecerNoLote(lote *pgx.Batch, contato escopo.Contato) {
 	if quente {
 		return
 	}
-	c.pg.LerNoLote(lote, contato, func(m Memoria) { c.por(contato, m, false) })
+	c.pg.LerNoLote(ctx, lote, contato, func(m Memoria) { c.por(contato, m, false) })
 }
 
 func (c *Cache) guardada(contato escopo.Contato) (Memoria, bool) {

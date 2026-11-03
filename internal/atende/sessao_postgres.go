@@ -19,8 +19,8 @@ import (
 // timeoutSessao limita cada leitura ou escrita de sessão no Postgres.
 const timeoutSessao = 3 * time.Second
 
-// SessaoPostgres guarda as sessões do ATENDE na tabela sessoes. Carregar e Salvar vão pelo
-// pgx (cabem nos lotes do turno); Listar e Remover, pelo ent.
+// SessaoPostgres guarda as sessões do ATENDE na tabela sessoes. Carregar e Salvar são
+// queries do sqlc (cabem nos lotes do turno); Listar e Remover vão pelo ent.
 type SessaoPostgres struct {
 	b banco.Banco
 }
@@ -30,23 +30,25 @@ func NovoSessaoPostgres(b banco.Banco) *SessaoPostgres { return &SessaoPostgres{
 func (p *SessaoPostgres) Salvar(ctx context.Context, r RegistroSessao) error {
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
-	if err := p.b.SQL.SalvarSessao(ctx, paramsDaSessao(r)); err != nil {
+	lote := banco.NovoLote()
+	p.SalvarNoLote(ctx, lote, r)
+	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
 		return fmt.Errorf("salvar sessão %s: %w", r.ID, err)
 	}
 	return nil
 }
 
-// SalvarNoLote põe no lote a gravação da sessão; o erro volta no Close do lote.
-func (p *SessaoPostgres) SalvarNoLote(lote *pgx.Batch, r RegistroSessao) {
-	// o enfileirador do lote não executa nada nem devolve erro aqui
-	_ = banco.NoLote(lote).SalvarSessao(context.Background(), paramsDaSessao(r))
-}
-
-func paramsDaSessao(r RegistroSessao) sqlc.SalvarSessaoParams {
-	return sqlc.SalvarSessaoParams{
+// SalvarNoLote põe no lote a gravação da sessão (SalvarSessao); o erro volta no Enviar.
+func (p *SessaoPostgres) SalvarNoLote(ctx context.Context, lote *banco.Lote, r RegistroSessao) {
+	res := lote.Queries().SalvarSessao(ctx, []sqlc.SalvarSessaoParams{{
 		ID: r.ID, AdministradoraID: r.AdministradoraID, CondominioID: r.CondominioID, Protocolo: r.Protocolo,
 		AtualizadaEm: pgtype.Timestamptz{Time: r.AtualizadaEm, Valid: true}, Dados: r.Dados,
-	}
+	}})
+	lote.Depois(func() error {
+		var errSalvar error
+		res.Exec(func(_ int, err error) { errSalvar = err })
+		return errSalvar
+	})
 }
 
 func (p *SessaoPostgres) Carregar(ctx context.Context, id string) (RegistroSessao, bool, error) {
@@ -54,33 +56,34 @@ func (p *SessaoPostgres) Carregar(ctx context.Context, id string) (RegistroSessa
 	defer cancel()
 	var r RegistroSessao
 	var achou bool
-	lote := &pgx.Batch{}
-	p.CarregarNoLote(lote, id, func(lido RegistroSessao, ok bool) { r, achou = lido, ok })
-	if err := p.b.Pool.SendBatch(ctx, lote).Close(); err != nil {
+	lote := banco.NovoLote()
+	p.CarregarNoLote(ctx, lote, id, func(lido RegistroSessao, ok bool) { r, achou = lido, ok })
+	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
 		return RegistroSessao{}, false, fmt.Errorf("carregar sessão %s: %w", id, err)
 	}
 	return r, achou, nil
 }
 
-// sqlCarregarSessao: por que não ent nem sqlc: entra no pgx.Batch que carrega o turno a frio
-// (sessão, memória e pedidos numa ida), e o sqlc não junta queries diferentes num lote.
-const sqlCarregarSessao = `SELECT id, administradora_id, condominio_id, protocolo, atualizada_em, dados FROM sessoes WHERE id = $1`
-
-// CarregarNoLote põe no lote a leitura da sessão; guardar recebe o registro (ok=false se a
-// sessão não existe) quando o lote roda.
-func (p *SessaoPostgres) CarregarNoLote(lote *pgx.Batch, id string, guardar func(RegistroSessao, bool)) {
-	lote.Queue(sqlCarregarSessao, id).QueryRow(func(row pgx.Row) error {
-		var r RegistroSessao
-		err := row.Scan(&r.ID, &r.AdministradoraID, &r.CondominioID, &r.Protocolo, &r.AtualizadaEm, &r.Dados)
-		if errors.Is(err, pgx.ErrNoRows) {
-			guardar(RegistroSessao{}, false)
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		guardar(r, true)
-		return nil
+// CarregarNoLote põe no lote a leitura da sessão (CarregarSessao); guardar recebe o registro
+// (ok=false se a sessão não existe) quando o lote roda.
+func (p *SessaoPostgres) CarregarNoLote(ctx context.Context, lote *banco.Lote, id string, guardar func(RegistroSessao, bool)) {
+	res := lote.Queries().CarregarSessao(ctx, []string{id})
+	lote.Depois(func() error {
+		var errCarregar error
+		res.QueryRow(func(_ int, l sqlc.SessaoGravada, err error) {
+			switch {
+			case errors.Is(err, pgx.ErrNoRows):
+				guardar(RegistroSessao{}, false)
+			case err != nil:
+				errCarregar = err
+			default:
+				guardar(RegistroSessao{
+					ID: l.ID, AdministradoraID: l.AdministradoraID, CondominioID: l.CondominioID, Protocolo: l.Protocolo,
+					AtualizadaEm: l.AtualizadaEm.Time, Dados: l.Dados,
+				}, true)
+			}
+		})
+		return errCarregar
 	})
 }
 

@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/jackc/pgx/v5"
-
+	"go-concierge/internal/banco"
 	"go-concierge/internal/escopo"
 )
 
@@ -57,20 +56,20 @@ func (c *Cache) Listar(ctx context.Context, administradoraID string) ([]Carteira
 }
 
 // AquecerNoLote põe no lote a leitura da carteira, se o contato ainda não está quente.
-func (c *Cache) AquecerNoLote(lote *pgx.Batch, contato escopo.Contato) {
+func (c *Cache) AquecerNoLote(ctx context.Context, lote *banco.Lote, contato escopo.Contato) {
 	if c.quente(contato) || validarContato(contato) != nil {
 		return
 	}
-	c.pg.LerNoLote(lote, contato, func(cart Carteira) { c.guardarSeAusente(contato, cart) })
+	c.pg.LerNoLote(ctx, lote, contato, func(cart Carteira) { c.guardarSeAusente(contato, cart) })
 }
 
 // GravarNoLote põe no lote a gravação da carteira, se ela mudou, e devolve o que fazer depois
 // que o lote for confirmado (nil: nada a gravar). Lote que falhar: chame Gravar.
-func (c *Cache) GravarNoLote(lote *pgx.Batch, contato escopo.Contato, cart Carteira) (confirmar func(), err error) {
+func (c *Cache) GravarNoLote(ctx context.Context, lote *banco.Lote, contato escopo.Contato, cart Carteira) (confirmar func(), err error) {
 	if c.igual(contato, cart) {
 		return nil, nil
 	}
-	if err := c.pg.GravarNoLote(lote, contato, cart); err != nil {
+	if err := c.pg.GravarNoLote(ctx, lote, contato, cart); err != nil {
 		return nil, err
 	}
 	return func() { c.guardar(contato, cart) }, nil

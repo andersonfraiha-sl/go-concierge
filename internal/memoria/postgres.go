@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"go-concierge/internal/banco"
@@ -22,7 +21,7 @@ import (
 const timeoutConsulta = 3 * time.Second
 
 // Postgres guarda a memória em duas tabelas: memoria_contatos (o nome e quando mudou, uma
-// linha por contato) e memoria_fatos (uma linha por fato). Ler lê as duas numa query pgx, que
+// linha por contato) e memoria_fatos (uma linha por fato). Ler lê as duas numa query do sqlc, que
 // cabe no lote do turno; Listar vai pelo ent; Gravar grava as duas num comando só do sqlc.
 type Postgres struct {
 	b banco.Banco
@@ -37,54 +36,44 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Memoria, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
 	var m Memoria
-	lote := &pgx.Batch{}
-	p.LerNoLote(lote, c, func(lida Memoria) { m = lida })
-	if err := p.b.Pool.SendBatch(ctx, lote).Close(); err != nil {
+	lote := banco.NovoLote()
+	p.LerNoLote(ctx, lote, c, func(lida Memoria) { m = lida })
+	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
 		return Memoria{}, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err)
 	}
 	return m, nil
 }
 
-// sqlLerMemoria traz o contato e os fatos numa query só. Por que não ent nem sqlc: entra no
-// pgx.Batch que carrega o turno a frio (sessão, memória e pedidos numa ida), e o sqlc não
-// junta queries diferentes num lote. Sem linha de contato não há fatos (Gravar grava os dois).
-const sqlLerMemoria = `SELECT c.nome, c.atualizada_em, f.chave, f.texto, f.fonte, f.condominio_id, f.quando, f.confianca
-FROM memoria_contatos c
-LEFT JOIN memoria_fatos f ON f.administradora_id = c.administradora_id AND f.telefone = c.telefone
-WHERE c.administradora_id = $1 AND c.telefone = $2
-ORDER BY f.id`
-
-// LerNoLote põe no lote a leitura da memória do contato; guardar recebe a memória quando o
-// lote roda. Um erro de leitura volta no Close do lote.
-func (p *Postgres) LerNoLote(lote *pgx.Batch, c escopo.Contato, guardar func(Memoria)) {
-	lote.Queue(sqlLerMemoria, c.AdministradoraID, c.Telefone).Query(func(rows pgx.Rows) error {
-		m, err := memoriaDasLinhas(c, rows)
-		if err != nil {
-			return err
-		}
-		guardar(m)
-		return nil
+// LerNoLote põe no lote a leitura da memória do contato (LerMemoria, uma query com o contato
+// e os fatos); guardar recebe a memória quando o lote roda. Um erro volta no Enviar do lote.
+func (p *Postgres) LerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, guardar func(Memoria)) {
+	res := lote.Queries().LerMemoria(ctx, []sqlc.LerMemoriaParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
+	lote.Depois(func() error {
+		var errLer error
+		res.Query(func(_ int, linhas []sqlc.LerMemoriaRow, err error) {
+			if err != nil {
+				errLer = err
+				return
+			}
+			guardar(memoriaDasLinhas(c, linhas))
+		})
+		return errLer
 	})
 }
 
-func memoriaDasLinhas(c escopo.Contato, rows pgx.Rows) (Memoria, error) {
+func memoriaDasLinhas(c escopo.Contato, linhas []sqlc.LerMemoriaRow) Memoria {
 	m := vazia(c)
-	for rows.Next() {
-		var chave, texto, fonte, condominio pgtype.Text
-		var quando pgtype.Timestamptz
-		var confianca pgtype.Float4
-		if err := rows.Scan(&m.Nome, &m.AtualizadaEm, &chave, &texto, &fonte, &condominio, &quando, &confianca); err != nil {
-			return Memoria{}, err
-		}
-		if !chave.Valid { // contato sem fatos
+	for _, l := range linhas {
+		m.Nome, m.AtualizadaEm = l.Nome, l.AtualizadaEm.Time
+		if !l.Chave.Valid { // contato sem fatos
 			continue
 		}
 		m.Fatos = append(m.Fatos, Fato{
-			Chave: chave.String, Texto: texto.String, Fonte: fonte.String, CondominioID: condominio.String,
-			Quando: quando.Time, Confianca: confiancaDe(confianca.Float32),
+			Chave: l.Chave.String, Texto: l.Texto.String, Fonte: l.Fonte.String, CondominioID: l.CondominioID.String,
+			Quando: l.Quando.Time, Confianca: confiancaDe(l.Confianca.Float32),
 		})
 	}
-	return m, rows.Err()
+	return m
 }
 
 // Gravar troca a memória do contato pela recebida, num comando só: o nome e AtualizadaEm são

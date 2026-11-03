@@ -24,3 +24,13 @@ SET condominio_id = EXCLUDED.condominio_id,
     fonte = EXCLUDED.fonte,
     quando = EXCLUDED.quando,
     confianca = EXCLUDED.confianca;
+
+-- por que não ent: o contato e os fatos numa query só, no lote que carrega o turno a frio
+-- (sessão, memória e pedidos numa ida). Sem linha de contato não há fatos (GravarFatos grava
+-- os dois).
+-- name: LerMemoria :batchmany
+SELECT c.nome, c.atualizada_em, f.chave, f.texto, f.fonte, f.condominio_id, f.quando, f.confianca
+FROM memoria_contatos c
+LEFT JOIN memoria_fatos f ON f.administradora_id = c.administradora_id AND f.telefone = c.telefone
+WHERE c.administradora_id = @administradora_id::text AND c.telefone = @telefone::text
+ORDER BY f.id;

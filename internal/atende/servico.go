@@ -17,10 +17,10 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"go-concierge/internal/admin"
+	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
@@ -358,12 +358,12 @@ type Servico struct {
 
 // aquecivelNoLote é o store com cache por contato que lê o contato frio dentro de um lote.
 type aquecivelNoLote interface {
-	AquecerNoLote(lote *pgx.Batch, c escopo.Contato)
+	AquecerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato)
 }
 
 // pedidosEmLote é o store de pedidos que grava dentro de um lote.
 type pedidosEmLote interface {
-	GravarNoLote(lote *pgx.Batch, c escopo.Contato, cart pedidos.Carteira) (confirmar func(), err error)
+	GravarNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, cart pedidos.Carteira) (confirmar func(), err error)
 }
 
 // aquecer carrega numa ida ao banco o que o turno vai ler e este processo ainda não tem: a
@@ -373,22 +373,22 @@ func (s *Servico) aquecer(ctx context.Context, msg entrada.Mensagem) {
 	if s.Pool == nil {
 		return
 	}
-	lote := &pgx.Batch{}
+	lote := banco.NovoLote()
 	roteada := normalizarRoteamento(msg)
-	s.Sessoes.aquecerNoLote(lote, idSessao(roteada.Origem, roteada.ConversaID))
+	s.Sessoes.aquecerNoLote(ctx, lote, idSessao(roteada.Origem, roteada.ConversaID))
 	if contato, ok := s.contatoDaMensagem(ctx, msg); ok {
 		for _, st := range []any{s.Memorias, s.Pedidos} {
 			if a, ok := st.(aquecivelNoLote); ok {
-				a.AquecerNoLote(lote, contato)
+				a.AquecerNoLote(ctx, lote, contato)
 			}
 		}
 	}
-	if lote.Len() == 0 {
+	if lote.Vazio() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
-	if err := s.Pool.SendBatch(ctx, lote).Close(); err != nil {
+	if err := lote.Enviar(ctx, s.Pool); err != nil {
 		slog.WarnContext(ctx, "atende: leitura em lote falhou; cada store lê sozinho", "operacao", "aquecer_turno", "erro", err)
 	}
 }
@@ -495,16 +495,16 @@ func (s *Servico) gravarEmLote(ctx context.Context, sess *Sessao, contato escopo
 	if err != nil {
 		return err
 	}
-	lote := &pgx.Batch{}
-	confirmar, err := pg.GravarNoLote(lote, contato, cart)
+	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
+	defer cancel()
+	lote := banco.NovoLote()
+	confirmar, err := pg.GravarNoLote(ctx, lote, contato, cart)
 	if err != nil {
 		return err
 	}
-	st.SalvarNoLote(lote, r)
-	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
-	defer cancel()
-	if err := s.Pool.SendBatch(ctx, lote).Close(); err != nil {
-		return pedidos.ErroDoLote(err)
+	st.SalvarNoLote(ctx, lote, r)
+	if err := lote.Enviar(ctx, s.Pool); err != nil {
+		return err
 	}
 	if confirmar != nil {
 		confirmar()

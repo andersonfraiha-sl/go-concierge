@@ -3,3 +3,16 @@
 //   sqlc v1.31.1
 
 package sqlc
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type SessaoGravada struct {
+	ID               string
+	AdministradoraID string
+	CondominioID     string
+	Protocolo        string
+	AtualizadaEm     pgtype.Timestamptz
+	Dados            []byte
+}

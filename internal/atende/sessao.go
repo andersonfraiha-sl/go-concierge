@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/jackc/pgx/v5"
 
+	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
@@ -196,15 +196,15 @@ func (s *Sessoes) carregar(ctx context.Context, id string) (*Sessao, bool, error
 	return s.adotar(sess), true, nil
 }
 
-// sessaoEmLote é o store que lê a sessão dentro de um pgx.Batch.
+// sessaoEmLote é o store que lê e grava a sessão dentro de um banco.Lote.
 type sessaoEmLote interface {
-	CarregarNoLote(lote *pgx.Batch, id string, guardar func(RegistroSessao, bool))
-	SalvarNoLote(lote *pgx.Batch, r RegistroSessao)
+	CarregarNoLote(ctx context.Context, lote *banco.Lote, id string, guardar func(RegistroSessao, bool))
+	SalvarNoLote(ctx context.Context, lote *banco.Lote, r RegistroSessao)
 }
 
 // aquecerNoLote põe no lote a leitura da sessão, se ela não está viva neste processo e o
 // store lê em lote. Sessão que não volta do store é lembrada como ausente.
-func (s *Sessoes) aquecerNoLote(lote *pgx.Batch, id string) {
+func (s *Sessoes) aquecerNoLote(ctx context.Context, lote *banco.Lote, id string) {
 	st, ok := s.store.(sessaoEmLote)
 	if !ok {
 		return
@@ -215,7 +215,7 @@ func (s *Sessoes) aquecerNoLote(lote *pgx.Batch, id string) {
 	if viva {
 		return
 	}
-	st.CarregarNoLote(lote, id, func(r RegistroSessao, achou bool) {
+	st.CarregarNoLote(ctx, lote, id, func(r RegistroSessao, achou bool) {
 		if !achou {
 			s.mu.Lock()
 			s.ausentes[id] = true

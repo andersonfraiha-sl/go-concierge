@@ -16,3 +16,5 @@ sql:
         out: internal/banco/sqlc
         sql_package: pgx/v5
         omit_unused_structs: true
+        rename:
+          sesso: SessaoGravada # o sqlc singulariza "sessoes" como "sesso"
