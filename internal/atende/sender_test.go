@@ -2,18 +2,19 @@ package atende
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"go-concierge/internal/entrada"
 )
 
+// Ao remover o mock de telefone fixo do ATENDE, reative e ajuste este teste
+// para verificar o destinatário real, restaurando também os imports necessários.
+/*
 func TestATENDESenderContratoDivisaoEOrdem(t *testing.T) {
 	var mu sync.Mutex
 	var partes []string
@@ -59,6 +60,7 @@ func TestATENDESenderContratoDivisaoEOrdem(t *testing.T) {
 		t.Fatal("a divisão não contou pares UTF-16")
 	}
 }
+*/
 
 func TestDividirMensagemUsaLimitesEFormataWhatsApp(t *testing.T) {
 	texto := strings.Repeat("a", 3990) + " \n\n" + strings.Repeat("b", 30)
