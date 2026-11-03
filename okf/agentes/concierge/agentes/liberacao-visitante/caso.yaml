@@ -1,17 +1,40 @@
 # Caso de uso determinístico, no formato do catálogo do sl-concierge. O harness executa
-# os passos; a escrita (visitantes.liberar) só acontece aqui, depois do confirm.
+# os passos; a escrita só acontece depois do confirm.
 id: liberacao_visitante
 name: Liberação de Visitante
 visibility: private
 description: >
   Usado para o dono ou morador da unidade autorizar a entrada de um visitante
-  na portaria (amigo, parente, prestador de serviço, entregador).
+  na portaria (amigo, parente, prestador de serviço, entregador). Liberações para
+  depois de amanhã ou recorrentes devem ser feitas no app Gruvi: https://gruvi.link/guest.
 keywords: [visitante, visita, liberar, liberação, autorizar, entrada, convidado, prestador]
 examples:
   - quero liberar um visitante
   - vai chegar um amigo meu hoje, pode liberar?
   - autoriza a entrada da Maria no meu apartamento
 params:
+  - name: reutilizar_unidade
+    title: Reutilizar unidade
+    type: select
+    options: [{value: sim, label: sim}, {value: nao, label: não}]
+    ask: Deseja reutilizar a unidade anterior?
+  - name: reutilizar_motivo
+    title: Reutilizar motivo
+    type: select
+    options: [{value: sim, label: sim}, {value: nao, label: não}]
+    ask: Deseja reutilizar o motivo de visita anterior?
+  - name: categoria_motivo
+    title: Categoria do motivo
+    type: select
+    options: [{value: GUEST, label: Visitante}, {value: SERVICE_PROVIDER, label: Prestador}]
+    ask: A visita é para Visitante ou Prestador?
+  - name: motivo
+    title: Motivo da visita
+    type: number
+  - name: data_visita
+    title: Data da visita
+    type: date
+    ask: Para que dia você quer liberar a visita?
   - name: visitante_nome
     title: Nome do visitante
     ask: Qual o nome completo do visitante?
@@ -19,28 +42,60 @@ params:
     title: Telefone do visitante
     ask: Qual o telefone do visitante (com DDD)?
     validate: phone
-  - name: motivo
-    title: Motivo da visita
-    ask: Qual o motivo da visita?
 steps:
-  - resource: unidades.listar
-    save_as: unidades
+  - resource: gruvi.bff.building-operation.get-company-by-document-controller-handle
+    save_as: condominio
+  - reuse:
+      slot: unidade
+      confirm: reutilizar_unidade
+      from: condominio
+      label: unit
+      value: id_fastpass
+      ask: Deseja reutilizar a unidade {{.reuso_label}}?
   - choose:
       param: unidade
-      reuse: always
       title: Unidade
-      from: unidades
-      label: label
-      value: id
+      from: condominio
+      label: unit
+      value: id_fastpass
+      strict: true
       ask: Para qual unidade é a visita?
-      empty: Não encontrei unidades vinculadas ao seu cadastro. Procure a administração.
-  - collect: [visitante_nome, visitante_telefone, motivo]
-  - confirm: "Confirma a liberação de {{.visitante_nome}} ({{.motivo}}) para {{.unidade_label}}? (sim/não)"
-  - resource: visitantes.liberar
+      empty: A liberação não está disponível para as unidades retornadas.
+  - reuse:
+      slots: [motivo, categoria_motivo]
+      confirm: reutilizar_motivo
+      ask: Deseja reutilizar o motivo de visita {{.reuso_label}}?
+  - collect: [visitante_nome, visitante_telefone, data_visita, categoria_motivo]
+  - resource: gruvi.bff.building-operation.fetch-visit-reasons-controller-handle
     with:
-      unidade_id: "{{.unidade}}"
-      nome: "{{.visitante_nome}}"
-      telefone: "{{.visitante_telefone}}"
-      motivo: "{{.motivo}}"
+      filter_visitor_type: "{{.categoria_motivo}}"
+    save_as: motivos
+  - choose:
+      param: motivo
+      title: Motivo da visita
+      from: motivos
+      label: reason
+      value: id
+      strict: true
+      filter:
+        type_provider: "{{.categoria_motivo}}"
+      auto_first_if: categoria_motivo=GUEST
+      ask_if_single_if: categoria_motivo=SERVICE_PROVIDER
+      ask: Qual motivo de prestador?
+      empty: Não há motivos disponíveis para essa categoria de visita.
+  - confirm: >-
+      Confirma a liberação de {{.visitante_nome}} ({{.motivo_label}}) para {{.unidade_label}} {{dateLabel .data_visita}}? (sim/não)
+  - resource: gruvi.bff.building-operation.create-visit-controller-handle
+    with:
+      unitId: "$unidade"
+      start_datetime: '{{dateTime .data_visita "inicio"}}'
+      end_datetime: '{{dateTime .data_visita "fim"}}'
+      reason: "$motivo"
+      visitors:
+        - name: "{{.visitante_nome}}"
+          mobile_number: "$visitante_telefone"
     save_as: liberacao
-output: "Pronto! {{.visitante_nome}} está liberado(a) para {{.unidade_label}}. Protocolo: {{.liberacao.protocolo}}."
+output: |-
+  Prontinho! O {{.visitante_nome}} já está liberado para {{dateLabel .data_visita}} na unidade {{.unidade_label}}.
+  {{if .liberacao.visit.shareable_link}}Ele pode usar este link para fazer o cadastro e acessar o condomínio: {{.liberacao.visit.shareable_link}}
+  Compartilhe esta mensagem com sua visita para facilitar o acesso.{{end}}

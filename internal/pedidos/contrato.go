@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	_ "time/tzdata"
 
 	"go-concierge/internal/okf"
 )
@@ -23,11 +24,15 @@ type Slot struct {
 	Obrigatorio bool    `json:"obrigatorio"`
 	Opcoes      []Opcao `json:"opcoes,omitempty"` // select/checkbox com opções fixas
 	// choose: de onde vêm as opções (save_as de um recurso) e quais campos são rótulo e valor
-	De     string `json:"de,omitempty"`
-	Rotulo string `json:"rotulo,omitempty"`
-	Valor  string `json:"valor,omitempty"`
-	Vazio  string `json:"vazio,omitempty"`
-	Reuse  string `json:"reuse,omitempty"`
+	De            string         `json:"de,omitempty"`
+	Rotulo        string         `json:"rotulo,omitempty"`
+	Valor         string         `json:"valor,omitempty"`
+	Vazio         string         `json:"vazio,omitempty"`
+	Reuse         string         `json:"reuse,omitempty"`
+	Filtro        map[string]any `json:"filtro,omitempty"`
+	AutoFirstIf   string         `json:"auto_first_if,omitempty"`
+	AskIfSingleIf string         `json:"ask_if_single_if,omitempty"`
+	Strict        bool           `json:"strict,omitempty"`
 }
 
 // Passo é um passo do caso.yaml já interpretado.
@@ -39,6 +44,10 @@ type Passo struct {
 	Slot    string         // escolher
 	Coleta  []string       // coletar
 	Texto   string         // confirmar: template
+	De      string
+	Rotulo  string
+	Valor   string
+	SkipIf  string
 }
 
 // Contrato é o caso.yaml como máquina de passos: o que o pedido precisa e em que ordem.
@@ -71,6 +80,7 @@ func ContratoDe(c *okf.Caso) (*Contrato, error) {
 			if w, ok := s["with"].(map[string]any); ok {
 				p.With = w
 			}
+			p.SkipIf = str(s["skip_if"])
 			ct.Passos = append(ct.Passos, p)
 		case s["choose"] != nil:
 			m, ok := s["choose"].(map[string]any)
@@ -82,7 +92,11 @@ func ContratoDe(c *okf.Caso) (*Contrato, error) {
 				return nil, errors.New("pedidos: choose sem param")
 			}
 			sl := &Slot{Nome: nome, Titulo: str(m["title"]), Pergunta: str(m["ask"]), Tipo: "choose", Obrigatorio: true,
-				De: str(m["from"]), Rotulo: str(m["label"]), Valor: str(m["value"]), Vazio: str(m["empty"]), Reuse: str(m["reuse"])}
+				De: str(m["from"]), Rotulo: str(m["label"]), Valor: str(m["value"]), Vazio: str(m["empty"]), Reuse: str(m["reuse"]),
+				AutoFirstIf: str(m["auto_first_if"]), AskIfSingleIf: str(m["ask_if_single_if"]), Strict: m["strict"] == true}
+			if f, ok := m["filter"].(map[string]any); ok {
+				sl.Filtro = f
+			}
 			if sl.Titulo == "" {
 				sl.Titulo = nome
 			}
@@ -91,6 +105,24 @@ func ContratoDe(c *okf.Caso) (*Contrato, error) {
 			}
 			ct.addSlot(sl)
 			ct.Passos = append(ct.Passos, Passo{Tipo: "escolher", Slot: nome})
+		case s["reuse"] != nil:
+			m, ok := s["reuse"].(map[string]any)
+			if !ok {
+				return nil, errors.New("pedidos: reuse inválido")
+			}
+			p := Passo{Tipo: "reutilizar", Slot: str(m["confirm"]), Texto: str(m["ask"]), De: str(m["from"]), Rotulo: str(m["label"]), Valor: str(m["value"])}
+			if nome := str(m["slot"]); nome != "" {
+				p.Coleta = append(p.Coleta, nome)
+			}
+			if valores, ok := m["slots"].([]any); ok {
+				for _, valor := range valores {
+					p.Coleta = append(p.Coleta, fmt.Sprint(valor))
+				}
+			}
+			if p.Slot == "" || len(p.Coleta) == 0 {
+				return nil, errors.New("pedidos: reuse exige confirm e slot(s)")
+			}
+			ct.Passos = append(ct.Passos, p)
 		case s["collect"] != nil:
 			var nomes []string
 			switch v := s["collect"].(type) {
@@ -387,6 +419,22 @@ var meses = []string{"", "janeiro", "fevereiro", "março", "abril", "maio", "jun
 // Agora é injetável nos testes.
 var Agora = time.Now
 
+var localidadeSaoPaulo = func() *time.Location {
+	localidade, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		return time.FixedZone("BRT", -3*60*60)
+	}
+	return localidade
+}()
+
+func NoFusoSaoPaulo(t time.Time) time.Time {
+	return t.In(localidadeSaoPaulo)
+}
+
+func agoraSaoPaulo() time.Time {
+	return NoFusoSaoPaulo(Agora())
+}
+
 func parseData(t string) (time.Time, error) {
 	t = strings.TrimSpace(t)
 	for _, f := range []string{"2006-01-02", "02/01/2006", "02/01/06", "2006-01-02T15:04:05Z07:00"} {
@@ -394,7 +442,7 @@ func parseData(t string) (time.Time, error) {
 			return d, nil
 		}
 	}
-	hoje := Agora()
+	hoje := agoraSaoPaulo()
 	if m := regexp.MustCompile(`^(\d{1,2})/(\d{1,2})$`).FindStringSubmatch(t); m != nil {
 		d, _ := strconv.Atoi(m[1])
 		mo, _ := strconv.Atoi(m[2])
@@ -462,7 +510,7 @@ func (ct *Contrato) Vars(p *Pedido) map[string]any {
 
 // Render aplica um template do caso.yaml ({{.area_label}}, {{.reserva.protocolo}}).
 func Render(texto string, vars map[string]any) (string, error) {
-	tpl, err := template.New("t").Option("missingkey=zero").Parse(texto)
+	tpl, err := template.New("t").Option("missingkey=zero").Funcs(template.FuncMap{"dateTime": dataHoraRelativa, "dateLabel": rotuloDataVisita}).Parse(texto)
 	if err != nil {
 		return "", err
 	}
@@ -479,24 +527,95 @@ func (ct *Contrato) ParamsDe(with map[string]any, p *Pedido) (map[string]any, er
 	vars := ct.Vars(p)
 	out := map[string]any{}
 	for k, v := range with {
-		s, ok := v.(string)
-		if !ok {
-			out[k] = v
-			continue
-		}
-		if strings.HasPrefix(s, "$") {
-			if val, ok := p.Valores[strings.TrimPrefix(s, "$")]; ok {
-				out[k] = val
-			}
-			continue
-		}
-		r, err := Render(s, vars)
+		valor, incluir, err := parametroRenderizado(v, vars, p)
 		if err != nil {
 			return nil, fmt.Errorf("param %s: %w", k, err)
 		}
-		if r != "" {
-			out[k] = r
+		if incluir {
+			out[k] = valor
 		}
 	}
 	return out, nil
+}
+
+func parametroRenderizado(value any, vars map[string]any, p *Pedido) (any, bool, error) {
+	switch v := value.(type) {
+	case string:
+		if strings.HasPrefix(v, "$") {
+			valor, ok := p.Valores[strings.TrimPrefix(v, "$")]
+			return valor, ok, nil
+		}
+		r, err := Render(v, vars)
+		return r, r != "", err
+	case map[string]any:
+		out := map[string]any{}
+		for key, item := range v {
+			valor, incluir, err := parametroRenderizado(item, vars, p)
+			if err != nil {
+				return nil, false, err
+			}
+			if incluir {
+				out[key] = valor
+			}
+		}
+		return out, true, nil
+	case []any:
+		out := make([]any, 0, len(v))
+		for _, item := range v {
+			valor, incluir, err := parametroRenderizado(item, vars, p)
+			if err != nil {
+				return nil, false, err
+			}
+			if incluir {
+				out = append(out, valor)
+			}
+		}
+		return out, true, nil
+	default:
+		return value, true, nil
+	}
+}
+
+func dataHoraRelativa(data, limite string) (string, error) {
+	data = normalizar(data)
+	hoje := agoraSaoPaulo()
+	dia := time.Date(hoje.Year(), hoje.Month(), hoje.Day(), 0, 0, 0, 0, hoje.Location())
+	if data == "amanha" {
+		dia = dia.AddDate(0, 0, 1)
+	} else if t, err := time.ParseInLocation("2006-01-02", data, hoje.Location()); err == nil {
+		dia = t
+	}
+	base := time.Date(hoje.Year(), hoje.Month(), hoje.Day(), 0, 0, 0, 0, hoje.Location())
+	distancia := int(dia.Sub(base).Hours() / 24)
+	if distancia < 0 || distancia > 1 {
+		return "", errors.New("liberações para depois de amanhã ou datas futuras devem ser feitas pelo app Gruvi: https://gruvi.link/guest")
+	}
+	var horario time.Time
+	if limite == "inicio" && distancia == 0 {
+		horario = hoje
+	} else if limite == "inicio" {
+		horario = dia
+	} else {
+		horario = time.Date(dia.Year(), dia.Month(), dia.Day(), 23, 59, 0, 0, dia.Location())
+	}
+	return horario.UTC().Format("2006-01-02 15:04"), nil
+}
+
+func rotuloDataVisita(value any) string {
+	local := agoraSaoPaulo()
+	dia, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(fmt.Sprint(value)), local.Location())
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	hoje := local
+	base := time.Date(hoje.Year(), hoje.Month(), hoje.Day(), 0, 0, 0, 0, hoje.Location())
+	data := time.Date(dia.Year(), dia.Month(), dia.Day(), 0, 0, 0, 0, hoje.Location())
+	switch int(data.Sub(base).Hours() / 24) {
+	case 0:
+		return "hoje"
+	case 1:
+		return "amanhã"
+	default:
+		return dataPorExtenso(dia)
+	}
 }

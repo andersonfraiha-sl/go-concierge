@@ -81,7 +81,7 @@ func (b *B2C) Token(ctx context.Context) (string, error) {
 	var tok tokenB2C
 	var err error
 	if b.refresh != "" {
-		tok, err = b.grant(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {b.refresh}})
+		tok, err = b.grant(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {b.refresh}}, nil)
 	}
 	if b.refresh == "" || err != nil {
 		tok, err = b.porSMS(ctx)
@@ -93,12 +93,12 @@ func (b *B2C) Token(ctx context.Context) (string, error) {
 	if ttl < 30*time.Second {
 		ttl = 30 * time.Second
 	}
-	b.token, b.refresh, b.expires = tok.AccessToken, tok.RefreshToken, b.agora().Add(ttl)
 	if b.File != "" {
-		if err := gravarToken(b.File, b.token); err != nil {
+		if err := gravarToken(b.File, tok.AccessToken); err != nil {
 			return "", fmt.Errorf("mcp b2c: gravar %s: %w", b.File, err)
 		}
 	}
+	b.token, b.refresh, b.expires = tok.AccessToken, tok.RefreshToken, b.agora().Add(ttl)
 	return b.token, nil
 }
 
@@ -113,24 +113,33 @@ func (b *B2C) porSMS(ctx context.Context) (tokenB2C, error) {
 	if validation == "" {
 		validation = "dev"
 	}
-	raw, err := b.post(ctx, "/auth/sms", url.Values{"validation": {validation}, "mobile_number": {b.Mobile}})
+	raw, cookies, err := b.post(ctx, "/auth/sms", url.Values{"validation": {validation}, "mobile_number": {b.Mobile}}, nil)
 	if err != nil {
 		return tokenB2C{}, err
 	}
 	var sms struct {
 		SessionID string `json:"session_id"`
+		Data      struct {
+			SessionID string `json:"session_id"`
+		} `json:"data"`
 	}
-	if json.Unmarshal(raw, &sms) != nil || sms.SessionID == "" {
+	if json.Unmarshal(raw, &sms) != nil {
+		return tokenB2C{}, errors.New("mcp b2c: /auth/sms sem session_id")
+	}
+	if sms.SessionID == "" {
+		sms.SessionID = sms.Data.SessionID
+	}
+	if sms.SessionID == "" {
 		return tokenB2C{}, errors.New("mcp b2c: /auth/sms sem session_id")
 	}
 	code := b.SMSCode
 	if code == "" {
 		code = "999999"
 	}
-	return b.grant(ctx, url.Values{"grant_type": {"password"}, "session_id": {sms.SessionID}, "sms_code": {code}, "mobile_number": {b.Mobile}})
+	return b.grant(ctx, url.Values{"grant_type": {"password"}, "session_id": {sms.SessionID}, "sms_code": {code}, "mobile_number": {b.Mobile}}, cookies)
 }
 
-func (b *B2C) grant(ctx context.Context, form url.Values) (tokenB2C, error) {
+func (b *B2C) grant(ctx context.Context, form url.Values, cookies []*http.Cookie) (tokenB2C, error) {
 	client := b.ClientID
 	if client == "" {
 		client = "app"
@@ -141,12 +150,28 @@ func (b *B2C) grant(ctx context.Context, form url.Values) (tokenB2C, error) {
 	}
 	form.Set("client_id", client)
 	form.Set("fingerprint", fp)
-	raw, err := b.post(ctx, "/auth/token", form)
+	raw, _, err := b.post(ctx, "/auth/token", form, cookies)
 	if err != nil {
 		return tokenB2C{}, err
 	}
-	var tok tokenB2C
-	if json.Unmarshal(raw, &tok) != nil || tok.AccessToken == "" {
+	var result struct {
+		tokenB2C
+		Data tokenB2C `json:"data"`
+	}
+	if json.Unmarshal(raw, &result) != nil {
+		return tokenB2C{}, errors.New("mcp b2c: /auth/token sem access_token")
+	}
+	tok := result.tokenB2C
+	if tok.AccessToken == "" {
+		tok.AccessToken = result.Data.AccessToken
+	}
+	if tok.RefreshToken == "" {
+		tok.RefreshToken = result.Data.RefreshToken
+	}
+	if tok.ExpiresIn <= 0 {
+		tok.ExpiresIn = result.Data.ExpiresIn
+	}
+	if tok.AccessToken == "" {
 		return tokenB2C{}, errors.New("mcp b2c: /auth/token sem access_token")
 	}
 	if tok.ExpiresIn <= 0 {
@@ -155,27 +180,32 @@ func (b *B2C) grant(ctx context.Context, form url.Values) (tokenB2C, error) {
 	return tok, nil
 }
 
-func (b *B2C) post(ctx context.Context, caminho string, form url.Values) ([]byte, error) {
+func (b *B2C) post(ctx context.Context, caminho string, form url.Values, cookies []*http.Cookie) ([]byte, []*http.Cookie, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(b.BaseURL, "/")+caminho, strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.Header.Set("Authorization", b.Basic)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
 	hc := b.HTTP
 	if hc == nil {
 		hc = &http.Client{Timeout: 30 * time.Second}
 	}
-	res, err := hc.Do(req)
+	client := *hc
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("mcp b2c: %s: %w", caminho, err)
+		return nil, nil, fmt.Errorf("mcp b2c: %s: %w", caminho, err)
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("mcp b2c: %s: HTTP %d", caminho, res.StatusCode) // corpo omitido: pode ecoar credenciais
+		return nil, nil, fmt.Errorf("mcp b2c: %s: HTTP %d", caminho, res.StatusCode) // corpo omitido: pode ecoar credenciais
 	}
-	return raw, nil
+	return raw, res.Cookies(), nil
 }
 
 // gravarToken escreve o token num arquivo só do dono, por troca atômica (o servidor

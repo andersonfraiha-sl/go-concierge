@@ -1,7 +1,6 @@
 nome: encomendas
 tipo: operador
-descricao: 'Mostra as encomendas da unidade que chegaram na portaria e aguardam retirada.
-  Caso de uso: Minhas Encomendas.'
+descricao: 'Mostra as encomendas da unidade, aguardando retirada por padrão ou entregues/canceladas quando solicitadas. Caso de uso: Minhas Encomendas.'
 recursos:
-- unidades.listar
-- encomendas.listar
+- gruvi.bff.building-operation.get-company-by-document-controller-handle
+- gruvi.bff.building-operation.fetch-unit-packages-controller-handle

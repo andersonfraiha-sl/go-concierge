@@ -43,11 +43,27 @@ type Client struct {
 	session     string
 	initialized bool
 	seq         atomic.Int64
+	toolsMu     sync.RWMutex
+	toolWrites  map[string]bool
 }
 
 // New cria um cliente para a URL (ex.: http://127.0.0.1:3337/mcp/gruvi/bff).
 func New(endpoint string, token TokenProvider) *Client {
 	return &Client{URL: endpoint, Token: token, HTTP: &http.Client{Timeout: 60 * time.Second}}
+}
+
+func (c *Client) ValidarToken(ctx context.Context) error {
+	if c == nil || c.Token == nil {
+		return errors.New("mcp: token B2C não configurado")
+	}
+	token, err := c.Token.Token(ctx)
+	if err != nil {
+		return fmt.Errorf("mcp: token B2C indisponível: %w", err)
+	}
+	if strings.TrimSpace(token) == "" {
+		return errors.New("mcp: token B2C vazio")
+	}
+	return nil
 }
 
 // Tool é uma tool publicada pelo servidor (tools/list).
@@ -189,15 +205,17 @@ func (c *Client) ListTools(ctx context.Context) ([]Tool, error) {
 			Tools      []Tool `json:"tools"`
 			NextCursor string `json:"nextCursor"`
 		}
-		if err := c.callRetry(ctx, "tools/list", params, &res); err != nil {
+		if err := c.callRetry(ctx, "tools/list", params, &res, true); err != nil {
 			return nil, err
 		}
 		out = append(out, res.Tools...)
 		if res.NextCursor == "" || len(res.Tools) == 0 {
-			return out, nil
+			break
 		}
 		cursor = res.NextCursor
 	}
+	c.cacheToolWrites(out)
+	return out, nil
 }
 
 // CallTool chama uma tool com os argumentos.
@@ -209,17 +227,18 @@ func (c *Client) CallTool(ctx context.Context, name string, args map[string]any)
 		args = map[string]any{}
 	}
 	var res CallResult
-	if err := c.callRetry(ctx, "tools/call", map[string]any{"name": name, "arguments": args}, &res); err != nil {
+	if err := c.callRetry(ctx, "tools/call", map[string]any{"name": name, "arguments": args}, &res, c.toolReadOnly(name)); err != nil {
 		return nil, err
 	}
 	return &res, nil
 }
 
-// callRetry repete uma vez quando a sessão do servidor expirou (404): reinicializa.
-func (c *Client) callRetry(ctx context.Context, method string, params, out any) error {
+// callRetry repete uma vez quando a sessão expirou (404), se a chamada puder ser
+// repetida com segurança. Escritas nunca são repetidas após resultado incerto.
+func (c *Client) callRetry(ctx context.Context, method string, params, out any, retryOnNotFound bool) error {
 	err := c.call(ctx, method, params, out)
 	var he *httpError
-	if errors.As(err, &he) && he.status == http.StatusNotFound {
+	if retryOnNotFound && errors.As(err, &he) && he.status == http.StatusNotFound {
 		c.mu.Lock()
 		c.initialized = false
 		ierr := c.initLocked(ctx)
@@ -230,6 +249,26 @@ func (c *Client) callRetry(ctx context.Context, method string, params, out any) 
 		return c.call(ctx, method, params, out)
 	}
 	return err
+}
+
+func (c *Client) cacheToolWrites(tools []Tool) {
+	writes := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		writes[tool.Name] = escrita(tool)
+	}
+	c.toolsMu.Lock()
+	c.toolWrites = writes
+	c.toolsMu.Unlock()
+}
+
+func (c *Client) toolReadOnly(name string) bool {
+	c.toolsMu.RLock()
+	writes, found := c.toolWrites[name]
+	c.toolsMu.RUnlock()
+	if found {
+		return !writes
+	}
+	return false
 }
 
 type httpError struct {

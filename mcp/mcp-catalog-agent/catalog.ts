@@ -1,4 +1,4 @@
-import { Client, StreamableHTTPClientTransport, type JsonSchemaType } from '@modelcontextprotocol/client';
+import { Client, StreamableHTTPClientTransport, type AuthProvider, type JsonSchemaType } from '@modelcontextprotocol/client';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/ajv';
 
 export interface McpCatalogServerConfig {
@@ -7,9 +7,17 @@ export interface McpCatalogServerConfig {
   tokenEnv?: string;
 }
 
+export interface McpCatalogConnectionOptions {
+  watchResources?: boolean;
+  getBearerToken?: (server: McpCatalogServerConfig) => string | undefined | Promise<string | undefined>;
+  onBearerToken?: (token: string) => void;
+}
+
 type McpToolDefinition = Awaited<ReturnType<Client['listTools']>>['tools'][number];
+type McpResourceDefinition = Awaited<ReturnType<Client['listResources']>>['resources'][number];
 
 export interface McpCatalogEntry {
+  serverName: string;
   definition: McpToolDefinition;
   client: Client;
   validate: ReturnType<AjvJsonSchemaValidator['getValidator']>;
@@ -17,12 +25,13 @@ export interface McpCatalogEntry {
 
 export class McpCatalog {
   private readonly definitions = new Map<string, McpCatalogEntry>();
-  private readonly clients: Client[] = [];
+  private readonly clients: Array<{ serverName: string; client: Client }> = [];
   private invalidated = false;
+  private invalidationReason = 'a lista de tools MCP mudou; recrie o runtime do agent.';
   private closed = false;
 
   async addClient(serverName: string, client: Client): Promise<void> {
-    this.clients.push(client);
+    this.clients.push({ serverName, client });
     const listed = await client.listTools();
     for (const definition of listed.tools) {
       if (this.definitions.has(definition.name)) throw new Error('Nome MCP duplicado entre endpoints: ' + definition.name);
@@ -32,7 +41,7 @@ export class McpCatalog {
       } catch (error) {
         throw new Error('inputSchema MCP inválido para ' + definition.name + ': ' + (error instanceof Error ? error.message : 'falha de compilação'));
       }
-      this.definitions.set(definition.name, { definition, client, validate });
+      this.definitions.set(definition.name, { serverName, definition, client, validate });
     }
     if (!serverName) throw new Error('Nome do servidor MCP inválido');
   }
@@ -51,19 +60,47 @@ export class McpCatalog {
     return this.list().map(tool => ({ name: tool.name, ...(typeof tool.description === 'string' ? { description: tool.description } : {}) }));
   }
 
-  assertValid(): void {
-    if (this.closed) throw new Error('O catálogo MCP foi encerrado; crie um novo runtime.');
-    if (this.invalidated) throw new Error('CATALOG_INVALIDATED: a lista de tools MCP mudou; recrie o runtime do agent.');
+  listForServer(serverName: string): McpToolDefinition[] {
+    this.assertValid();
+    return [...this.definitions.values()].filter(entry => entry.serverName === serverName).map(entry => entry.definition);
   }
 
-  invalidate(): void {
+  async listResources(): Promise<Array<{ serverName: string; resource: McpResourceDefinition }>> {
+    this.assertValid();
+    const pages = await Promise.all(this.clients.map(async ({ serverName, client }) => {
+      const resources: McpResourceDefinition[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await client.listResources(cursor ? { cursor } : undefined);
+        resources.push(...page.resources);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return resources.map(resource => ({ serverName, resource }));
+    }));
+    return pages.flat().sort((left, right) => left.serverName.localeCompare(right.serverName) || left.resource.name.localeCompare(right.resource.name));
+  }
+
+  async readResource(serverName: string, uri: string, signal?: AbortSignal): Promise<Awaited<ReturnType<Client['readResource']>>> {
+    this.assertValid();
+    const entry = this.clients.find(client => client.serverName === serverName);
+    if (!entry) throw new Error('Servidor MCP de resource desconhecido: ' + serverName);
+    return entry.client.readResource({ uri }, { signal, cacheMode: 'bypass' });
+  }
+
+  assertValid(): void {
+    if (this.closed) throw new Error('O catálogo MCP foi encerrado; crie um novo runtime.');
+    if (this.invalidated) throw new Error('CATALOG_INVALIDATED: ' + this.invalidationReason);
+  }
+
+  invalidate(reason?: string): void {
     this.invalidated = true;
+    if (reason) this.invalidationReason = reason;
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    const results = await Promise.allSettled(this.clients.map(client => client.close()));
+    const results = await Promise.allSettled(this.clients.map(({ client }) => client.close()));
     const failure = results.find(result => result.status === 'rejected');
     if (failure?.status === 'rejected') throw failure.reason;
   }
@@ -86,18 +123,38 @@ function isLoopback(hostname: string): boolean {
   return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
 }
 
-export async function connectMcpCatalog(servers: McpCatalogServerConfig[], env: NodeJS.ProcessEnv = process.env): Promise<McpCatalog> {
+async function readBearerToken(server: McpCatalogServerConfig, env: NodeJS.ProcessEnv, options: McpCatalogConnectionOptions): Promise<string> {
+  const value = options.getBearerToken ? await options.getBearerToken(server) : server.tokenEnv ? env[server.tokenEnv] : undefined;
+  const token = typeof value === 'string' ? value.trim() : '';
+  if (!token || !/^[A-Za-z0-9._~+/-]+=*$/.test(token)) throw new Error('Configure um Bearer válido para autenticar no servidor MCP ' + server.name);
+  options.onBearerToken?.(token);
+  return token;
+}
+
+export async function connectMcpCatalog(servers: McpCatalogServerConfig[], env: NodeJS.ProcessEnv = process.env, options: McpCatalogConnectionOptions = {}): Promise<McpCatalog> {
   if (!servers.length) throw new Error('Configure ao menos um endpoint MCP para o catálogo.');
   const names = new Set<string>();
   const entries = servers.map(server => ({ server, url: validateServerConfig(server, names) }));
   const catalog = new McpCatalog();
   try {
     for (const { server, url } of entries) {
-      const token = server.tokenEnv ? env[server.tokenEnv]?.trim() : undefined;
-      if (server.tokenEnv && !token) throw new Error('Configure a variável ' + server.tokenEnv + ' para autenticar no servidor MCP ' + server.name);
-      if (token && !isLoopback(url.hostname) && url.protocol !== 'https:') throw new Error('MCP_URL deve usar HTTPS fora de loopback quando envia Bearer');
-      const client = new Client({ name: 'mcp-catalog-agent', version: '1' }, { inputRequired: { autoFulfill: false }, listChanged: { tools: { autoRefresh: false, onChanged: () => catalog.invalidate() } } });
-      const transport = new StreamableHTTPClientTransport(url, token ? { requestInit: { headers: { authorization: 'Bearer ' + token } } } : undefined);
+      const hasAuthProvider = Boolean(server.tokenEnv || options.getBearerToken);
+      if (hasAuthProvider && !isLoopback(url.hostname) && url.protocol !== 'https:') throw new Error('MCP_URL deve usar HTTPS fora de loopback quando envia Bearer');
+      const client = new Client({ name: 'mcp-catalog-agent', version: '1' }, {
+        inputRequired: { autoFulfill: false },
+        listChanged: {
+          tools: { autoRefresh: false, onChanged: () => catalog.invalidate('a lista de tools MCP mudou; recrie o runtime do agent.') },
+          ...(options.watchResources ? { resources: { autoRefresh: false, onChanged: () => catalog.invalidate('a lista de resources MCP mudou; recrie o runtime do agent.') } } : {}),
+        },
+      });
+      const authProvider: AuthProvider | undefined = hasAuthProvider ? {
+        async token() {
+          const token = await readBearerToken(server, env, options);
+          if (!isLoopback(url.hostname) && url.protocol !== 'https:') throw new Error('MCP_URL deve usar HTTPS fora de loopback quando envia Bearer');
+          return token;
+        },
+      } : undefined;
+      const transport = new StreamableHTTPClientTransport(url, authProvider ? { authProvider } : undefined);
       try {
         await client.connect(transport);
         await catalog.addClient(server.name, client);

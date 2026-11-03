@@ -1,11 +1,5 @@
 // Package gruvi fala com a plataforma Gruvi (staging/produção) para identificar o
-// morador que chegou pelo ATENDE: um token OAuth client_credentials (Basic auth no
-// endpoint de token) e a consulta do BFF por telefone, que devolve o condomínio e as
-// unidades do contato.
-//
-//	POST {GRUVI_TOKEN_URL}  Authorization: Basic {GRUVI_CLIENT_BASIC}  grant_type=client_credentials
-//	GET  {GRUVI_BFF_URL}/building-operation/companies/{GRUVI_COMPANY_ID}?filter[mobile-number]={telefone}
-//	     Authorization: Bearer {access_token}
+// morador que chegou pelo ATENDE por meio de uma consulta ao BFF com token B2C.
 package gruvi
 
 import (
@@ -19,86 +13,44 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
 const (
-	TokenURLPadrao = "https://api.gruvi.app/staging/gruvi/v1/clients/auth/token"
-	BFFURLPadrao   = "https://api.gruvi.app/staging/bff/v2"
+	BFFURLPadrao = "https://b2c-nexus.superlogica.net/api/gruvi"
 )
 
-// Client guarda as credenciais e o token em cache.
-type Client struct {
-	TokenURL  string
-	BFFURL    string
-	Basic     string // base64 de client_id:client_secret (o valor do header Authorization: Basic …)
-	CompanyID string
-	HTTP      *http.Client
-
-	mu      sync.Mutex
-	token   string
-	expires time.Time
+type TokenProvider interface {
+	Token(context.Context) (string, error)
 }
 
-// New monta o cliente; valores vazios caem nos padrões de staging.
-func New(tokenURL, bffURL, basic, company string) *Client {
-	if tokenURL == "" {
-		tokenURL = TokenURLPadrao
-	}
+type Client struct {
+	BFFURL    string
+	Token     TokenProvider
+	CompanyID string
+	Telefone  string
+	HTTP      *http.Client
+}
+
+func New(bffURL, company, telefone string, token TokenProvider) *Client {
 	if bffURL == "" {
 		bffURL = BFFURLPadrao
 	}
-	return &Client{TokenURL: tokenURL, BFFURL: strings.TrimRight(bffURL, "/"), Basic: strings.TrimSpace(basic), CompanyID: strings.TrimSpace(company), HTTP: &http.Client{Timeout: 25 * time.Second}}
+	return &Client{BFFURL: strings.TrimRight(bffURL, "/"), Token: token, CompanyID: strings.TrimSpace(company), Telefone: strings.TrimSpace(telefone), HTTP: &http.Client{Timeout: 25 * time.Second}}
 }
 
-// Configurado diz se há credencial e company para consultar.
-func (c *Client) Configurado() bool { return c != nil && c.Basic != "" && c.CompanyID != "" }
+func (c *Client) Configurado() bool {
+	return c != nil && c.Token != nil && c.CompanyID != "" && c.Telefone != ""
+}
 
-// Token devolve o access_token (com cache até expirar).
-func (c *Client) Token(ctx context.Context) (string, error) {
-	if !c.Configurado() {
-		return "", errors.New("gruvi: GRUVI_CLIENT_BASIC e GRUVI_COMPANY_ID não configurados")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.token != "" && time.Now().Before(c.expires) {
-		return c.token, nil
-	}
-	form := url.Values{"grant_type": {"client_credentials"}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Basic "+c.Basic)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := c.HTTP.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("gruvi token: %w", err)
-	}
-	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("gruvi token: HTTP %d", res.StatusCode) // corpo omitido: pode ecoar credenciais
-	}
-	var tok struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int    `json:"expires_in"`
-	}
-	if json.Unmarshal(raw, &tok) != nil || tok.AccessToken == "" {
-		return "", errors.New("gruvi token: resposta sem access_token")
-	}
-	ttl := tok.ExpiresIn - 30
-	if ttl < 30 {
-		ttl = 30
-	}
-	c.token, c.expires = tok.AccessToken, time.Now().Add(time.Duration(ttl)*time.Second)
-	return c.token, nil
+func (c *Client) PermiteTelefone(phone string) bool {
+	return c.Configurado() && strings.TrimSpace(phone) != "" && NormalizarTelefone(phone) == NormalizarTelefone(c.Telefone)
 }
 
 // Unidade do morador no condomínio.
 type Unidade struct {
 	ID         string `json:"id"` // id_fastpass (o id que as operações usam); sem ele, o id do BFF
+	IDInterno  string `json:"id_interno,omitempty"`
 	Label      string `json:"label"`
 	Bloco      string `json:"bloco,omitempty"`
 	Condominio string `json:"condominio,omitempty"` // nome do condomínio dono da unidade
@@ -131,7 +83,13 @@ type Identidade struct {
 // Identidade consulta o BFF pelo telefone (API1 do contrato).
 func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, error) {
 	id := Identidade{Phone: phone, CompanyID: c.CompanyID, Units: []Unidade{}, Condominios: []Condominio{}}
-	tok, err := c.Token(ctx)
+	if !c.Configurado() {
+		return id, errors.New("gruvi: token B2C e GRUVI_COMPANY_ID não configurados")
+	}
+	if !c.PermiteTelefone(phone) {
+		return id, errors.New("gruvi: telefone diferente do morador configurado para o token B2C")
+	}
+	tok, err := c.Token.Token(ctx)
 	if err != nil {
 		return id, err
 	}
@@ -183,14 +141,16 @@ func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, erro
 			if res, ok := u["resident"].(map[string]any); ok && id.Name == "" {
 				id.Name = str(res["name"])
 			}
-			uid := str(u["id_fastpass"])
+			interno := str(u["id"])
+			fastpass := str(u["id_fastpass"])
+			uid := fastpass
 			if uid == "" {
-				uid = str(u["id"])
+				uid = interno
 			}
 			if uid == "" {
 				continue
 			}
-			un := Unidade{ID: uid, Label: rotuloUnidade(u), Bloco: str(u["block"]), Condominio: nome}
+			un := Unidade{ID: uid, IDInterno: interno, Label: rotuloUnidade(u), Bloco: str(u["block"]), Condominio: nome}
 			condo.Unidades = append(condo.Unidades, un)
 			id.Units = append(id.Units, un)
 		}
@@ -217,6 +177,107 @@ func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, erro
 		}
 	}
 	return id, nil
+}
+
+func IdentidadeDoResultadoMCP(phone, companyID string, data any) Identidade {
+	id, _ := IdentidadeComDadosVinculadosMCP(phone, companyID, data)
+	return id
+}
+
+func IdentidadeComDadosVinculadosMCP(phone, companyID string, data any) (Identidade, map[string]any) {
+	tel := NormalizarTelefone(phone)
+	id := Identidade{Phone: tel, CompanyID: strings.TrimSpace(companyID), Units: []Unidade{}, Condominios: []Condominio{}}
+	var unidadesVinculadas []any
+	var condominios []map[string]any
+	switch value := data.(type) {
+	case map[string]any:
+		condominios = []map[string]any{value}
+	case []any:
+		condominios = lista(value)
+	}
+	for _, raw := range condominios {
+		nome := ""
+		if condo, ok := raw["condominium"].(map[string]any); ok {
+			nome = str(condo["name"])
+		}
+		if nome == "" {
+			nome = primeiraString(raw, "name", "trade_name", "company_name")
+		}
+		if id.CompanyName == "" {
+			id.CompanyName = nome
+		}
+		responsavelVerificado := false
+		for _, responsavel := range lista(raw["legal_responsibles"]) {
+			if !telefoneEm(responsavel["documents"], tel) {
+				continue
+			}
+			responsavelVerificado = true
+			if id.Name == "" {
+				id.Name = str(responsavel["name"])
+			}
+			if position, ok := responsavel["position"].(map[string]any); ok && str(position["name"]) != "" {
+				id.Role = papelDe(str(position["name"]))
+			}
+		}
+		condo := Condominio{Nome: nome, Unidades: []Unidade{}}
+		for _, unit := range lista(raw["units"]) {
+			resident, hasResident := unit["resident"].(map[string]any)
+			residentMatches := false
+			if hasResident {
+				residentMatches = NormalizarTelefone(str(resident["mobile_number"])) == tel || telefoneEm(resident["documents"], tel)
+				if residentMatches && id.Name == "" {
+					id.Name = str(resident["name"])
+				}
+			}
+			if !responsavelVerificado && !residentMatches {
+				continue
+			}
+			interno := str(unit["id"])
+			fastpass := str(unit["id_fastpass"])
+			operacional := fastpass
+			if operacional == "" {
+				operacional = interno
+			}
+			if operacional == "" {
+				continue
+			}
+			unidade := Unidade{ID: operacional, IDInterno: interno, Label: rotuloUnidade(unit), Bloco: str(unit["block"]), Condominio: nome}
+			condo.Unidades = append(condo.Unidades, unidade)
+			id.Units = append(id.Units, unidade)
+			unidadesVinculadas = append(unidadesVinculadas, unidadeMCPVinculada(unit))
+		}
+		if len(condo.Unidades) > 0 {
+			id.Condominios = append(id.Condominios, condo)
+		}
+	}
+	if len(id.Units) > 0 {
+		id.Authenticated = true
+		id.PersonID = "gruvi:" + tel
+		if id.Role == "" {
+			id.Role = "morador"
+		}
+	}
+	dadosVinculados := map[string]any{"units": unidadesVinculadas}
+	if id.CompanyName != "" {
+		dadosVinculados["name"] = id.CompanyName
+		dadosVinculados["condominium"] = map[string]any{"name": id.CompanyName}
+	}
+	return id, dadosVinculados
+}
+
+func unidadeMCPVinculada(unit map[string]any) map[string]any {
+	filtrada := map[string]any{}
+	for _, campo := range []string{"id", "id_external_gruvi", "id_fastpass", "block", "unit", "label"} {
+		if valor, existe := unit[campo]; existe {
+			filtrada[campo] = valor
+		}
+	}
+	if residente, ok := unit["resident"].(map[string]any); ok {
+		if nome, existe := residente["name"]; existe {
+			filtrada["resident"] = map[string]any{"name": nome}
+		}
+	}
+	return filtrada
 }
 
 // telefoneEm: algum documento MOBILE_NUMBER da lista bate com o telefone normalizado.

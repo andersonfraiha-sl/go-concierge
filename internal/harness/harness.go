@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
@@ -68,7 +67,8 @@ type Config struct {
 	Nexus *nexus.Client
 	// MCP executa os recursos que vieram do catálogo MCP (Recurso.Origem == "mcp") por
 	// tools/call, com o token do cliente; nil = esses recursos ficam indisponíveis.
-	MCP mcp.Caller
+	MCP           mcp.Caller
+	MCPResultados map[string]any
 	// Identidade do morador nesta execução; o zero é o contato público na account
 	// padrão (DEFAULT_ACCOUNT_ID, senão cond-001).
 	Identidade Identidade
@@ -87,9 +87,7 @@ type Config struct {
 	// Orientacoes por caso de uso (nome da pasta do subagente → texto da
 	// administradora): entram só na instrução daquele subagente.
 	Orientacoes map[string]string
-	// Locais são recursos que o próprio canal resolve, sem Nexus (ex.: unidades.listar
-	// a partir da identidade que o Gruvi devolveu para o telefone). Têm precedência
-	// sobre o Nexus e valem mesmo quando ele não está no ar.
+	// Locais são recursos que o próprio canal resolve, sem Nexus.
 	Locais map[string]func(ctx context.Context, params map[string]any) (any, error)
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int
@@ -264,6 +262,9 @@ func (ag *Agente) montarModelo(ctx context.Context) error {
 		ag.NomeModelo = prov.Modelo
 	}
 	ag.Provedor = prov.Nome
+	if prov.Nome == "luna" && chave == "" && !cfg.Mock {
+		return errors.New("harness: configure LLM_LUNA_GATEWAY_TOKEN para o gateway Luna")
+	}
 	if cfg.Mock || chave == "" || prov.Nome == "mock" && cfg.APIKey == "" {
 		ag.Mock = true
 		ag.Provedor = "mock"
@@ -273,12 +274,7 @@ func (ag *Agente) montarModelo(ctx context.Context) error {
 	if base == "" {
 		base = BaseURLPadrao
 	}
-	m, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey:  chave,
-		BaseURL: base,
-		Model:   ag.NomeModelo,
-		Timeout: 90 * time.Second,
-	})
+	m, err := novoModelo(ctx, prov, chave, base, ag.NomeModelo, 90*time.Second)
 	if err != nil {
 		return fmt.Errorf("harness: modelo %s: %w", ag.NomeModelo, err)
 	}

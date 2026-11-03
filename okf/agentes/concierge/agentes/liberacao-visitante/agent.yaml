@@ -2,4 +2,5 @@ nome: liberacao-visitante
 tipo: operador
 descricao: autoriza a entrada de um visitante na portaria (amigo, parente, prestador, entregador) para a unidade do morador — caso de uso determinístico com confirmação e protocolo
 recursos:
-    - unidades.listar
+    - gruvi.bff.building-operation.get-company-by-document-controller-handle
+    - gruvi.bff.building-operation.fetch-visit-reasons-controller-handle

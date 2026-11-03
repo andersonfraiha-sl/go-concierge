@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/okf"
@@ -21,14 +22,14 @@ func servicoComPedidos(t *testing.T) (*Servico, *Outbox, *pedidos.Arquivos) {
 	}
 	fix, _ := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
 	cat.Recursos = func() []okf.Recurso { return fix }
+	adicionarToolsMCP(cat)
 	out := &Outbox{}
 	st := pedidos.NewArquivos(t.TempDir())
+	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
 		Cat: cat, Agente: "agentes/concierge", Account: "cond-001", Sessoes: NewSessoes(), Sender: out,
-		Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
-		Identificar: func(ctx context.Context, phone string) (gruvi.Identidade, error) {
-			return gruvi.Identidade{Authenticated: true, Phone: phone, Name: "Vanderlei", Role: "morador", Units: []gruvi.Unidade{{ID: "fp-1", Label: "A - 101"}}}, nil
-		},
+		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
+		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pedidos: st,
 	}
 	return svc, out, st
@@ -38,7 +39,10 @@ func falar(t *testing.T, svc *Servico, id, texto string) *Sessao {
 	t.Helper()
 	ev, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", texto, 1)))
 	ev.ID = id
-	sess, err := svc.Processar(context.Background(), ev)
+	msg := ev.Normalizar()
+	msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
+	msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: msg.ConversaID, Telefone: msg.Contato.Phone, Canal: msg.Canal}
+	sess, err := svc.Processar(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("%s: %v", texto, err)
 	}
@@ -74,7 +78,7 @@ func TestPedidoDeReservaPeloRegistro(t *testing.T) {
 	prot := r.Pedidos[0].Protocolo
 	cart, _ := st.Ler(ctx, "cond-001", "5519981621916")
 	p := cart.Por(prot)
-	if p == nil || p.Estado != pedidos.Coletando || p.Valores["unidade"] != "fp-1" || p.Pendencia == nil || p.Pendencia.Slot != "area" {
+	if p == nil || p.Estado != pedidos.Coletando || p.Valores["unidade"] != "109" || p.Pendencia == nil || p.Pendencia.Slot != "area" {
 		t.Fatalf("pedido gravado com a unidade da identidade e a área pendente: %+v", p)
 	}
 

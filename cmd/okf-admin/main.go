@@ -6,7 +6,7 @@
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
 // sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
-// A identidade do morador vem do Gruvi (GRUVI_CLIENT_BASIC, GRUVI_COMPANY_ID).
+// A identidade do morador vem do Gruvi com o token B2C configurado para o MCP.
 package main
 
 import (
@@ -49,20 +49,23 @@ type servidor struct {
 	log     *log.Logger
 
 	// canal ATENDE (webhook + emulador no Console)
-	atende        *atende.Servico
-	outbox        *atende.Outbox
-	gruvi         *gruvi.Client
-	gruviOK       bool
-	gruviTokenURL string
-	gruviBFF      string
-	gruviCompany  string
-	webhookToken  string
-	replyURL      string
-	replyEmulada  bool
-	emulador      *atende.Emulador
-	provedor      string
-	memorias      memoria.Store
-	admin         *admin.Store
+	atende              *atende.Servico
+	outbox              *atende.Outbox
+	gruvi               *gruvi.Client
+	gruviOK             bool
+	gruviBFF            string
+	gruviCompany        string
+	webhookToken        string
+	replyURL            string
+	replyEmulada        bool
+	atendeBaseURL       string
+	atendeAPIKey        string
+	atendeTenant        string
+	atendeTelefoneCanal string
+	emulador            *atende.Emulador
+	provedor            string
+	memorias            memoria.Store
+	admin               *admin.Store
 }
 
 var (
@@ -113,18 +116,29 @@ func main() {
 	}
 
 	// canal ATENDE: identidade pelo Gruvi, concierge pelo harness, resposta pela caixa de saída
-	s.gruvi = gruvi.New(os.Getenv("GRUVI_TOKEN_URL"), os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_CLIENT_BASIC"), os.Getenv("GRUVI_COMPANY_ID"))
-	s.gruviOK, s.gruviTokenURL, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.TokenURL, s.gruvi.BFFURL, s.gruvi.CompanyID
+	var tokenGruvi gruvi.TokenProvider
+	if mcpCli != nil && mcpModo == "b2c" {
+		tokenGruvi = mcpCli.Token
+	}
+	s.gruvi = gruvi.New(os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_COMPANY_ID"), os.Getenv("MCP_B2C_MOBILE"), tokenGruvi)
+	s.gruviOK, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.BFFURL, s.gruvi.CompanyID
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
+	s.atendeBaseURL = os.Getenv("ATENDE_API_BASE_URL")
+	s.atendeAPIKey = os.Getenv("ATENDE_API_KEY")
+	s.atendeTenant = os.Getenv("ATENDE_TENANT_ID")
+	s.atendeTelefoneCanal = os.Getenv("ATENDE_TENANT_TELEFONE")
+	replyURLLegada := os.Getenv("ATENDE_REPLY_URL")
 	s.outbox = &atende.Outbox{}
 	s.emulador = atende.NewEmulador()
-	if s.replyURL == "" {
-		// sem o ATENDE real, a resposta vai por HTTP ao ATENDE emulado deste servidor
-		s.replyURL = "http://" + *addr + "/emulador/atende/messages"
-		s.replyEmulada = true
+	s.replyURL = "http://" + *addr + "/emulador/atende/messages"
+	s.replyEmulada = true
+	s.outbox.Emulado = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
+	if s.atendeBaseURL != "" && s.atendeAPIKey != "" {
+		s.outbox.ATENDE = &atende.ATENDESender{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
+	} else if replyURLLegada != "" {
+		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
-	s.outbox.Real = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}
 	if mcpCli != nil {
@@ -136,6 +150,9 @@ func main() {
 		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
+	}
+	if mcpModo == "b2c" {
+		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
 	}
 	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {
@@ -149,7 +166,7 @@ func main() {
 		// primeiro uso: uma administradora de exemplo, dona do condomínio de exemplo
 		// (ligado à account, ao Gruvi e ao tenant do ATENDE)
 		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
-		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981")})
+		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))})
 	} else if err == nil && len(m.Administradoras) == 0 {
 		// mapeamento de antes das administradoras: cria a de exemplo e dá a ela os condomínios sem dona
 		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})

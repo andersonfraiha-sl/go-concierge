@@ -28,6 +28,16 @@ export interface CapabilitySourceIdentity {
   hierarchy: CapabilityHierarchy;
 }
 
+export interface CapabilitySkillResource {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType: string;
+  hierarchy: CapabilityHierarchy;
+  metadata: Record<string, unknown>;
+  read(): Promise<string>;
+}
+
 export interface CapabilityToolDefinition {
   name: string;
   description?: string;
@@ -99,6 +109,7 @@ interface CapabilityExecution {
 
 export interface CapabilityViewsServerConfig {
   sources: CapabilitySourceConfig[];
+  skillResources?: CapabilitySkillResource[];
   requestTokenVerifier: TokenVerifier;
   toolNameBuilder?: (input: { source: CapabilitySourceIdentity; operationId: string; method: string; path: string; duplicateOperationId: boolean }) => string;
   host?: string;
@@ -109,16 +120,24 @@ export interface CapabilityViewsServerConfig {
   resolvedSourceHeaders?: Record<string, Record<string, string>>;
 }
 
+function createRequestBearerVerifier(): TokenVerifier {
+  return {
+    async verify(token) {
+      if (!/^[A-Za-z0-9._~+/-]+=*$/.test(token)) throw new Error('Bearer inválido');
+      return { token, clientId: 'request-bearer', scopes: [], claims: {} };
+    },
+  };
+}
+
 export function capabilityViewsConfigFromEnv(env: NodeJS.ProcessEnv = process.env): CapabilityViewsServerConfig {
   const host = env.MCP_VIEWS_HOST ?? '127.0.0.1';
   const port = Number(env.MCP_VIEWS_PORT ?? 3336);
   const fastMcpConfig = fastMcpConfigFromEnv({
     ...env,
-    UPSTREAM_AUTH_MODE: 'request_bearer',
+    UPSTREAM_AUTH_MODE: 'bearer',
     FASTMCP_HOST: host,
     FASTMCP_PORT: String(port),
   });
-  if (!fastMcpConfig.requestTokenVerifier) throw new Error('Configure B2C_CLIENT_KEYCLOAK_TOKEN para MCP Capability Views');
   let sources: CapabilitySourceConfig[];
   const sourcesJson = env.MCP_VIEWS_SOURCES_JSON;
   if (sourcesJson?.trim()) {
@@ -153,7 +172,7 @@ export function capabilityViewsConfigFromEnv(env: NodeJS.ProcessEnv = process.en
   }));
   return {
     sources,
-    requestTokenVerifier: fastMcpConfig.requestTokenVerifier,
+    requestTokenVerifier: createRequestBearerVerifier(),
     resolvedSourceHeaders,
     host,
     port,
@@ -644,7 +663,7 @@ function serializeCapabilityTool(capability: Capability, route: RouteMetadata): 
   return addCapabilityMetadata({ ...capability.definition }, route);
 }
 
-function buildViews(registry: CapabilityRegistry, sourceServers: Map<string, FastMCP>): Map<string, { server: FastMCP; sourceIds: string[] }> {
+function buildViews(registry: CapabilityRegistry, sourceServers: Map<string, FastMCP>, skillResources: CapabilitySkillResource[] = []): Map<string, { server: FastMCP; sourceIds: string[] }> {
   const activeSourceIds = new Set(registry.capabilities.map(capability => capability.source.id));
   const activeSources = registry.sources.filter(source => activeSourceIds.has(source.id));
   const selectors = new Map<string, Set<string>>([['/mcp', new Set(activeSources.map(source => source.id))]]);
@@ -663,6 +682,36 @@ function buildViews(registry: CapabilityRegistry, sourceServers: Map<string, Fas
     for (const id of ids) {
       const source = sourceServers.get(id);
       if (source) view.addProvider(source);
+    }
+    const viewSegments = path === '/mcp' ? [] : path.slice('/mcp/'.length).split('/');
+    const skillMetadataByUri = new Map<string, Record<string, unknown>>();
+    for (const skill of skillResources) {
+      const hierarchy = hierarchySegments(skill.hierarchy);
+      if (hierarchy.length < viewSegments.length || viewSegments.some((segment, index) => hierarchy[index] !== segment)) continue;
+      if (skillMetadataByUri.has(skill.uri)) throw new Error('URI de Skill duplicada: ' + skill.uri);
+      skillMetadataByUri.set(skill.uri, skill.metadata);
+      view.resource({ uri: skill.uri, name: skill.name, description: skill.description, mimeType: skill.mimeType }, async () => skill.read());
+    }
+    if (skillMetadataByUri.size) {
+      view.use({
+        onListResources: async (_context, next) => {
+          const raw = await next();
+          if (!raw || typeof raw !== 'object' || !('resources' in raw) || !Array.isArray(raw.resources)) return raw;
+          const result = raw as { resources: Array<Record<string, unknown>>; [key: string]: unknown };
+          return {
+            ...result,
+            resources: result.resources.map(resource => {
+              const uri = resource.uri;
+              const metadata = typeof uri === 'string' ? skillMetadataByUri.get(uri) : undefined;
+              if (!metadata) return resource;
+              const existingMeta = resource._meta && typeof resource._meta === 'object' && !Array.isArray(resource._meta)
+                ? resource._meta as Record<string, unknown>
+                : {};
+              return { ...resource, _meta: { ...existingMeta, 'com.gruvi.concierge': metadata } };
+            }),
+          };
+        },
+      });
     }
     views.set(path, { server: view, sourceIds: [...ids] });
   }
@@ -747,7 +796,7 @@ export class CapabilityViewsServer {
         this.sourceServers.set(source.identity.id, provider.server);
         for (const [name, metadata] of provider.routes) this.routes.set(name, metadata);
       }
-      this.views = buildViews(registry, this.sourceServers);
+      this.views = buildViews(registry, this.sourceServers, this.config.skillResources ?? []);
       for (const { server } of this.views.values()) {
         server.use({
           onListTools: async (_context, next) => {
@@ -916,7 +965,7 @@ export class CapabilityViewsServer {
         if (typeof contentType !== 'string' || contentType.split(';', 1)[0]!.trim().toLowerCase() !== 'application/json') { send(response, 415, 'Content-Type deve ser application/json'); return; }
       }
       const authorization = request.headers.authorization;
-      const match = typeof authorization === 'string' ? /^Bearer ([^\s,]+)$/i.exec(authorization) : null;
+      const match = typeof authorization === 'string' ? /^Bearer ([A-Za-z0-9._~+/-]+=*)$/i.exec(authorization) : null;
       if (!match) { send(response, 401, 'Unauthorized', { 'www-authenticate': 'Bearer' }); return; }
       let verified;
       try { verified = await this.config.requestTokenVerifier.verify(match[1]!); } catch { send(response, 401, 'Unauthorized', { 'www-authenticate': 'Bearer' }); return; }

@@ -6,7 +6,7 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const hora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-  const estado = { protocolo: '', ultimoEvento: null, sessao: null, config: null, poll: null };
+  const estado = { protocolo: '', sessaoID: '', ultimoEvento: null, sessao: null, config: null, poll: null };
 
   async function api(caminho, opts = {}) {
     const r = await fetch(caminho, { headers: opts.body ? { 'Content-Type': 'application/json' } : {}, ...opts });
@@ -35,7 +35,7 @@
     const f = $('#formContato');
     const agora = new Date().toISOString();
     return {
-      event: primeira ? 'com.echo.atende.user.protocol.created' : 'com.echo.atende.user.message.received',
+      event: primeira ? 'com.echo.atende.user.protocol.created' : 'com.echo.atende.user.message',
       id: 'evt_' + uuid(),
       created: agora,
       specversion: '1.0',
@@ -52,6 +52,7 @@
 
   function novaConversa() {
     estado.protocolo = novoProtocolo();
+    estado.sessaoID = '';
     estado.sessao = null;
     estado.ultimoEvento = null;
     estado.desenhados = 0;
@@ -70,6 +71,8 @@
   // ---- envio e acompanhamento -------------------------------------------------
   async function enviar(texto) {
     if (!texto.trim()) return;
+    await configCarregada;
+    if (!$('#formContato').phone.value.trim()) { toast('Configure o telefone do contato no emulador.', true); return; }
     const primeira = !estado.sessao;
     const ev = montarEvento(texto.trim(), primeira);
     estado.ultimoEvento = ev;
@@ -78,7 +81,8 @@
     digitando(true);
     $('#btnEnviar').disabled = true;
     try {
-      await api('/webhook/atende', { method: 'POST', body: JSON.stringify(ev) });
+      const recebido = await api('/emulador/atende/webhook', { method: 'POST', body: JSON.stringify(ev) });
+      estado.sessaoID = recebido.session_id || estado.sessaoID;
       await acompanhar();
     } catch (err) { toast(err.message, true); digitando(false); }
     $('#btnEnviar').disabled = false;
@@ -91,8 +95,10 @@
       estado.poll = setInterval(async () => {
         tentativas++;
         try {
-          const r = await api('/api/atende/sessao?protocolo=' + encodeURIComponent(estado.protocolo));
+          const chave = estado.sessaoID ? 'id=' + encodeURIComponent(estado.sessaoID) : 'protocolo=' + encodeURIComponent(estado.protocolo);
+          const r = await api('/api/atende/sessao?' + chave);
           estado.sessao = r.sessao;
+          estado.sessaoID = r.sessao.id;
           estado.recebidas = r.recebidas || [];
           estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
@@ -164,7 +170,7 @@
   async function transbordo(acao, extra = {}) {
     if (!estado.protocolo) return toast('abra uma conversa primeiro', true);
     try {
-      const r = await api('/api/atende/transbordo', { method: 'POST', body: JSON.stringify({ protocolo: estado.protocolo, acao, ...extra }) });
+      const r = await api('/api/atende/transbordo', { method: 'POST', body: JSON.stringify({ sessao_id: estado.sessaoID, protocolo: estado.protocolo, acao, ...extra }) });
       estado.sessao = r.sessao; estado.recebidas = r.recebidas || [];
       desenharSessao(r.sessao, r.saidas);
       toast(acao === 'assumir' ? 'você assumiu o protocolo' : acao === 'devolver' ? 'devolvido ao concierge' : 'enviado ao morador');
@@ -314,7 +320,7 @@
         const valores = {};
         f.querySelectorAll('input, select').forEach((i) => { if (i.name && i.value.trim() !== '') valores[i.name] = i.value.trim(); });
         try {
-          const r = await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'preencher', protocolo: estado.protocolo, pedido: f.dataset.pedido, atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', valores, confirmar: f.dataset.confirmar === '1' }) });
+          const r = await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'preencher', sessao_id: estado.sessaoID, protocolo: estado.protocolo, pedido: f.dataset.pedido, atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', valores, confirmar: f.dataset.confirmar === '1' }) });
           estado.sessao = r.sessao; estado.recebidas = r.recebidas || [];
           desenharSessao(r.sessao, r.saidas);
           estado.chavePedidos = ''; estado.chavePedAtend = '';
@@ -367,21 +373,21 @@
   async function carregarSessoes() {
     try {
       const r = await api('/api/atende/sessoes');
-      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.protocolo === estado.protocolo ? 'is-on' : ''}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.protocolo)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
+      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
       // lixeira: apaga a conversa no servidor; se era a aberta, começa uma nova
       $$('#sessoes .sub-del').forEach((b) => b.addEventListener('click', async (e) => {
         e.stopPropagation();
         const p = b.dataset.del;
         try {
-          await api('/api/atende/sessao?protocolo=' + encodeURIComponent(p), { method: 'DELETE' });
+          await api('/api/atende/sessao?id=' + encodeURIComponent(p), { method: 'DELETE' });
           toast('conversa ' + p + ' excluída');
-          if (p === estado.protocolo) novaConversa(); else carregarSessoes();
+          if (p === estado.sessaoID) novaConversa(); else carregarSessoes();
         } catch (err) { toast(err.message, true); }
       }));
       $$('#sessoes .sub').forEach((d) => d.addEventListener('click', async () => {
         const f = $('#formContato');
-        estado.protocolo = d.dataset.p; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant;
-        const r2 = await api('/api/atende/sessao?protocolo=' + encodeURIComponent(d.dataset.p));
+        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant;
+        const r2 = await api('/api/atende/sessao?id=' + encodeURIComponent(d.dataset.id));
         estado.sessao = r2.sessao;
         estado.recebidas = r2.recebidas || [];
         estado.replyEmulada = !!r2.reply_emulada;
@@ -397,6 +403,8 @@
     try {
       const c = await api('/api/atende/config');
       estado.config = c;
+      const contato = $('#formContato').phone;
+      if (!contato.value.trim() && c.telefone_b2c) contato.value = c.telefone_b2c;
       const set = (id, ok, txt, title) => { const el = $(id); el.querySelector('b').textContent = txt; el.classList.toggle('is-live', ok); el.classList.toggle('is-dev', !ok); el.title = title || ''; };
       set('#chipModelo', c.modelo_provedor !== 'mock', c.modelo_provedor, 'LLM_MODE do .env');
       set('#chipGruvi', c.gruvi.configurado, c.gruvi.configurado ? 'company ' + c.gruvi.company_id : 'não configurado', c.gruvi.bff_url);
@@ -424,7 +432,6 @@
 
   icons();
   novaConversa();
-  carregarConfig();
-  carregarMemoria();
-  carregarPedidos();
+  const configCarregada = carregarConfig();
+  configCarregada.then(() => { carregarMemoria(); carregarPedidos(); });
 })();

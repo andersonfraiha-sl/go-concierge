@@ -3,16 +3,20 @@ package harness
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 
+	"go-concierge/internal/mcp"
 	"go-concierge/internal/okf"
 )
 
@@ -24,6 +28,80 @@ import (
 // infraestrutura derruba o loop.
 
 type saida = map[string]any
+
+var toolsMCPObrigatorias = map[string]bool{
+	"unidades.listar": true,
+	"gruvi.bff.building-operation.get-company-by-document-controller-handle":   true,
+	"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":       true,
+	"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": true,
+	"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle":       true,
+	"gruvi.bff.building-operation.create-visit-controller-handle":              true,
+}
+
+var toolsMCPComContextoB2C = map[string]bool{
+	"gruvi.bff.building-operation.get-company-by-document-controller-handle":   true,
+	"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":       true,
+	"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": true,
+	"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle":       true,
+	"gruvi.bff.building-operation.create-visit-controller-handle":              true,
+}
+
+func nomeToolMCP(nome string) (string, bool) {
+	if nome == "unidades.listar" {
+		return "gruvi.bff.building-operation.get-company-by-document-controller-handle", true
+	}
+	return nome, false
+}
+
+func fixarContextoB2C(nome string, params, contexto map[string]any) error {
+	if !toolsMCPComContextoB2C[nome] {
+		return nil
+	}
+	companyID, ok := contexto["companyId"]
+	if !ok || strings.TrimSpace(fmt.Sprint(companyID)) == "" {
+		return fmt.Errorf("companyId B2C ausente")
+	}
+	params["companyId"] = companyID
+	switch nome {
+	case "gruvi.bff.building-operation.get-company-by-document-controller-handle",
+		"gruvi.bff.building-operation.fetch-unit-packages-controller-handle",
+		"gruvi.bff.building-operation.get-package-delivery-code-controller-handle":
+		telefone, existe := contexto["filter_mobile_number"]
+		if !existe || strings.TrimSpace(fmt.Sprint(telefone)) == "" {
+			return fmt.Errorf("telefone B2C ausente")
+		}
+		params["filter_mobile_number"] = telefone
+		if filtro, ok := params["filter"].(map[string]any); ok {
+			filtro["mobile-number"] = telefone
+		}
+	case "gruvi.bff.building-operation.create-visit-controller-handle":
+		residentContext, ok := contexto["resident"].(map[string]any)
+		telefone, existe := residentContext["mobile_number"]
+		if !ok || !existe || strings.TrimSpace(fmt.Sprint(telefone)) == "" {
+			return fmt.Errorf("resident.mobile_number B2C ausente")
+		}
+		resident, ok := params["resident"].(map[string]any)
+		if !ok {
+			if _, existe := params["resident"]; existe {
+				return fmt.Errorf("resident deve ser objeto")
+			}
+			resident = map[string]any{}
+		}
+		resident["mobile_number"] = telefone
+		params["resident"] = resident
+	}
+	return nil
+}
+
+func (ag *Agente) recursoMCP(nome string) *okf.Recurso {
+	for _, r := range ag.Cat.RecursosNexus() {
+		if r.Name == nome && r.Origem == okf.OrigemMCP {
+			r := r
+			return &r
+		}
+	}
+	return nil
+}
 
 func erro(formato string, args ...any) saida {
 	return saida{"error": fmt.Sprintf(formato, args...)}
@@ -270,6 +348,8 @@ type argsRecurso struct {
 	Params map[string]any `json:"params" jsonschema_description:"parâmetros do recurso, pelo manual da projeção"`
 }
 
+type chaveExecucaoCaso struct{}
+
 // Permissao é o veredito do harness sobre um recurso declarado para esta identidade.
 type Permissao struct {
 	okf.RecursoDeclarado
@@ -323,15 +403,22 @@ func (ag *Agente) chamarRecurso(ctx context.Context, in *argsRecurso) (saida, er
 	return ag.invocar(ctx, in, msg)
 }
 
-// InvocarRecurso executa um recurso fora do loop de tools (o motor de pedidos), com as
-// mesmas permissões e a mesma guarda de escrita de chamar_recurso: `confirmacao` é a
-// mensagem do morador (ou do atendente) que confirmou; escrita só passa se for um sim.
 func (ag *Agente) InvocarRecurso(ctx context.Context, nome string, params map[string]any, confirmacao string) (map[string]any, error) {
 	return ag.invocar(ctx, &argsRecurso{Nome: nome, Params: params}, confirmacao)
 }
 
+func (ag *Agente) ExecutarPassoCaso(ctx context.Context, nome string, params map[string]any, confirmacao string) (map[string]any, error) {
+	ctx = context.WithValue(ctx, chaveExecucaoCaso{}, true)
+	return ag.invocar(ctx, &argsRecurso{Nome: nome, Params: params}, confirmacao)
+}
+
 func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao string) (saida, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	nome := strings.TrimSpace(in.Nome)
+	nomeMCP, aliasMCP := nomeToolMCP(nome)
+	chamarMCP := toolsMCPObrigatorias[nome]
 	var achado *Permissao
 	for _, p := range ag.Permissoes() {
 		if p.Nome != nome {
@@ -355,52 +442,107 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 	if !achado.Permitido {
 		return erro("recurso %s recusado: %s", nome, achado.Motivo), nil
 	}
+	if chamarMCP && ag.cfg.MCP == nil {
+		return erro("tool MCP %s indisponível; o fluxo não pode usar dados simulados", nome), nil
+	}
 	// escrita: a guarda determinística — só com o "sim" do morador na mensagem atual
 	if achado.Recurso != nil && achado.Recurso.Write {
+		if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" && ctx.Value(chaveExecucaoCaso{}) != true {
+			return erro("%s só pode ser executada pelo motor determinístico do caso de liberação de visitante", nome), nil
+		}
 		if !Confirmado(confirmacao) {
 			return erro("%s é escrita e exige a confirmação explícita do morador: a mensagem atual (%q) não é um sim. Resuma o que vai registrar, pergunte \"confirma? (sim/não)\" e pare", nome, corta(confirmacao, 60)), nil
 		}
 	}
 
 	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus
-	if local, ok := ag.cfg.Locais[nome]; ok && local != nil {
-		params := in.Params
-		if params == nil {
-			params = map[string]any{}
-		}
-		for k, v := range ag.cfg.Payloads[nome] {
-			if _, tem := params[k]; !tem {
-				params[k] = v
+	if !chamarMCP {
+		if local, ok := ag.cfg.Locais[nome]; ok && local != nil {
+			params := in.Params
+			if params == nil {
+				params = map[string]any{}
 			}
+			for k, v := range ag.cfg.Payloads[nome] {
+				if _, tem := params[k]; !tem {
+					params[k] = v
+				}
+			}
+			res, err := local(ctx, params)
+			if err != nil {
+				return erro("falha ao resolver %s: %v", nome, err), nil
+			}
+			return saida{"recurso": nome, "resultado": res, "origem": "identidade"}, nil
 		}
-		res, err := local(ctx, params)
-		if err != nil {
-			return erro("falha ao resolver %s: %v", nome, err), nil
-		}
-		return saida{"recurso": nome, "resultado": res, "origem": "identidade"}, nil
 	}
-	// recurso do catálogo MCP: tools/call no servidor, com o token do cliente
-	if achado.Recurso != nil && achado.Recurso.Origem == okf.OrigemMCP {
+	if chamarMCP || achado.Recurso != nil && achado.Recurso.Origem == okf.OrigemMCP {
 		if ag.cfg.MCP == nil {
 			return erro("catálogo MCP indisponível: não há como chamar %s agora; avise o morador", nome), nil
 		}
+		recurso := achado.Recurso
+		if chamarMCP && (aliasMCP || recurso == nil || recurso.Origem != okf.OrigemMCP) {
+			recurso = ag.recursoMCP(nomeMCP)
+		}
+		if recurso == nil || recurso.Origem != okf.OrigemMCP {
+			return erro("tool MCP %s ausente no catálogo; o fluxo não pode usar dados simulados", nomeMCP), nil
+		}
 		params := in.Params
 		if params == nil {
 			params = map[string]any{}
+		}
+		for k, v := range ag.cfg.Payloads[nomeMCP] {
+			if _, tem := params[k]; !tem {
+				params[k] = v
+			}
 		}
 		for k, v := range ag.cfg.Payloads[nome] {
 			if _, tem := params[k]; !tem {
 				params[k] = v
 			}
 		}
-		res, err := ag.cfg.MCP.CallTool(ctx, nome, params)
+		contextoMCP := map[string]any{}
+		for k, v := range ag.cfg.Payloads[nome] {
+			contextoMCP[k] = v
+		}
+		for k, v := range ag.cfg.Payloads[nomeMCP] {
+			contextoMCP[k] = v
+		}
+		if err := fixarContextoB2C(nomeMCP, params, contextoMCP); err != nil {
+			return erro("contexto B2C inválido para %s: %v", nome, err), nil
+		}
+		if faltam := faltamParams(recurso, params); len(faltam) > 0 {
+			return erro("faltam params obrigatórios de %s: %s", nome, strings.Join(faltam, ", ")), nil
+		}
+		if err := ajustarParamsSchema(recurso, params); err != nil {
+			return erro("params inválidos para %s: %v", nome, err), nil
+		}
+		if resultado, ok := ag.cfg.MCPResultados[nomeMCP]; ok {
+			return saida{"recurso": nome, "resultado": resultado, "origem": "mcp"}, nil
+		}
+		if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" {
+			normalizarTelefonesVisitantes(params)
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		res, err := ag.cfg.MCP.CallTool(ctx, nomeMCP, params)
 		if err != nil {
-			return erro("falha ao chamar %s: %v", nome, err), nil
+			if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" {
+				return erro("resultado da escrita %s incerto após o envio; não repita automaticamente e verifique o estado antes de tentar de novo: %v", nome, err), nil
+			}
+			return erro("falha ao chamar %s: %v", nomeMCP, err), nil
 		}
-		if res.IsError {
-			return erro("%s recusou: %s", nome, corta(res.Texto(), 400)), nil
+		if res != nil && res.IsError {
+			return erro("%s recusou: %s", nomeMCP, corta(res.Texto(), 400)), nil
 		}
-		return saida{"recurso": nome, "resultado": res.Valor(), "origem": "mcp"}, nil
+		resultado, err := valorMCP(nomeMCP, res)
+		if err != nil {
+			var incerto *resultadoMCPIncerto
+			if achado.Recurso != nil && achado.Recurso.Write && errors.As(err, &incerto) {
+				return erro("resultado da escrita %s incerto após o envio; não repita automaticamente e verifique o estado antes de tentar de novo: %v", nome, err), nil
+			}
+			return erro("falha funcional ao chamar %s: %v", nomeMCP, err), nil
+		}
+		return saida{"recurso": nome, "resultado": resultado, "origem": "mcp"}, nil
 	}
 	cli := ag.cfg.Nexus
 	if cli == nil || cli.BaseURL == "" {
@@ -460,4 +602,319 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 		resultado = string(raw)
 	}
 	return saida{"recurso": nome, "resultado": resultado}, nil
+}
+
+func faltamParams(r *okf.Recurso, params map[string]any) []string {
+	if r == nil {
+		return nil
+	}
+	var faltam []string
+	for _, p := range r.Params {
+		if !p.Required {
+			continue
+		}
+		v, ok := params[p.Name]
+		if !ok || v == nil || strings.TrimSpace(fmt.Sprint(v)) == "" {
+			faltam = append(faltam, p.Name)
+		}
+	}
+	return faltam
+}
+
+func ajustarParamsSchema(r *okf.Recurso, params map[string]any) error {
+	if r == nil {
+		return nil
+	}
+	for _, p := range r.Params {
+		v, ok := params[p.Name]
+		if !ok || v == nil {
+			continue
+		}
+		switch p.Type {
+		case "string":
+			switch n := v.(type) {
+			case string:
+				params[p.Name] = strings.TrimSpace(n)
+			case int:
+				params[p.Name] = strconv.Itoa(n)
+			case int64:
+				params[p.Name] = strconv.FormatInt(n, 10)
+			case float64:
+				if math.Trunc(n) != n || math.Abs(n) > 9007199254740991 {
+					return fmt.Errorf("%s deve ser texto ou inteiro seguro", p.Name)
+				}
+				params[p.Name] = strconv.FormatFloat(n, 'f', 0, 64)
+			default:
+				return fmt.Errorf("%s deve ser texto", p.Name)
+			}
+		case "number":
+			if n, ok := v.(string); ok {
+				num, err := strconv.ParseFloat(strings.TrimSpace(n), 64)
+				if err != nil || math.IsNaN(num) || math.IsInf(num, 0) {
+					return fmt.Errorf("%s deve ser número", p.Name)
+				}
+				params[p.Name] = num
+			}
+		case "object":
+			if _, ok := v.(map[string]any); !ok {
+				return fmt.Errorf("%s deve ser objeto", p.Name)
+			}
+		case "array":
+			switch v.(type) {
+			case []any, []map[string]any:
+			default:
+				return fmt.Errorf("%s deve ser lista", p.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func normalizarTelefonesVisitantes(params map[string]any) {
+	var visitors []any
+	switch v := params["visitors"].(type) {
+	case []any:
+		visitors = v
+	case []map[string]any:
+		for _, item := range v {
+			visitors = append(visitors, item)
+		}
+	}
+	for _, item := range visitors {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		phone, ok := m["mobile_number"].(string)
+		if ok {
+			m["mobile_number"] = normalizarTelefoneVisitante(phone)
+		}
+	}
+}
+
+func normalizarTelefoneVisitante(phone string) string {
+	var digits strings.Builder
+	for _, r := range phone {
+		if r >= '0' && r <= '9' {
+			digits.WriteRune(r)
+		}
+	}
+	d := digits.String()
+	if len(d) <= 11 {
+		d = "55" + d
+	}
+	if len(d) == 12 && strings.HasPrefix(d, "55") {
+		d = d[:4] + "9" + d[4:]
+	}
+	return d
+}
+
+type resultadoMCPIncerto struct {
+	motivo string
+}
+
+func (e *resultadoMCPIncerto) Error() string { return e.motivo }
+
+func valorMCP(nome string, res *mcp.CallResult) (any, error) {
+	if res == nil {
+		return nil, &resultadoMCPIncerto{motivo: "resposta MCP vazia"}
+	}
+	if res.IsError {
+		return nil, fmt.Errorf("servidor MCP: %s", corta(res.Texto(), 400))
+	}
+	value, err := normalizarValorMCP(res.Valor())
+	if err != nil {
+		return nil, err
+	}
+	if nome == "gruvi.bff.building-operation.create-visit-controller-handle" {
+		m, ok := value.(map[string]any)
+		if !ok {
+			return nil, &resultadoMCPIncerto{motivo: "a resposta não contém a visita criada"}
+		}
+		visit, ok := m["visit"].(map[string]any)
+		if !ok {
+			return nil, &resultadoMCPIncerto{motivo: "a resposta não confirma a visita criada"}
+		}
+		status := strings.ToUpper(strings.TrimSpace(fmt.Sprint(visit["clearance_status"])))
+		if status != "AUTHORIZED" && status != "AUTHORIZED_FOR_TODAY" {
+			return nil, &resultadoMCPIncerto{motivo: fmt.Sprintf("a resposta não confirma uma liberação autorizada (clearance_status=%q)", status)}
+		}
+	}
+	return value, nil
+}
+
+func NormalizarResultadoMCP(nome string, res *mcp.CallResult) (any, error) {
+	return valorMCP(nome, res)
+}
+
+func normalizarValorMCP(value any) (any, error) {
+	if msg := falhaFuncionalMCP(value); msg != "" {
+		return nil, fmt.Errorf("%s", corta(msg, 400))
+	}
+	switch v := value.(type) {
+	case string:
+		t := strings.TrimSpace(v)
+		if strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[") {
+			var decoded any
+			if json.Unmarshal([]byte(t), &decoded) == nil {
+				return normalizarValorMCP(decoded)
+			}
+		}
+		return v, nil
+	case []any:
+		if content, ok, err := valorDoConteudoMCP(v); ok || err != nil {
+			return content, err
+		}
+		out := make([]any, 0, len(v))
+		for _, item := range v {
+			n, err := normalizarValorMCP(item)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, n)
+		}
+		return out, nil
+	case map[string]any:
+		if content, ok := v["structuredContent"]; ok {
+			return normalizarValorMCP(content)
+		}
+		if content, ok := v["content"]; ok {
+			switch c := content.(type) {
+			case []any:
+				if result, ok, err := valorDoConteudoMCP(c); ok || err != nil {
+					return result, err
+				}
+			case string:
+				return normalizarValorMCP(c)
+			}
+		}
+		if result, ok := v["result"]; ok {
+			return normalizarValorMCP(result)
+		}
+		if data, ok := v["data"]; ok {
+			return normalizarValorMCP(data)
+		}
+		return v, nil
+	default:
+		return value, nil
+	}
+}
+
+func valorDoConteudoMCP(content []any) (any, bool, error) {
+	var texts []string
+	for _, item := range content {
+		m, ok := item.(map[string]any)
+		if !ok || m["type"] != "text" {
+			continue
+		}
+		if text, ok := m["text"].(string); ok && strings.TrimSpace(text) != "" {
+			texts = append(texts, text)
+		}
+	}
+	if len(texts) == 0 {
+		return nil, false, nil
+	}
+	joined := strings.Join(texts, "\n")
+	var decoded any
+	if json.Unmarshal([]byte(joined), &decoded) == nil {
+		value, err := normalizarValorMCP(decoded)
+		return value, true, err
+	}
+	return joined, true, nil
+}
+
+func falhaFuncionalMCP(value any) string {
+	switch v := value.(type) {
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+			var decoded any
+			if json.Unmarshal([]byte(trimmed), &decoded) == nil {
+				return falhaFuncionalMCP(decoded)
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if msg := falhaFuncionalMCP(item); msg != "" {
+				return msg
+			}
+		}
+	case map[string]any:
+		if ok, exists := v["ok"].(bool); exists && !ok {
+			return "MCP informou ok=false: " + detalheErroMCP(v)
+		}
+		if ok, exists := v["success"].(bool); exists && !ok {
+			return "MCP informou success=false: " + detalheErroMCP(v)
+		}
+		if isError, exists := v["isError"].(bool); exists && isError {
+			return "result.isError=true: " + detalheErroMCP(v)
+		}
+		if status, exists := numeroMCP(v["statusCode"]); exists && status >= 400 {
+			return fmt.Sprintf("BFF HTTP %d: %s", int(status), detalheErroMCP(v))
+		}
+		if e, exists := v["error"]; exists && erroMCPPresente(e) {
+			return "erro do BFF: " + detalheErroMCP(e)
+		}
+		for _, key := range []string{"result", "data", "content", "structuredContent"} {
+			if child, exists := v[key]; exists {
+				if msg := falhaFuncionalMCP(child); msg != "" {
+					return msg
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func erroMCPPresente(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(v) != ""
+	case bool:
+		return v
+	case map[string]any:
+		return len(v) > 0
+	case []any:
+		return len(v) > 0
+	default:
+		return true
+	}
+}
+
+func detalheErroMCP(value any) string {
+	switch v := value.(type) {
+	case map[string]any:
+		for _, key := range []string{"message", "detail", "code", "reasons", "details", "error", "text"} {
+			if child, ok := v[key]; ok && erroMCPPresente(child) {
+				return detalheErroMCP(child)
+			}
+		}
+	case []any:
+		var parts []string
+		for _, child := range v {
+			if erroMCPPresente(child) {
+				parts = append(parts, detalheErroMCP(child))
+			}
+		}
+		return strings.Join(parts, "; ")
+	}
+	if value == nil {
+		return "erro funcional sem detalhe"
+	}
+	return fmt.Sprint(value)
+}
+
+func numeroMCP(value any) (float64, bool) {
+	switch n := value.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	default:
+		return 0, false
+	}
 }

@@ -98,7 +98,7 @@ func TestCandidatos(t *testing.T) {
 		t.Fatalf("casos de uso sem o observador; veio %v", casos)
 	}
 	sort.Strings(recursos)
-	if strings.Join(recursos, ",") != "faq.buscar,unidades.listar" {
+	if strings.Join(recursos, ",") != "faq.buscar" {
 		t.Fatalf("recursos de leitura declarados pelo concierge; veio %v", recursos)
 	}
 	if _, ok := ag.candidatoPorNome("reserva-area-comum"); !ok {

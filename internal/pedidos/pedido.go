@@ -88,12 +88,14 @@ type Pendencia struct {
 }
 
 type Confirmacao struct {
-	Texto    string    `json:"texto"`
-	Pedida   time.Time `json:"pedida"`
-	Vezes    int       `json:"vezes,omitempty"`    // quantas vezes foi pedida (lembretes contam)
-	Resposta string    `json:"resposta,omitempty"` // sim | nao
-	Por      string    `json:"por,omitempty"`      // morador | atendente
-	Quando   time.Time `json:"quando,omitempty"`
+	Texto    string          `json:"texto"`
+	Pedida   time.Time       `json:"pedida"`
+	Entregue *bool           `json:"entregue,omitempty"`
+	Valores  json.RawMessage `json:"valores,omitempty"`
+	Vezes    int             `json:"vezes,omitempty"`    // quantas vezes foi pedida (lembretes contam)
+	Resposta string          `json:"resposta,omitempty"` // sim | nao
+	Por      string          `json:"por,omitempty"`      // morador | atendente
+	Quando   time.Time       `json:"quando,omitempty"`
 }
 
 type Resultado struct {
@@ -115,8 +117,10 @@ type Evento struct {
 }
 
 type Opcao struct {
-	Valor  string `json:"valor"`
-	Rotulo string `json:"rotulo"`
+	Valor  string         `json:"valor"`
+	Rotulo string         `json:"rotulo"`
+	Dados  any            `json:"-"`
+	Campos map[string]any `json:"-"`
 }
 
 // Aberto diz se o pedido ainda está em andamento.

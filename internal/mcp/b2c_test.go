@@ -28,16 +28,22 @@ func TestB2CSMSRefreshEArquivo(t *testing.T) {
 				w.WriteHeader(400)
 				return
 			}
-			w.Write([]byte(`{"session_id":"sess-1"}`))
+			http.SetCookie(w, &http.Cookie{Name: "sessao", Value: "teste", Path: "/"})
+			w.Write([]byte(`{"data":{"session_id":"sess-1"}}`))
 		case "/auth/token":
 			switch r.Form.Get("grant_type") {
 			case "password":
 				password++
+				cookie, err := r.Cookie("sessao")
+				if err != nil || cookie.Value != "teste" {
+					w.WriteHeader(400)
+					return
+				}
 				if r.Form.Get("session_id") != "sess-1" || r.Form.Get("sms_code") != "999999" || r.Form.Get("client_id") != "app" || r.Form.Get("fingerprint") != "fp" {
 					w.WriteHeader(400)
 					return
 				}
-				w.Write([]byte(`{"access_token":"tok-1","refresh_token":"ref-1","expires_in":300}`))
+				w.Write([]byte(`{"data":{"access_token":"tok-1","refresh_token":"ref-1","expires_in":300}}`))
 			case "refresh_token":
 				refresh++
 				if r.Form.Get("refresh_token") != "ref-1" {
@@ -106,5 +112,31 @@ func TestFromEnvB2C(t *testing.T) {
 	c, modo, err = FromEnv(get)
 	if err != nil || modo != "file" || c.Token != Arquivo("/tmp/y.token") {
 		t.Fatalf("modo file: %v %q %v", err, modo, c.Token)
+	}
+}
+
+func TestB2CNaoUsaCacheSeArquivoFalhar(t *testing.T) {
+	sms := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/sms" {
+			sms++
+			_, _ = w.Write([]byte(`{"session_id":"s"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"access_token":"token","expires_in":300}`))
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	bloqueio := filepath.Join(dir, "arquivo")
+	if err := os.WriteFile(bloqueio, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	b := &B2C{BaseURL: srv.URL, Basic: "Basic abc", Mobile: "5511999", File: filepath.Join(bloqueio, "token")}
+	if _, err := b.Token(context.Background()); err == nil {
+		t.Fatal("esperava erro ao gravar token")
+	}
+	b.File = filepath.Join(dir, "token")
+	if _, err := b.Token(context.Background()); err != nil || sms != 2 {
+		t.Fatalf("nova tentativa não gravou token: %v, sms=%d", err, sms)
 	}
 }

@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -66,26 +65,6 @@ export function createPinnedTokenVerifier(pinnedToken: string, now: () => number
   };
 }
 
-// go-concierge: em vez de pinar um token na subida (o token B2C de morador dura 5 min), lê
-// o token corrente de um arquivo a cada verificação. Quem grava é o concierge (MCP_AUTH=b2c,
-// MCP_TOKEN_FILE), que manda o mesmo token como bearer: digest igual, exp conferido.
-export function createFileTokenVerifier(path: string, now: () => number = Date.now): TokenVerifier {
-  const current = (): string => {
-    try { return readFileSync(path, 'utf8').trim(); } catch { return ''; }
-  };
-  return {
-    async verify(token: string): Promise<AccessToken> {
-      const pinned = current();
-      if (!pinned) throw new Error('Unauthorized');
-      const pinnedDigest = createHash('sha256').update(pinned).digest();
-      const suppliedDigest = createHash('sha256').update(token).digest();
-      const expiresAt = jwtExpiration(pinned);
-      if (pinnedDigest.length !== suppliedDigest.length || !timingSafeEqual(pinnedDigest, suppliedDigest) || (expiresAt !== undefined && expiresAt <= now() / 1000)) throw new Error('Unauthorized');
-      return { token, clientId: 'poc-b2c-token-file', scopes: [], ...(expiresAt === undefined ? {} : { expiresAt }), claims: {} };
-    },
-  };
-}
-
 function isLoopback(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
@@ -107,17 +86,15 @@ export function fastMcpConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Fast
   const requestBearer = authMode === 'request_bearer';
   const legacyConfig = configFromEnv({ ...env, UPSTREAM_AUTH_MODE: requestBearer ? 'bearer' : authMode, ...(requestBearer ? { UPSTREAM_BEARER_TOKEN: undefined } : {}) });
   if (!requestBearer) return { ...legacyConfig, upstreamAuthMode: authMode as FastMcpAuthMode, host: env.FASTMCP_HOST ?? env.MCP_HOST ?? '127.0.0.1', port: Number(env.FASTMCP_PORT ?? 3335) };
-  const tokenFile = env.B2C_TOKEN_FILE?.trim() ?? '';
   const token = env.B2C_CLIENT_KEYCLOAK_TOKEN?.trim() ?? '';
-  if (!token && !tokenFile) throw new Error('Configure B2C_CLIENT_KEYCLOAK_TOKEN (ou B2C_TOKEN_FILE) para request_bearer');
-  const lerArquivo = (): string => { try { return readFileSync(tokenFile, 'utf8').trim(); } catch { return ''; } };
+  if (!token) throw new Error('Configure B2C_CLIENT_KEYCLOAK_TOKEN para request_bearer');
   return {
     ...legacyConfig,
     upstreamBearerToken: undefined,
     getUpstreamBearerToken: undefined,
     upstreamAuthMode: 'request_bearer',
-    requestTokenVerifier: tokenFile ? createFileTokenVerifier(tokenFile) : createPinnedTokenVerifier(token),
-    getCatalogBearerToken: tokenFile ? lerArquivo : () => token,
+    requestTokenVerifier: createPinnedTokenVerifier(token),
+    getCatalogBearerToken: () => token,
     host: env.FASTMCP_HOST ?? env.MCP_HOST ?? '127.0.0.1',
     port: Number(env.FASTMCP_PORT ?? 3335),
   };

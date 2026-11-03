@@ -2,8 +2,16 @@ package harness
 
 import (
 	"bufio"
+	"context"
+	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino/components/model"
+
+	"go-concierge/internal/responses"
 )
 
 // Provedor de modelo, escolhido pelas mesmas variáveis do sl-concierge:
@@ -27,6 +35,8 @@ const (
 	BaseURLOpenRouter = "https://openrouter.ai/api/v1"
 	ModeloGemini      = "gemini-2.5-flash-lite"
 	ModeloOpenRouter  = "openai/gpt-4o-mini"
+	BaseURLLuna       = "https://kong-ai-gtw.idp.nexus.superlogica.net/v1"
+	ModeloLuna        = "gpt-6-luna"
 )
 
 // ResolverProvedor lê o ambiente (env) e decide o provedor.
@@ -56,9 +66,28 @@ func ResolverProvedor(env func(string) string) Provedor {
 			padrao = ModeloOpenRouter
 		}
 		return Provedor{Nome: "openrouter", BaseURL: BaseURLOpenRouter, Chave: router, Modelo: padrao}
+	case "luna":
+		base := strings.TrimSpace(env("LLM_LUNA_OPENAI_URL"))
+		if base == "" {
+			base = BaseURLLuna
+		}
+		if padrao == "" {
+			padrao = strings.TrimSpace(env("LLM_LUNA_MODEL"))
+		}
+		if padrao == "" {
+			padrao = ModeloLuna
+		}
+		return Provedor{Nome: "luna", BaseURL: base, Chave: strings.TrimSpace(env("LLM_LUNA_GATEWAY_TOKEN")), Modelo: padrao}
 	default:
 		return Provedor{Nome: "mock", Modelo: "mock"}
 	}
+}
+
+func novoModelo(ctx context.Context, prov Provedor, chave, base, nome string, timeout time.Duration) (model.ToolCallingChatModel, error) {
+	if prov.Nome == "luna" {
+		return &responses.Model{URL: base, Token: chave, Name: nome, Client: &http.Client{Timeout: timeout}}, nil
+	}
+	return openai.NewChatModel(ctx, &openai.ChatModelConfig{APIKey: chave, BaseURL: base, Model: nome, Timeout: timeout})
 }
 
 // CarregarDotEnv lê arquivos NOME=valor e põe no ambiente o que ainda não existe
