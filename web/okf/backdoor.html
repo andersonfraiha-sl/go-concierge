@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concierge · Backdoor</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=12">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="admin">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="concierge-bell"></i></span>
+      <span class="brand-name">Superlógica</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-product">Concierge <em>Backdoor</em></span>
+    </div>
+    <nav class="app-switch" aria-label="Área">
+      <a href="/console"><i data-lucide="messages-square" class="i-sm"></i>Atendente</a>
+      <a href="/admin"><i data-lucide="settings-2" class="i-sm"></i>Admin</a>
+      <a href="/backdoor" class="is-active"><i data-lucide="door-open" class="i-sm"></i>Backdoor</a>
+    </nav>
+    <div class="env">
+      <span class="chip is-dev" id="chipNexus" title="de onde vêm os recursos do Nexus"><span class="led"></span>Nexus <b id="chipNexusOrigem">…</b></span>
+      <span class="chip" id="chipAccount" title="account (condomínio)"><i data-lucide="building-2" class="i-sm"></i><b id="chipAccountNome">…</b></span>
+      <button class="btn btn-ghost btn-sm" id="btnRecarregar" title="Reler o disco"><i data-lucide="refresh-cw" class="i-sm"></i>Reler</button>
+    </div>
+  </header>
+
+  <div class="admin-layout">
+    <nav class="admin-nav" aria-label="Agentes e recursos">
+      <div class="nav-actions">
+        <button class="btn btn-primary" id="btnNovo"><i data-lucide="plus"></i><span>Novo caso de uso</span></button>
+        <button class="btn btn-ghost" id="btnImportar" title="Importar o zip de uma pasta"><i data-lucide="file-archive"></i></button>
+      </div>
+      <a href="#/" class="nav-home" id="navHome" data-secao="visao"><i data-lucide="layout-dashboard"></i><span>Visão geral</span><em>o concierge e os casos de uso</em></a>
+      <a href="#/agentes" class="nav-home" data-secao="agentes"><i data-lucide="folder-tree"></i><span>Casos de uso</span><em>a árvore: o concierge e os casos de uso</em></a>
+      <a href="#/recursos" class="nav-home" data-secao="recursos"><i data-lucide="plug"></i><span>Recursos do Nexus</span><em id="nexusResumo">o que a account oferece</em></a>
+      <a href="/backdoor/orquestracao" class="nav-home"><i data-lucide="route"></i><span>Orquestração</span><em>router, planning ou react</em></a>
+      <span class="nav-label">Condomínios</span>
+      <a href="/backdoor/administradoras" class="nav-home"><i data-lucide="building"></i><span>Administradoras</span><em>e os condomínios de cada uma</em></a>
+      <a href="/backdoor/payloads" class="nav-home"><i data-lucide="sliders-horizontal"></i><span>Condomínios</span><em>definições dos recursos do Nexus</em></a>
+    </nav>
+
+    <main class="admin-main" id="main" tabindex="-1">
+      <!-- agentes: a árvore -->
+      <section id="secAgentes" hidden>
+        <div class="page-head">
+          <div><h1>Casos de uso</h1><p>A árvore de pastas: o <b>concierge</b> (orquestrador, com persona) e, dentro dele, cada <b>caso de uso</b> como subagente. Clique para abrir a ficha; arraste para mover (Shift = clonar). As rotas do pai são sincronizadas ao mover.</p></div>
+          <div class="page-actions"><button class="btn btn-primary" id="btnNovo3"><i data-lucide="plus"></i><span>Novo caso de uso</span></button></div>
+        </div>
+        <div class="card">
+          <div id="raizDrop" class="raiz" title="Solte um agente aqui para levá-lo ao nível raiz">
+            <i data-lucide="folder-tree" class="i-sm"></i><span>agentes/</span><em>arraste para mover · Shift = clonar</em>
+          </div>
+          <div id="arvore" class="arvore arvore-central"></div>
+        </div>
+      </section>
+
+      <!-- recursos do Nexus: o catálogo da account -->
+      <section id="secRecursos" hidden>
+        <div class="page-head">
+          <div><h1>Recursos do Nexus</h1><p>O que a account oferece em tempo de execução: APIs, conteúdos e memórias, cada um com a assinatura do seu MCP. Um agente <b>declara</b> o que usa em <code>agent.yaml</code> (botão "Declarar recurso" na ficha, ou pelo botão direito no editor); recursos de <b>escrita</b> só entram por um passo do <code>caso.yaml</code>. O payload de cada recurso por condomínio fica em <a href="/backdoor/payloads">Payload por condomínio</a>.</p></div>
+          <div class="page-actions"><label class="form-row" style="min-width:240px"><span class="muted" style="font-size:12px">Filtrar</span><input class="field-input" id="filtroRecursos" placeholder="nome, descrição, tipo…" autocomplete="off"></label><button class="btn btn-primary" id="btnNovoRecurso" style="align-self:end"><i data-lucide="plus"></i><span>Novo recurso</span></button></div>
+        </div>
+        <p class="notice info" id="nexusDica"><i data-lucide="info"></i><span></span></p>
+        <div class="card"><div id="recursosNexus" class="catalogo catalogo-central"></div></div>
+      </section>
+
+      <!-- visão geral -->
+      <section id="visao">
+        <div class="page-head">
+          <div>
+            <h1>Backdoor: o concierge e seus casos de uso</h1>
+            <p>Área da Superlógica. Há <b>um só concierge</b> (o orquestrador); cada <b>caso de uso</b> é um subagente dele: uma jornada completa (liberar visitante, reservar área…) que define o próprio agente com workflow, skills, assets, conhecimento e subagentes. Tools, MCPs e recursos do Nexus também se definem aqui. O que cada condomínio pode usar se define no <a href="/admin">Admin</a>.</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnImportar2"><i data-lucide="file-archive"></i><span>Importar zip</span></button>
+            <button class="btn btn-primary" id="btnNovo2"><i data-lucide="plus"></i><span>Novo caso de uso</span></button>
+          </div>
+        </div>
+        <div class="kpis" id="kpis"></div>
+        <div class="layers" id="layers"></div>
+        <div class="card">
+          <h2><i data-lucide="list-checks"></i>O concierge e os casos de uso</h2>
+          <div class="uc-grid" id="gradeAgentes"></div>
+        </div>
+      </section>
+
+      <!-- ficha do agente -->
+      <section id="ficha" hidden>
+        <div class="page-head">
+          <div class="page-title">
+            <span class="agent-icon" id="fichaIcone"><i data-lucide="bot"></i></span>
+            <div>
+              <div class="crumbs" id="trilha"></div>
+              <h1 id="fichaNome"></h1>
+              <p id="fichaDesc"></p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <span class="muted" id="salvarStatus"></span>
+            <button class="btn btn-primary" id="btnSalvarAgente" title="Salva identidade, persona e o arquivo em edição (Ctrl+S)"><i data-lucide="save"></i><span>Salvar agente</span></button>
+            <button class="btn btn-ghost" id="btnExportar"><i data-lucide="download"></i><span>Exportar zip</span></button>
+            <button class="btn btn-danger" id="btnExcluir"><i data-lucide="trash-2"></i><span>Excluir</span></button>
+          </div>
+        </div>
+
+        <div id="problemas" class="problemas"></div>
+
+        <div class="editor-layout">
+          <div class="side-stack">
+            <div class="card">
+              <h2><i data-lucide="id-card"></i>Identidade <small class="muted mono">agent.yaml</small></h2>
+              <form id="formConfig" class="form-grid">
+                <div class="form-row"><label>Nome</label><input class="field-input" name="nome" spellcheck="false"></div>
+                <div class="form-row"><label>Tipo</label>
+                  <select class="field-select" name="tipo">
+                    <option value="">Inferido (routers/ + subagentes = orquestrador)</option>
+                    <option value="orquestrador">Orquestrador — delega sempre</option>
+                    <option value="operador">Operador — executa</option>
+                  </select>
+                </div>
+                <div class="form-row span-2"><label>Descrição <small>é o critério que o roteador do pai lê; escreva como classificador</small></label><textarea class="field-area field-short" name="descricao" rows="2"></textarea></div>
+                <div class="form-row"><label>Modelo <small>vazio = padrão do harness</small></label><input class="field-input" name="modelo" spellcheck="false" placeholder="gemini-2.5-flash"></div>
+              </form>
+            </div>
+
+            <div class="card" id="cardPersona">
+              <h2><i data-lucide="smile"></i>Persona <small class="muted mono">persona.md</small><small class="muted">a voz da resposta ao morador; só o concierge tem</small><span id="personaOrigem" class="tag tag-kind" style="margin-left:auto"></span></h2>
+              <div id="personaAviso"></div>
+              <textarea id="personaTexto" class="field-area" rows="7" spellcheck="false" placeholder="Quem fala com o morador: tom, traços, frases fixas."></textarea>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="list-checks"></i>Workflow <small class="muted mono">workflows/principal.md</small><small class="muted">a ordem do acontecimento</small></h2>
+              <div id="workflow"></div>
+            </div>
+
+            <div class="card">
+              <h2><i data-lucide="plug"></i>Recursos do Nexus que usa <small class="muted" id="recursosResumo"></small><button class="btn btn-ghost btn-sm" id="btnDeclararRecurso" style="margin-left:auto"><i data-lucide="plus" class="i-sm"></i>Declarar recurso</button></h2>
+              <div id="recursosAgente"></div>
+            </div>
+          </div>
+
+          <div class="card editor-card sticky">
+            <div class="editor-bar">
+              <div class="seg">
+                <button class="is-active" data-aba="arquivos">Arquivos</button>
+                <button data-aba="projecao">Projeção</button>
+                <button data-aba="roteador">Roteador</button>
+              </div>
+              <span class="file" id="arquivoAtual">nenhum arquivo</span>
+              <button class="btn btn-ghost btn-sm" id="btnNovoArquivo" title="Novo arquivo numa caixinha"><i data-lucide="file-plus-2" class="i-sm"></i>Arquivo</button>
+              <button class="btn btn-ghost btn-sm" id="btnEditarArquivo" title="Editar o texto" disabled><i data-lucide="pencil" class="i-sm"></i>Editar</button>
+              <button class="btn btn-ghost btn-sm" id="btnCancelarEdicao" title="Voltar à leitura, descartando o que não foi salvo" hidden><i data-lucide="x" class="i-sm"></i>Cancelar</button>
+              <button class="vote no" id="btnExcluirArquivo" title="Excluir arquivo" disabled><i data-lucide="trash-2"></i></button>
+            </div>
+            <div id="abaArquivos" class="aba">
+              <div id="arvoreArquivos" class="file-tree"></div>
+              <div id="visor" class="visor"><div class="empty-state"><i data-lucide="file-text"></i>Escolha um arquivo acima: o que é do agente (regras, workflow, conhecimento OKF, assets, evals) e o que ele herda da família.</div></div>
+              <textarea id="editor" class="code" spellcheck="false" hidden></textarea>
+            </div>
+            <div id="abaProjecao" class="aba" hidden>
+              <p class="notice info"><i data-lucide="info"></i>O system prompt compilado da pasta: persona, políticas, workflow ou caso, contrato, índice de conhecimento e assets (o que o agente vê e lê com ler_dado), recursos declarados. É o que o harness Eino recebe.</p>
+              <pre id="projecao" class="pre"></pre>
+            </div>
+            <div id="abaRoteador" class="aba" hidden>
+              <p class="notice info"><i data-lucide="info"></i>Só o que decide a rota (<code>routers/*.md</code>): a passada barata do orquestrador.</p>
+              <pre id="roteador" class="pre"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- paleta do botão direito no editor: recursos do Nexus com filtro, inseridos na sintaxe do arquivo -->
+  <div id="paleta" class="paleta" hidden>
+    <div class="paleta-cab"><i data-lucide="plug" class="i-sm"></i><input id="paletaFiltro" class="field-input" placeholder="filtrar recursos do Nexus…" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
+    <div id="paletaLista" class="paleta-lista"></div>
+    <div class="paleta-pe" id="paletaDica"></div>
+  </div>
+
+  <!-- drawer: novo agente -->
+  <div id="drawerNovo" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerNovo"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="bot"></i></span><h2 id="drawerNovoTitulo">Novo agente</h2><button class="vote" data-fecha="drawerNovo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formNovo" class="body">
+        <div class="form-row"><label>Onde</label><select class="field-select" name="pai"><option value="">raiz (agentes/)</option></select></div>
+        <div class="form-row"><label>Nome <small>vira o nome da pasta: minúsculas, dígitos e hífen</small></label><input class="field-input mono" name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false" placeholder="reserva-area-comum"></div>
+        <div class="form-row"><label>Tipo</label>
+          <div class="modes modes-2">
+            <label class="mode is-on"><input type="radio" name="tipo" value="operador" checked><span class="mode-icon"><i data-lucide="bot"></i></span><span class="mode-body"><strong>Operador</strong><span>executa a tarefa; subagentes são subtasks</span></span></label>
+            <label class="mode"><input type="radio" name="tipo" value="orquestrador"><span class="mode-icon"><i data-lucide="git-branch"></i></span><span class="mode-body"><strong>Orquestrador</strong><span>nunca executa: roteia pelos routers/ e delega</span></span></label>
+          </div>
+        </div>
+        <div class="form-row"><label>Descrição <small>uma linha que funciona como classificador para o roteador do pai</small></label><textarea class="field-area field-short" name="descricao" rows="2" required placeholder="reserva uma área comum (churrasqueira, salão, quadra) para uma data, com confirmação e protocolo"></textarea></div>
+        <div class="form-row"><label>Modelo <small>vazio = padrão</small></label><input class="field-input" name="modelo" spellcheck="false"></div>
+        <div class="form-row"><label>O que a pasta nasce com</label>
+          <div class="checks" id="novoRaiz">
+            <label id="rotuloPersona" title="traços de personalidade e tom de quem fala com o morador; só o orquestrador de primeiro nível tem"><input type="checkbox" name="persona"><i data-lucide="smile"></i>persona.md</label>
+            <label title="caso de uso determinístico: passos, confirmação e escrita"><input type="checkbox" name="caso"><i data-lucide="list-checks"></i>caso.yaml</label>
+          </div>
+        </div>
+        <div class="form-row"><label>Caixinhas iniciais <small>cada uma nasce com um arquivo-modelo</small></label><div id="novoCaixinhas" class="checks"></div></div>
+        <div class="form-row"><label>Recursos do Nexus que declara <small>só leitura; escrita entra pelo caso.yaml</small></label><select class="field-select" name="recursos" multiple size="5"></select></div>
+        <div class="form-actions"><span class="muted" id="novoStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="folder-plus"></i><span>Criar pasta</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <!-- drawer: importar -->
+  <div id="drawerImportar" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerImportar"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="file-archive"></i></span><h2>Importar agente</h2><button class="vote" data-fecha="drawerImportar" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formImportar" class="body">
+        <div class="form-row"><label>Onde</label><select class="field-select" name="pai"><option value="">raiz (agentes/)</option></select></div>
+        <div class="form-row"><label>Nome da pasta</label><input class="field-input mono" name="nome" required pattern="[a-z0-9][a-z0-9_-]*" spellcheck="false"></div>
+        <div class="form-row"><label>Zip da pasta</label><input class="field-input" type="file" name="zip" accept=".zip" required></div>
+        <p class="notice warn"><i data-lucide="triangle-alert"></i>O zip precisa ter <code>agent.yaml</code> ou <code>workflows/principal.md</code> na raiz (ou numa única pasta interna). Se o nome já existir, o agente é substituído.</p>
+        <div class="form-actions"><span class="muted" id="importarStatus"></span><button type="submit" class="btn btn-primary"><i data-lucide="upload"></i><span>Importar</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <!-- drawer: recurso do Nexus (edição do instantâneo) -->
+  <div id="drawerRecurso" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerRecurso"></div>
+    <aside class="drawer drawer-larga">
+      <header><span class="res-icon"><i data-lucide="plug"></i></span><h2 id="drawerRecursoTitulo">Recurso</h2><button class="vote" data-fecha="drawerRecurso" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formRecurso" class="body">
+        <p class="notice info" id="recursoAviso"><i data-lucide="info"></i><span>Edita o instantâneo <code id="recursoArquivo"></code>. Descrição e saídas bem escritas são o que a indexação semântica e o agente usam para escolher o recurso.</span></p>
+        <div class="form-grid">
+          <div class="form-row"><label>Nome comercial <small>como aparece para humanos</small></label><input class="field-input" name="titulo" required placeholder="Minhas encomendas"></div>
+          <div class="form-row"><label>Código <small>grupo.acao, minúsculas; é o que o agente chama</small></label><input class="field-input mono" name="name" required spellcheck="false" placeholder="encomendas.listar"></div>
+          <div class="form-row"><label>Tipo (kind)</label><select class="field-select" name="kind"><option value="api">api — leitura/escrita</option><option value="database">database</option><option value="knowledge">knowledge — conhecimento</option><option value="memory">memory — memória</option><option value="action">action — ação</option><option value="activity">activity — atividade do workspace (ação)</option><option value="agent">agent — agente executor</option><option value="form">form — procedimento externo</option></select></div>
+          <div class="form-row"><label>Visibilidade</label><select class="field-select" name="visibility"><option value="private">private — só morador identificado</option><option value="public">public — qualquer contato</option></select></div>
+          <div class="form-row"><label>Efeito</label><label class="switch" style="margin-top:8px"><input type="checkbox" name="write"><i></i>write: grava ou executa algo (só por passo do caso.yaml, com confirmação)</label></div>
+          <div class="form-row span-2"><label>Descrição <small>quando usar, na linguagem do morador; com exemplos</small></label><textarea class="field-area" name="description" rows="3" required placeholder="Encomendas da unidade que chegaram na portaria. Use quando o morador pergunta se chegou pacote, entrega ou correspondência. Ex.: tenho alguma encomenda?"></textarea></div>
+        </div>
+
+        <h3 class="sec-titulo"><i data-lucide="link" class="i-sm"></i>Conexão <small class="muted">como o Nexus chama o sistema; {{param}} vira o valor do parâmetro</small></h3>
+        <div class="form-grid">
+          <div class="form-row"><label>Método</label><select class="field-select" name="metodo"><option value="">—</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option value="MCP">MCP (tool)</option></select></div>
+          <div class="form-row"><label>URL</label><input class="field-input mono" name="url" spellcheck="false" placeholder="https://bff.gruvi.com.br/v2/.../{{unidade_id}}/packages"></div>
+          <div class="form-row span-2"><label>Headers</label><table class="res-table larga tabela-edit" id="tabHeaders"><thead><tr><th>Header</th><th>Valor</th><th></th></tr></thead><tbody></tbody></table><button type="button" class="btn btn-ghost btn-sm" data-add="headers"><i data-lucide="plus" class="i-sm"></i>Header</button></div>
+          <div class="form-row span-2"><label>Corpo <small>template JSON para POST/PUT</small></label><textarea class="field-area code" name="corpo" rows="3" spellcheck="false" placeholder='{"unitId": "{{unidade_id}}", "status": "{{status}}"}'></textarea></div>
+        </div>
+
+        <h3 class="sec-titulo"><i data-lucide="log-in" class="i-sm"></i>Parâmetros de entrada</h3>
+        <table class="res-table larga tabela-edit" id="tabParams"><thead><tr><th>Nome</th><th>Tipo</th><th>Obrig.</th><th>Descrição</th><th></th></tr></thead><tbody></tbody></table>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="params"><i data-lucide="plus" class="i-sm"></i>Parâmetro</button>
+
+        <h3 class="sec-titulo"><i data-lucide="log-out" class="i-sm"></i>Saída</h3>
+        <div class="form-row"><label>Resumo do retorno <small>uma linha, para o prompt</small></label><input class="field-input mono" name="output" spellcheck="false" placeholder="lista de {id, label, status}"></div>
+        <table class="res-table larga tabela-edit" id="tabSaida" style="margin-top:8px"><thead><tr><th>Campo</th><th>Caminho no JSON</th><th>Tipo</th><th>Descrição</th><th></th></tr></thead><tbody></tbody></table>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="saida"><i data-lucide="plus" class="i-sm"></i>Campo de saída</button>
+
+        <h3 class="sec-titulo"><i data-lucide="flask-conical" class="i-sm"></i>Amostra de retorno <small class="muted">o que o mock devolve quando o Nexus não está no ar; JSON</small></h3>
+        <textarea class="field-area code" name="amostra" rows="4" spellcheck="false" placeholder='[{"id": "churrasqueira", "nome": "Churrasqueira"}]'></textarea>
+        <div class="muted" style="font-size:12px;margin-top:4px">Vazio: leitura devolve lista vazia; escrita devolve um protocolo gerado.</div>
+
+        <div class="form-actions"><button type="button" class="btn btn-danger" id="btnRemoverRecurso" hidden><i data-lucide="trash-2"></i><span>Remover</span></button><span class="muted" id="recursoStatus" style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Salvar recurso</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <!-- drawer: novo arquivo -->
+  <div id="drawerArquivo" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerArquivo"></div>
+    <aside class="drawer">
+      <header><span class="res-icon"><i data-lucide="file-plus-2"></i></span><h2>Novo arquivo</h2><button class="vote" data-fecha="drawerArquivo" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <form id="formArquivo" class="body">
+        <div class="form-row"><label>Caixinha</label><select class="field-select" name="caixinha"></select></div>
+        <div class="form-row"><label>Nome <small>com extensão; subpastas valem (questions/x.md)</small></label><input class="field-input mono" name="nome" required spellcheck="false" placeholder="politicas.md"></div>
+        <p class="notice info" id="dicaCaixinha"></p>
+        <div class="form-actions"><button type="submit" class="btn btn-primary"><i data-lucide="sparkles"></i><span>Criar com modelo</span></button></div>
+      </form>
+    </aside>
+  </div>
+
+  <script src="/backdoor.js?v=11"></script>
+</body>
+</html>

@@ -185,6 +185,7 @@ func main() {
 	s.rotasStudio(mux)
 	s.rotasAtende(mux)
 	s.rotasAdmin(mux)
+	s.rotasLegado(mux)
 	if mcpCli != nil {
 		// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o
 		// repassa, para testar de fora (Inspector, curl) pela porta do concierge. O
@@ -246,6 +247,7 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/agentes", s.arvore)
 	mux.HandleFunc("GET /api/agente", s.agente)
+	mux.HandleFunc("PUT /api/agente/config", s.config)
 	mux.HandleFunc("POST /api/agentes/importar", s.importar)
 	mux.HandleFunc("GET /api/agentes/exportar", s.exportar)
 	mux.HandleFunc("GET /api/arquivo", s.lerArquivo)
@@ -342,6 +344,22 @@ func paiRel(rel string) string {
 		return ""
 	}
 	return rel[:i]
+}
+
+func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Agente string         `json:"agente"`
+		Campos map[string]any `json:"campos"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	if err := s.cat.SalvarConfig(corpo.Agente, corpo.Campos); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"salvo": corpo.Agente})
 }
 
 func (s *servidor) importar(w http.ResponseWriter, r *http.Request) {

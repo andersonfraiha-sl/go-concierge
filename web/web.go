@@ -9,7 +9,8 @@ import (
 //go:embed okf/*
 var okfFS embed.FS
 
-// OKF é o Console e as duas páginas antigas que o Studio ainda não cobre (servidos na raiz do okf-admin).
+// OKF é o Console e as telas antigas que o Studio ainda não cobre (Admin e Backdoor),
+// servidos na raiz do okf-admin.
 var OKF fs.FS = must(fs.Sub(okfFS, "okf"))
 
 //go:embed all:studio/dist
