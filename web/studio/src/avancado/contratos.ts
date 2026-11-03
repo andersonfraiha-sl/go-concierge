@@ -131,6 +131,8 @@ export const LIMITES_DE_ORQUESTRACAO = [
     max: 1,
     passo: 0.05,
     texto: 'entre 0,5 e 1',
+    ajuda:
+      'Abaixo disso, o item vira pergunta de confirmação ao morador antes de executar (0,5 a 1).',
   },
   {
     campo: 'max_itens',
@@ -139,6 +141,7 @@ export const LIMITES_DE_ORQUESTRACAO = [
     max: 10,
     passo: 1,
     texto: 'entre 1 e 10',
+    ajuda: 'Quantos pedidos o plano aceita de uma vez (1 a 10).',
   },
   {
     campo: 'max_iteracoes',
@@ -147,6 +150,7 @@ export const LIMITES_DE_ORQUESTRACAO = [
     max: 15,
     passo: 1,
     texto: 'entre 1 e 15',
+    ajuda: 'Passos de pensar e agir por mensagem; no limite, junta o que já tem (1 a 15).',
   },
 ] as const satisfies ReadonlyArray<{
   campo: keyof Orquestracao;
@@ -155,6 +159,7 @@ export const LIMITES_DE_ORQUESTRACAO = [
   max: number;
   passo: number;
   texto: string;
+  ajuda: string;
 }>;
 
 export type LimiteFurado = {

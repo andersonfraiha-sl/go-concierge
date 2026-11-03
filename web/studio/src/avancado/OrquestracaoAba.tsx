@@ -27,20 +27,23 @@ import {
   validarOrquestracao,
 } from './contratos';
 
-const MODOS: Record<ModoDeOrquestracao, { nome: string; descricao: string }> = {
+const MODOS: Record<ModoDeOrquestracao, { nome: string; descricao: string; quando: string }> = {
   router: {
     nome: 'Router',
     descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.',
+    quando: 'Pedidos de um item só.',
   },
   planning: {
     nome: 'Planning',
     descricao:
       'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
+    quando: 'Mensagens com vários pedidos; menos idas e vindas.',
   },
   react: {
     nome: 'ReAct',
     descricao:
       'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
+    quando: 'Pedidos abertos, em que o próximo passo depende do resultado do anterior.',
   },
 };
 
@@ -158,6 +161,9 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
                     <Typography variant="caption" color="text.secondary">
                       {MODOS[modo].descricao}
                     </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Quando: {MODOS[modo].quando}
+                    </Typography>
                   </Box>
                 }
               />
@@ -166,7 +172,7 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
         )}
       />
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        {LIMITES_DE_ORQUESTRACAO.map(({ campo, rotulo, min, max, passo }) => (
+        {LIMITES_DE_ORQUESTRACAO.map(({ campo, rotulo, min, max, passo, ajuda }) => (
           <Controller
             key={campo}
             control={control}
@@ -176,6 +182,7 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
                 type="number"
                 size="small"
                 label={rotulo}
+                helperText={ajuda}
                 value={field.value}
                 onChange={field.onChange}
                 slotProps={{ htmlInput: { min, max, step: passo, readOnly: !editar } }}
