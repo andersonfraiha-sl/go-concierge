@@ -12,10 +12,15 @@ import (
 	"go-concierge/internal/banco/ent/migrate"
 
 	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/papel"
+	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/usuario"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
@@ -32,14 +37,24 @@ type Client struct {
 	Schema *migrate.Schema
 	// Administradora is the client for interacting with the Administradora builders.
 	Administradora *AdministradoraClient
+	// Atribuicao is the client for interacting with the Atribuicao builders.
+	Atribuicao *AtribuicaoClient
+	// Concessao is the client for interacting with the Concessao builders.
+	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
 	Condominio *CondominioClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
 	// Orientacao is the client for interacting with the Orientacao builders.
 	Orientacao *OrientacaoClient
+	// Papel is the client for interacting with the Papel builders.
+	Papel *PapelClient
+	// PapelPermissao is the client for interacting with the PapelPermissao builders.
+	PapelPermissao *PapelPermissaoClient
 	// Payload is the client for interacting with the Payload builders.
 	Payload *PayloadClient
+	// Usuario is the client for interacting with the Usuario builders.
+	Usuario *UsuarioClient
 }
 
 // NewClient creates a new client configured with the given options.
@@ -52,10 +67,15 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Administradora = NewAdministradoraClient(c.config)
+	c.Atribuicao = NewAtribuicaoClient(c.config)
+	c.Concessao = NewConcessaoClient(c.config)
 	c.Condominio = NewCondominioClient(c.config)
 	c.Habilitacao = NewHabilitacaoClient(c.config)
 	c.Orientacao = NewOrientacaoClient(c.config)
+	c.Papel = NewPapelClient(c.config)
+	c.PapelPermissao = NewPapelPermissaoClient(c.config)
 	c.Payload = NewPayloadClient(c.config)
+	c.Usuario = NewUsuarioClient(c.config)
 }
 
 type (
@@ -149,10 +169,15 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ctx:            ctx,
 		config:         cfg,
 		Administradora: NewAdministradoraClient(cfg),
+		Atribuicao:     NewAtribuicaoClient(cfg),
+		Concessao:      NewConcessaoClient(cfg),
 		Condominio:     NewCondominioClient(cfg),
 		Habilitacao:    NewHabilitacaoClient(cfg),
 		Orientacao:     NewOrientacaoClient(cfg),
+		Papel:          NewPapelClient(cfg),
+		PapelPermissao: NewPapelPermissaoClient(cfg),
 		Payload:        NewPayloadClient(cfg),
+		Usuario:        NewUsuarioClient(cfg),
 	}, nil
 }
 
@@ -173,10 +198,15 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ctx:            ctx,
 		config:         cfg,
 		Administradora: NewAdministradoraClient(cfg),
+		Atribuicao:     NewAtribuicaoClient(cfg),
+		Concessao:      NewConcessaoClient(cfg),
 		Condominio:     NewCondominioClient(cfg),
 		Habilitacao:    NewHabilitacaoClient(cfg),
 		Orientacao:     NewOrientacaoClient(cfg),
+		Papel:          NewPapelClient(cfg),
+		PapelPermissao: NewPapelPermissaoClient(cfg),
 		Payload:        NewPayloadClient(cfg),
+		Usuario:        NewUsuarioClient(cfg),
 	}, nil
 }
 
@@ -205,21 +235,23 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
-	c.Administradora.Use(hooks...)
-	c.Condominio.Use(hooks...)
-	c.Habilitacao.Use(hooks...)
-	c.Orientacao.Use(hooks...)
-	c.Payload.Use(hooks...)
+	for _, n := range []interface{ Use(...Hook) }{
+		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
+		c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Usuario,
+	} {
+		n.Use(hooks...)
+	}
 }
 
 // Intercept adds the query interceptors to all the entity clients.
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
-	c.Administradora.Intercept(interceptors...)
-	c.Condominio.Intercept(interceptors...)
-	c.Habilitacao.Intercept(interceptors...)
-	c.Orientacao.Intercept(interceptors...)
-	c.Payload.Intercept(interceptors...)
+	for _, n := range []interface{ Intercept(...Interceptor) }{
+		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
+		c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Usuario,
+	} {
+		n.Intercept(interceptors...)
+	}
 }
 
 // Mutate implements the ent.Mutator interface.
@@ -227,14 +259,24 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *AdministradoraMutation:
 		return c.Administradora.mutate(ctx, m)
+	case *AtribuicaoMutation:
+		return c.Atribuicao.mutate(ctx, m)
+	case *ConcessaoMutation:
+		return c.Concessao.mutate(ctx, m)
 	case *CondominioMutation:
 		return c.Condominio.mutate(ctx, m)
 	case *HabilitacaoMutation:
 		return c.Habilitacao.mutate(ctx, m)
 	case *OrientacaoMutation:
 		return c.Orientacao.mutate(ctx, m)
+	case *PapelMutation:
+		return c.Papel.mutate(ctx, m)
+	case *PapelPermissaoMutation:
+		return c.PapelPermissao.mutate(ctx, m)
 	case *PayloadMutation:
 		return c.Payload.mutate(ctx, m)
+	case *UsuarioMutation:
+		return c.Usuario.mutate(ctx, m)
 	default:
 		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
 	}
@@ -386,6 +428,352 @@ func (c *AdministradoraClient) mutate(ctx context.Context, m *AdministradoraMuta
 		return (&AdministradoraDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Administradora mutation op: %q", m.Op())
+	}
+}
+
+// AtribuicaoClient is a client for the Atribuicao schema.
+type AtribuicaoClient struct {
+	config
+}
+
+// NewAtribuicaoClient returns a client for the Atribuicao from the given config.
+func NewAtribuicaoClient(c config) *AtribuicaoClient {
+	return &AtribuicaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `atribuicao.Hooks(f(g(h())))`.
+func (c *AtribuicaoClient) Use(hooks ...Hook) {
+	c.hooks.Atribuicao = append(c.hooks.Atribuicao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `atribuicao.Intercept(f(g(h())))`.
+func (c *AtribuicaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Atribuicao = append(c.inters.Atribuicao, interceptors...)
+}
+
+// Create returns a builder for creating a Atribuicao entity.
+func (c *AtribuicaoClient) Create() *AtribuicaoCreate {
+	mutation := newAtribuicaoMutation(c.config, OpCreate)
+	return &AtribuicaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Atribuicao entities.
+func (c *AtribuicaoClient) CreateBulk(builders ...*AtribuicaoCreate) *AtribuicaoCreateBulk {
+	return &AtribuicaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AtribuicaoClient) MapCreateBulk(slice any, setFunc func(*AtribuicaoCreate, int)) *AtribuicaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AtribuicaoCreateBulk{err: fmt.Errorf("calling to AtribuicaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AtribuicaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AtribuicaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Atribuicao.
+func (c *AtribuicaoClient) Update() *AtribuicaoUpdate {
+	mutation := newAtribuicaoMutation(c.config, OpUpdate)
+	return &AtribuicaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AtribuicaoClient) UpdateOne(_m *Atribuicao) *AtribuicaoUpdateOne {
+	mutation := newAtribuicaoMutation(c.config, OpUpdateOne, withAtribuicao(_m))
+	return &AtribuicaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AtribuicaoClient) UpdateOneID(id int) *AtribuicaoUpdateOne {
+	mutation := newAtribuicaoMutation(c.config, OpUpdateOne, withAtribuicaoID(id))
+	return &AtribuicaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Atribuicao.
+func (c *AtribuicaoClient) Delete() *AtribuicaoDelete {
+	mutation := newAtribuicaoMutation(c.config, OpDelete)
+	return &AtribuicaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AtribuicaoClient) DeleteOne(_m *Atribuicao) *AtribuicaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AtribuicaoClient) DeleteOneID(id int) *AtribuicaoDeleteOne {
+	builder := c.Delete().Where(atribuicao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AtribuicaoDeleteOne{builder}
+}
+
+// Query returns a query builder for Atribuicao.
+func (c *AtribuicaoClient) Query() *AtribuicaoQuery {
+	return &AtribuicaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAtribuicao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Atribuicao entity by its id.
+func (c *AtribuicaoClient) Get(ctx context.Context, id int) (*Atribuicao, error) {
+	return c.Query().Where(atribuicao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AtribuicaoClient) GetX(ctx context.Context, id int) *Atribuicao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUsuario queries the usuario edge of a Atribuicao.
+func (c *AtribuicaoClient) QueryUsuario(_m *Atribuicao) *UsuarioQuery {
+	query := (&UsuarioClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(atribuicao.Table, atribuicao.FieldID, id),
+			sqlgraph.To(usuario.Table, usuario.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, atribuicao.UsuarioTable, atribuicao.UsuarioColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPapel queries the papel edge of a Atribuicao.
+func (c *AtribuicaoClient) QueryPapel(_m *Atribuicao) *PapelQuery {
+	query := (&PapelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(atribuicao.Table, atribuicao.FieldID, id),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, atribuicao.PapelTable, atribuicao.PapelColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAdministradora queries the administradora edge of a Atribuicao.
+func (c *AtribuicaoClient) QueryAdministradora(_m *Atribuicao) *AdministradoraQuery {
+	query := (&AdministradoraClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(atribuicao.Table, atribuicao.FieldID, id),
+			sqlgraph.To(administradora.Table, administradora.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, atribuicao.AdministradoraTable, atribuicao.AdministradoraColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *AtribuicaoClient) Hooks() []Hook {
+	return c.hooks.Atribuicao
+}
+
+// Interceptors returns the client interceptors.
+func (c *AtribuicaoClient) Interceptors() []Interceptor {
+	return c.inters.Atribuicao
+}
+
+func (c *AtribuicaoClient) mutate(ctx context.Context, m *AtribuicaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AtribuicaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AtribuicaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AtribuicaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AtribuicaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Atribuicao mutation op: %q", m.Op())
+	}
+}
+
+// ConcessaoClient is a client for the Concessao schema.
+type ConcessaoClient struct {
+	config
+}
+
+// NewConcessaoClient returns a client for the Concessao from the given config.
+func NewConcessaoClient(c config) *ConcessaoClient {
+	return &ConcessaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `concessao.Hooks(f(g(h())))`.
+func (c *ConcessaoClient) Use(hooks ...Hook) {
+	c.hooks.Concessao = append(c.hooks.Concessao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `concessao.Intercept(f(g(h())))`.
+func (c *ConcessaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Concessao = append(c.inters.Concessao, interceptors...)
+}
+
+// Create returns a builder for creating a Concessao entity.
+func (c *ConcessaoClient) Create() *ConcessaoCreate {
+	mutation := newConcessaoMutation(c.config, OpCreate)
+	return &ConcessaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Concessao entities.
+func (c *ConcessaoClient) CreateBulk(builders ...*ConcessaoCreate) *ConcessaoCreateBulk {
+	return &ConcessaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ConcessaoClient) MapCreateBulk(slice any, setFunc func(*ConcessaoCreate, int)) *ConcessaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ConcessaoCreateBulk{err: fmt.Errorf("calling to ConcessaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ConcessaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ConcessaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Concessao.
+func (c *ConcessaoClient) Update() *ConcessaoUpdate {
+	mutation := newConcessaoMutation(c.config, OpUpdate)
+	return &ConcessaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ConcessaoClient) UpdateOne(_m *Concessao) *ConcessaoUpdateOne {
+	mutation := newConcessaoMutation(c.config, OpUpdateOne, withConcessao(_m))
+	return &ConcessaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ConcessaoClient) UpdateOneID(id int) *ConcessaoUpdateOne {
+	mutation := newConcessaoMutation(c.config, OpUpdateOne, withConcessaoID(id))
+	return &ConcessaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Concessao.
+func (c *ConcessaoClient) Delete() *ConcessaoDelete {
+	mutation := newConcessaoMutation(c.config, OpDelete)
+	return &ConcessaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ConcessaoClient) DeleteOne(_m *Concessao) *ConcessaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ConcessaoClient) DeleteOneID(id int) *ConcessaoDeleteOne {
+	builder := c.Delete().Where(concessao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ConcessaoDeleteOne{builder}
+}
+
+// Query returns a query builder for Concessao.
+func (c *ConcessaoClient) Query() *ConcessaoQuery {
+	return &ConcessaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeConcessao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Concessao entity by its id.
+func (c *ConcessaoClient) Get(ctx context.Context, id int) (*Concessao, error) {
+	return c.Query().Where(concessao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ConcessaoClient) GetX(ctx context.Context, id int) *Concessao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAdministradora queries the administradora edge of a Concessao.
+func (c *ConcessaoClient) QueryAdministradora(_m *Concessao) *AdministradoraQuery {
+	query := (&AdministradoraClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(concessao.Table, concessao.FieldID, id),
+			sqlgraph.To(administradora.Table, administradora.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, concessao.AdministradoraTable, concessao.AdministradoraColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPapel queries the papel edge of a Concessao.
+func (c *ConcessaoClient) QueryPapel(_m *Concessao) *PapelQuery {
+	query := (&PapelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(concessao.Table, concessao.FieldID, id),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, concessao.PapelTable, concessao.PapelColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ConcessaoClient) Hooks() []Hook {
+	return c.hooks.Concessao
+}
+
+// Interceptors returns the client interceptors.
+func (c *ConcessaoClient) Interceptors() []Interceptor {
+	return c.inters.Concessao
+}
+
+func (c *ConcessaoClient) mutate(ctx context.Context, m *ConcessaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ConcessaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ConcessaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ConcessaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ConcessaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Concessao mutation op: %q", m.Op())
 	}
 }
 
@@ -884,6 +1272,352 @@ func (c *OrientacaoClient) mutate(ctx context.Context, m *OrientacaoMutation) (V
 	}
 }
 
+// PapelClient is a client for the Papel schema.
+type PapelClient struct {
+	config
+}
+
+// NewPapelClient returns a client for the Papel from the given config.
+func NewPapelClient(c config) *PapelClient {
+	return &PapelClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `papel.Hooks(f(g(h())))`.
+func (c *PapelClient) Use(hooks ...Hook) {
+	c.hooks.Papel = append(c.hooks.Papel, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `papel.Intercept(f(g(h())))`.
+func (c *PapelClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Papel = append(c.inters.Papel, interceptors...)
+}
+
+// Create returns a builder for creating a Papel entity.
+func (c *PapelClient) Create() *PapelCreate {
+	mutation := newPapelMutation(c.config, OpCreate)
+	return &PapelCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Papel entities.
+func (c *PapelClient) CreateBulk(builders ...*PapelCreate) *PapelCreateBulk {
+	return &PapelCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PapelClient) MapCreateBulk(slice any, setFunc func(*PapelCreate, int)) *PapelCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PapelCreateBulk{err: fmt.Errorf("calling to PapelClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PapelCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PapelCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Papel.
+func (c *PapelClient) Update() *PapelUpdate {
+	mutation := newPapelMutation(c.config, OpUpdate)
+	return &PapelUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PapelClient) UpdateOne(_m *Papel) *PapelUpdateOne {
+	mutation := newPapelMutation(c.config, OpUpdateOne, withPapel(_m))
+	return &PapelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PapelClient) UpdateOneID(id string) *PapelUpdateOne {
+	mutation := newPapelMutation(c.config, OpUpdateOne, withPapelID(id))
+	return &PapelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Papel.
+func (c *PapelClient) Delete() *PapelDelete {
+	mutation := newPapelMutation(c.config, OpDelete)
+	return &PapelDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PapelClient) DeleteOne(_m *Papel) *PapelDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PapelClient) DeleteOneID(id string) *PapelDeleteOne {
+	builder := c.Delete().Where(papel.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PapelDeleteOne{builder}
+}
+
+// Query returns a query builder for Papel.
+func (c *PapelClient) Query() *PapelQuery {
+	return &PapelQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePapel},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Papel entity by its id.
+func (c *PapelClient) Get(ctx context.Context, id string) (*Papel, error) {
+	return c.Query().Where(papel.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PapelClient) GetX(ctx context.Context, id string) *Papel {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryFilhos queries the filhos edge of a Papel.
+func (c *PapelClient) QueryFilhos(_m *Papel) *PapelQuery {
+	query := (&PapelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papel.Table, papel.FieldID, id),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, papel.FilhosTable, papel.FilhosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryHerda queries the herda edge of a Papel.
+func (c *PapelClient) QueryHerda(_m *Papel) *PapelQuery {
+	query := (&PapelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papel.Table, papel.FieldID, id),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, papel.HerdaTable, papel.HerdaColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPermissoes queries the permissoes edge of a Papel.
+func (c *PapelClient) QueryPermissoes(_m *Papel) *PapelPermissaoQuery {
+	query := (&PapelPermissaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papel.Table, papel.FieldID, id),
+			sqlgraph.To(papelpermissao.Table, papelpermissao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, papel.PermissoesTable, papel.PermissoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryConcessoes queries the concessoes edge of a Papel.
+func (c *PapelClient) QueryConcessoes(_m *Papel) *ConcessaoQuery {
+	query := (&ConcessaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papel.Table, papel.FieldID, id),
+			sqlgraph.To(concessao.Table, concessao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, papel.ConcessoesTable, papel.ConcessoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PapelClient) Hooks() []Hook {
+	return c.hooks.Papel
+}
+
+// Interceptors returns the client interceptors.
+func (c *PapelClient) Interceptors() []Interceptor {
+	return c.inters.Papel
+}
+
+func (c *PapelClient) mutate(ctx context.Context, m *PapelMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PapelCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PapelUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PapelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PapelDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Papel mutation op: %q", m.Op())
+	}
+}
+
+// PapelPermissaoClient is a client for the PapelPermissao schema.
+type PapelPermissaoClient struct {
+	config
+}
+
+// NewPapelPermissaoClient returns a client for the PapelPermissao from the given config.
+func NewPapelPermissaoClient(c config) *PapelPermissaoClient {
+	return &PapelPermissaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `papelpermissao.Hooks(f(g(h())))`.
+func (c *PapelPermissaoClient) Use(hooks ...Hook) {
+	c.hooks.PapelPermissao = append(c.hooks.PapelPermissao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `papelpermissao.Intercept(f(g(h())))`.
+func (c *PapelPermissaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PapelPermissao = append(c.inters.PapelPermissao, interceptors...)
+}
+
+// Create returns a builder for creating a PapelPermissao entity.
+func (c *PapelPermissaoClient) Create() *PapelPermissaoCreate {
+	mutation := newPapelPermissaoMutation(c.config, OpCreate)
+	return &PapelPermissaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PapelPermissao entities.
+func (c *PapelPermissaoClient) CreateBulk(builders ...*PapelPermissaoCreate) *PapelPermissaoCreateBulk {
+	return &PapelPermissaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PapelPermissaoClient) MapCreateBulk(slice any, setFunc func(*PapelPermissaoCreate, int)) *PapelPermissaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PapelPermissaoCreateBulk{err: fmt.Errorf("calling to PapelPermissaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PapelPermissaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PapelPermissaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PapelPermissao.
+func (c *PapelPermissaoClient) Update() *PapelPermissaoUpdate {
+	mutation := newPapelPermissaoMutation(c.config, OpUpdate)
+	return &PapelPermissaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PapelPermissaoClient) UpdateOne(_m *PapelPermissao) *PapelPermissaoUpdateOne {
+	mutation := newPapelPermissaoMutation(c.config, OpUpdateOne, withPapelPermissao(_m))
+	return &PapelPermissaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PapelPermissaoClient) UpdateOneID(id int) *PapelPermissaoUpdateOne {
+	mutation := newPapelPermissaoMutation(c.config, OpUpdateOne, withPapelPermissaoID(id))
+	return &PapelPermissaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PapelPermissao.
+func (c *PapelPermissaoClient) Delete() *PapelPermissaoDelete {
+	mutation := newPapelPermissaoMutation(c.config, OpDelete)
+	return &PapelPermissaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PapelPermissaoClient) DeleteOne(_m *PapelPermissao) *PapelPermissaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PapelPermissaoClient) DeleteOneID(id int) *PapelPermissaoDeleteOne {
+	builder := c.Delete().Where(papelpermissao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PapelPermissaoDeleteOne{builder}
+}
+
+// Query returns a query builder for PapelPermissao.
+func (c *PapelPermissaoClient) Query() *PapelPermissaoQuery {
+	return &PapelPermissaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePapelPermissao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PapelPermissao entity by its id.
+func (c *PapelPermissaoClient) Get(ctx context.Context, id int) (*PapelPermissao, error) {
+	return c.Query().Where(papelpermissao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PapelPermissaoClient) GetX(ctx context.Context, id int) *PapelPermissao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryPapel queries the papel edge of a PapelPermissao.
+func (c *PapelPermissaoClient) QueryPapel(_m *PapelPermissao) *PapelQuery {
+	query := (&PapelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papelpermissao.Table, papelpermissao.FieldID, id),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, papelpermissao.PapelTable, papelpermissao.PapelColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PapelPermissaoClient) Hooks() []Hook {
+	return c.hooks.PapelPermissao
+}
+
+// Interceptors returns the client interceptors.
+func (c *PapelPermissaoClient) Interceptors() []Interceptor {
+	return c.inters.PapelPermissao
+}
+
+func (c *PapelPermissaoClient) mutate(ctx context.Context, m *PapelPermissaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PapelPermissaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PapelPermissaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PapelPermissaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PapelPermissaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PapelPermissao mutation op: %q", m.Op())
+	}
+}
+
 // PayloadClient is a client for the Payload schema.
 type PayloadClient struct {
 	config
@@ -1033,13 +1767,164 @@ func (c *PayloadClient) mutate(ctx context.Context, m *PayloadMutation) (Value, 
 	}
 }
 
+// UsuarioClient is a client for the Usuario schema.
+type UsuarioClient struct {
+	config
+}
+
+// NewUsuarioClient returns a client for the Usuario from the given config.
+func NewUsuarioClient(c config) *UsuarioClient {
+	return &UsuarioClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `usuario.Hooks(f(g(h())))`.
+func (c *UsuarioClient) Use(hooks ...Hook) {
+	c.hooks.Usuario = append(c.hooks.Usuario, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `usuario.Intercept(f(g(h())))`.
+func (c *UsuarioClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Usuario = append(c.inters.Usuario, interceptors...)
+}
+
+// Create returns a builder for creating a Usuario entity.
+func (c *UsuarioClient) Create() *UsuarioCreate {
+	mutation := newUsuarioMutation(c.config, OpCreate)
+	return &UsuarioCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Usuario entities.
+func (c *UsuarioClient) CreateBulk(builders ...*UsuarioCreate) *UsuarioCreateBulk {
+	return &UsuarioCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *UsuarioClient) MapCreateBulk(slice any, setFunc func(*UsuarioCreate, int)) *UsuarioCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &UsuarioCreateBulk{err: fmt.Errorf("calling to UsuarioClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*UsuarioCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &UsuarioCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Usuario.
+func (c *UsuarioClient) Update() *UsuarioUpdate {
+	mutation := newUsuarioMutation(c.config, OpUpdate)
+	return &UsuarioUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *UsuarioClient) UpdateOne(_m *Usuario) *UsuarioUpdateOne {
+	mutation := newUsuarioMutation(c.config, OpUpdateOne, withUsuario(_m))
+	return &UsuarioUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *UsuarioClient) UpdateOneID(id string) *UsuarioUpdateOne {
+	mutation := newUsuarioMutation(c.config, OpUpdateOne, withUsuarioID(id))
+	return &UsuarioUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Usuario.
+func (c *UsuarioClient) Delete() *UsuarioDelete {
+	mutation := newUsuarioMutation(c.config, OpDelete)
+	return &UsuarioDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *UsuarioClient) DeleteOne(_m *Usuario) *UsuarioDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *UsuarioClient) DeleteOneID(id string) *UsuarioDeleteOne {
+	builder := c.Delete().Where(usuario.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &UsuarioDeleteOne{builder}
+}
+
+// Query returns a query builder for Usuario.
+func (c *UsuarioClient) Query() *UsuarioQuery {
+	return &UsuarioQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeUsuario},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Usuario entity by its id.
+func (c *UsuarioClient) Get(ctx context.Context, id string) (*Usuario, error) {
+	return c.Query().Where(usuario.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *UsuarioClient) GetX(ctx context.Context, id string) *Usuario {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAtribuicoes queries the atribuicoes edge of a Usuario.
+func (c *UsuarioClient) QueryAtribuicoes(_m *Usuario) *AtribuicaoQuery {
+	query := (&AtribuicaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(usuario.Table, usuario.FieldID, id),
+			sqlgraph.To(atribuicao.Table, atribuicao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, usuario.AtribuicoesTable, usuario.AtribuicoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *UsuarioClient) Hooks() []Hook {
+	return c.hooks.Usuario
+}
+
+// Interceptors returns the client interceptors.
+func (c *UsuarioClient) Interceptors() []Interceptor {
+	return c.inters.Usuario
+}
+
+func (c *UsuarioClient) mutate(ctx context.Context, m *UsuarioMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&UsuarioCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&UsuarioUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&UsuarioUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&UsuarioDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Usuario mutation op: %q", m.Op())
+	}
+}
+
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Administradora, Condominio, Habilitacao, Orientacao, Payload []ent.Hook
+		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, Orientacao,
+		Papel, PapelPermissao, Payload, Usuario []ent.Hook
 	}
 	inters struct {
-		Administradora, Condominio, Habilitacao, Orientacao, Payload []ent.Interceptor
+		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, Orientacao,
+		Papel, PapelPermissao, Payload, Usuario []ent.Interceptor
 	}
 )
 
