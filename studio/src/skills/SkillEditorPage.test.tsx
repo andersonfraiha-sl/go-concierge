@@ -127,7 +127,11 @@ describe('SkillEditorPage', () => {
   });
 
   it('opensTabFromQuery', async () => {
-    responderCom(rotasDoEditor(construtor, []));
+    responderCom({
+      ...rotasDoEditor(construtor, []),
+      'GET /api/agente': () =>
+        json({ agente: { caminho: 'skills/agendar-mudanca', nome: 'agendar-mudanca', descricao: '', persona: '' }, recursos: [] }),
+    });
     montar('/skills/agendar-mudanca?aba=regras');
     expect(await screen.findByRole('tab', { name: 'Regras', selected: true })).toBeInTheDocument();
     expect(screen.getAllByRole('tab').map((aba) => aba.textContent)).toEqual([

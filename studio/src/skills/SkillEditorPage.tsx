@@ -1,9 +1,10 @@
-import { Alert, Box, Button, CircularProgress, Tab, Tabs } from '@mui/material';
+import { Box, CircularProgress, Tab, Tabs } from '@mui/material';
 import { useRef, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { InlineTitle } from '@/shared/ui/InlineTitle';
 import { ConhecimentoAba } from './abas/ConhecimentoAba';
 import { FerramentasAba } from './abas/FerramentasAba';
@@ -41,9 +42,7 @@ export function SkillEditorPage(): ReactNode {
   if (lidos.isPending) return <CircularProgress aria-label="Carregando skill" />;
   if (lidos.isError) {
     return (
-      <Alert severity="error" action={<Button onClick={() => void lidos.refetch()}>Tentar de novo</Button>}>
-        {lidos.error.message}
-      </Alert>
+      <ErroComRetry mensagem={lidos.error.message} onTentarDeNovo={() => void lidos.refetch()} />
     );
   }
   return (

@@ -1,22 +1,21 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from '@mui/material';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { paraIdentificador } from './contratos';
+import { mensagemDe } from '@/shared/api/mensagemDe';
+import { paraIdentificador } from '@/skills/contratos';
 
-export type NovaSkill = { nome: string; titulo: string };
+export type NomeEscolhido = { nome: string; titulo: string };
 
 type Props = {
   titulo: string;
   tituloInicial: string;
   confirmar: string;
   /** Rejeita com Error cuja mensagem aparece sob o campo. */
-  onEnviar: (nova: NovaSkill) => Promise<void>;
+  onEnviar: (escolhido: NomeEscolhido) => Promise<void>;
   onCancelar: () => void;
 };
 
-const mensagemDe = (erro: unknown): string => (erro instanceof Error ? erro.message : String(erro));
-
 /** Monte só quando aberto: o estado do campo nasce de `tituloInicial`. */
-export function NovaSkillDialog({ titulo, tituloInicial, confirmar, onEnviar, onCancelar }: Props): ReactNode {
+export function NomeDialog({ titulo, tituloInicial, confirmar, onEnviar, onCancelar }: Props): ReactNode {
   const [nome, setNome] = useState(tituloInicial);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
