@@ -558,3 +558,32 @@ func collectComoLista(caso any) any {
 	}
 	return raiz
 }
+
+func TestExcluirSkill(t *testing.T) {
+	tests := []struct {
+		nome    string
+		rel     string
+		wantErr error
+	}{
+		{"apaga a skill e a rota", relMudanca, nil},
+		{"skill que nao existe", relConcierge + "/agentes/nao-existe", ErrSkillNaoExiste},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			c := catalogoDeTeste(t)
+			err := c.ExcluirSkill(tt.rel)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			if _, _, err := c.LerTextos(tt.rel); !errors.Is(err, ErrSkillNaoExiste) {
+				t.Errorf("depois de excluir, LerTextos err = %v", err)
+			}
+			if strings.Contains(lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md"), "`agendar-mudanca`") {
+				t.Error("rotas.md ainda cita a skill excluída")
+			}
+		})
+	}
+}

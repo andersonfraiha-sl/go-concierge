@@ -22,6 +22,7 @@ import (
 
 var (
 	ErrSemFluxo            = errors.New("skill sem fluxo")
+	ErrSkillNaoExiste      = errors.New("skill não existe")
 	ErrVersaoDesatualizada = errors.New("versão desatualizada")
 	ErrNomeInvalido        = errors.New("nome inválido")
 	ErrSkillJaExiste       = errors.New("skill já existe")
@@ -476,6 +477,19 @@ func renomearCopia(dir, nome, titulo string, cl classificar) error {
 	return err
 }
 
+// ExcluirSkill apaga a skill e a rota dela no pai; skill que não existe é ErrSkillNaoExiste.
+func (c *Catalogo) ExcluirSkill(rel string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, err := c.resolverSkill(rel); err != nil {
+		return fmt.Errorf("excluir skill %s: %w", rel, err)
+	}
+	if _, err := c.ExcluirAgente(rel); err != nil {
+		return fmt.Errorf("excluir skill %s: %w", rel, err)
+	}
+	return nil
+}
+
 // --- bordas de arquivo ---
 
 func (c *Catalogo) resolverSkill(rel string) (string, error) {
@@ -484,7 +498,7 @@ func (c *Catalogo) resolverSkill(rel string) (string, error) {
 		return "", err
 	}
 	if !IsAgent(dir) {
-		return "", fmt.Errorf("skill não existe: %w", fs.ErrNotExist)
+		return "", ErrSkillNaoExiste
 	}
 	return dir, nil
 }

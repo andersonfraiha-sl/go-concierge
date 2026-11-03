@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"time"
 
@@ -21,10 +20,7 @@ const (
 	maxCorpo      = 1 << 20
 )
 
-var (
-	errCorpoInvalido      = errors.New("corpo inválido")
-	errSkillNaoEncontrada = errors.New("skill não encontrada")
-)
+var errCorpoInvalido = errors.New("corpo inválido")
 
 func (s *servidor) rotasStudio(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/eu", s.studioEu)
@@ -94,6 +90,37 @@ type nomeETitulo struct {
 	Titulo string `json:"titulo"`
 }
 
+// skillsDoAssistente é a resposta de GET /api/skills (SkillsSchema no Studio).
+type skillsDoAssistente struct {
+	Assistente string        `json:"assistente"`
+	Skills     []skillResumo `json:"skills"`
+}
+
+// textosLidos é a resposta de GET /api/skills/{nome} (TextosLidosSchema no Studio).
+type textosLidos struct {
+	Caminho string     `json:"caminho"`
+	Textos  okf.Textos `json:"textos"`
+	Versao  string     `json:"versao"`
+}
+
+type textosParaGravar struct {
+	Versao string     `json:"versao"`
+	Textos okf.Textos `json:"textos"`
+}
+
+type fluxoParaGravar struct {
+	Versao string    `json:"versao"`
+	Fluxo  okf.Fluxo `json:"fluxo"`
+}
+
+type nomeCriado struct {
+	Nome string `json:"nome"`
+}
+
+type versaoGravada struct {
+	Versao string `json:"versao"`
+}
+
 func (s *servidor) studioListar(w http.ResponseWriter, r *http.Request) {
 	casos, err := comPrazo(r, s.casosDeUso)
 	if err != nil {
@@ -104,21 +131,21 @@ func (s *servidor) studioListar(w http.ResponseWriter, r *http.Request) {
 	for i, c := range casos {
 		skills[i] = skillResumo{casoDeUso: c, Caminho: s.caminhoDaSkill(c.Nome)}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"assistente": s.atende.Agente, "skills": skills})
+	writeJSON(w, http.StatusOK, skillsDoAssistente{Assistente: s.atende.Agente, Skills: skills})
 }
 
 func (s *servidor) studioCriar(w http.ResponseWriter, r *http.Request) {
-	var corpo nomeETitulo
-	if err := lerCorpo(w, r, &corpo); err != nil {
-		s.responderErro(w, err)
-		return
-	}
-	_, err := comPrazo(r, func() (string, error) { return s.cat.CriarSkill(s.atende.Agente, corpo.Nome, corpo.Titulo) })
+	corpo, err := lerCorpo[nomeETitulo](w, r)
 	if err != nil {
 		s.responderErro(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"nome": corpo.Nome})
+	_, err = comPrazo(r, func() (string, error) { return s.cat.CriarSkill(s.atende.Agente, corpo.Nome, corpo.Titulo) })
+	if err != nil {
+		s.responderErro(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, nomeCriado{Nome: corpo.Nome})
 }
 
 func (s *servidor) studioLerTextos(w http.ResponseWriter, r *http.Request) {
@@ -127,19 +154,15 @@ func (s *servidor) studioLerTextos(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	type lidos struct {
-		textos okf.Textos
-		versao string
-	}
-	l, err := comPrazo(r, func() (lidos, error) {
+	lidos, err := comPrazo(r, func() (textosLidos, error) {
 		t, v, err := s.cat.LerTextos(rel)
-		return lidos{t, v}, err
+		return textosLidos{Caminho: rel, Textos: t, Versao: v}, err
 	})
 	if err != nil {
 		s.responderErro(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"caminho": rel, "textos": l.textos, "versao": l.versao})
+	writeJSON(w, http.StatusOK, lidos)
 }
 
 func (s *servidor) studioSalvarTextos(w http.ResponseWriter, r *http.Request) {
@@ -148,11 +171,8 @@ func (s *servidor) studioSalvarTextos(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	var corpo struct {
-		Versao string     `json:"versao"`
-		Textos okf.Textos `json:"textos"`
-	}
-	if err := lerCorpo(w, r, &corpo); err != nil {
+	corpo, err := lerCorpo[textosParaGravar](w, r)
+	if err != nil {
 		s.responderErro(w, err)
 		return
 	}
@@ -161,7 +181,7 @@ func (s *servidor) studioSalvarTextos(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"versao": versao})
+	writeJSON(w, http.StatusOK, versaoGravada{Versao: versao})
 }
 
 func (s *servidor) studioDuplicar(w http.ResponseWriter, r *http.Request) {
@@ -170,8 +190,8 @@ func (s *servidor) studioDuplicar(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	var corpo nomeETitulo
-	if err := lerCorpo(w, r, &corpo); err != nil {
+	corpo, err := lerCorpo[nomeETitulo](w, r)
+	if err != nil {
 		s.responderErro(w, err)
 		return
 	}
@@ -180,7 +200,7 @@ func (s *servidor) studioDuplicar(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"nome": corpo.Nome})
+	writeJSON(w, http.StatusCreated, nomeCriado{Nome: corpo.Nome})
 }
 
 func (s *servidor) studioExcluir(w http.ResponseWriter, r *http.Request) {
@@ -189,27 +209,11 @@ func (s *servidor) studioExcluir(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	if _, err := comPrazo(r, func() ([]string, error) { return s.excluirSkill(rel) }); err != nil {
+	if _, err := comPrazo(r, func() (struct{}, error) { return struct{}{}, s.cat.ExcluirSkill(rel) }); err != nil {
 		s.responderErro(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// excluirSkill confere que a pasta é uma skill antes de apagar: ExcluirAgente não distingue "não existe".
-func (s *servidor) excluirSkill(rel string) ([]string, error) {
-	dir, err := s.cat.ResolveAgente(rel)
-	if err != nil {
-		return nil, fmt.Errorf("excluir skill %s: %w", rel, err)
-	}
-	if !okf.IsAgent(dir) {
-		return nil, errSkillNaoEncontrada
-	}
-	mudancas, err := s.cat.ExcluirAgente(rel)
-	if err != nil {
-		return nil, fmt.Errorf("excluir skill %s: %w", rel, err)
-	}
-	return mudancas, nil
 }
 
 func (s *servidor) studioLerFluxo(w http.ResponseWriter, r *http.Request) {
@@ -232,11 +236,8 @@ func (s *servidor) studioSalvarFluxo(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	var corpo struct {
-		Versao string    `json:"versao"`
-		Fluxo  okf.Fluxo `json:"fluxo"`
-	}
-	if err := lerCorpo(w, r, &corpo); err != nil {
+	corpo, err := lerCorpo[fluxoParaGravar](w, r)
+	if err != nil {
 		s.responderErro(w, err)
 		return
 	}
@@ -258,16 +259,17 @@ func (s *servidor) caminhoDaSkill(nome string) string {
 func (s *servidor) skillDoPedido(r *http.Request) (string, error) {
 	nome := r.PathValue("nome")
 	if !okf.SlugOK(nome) {
-		return "", errSkillNaoEncontrada
+		return "", okf.ErrSkillNaoExiste
 	}
 	return s.caminhoDaSkill(nome), nil
 }
 
-func lerCorpo(w http.ResponseWriter, r *http.Request, destino any) error {
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCorpo)).Decode(destino); err != nil {
-		return fmt.Errorf("%w: %w", errCorpoInvalido, err)
+func lerCorpo[T any](w http.ResponseWriter, r *http.Request) (T, error) {
+	var corpo T
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCorpo)).Decode(&corpo); err != nil {
+		return corpo, fmt.Errorf("%w: %w", errCorpoInvalido, err)
 	}
-	return nil
+	return corpo, nil
 }
 
 // comPrazo roda o trabalho do catálogo (disco, às vezes o Nexus) com o prazo do pedido.
@@ -283,6 +285,12 @@ func comPrazo[T any](r *http.Request, fazer func() (T, error)) (T, error) {
 	}
 	feito := make(chan resultado, 1)
 	go func() {
+		// fora da goroutine do handler o net/http não segura o pânico: vira erro (500 com log)
+		defer func() {
+			if p := recover(); p != nil {
+				feito <- resultado{err: fmt.Errorf("pânico no catálogo: %v", p)}
+			}
+		}()
 		v, err := fazer()
 		feito <- resultado{v, err}
 	}()
@@ -313,8 +321,7 @@ func errosConhecidos() []erroConhecido {
 	return []erroConhecido{
 		{errCorpoInvalido, http.StatusBadRequest, erroAPI{Codigo: "CORPO_INVALIDO", Mensagem: "Não entendi o pedido."}},
 		{okf.ErrNomeInvalido, http.StatusBadRequest, erroAPI{Codigo: "NOME_INVALIDO", Mensagem: "Use letras minúsculas, números e hífen."}},
-		{errSkillNaoEncontrada, http.StatusNotFound, erroAPI{Codigo: "SKILL_NAO_ENCONTRADA", Mensagem: "Esta skill não existe."}},
-		{fs.ErrNotExist, http.StatusNotFound, erroAPI{Codigo: "SKILL_NAO_ENCONTRADA", Mensagem: "Esta skill não existe."}},
+		{okf.ErrSkillNaoExiste, http.StatusNotFound, erroAPI{Codigo: "SKILL_NAO_ENCONTRADA", Mensagem: "Esta skill não existe."}},
 		{okf.ErrSemFluxo, http.StatusNotFound, erroAPI{Codigo: "SEM_FLUXO", Mensagem: "Esta skill não tem fluxo: ela responde pela base de conhecimento."}},
 		{okf.ErrSkillJaExiste, http.StatusConflict, erroAPI{Codigo: "SKILL_JA_EXISTE", Mensagem: "Já existe uma skill com esse nome."}},
 		{okf.ErrVersaoDesatualizada, http.StatusConflict, erroAPI{Codigo: "VERSAO_DESATUALIZADA", Mensagem: "Esta skill mudou desde que você abriu. Recarregue para continuar."}},
@@ -336,6 +343,8 @@ func (s *servidor) responderErro(w http.ResponseWriter, err error) {
 			return
 		}
 	}
-	s.log.Printf("studio: %v", err)
+	if !errors.Is(err, context.Canceled) { // quem cancelou foi o cliente, que nem lê a resposta
+		s.log.Printf("studio: %v", err)
+	}
 	writeJSON(w, http.StatusInternalServerError, erroAPI{Codigo: "ERRO_INTERNO", Mensagem: "Não deu para concluir. Tente de novo."})
 }

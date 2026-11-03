@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -193,6 +196,15 @@ func TestStudioAPI(t *testing.T) {
 			conferir:   exigirErroCom("TITULO_VAZIO", "Dê um título para a skill."),
 		},
 		{
+			nome: "recusa textos de versao velha",
+			pedido: pedido{metodo: "PUT", caminho: skillMudanca + "/textos", corpo: func(t *testing.T, h http.Handler) string {
+				lidos := lerTextos(t, h)
+				return corpoJSON(t, textosParaGravar{Versao: "0000000000000000", Textos: lidos.Textos})
+			}},
+			querStatus: 409,
+			conferir:   exigirErroCom("VERSAO_DESATUALIZADA", "Esta skill mudou desde que você abriu. Recarregue para continuar."),
+		},
+		{
 			nome:       "fluxo de skill sem fluxo",
 			pedido:     pedido{metodo: "GET", caminho: "/api/skills/faq/fluxo"},
 			querStatus: 404,
@@ -223,6 +235,12 @@ func TestStudioAPI(t *testing.T) {
 			conferir:   exigirErroCom("NOME_INVALIDO", "Use letras minúsculas, números e hífen."),
 		},
 		{
+			nome:       "cria sem titulo",
+			pedido:     pedido{metodo: "POST", caminho: "/api/skills", corpo: texto(`{"nome":"nova-skill","titulo":""}`)},
+			querStatus: 422,
+			conferir:   exigirErroCom("TITULO_VAZIO", "Dê um título para a skill."),
+		},
+		{
 			nome:       "cria skill",
 			pedido:     pedido{metodo: "POST", caminho: "/api/skills", corpo: texto(`{"nome":"nova-skill","titulo":"Nova skill"}`)},
 			querStatus: 201,
@@ -240,6 +258,12 @@ func TestStudioAPI(t *testing.T) {
 			pedido:     pedido{metodo: "POST", caminho: "/api/skills/nova-skill/duplicar", corpo: texto(`{"nome":"nova-skill-2","titulo":"Cópia"}`)},
 			querStatus: 201,
 			conferir:   exigirNome("nova-skill-2"),
+		},
+		{
+			nome:       "duplica skill que nao existe",
+			pedido:     pedido{metodo: "POST", caminho: "/api/skills/nao-existe/duplicar", corpo: texto(`{"nome":"copia","titulo":"Cópia"}`)},
+			querStatus: 404,
+			conferir:   exigirErroCom("SKILL_NAO_ENCONTRADA", "Esta skill não existe."),
 		},
 		{
 			nome:       "exclui skill",
@@ -324,6 +348,37 @@ func TestStudioAPINaoVazaErroInterno(t *testing.T) {
 	exigirErroCom("ERRO_INTERNO", "Não deu para concluir. Tente de novo.")(t, corpo)
 }
 
+func TestStudioErroDoCliente(t *testing.T) {
+	casos := []struct {
+		nome      string
+		err       error
+		querNoLog bool
+	}{
+		{"cliente desistiu nao vai ao log", fmt.Errorf("prazo do catálogo: %w", context.Canceled), false},
+		{"prazo estourado vai ao log", fmt.Errorf("prazo do catálogo: %w", context.DeadlineExceeded), true},
+		{"arquivo sumido vai ao log", fmt.Errorf("ler fluxo: %w", fs.ErrNotExist), true},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			var registro strings.Builder
+			s := &servidor{log: log.New(&registro, "", 0)}
+			w := httptest.NewRecorder()
+			s.responderErro(w, c.err)
+			if w.Code != 500 || (registro.Len() > 0) != c.querNoLog {
+				t.Fatalf("status %d, log %q", w.Code, registro.String())
+			}
+		})
+	}
+}
+
+func TestComPrazoTransformaPanicoEmErro(t *testing.T) {
+	r := httptest.NewRequest("GET", "/api/skills", nil)
+	_, err := comPrazo(r, func() (string, error) { panic("catálogo quebrado") })
+	if err == nil || !strings.Contains(err.Error(), "catálogo quebrado") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 // handlerDeTeste monta as rotas do Studio sobre uma cópia do catálogo real.
 func handlerDeTeste(t *testing.T) http.Handler {
 	t.Helper()
@@ -372,11 +427,6 @@ func lerFluxo(t *testing.T, h http.Handler) okf.FluxoLido {
 	var lido okf.FluxoLido
 	lerJSON(t, h, skillMudanca+"/fluxo", &lido)
 	return lido
-}
-
-type textosLidos struct {
-	Versao string     `json:"versao"`
-	Textos okf.Textos `json:"textos"`
 }
 
 func lerTextos(t *testing.T, h http.Handler) textosLidos {
