@@ -25,7 +25,7 @@ export const TIPOS: Record<string, string> = {
   memory: 'Memória',
   action: 'Ação',
   activity: 'Atividade',
-  agent: 'Assistente',
+  agent: 'Concierge',
   form: 'Formulário',
 };
 

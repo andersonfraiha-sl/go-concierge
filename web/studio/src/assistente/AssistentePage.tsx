@@ -13,9 +13,9 @@ export function AssistentePage(): ReactNode {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h5" component="h1">
-        Assistente
+        Concierge
       </Typography>
-      <Tabs value="persona" aria-label="Seções do Assistente">
+      <Tabs value="persona" aria-label="Seções do Concierge">
         <Tab value="persona" label="Persona" />
       </Tabs>
       {skills.isPending && <Typography color="text.secondary">Carregando…</Typography>}

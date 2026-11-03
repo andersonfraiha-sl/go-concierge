@@ -82,7 +82,7 @@ function SeletorDeItem({ nos, atual, onEscolher }: SeletorProps): ReactNode {
     <TextField
       select
       size="small"
-      label="Assistente ou skill"
+      label="Concierge ou skill"
       value={atual.caminho}
       onChange={(evento) => onEscolher(evento.target.value)}
       sx={{ maxWidth: 480 }}

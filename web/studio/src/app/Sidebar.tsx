@@ -26,8 +26,8 @@ type ItemMenu = { rotulo: string; destino: string; Icone: SvgIconComponent };
 type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean };
 
 const ITENS_SPA = [
+  { rotulo: 'Concierge', destino: '/assistente', Icone: ChatBubbleOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
   { rotulo: 'Skills', destino: '/skills', Icone: ExtensionOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
-  { rotulo: 'Assistente', destino: '/assistente', Icone: ChatBubbleOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
   { rotulo: 'Ferramentas', destino: '/ferramentas', Icone: BuildOutlined, visivelPara: (eu) => pode(eu, 'skills.ler') },
   {
     rotulo: 'Condomínios',

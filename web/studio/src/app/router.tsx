@@ -15,7 +15,7 @@ export function criarRotas() {
         path: '/',
         element: <StudioLayout />,
         children: [
-          { index: true, element: <Navigate to="/skills" replace /> },
+          { index: true, element: <Navigate to="/assistente" replace /> },
           { path: 'skills', element: <SkillsPage /> },
           // A aba aberta fica em ?aba=
           { path: 'skills/:nome', element: <SkillEditorPage /> },

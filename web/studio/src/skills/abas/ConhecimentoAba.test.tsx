@@ -23,7 +23,7 @@ describe('ConhecimentoAba', () => {
 
     expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveValue('Perguntas.');
     expect(screen.getByText('Regras gerais')).toBeInTheDocument();
-    expect(screen.getByText('Vem do Assistente')).toBeInTheDocument();
+    expect(screen.getByText('Vem do Concierge')).toBeInTheDocument();
     expect(screen.getByText('tabela.pdf')).toBeInTheDocument();
     expect(screen.getByText('2 KB')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Regras gerais' })).not.toBeInTheDocument();

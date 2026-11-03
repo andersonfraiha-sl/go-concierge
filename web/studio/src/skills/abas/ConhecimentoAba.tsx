@@ -62,7 +62,7 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
           ),
         )}
         {herdados.map((documento) => (
-          <LinhaDeArquivo key={documento.caminho} arquivo={documento} selo="Vem do Assistente" />
+          <LinhaDeArquivo key={documento.caminho} arquivo={documento} selo="Vem do Concierge" />
         ))}
       </Box>
       {criando && (

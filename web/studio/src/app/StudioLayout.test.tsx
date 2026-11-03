@@ -23,7 +23,7 @@ describe('StudioLayout', () => {
 
     expect(screen.getByText('Studio')).toBeInTheDocument();
     await screen.findByRole('link', { name: 'Skills' });
-    const rotulos = ['Skills', 'Assistente', 'Ferramentas', 'Condomínios', 'Avançado', 'Atendente'];
+    const rotulos = ['Concierge', 'Skills', 'Ferramentas', 'Condomínios', 'Avançado', 'Atendente'];
     for (const rotulo of rotulos) {
       expect(screen.getByRole('link', { name: rotulo })).toBeInTheDocument();
     }
