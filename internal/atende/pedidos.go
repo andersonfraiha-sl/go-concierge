@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -750,14 +751,18 @@ func (s *Servico) RemoverPedido(ctx context.Context, contato escopo.Contato, pro
 	if s.Pedidos == nil {
 		return errors.New("pedidos desligados")
 	}
-	cart, err := s.Pedidos.Ler(ctx, contato)
+	// mesmo caminho do CancelarPedido: o lock do contato e a carteira adiada por um turno
+	// (gravada antes de ler), senão a gravação adiada traria de volta o pedido removido
+	desbloquear := s.bloquearPedidos(contato)
+	defer desbloquear()
+	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
 		return err
 	}
 	if err := cart.Remover(protocoloPedido); err != nil {
 		return err
 	}
-	return s.Pedidos.Gravar(ctx, contato, cart)
+	return s.salvarCarteira(ctx, contato, cart)
 }
 
 // estadosDe guarda o estado de cada pedido da carteira, pelo protocolo.
@@ -780,18 +785,26 @@ func abriuOuMudouDeEstado(estadosAntes map[string]string, cart pedidos.Carteira)
 	return false
 }
 
-// renomeador troca cada protocolo de antes pelo de depois, na mesma posição; nil se nenhum mudou.
+// renomeador troca cada protocolo de antes pelo de depois, na mesma posição; nil se nenhum
+// mudou. Os que não mudaram entram trocando por si mesmos e os mais longos vêm primeiro: o
+// Replacer compara na ordem dos pares, e um protocolo que é prefixo de outro não pode
+// pegar um pedaço do maior.
 func renomeador(antes, depois []string) *strings.Replacer {
-	var pares []string
+	mudou := false
+	pares := make([][2]string, 0, len(antes))
 	for i := range antes {
-		if antes[i] != depois[i] {
-			pares = append(pares, antes[i], depois[i])
-		}
+		mudou = mudou || antes[i] != depois[i]
+		pares = append(pares, [2]string{antes[i], depois[i]})
 	}
-	if len(pares) == 0 {
+	if !mudou {
 		return nil
 	}
-	return strings.NewReplacer(pares...)
+	slices.SortStableFunc(pares, func(a, b [2]string) int { return len(b[0]) - len(a[0]) })
+	args := make([]string, 0, 2*len(pares))
+	for _, p := range pares {
+		args = append(args, p[0], p[1])
+	}
+	return strings.NewReplacer(args...)
 }
 
 func renomearTodos(r *strings.Replacer, textos []string) []string {
