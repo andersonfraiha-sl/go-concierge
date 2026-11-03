@@ -10,7 +10,6 @@ import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { InlineTitle } from '@/shared/ui/InlineTitle';
 import { paraIdentificador } from '@/skills/contratos';
-import { FONTE_MONO } from '@/theme/tokens';
 import {
   type Administradora,
   type Condominio,
@@ -110,14 +109,11 @@ export function AdministradorasAba({ administradoras, condominios }: Props): Rea
                 <InlineTitle
                   valor={a.nome}
                   editavel={!gravando}
-                  rotulo="nome da administradora"
+                  rotulo={`nome da administradora ${a.nome}`}
+                  component="span"
                   onMudar={(nome) => void renomear(a, nome)}
                 />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontFamily: FONTE_MONO }}
-                >
+                <Typography variant="caption" color="text.secondary">
                   {a.id}
                 </Typography>
                 <Box sx={{ flex: 1 }} />

@@ -34,13 +34,38 @@ describe('AdministradorasAba', () => {
       <AdministradorasAba administradoras={[ADMINISTRADORA]} condominios={[]} />,
     );
 
-    await user.click(await screen.findByRole('button', { name: 'Editar nome da administradora' }));
-    const campo = screen.getByRole('textbox', { name: 'nome da administradora' });
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Editar nome da administradora Administradora Exemplo',
+      }),
+    );
+    const campo = screen.getByRole('textbox', {
+      name: 'nome da administradora Administradora Exemplo',
+    });
     await user.clear(campo);
     await user.type(campo, 'Nova{Enter}');
 
     expect(await screen.findByText('Administradora renomeada.')).toBeInTheDocument();
     expect(corpos).toEqual([{ id: 'adm-exemplo', nome: 'Nova' }]);
+  });
+
+  it('identifiesEachRowByItsOwnAdministradora', async () => {
+    responderCom(rotasBase(construtor));
+    renderComProvedores(
+      <AdministradorasAba
+        administradoras={[ADMINISTRADORA, { id: 'adm-outra', nome: 'Outra Administradora' }]}
+        condominios={[]}
+      />,
+    );
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Editar nome da administradora Administradora Exemplo',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Editar nome da administradora Outra Administradora' }),
+    ).toBeInTheDocument();
   });
 
   it.each([
