@@ -1,8 +1,7 @@
 nome: atualizacao-cadastral
 tipo: operador
 descricao: 'Atualiza dados cadastrais da unidade (e-mail, veículo, pets...). Os campos
-  do formulário são dinâmicos: vêm do Nexus para a unidade escolhida. Caso de uso:
-  Atualização Cadastral.'
+  do formulário mudam conforme a unidade escolhida.'
 recursos:
 - unidades.listar
 - cadastro.campos
