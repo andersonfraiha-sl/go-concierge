@@ -30,6 +30,7 @@ import (
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
+	"go-concierge/internal/banco"
 	"go-concierge/internal/env"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
@@ -66,7 +67,13 @@ type servidor struct {
 	provedor            string
 	memorias            memoria.Store
 	admin               *admin.Store
+	banco               banco.Banco
 }
+
+const (
+	timeoutBoot    = 30 * time.Second
+	timeoutHealthz = time.Second
+)
 
 var (
 	errUnauthorized  = errors.New("não autorizado")
@@ -80,8 +87,14 @@ func main() {
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
 	dotenv := flag.String("env", ".env", "arquivo NOME=valor (LLM_MODE e chaves, NEXUS_*, DEFAULT_ACCOUNT_ID, GRUVI_*, ATENDE_*)")
+	migrar := flag.Bool("migrar", migrarPorPadrao(os.Getenv("AMBIENTE")), "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev)")
 	flag.Parse()
 	env.Carregar(*dotenv)
+
+	db, err := abrirBanco(os.Getenv("DATABASE_URL"), *migrar)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	cat, err := okf.NewCatalogo(*root)
 	if err != nil {
@@ -97,7 +110,7 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default()}
+	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db}
 	var origens []string
 	if mcpCli != nil {
 		origens = append(origens, "MCP "+mcpCli.URL+" ("+mcpModo+")")
@@ -208,6 +221,43 @@ func main() {
 	log.Fatal(http.ListenAndServe(*addr, logar(mux)))
 }
 
+// migrarPorPadrao liga as migrations no boot só em desenvolvimento; nos demais ambientes
+// elas rodam como job antes do deploy.
+func migrarPorPadrao(ambiente string) bool {
+	return ambiente == "" || ambiente == "dev"
+}
+
+func abrirBanco(url string, migrar bool) (banco.Banco, error) {
+	if url == "" {
+		return banco.Banco{}, errors.New("DATABASE_URL vazia: o concierge precisa do Postgres")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
+	defer cancel()
+	db, err := banco.Abrir(ctx, url)
+	if err != nil {
+		return banco.Banco{}, err
+	}
+	if !migrar {
+		return db, nil
+	}
+	if err := banco.Migrar(ctx, db); err != nil {
+		return banco.Banco{}, errors.Join(err, db.Fechar())
+	}
+	return db, nil
+}
+
+// healthz responde 503 quando o Postgres não responde em timeoutHealthz.
+func (s *servidor) healthz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), timeoutHealthz)
+	defer cancel()
+	if err := s.banco.Pool.Ping(ctx); err != nil {
+		s.log.Printf("okf-admin: healthz: ping no postgres: %v", err)
+		http.Error(w, "postgres indisponível", http.StatusServiceUnavailable)
+		return
+	}
+	w.Write([]byte("ok"))
+}
+
 // proxyMCP repassa /mcp/... ao servidor MCP configurado (MCP_URL), com o Host que ele
 // exige. Só o caminho e o corpo passam; a autenticação é do cliente.
 func proxyMCP(c *mcp.Client) (http.Handler, string, error) {
@@ -239,7 +289,7 @@ func mcpPath(raw string) string {
 
 func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.Handle("GET /", semCache(http.FileServerFS(s.web)))
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
+	mux.HandleFunc("GET /healthz", s.healthz)
 
 	mux.HandleFunc("GET /api/anatomia", s.anatomia)
 	mux.HandleFunc("GET /api/agentes", s.arvore)

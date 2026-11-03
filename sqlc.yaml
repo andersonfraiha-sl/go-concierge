@@ -1,0 +1,14 @@
+# Só para as exceções em que o ent não faz a operação com o melhor desempenho. Cada query em
+# internal/banco/queries começa com "-- por que não ent: <motivo>". O esquema são as
+# próprias migrations goose (geradas pelo Atlas a partir do esquema do ent).
+#   go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
+version: "2"
+sql:
+  - engine: postgresql
+    queries: internal/banco/queries
+    schema: internal/banco/migrations
+    gen:
+      go:
+        package: sqlc
+        out: internal/banco/sqlc
+        sql_package: pgx/v5

@@ -22,6 +22,9 @@ services:
       DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
       # router (padrão) | planning | react — vence o `orquestracao:` do agent.yaml
       ORQUESTRACAO_MODO: ${ORQUESTRACAO_MODO:-}
+      # vence o DATABASE_URL do .env, que aponta para 127.0.0.1 (uso fora do compose)
+      DATABASE_URL: postgres://concierge:concierge@postgres:5432/concierge?sslmode=disable
+      AMBIENTE: ${AMBIENTE:-dev}
     command: ["-root", "/app/okf", "-addr", "0.0.0.0:8090", "-env", "/app/.env", "-web", "/app/web"]
     volumes:
       # o catálogo editado pelo Admin fica no repositório (agentes, instantâneo, var/)
@@ -30,6 +33,28 @@ services:
       - ./web/okf:/app/web:ro
     ports:
       - "${CONCIERGE_PORT:-8090}:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Postgres 18: a partir do 18 a imagem guarda os dados numa subpasta por versão, então o
+  # volume vai em /var/lib/postgresql (e não em .../data, que quebra).
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: concierge
+      POSTGRES_PASSWORD: concierge
+      POSTGRES_DB: concierge
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U concierge -d concierge"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
     restart: unless-stopped
 
   # Servidor MCP da entrega. A POC só escuta em loopback, então ele roda NA REDE do concierge
@@ -49,3 +74,6 @@ services:
     depends_on:
       - concierge
     restart: unless-stopped
+
+volumes:
+  pgdata:
