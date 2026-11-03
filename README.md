@@ -169,10 +169,22 @@ de exemplo (ligado ao `DEFAULT_ACCOUNT_ID`). Fora de `dev` o boot não grava nad
 ./bin/okf-admin.exe importar-json -dir okf/var -env .env
 ```
 
-Limite conhecido: o Gravar da memória troca a lista inteira de fatos do contato, e quem
-serializa ler, alterar e gravar por contato é um lock dentro do processo. Com uma réplica
-é seguro; com duas, trocas simultâneas do mesmo telefone em réplicas diferentes podem
-perder um fato.
+Limite conhecido: o serviço inteiro assume **uma réplica**. Com duas ou mais, nada abaixo
+quebra o banco, mas uma réplica não vê o que a outra escreveu:
+
+- os locks por contato (pedidos e memória) são dentro do processo: trocas simultâneas do
+  mesmo telefone em réplicas diferentes podem perder um fato ou um pedido;
+- o cache de sessões vivas (`Sessoes`) não é revalidado contra o banco;
+- o turno lê o mapeamento, a memória e os pedidos de caches em processo (zero idas ao banco
+  com o contato quente). O cache do mapeamento é atualizado pelas escritas do Admin desta
+  réplica e não tem prazo: escrita de outra réplica, ou do `importar-json` com o servidor no
+  ar, só aparece aqui depois de reiniciar. Os caches de memória e pedidos são write-through
+  e também não são revalidados;
+- a carteira de pedidos do turno vai ao banco depois da resposta, junto com a sessão; se o
+  processo cair nesse intervalo, o pedido aberto no turno se perde.
+
+Para escalar: invalidação entre réplicas (LISTEN/NOTIFY ou checagem de versão com prazo
+curto) e locks por contato no banco.
 
 Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
 casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por

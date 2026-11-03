@@ -154,7 +154,8 @@ Em tempo de execução, o condomínio da conversa é resolvido pela company do G
 tenant do ATENDE ou pela account; os casos desabilitados somem do roteador do concierge;
 o payload de R é **remontado na chamada** (preenche os params que o agente não passou)
 e entra no prompt como "Contexto do condomínio". Implementado em `internal/admin`
-(JSON em `okf/var/admin/mapeamento.json`), `harness.Config{Casos, Payloads}`,
+(Postgres, tabelas administradoras, condominios, habilitacoes, payloads e orientacoes; o
+turno lê de um cache em processo que cada escrita do Admin atualiza), `harness.Config{Casos, Payloads}`,
 `internal/atende` e a tela Admin (`/`), com Backdoor em `/backdoor`. **A administradora
 não vê recursos do Nexus** (técnico demais): o payload por condomínio fica no Backdoor,
 em `/backdoor/payloads`; o Admin tem só Condomínios e a matriz de casos de uso.
@@ -417,8 +418,9 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
 - **Uso**: em toda conversa seguinte do telefone, a memória entra na instrução de toda
   a família como "Memória sobre o morador: use sem perguntar de novo". Um caso de uso
   que precise da unidade, por exemplo, não pergunta se a memória diz que há uma só.
-- **Onde**: `internal/memoria` (`Store` em JSON por contato em `okf/var/memorias/`,
-  trocável por Postgres ou pelo recurso `memory` do Nexus), extração no harness,
+- **Onde**: `internal/memoria` (`Store` no Postgres, tabelas memoria_contatos e
+  memoria_fatos, com cache por contato no processo; trocável pelo recurso `memory` do
+  Nexus), extração no harness,
   leitura/gravação no serviço do ATENDE, visualização e esquecimento no Console
   (`GET/DELETE /api/memoria?phone=`).
 
