@@ -15,8 +15,8 @@ import {
 
 type Props = { estado: Estado; condominio: string; editavel: boolean };
 
-const AJUDA =
-  'Escreva como você explicaria a um atendente novo: horários, nomes, regras locais, o que não fazer. O concierge lê isso em toda conversa deste condomínio.';
+const TITULO = 'Orientações para este condomínio';
+const AJUDA = 'Vale para todas as conversas daqui. Escreva como falaria com um porteiro novo.';
 const PLACEHOLDER =
   'Ex.: A piscina fecha às 22h. O síndico é o sr. Paulo (não passe o telefone dele). Não aceitamos mudança aos domingos. Entregadores só até as 21h.';
 
@@ -48,14 +48,14 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
 
   return (
     <SectionCard
-      titulo="Orientações gerais"
+      titulo={TITULO}
       ajuda={AJUDA}
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
       <CampoTexto
         control={control}
         name="geral"
-        label="Orientações gerais"
+        label={TITULO}
         multiline
         minRows={4}
         placeholder={PLACEHOLDER}

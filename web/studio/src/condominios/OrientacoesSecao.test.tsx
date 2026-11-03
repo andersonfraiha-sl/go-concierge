@@ -19,7 +19,7 @@ describe('OrientacoesSecao', () => {
     const { user } = abrirCondominio();
 
     await user.type(
-      await screen.findByRole('textbox', { name: 'Orientações gerais' }),
+      await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
       'Fale com o zelador',
     );
     expect(corpos).toHaveLength(0);
@@ -36,14 +36,14 @@ describe('OrientacoesSecao', () => {
     responderCom(rotasBase(gestor));
     abrirCondominio();
 
-    const campo = await screen.findByRole('textbox', { name: 'Orientações gerais' });
+    const campo = await screen.findByRole('textbox', { name: 'Orientações para este condomínio' });
     expect(campo).toHaveAttribute(
       'placeholder',
       expect.stringMatching(/^Ex\.: A piscina fecha às 22h\./),
     );
     expect(
       screen.getByText(
-        'Escreva como você explicaria a um atendente novo: horários, nomes, regras locais, o que não fazer. O concierge lê isso em toda conversa deste condomínio.',
+        'Vale para todas as conversas daqui. Escreva como falaria com um porteiro novo.',
       ),
     ).toBeInTheDocument();
   });
@@ -64,7 +64,7 @@ describe('OrientacoesSecao', () => {
     responderCom(rotasBase(gestor));
     abrirCondominio();
 
-    await screen.findByRole('textbox', { name: 'Orientações gerais' });
+    await screen.findByRole('textbox', { name: 'Orientações para este condomínio' });
     for (const caso of estadoFalso.casos) {
       expect(screen.queryByRole('textbox', { name: caso.titulo })).not.toBeInTheDocument();
     }
