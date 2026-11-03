@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"go-concierge/internal/okf"
 )
 
 func TestStudioEstatico(t *testing.T) {
@@ -170,5 +174,38 @@ func TestRotasDaTelaAntigaRegistradas(t *testing.T) {
 				t.Errorf("padrão de %s %s = %q, quer %q", c.metodo, c.caminho, padrao, c.padrao)
 			}
 		})
+	}
+}
+
+// TestExcluirDevolveMudancas confere que o corpo de DELETE /api/agente sempre tem
+// "mudancas" (mesmo vazia): backdoor.js:464 lê r.mudancas.length sem checar undefined, e
+// um corpo sem o campo faz o delete bem-sucedido aparecer como erro na tela.
+func TestExcluirDevolveMudancas(t *testing.T) {
+	raiz := t.TempDir()
+	if err := os.CopyFS(filepath.Join(raiz, "agentes"), os.DirFS(filepath.Join("..", "..", "okf", "agentes"))); err != nil {
+		t.Fatal(err)
+	}
+	cat, err := okf.NewCatalogo(raiz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &servidor{cat: cat}
+	mux := http.NewServeMux()
+	s.rotasLegado(mux)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/agente?agente=agentes/concierge/agentes/faq", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("DELETE /api/agente = %d, corpo %s", rec.Code, rec.Body.String())
+	}
+
+	var corpo struct {
+		Mudancas *[]string `json:"mudancas"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &corpo); err != nil {
+		t.Fatalf("corpo não é JSON: %v (%s)", err, rec.Body.String())
+	}
+	if corpo.Mudancas == nil {
+		t.Fatalf("resposta sem mudancas: %s", rec.Body.String())
 	}
 }

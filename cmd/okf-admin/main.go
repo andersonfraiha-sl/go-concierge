@@ -351,7 +351,7 @@ func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
 		Agente string         `json:"agente"`
 		Campos map[string]any `json:"campos"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&corpo); err != nil {
 		writeErr(w, 400, err)
 		return
 	}

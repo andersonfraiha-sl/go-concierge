@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"go-concierge/internal/okf"
@@ -31,7 +32,7 @@ func (s *servidor) anatomia(w http.ResponseWriter, _ *http.Request) {
 
 func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
 	var n okf.NovoAgente
-	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&n); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -49,7 +50,10 @@ func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"excluido": rel})
+	// ExcluirSkill não devolve as rotas que ajustou (ao contrário da ExcluirAgente antiga);
+	// mudancas fica vazia em vez de ausente, pois backdoor.js:464 lê r.mudancas.length sem
+	// checar undefined.
+	writeJSON(w, 200, map[string]any{"excluido": rel, "mudancas": []string{}})
 }
 
 // mover: a árvore do Backdoor ainda tem o drag-and-drop de mover/clonar agente, mas o
