@@ -38,13 +38,11 @@ export function apiEnviar<S extends z.ZodType>(
   caminho: string,
   corpo: unknown,
   schema: S,
+  sinal?: AbortSignal,
 ): Promise<z.infer<S>> {
-  return requisitar(
-    metodo,
-    caminho,
-    corpo === undefined ? undefined : JSON.stringify(corpo),
-    schema,
-  );
+  const corpoJson = corpo === undefined ? undefined : JSON.stringify(corpo);
+  const envio = sinal ? { ...ENVIO_JSON, sinal } : ENVIO_JSON;
+  return requisitar(metodo, caminho, corpoJson, schema, envio);
 }
 
 /** Corpo binário (ex.: zip): mesmo tratamento de erro, papel e timeout do cliente JSON. */
@@ -59,7 +57,8 @@ export function apiEnviarBinario<S extends z.ZodType>(
   return requisitar(metodo, caminho, corpo, schema, { tipo, timeoutMs });
 }
 
-type Envio = { tipo: string; timeoutMs: number };
+// Sem `sinal`, a chamada usa o prazo `timeoutMs`; com ele, quem chama é dono do prazo.
+type Envio = { tipo: string; timeoutMs: number; sinal?: AbortSignal };
 const ENVIO_JSON: Envio = { tipo: 'application/json', timeoutMs: TIMEOUT_MS };
 
 async function requisitar<S extends z.ZodType>(
@@ -86,7 +85,7 @@ async function buscar(
       method: metodo,
       headers: montarCabecalhos(corpo === undefined ? null : envio.tipo),
       body: corpo ?? null,
-      signal: AbortSignal.timeout(envio.timeoutMs),
+      signal: envio.sinal ?? AbortSignal.timeout(envio.timeoutMs),
     });
   } catch (cause) {
     throw new ApiError(0, 'SEM_CONEXAO', 'Sem conexão com o servidor.', cause);
