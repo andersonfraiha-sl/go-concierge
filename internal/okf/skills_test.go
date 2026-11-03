@@ -289,6 +289,176 @@ func TestSalvarTextosRecusaTituloVazio(t *testing.T) {
 	}
 }
 
+func TestLerTextosTrazResumoEVisibilidade(t *testing.T) {
+	c := catalogoDeTeste(t)
+	escreverSummaryNoCaso(t, c, relMudanca, "Agenda a mudança.")
+	textos, _, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if textos.Resumo != "Agenda a mudança." || textos.Visibilidade != "private" {
+		t.Fatalf("textos = %+v", textos)
+	}
+}
+
+func TestSalvarTextosGravaResumoSemMexerNoRoteamento(t *testing.T) {
+	c := catalogoDeTeste(t)
+	rotas := lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md")
+	agente := lerArquivoDaSkill(t, c, relMudanca, AgentYAML)
+	textos, versao, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Resumo = "Agenda a mudança."
+	if _, err := c.SalvarTextos(relMudanca, versao, textos); err != nil {
+		t.Fatal(err)
+	}
+	caso, err := ParseCaso([]byte(lerArquivoDaSkill(t, c, relMudanca, CasoYAML)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caso.Summary != textos.Resumo {
+		t.Errorf("caso.yaml summary = %q, quer %q", caso.Summary, textos.Resumo)
+	}
+	if lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md") != rotas || lerArquivoDaSkill(t, c, relMudanca, AgentYAML) != agente {
+		t.Error("resumo não deveria mexer no rotas.md nem no agent.yaml")
+	}
+}
+
+func TestSalvarTextosApagaResumoVazio(t *testing.T) {
+	c := catalogoDeTeste(t)
+	textos, versao, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Resumo = "Temporário."
+	versao, err = c.SalvarTextos(relMudanca, versao, textos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Resumo = ""
+	if _, err := c.SalvarTextos(relMudanca, versao, textos); err != nil {
+		t.Fatal(err)
+	}
+	var cru map[string]any
+	if err := yaml.Unmarshal([]byte(lerArquivoDaSkill(t, c, relMudanca, CasoYAML)), &cru); err != nil {
+		t.Fatal(err)
+	}
+	if _, tem := cru["summary"]; tem {
+		t.Errorf("summary deveria ter sido apagado: %v", cru)
+	}
+}
+
+func TestSalvarTextosRecusaVisibilidadeInvalida(t *testing.T) {
+	c := catalogoDeTeste(t)
+	textos, versao, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalida := textos
+	invalida.Visibilidade = "todos"
+	if _, err := c.SalvarTextos(relMudanca, versao, invalida); !errors.Is(err, ErrVisibilidadeInvalida) {
+		t.Fatalf("err = %v, want ErrVisibilidadeInvalida", err)
+	}
+
+	mantemAtual := textos
+	mantemAtual.Visibilidade = ""
+	nova, err := c.SalvarTextos(relMudanca, versao, mantemAtual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caso, err := ParseCaso([]byte(lerArquivoDaSkill(t, c, relMudanca, CasoYAML)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caso.Visibility != "private" {
+		t.Errorf("visibility = %q, quer manter private", caso.Visibility)
+	}
+
+	publica := textos
+	publica.Visibilidade = "public"
+	if _, err := c.SalvarTextos(relMudanca, nova, publica); err != nil {
+		t.Fatal(err)
+	}
+	caso, err = ParseCaso([]byte(lerArquivoDaSkill(t, c, relMudanca, CasoYAML)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caso.Visibility != "public" {
+		t.Errorf("visibility = %q, quer public", caso.Visibility)
+	}
+}
+
+func TestSalvarTextosDeSkillSemCasoGravaNoAgente(t *testing.T) {
+	const relFaq = "agentes/concierge/agentes/faq"
+	c := catalogoDeTeste(t)
+	textos, versao, err := c.LerTextos(relFaq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Resumo = "Responde dúvidas gerais."
+	textos.PalavrasChave = []string{"boleto"}
+	textos.FrasesDeExemplo = []string{"qual o horário da piscina?"}
+	nova, err := c.SalvarTextos(relFaq, versao, textos)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	relido, _, err := c.LerTextos(relFaq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if relido.Resumo != textos.Resumo || !slices.Equal(relido.PalavrasChave, textos.PalavrasChave) ||
+		!slices.Equal(relido.FrasesDeExemplo, textos.FrasesDeExemplo) {
+		t.Fatalf("textos relidos = %+v", relido)
+	}
+
+	var cfg map[string]any
+	if err := yaml.Unmarshal([]byte(lerArquivoDaSkill(t, c, relFaq, AgentYAML)), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	for _, chave := range []string{"resumo", "palavras_chave", "frases_de_exemplo"} {
+		if _, ok := cfg[chave]; !ok {
+			t.Errorf("agent.yaml sem %s: %v", chave, cfg)
+		}
+	}
+
+	semPalavras := relido
+	semPalavras.PalavrasChave = []string{}
+	if _, err := c.SalvarTextos(relFaq, nova, semPalavras); err != nil {
+		t.Fatal(err)
+	}
+	var cfgDepois map[string]any
+	if err := yaml.Unmarshal([]byte(lerArquivoDaSkill(t, c, relFaq, AgentYAML)), &cfgDepois); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cfgDepois["palavras_chave"]; ok {
+		t.Errorf("lista vazia devia apagar a chave: %v", cfgDepois)
+	}
+}
+
+// escreverSummaryNoCaso grava `summary` no caso.yaml de uma skill, para testes de leitura.
+func escreverSummaryNoCaso(t *testing.T, c *Catalogo, rel, summary string) {
+	t.Helper()
+	caminho := filepath.Join(c.Root, filepath.FromSlash(rel), CasoYAML)
+	raw, err := os.ReadFile(caminho)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["summary"] = summary
+	novo, err := yaml.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(caminho, novo, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCriterioDaRota(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -17,6 +17,8 @@ import (
 type Caso struct {
 	ID          string           `json:"id"`
 	Name        string           `json:"name"`
+	Summary     string           `json:"summary"`
+	Icon        string           `json:"icon"`
 	Visibility  string           `json:"visibility"`
 	Fallback    bool             `json:"fallback,omitempty"`
 	Description string           `json:"description"`
