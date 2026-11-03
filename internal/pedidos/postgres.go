@@ -47,24 +47,26 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Carteira, error) 
 // LerNoLote põe no lote a leitura da carteira do contato (LerPedidos); guardar recebe a
 // carteira quando o lote roda. Um erro volta no Enviar do lote.
 func (p *Postgres) LerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, guardar func(Carteira)) {
-	res := lote.Queries().LerPedidos(ctx, []sqlc.LerPedidosParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
-	lote.Depois(func() error {
-		var errLer error
-		res.Query(func(_ int, linhas []sqlc.LerPedidosRow, err error) {
-			if err != nil {
-				errLer = err
-				return
-			}
-			dados := make([]dadosDoPedido, 0, len(linhas))
-			for _, l := range linhas {
-				dados = append(dados, dadosDoPedido{protocolo: l.Protocolo, json: l.Dados})
-			}
-			var cart Carteira
-			if cart, errLer = carteiraDe(c, dados); errLer == nil {
-				guardar(cart)
-			}
-		})
-		return errLer
+	lote.Por(func(q *sqlc.Queries) func() error {
+		res := q.LerPedidos(ctx, []sqlc.LerPedidosParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
+		return func() error {
+			var errLer error
+			res.Query(func(_ int, linhas []sqlc.LerPedidosRow, err error) {
+				if err != nil {
+					errLer = err
+					return
+				}
+				dados := make([]dadosDoPedido, 0, len(linhas))
+				for _, l := range linhas {
+					dados = append(dados, dadosDoPedido{protocolo: l.Protocolo, json: l.Dados})
+				}
+				var cart Carteira
+				if cart, errLer = carteiraDe(c, dados); errLer == nil {
+					guardar(cart)
+				}
+			})
+			return errLer
+		}
 	})
 }
 
@@ -142,18 +144,20 @@ func (p *Postgres) enfileirarGravacao(ctx context.Context, lote *banco.Lote, c e
 	if err != nil {
 		return err
 	}
-	res := lote.Queries().GravarPedidos(ctx, []sqlc.GravarPedidosParams{params})
-	lote.Depois(func() error {
-		var errGravar error
-		res.QueryRow(func(_ int, r sqlc.GravarPedidosRow, err error) {
-			if err != nil {
-				errGravar = err
-				return
-			}
-			// faltando só vem com alheios vazio: outro contato gravou o protocolo no meio
-			errGravar = aoGravar(append(r.Alheios, r.Faltando...))
-		})
-		return errGravar
+	lote.Por(func(q *sqlc.Queries) func() error {
+		res := q.GravarPedidos(ctx, []sqlc.GravarPedidosParams{params})
+		return func() error {
+			var errGravar error
+			res.QueryRow(func(_ int, r sqlc.GravarPedidosRow, err error) {
+				if err != nil {
+					errGravar = err
+					return
+				}
+				// faltando só vem com alheios vazio: outro contato gravou o protocolo no meio
+				errGravar = aoGravar(append(r.Alheios, r.Faltando...))
+			})
+			return errGravar
+		}
 	})
 	return nil
 }

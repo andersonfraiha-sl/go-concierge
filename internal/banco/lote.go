@@ -14,11 +14,6 @@ import (
 // Lote junta queries :batch* do sqlc de vários stores num pgx.Batch só, enviado numa ida ao
 // banco. Cada query do sqlc chama SendBatch com o seu lote de um; aqui esse lote entra no
 // Lote, e os resultados que o sqlc lê chegam do envio único, na ordem em que entraram.
-//
-// Uso: o store chama uma query por Queries() e registra em Depois a leitura do resultado
-// (o Query/QueryRow/Exec do sqlc); Enviar manda tudo e roda as leituras, na mesma ordem.
-// Toda query enfileirada precisa da sua leitura em Depois, senão as seguintes leem o
-// resultado errado.
 type Lote struct {
 	batch      pgx.Batch
 	resultados *resultadosDoEnvio
@@ -27,11 +22,13 @@ type Lote struct {
 
 func NovoLote() *Lote { return &Lote{resultados: &resultadosDoEnvio{}} }
 
-// Queries devolve as queries do sqlc que entram neste lote em vez de ir ao banco.
-func (l *Lote) Queries() *sqlc.Queries { return sqlc.New(enfileirador{l}) }
-
-// Depois registra a leitura do resultado da última query enfileirada.
-func (l *Lote) Depois(ler func() error) { l.leituras = append(l.leituras, ler) }
+// Por enfileira uma query do sqlc e a leitura do seu resultado numa chamada só: enfileirar
+// chama a query em q e devolve a função que lê o resultado (o Query/QueryRow/Exec do sqlc).
+// Como a leitura nasce de quem enfileirou, as duas não saem de ordem. Uma chamada a
+// enfileirar deve usar uma query de q, uma vez.
+func (l *Lote) Por(enfileirar func(q *sqlc.Queries) (ler func() error)) {
+	l.leituras = append(l.leituras, enfileirar(sqlc.New(enfileirador{l})))
+}
 
 func (l *Lote) Vazio() bool { return l.batch.Len() == 0 }
 

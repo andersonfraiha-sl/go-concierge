@@ -40,14 +40,16 @@ func (p *SessaoPostgres) Salvar(ctx context.Context, r RegistroSessao) error {
 
 // SalvarNoLote põe no lote a gravação da sessão (SalvarSessao); o erro volta no Enviar.
 func (p *SessaoPostgres) SalvarNoLote(ctx context.Context, lote *banco.Lote, r RegistroSessao) {
-	res := lote.Queries().SalvarSessao(ctx, []sqlc.SalvarSessaoParams{{
-		ID: r.ID, AdministradoraID: r.AdministradoraID, CondominioID: r.CondominioID, Protocolo: r.Protocolo,
-		AtualizadaEm: pgtype.Timestamptz{Time: r.AtualizadaEm, Valid: true}, Dados: r.Dados,
-	}})
-	lote.Depois(func() error {
-		var errSalvar error
-		res.Exec(func(_ int, err error) { errSalvar = err })
-		return errSalvar
+	lote.Por(func(q *sqlc.Queries) func() error {
+		res := q.SalvarSessao(ctx, []sqlc.SalvarSessaoParams{{
+			ID: r.ID, AdministradoraID: r.AdministradoraID, CondominioID: r.CondominioID, Protocolo: r.Protocolo,
+			AtualizadaEm: pgtype.Timestamptz{Time: r.AtualizadaEm, Valid: true}, Dados: r.Dados,
+		}})
+		return func() error {
+			var errSalvar error
+			res.Exec(func(_ int, err error) { errSalvar = err })
+			return errSalvar
+		}
 	})
 }
 
@@ -67,23 +69,25 @@ func (p *SessaoPostgres) Carregar(ctx context.Context, id string) (RegistroSessa
 // CarregarNoLote põe no lote a leitura da sessão (CarregarSessao); guardar recebe o registro
 // (ok=false se a sessão não existe) quando o lote roda.
 func (p *SessaoPostgres) CarregarNoLote(ctx context.Context, lote *banco.Lote, id string, guardar func(RegistroSessao, bool)) {
-	res := lote.Queries().CarregarSessao(ctx, []string{id})
-	lote.Depois(func() error {
-		var errCarregar error
-		res.QueryRow(func(_ int, l sqlc.SessaoGravada, err error) {
-			switch {
-			case errors.Is(err, pgx.ErrNoRows):
-				guardar(RegistroSessao{}, false)
-			case err != nil:
-				errCarregar = err
-			default:
-				guardar(RegistroSessao{
-					ID: l.ID, AdministradoraID: l.AdministradoraID, CondominioID: l.CondominioID, Protocolo: l.Protocolo,
-					AtualizadaEm: l.AtualizadaEm.Time, Dados: l.Dados,
-				}, true)
-			}
-		})
-		return errCarregar
+	lote.Por(func(q *sqlc.Queries) func() error {
+		res := q.CarregarSessao(ctx, []string{id})
+		return func() error {
+			var errCarregar error
+			res.QueryRow(func(_ int, l sqlc.SessaoGravada, err error) {
+				switch {
+				case errors.Is(err, pgx.ErrNoRows):
+					guardar(RegistroSessao{}, false)
+				case err != nil:
+					errCarregar = err
+				default:
+					guardar(RegistroSessao{
+						ID: l.ID, AdministradoraID: l.AdministradoraID, CondominioID: l.CondominioID, Protocolo: l.Protocolo,
+						AtualizadaEm: l.AtualizadaEm.Time, Dados: l.Dados,
+					}, true)
+				}
+			})
+			return errCarregar
+		}
 	})
 }
 

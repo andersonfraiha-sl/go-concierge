@@ -47,17 +47,19 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Memoria, error) {
 // LerNoLote põe no lote a leitura da memória do contato (LerMemoria, uma query com o contato
 // e os fatos); guardar recebe a memória quando o lote roda. Um erro volta no Enviar do lote.
 func (p *Postgres) LerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, guardar func(Memoria)) {
-	res := lote.Queries().LerMemoria(ctx, []sqlc.LerMemoriaParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
-	lote.Depois(func() error {
-		var errLer error
-		res.Query(func(_ int, linhas []sqlc.LerMemoriaRow, err error) {
-			if err != nil {
-				errLer = err
-				return
-			}
-			guardar(memoriaDasLinhas(c, linhas))
-		})
-		return errLer
+	lote.Por(func(q *sqlc.Queries) func() error {
+		res := q.LerMemoria(ctx, []sqlc.LerMemoriaParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
+		return func() error {
+			var errLer error
+			res.Query(func(_ int, linhas []sqlc.LerMemoriaRow, err error) {
+				if err != nil {
+					errLer = err
+					return
+				}
+				guardar(memoriaDasLinhas(c, linhas))
+			})
+			return errLer
+		}
 	})
 }
 
