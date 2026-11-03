@@ -117,6 +117,40 @@ describe('apiEnviar', () => {
   });
 });
 
+describe('apiEnviar com cancelamento', () => {
+  function esperarAborto(_: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    return new Promise((_resolver, rejeitar) => {
+      init?.signal?.addEventListener('abort', () => rejeitar(init.signal?.reason));
+    });
+  }
+
+  it('keepsDeadlineWhenCallerPassesSignal', async () => {
+    vi.stubGlobal('fetch', vi.fn(esperarAborto));
+    const quemChama = new AbortController();
+
+    const erro = await capturarErro(
+      apiEnviar('POST', '/api/item', {}, Item, { sinal: quemChama.signal, timeoutMs: 5 }),
+    );
+
+    expect([erro.codigo, erro.message]).toEqual([
+      'TEMPO_ESGOTADO',
+      'O servidor demorou demais para responder.',
+    ]);
+  });
+
+  it('cancelsWithCallerSignal', async () => {
+    vi.stubGlobal('fetch', vi.fn(esperarAborto));
+    const quemChama = new AbortController();
+
+    const pedido = capturarErro(
+      apiEnviar('POST', '/api/item', {}, Item, { sinal: quemChama.signal }),
+    );
+    quemChama.abort();
+
+    expect((await pedido).codigo).toBe('CANCELADO');
+  });
+});
+
 describe('apiEnviarBinario', () => {
   const zip = new Blob(['zip']);
 

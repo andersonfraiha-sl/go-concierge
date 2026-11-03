@@ -127,8 +127,10 @@ export function conversar(
   corpo: PedidoAoCopiloto,
   sinal: AbortSignal,
 ): Promise<RespostaDoCopiloto> {
-  const comPrazo = AbortSignal.any([sinal, AbortSignal.timeout(PRAZO_DO_COPILOTO_MS)]);
-  return apiEnviar('POST', '/api/copiloto', corpo, RespostaDoCopilotoSchema, comPrazo);
+  return apiEnviar('POST', '/api/copiloto', corpo, RespostaDoCopilotoSchema, {
+    sinal,
+    timeoutMs: PRAZO_DO_COPILOTO_MS,
+  });
 }
 
 const EstadoDoCopilotoSchema = z.object({ disponivel: z.boolean() });

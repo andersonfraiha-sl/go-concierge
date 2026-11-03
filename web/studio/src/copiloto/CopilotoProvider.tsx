@@ -1,6 +1,14 @@
 import type { SxProps, Theme } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  type RefObject,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { ApiError } from '@/shared/api/http';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { tokens } from '@/theme/tokens';
@@ -26,6 +34,9 @@ export type Mensagem = {
 type ValorDoCopiloto = {
   aberto: boolean;
   alternar: () => void;
+  /** Fecha pelo X do painel e devolve o foco ao botão do header, que continua na tela. */
+  fechar: () => void;
+  botaoDoCopiloto: RefObject<HTMLButtonElement | null>;
   status: Status;
   mensagens: Mensagem[];
   enviar: (texto: string) => Promise<void>;
@@ -40,6 +51,7 @@ const CHAVE_ABERTO = 'studio.copilotoAberto';
 const NENHUM_ALVO: ReadonlySet<string> = new Set();
 const DURACAO_DO_REALCE_MS = 1500;
 const CONTEXTO_INICIAL: ContextoDoCopiloto = { tela: 'skills' };
+const MENSAGEM_DE_DEMORA = 'O Copiloto demorou demais.';
 
 const CopilotoContext = createContext<ValorDoCopiloto | null>(null);
 
@@ -61,7 +73,8 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   const [aberto, setAberto] = useState(lerAberto);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [pensando, setPensando] = useState(false);
-  const [alvosRealcados, setAlvosRealcados] = useState<ReadonlySet<string>>(NENHUM_ALVO);
+  const [alvosRealcados, realcar] = useAlvosRealcados();
+  const botaoDoCopiloto = useRef<HTMLButtonElement>(null);
   // Só leitura na hora de enviar, nunca no render: troca de tela não redesenha o painel.
   const contexto = useRef(CONTEXTO_INICIAL);
   const pedidoEmCurso = useRef<AbortController | null>(null);
@@ -75,6 +88,11 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     if (!proximo) pedidoEmCurso.current?.abort();
     setAberto(proximo);
     gravarAberto(proximo);
+  };
+
+  const fechar = () => {
+    if (aberto) alternar();
+    botaoDoCopiloto.current?.focus();
   };
 
   // O id da proposta vem do servidor como índice ("0", "1"…) e se repete entre respostas.
@@ -110,7 +128,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
       if (erro instanceof ApiError && erro.codigo === 'COPILOTO_INDISPONIVEL') {
         await queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTADO });
       }
-      acrescentar({ papel: 'copiloto', texto: mensagemDe(erro), propostas: [], tom: 'erro' });
+      acrescentar({ papel: 'copiloto', texto: textoDoErro(erro), propostas: [], tom: 'erro' });
     } finally {
       if (pedidoEmCurso.current === controle) pedidoEmCurso.current = null;
       setPensando(false);
@@ -125,16 +143,11 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
       })),
     );
 
-  const realcar = (alvos: readonly string[]) => {
-    setAlvosRealcados((atuais) => new Set([...atuais, ...alvos]));
-    setTimeout(() => {
-      setAlvosRealcados((atuais) => new Set([...atuais].filter((alvo) => !alvos.includes(alvo))));
-    }, DURACAO_DO_REALCE_MS);
-  };
-
   const valor: ValorDoCopiloto = {
     aberto,
     alternar,
+    fechar,
+    botaoDoCopiloto,
     status: statusDe(estado.data?.disponivel, pensando),
     mensagens,
     enviar,
@@ -148,6 +161,43 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   };
 
   return <CopilotoContext.Provider value={valor}>{children}</CopilotoContext.Provider>;
+}
+
+/** Um prazo por alvo: realçar de novo reinicia os 1500 ms daquele alvo; sair da tela limpa todos. */
+function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly string[]) => void] {
+  const [alvosRealcados, setAlvosRealcados] = useState<ReadonlySet<string>>(NENHUM_ALVO);
+  const prazos = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const prazosAtivos = prazos.current;
+    return () => {
+      for (const prazo of prazosAtivos.values()) clearTimeout(prazo);
+      prazosAtivos.clear();
+    };
+  }, []);
+
+  const apagar = (alvo: string) => {
+    prazos.current.delete(alvo);
+    setAlvosRealcados((atuais) => new Set([...atuais].filter((atual) => atual !== alvo)));
+  };
+
+  const realcar = (alvos: readonly string[]) => {
+    setAlvosRealcados((atuais) => new Set([...atuais, ...alvos]));
+    for (const alvo of alvos) {
+      clearTimeout(prazos.current.get(alvo));
+      prazos.current.set(
+        alvo,
+        setTimeout(() => apagar(alvo), DURACAO_DO_REALCE_MS),
+      );
+    }
+  };
+
+  return [alvosRealcados, realcar];
+}
+
+function textoDoErro(erro: unknown): string {
+  const estourouOPrazo = erro instanceof ApiError && erro.codigo === 'TEMPO_ESGOTADO';
+  return estourouOPrazo ? MENSAGEM_DE_DEMORA : mensagemDe(erro);
 }
 
 // A Task 26 troca por aplicar de verdade, chamando `realcar` com os alvos mudados.

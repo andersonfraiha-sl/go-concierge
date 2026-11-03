@@ -30,7 +30,7 @@ export function PainelDoCopiloto() {
         width: tokens.layout.copiloto,
         flexShrink: 0,
         position: 'sticky',
-        top: 0,
+        top: tokens.layout.navbarHeight,
         alignSelf: 'flex-start',
         height: `calc(100vh - ${tokens.layout.navbarHeight}px)`,
         display: 'flex',
@@ -86,7 +86,7 @@ function ConteudoDoPainel() {
 }
 
 function Cabecalho({ status }: { status: Status }) {
-  const { alternar } = useCopiloto();
+  const { fechar } = useCopiloto();
   const rotulo = ROTULO_DO_STATUS[status];
   return (
     <Box
@@ -125,7 +125,7 @@ function Cabecalho({ status }: { status: Status }) {
       </Box>
       <IconButton
         aria-label="Fechar copiloto"
-        onClick={alternar}
+        onClick={fechar}
         size="small"
         sx={{ ml: 'auto', borderRadius: `${RAIOS.campo}px`, color: 'text.secondary' }}
       >

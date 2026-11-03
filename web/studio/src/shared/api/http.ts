@@ -38,10 +38,10 @@ export function apiEnviar<S extends z.ZodType>(
   caminho: string,
   corpo: unknown,
   schema: S,
-  sinal?: AbortSignal,
+  { sinal, timeoutMs = TIMEOUT_MS }: Cancelamento = {},
 ): Promise<z.infer<S>> {
   const corpoJson = corpo === undefined ? undefined : JSON.stringify(corpo);
-  const envio = sinal ? { ...ENVIO_JSON, sinal } : ENVIO_JSON;
+  const envio: Envio = { ...ENVIO_JSON, timeoutMs, ...(sinal && { sinal }) };
   return requisitar(metodo, caminho, corpoJson, schema, envio);
 }
 
@@ -57,7 +57,8 @@ export function apiEnviarBinario<S extends z.ZodType>(
   return requisitar(metodo, caminho, corpo, schema, { tipo, timeoutMs });
 }
 
-// Sem `sinal`, a chamada usa o prazo `timeoutMs`; com ele, quem chama é dono do prazo.
+/** `sinal` cancela por quem chama; o prazo `timeoutMs` vale sempre, com ou sem ele. */
+export type Cancelamento = { sinal?: AbortSignal; timeoutMs?: number };
 type Envio = { tipo: string; timeoutMs: number; sinal?: AbortSignal };
 const ENVIO_JSON: Envio = { tipo: 'application/json', timeoutMs: TIMEOUT_MS };
 
@@ -85,11 +86,31 @@ async function buscar(
       method: metodo,
       headers: montarCabecalhos(corpo === undefined ? null : envio.tipo),
       body: corpo ?? null,
-      signal: envio.sinal ?? AbortSignal.timeout(envio.timeoutMs),
+      signal: sinalDe(envio),
     });
   } catch (cause) {
-    throw new ApiError(0, 'SEM_CONEXAO', 'Sem conexão com o servidor.', cause);
+    throw erroDeRede(cause);
   }
+}
+
+function sinalDe({ sinal, timeoutMs }: Envio): AbortSignal {
+  const prazo = AbortSignal.timeout(timeoutMs);
+  return sinal ? AbortSignal.any([sinal, prazo]) : prazo;
+}
+
+// fetch rejeita com o motivo do sinal: prazo estourado e cancelamento não são falta de conexão.
+const ERROS_DE_SINAL: Record<string, [codigo: string, mensagem: string]> = {
+  TimeoutError: ['TEMPO_ESGOTADO', 'O servidor demorou demais para responder.'],
+  AbortError: ['CANCELADO', 'O pedido foi cancelado.'],
+};
+
+function erroDeRede(cause: unknown): ApiError {
+  const nome = typeof cause === 'object' && cause !== null && 'name' in cause ? cause.name : '';
+  const [codigo, mensagem] = ERROS_DE_SINAL[String(nome)] ?? [
+    'SEM_CONEXAO',
+    'Sem conexão com o servidor.',
+  ];
+  return new ApiError(0, codigo, mensagem, cause);
 }
 
 function montarCabecalhos(tipoDoCorpo: string | null): Headers {

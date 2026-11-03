@@ -213,6 +213,38 @@ describe('PainelDoCopiloto', () => {
     await waitFor(() => expect(sinal?.aborted).toBe(true));
   });
 
+  it('abortsRequestOnUnmount', async () => {
+    const { user, fetchFalso, unmount } = montar({ 'POST /api/copiloto': esperarAborto });
+    await user.type(caixa(), 'Oi{Enter}');
+    await within(painel()).findByText('Pensando…');
+    const sinal = fetchFalso.mock.calls.find(([, init]) => init?.method === 'POST')?.[1]?.signal;
+
+    unmount();
+
+    expect(sinal?.aborted).toBe(true);
+  });
+
+  it('returnsFocusToHeaderButtonWhenClosedFromPanel', async () => {
+    const { user } = montar();
+    await within(painel()).findByText('Pronto');
+
+    await user.click(screen.getByRole('button', { name: 'Fechar copiloto' }));
+
+    expect(screen.queryByRole('complementary', { name: 'Copiloto' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copiloto' })).toHaveFocus();
+  });
+
+  it('showsOwnMessageWhenClientDeadlinePasses', async () => {
+    const { user } = montar({
+      'POST /api/copiloto': () => Promise.reject(new DOMException('prazo', 'TimeoutError')),
+    });
+
+    await user.type(caixa(), 'Oi{Enter}');
+
+    expect(await screen.findByText('O Copiloto demorou demais.')).toBeInTheDocument();
+    expect(screen.queryByText('Sem conexão com o servidor.')).not.toBeInTheDocument();
+  });
+
   it('highlightsAppliedTargetFor1500ms', () => {
     vi.useFakeTimers();
     try {
@@ -228,6 +260,27 @@ describe('PainelDoCopiloto', () => {
 
       act(() => vi.advanceTimersByTime(1500));
       expect(campo).not.toHaveStyle({ backgroundColor: tokens.color.realceDoCopiloto });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('restartsHighlightWhenTargetIsAppliedAgain', () => {
+    vi.useFakeTimers();
+    try {
+      renderComProvedores(
+        <CopilotoProvider>
+          <CampoRealcavel />
+        </CopilotoProvider>,
+      );
+      const campo = screen.getByRole('button', { name: 'Realçar' });
+
+      fireEvent.click(campo);
+      act(() => vi.advanceTimersByTime(1000));
+      fireEvent.click(campo);
+      act(() => vi.advanceTimersByTime(1000));
+
+      expect(campo).toHaveStyle({ backgroundColor: tokens.color.realceDoCopiloto });
     } finally {
       vi.useRealTimers();
     }

@@ -14,6 +14,10 @@ export function Topbar() {
       sx={{
         height: tokens.layout.navbarHeight,
         flexShrink: 0,
+        // Fixo no topo: o painel do Copiloto gruda logo abaixo, sem vão ao rolar.
+        position: 'sticky',
+        top: 0,
+        zIndex: (tema) => tema.zIndex.appBar,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -36,9 +40,10 @@ export function Topbar() {
 }
 
 function BotaoDoCopiloto() {
-  const { aberto, alternar } = useCopiloto();
+  const { aberto, alternar, botaoDoCopiloto } = useCopiloto();
   return (
     <Button
+      ref={botaoDoCopiloto}
       aria-pressed={aberto}
       onClick={alternar}
       startIcon={<AutoAwesomeOutlined />}
