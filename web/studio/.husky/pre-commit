@@ -1,0 +1,5 @@
+# O repositório é Go; o gancho só pesa quando o commit toca o Studio.
+git diff --cached --name-only --quiet -- web/studio && exit 0
+cd web/studio
+npx lint-staged
+npm test
