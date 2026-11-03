@@ -508,3 +508,16 @@ em `docker compose` (serviços `mcp` e `concierge`).
 - Estado em código: `internal/pedidos` (modelo, contrato do caso.yaml, motor, extrator
   Regras, resumo); extração por LLM em `harness/pedidos.go`; pipeline em
   `atende/pedidos.go`; guia Pedidos e formulário do atendente no Console.
+
+### 1.12 Falha do concierge nunca chega crua ao morador (2026-11-03)
+
+- Problema: com o modelo fora do ar (503 do Gemini), o erro técnico inteiro saía como
+  bolha na conversa do morador.
+- Regra: quando o harness falha (montar o agente, rodar o turno, extrator de pedidos
+  sem fallback), o morador recebe uma frase amigável: `FraseInstabilidade` para erro
+  passageiro (5xx/429, sobrecarga, tempo esgotado, rede — `atende.FalhaTemporaria`) e
+  `FraseFalha` para o resto. A frase entra no histórico da conversa e sai pelo canal com
+  contexto novo (o da requisição pode ter sido o que estourou).
+- O erro técnico fica em `Turno.Erro` (o Console mostra dobrado, em letra miúda, embaixo
+  da bolha) e no retorno de `Processar` (log). A bolha vermelha `quem=erro` só resta
+  para falha de envio pelo canal, quando o morador não recebe nada mesmo.

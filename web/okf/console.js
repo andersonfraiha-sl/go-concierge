@@ -124,7 +124,7 @@
       if (t.quem === 'morador') {
         if (estado.enviadaLocal) { estado.enviadaLocal = false; } // já desenhada ao enviar
         else bolha('user', t.texto, t.quando);
-      } else if (t.quem === 'concierge') bolha('bot', t.texto, t.quando, t.agente);
+      } else if (t.quem === 'concierge') bolha('bot', t.texto, t.quando, t.agente, t.erro);
       else if (t.quem === 'atendente') bolha('atendente', t.texto, t.quando, t.agente || 'atendente');
       else if (t.quem === 'sistema') nota(t.texto);
       else bolha('erro', t.texto, t.quando);
@@ -193,12 +193,12 @@
     $('#chat').appendChild(d);
   }
 
-  function bolha(quem, texto, quando, agente) {
+  function bolha(quem, texto, quando, agente, erro) {
     const chat = $('#chat');
     const d = document.createElement('div');
     d.className = 'bubble ' + (quem === 'user' ? 'user' : quem === 'erro' ? 'bot is-erro' : quem === 'atendente' ? 'bot atendente' : 'bot');
     d.dataset.texto = texto;
-    d.innerHTML = `${agente ? `<span class="bubble-agente">${esc(agente.split('/').pop())}</span>` : ''}${esc(texto)}<time>${hora(quando)}</time>`;
+    d.innerHTML = `${agente ? `<span class="bubble-agente">${esc(agente.split('/').pop())}</span>` : ''}${esc(texto)}${erro ? `<details class="bubble-falha"><summary>falha técnica (só o Console vê)</summary>${esc(erro)}</details>` : ''}<time>${hora(quando)}</time>`;
     chat.appendChild(d);
     chat.scrollTop = chat.scrollHeight;
   }

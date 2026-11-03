@@ -558,7 +558,8 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		if errors.Is(err, context.Canceled) && interrompido() {
 			return sess, nil
 		}
-		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		historicoRegistrado = true
 		return sess, err
 	}
 	var res *harness.Resultado
@@ -575,7 +576,8 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		if errors.Is(err, context.Canceled) && interrompido() {
 			return sess, nil
 		}
-		sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
+		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		historicoRegistrado = true
 		return sess, err
 	}
 	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" {
@@ -749,6 +751,49 @@ func (s *Servico) Encerrar(msg entrada.Mensagem) bool {
 
 func (s *Servico) PermiteTelefone(phone string) bool {
 	return s.TelefoneB2C == "" || strings.TrimSpace(phone) != "" && gruvi.NormalizarTelefone(phone) == gruvi.NormalizarTelefone(s.TelefoneB2C)
+}
+
+// Frases que o morador recebe quando o próprio concierge falha (modelo fora do ar, tempo
+// esgotado, erro interno). O erro técnico nunca vai ao morador: fica em Turno.Erro,
+// para o Console e o log.
+var (
+	FraseInstabilidade = "Estou com uma instabilidade momentânea por aqui. Pode repetir sua mensagem em instantes? Se preferir, me diga que quer falar com um atendente."
+	FraseFalha         = "Não consegui processar sua mensagem agora. Pode tentar de novo em instantes? Se preferir, me diga que quer falar com um atendente."
+)
+
+var reFalhaTemporaria = regexp.MustCompile(`(?i)status code: (429|5\d\d)|\b(429|500|502|503|504)\b|high demand|overloaded|unavailable|resource.?exhausted|rate.?limit|deadline exceeded|timeout|timed out|connection (reset|refused)|unexpected EOF`)
+
+// FalhaTemporaria: o erro é do tipo que passa sozinho (modelo sobrecarregado, limite de
+// taxa, tempo esgotado, rede), e vale pedir ao morador que repita em instantes.
+func FalhaTemporaria(err error) bool {
+	return err != nil && (errors.Is(err, context.DeadlineExceeded) || reFalhaTemporaria.MatchString(err.Error()))
+}
+
+// responderFalha responde ao morador com uma frase amigável no lugar do erro: o turno
+// guarda o erro técnico, a troca entra no histórico (o próximo turno sabe o que houve)
+// e a frase sai pelo canal. O envio usa um contexto novo (o da requisição pode ter
+// sido justamente o que estourou), mas respeita a sessão: encerrada, não entrega.
+func (s *Servico) responderFalha(ctx context.Context, sess *Sessao, texto string, historico []*schema.Message, baseHistorico int, err error) {
+	frase := FraseFalha
+	if FalhaTemporaria(err) {
+		frase = FraseInstabilidade
+	}
+	sess.registrar(Turno{Quem: "concierge", Texto: frase, Erro: err.Error()})
+	mensagens := append(append([]*schema.Message(nil), historico...), schema.UserMessage(texto), schema.AssistantMessage(frase, nil))
+	sess.historicoAtualizar(baseHistorico, mensagens)
+	if s.Sender == nil {
+		return
+	}
+	ctxEnvio, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
+	defer cancelar()
+	ctxEnvio = context.WithValue(ctxEnvio, chaveControleEntrega{}, func() bool {
+		sess.mu.Lock()
+		defer sess.mu.Unlock()
+		return !sess.Encerrada && !sess.AtendimentoHumano
+	})
+	if e := s.Sender.Enviar(ctxEnvio, sess.Destino, frase); e != nil && !errors.Is(e, errEntregaSuprimida) {
+		sess.registrar(Turno{Quem: "erro", Texto: e.Error()})
+	}
 }
 
 // montar prepara a Config do harness para a sessão (identidade, Admin do condomínio,

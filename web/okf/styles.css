@@ -428,6 +428,8 @@ textarea.code:disabled { background: var(--surface); color: var(--slate-400); }
 .bubble.bot { align-self: flex-start; background: var(--surface); color: var(--ink); border-top-left-radius: 4px; }
 .bubble.user { align-self: flex-end; background: var(--sl-blue); color: #fff; border-top-right-radius: 4px; }
 .bubble.is-erro { background: var(--danger-50); color: #8A1516; }
+.bubble-falha { display: block; margin-top: 6px; font-size: 11px; line-height: 1.35; color: #8A1516; white-space: pre-wrap; word-break: break-word; }
+.bubble-falha summary { cursor: pointer; opacity: .8; white-space: nowrap; }
 .bubble-agente { display: block; font-size: 10.5px; font-weight: 700; color: var(--sl-blue); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
 .typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: 12px 14px; border-radius: 16px; border-top-left-radius: 4px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--slate-400); animation: blink 1.2s infinite ease-in-out; }

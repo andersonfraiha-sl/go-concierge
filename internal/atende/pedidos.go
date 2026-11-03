@@ -192,6 +192,11 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	if err != nil {
 		passo("aviso", "extrator de pedidos falhou, usando regras: "+err.Error())
 		extracao, _ = pedidos.Regras{}.Extrair(ctx, pedidos.Entrada{Mensagem: texto, Casos: casos, Abertos: cart.Abertos()})
+		// modelo fora do ar e as regras sem nada: melhor avisar a instabilidade do que
+		// responder "não entendi" a um pedido legítimo
+		if FalhaTemporaria(err) && len(extracao.Pedidos) == 0 && len(extracao.Confirmacoes) == 0 && len(extracao.Cancelar) == 0 && !extracao.Atendente {
+			return nil, nil, fmt.Errorf("extrator de pedidos: %w", err)
+		}
 	}
 	{
 		var itens []string

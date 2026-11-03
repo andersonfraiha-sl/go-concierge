@@ -67,8 +67,11 @@ type Transbordo struct {
 // Turno é uma fala: do morador (incoming), do concierge (reply), do atendente humano
 // (durante o transbordo) ou do sistema (notas: transferido, devolvido).
 type Turno struct {
-	Quem     string          `json:"quem"` // morador | concierge | atendente | sistema | erro
-	Texto    string          `json:"texto"`
+	Quem  string `json:"quem"` // morador | concierge | atendente | sistema | erro
+	Texto string `json:"texto"`
+	// Erro: o erro técnico por trás de uma resposta de falha do concierge (o morador
+	// recebe só o Texto; o Console mostra o Erro em letra miúda).
+	Erro     string          `json:"erro,omitempty"`
 	Quando   time.Time       `json:"quando"`
 	EventoID string          `json:"evento_id,omitempty"`
 	Agente   string          `json:"agente,omitempty"`
