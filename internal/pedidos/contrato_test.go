@@ -1,9 +1,11 @@
 package pedidos
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -138,25 +140,29 @@ func cenarioIsolamento(t *testing.T, st Store) {
 	}
 }
 
-// O protocolo é único no banco inteiro, mas só é sorteado único na carteira: gravar um que
-// já é de outro contato falha em vez de tomar o pedido dele.
+// O protocolo é único no banco inteiro, mas só é sorteado único na carteira: um pedido novo
+// com o protocolo de outro contato ganha outro, e as duas carteiras ficam intactas.
 func cenarioProtocoloAlheio(t *testing.T, st Store) {
-	dono, intruso := contatoDeTeste("adm-a", "5519981621916"), contatoDeTeste("adm-b", "5511922222222")
+	dono, outro := contatoDeTeste("adm-a", "5519981621916"), contatoDeTeste("adm-b", "5511922222222")
 	original := pedidoDeTeste(dono, "P-AAAAA", diaDeTeste)
 	gravarCarteira(t, st, dono, original)
 
-	err := st.Gravar(t.Context(), intruso, Carteira{Pedidos: []*Pedido{pedidoDeTeste(intruso, "P-AAAAA", diaDeTeste.Add(time.Hour))}})
-	if err == nil {
-		t.Fatal("Gravar com protocolo de outro contato deveria falhar")
+	novo := pedidoDeTeste(outro, "P-AAAAA", diaDeTeste.Add(time.Hour))
+	gravarCarteira(t, st, outro, novo)
+
+	if novo.Protocolo == "P-AAAAA" || len(novo.Protocolo) != len("P-")+8 {
+		t.Fatalf("protocolo do pedido novo = %q, want um novo de 8 caracteres", novo.Protocolo)
 	}
-	if strings.Contains(err.Error(), intruso.Telefone) {
-		t.Fatalf("erro vaza o telefone: %v", err)
+	if got := protocolos(lerCarteira(t, st, outro)); !slices.Equal(got, []string{novo.Protocolo}) {
+		t.Fatalf("carteira do outro contato = %v, want [%s]", got, novo.Protocolo)
 	}
 	if got := lerCarteira(t, st, dono).Pedidos; !reflect.DeepEqual(got, []*Pedido{original}) {
 		t.Fatalf("pedido do dono mudou: %+v", got)
 	}
-	if got := lerCarteira(t, st, intruso).Pedidos; len(got) != 0 {
-		t.Fatalf("intruso ficou com %+v", got)
+	redesenhado := novo.Protocolo
+	gravarCarteira(t, st, outro, novo)
+	if novo.Protocolo != redesenhado {
+		t.Fatalf("pedido já gravado trocou de protocolo: %s → %s", redesenhado, novo.Protocolo)
 	}
 }
 
@@ -265,5 +271,65 @@ func TestPostgresAcrescentaSoEventosNovos(t *testing.T) {
 	want := []string{"1:criado:Reserva de espaço", "2:estado:" + Concluido, "3:valor:espaco = Churrasqueira"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("pedido_eventos = %v, want %v", got, want)
+	}
+}
+
+// Sem sorteio livre em tentativasProtocolo tentativas, Gravar desiste com ErrProtocoloEmUso.
+func TestProtocoloSempreEmUso(t *testing.T) {
+	sempreOMesmo := func() string { return "P-AAAAA" }
+	stores := []struct {
+		nome string
+		novo func(t *testing.T) Store
+	}{
+		{"fake", func(*testing.T) Store { f := NovoFake(); f.sortear = sempreOMesmo; return f }},
+		{"postgres", func(t *testing.T) Store { p := NovoPostgres(bancotest.Novo(t)); p.sortear = sempreOMesmo; return p }},
+	}
+	for _, tt := range stores {
+		t.Run(tt.nome, func(t *testing.T) {
+			st := tt.novo(t)
+			dono, outro := contatoDeTeste("adm-a", "5519981621916"), contatoDeTeste("adm-b", "5511922222222")
+			gravarCarteira(t, st, dono, pedidoDeTeste(dono, "P-AAAAA", diaDeTeste))
+
+			novo := pedidoDeTeste(outro, "P-AAAAA", diaDeTeste)
+			err := st.Gravar(t.Context(), outro, Carteira{Pedidos: []*Pedido{novo}})
+			if !errors.Is(err, ErrProtocoloEmUso) {
+				t.Fatalf("Gravar = %v, want ErrProtocoloEmUso", err)
+			}
+			if strings.Contains(err.Error(), outro.Telefone) {
+				t.Fatalf("erro vaza o telefone: %v", err)
+			}
+			if novo.Protocolo != "P-AAAAA" {
+				t.Fatalf("gravação que falhou trocou o protocolo do chamador: %s", novo.Protocolo)
+			}
+			if got := lerCarteira(t, st, outro).Pedidos; len(got) != 0 {
+				t.Fatalf("o outro contato ficou com %+v", got)
+			}
+		})
+	}
+}
+
+// As colunas de filtro repetem o que está em dados.
+func TestPostgresColunasIguaisAosDados(t *testing.T) {
+	b := bancotest.Novo(t)
+	c := contatoDeTeste("adm-a", "5519981621916")
+	p := pedidoDeTeste(c, "P-AAAAA", diaDeTeste)
+	gravarCarteira(t, NovoPostgres(b), c, p)
+
+	l, err := b.Ent.Pedido.Get(t.Context(), "P-AAAAA")
+	if err != nil {
+		t.Fatalf("ler linha: %v", err)
+	}
+	got := []any{l.AdministradoraID, l.CondominioID, l.Telefone, l.Caso, l.Estado, l.CriadoEm.UTC(), l.AtualizadoEm.UTC()}
+	// timestamptz guarda microssegundos; dados guarda o horário inteiro
+	want := []any{c.AdministradoraID, p.CondominioID, c.Telefone, p.Caso, p.Estado,
+		p.CriadoEm.Truncate(time.Microsecond), p.AtualizadoEm.Truncate(time.Microsecond)}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("colunas = %v, want %v", got, want)
+	}
+}
+
+func TestNovoProtocoloTemOitoCaracteres(t *testing.T) {
+	if p := NovoProtocolo(); !regexp.MustCompile(`^P-[A-HJ-NP-Z2-9]{8}$`).MatchString(p) {
+		t.Fatalf("NovoProtocolo() = %q", p)
 	}
 }

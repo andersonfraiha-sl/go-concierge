@@ -19,6 +19,8 @@ type PedidoEvento struct {
 func (PedidoEvento) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("protocolo").NotEmpty().Immutable(),
+		// seq é a posição do evento em Pedido.Historico, contando de 1; como o histórico só
+		// cresce no fim, (protocolo, seq) identifica o evento e um seq gravado nunca é reescrito.
 		field.Int("seq").Immutable(),
 		field.String("tipo").Immutable(),
 		field.Text("texto").Immutable(),

@@ -25,10 +25,11 @@ const timeoutConsulta = 3 * time.Second
 // Postgres guarda cada pedido numa linha de pedidos (o pedido inteiro em dados) e o
 // histórico em pedido_eventos, só acrescentado. Pedidos vão pelo ent; eventos pelo sqlc.
 type Postgres struct {
-	b banco.Banco
+	b       banco.Banco
+	sortear func() string // protocolo para o pedido novo que colide
 }
 
-func NovoPostgres(b banco.Banco) *Postgres { return &Postgres{b: b} }
+func NovoPostgres(b banco.Banco) *Postgres { return &Postgres{b: b, sortear: NovoProtocolo} }
 
 func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Carteira, error) {
 	if err := validarContato(c); err != nil {
@@ -51,22 +52,28 @@ func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, cart Carteira) 
 	if err := validarContato(c); err != nil {
 		return err
 	}
-	pedidos := copiasDoContato(c, cart.Pedidos)
-	linhas, err := linhasDe(pedidos)
-	if err != nil {
-		return fmt.Errorf("codificar pedidos de %s: %w", c.Mascarado(), err)
-	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	if err := emTransacao(ctx, p.b.Ent, func(cli *ent.Client) error { return trocarPedidos(ctx, cli, c, linhas) }); err != nil {
+	var gravados []Pedido
+	err := emTransacao(ctx, p.b.Ent, func(cli *ent.Client) error {
+		var err error
+		gravados, err = p.gravarNa(ctx, cli, c, copiasDoContato(c, cart.Pedidos))
+		return err
+	})
+	if err != nil {
 		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err)
 	}
+	adotarProtocolos(cart.Pedidos, gravados)
 	// Os eventos vão depois do commit: o ent fala database/sql e o sqlc fala pgx, e os dois
 	// não dividem transação. dados já tem o histórico inteiro; se esta parte falhar, o erro
 	// volta, o Servico guarda a carteira como pendente e a próxima gravação acrescenta o que
 	// faltou (os já gravados são ignorados).
-	if err := p.b.SQL.AcrescentarEventos(ctx, eventosDe(pedidos)); err != nil {
-		return fmt.Errorf("gravar histórico dos pedidos de %s: %w", c.Mascarado(), err)
+	eventos := eventosDe(gravados)
+	if len(eventos.Protocolos) == 0 {
+		return nil
+	}
+	if err := p.b.SQL.AcrescentarEventos(ctx, eventos); err != nil {
+		return fmt.Errorf("pedidos de %s gravados, mas não o histórico: %w", c.Mascarado(), err)
 	}
 	return nil
 }
@@ -146,9 +153,40 @@ func linhasDe(pedidos []Pedido) ([]linha, error) {
 	return out, nil
 }
 
+// gravarNa redesenha os protocolos que colidem com os de outro contato e troca os pedidos do
+// contato pelos da carteira; devolve os pedidos como ficaram gravados.
+func (p *Postgres) gravarNa(ctx context.Context, cli *ent.Client, c escopo.Contato, pedidos []Pedido) ([]Pedido, error) {
+	pedidos, err := redesenharColisoes(pedidos, deOutrosNoBanco(ctx, cli, c), p.sortear)
+	if err != nil {
+		return nil, err
+	}
+	linhas, err := linhasDe(pedidos)
+	if err != nil {
+		return nil, fmt.Errorf("codificar pedidos: %w", err)
+	}
+	if err := trocarPedidos(ctx, cli, c, linhas); err != nil {
+		return nil, err
+	}
+	return pedidos, nil
+}
+
+func deOutrosNoBanco(ctx context.Context, cli *ent.Client, c escopo.Contato) deOutros {
+	return func(protocolos []string) (map[string]bool, error) {
+		ids, err := cli.Pedido.Query().Where(pedido.IDIn(protocolos...), pedido.Not(doContato(c))).IDs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("procurar protocolos de outros contatos: %w", err)
+		}
+		out := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			out[id] = true
+		}
+		return out, nil
+	}
+}
+
 // trocarPedidos grava os pedidos do contato e apaga os que saíram da carteira. O upsert só
-// sobrescreve linha do próprio contato; se algum protocolo é de outro, a contagem não fecha
-// e a transação é desfeita.
+// sobrescreve linha do próprio contato; se outro contato gravou o mesmo protocolo depois da
+// checagem, a contagem não fecha e a transação é desfeita.
 func trocarPedidos(ctx context.Context, cli *ent.Client, c escopo.Contato, linhas []linha) error {
 	protocolos := make([]string, 0, len(linhas))
 	for _, l := range linhas {
@@ -168,7 +206,7 @@ func trocarPedidos(ctx context.Context, cli *ent.Client, c escopo.Contato, linha
 		return fmt.Errorf("conferir donos dos pedidos: %w", err)
 	}
 	if meus != len(protocolos) {
-		return errProtocoloDeOutroContato
+		return ErrProtocoloEmUso
 	}
 	return nil
 }
@@ -199,7 +237,7 @@ func upsertPedidos(ctx context.Context, cli *ent.Client, linhas []linha) error {
 }
 
 // eventosDe põe o histórico de cada pedido em colunas; seq é a posição no histórico,
-// contando de 1. Sem eventos, os arrays vão NULL e a unnest não devolve linha.
+// contando de 1.
 func eventosDe(pedidos []Pedido) sqlc.AcrescentarEventosParams {
 	var p sqlc.AcrescentarEventosParams
 	for _, ped := range pedidos {

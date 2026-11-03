@@ -17,10 +17,11 @@ type Fake struct {
 	mu      sync.Mutex
 	pedidos map[string]map[string][]byte // contato (escopo.Contato.Chave) → protocolo → JSON
 	donos   map[string]string            // protocolo → contato
+	sortear func() string                // protocolo para o pedido novo que colide
 }
 
 func NovoFake() *Fake {
-	return &Fake{pedidos: map[string]map[string][]byte{}, donos: map[string]string{}}
+	return &Fake{pedidos: map[string]map[string][]byte{}, donos: map[string]string{}, sortear: NovoProtocolo}
 }
 
 func (f *Fake) Ler(_ context.Context, c escopo.Contato) (Carteira, error) {
@@ -36,20 +37,19 @@ func (f *Fake) Gravar(_ context.Context, c escopo.Contato, cart Carteira) error 
 	if err := validarContato(c); err != nil {
 		return err
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pedidos, err := redesenharColisoes(copiasDoContato(c, cart.Pedidos), f.deOutros(c), f.sortear)
+	if err != nil {
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err)
+	}
 	novos := map[string][]byte{}
-	for _, p := range copiasDoContato(c, cart.Pedidos) {
+	for _, p := range pedidos {
 		raw, err := json.Marshal(p)
 		if err != nil {
 			return fmt.Errorf("codificar pedido %s de %s: %w", p.Protocolo, c.Mascarado(), err)
 		}
 		novos[p.Protocolo] = raw
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for protocolo := range novos {
-		if dono, ok := f.donos[protocolo]; ok && dono != c.Chave() {
-			return fmt.Errorf("gravar pedido %s de %s: %w", protocolo, c.Mascarado(), errProtocoloDeOutroContato)
-		}
 	}
 	for protocolo := range f.pedidos[c.Chave()] {
 		delete(f.donos, protocolo)
@@ -58,7 +58,21 @@ func (f *Fake) Gravar(_ context.Context, c escopo.Contato, cart Carteira) error 
 		f.donos[protocolo] = c.Chave()
 	}
 	f.pedidos[c.Chave()] = novos
+	adotarProtocolos(cart.Pedidos, pedidos)
 	return nil
+}
+
+// deOutros consulta os donos; quem chama segura f.mu.
+func (f *Fake) deOutros(c escopo.Contato) deOutros {
+	return func(protocolos []string) (map[string]bool, error) {
+		out := map[string]bool{}
+		for _, p := range protocolos {
+			if dono, ok := f.donos[p]; ok && dono != c.Chave() {
+				out[p] = true
+			}
+		}
+		return out, nil
+	}
 }
 
 func (f *Fake) Listar(_ context.Context, administradoraID string) ([]Carteira, error) {

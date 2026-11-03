@@ -263,3 +263,21 @@ func TestRemoverPedidoEncerrado(t *testing.T) {
 		t.Fatalf("remover de novo devia falhar: não encontrado")
 	}
 }
+
+func TestReCancelarAceitaProtocolosNovosEAntigos(t *testing.T) {
+	casos := []struct{ texto, want string }{
+		{"CANCELAR P-ABCDE", "P-ABCDE"},
+		{"CANCELA P-ABCDEFGH", "P-ABCDEFGH"},
+		{"CANCELAR P-ABCDEFGH POR FAVOR", "P-ABCDEFGH"},
+		{"CANCELAR P-ABCDEF", ""},
+	}
+	for _, c := range casos {
+		got := ""
+		if m := reCancelar.FindStringSubmatch(c.texto); m != nil {
+			got = m[1]
+		}
+		if got != c.want {
+			t.Errorf("reCancelar(%q) = %q, want %q", c.texto, got, c.want)
+		}
+	}
+}
