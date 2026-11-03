@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -109,7 +107,7 @@ func responderErroDeAlvo(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, e.status, map[string]string{"codigo": e.codigo, "error": e.mensagem})
 		return
 	}
-	slog.ErrorContext(r.Context(), "resolver alvo da requisição", "operacao", operacaoDe(r), "erro", err.Error())
+	loggerDe(r.Context()).ErrorContext(r.Context(), "resolver alvo da requisição", "operacao", operacaoDe(r), "erro", err.Error())
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
 }
 
@@ -195,14 +193,6 @@ func (s *servidor) alvoSessaoDaConsulta(r *http.Request) (acesso.Escopo, error) 
 	return s.escopoDaSessao(identificadorDaSessao(r)), nil
 }
 
-// alvoSaidas: com sessão, a dela; sem, a caixa de saída inteira, que é da Superlógica.
-func (s *servidor) alvoSaidas(r *http.Request) (acesso.Escopo, error) {
-	if id := identificadorDaSessao(r); id != "" {
-		return s.escopoDaSessao(id), nil
-	}
-	return escopoSuperlogica, nil
-}
-
 type corpoComSessao struct {
 	Acao      string `json:"acao"`
 	Protocolo string `json:"protocolo"`
@@ -278,7 +268,7 @@ const limiteCorpoEspiado = 2 << 20
 func espiarCorpo(r *http.Request, v any) error {
 	raw, err := io.ReadAll(io.LimitReader(r.Body, limiteCorpoEspiado))
 	if err != nil {
-		return fmt.Errorf("ler corpo: %w", err)
+		return erroDeAlvo{http.StatusBadRequest, "CORPO_INVALIDO", "corpo ilegível"}
 	}
 	r.Body = io.NopCloser(bytes.NewReader(raw))
 	if len(bytes.TrimSpace(raw)) == 0 {
@@ -292,29 +282,53 @@ func espiarCorpo(r *http.Request, v any) error {
 
 // ---- visão do mapeamento por usuário --------------------------------------
 
-// visaoDoUsuario recorta o mapeamento ao que o usuário pode ler. A Superlógica vê tudo (ou a
-// administradora pedida); os demais, só a administradora pedida entre as suas, ou a única
-// que têm. Nunca devolve Visao("") a quem não é da Superlógica.
-func visaoDoUsuario(r *http.Request, m admin.Mapeamento) (admin.Mapeamento, []admin.Administradora, error) {
+// recorteDoUsuario decide, antes de qualquer escrita, que administradora a resposta mostra:
+// a Superlógica vê tudo ("") ou a pedida; os demais, a pedida entre as suas ou a única que
+// têm. Com várias e nenhuma pedida, 400; pedida fora das suas, 403.
+func recorteDoUsuario(r *http.Request, adms []admin.Administradora) (string, error) {
 	a, ok := acessoDe(r.Context())
 	if !ok {
-		return admin.Mapeamento{}, nil, erroDeAlvo{http.StatusUnauthorized, "NAO_AUTENTICADO", "usuário não autenticado"}
+		return "", erroDeAlvo{http.StatusUnauthorized, "NAO_AUTENTICADO", "usuário não autenticado"}
 	}
 	pedida := strings.TrimSpace(r.URL.Query().Get("administradora"))
 	if acesso.Permitido(a, acesso.SkillsLer, escopoSuperlogica) {
-		return m.Visao(pedida), m.Administradoras, nil
+		return pedida, nil
 	}
-	visiveis := slices.DeleteFunc(slices.Clone(m.Administradoras), func(adm admin.Administradora) bool {
-		return !acesso.Permitido(a, acesso.SkillsLer, escopoAdministradora(adm.ID))
-	})
+	visiveis := administradorasVisiveis(a, adms)
 	if pedida == "" && len(visiveis) == 1 {
-		pedida = visiveis[0].ID
+		return visiveis[0].ID, nil
 	}
 	if pedida == "" && len(visiveis) > 1 {
-		return admin.Mapeamento{}, nil, erroDeAlvo{http.StatusBadRequest, "ADMINISTRADORA_OBRIGATORIA", "informe administradora"}
+		return "", erroDeAlvo{http.StatusBadRequest, "ADMINISTRADORA_OBRIGATORIA", "informe administradora"}
 	}
 	if !slices.ContainsFunc(visiveis, func(adm admin.Administradora) bool { return adm.ID == pedida }) {
-		return admin.Mapeamento{}, nil, erroDeAlvo{http.StatusForbidden, "SEM_PERMISSAO", "sem permissão para esta administradora"}
+		return "", erroDeAlvo{http.StatusForbidden, "SEM_PERMISSAO", "sem permissão para esta administradora"}
 	}
-	return m.Visao(pedida), visiveis, nil
+	return pedida, nil
+}
+
+// visaoPara aplica o recorte já decidido; não falha, para uma escrita gravada nunca responder
+// erro. Quem não é da Superlógica nunca recebe Visao("") (que é tudo).
+func visaoPara(r *http.Request, m admin.Mapeamento, recorte string) (admin.Mapeamento, []admin.Administradora) {
+	a, _ := acessoDe(r.Context())
+	if acesso.Permitido(a, acesso.SkillsLer, escopoSuperlogica) {
+		return m.Visao(recorte), m.Administradoras
+	}
+	if recorte == "" {
+		return admin.Mapeamento{}, []admin.Administradora{}
+	}
+	return m.Visao(recorte), administradorasVisiveis(a, m.Administradoras)
+}
+
+func administradorasVisiveis(a acesso.Acesso, adms []admin.Administradora) []admin.Administradora {
+	return slices.DeleteFunc(slices.Clone(adms), func(adm admin.Administradora) bool {
+		return !acesso.Permitido(a, acesso.SkillsLer, escopoAdministradora(adm.ID))
+	})
+}
+
+// alvoDaEscrita é o condomínio da escrita com a dona que a autorização viu (o repositório
+// recusa se ela mudou no meio).
+func alvoDaEscrita(r *http.Request, condoID string) admin.Alvo {
+	a, _ := acessoDe(r.Context())
+	return admin.Alvo{Condominio: condoID, Dona: a.AdministradoraDe[condoID]}
 }

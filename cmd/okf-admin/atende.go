@@ -42,11 +42,13 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	// padrão do modo dev)
 	mux.Handle("POST /emulador/atende/messages", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.emulador.Handler))
 	// conversas: a administradora pedida ou, quando há conversa, a gravada nela
-	mux.Handle("GET /api/atende/config", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeConfig))
+	// configuração da implantação e consulta de identidade no Gruvi (company global, qualquer
+	// telefone): só a Superlógica, como o emulador
+	mux.Handle("GET /api/atende/config", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeConfig))
+	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeIdentidade))
 	mux.Handle("GET /api/atende/sessoes", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeSessoes))
-	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeIdentidade))
 	mux.Handle("GET /api/atende/sessao", s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSessao))
-	mux.Handle("GET /api/atende/saidas", s.protegida(acesso.ConversasVer, s.alvoSaidas, s.atendeSaidas))
+	mux.Handle("GET /api/atende/saidas", s.saidasPorEscopo())
 	mux.Handle("DELETE /api/atende/sessao", s.protegida(acesso.ConversasAtender, s.alvoSessaoDaConsulta, s.atendeReiniciar))
 	mux.Handle("POST /api/atende/transbordo", s.protegida(acesso.ConversasAtender, s.alvoSessaoDoCorpo, s.atendeTransbordo))
 	mux.Handle("GET /api/pedidos", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosLer))
@@ -325,10 +327,12 @@ func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 	case "devolver":
 		sess, err = s.atende.Devolver(corpo.Protocolo)
 	default:
-		err = errors.New("acao: assumir | responder | devolver")
+		writeErr(w, 400, errors.New("acao: assumir | responder | devolver"))
+		return
 	}
 	if err != nil {
-		writeErr(w, 400, err)
+		s.logger().WarnContext(r.Context(), "transbordo", "operacao", operacaoDe(r), "acao", corpo.Acao, "erro", err.Error())
+		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "TRANSBORDO_RECUSADO", "error": "não foi possível " + corpo.Acao + " o protocolo"})
 		return
 	}
 	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
@@ -346,6 +350,20 @@ func (s *servidor) atendeReiniciar(w http.ResponseWriter, r *http.Request) {
 	}
 	s.atende.Sessoes.Remover(sess.ID)
 	writeJSON(w, 200, map[string]any{"removido": p})
+}
+
+// saidasPorEscopo: as saídas de uma conversa são de quem vê a conversa; a caixa de saída
+// inteira (sem id nem protocolo) é do processo, só da Superlógica.
+func (s *servidor) saidasPorEscopo() http.Handler {
+	daSessao := s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSaidas)
+	todas := s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeSaidas)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if identificadorDaSessao(r) != "" {
+			daSessao.ServeHTTP(w, r)
+			return
+		}
+		todas.ServeHTTP(w, r)
+	})
 }
 
 func (s *servidor) atendeSaidas(w http.ResponseWriter, r *http.Request) {

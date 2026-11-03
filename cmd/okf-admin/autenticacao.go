@@ -15,7 +15,12 @@ type Autenticador interface {
 	Autenticar(r *http.Request) (usuarioID string, err error)
 }
 
-const cabecalhoUsuarioDev = "X-Dev-Usuario"
+const (
+	cabecalhoUsuarioDev = "X-Dev-Usuario"
+	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento:
+	// fora de AUTH_MODE=dev ninguém entra com ele, venha de que autenticador vier.
+	usuarioSemeadoDev = "admin-superlogica"
+)
 
 var (
 	errSemUsuario      = errors.New("requisição sem usuário")
@@ -43,7 +48,7 @@ type autenticadorFechado struct{}
 func (autenticadorFechado) Autenticar(*http.Request) (string, error) { return "", errSemAutenticacao }
 
 func novoAutenticador(authMode, usuarioPadrao string) Autenticador {
-	if authMode == "dev" {
+	if authMode == authModeDev {
 		return autenticadorDev{padrao: strings.TrimSpace(usuarioPadrao)}
 	}
 	return autenticadorFechado{}
@@ -66,7 +71,7 @@ func acessoDe(ctx context.Context) (acesso.Acesso, bool) {
 func (s *servidor) autenticado(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		usuarioID, err := s.autenticador.Autenticar(r)
-		if err != nil {
+		if err != nil || (usuarioID == usuarioSemeadoDev && s.authMode != authModeDev) {
 			responderNaoAutenticado(w)
 			return
 		}

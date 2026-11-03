@@ -166,9 +166,9 @@ func (p *Postgres) CriarCondominio(ctx context.Context, c Condominio) (Mapeament
 	return p.gravarCondominio(ctx, "criar", c, Mapeamento.criarCondominio)
 }
 
-func (p *Postgres) EditarCondominio(ctx context.Context, c Condominio, donaAtual string) (Mapeamento, error) {
+func (p *Postgres) EditarCondominio(ctx context.Context, c Condominio, visto Chaves) (Mapeamento, error) {
 	return p.gravarCondominio(ctx, "editar", c, func(m Mapeamento, c Condominio) (Mapeamento, error) {
-		return m.editarCondominio(c, donaAtual)
+		return m.editarCondominio(c, visto)
 	})
 }
 
@@ -194,9 +194,10 @@ func (p *Postgres) gravarCondominio(ctx context.Context, verbo string, c Condomi
 		})
 }
 
-func (p *Postgres) RemoverCondominio(ctx context.Context, id string) (Mapeamento, error) {
+func (p *Postgres) RemoverCondominio(ctx context.Context, alvo Alvo) (Mapeamento, error) {
+	id := alvo.Condominio
 	return p.alterar(ctx, "remover condomínio "+id,
-		func(m Mapeamento) (Mapeamento, error) { return m.removerCondominio(id) },
+		comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.removerCondominio(id) }),
 		func(ctx context.Context, cli *ent.Client, _ Mapeamento) error {
 			// habilitações, payloads e orientações do condomínio saem pelo ON DELETE CASCADE
 			_, err := cli.Condominio.Delete().Where(entcondominio.ID(id)).Exec(ctx)
@@ -204,9 +205,10 @@ func (p *Postgres) RemoverCondominio(ctx context.Context, id string) (Mapeamento
 		})
 }
 
-func (p *Postgres) SalvarHabilitacao(ctx context.Context, condoID, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
+func (p *Postgres) SalvarHabilitacao(ctx context.Context, alvo Alvo, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
+	condoID := alvo.Condominio
 	return p.alterar(ctx, "salvar habilitação "+condoID+"/"+caso,
-		func(m Mapeamento) (Mapeamento, error) { return m.salvarHabilitacao(condoID, caso, h, limpar) },
+		comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarHabilitacao(condoID, caso, h, limpar) }),
 		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
 			h, existe := novo.Habilitacoes[condoID][caso]
 			if !existe {
@@ -219,9 +221,10 @@ func (p *Postgres) SalvarHabilitacao(ctx context.Context, condoID, caso string, 
 		})
 }
 
-func (p *Postgres) SalvarOrientacao(ctx context.Context, condoID string, o Orientacao) (Mapeamento, error) {
+func (p *Postgres) SalvarOrientacao(ctx context.Context, alvo Alvo, o Orientacao) (Mapeamento, error) {
+	condoID := alvo.Condominio
 	return p.alterar(ctx, "salvar orientação "+condoID,
-		func(m Mapeamento) (Mapeamento, error) { return m.salvarOrientacao(condoID, o) },
+		comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarOrientacao(condoID, o) }),
 		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
 			// por que não upsert: a do padrão (NULL) não tem índice único que sirva de alvo;
 			// apagar e recriar é seguro na transação serializável
@@ -237,9 +240,10 @@ func (p *Postgres) SalvarOrientacao(ctx context.Context, condoID string, o Orien
 		})
 }
 
-func (p *Postgres) SalvarAjustes(ctx context.Context, condoID string, ajustes map[string]map[string]any) (Mapeamento, error) {
+func (p *Postgres) SalvarAjustes(ctx context.Context, alvo Alvo, ajustes map[string]map[string]any) (Mapeamento, error) {
+	condoID := alvo.Condominio
 	return p.alterar(ctx, "salvar ajustes "+condoID,
-		func(m Mapeamento) (Mapeamento, error) { return m.salvarAjustes(condoID, ajustes) },
+		comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarAjustes(condoID, ajustes) }),
 		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
 			for recurso := range ajustes {
 				if err := gravarPayload(ctx, cli, novo, condoID, recurso); err != nil {
@@ -250,9 +254,10 @@ func (p *Postgres) SalvarAjustes(ctx context.Context, condoID string, ajustes ma
 		})
 }
 
-func (p *Postgres) SalvarPayload(ctx context.Context, condoID, recurso string, dados map[string]any) (Mapeamento, error) {
+func (p *Postgres) SalvarPayload(ctx context.Context, alvo Alvo, recurso string, dados map[string]any) (Mapeamento, error) {
+	condoID := alvo.Condominio
 	return p.alterar(ctx, "salvar payload "+condoID+"/"+recurso,
-		func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, dados) },
+		comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, dados) }),
 		func(ctx context.Context, cli *ent.Client, novo Mapeamento) error {
 			return gravarPayload(ctx, cli, novo, condoID, recurso)
 		})

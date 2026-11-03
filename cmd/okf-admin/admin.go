@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -160,11 +161,12 @@ func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// RLS: cada um vê só as administradoras que pode ler (a Superlógica, todas)
-	m, visiveis, err := visaoDoUsuario(r, m)
+	recorte, err := recorteDoUsuario(r, m.Administradoras)
 	if err != nil {
 		responderErroDeAlvo(w, r, err)
 		return
 	}
+	m, visiveis := visaoPara(r, m, recorte)
 	casos, err := s.casosDeUso()
 	if err != nil {
 		s.responderErroInterno(w, r, "casos de uso", err)
@@ -194,12 +196,9 @@ func (s *servidor) adminCriarAdministradora(w http.ResponseWriter, r *http.Reque
 	if a.ID == "" {
 		a.ID = slug(a.Nome)
 	}
-	m, err := s.admin.CriarAdministradora(r.Context(), a)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamentoCom(w, r, http.StatusCreated, m)
+	s.escrever(w, r, http.StatusCreated, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.CriarAdministradora(r.Context(), a)
+	})
 }
 
 func (s *servidor) adminEditarAdministradora(w http.ResponseWriter, r *http.Request) {
@@ -208,12 +207,9 @@ func (s *servidor) adminEditarAdministradora(w http.ResponseWriter, r *http.Requ
 		writeErr(w, 400, err)
 		return
 	}
-	m, err := s.admin.EditarAdministradora(r.Context(), a)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.EditarAdministradora(r.Context(), a)
+	})
 }
 
 func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Request) {
@@ -222,12 +218,9 @@ func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Req
 		writeErr(w, 400, errors.New("informe id"))
 		return
 	}
-	m, err := s.admin.RemoverAdministradora(r.Context(), id)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.RemoverAdministradora(r.Context(), id)
+	})
 }
 
 func (s *servidor) adminCriarCondominio(w http.ResponseWriter, r *http.Request) {
@@ -239,17 +232,19 @@ func (s *servidor) adminCriarCondominio(w http.ResponseWriter, r *http.Request) 
 	if c.ID == "" {
 		c.ID = slug(c.Nome)
 	}
-	m, err := s.admin.CriarCondominio(r.Context(), c)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
+	if (c.CompanyID != "" || c.Tenant != "") && !podeGravarChavesDeRoteamento(r) {
+		responderSemPermissao(w)
 		return
 	}
-	s.responderMapeamentoCom(w, r, http.StatusCreated, m)
+	s.escrever(w, r, http.StatusCreated, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.CriarCondominio(r.Context(), c)
+	})
 }
 
 // adminEditarCondominio confere, além da dona nova (no alvo da rota), a dona atual: ninguém
-// edita ou toma para si o condomínio de uma administradora fora do seu escopo. A dona atual
-// vai junto para o repositório, que recusa se ela mudou desde esta conferência.
+// edita ou toma para si o condomínio de uma administradora fora do seu escopo. Company e
+// tenant são chaves globais de roteamento: só a Superlógica as muda. A dona e as chaves vistas
+// aqui vão para o repositório, que recusa se mudaram desde esta conferência.
 func (s *servidor) adminEditarCondominio(w http.ResponseWriter, r *http.Request) {
 	var c admin.Condominio
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
@@ -257,31 +252,36 @@ func (s *servidor) adminEditarCondominio(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	c.ID = normalizarID(c.ID)
-	a, _ := acessoDe(r.Context())
-	if !acesso.Permitido(a, acesso.CondominiosEditar, escopoCondominio(c.ID)) {
+	if !permitidoAqui(r, acesso.CondominiosEditar, escopoCondominio(c.ID)) {
 		responderSemPermissao(w)
 		return
 	}
-	m, err := s.admin.EditarCondominio(r.Context(), c, a.AdministradoraDe[c.ID])
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	s.escrever(w, r, http.StatusOK, func(atual admin.Mapeamento) (admin.Mapeamento, error) {
+		antes, _ := atual.Condominio(c.ID)
+		visto := admin.Chaves{Administradora: alvoDaEscrita(r, c.ID).Dona, CompanyID: antes.CompanyID, Tenant: antes.Tenant}
+		mudaChaves := c.CompanyID != antes.CompanyID || c.Tenant != antes.Tenant
+		if mudaChaves && !podeGravarChavesDeRoteamento(r) {
+			return admin.Mapeamento{}, errSemPermissao
+		}
+		return s.admin.EditarCondominio(r.Context(), c, visto)
+	})
+}
+
+// podeGravarChavesDeRoteamento: company e tenant decidem que condomínio (e administradora)
+// atende cada mensagem; só a Superlógica os grava.
+func podeGravarChavesDeRoteamento(r *http.Request) bool {
+	return permitidoAqui(r, acesso.CondominiosEditar, escopoSuperlogica)
 }
 
 func (s *servidor) adminRemoverCondominio(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
+	id := normalizarID(r.URL.Query().Get("id"))
 	if id == "" {
 		writeErr(w, 400, errors.New("informe id"))
 		return
 	}
-	m, err := s.admin.RemoverCondominio(r.Context(), id)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.RemoverCondominio(r.Context(), alvoDaEscrita(r, id))
+	})
 }
 
 func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
@@ -296,15 +296,10 @@ func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	if corpo.Condominio == "" {
-		corpo.Condominio = admin.Padrao
-	}
-	m, err := s.admin.SalvarHabilitacao(r.Context(), corpo.Condominio, corpo.Caso, admin.Habilitacao{Habilitado: corpo.Habilitado, Papeis: corpo.Papeis}, corpo.Limpar)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	corpo.Condominio = cmp.Or(normalizarID(corpo.Condominio), admin.Padrao)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.SalvarHabilitacao(r.Context(), alvoDaEscrita(r, corpo.Condominio), corpo.Caso, admin.Habilitacao{Habilitado: corpo.Habilitado, Papeis: corpo.Papeis}, corpo.Limpar)
+	})
 }
 
 func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
@@ -318,20 +313,15 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	if corpo.Condominio == "" {
-		corpo.Condominio = admin.Padrao
-	}
+	corpo.Condominio = cmp.Or(normalizarID(corpo.Condominio), admin.Padrao)
 	if corpo.Apagar {
 		corpo.Payload = nil
 	} else if corpo.Payload == nil {
 		corpo.Payload = map[string]any{}
 	}
-	m, err := s.admin.SalvarPayload(r.Context(), corpo.Condominio, corpo.Recurso, corpo.Payload)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.SalvarPayload(r.Context(), alvoDaEscrita(r, corpo.Condominio), corpo.Recurso, corpo.Payload)
+	})
 }
 
 // adminSugerirPayload: o modelo barato traduz um texto da administradora nas definições
@@ -362,7 +352,8 @@ func (s *servidor) adminSugerirPayload(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	sug, err := harness.SugerirPayload(ctx, s.atende.Config, *rec, corpo.Atual, corpo.Texto)
 	if err != nil {
-		writeErr(w, 400, err)
+		s.logger().WarnContext(r.Context(), "sugerir payload", "operacao", operacaoDe(r), "recurso", corpo.Recurso, "erro", err.Error())
+		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "SUGESTAO_FALHOU", "error": "não foi possível sugerir o payload; tente reescrever o texto"})
 		return
 	}
 	writeJSON(w, 200, sug)
@@ -378,15 +369,10 @@ func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	if corpo.Condominio == "" {
-		corpo.Condominio = admin.Padrao
-	}
-	m, err := s.admin.SalvarOrientacao(r.Context(), corpo.Condominio, admin.Orientacao{Geral: corpo.Geral, PorCaso: corpo.PorCaso})
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	corpo.Condominio = cmp.Or(normalizarID(corpo.Condominio), admin.Padrao)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.SalvarOrientacao(r.Context(), alvoDaEscrita(r, corpo.Condominio), admin.Orientacao{Geral: corpo.Geral, PorCaso: corpo.PorCaso})
+	})
 }
 
 func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
@@ -398,15 +384,10 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	if corpo.Condominio == "" {
-		corpo.Condominio = admin.Padrao
-	}
-	m, err := s.admin.SalvarAjustes(r.Context(), corpo.Condominio, corpo.Ajustes)
-	if err != nil {
-		s.responderErroAdmin(w, r, err)
-		return
-	}
-	s.responderMapeamento(w, r, m)
+	corpo.Condominio = cmp.Or(normalizarID(corpo.Condominio), admin.Padrao)
+	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
+		return s.admin.SalvarAjustes(r.Context(), alvoDaEscrita(r, corpo.Condominio), corpo.Ajustes)
+	})
 }
 
 // codigoConflitoConcorrente é o código que o Admin recebe para repetir o pedido.
@@ -434,18 +415,33 @@ func (s *servidor) responderErroAdmin(w http.ResponseWriter, r *http.Request, er
 	}
 }
 
-// responderMapeamento devolve o mapeamento já recortado ao que o usuário pode ler (e à
-// administradora pedida), para o Admin nunca receber o que não é dele.
-func (s *servidor) responderMapeamento(w http.ResponseWriter, r *http.Request, m admin.Mapeamento) {
-	s.responderMapeamentoCom(w, r, http.StatusOK, m)
-}
+// errSemPermissao: a escrita recusada por permissão depois de ler o estado atual (403).
+var errSemPermissao = erroDeAlvo{http.StatusForbidden, "SEM_PERMISSAO", "sem permissão para esta operação"}
 
-func (s *servidor) responderMapeamentoCom(w http.ResponseWriter, r *http.Request, status int, m admin.Mapeamento) {
-	v, visiveis, err := visaoDoUsuario(r, m)
+// escrever lê o mapeamento atual, decide o recorte da resposta ANTES de gravar (o que pode
+// falhar falha sem efeito), aplica a escrita e devolve o mapeamento recortado ao que o
+// usuário pode ler: uma escrita gravada nunca responde erro.
+func (s *servidor) escrever(w http.ResponseWriter, r *http.Request, status int, escrita func(atual admin.Mapeamento) (admin.Mapeamento, error)) {
+	atual, err := s.admin.Ler(r.Context())
+	if err != nil {
+		s.responderErroInterno(w, r, "ler mapeamento", err)
+		return
+	}
+	recorte, err := recorteDoUsuario(r, atual.Administradoras)
 	if err != nil {
 		responderErroDeAlvo(w, r, err)
 		return
 	}
+	m, err := escrita(atual)
+	if _, ehDeAlvo := errors.AsType[erroDeAlvo](err); ehDeAlvo {
+		responderErroDeAlvo(w, r, err)
+		return
+	}
+	if err != nil {
+		s.responderErroAdmin(w, r, err)
+		return
+	}
+	v, visiveis := visaoPara(r, m, recorte)
 	writeJSON(w, status, map[string]any{"mapeamento": v, "administradoras": visiveis})
 }
 

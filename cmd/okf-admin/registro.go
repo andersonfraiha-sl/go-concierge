@@ -24,10 +24,22 @@ func (s *servidor) logger() *slog.Logger {
 }
 
 // registroRequisicao junta o que a requisição descobre no caminho (o usuário, depois de
-// autenticar) para a linha de log que sai no fim dela.
-type registroRequisicao struct{ usuarioID string }
+// autenticar) para a linha de log que sai no fim dela, e leva o logger do servidor a quem não
+// é método dele (exigir).
+type registroRequisicao struct {
+	usuarioID string
+	logger    *slog.Logger
+}
 
 type chaveRegistro struct{}
+
+// loggerDe é o logger do servidor que atende a requisição; fora do registrar, o padrão.
+func loggerDe(ctx context.Context) *slog.Logger {
+	if reg, ok := ctx.Value(chaveRegistro{}).(*registroRequisicao); ok && reg.logger != nil {
+		return reg.logger
+	}
+	return slog.Default()
+}
 
 func anotarUsuario(ctx context.Context, usuarioID string) {
 	if reg, ok := ctx.Value(chaveRegistro{}).(*registroRequisicao); ok {
@@ -51,17 +63,17 @@ func (rr *respostaRegistrada) Unwrap() http.ResponseWriter { return rr.ResponseW
 
 // registrar dá um request_id a cada requisição (devolvido em X-Request-Id) e escreve uma
 // linha de log no fim, com usuário, operação (o padrão da rota), status e duração. Os
-// arquivos estáticos não geram linha.
+// arquivos estáticos não geram linha; um /api/ que cai no padrão deles (rota inexistente) gera.
 func (s *servidor) registrar(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		inicio := time.Now()
 		requestID := novoRequestID()
 		w.Header().Set("X-Request-Id", requestID)
-		reg := &registroRequisicao{}
+		reg := &registroRequisicao{logger: s.logger()}
 		r = r.WithContext(context.WithValue(r.Context(), chaveRegistro{}, reg))
 		rr := &respostaRegistrada{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rr, r)
-		if r.Pattern == padraoEstaticos {
+		if r.Pattern == padraoEstaticos && !strings.HasPrefix(r.URL.Path, "/api/") {
 			return
 		}
 		nivel := slog.LevelInfo

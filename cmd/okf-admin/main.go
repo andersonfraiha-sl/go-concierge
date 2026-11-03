@@ -79,6 +79,7 @@ type servidor struct {
 	autenticador Autenticador
 	acessos      carregadorAcesso
 	registro     *slog.Logger
+	authMode     string // AUTH_MODE normalizado: o usuário semeado de dev só vale com "dev"
 }
 
 const (
@@ -103,11 +104,11 @@ func main() {
 	env.Carregar(*dotenv)
 	registro := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
-	cfg := Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET")}
+	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET")})
 	if err := validarConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
-	deveMigrar := migrarPorPadrao(os.Getenv("AMBIENTE"))
+	deveMigrar := migrarPorPadrao(cfg.Ambiente)
 	if flagInformada("migrar") {
 		deveMigrar = *migrar
 	}
@@ -134,6 +135,7 @@ func main() {
 	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
 		implantacao:  escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
 		autenticador: novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
+		authMode:     cfg.AuthMode,
 		acessos:      acesso.NovoPostgres(db.Ent),
 		registro:     registro,
 	}
@@ -206,7 +208,7 @@ func main() {
 	// e sem Gruvi configurado a identidade não é consultada.
 	s.admin = admin.NovoPostgres(db.Ent)
 	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
-	if err := semearMapeamento(s.admin, os.Getenv("AMBIENTE"), exemplo); err != nil {
+	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
 		log.Fatal(err)
 	}
 	s.atende.Mapeamento = s.admin

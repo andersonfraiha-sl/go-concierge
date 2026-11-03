@@ -135,9 +135,18 @@ func (m Mapeamento) criarCondominio(c Condominio) (Mapeamento, error) {
 	return m.salvarCondominio(c)
 }
 
-// editarCondominio só altera o que já existe e ainda tem a dona com que o pedido foi
-// autorizado (donaAtual); se ela mudou no meio, é conflito e o pedido deve ser refeito.
-func (m Mapeamento) editarCondominio(c Condominio, donaAtual string) (Mapeamento, error) {
+// Chaves são a dona e as chaves de roteamento (company do Gruvi e tenant do ATENDE) de um
+// condomínio: o que a autorização de uma edição olhou.
+type Chaves struct{ Administradora, CompanyID, Tenant string }
+
+// Chaves do condomínio.
+func (c Condominio) Chaves() Chaves {
+	return Chaves{Administradora: c.Administradora, CompanyID: c.CompanyID, Tenant: c.Tenant}
+}
+
+// editarCondominio só altera o que já existe e ainda tem as chaves com que o pedido foi
+// autorizado (visto); se elas mudaram no meio, é conflito e o pedido deve ser refeito.
+func (m Mapeamento) editarCondominio(c Condominio, visto Chaves) (Mapeamento, error) {
 	c, err := prepararCondominio(c)
 	if err != nil {
 		return m, err
@@ -146,10 +155,32 @@ func (m Mapeamento) editarCondominio(c Condominio, donaAtual string) (Mapeamento
 	if !existe {
 		return m, fmt.Errorf("condomínio %s: %w", c.ID, ErrNaoEncontrado)
 	}
-	if atual.Administradora != donaAtual {
-		return m, fmt.Errorf("condomínio %s mudou de administradora: %w", c.ID, ErrConflitoConcorrente)
+	if atual.Chaves() != visto {
+		return m, fmt.Errorf("condomínio %s mudou de dona ou de chaves: %w", c.ID, ErrConflitoConcorrente)
 	}
 	return m.salvarCondominio(c)
+}
+
+// conferirDona recusa a escrita se o condomínio do alvo existe e mudou de dona desde a
+// autorização. O padrão "*" não tem dona.
+func (m Mapeamento) conferirDona(a Alvo) error {
+	if a.Condominio == Padrao {
+		return nil
+	}
+	if c, existe := m.Condominio(a.Condominio); existe && c.Administradora != a.Dona {
+		return fmt.Errorf("condomínio %s mudou de administradora: %w", a.Condominio, ErrConflitoConcorrente)
+	}
+	return nil
+}
+
+// comDona antepõe à regra a conferência da dona vista na autorização.
+func comDona(a Alvo, r regra) regra {
+	return func(m Mapeamento) (Mapeamento, error) {
+		if err := m.conferirDona(a); err != nil {
+			return m, err
+		}
+		return r(m)
+	}
 }
 
 // removerCondominio apaga o condomínio e tudo que era dele.
