@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
@@ -39,8 +40,9 @@ var (
 	atual *instancia
 )
 
-// Novo cria um banco vazio de dados, com todas as migrations aplicadas, e o remove no fim do teste.
-func Novo(t testing.TB) banco.Banco {
+// Novo cria um banco vazio de dados, com todas as migrations aplicadas, e o remove no fim do
+// teste. ajustes vão para banco.Abrir.
+func Novo(t testing.TB, ajustes ...func(*pgxpool.Config)) banco.Banco {
 	t.Helper()
 	inst, err := iniciar()
 	if err != nil {
@@ -50,7 +52,7 @@ func Novo(t testing.TB) banco.Banco {
 	if err := inst.executar(t.Context(), "CREATE DATABASE "+ident(nome)+" TEMPLATE "+ident(bancoModelo)); err != nil {
 		t.Fatalf("criar banco %s: %v", nome, err)
 	}
-	b, err := banco.Abrir(t.Context(), inst.url(nome))
+	b, err := banco.Abrir(t.Context(), inst.url(nome), ajustes...)
 	if err != nil {
 		t.Fatalf("abrir banco %s: %v", nome, err)
 	}

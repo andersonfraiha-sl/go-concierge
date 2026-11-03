@@ -4,7 +4,8 @@
 // Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
 // volta ao prompt em toda conversa seguinte daquele telefone.
 //
-// O armazenamento é o Postgres (tabela memoria_fatos).
+// O armazenamento é o Postgres, em duas tabelas: memoria_contatos (nome e quando mudou)
+// e memoria_fatos (um fato por linha).
 package memoria
 
 import (

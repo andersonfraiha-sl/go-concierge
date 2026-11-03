@@ -12,6 +12,7 @@ import (
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -33,13 +34,20 @@ type Banco struct {
 	SQL  *sqlc.Queries
 }
 
-// Abrir conecta ao Postgres de url e confirma a conexão com um ping.
-func Abrir(ctx context.Context, url string) (Banco, error) {
+// Abrir conecta ao Postgres de url e confirma a conexão com um ping. ajustes mexem na
+// configuração do pool antes de abrir (o benchmark liga um tracer).
+func Abrir(ctx context.Context, url string, ajustes ...func(*pgxpool.Config)) (Banco, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return Banco{}, fmt.Errorf("ler DATABASE_URL: %w", err)
 	}
 	cfg.ConnConfig.ConnectTimeout = timeoutConexao
+	// prepara cada SQL uma vez por conexão: as queries do turno, repetidas, custam uma ida
+	// só (é o padrão do pgx; fica explícito porque o caminho do turno depende disso)
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
+	for _, ajustar := range ajustes {
+		ajustar(cfg)
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return Banco{}, fmt.Errorf("abrir pool do postgres: %w", err)

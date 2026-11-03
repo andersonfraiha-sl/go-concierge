@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -23,8 +24,8 @@ import (
 const timeoutConsulta = 3 * time.Second
 
 // Postgres guarda cada pedido numa linha de pedidos (o pedido inteiro em dados) e o
-// histórico em pedido_eventos, só acrescentado. Leituras vão pelo ent; a gravação, pela função
-// gravar_pedidos via sqlc.
+// histórico em pedido_eventos, só acrescentado. Ler é uma query pgx (cabe no lote do turno),
+// Listar vai pelo ent e a gravação, pela função gravar_pedidos via sqlc.
 type Postgres struct {
 	b       banco.Banco
 	sortear func() string // protocolo para o pedido novo que colide
@@ -38,13 +39,70 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Carteira, error) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	linhas, err := p.b.Ent.Pedido.Query().
-		Where(doContato(c)).
-		All(ctx)
-	if err != nil {
+	var cart Carteira
+	lote := &pgx.Batch{}
+	p.LerNoLote(lote, c, func(lida Carteira) { cart = lida })
+	if err := p.b.Pool.SendBatch(ctx, lote).Close(); err != nil {
 		return Carteira{}, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err)
 	}
-	return carteiraDe(c, linhas)
+	return cart, nil
+}
+
+// sqlLerPedidos: por que não ent nem sqlc: entra no pgx.Batch que carrega o turno a frio
+// (sessão, memória e pedidos numa ida), e o sqlc não junta queries diferentes num lote.
+const sqlLerPedidos = `SELECT protocolo, dados FROM pedidos WHERE administradora_id = $1 AND telefone = $2`
+
+// LerNoLote põe no lote a leitura da carteira do contato; guardar recebe a carteira quando
+// o lote roda. Um erro de leitura volta no Close do lote.
+func (p *Postgres) LerNoLote(lote *pgx.Batch, c escopo.Contato, guardar func(Carteira)) {
+	lote.Queue(sqlLerPedidos, c.AdministradoraID, c.Telefone).Query(func(rows pgx.Rows) error {
+		var linhas []*ent.Pedido
+		for rows.Next() {
+			var l ent.Pedido
+			if err := rows.Scan(&l.ID, &l.Dados); err != nil {
+				return err
+			}
+			linhas = append(linhas, &l)
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		cart, err := carteiraDe(c, linhas)
+		if err != nil {
+			return err
+		}
+		guardar(cart)
+		return nil
+	})
+}
+
+// GravarNoLote põe no lote a gravação da carteira, sem o redesenho de protocolo: se um
+// protocolo for de outro contato, o lote inteiro falha com ErrProtocoloEmUso no Close (veja
+// ErroDoLote) e quem chamou grava de novo por Gravar.
+func (p *Postgres) GravarNoLote(lote *pgx.Batch, c escopo.Contato, cart Carteira) error {
+	if err := validarContato(c); err != nil {
+		return err
+	}
+	params, err := paramsDeGravacao(c, copiasDoContato(c, cart.Pedidos))
+	if err != nil {
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err)
+	}
+	// o enfileirador do lote não executa nada; o erro só vem no Close
+	return banco.NoLote(lote).GravarPedidos(context.Background(), params)
+}
+
+// ErroDoLote traduz o erro do Close de um lote com GravarNoLote: a colisão de protocolo vira
+// ErrProtocoloEmUso.
+func ErroDoLote(err error) error {
+	if protocoloAlheio(err) {
+		return ErrProtocoloEmUso
+	}
+	return err
+}
+
+func protocoloAlheio(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == sqlstateProtocoloAlheio
 }
 
 // Gravar troca os pedidos do contato pelos da carteira (os que saíram são apagados) e
@@ -81,12 +139,7 @@ func (p *Postgres) gravar(ctx context.Context, c escopo.Contato, pedidos []Pedid
 	if err != nil {
 		return err
 	}
-	err = p.b.SQL.GravarPedidos(ctx, params)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == sqlstateProtocoloAlheio {
-		return ErrProtocoloEmUso
-	}
-	return err
+	return ErroDoLote(p.b.SQL.GravarPedidos(ctx, params))
 }
 
 // deOutros consulta, dentre os protocolos, os que já são de outro contato. Só roda depois

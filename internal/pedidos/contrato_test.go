@@ -32,6 +32,25 @@ func TestContratoPostgres(t *testing.T) {
 	testarStore(t, func(t *testing.T) Store { return NovoPostgres(bancotest.Novo(t)) })
 }
 
+func TestContratoCache(t *testing.T) {
+	testarStore(t, func(t *testing.T) Store { return NovoCache(NovoPostgres(bancotest.Novo(t))) })
+}
+
+// Gravar a mesma carteira de novo não vai ao banco: a linha apagada por fora continua apagada.
+func TestCacheNaoRegravaCarteiraIgual(t *testing.T) {
+	b := bancotest.Novo(t)
+	st := NovoCache(NovoPostgres(b))
+	c := contatoDeTeste("adm-a", "5519981621916")
+	gravarCarteira(t, st, c, pedidoDeTeste(c, "P-AAAAA", diaDeTeste))
+	if _, err := b.Ent.Pedido.Delete().Exec(t.Context()); err != nil {
+		t.Fatalf("apagar por fora: %v", err)
+	}
+	gravarCarteira(t, st, c, lerCarteira(t, st, c).Pedidos...)
+	if n, err := b.Ent.Pedido.Query().Count(t.Context()); err != nil || n != 0 {
+		t.Fatalf("pedidos no banco = %d (%v), want 0: a carteira igual foi regravada", n, err)
+	}
+}
+
 // testarStore é o contrato que toda implementação de Store cumpre.
 func testarStore(t *testing.T, novo func(t *testing.T) Store) {
 	t.Run("carteira vazia", func(t *testing.T) { cenarioCarteiraVazia(t, novo(t)) })

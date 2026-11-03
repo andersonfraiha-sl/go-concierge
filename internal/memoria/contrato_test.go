@@ -1,8 +1,11 @@
 package memoria
 
 import (
+	"context"
+	"errors"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +25,28 @@ func TestContratoFake(t *testing.T) {
 
 func TestContratoPostgres(t *testing.T) {
 	testarStore(t, func(t *testing.T) Store { return NovoPostgres(bancotest.Novo(t)) })
+}
+
+func TestContratoCache(t *testing.T) {
+	testarStore(t, func(t *testing.T) Store { return NovoCache(NovoPostgres(bancotest.Novo(t))) })
+}
+
+// Com o contexto cancelado, Ler e Gravar falham sem expor o telefone no erro.
+func TestPostgresContextoCanceladoNaoExpoeTelefone(t *testing.T) {
+	st := NovoPostgres(bancotest.Novo(t))
+	c := contato(t, "adm-a", "5519981621916")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, errLer := st.Ler(ctx, c)
+	errGravar := st.Gravar(ctx, c, Memoria{Fatos: fatosDeTeste()})
+	for nome, err := range map[string]error{"Ler": errLer, "Gravar": errGravar} {
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("%s = %v, want context.Canceled", nome, err)
+		}
+		if strings.Contains(err.Error(), c.Telefone) {
+			t.Fatalf("%s expõe o telefone: %v", nome, err)
+		}
+	}
 }
 
 // testarStore é o contrato que toda implementação de Store cumpre.
