@@ -61,7 +61,8 @@ func descobrir(raiz string, r contas) ([]arquivoDeContato, error) {
 	return out, nil
 }
 
-// arquivosDaConta devolve os contatos da pasta e, à parte, o nome mascarado de quem não é telefone.
+// arquivosDaConta devolve os contatos da pasta e, à parte, por que cada um dos outros não é
+// telefone (sem nenhum dígito do nome: até mascarado, um número curto quase se lê inteiro).
 func arquivosDaConta(pasta string, d dona) (achados []arquivoDeContato, ruins []string, err error) {
 	entradas, err := os.ReadDir(pasta)
 	if err != nil {
@@ -74,7 +75,7 @@ func arquivosDaConta(pasta string, d dona) (achados []arquivoDeContato, ruins []
 		}
 		c, errContato := escopo.NovoContato(d.administradoraID, d.condominioID, telefone)
 		if errContato != nil || len(c.Telefone) < minDigitosTelefone {
-			ruins = append(ruins, mascaradoOuVazio(c))
+			ruins = append(ruins, motivoDaRecusa(errContato))
 			continue
 		}
 		achados = append(achados, arquivoDeContato{contato: c, caminho: filepath.Join(pasta, e.Name())})
@@ -82,11 +83,11 @@ func arquivosDaConta(pasta string, d dona) (achados []arquivoDeContato, ruins []
 	return achados, ruins, nil
 }
 
-func mascaradoOuVazio(c escopo.Contato) string {
-	if c.AdministradoraID == "" {
+func motivoDaRecusa(errContato error) string {
+	if errContato != nil {
 		return "sem dígitos"
 	}
-	return c.Mascarado()
+	return "arquivo curto"
 }
 
 type lido[T any] struct {
@@ -157,7 +158,7 @@ func importarMemorias(ctx context.Context, raiz string, r contas, st memoria.Sto
 		contato, junta := grupo[0].contato, mesclarMemorias(valores(grupo))
 		// Gravar escreve o nome do contato junto dos fatos; nunca as linhas direto.
 		if err := st.Gravar(ctx, contato, junta); err != nil {
-			return c, err
+			return c, fmt.Errorf("gravar memória de %s: %w", contato.Mascarado(), err)
 		}
 		guardou, err := memoriaGuardada(ctx, st, contato, junta)
 		if err != nil {
@@ -243,7 +244,7 @@ func importarPedidos(ctx context.Context, raiz string, r contas, d Destinos) (Co
 		}
 		antes := protocolosDe(junta)
 		if err := d.Pedidos.Gravar(ctx, contato, junta); err != nil {
-			return c, redesenhados, err
+			return c, redesenhados, fmt.Errorf("gravar pedidos de %s: %w", contato.Mascarado(), err)
 		}
 		redesenhados += avisarRedesenhos(d, contato, antes, protocolosDe(junta))
 		guardados, err := pedidosGuardados(ctx, d.Pedidos, contato, junta)

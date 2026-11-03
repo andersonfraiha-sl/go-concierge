@@ -176,8 +176,11 @@ func TestImportarRecusaNomeDeArquivoQueNaoETelefone(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "sem telefone válido") {
 			t.Fatalf("erro = %v, quer recusar os nomes que não são telefone", err)
 		}
-		if strings.Contains(err.Error(), "1199999") || strings.Contains(err.Error(), "rascunho") {
-			t.Errorf("erro %q repete o nome do arquivo", err)
+		if strings.Contains(err.Error(), "1199") || strings.Contains(err.Error(), "9999") || strings.Contains(err.Error(), "rascunho") {
+			t.Errorf("erro %q repete o nome do arquivo, mesmo em parte", err)
+		}
+		if !strings.Contains(err.Error(), "arquivo curto") || !strings.Contains(err.Error(), "sem dígitos") {
+			t.Errorf("erro %q não diz por que cada nome foi recusado", err)
 		}
 		if rel[AreaMemorias].Gravados != 0 {
 			t.Errorf("memórias gravadas = %d, quer 0", rel[AreaMemorias].Gravados)
