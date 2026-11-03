@@ -7,10 +7,6 @@ import type { Ferramenta } from '@/catalogo/contratos';
 import { ApiError } from '@/shared/api/http';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { CamposDeAjustes } from './CamposDeAjustes';
-import { CamposDeConexao } from './CamposDeConexao';
-import { CamposDeEntradaESaida } from './CamposDeEntradaESaida';
-import { CamposDeIdentificacao } from './CamposDeIdentificacao';
 import {
   ferramentaNova,
   lerAmostra,
@@ -20,7 +16,13 @@ import {
   salvarFerramenta,
   tituloDe,
 } from './contratos';
-import { FormularioSchema, recursoCompleto, valoresIniciais } from './formularioDaFerramenta';
+import {
+  criarEsquemaDoFormulario,
+  recursoCompleto,
+  valoresIniciais,
+} from './formularioDaFerramenta';
+import { SecaoDoDrawer } from './SecaoDoDrawer';
+import { type Secao, secoesDoFormulario } from './secoesDoFormulario';
 
 type Props = {
   /** `null` abre o formulário de uma ferramenta nova. */
@@ -38,14 +40,29 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
   const inicial = ferramenta ?? ferramentaNova();
   const [recusadaPeloServidor, setRecusadaPeloServidor] = useState(false);
   const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
+  const [secoesAbertas, setSecoesAbertas] = useState<ReadonlySet<Secao>>(
+    () => new Set<Secao>(['Básico']),
+  );
   const { control, handleSubmit, setError, formState } = useForm({
-    resolver: zodResolver(FormularioSchema),
+    resolver: zodResolver(criarEsquemaDoFormulario(original)),
     defaultValues: valoresIniciais(inicial, ferramenta),
   });
   const mensagemDeErro = formState.errors.root?.message;
 
   const foraDoStudio = (ferramenta !== null && mantidaFora(ferramenta)) || recusadaPeloServidor;
   const travado = !podeEditar || foraDoStudio;
+  const secoes = secoesDoFormulario(control, travado, inicial.kind);
+
+  const alternarSecao = (secao: Secao) => () =>
+    setSecoesAbertas((atuais) => {
+      const novas = new Set(atuais);
+      if (novas.has(secao)) {
+        novas.delete(secao);
+      } else {
+        novas.add(secao);
+      }
+      return novas;
+    });
 
   const aoConcluir =
     (mensagem: string) => (catalogo: Awaited<ReturnType<typeof salvarFerramenta>>) => {
@@ -88,7 +105,7 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
         component="form"
         noValidate
         onSubmit={(evento) => void enviar(evento)}
-        sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}
+        sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}
       >
         <Typography variant="h6" component="h2">
           {ferramenta ? tituloDe(ferramenta) : 'Nova ferramenta'}
@@ -96,10 +113,17 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
         {foraDoStudio && <Alert severity="info">{AVISO_FORA_DO_STUDIO}</Alert>}
         {mensagemDeErro && <Alert severity="error">{mensagemDeErro}</Alert>}
 
-        <CamposDeIdentificacao control={control} travado={travado} tipoInicial={inicial.kind} />
-        <CamposDeEntradaESaida control={control} travado={travado} />
-        <CamposDeConexao control={control} travado={travado} />
-        <CamposDeAjustes control={control} travado={travado} />
+        {secoes.map(({ titulo, conteudo }) => (
+          <SecaoDoDrawer
+            key={titulo}
+            titulo={titulo}
+            aberta={secoesAbertas.has(titulo)}
+            onAlternar={alternarSecao(titulo)}
+          >
+            {conteudo}
+          </SecaoDoDrawer>
+        ))}
+
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
           {ferramenta && (
             <Button

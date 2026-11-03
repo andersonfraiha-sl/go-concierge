@@ -18,7 +18,13 @@ type Props = { control: Control<Valores>; travado: boolean; tipoInicial: string 
 export function CamposDeIdentificacao({ control, travado, tipoInicial }: Props): ReactNode {
   return (
     <>
-      <CampoTexto control={control} name="recurso.name" label="Nome" disabled={travado} />
+      <CampoTexto
+        control={control}
+        name="recurso.name"
+        label="Código"
+        disabled={travado}
+        helperText="Identificador usado pelas skills, como reservas.criar."
+      />
       <CampoTexto control={control} name="recurso.titulo" label="Título" disabled={travado} />
       <CampoTexto control={control} name="recurso.kind" select label="Tipo" disabled={travado}>
         {tiposComAtual(tipoInicial).map(([valor, rotulo]) => (

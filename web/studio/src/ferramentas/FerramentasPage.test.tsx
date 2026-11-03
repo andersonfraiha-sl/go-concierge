@@ -112,7 +112,7 @@ describe('FerramentasPage', () => {
     expect(
       await screen.findByText('Esta ferramenta é mantida fora do Studio.'),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Nome')).toBeDisabled();
+    expect(screen.getByLabelText('Código')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled();
   });
 
@@ -127,7 +127,7 @@ describe('FerramentasPage', () => {
     expect(
       await screen.findByText('Esta ferramenta é mantida fora do Studio.'),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Nome')).toBeDisabled();
+    expect(screen.getByLabelText('Código')).toBeDisabled();
   });
 
   it('gestorCannotEdit', async () => {
@@ -148,6 +148,7 @@ describe('FerramentasPage', () => {
     });
     const { user } = renderComProvedores(<FerramentasPage />);
     await user.click(await screen.findByText('Agendar mudança'));
+    await user.click(await screen.findByRole('button', { name: /^Amostra/ }));
     const amostra = await screen.findByLabelText('Amostra de retorno');
     await user.click(amostra);
     await user.paste('{x');
