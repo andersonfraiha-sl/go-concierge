@@ -12,7 +12,7 @@
     "prepare": "cd ../.. && husky web/studio/.husky"
   },
   "lint-staged": {
-    "*.{ts,tsx}": "biome check --write --no-errors-on-unmatched"
+    "*": "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
