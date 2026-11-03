@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Skills vistas pelo Studio: o fluxo e os textos de cada uma, lidos e gravados com
@@ -21,12 +23,13 @@ import (
 // que pode ir à rede) ANTES de pegar c.mu; sob a trava só há disco.
 
 var (
-	ErrSemFluxo            = errors.New("skill sem fluxo")
-	ErrSkillNaoExiste      = errors.New("skill não existe")
-	ErrVersaoDesatualizada = errors.New("versão desatualizada")
-	ErrNomeInvalido        = errors.New("nome inválido")
-	ErrSkillJaExiste       = errors.New("skill já existe")
-	ErrTituloVazio         = errors.New("título vazio")
+	ErrSemFluxo             = errors.New("skill sem fluxo")
+	ErrSkillNaoExiste       = errors.New("skill não existe")
+	ErrVersaoDesatualizada  = errors.New("versão desatualizada")
+	ErrNomeInvalido         = errors.New("nome inválido")
+	ErrSkillJaExiste        = errors.New("skill já existe")
+	ErrTituloVazio          = errors.New("título vazio")
+	ErrVisibilidadeInvalida = errors.New("visibilidade inválida")
 )
 
 // ErrFluxoInvalido recusa um fluxo com erros; os problemas apontam os blocos com os IDs do cliente.
@@ -38,8 +41,10 @@ func (e *ErrFluxoInvalido) Error() string { return "fluxo inválido" }
 type Textos struct {
 	Titulo          string   `json:"titulo"`          // caso.name (sem caso: agent.yaml nome)
 	QuandoUsar      string   `json:"quandoUsar"`      // caso.description (sem caso: agent.yaml descricao)
-	FrasesDeExemplo []string `json:"frasesDeExemplo"` // caso.examples
-	PalavrasChave   []string `json:"palavrasChave"`   // caso.keywords
+	FrasesDeExemplo []string `json:"frasesDeExemplo"` // caso.examples (sem caso: agent.yaml frases_de_exemplo)
+	PalavrasChave   []string `json:"palavrasChave"`   // caso.keywords (sem caso: agent.yaml palavras_chave)
+	Resumo          string   `json:"resumo"`          // caso.summary (sem caso: agent.yaml resumo)
+	Visibilidade    string   `json:"visibilidade"`    // caso.visibility (sem caso: "")
 	TemFluxo        bool     `json:"temFluxo"`        // só leitura
 }
 
@@ -199,7 +204,8 @@ func lerTextos(dir string) (Textos, error) {
 	}
 	return Textos{
 		Titulo: caso.Name, QuandoUsar: caso.Description,
-		FrasesDeExemplo: caso.Examples, PalavrasChave: caso.Keywords, TemFluxo: true,
+		FrasesDeExemplo: caso.Examples, PalavrasChave: caso.Keywords,
+		Resumo: caso.Summary, Visibilidade: caso.Visibility, TemFluxo: true,
 	}, nil
 }
 
@@ -210,7 +216,11 @@ func textosDoAgente(dir string) (Textos, error) {
 	}
 	nome, _ := cfg["nome"].(string)
 	descricao, _ := cfg["descricao"].(string)
-	return Textos{Titulo: nome, QuandoUsar: descricao, FrasesDeExemplo: []string{}, PalavrasChave: []string{}}, nil
+	resumo, _ := cfg["resumo"].(string)
+	return Textos{
+		Titulo: nome, QuandoUsar: descricao, Resumo: resumo,
+		FrasesDeExemplo: stringList(cfg["frases_de_exemplo"]), PalavrasChave: stringList(cfg["palavras_chave"]),
+	}, nil
 }
 
 // SalvarTextos grava os textos no caso.yaml (quando há); a descrição do agente e a rota no pai
@@ -243,9 +253,11 @@ func (c *Catalogo) salvarTextos(rel, versao string, t Textos, cl classificar) (s
 		return "", ErrVersaoDesatualizada
 	}
 	if atual.TemFluxo {
-		if err := gravarTextosNoCaso(dir, t, cl); err != nil {
+		if err := gravarTextosNoCaso(dir, atual, t, cl); err != nil {
 			return "", err
 		}
+	} else if err := salvarTextosDoAgente(dir, t); err != nil {
+		return "", err
 	}
 	if mudaRoteamento(atual, t) {
 		if err := c.atualizarRoteamento(rel, dir, t); err != nil {
@@ -264,7 +276,13 @@ func mudaRoteamento(atual, novo Textos) bool {
 	return atual.QuandoUsar != novo.QuandoUsar || !slices.Equal(atual.PalavrasChave, novo.PalavrasChave)
 }
 
-func gravarTextosNoCaso(dir string, t Textos, cl classificar) error {
+// gravarTextosNoCaso grava os textos no caso.yaml; visibilidade vazia mantém a atual, e fora
+// de private|public é recusada antes de qualquer gravação.
+func gravarTextosNoCaso(dir string, atual, t Textos, cl classificar) error {
+	visibilidade := primeiroNaoVazio(t.Visibilidade, atual.Visibilidade)
+	if visibilidade != "private" && visibilidade != "public" {
+		return ErrVisibilidadeInvalida
+	}
 	raw, err := lerCaso(dir)
 	if err != nil {
 		return err
@@ -275,6 +293,7 @@ func gravarTextosNoCaso(dir string, t Textos, cl classificar) error {
 	}
 	chaves, err := chavesDoCaso([]par{
 		{"name", t.Titulo}, {"description", t.QuandoUsar}, {"examples", frases}, {"keywords", lista(t.PalavrasChave)},
+		{"summary", resumoOuApagar(t.Resumo)}, {"visibility", visibilidade},
 	})
 	if err != nil {
 		return err
@@ -285,6 +304,44 @@ func gravarTextosNoCaso(dir string, t Textos, cl classificar) error {
 	}
 	_, err = gravarCaso(dir, novo, cl)
 	return err
+}
+
+// resumoOuApagar devolve o resumo como está, ou um *yaml.Node nil (que definirChave apaga)
+// quando vazio.
+func resumoOuApagar(resumo string) any {
+	if resumo == "" {
+		return (*yaml.Node)(nil)
+	}
+	return resumo
+}
+
+// salvarTextosDoAgente grava os textos de uma skill sem caso.yaml no agent.yaml; lista
+// ou resumo vazio apaga a chave.
+func salvarTextosDoAgente(dir string, t Textos) error {
+	cfg, err := lerConfig(dir)
+	if err != nil {
+		return err
+	}
+	definirOuApagar(cfg, "resumo", t.Resumo)
+	definirListaOuApagar(cfg, "palavras_chave", t.PalavrasChave)
+	definirListaOuApagar(cfg, "frases_de_exemplo", t.FrasesDeExemplo)
+	return gravarConfig(dir, cfg)
+}
+
+func definirOuApagar(cfg map[string]any, chave, valor string) {
+	if valor == "" {
+		delete(cfg, chave)
+		return
+	}
+	cfg[chave] = valor
+}
+
+func definirListaOuApagar(cfg map[string]any, chave string, valores []string) {
+	if len(valores) == 0 {
+		delete(cfg, chave)
+		return
+	}
+	cfg[chave] = valores
 }
 
 // atualizarRoteamento grava a descrição do agente e reescreve, no mesmo lugar, a linha da skill no rotas.md do pai.

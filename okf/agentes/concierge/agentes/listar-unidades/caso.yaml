@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (_default/20_listar_unidade.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: listar_unidade
 name: Listar Unidades
+summary: Mostra as unidades ligadas ao cadastro do morador.
 visibility: private
 icon: building-2
 description: Mostra as unidades (apartamentos/casas) vinculadas ao cadastro de quem pergunta.

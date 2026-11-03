@@ -328,6 +328,7 @@ func errosConhecidos() []erroConhecido {
 		{okf.ErrSkillJaExiste, http.StatusConflict, erroAPI{Codigo: "SKILL_JA_EXISTE", Mensagem: "Já existe uma skill com esse nome."}},
 		{okf.ErrVersaoDesatualizada, http.StatusConflict, erroAPI{Codigo: "VERSAO_DESATUALIZADA", Mensagem: "Esta skill mudou desde que você abriu. Recarregue para continuar."}},
 		{okf.ErrTituloVazio, http.StatusUnprocessableEntity, erroAPI{Codigo: "TITULO_VAZIO", Mensagem: "Dê um título para a skill."}},
+		{okf.ErrVisibilidadeInvalida, http.StatusUnprocessableEntity, erroAPI{Codigo: "VISIBILIDADE_INVALIDA", Mensagem: "Escolha quem pode usar a skill."}},
 	}
 }
 

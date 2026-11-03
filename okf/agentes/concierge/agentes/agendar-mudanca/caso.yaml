@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (_default/50_agendar_mudanca.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: agendar_mudanca
 name: Agendamento de Mudança
+summary: Agenda o dia e o período da mudança, com o elevador de serviço.
 visibility: private
 icon: truck
 description: |

@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (gruvi/70_encomendas.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: encomendas
 name: Minhas Encomendas
+summary: Mostra as encomendas da unidade.
 visibility: private
 icon: package
 description: >
