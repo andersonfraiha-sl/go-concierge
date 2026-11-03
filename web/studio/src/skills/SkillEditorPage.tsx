@@ -1,7 +1,8 @@
 import { Box, CircularProgress, Tab, Tabs } from '@mui/material';
-import { type ReactNode, useRef } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { type Control, Controller, useForm } from 'react-hook-form';
-import { useParams, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { z } from 'zod';
 import { usePodeEditar } from '@/acesso/eu';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
@@ -39,9 +40,28 @@ const semVazios = (textos: Textos): Textos => ({
   frasesDeExemplo: aparadasSemVazias(textos.frasesDeExemplo),
 });
 
+const TextosPendentesSchema = z.object({ resumo: z.string(), quandoUsar: z.string() });
+type TextosPendentes = z.infer<typeof TextosPendentesSchema>;
+const EstadoDaRotaSchema = z
+  .object({ textosPendentes: TextosPendentesSchema.optional() })
+  .nullish();
+
+/** Textos digitados ao criar a skill que não chegaram a salvar (diálogo "Nova skill" com PUT falho). */
+const textosPendentesDaRota = (estadoDaRota: unknown): TextosPendentes | undefined => {
+  const resultado = EstadoDaRotaSchema.safeParse(estadoDaRota);
+  return resultado.success ? resultado.data?.textosPendentes : undefined;
+};
+
 export function SkillEditorPage(): ReactNode {
   const { nome = '' } = useParams();
   const lidos = useTextos(nome);
+  const location = useLocation();
+  const navegar = useNavigate();
+  const textosPendentes = textosPendentesDaRota(location.state);
+
+  // Um reload não deve reaplicar os textos pendentes: o estado da rota só vale para esta navegação.
+  const limparTextosPendentes = () =>
+    navegar({ pathname: location.pathname, search: location.search }, { replace: true });
 
   if (lidos.isPending) return <CircularProgress aria-label="Carregando skill" />;
   if (lidos.isError) {
@@ -56,19 +76,46 @@ export function SkillEditorPage(): ReactNode {
       caminho={lidos.data.caminho}
       textosLidos={lidos.data.textos}
       versaoLida={lidos.data.versao}
+      textosPendentes={textosPendentes}
+      onTextosPendentesAplicados={limparTextosPendentes}
     />
   );
 }
 
-type EditorProps = { nome: string; caminho: string; textosLidos: Textos; versaoLida: string };
+type EditorProps = {
+  nome: string;
+  caminho: string;
+  textosLidos: Textos;
+  versaoLida: string;
+  textosPendentes: TextosPendentes | undefined;
+  onTextosPendentesAplicados: () => void;
+};
 
-function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactNode {
-  const { control } = useForm({ defaultValues: textosLidos });
+function Editor({
+  nome,
+  caminho,
+  textosLidos,
+  versaoLida,
+  textosPendentes,
+  onTextosPendentesAplicados,
+}: EditorProps): ReactNode {
+  const { control, setValue } = useForm({ defaultValues: textosLidos });
   const textos = useValoresDoFormulario(control);
   const versao = useRef(versaoLida);
+  const aplicouTextosPendentes = useRef(false);
   const editavel = usePodeEditar('skills.editar_textos');
   const [params, setParams] = useSearchParams();
   const aba = abaDe(params.get('aba'));
+
+  // Entram como alteração pendente (shouldDirty) sobre o que veio do servidor, não como base já salva:
+  // o autosave só manda ao servidor o que ele vê como diferente do que carregou.
+  useEffect(() => {
+    if (aplicouTextosPendentes.current || !textosPendentes) return;
+    aplicouTextosPendentes.current = true;
+    setValue('resumo', textosPendentes.resumo, { shouldDirty: true });
+    setValue('quandoUsar', textosPendentes.quandoUsar, { shouldDirty: true });
+    onTextosPendentesAplicados();
+  }, [textosPendentes, setValue, onTextosPendentesAplicados]);
 
   const { estado, tentarDeNovo } = useAutosave({
     valor: textos,
