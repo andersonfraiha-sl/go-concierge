@@ -25,6 +25,7 @@ type PapelQuery struct {
 	order          []papel.OrderOption
 	inters         []Interceptor
 	predicates     []predicate.Papel
+	withFilhos     *PapelQuery
 	withHerda      *PapelQuery
 	withPermissoes *PapelPermissaoQuery
 	withConcessoes *ConcessaoQuery
@@ -64,6 +65,28 @@ func (_q *PapelQuery) Order(o ...papel.OrderOption) *PapelQuery {
 	return _q
 }
 
+// QueryFilhos chains the current query on the "filhos" edge.
+func (_q *PapelQuery) QueryFilhos() *PapelQuery {
+	query := (&PapelClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papel.Table, papel.FieldID, selector),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, papel.FilhosTable, papel.FilhosColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // QueryHerda chains the current query on the "herda" edge.
 func (_q *PapelQuery) QueryHerda() *PapelQuery {
 	query := (&PapelClient{config: _q.config}).Query()
@@ -78,7 +101,7 @@ func (_q *PapelQuery) QueryHerda() *PapelQuery {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(papel.Table, papel.FieldID, selector),
 			sqlgraph.To(papel.Table, papel.FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, false, papel.HerdaTable, papel.HerdaColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, papel.HerdaTable, papel.HerdaColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -322,6 +345,7 @@ func (_q *PapelQuery) Clone() *PapelQuery {
 		order:          append([]papel.OrderOption{}, _q.order...),
 		inters:         append([]Interceptor{}, _q.inters...),
 		predicates:     append([]predicate.Papel{}, _q.predicates...),
+		withFilhos:     _q.withFilhos.Clone(),
 		withHerda:      _q.withHerda.Clone(),
 		withPermissoes: _q.withPermissoes.Clone(),
 		withConcessoes: _q.withConcessoes.Clone(),
@@ -329,6 +353,17 @@ func (_q *PapelQuery) Clone() *PapelQuery {
 		sql:  _q.sql.Clone(),
 		path: _q.path,
 	}
+}
+
+// WithFilhos tells the query-builder to eager-load the nodes that are connected to
+// the "filhos" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *PapelQuery) WithFilhos(opts ...func(*PapelQuery)) *PapelQuery {
+	query := (&PapelClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withFilhos = query
+	return _q
 }
 
 // WithHerda tells the query-builder to eager-load the nodes that are connected to
@@ -442,7 +477,8 @@ func (_q *PapelQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Papel,
 	var (
 		nodes       = []*Papel{}
 		_spec       = _q.querySpec()
-		loadedTypes = [3]bool{
+		loadedTypes = [4]bool{
+			_q.withFilhos != nil,
 			_q.withHerda != nil,
 			_q.withPermissoes != nil,
 			_q.withConcessoes != nil,
@@ -465,6 +501,13 @@ func (_q *PapelQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Papel,
 	}
 	if len(nodes) == 0 {
 		return nodes, nil
+	}
+	if query := _q.withFilhos; query != nil {
+		if err := _q.loadFilhos(ctx, query, nodes,
+			func(n *Papel) { n.Edges.Filhos = []*Papel{} },
+			func(n *Papel, e *Papel) { n.Edges.Filhos = append(n.Edges.Filhos, e) }); err != nil {
+			return nil, err
+		}
 	}
 	if query := _q.withHerda; query != nil {
 		if err := _q.loadHerda(ctx, query, nodes, nil,
@@ -489,6 +532,39 @@ func (_q *PapelQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Papel,
 	return nodes, nil
 }
 
+func (_q *PapelQuery) loadFilhos(ctx context.Context, query *PapelQuery, nodes []*Papel, init func(*Papel), assign func(*Papel, *Papel)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*Papel)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(papel.FieldHerdaDe)
+	}
+	query.Where(predicate.Papel(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(papel.FilhosColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.HerdaDe
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "herda_de" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "herda_de" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
 func (_q *PapelQuery) loadHerda(ctx context.Context, query *PapelQuery, nodes []*Papel, init func(*Papel), assign func(*Papel, *Papel)) error {
 	ids := make([]string, 0, len(nodes))
 	nodeids := make(map[string][]*Papel)

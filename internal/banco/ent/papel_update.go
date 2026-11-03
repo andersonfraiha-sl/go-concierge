@@ -49,6 +49,21 @@ func (_u *PapelUpdate) ClearHerdaDe() *PapelUpdate {
 	return _u
 }
 
+// AddFilhoIDs adds the "filhos" edge to the Papel entity by IDs.
+func (_u *PapelUpdate) AddFilhoIDs(ids ...string) *PapelUpdate {
+	_u.mutation.AddFilhoIDs(ids...)
+	return _u
+}
+
+// AddFilhos adds the "filhos" edges to the Papel entity.
+func (_u *PapelUpdate) AddFilhos(v ...*Papel) *PapelUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddFilhoIDs(ids...)
+}
+
 // SetHerdaID sets the "herda" edge to the Papel entity by ID.
 func (_u *PapelUpdate) SetHerdaID(id string) *PapelUpdate {
 	_u.mutation.SetHerdaID(id)
@@ -101,6 +116,27 @@ func (_u *PapelUpdate) AddConcessoes(v ...*Concessao) *PapelUpdate {
 // Mutation returns the PapelMutation object of the builder.
 func (_u *PapelUpdate) Mutation() *PapelMutation {
 	return _u.mutation
+}
+
+// ClearFilhos clears all "filhos" edges to the Papel entity.
+func (_u *PapelUpdate) ClearFilhos() *PapelUpdate {
+	_u.mutation.ClearFilhos()
+	return _u
+}
+
+// RemoveFilhoIDs removes the "filhos" edge to Papel entities by IDs.
+func (_u *PapelUpdate) RemoveFilhoIDs(ids ...string) *PapelUpdate {
+	_u.mutation.RemoveFilhoIDs(ids...)
+	return _u
+}
+
+// RemoveFilhos removes "filhos" edges to Papel entities.
+func (_u *PapelUpdate) RemoveFilhos(v ...*Papel) *PapelUpdate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveFilhoIDs(ids...)
 }
 
 // ClearHerda clears the "herda" edge to the Papel entity.
@@ -187,13 +223,58 @@ func (_u *PapelUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			}
 		}
 	}
+	if _u.mutation.FilhosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedFilhosIDs(); len(nodes) > 0 && !_u.mutation.FilhosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.FilhosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.HerdaCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
 			Table:   papel.HerdaTable,
 			Columns: []string{papel.HerdaColumn},
-			Bidi:    true,
+			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
 			},
@@ -202,11 +283,11 @@ func (_u *PapelUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if nodes := _u.mutation.HerdaIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
 			Table:   papel.HerdaTable,
 			Columns: []string{papel.HerdaColumn},
-			Bidi:    true,
+			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
 			},
@@ -346,6 +427,21 @@ func (_u *PapelUpdateOne) ClearHerdaDe() *PapelUpdateOne {
 	return _u
 }
 
+// AddFilhoIDs adds the "filhos" edge to the Papel entity by IDs.
+func (_u *PapelUpdateOne) AddFilhoIDs(ids ...string) *PapelUpdateOne {
+	_u.mutation.AddFilhoIDs(ids...)
+	return _u
+}
+
+// AddFilhos adds the "filhos" edges to the Papel entity.
+func (_u *PapelUpdateOne) AddFilhos(v ...*Papel) *PapelUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddFilhoIDs(ids...)
+}
+
 // SetHerdaID sets the "herda" edge to the Papel entity by ID.
 func (_u *PapelUpdateOne) SetHerdaID(id string) *PapelUpdateOne {
 	_u.mutation.SetHerdaID(id)
@@ -398,6 +494,27 @@ func (_u *PapelUpdateOne) AddConcessoes(v ...*Concessao) *PapelUpdateOne {
 // Mutation returns the PapelMutation object of the builder.
 func (_u *PapelUpdateOne) Mutation() *PapelMutation {
 	return _u.mutation
+}
+
+// ClearFilhos clears all "filhos" edges to the Papel entity.
+func (_u *PapelUpdateOne) ClearFilhos() *PapelUpdateOne {
+	_u.mutation.ClearFilhos()
+	return _u
+}
+
+// RemoveFilhoIDs removes the "filhos" edge to Papel entities by IDs.
+func (_u *PapelUpdateOne) RemoveFilhoIDs(ids ...string) *PapelUpdateOne {
+	_u.mutation.RemoveFilhoIDs(ids...)
+	return _u
+}
+
+// RemoveFilhos removes "filhos" edges to Papel entities.
+func (_u *PapelUpdateOne) RemoveFilhos(v ...*Papel) *PapelUpdateOne {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveFilhoIDs(ids...)
 }
 
 // ClearHerda clears the "herda" edge to the Papel entity.
@@ -514,13 +631,58 @@ func (_u *PapelUpdateOne) sqlSave(ctx context.Context) (_node *Papel, err error)
 			}
 		}
 	}
+	if _u.mutation.FilhosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedFilhosIDs(); len(nodes) > 0 && !_u.mutation.FilhosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.FilhosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.HerdaCleared() {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
 			Table:   papel.HerdaTable,
 			Columns: []string{papel.HerdaColumn},
-			Bidi:    true,
+			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
 			},
@@ -529,11 +691,11 @@ func (_u *PapelUpdateOne) sqlSave(ctx context.Context) (_node *Papel, err error)
 	}
 	if nodes := _u.mutation.HerdaIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
 			Table:   papel.HerdaTable,
 			Columns: []string{papel.HerdaColumn},
-			Bidi:    true,
+			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
 			},

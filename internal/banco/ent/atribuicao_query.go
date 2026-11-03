@@ -5,6 +5,7 @@ package ent
 import (
 	"context"
 	"fmt"
+	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/predicate"
@@ -20,12 +21,13 @@ import (
 // AtribuicaoQuery is the builder for querying Atribuicao entities.
 type AtribuicaoQuery struct {
 	config
-	ctx         *QueryContext
-	order       []atribuicao.OrderOption
-	inters      []Interceptor
-	predicates  []predicate.Atribuicao
-	withUsuario *UsuarioQuery
-	withPapel   *PapelQuery
+	ctx                *QueryContext
+	order              []atribuicao.OrderOption
+	inters             []Interceptor
+	predicates         []predicate.Atribuicao
+	withUsuario        *UsuarioQuery
+	withPapel          *PapelQuery
+	withAdministradora *AdministradoraQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -99,6 +101,28 @@ func (_q *AtribuicaoQuery) QueryPapel() *PapelQuery {
 			sqlgraph.From(atribuicao.Table, atribuicao.FieldID, selector),
 			sqlgraph.To(papel.Table, papel.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, false, atribuicao.PapelTable, atribuicao.PapelColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryAdministradora chains the current query on the "administradora" edge.
+func (_q *AtribuicaoQuery) QueryAdministradora() *AdministradoraQuery {
+	query := (&AdministradoraClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(atribuicao.Table, atribuicao.FieldID, selector),
+			sqlgraph.To(administradora.Table, administradora.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, atribuicao.AdministradoraTable, atribuicao.AdministradoraColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -293,13 +317,14 @@ func (_q *AtribuicaoQuery) Clone() *AtribuicaoQuery {
 		return nil
 	}
 	return &AtribuicaoQuery{
-		config:      _q.config,
-		ctx:         _q.ctx.Clone(),
-		order:       append([]atribuicao.OrderOption{}, _q.order...),
-		inters:      append([]Interceptor{}, _q.inters...),
-		predicates:  append([]predicate.Atribuicao{}, _q.predicates...),
-		withUsuario: _q.withUsuario.Clone(),
-		withPapel:   _q.withPapel.Clone(),
+		config:             _q.config,
+		ctx:                _q.ctx.Clone(),
+		order:              append([]atribuicao.OrderOption{}, _q.order...),
+		inters:             append([]Interceptor{}, _q.inters...),
+		predicates:         append([]predicate.Atribuicao{}, _q.predicates...),
+		withUsuario:        _q.withUsuario.Clone(),
+		withPapel:          _q.withPapel.Clone(),
+		withAdministradora: _q.withAdministradora.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -325,6 +350,17 @@ func (_q *AtribuicaoQuery) WithPapel(opts ...func(*PapelQuery)) *AtribuicaoQuery
 		opt(query)
 	}
 	_q.withPapel = query
+	return _q
+}
+
+// WithAdministradora tells the query-builder to eager-load the nodes that are connected to
+// the "administradora" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *AtribuicaoQuery) WithAdministradora(opts ...func(*AdministradoraQuery)) *AtribuicaoQuery {
+	query := (&AdministradoraClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withAdministradora = query
 	return _q
 }
 
@@ -406,9 +442,10 @@ func (_q *AtribuicaoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*A
 	var (
 		nodes       = []*Atribuicao{}
 		_spec       = _q.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [3]bool{
 			_q.withUsuario != nil,
 			_q.withPapel != nil,
+			_q.withAdministradora != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -438,6 +475,12 @@ func (_q *AtribuicaoQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*A
 	if query := _q.withPapel; query != nil {
 		if err := _q.loadPapel(ctx, query, nodes, nil,
 			func(n *Atribuicao, e *Papel) { n.Edges.Papel = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withAdministradora; query != nil {
+		if err := _q.loadAdministradora(ctx, query, nodes, nil,
+			func(n *Atribuicao, e *Administradora) { n.Edges.Administradora = e }); err != nil {
 			return nil, err
 		}
 	}
@@ -502,6 +545,38 @@ func (_q *AtribuicaoQuery) loadPapel(ctx context.Context, query *PapelQuery, nod
 	}
 	return nil
 }
+func (_q *AtribuicaoQuery) loadAdministradora(ctx context.Context, query *AdministradoraQuery, nodes []*Atribuicao, init func(*Atribuicao), assign func(*Atribuicao, *Administradora)) error {
+	ids := make([]string, 0, len(nodes))
+	nodeids := make(map[string][]*Atribuicao)
+	for i := range nodes {
+		if nodes[i].AdministradoraID == nil {
+			continue
+		}
+		fk := *nodes[i].AdministradoraID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(administradora.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "administradora_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
 
 func (_q *AtribuicaoQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := _q.querySpec()
@@ -533,6 +608,9 @@ func (_q *AtribuicaoQuery) querySpec() *sqlgraph.QuerySpec {
 		}
 		if _q.withPapel != nil {
 			_spec.Node.AddColumnOnce(atribuicao.FieldPapelID)
+		}
+		if _q.withAdministradora != nil {
+			_spec.Node.AddColumnOnce(atribuicao.FieldAdministradoraID)
 		}
 	}
 	if ps := _q.predicates; len(ps) > 0 {

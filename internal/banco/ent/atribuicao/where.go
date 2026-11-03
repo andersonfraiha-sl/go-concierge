@@ -74,6 +74,11 @@ func EscopoID(v string) predicate.Atribuicao {
 	return predicate.Atribuicao(sql.FieldEQ(FieldEscopoID, v))
 }
 
+// AdministradoraID applies equality check predicate on the "administradora_id" field. It's identical to AdministradoraIDEQ.
+func AdministradoraID(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldEQ(FieldAdministradoraID, v))
+}
+
 // UsuarioIDEQ applies the EQ predicate on the "usuario_id" field.
 func UsuarioIDEQ(v string) predicate.Atribuicao {
 	return predicate.Atribuicao(sql.FieldEQ(FieldUsuarioID, v))
@@ -334,6 +339,81 @@ func EscopoIDContainsFold(v string) predicate.Atribuicao {
 	return predicate.Atribuicao(sql.FieldContainsFold(FieldEscopoID, v))
 }
 
+// AdministradoraIDEQ applies the EQ predicate on the "administradora_id" field.
+func AdministradoraIDEQ(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldEQ(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDNEQ applies the NEQ predicate on the "administradora_id" field.
+func AdministradoraIDNEQ(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldNEQ(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDIn applies the In predicate on the "administradora_id" field.
+func AdministradoraIDIn(vs ...string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldIn(FieldAdministradoraID, vs...))
+}
+
+// AdministradoraIDNotIn applies the NotIn predicate on the "administradora_id" field.
+func AdministradoraIDNotIn(vs ...string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldNotIn(FieldAdministradoraID, vs...))
+}
+
+// AdministradoraIDGT applies the GT predicate on the "administradora_id" field.
+func AdministradoraIDGT(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldGT(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDGTE applies the GTE predicate on the "administradora_id" field.
+func AdministradoraIDGTE(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldGTE(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDLT applies the LT predicate on the "administradora_id" field.
+func AdministradoraIDLT(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldLT(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDLTE applies the LTE predicate on the "administradora_id" field.
+func AdministradoraIDLTE(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldLTE(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDContains applies the Contains predicate on the "administradora_id" field.
+func AdministradoraIDContains(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldContains(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDHasPrefix applies the HasPrefix predicate on the "administradora_id" field.
+func AdministradoraIDHasPrefix(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldHasPrefix(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDHasSuffix applies the HasSuffix predicate on the "administradora_id" field.
+func AdministradoraIDHasSuffix(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldHasSuffix(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDIsNil applies the IsNil predicate on the "administradora_id" field.
+func AdministradoraIDIsNil() predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldIsNull(FieldAdministradoraID))
+}
+
+// AdministradoraIDNotNil applies the NotNil predicate on the "administradora_id" field.
+func AdministradoraIDNotNil() predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldNotNull(FieldAdministradoraID))
+}
+
+// AdministradoraIDEqualFold applies the EqualFold predicate on the "administradora_id" field.
+func AdministradoraIDEqualFold(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldEqualFold(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDContainsFold applies the ContainsFold predicate on the "administradora_id" field.
+func AdministradoraIDContainsFold(v string) predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldContainsFold(FieldAdministradoraID, v))
+}
+
 // HasUsuario applies the HasEdge predicate on the "usuario" edge.
 func HasUsuario() predicate.Atribuicao {
 	return predicate.Atribuicao(func(s *sql.Selector) {
@@ -372,6 +452,29 @@ func HasPapel() predicate.Atribuicao {
 func HasPapelWith(preds ...predicate.Papel) predicate.Atribuicao {
 	return predicate.Atribuicao(func(s *sql.Selector) {
 		step := newPapelStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasAdministradora applies the HasEdge predicate on the "administradora" edge.
+func HasAdministradora() predicate.Atribuicao {
+	return predicate.Atribuicao(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, AdministradoraTable, AdministradoraColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAdministradoraWith applies the HasEdge predicate on the "administradora" edge with a given conditions (other predicates).
+func HasAdministradoraWith(preds ...predicate.Administradora) predicate.Atribuicao {
+	return predicate.Atribuicao(func(s *sql.Selector) {
+		step := newAdministradoraStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

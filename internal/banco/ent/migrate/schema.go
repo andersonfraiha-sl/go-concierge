@@ -26,6 +26,7 @@ var (
 		{Name: "escopo_tipo", Type: field.TypeString},
 		{Name: "escopo_id", Type: field.TypeString, Default: ""},
 		{Name: "papel_id", Type: field.TypeString},
+		{Name: "administradora_id", Type: field.TypeString, Nullable: true},
 		{Name: "usuario_id", Type: field.TypeString},
 	}
 	// AtribuicoesTable holds the schema information for the "atribuicoes" table.
@@ -41,8 +42,14 @@ var (
 				OnDelete:   schema.NoAction,
 			},
 			{
-				Symbol:     "atribuicoes_usuarios_atribuicoes",
+				Symbol:     "atribuicoes_administradoras_administradora",
 				Columns:    []*schema.Column{AtribuicoesColumns[4]},
+				RefColumns: []*schema.Column{AdministradorasColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+			{
+				Symbol:     "atribuicoes_usuarios_atribuicoes",
+				Columns:    []*schema.Column{AtribuicoesColumns[5]},
 				RefColumns: []*schema.Column{UsuariosColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -51,7 +58,7 @@ var (
 			{
 				Name:    "atribuicao_usuario_id_papel_id_escopo_tipo_escopo_id",
 				Unique:  true,
-				Columns: []*schema.Column{AtribuicoesColumns[4], AtribuicoesColumns[3], AtribuicoesColumns[1], AtribuicoesColumns[2]},
+				Columns: []*schema.Column{AtribuicoesColumns[5], AtribuicoesColumns[3], AtribuicoesColumns[1], AtribuicoesColumns[2]},
 			},
 		},
 	}
@@ -186,7 +193,7 @@ var (
 	// PapeisColumns holds the columns for the "papeis" table.
 	PapeisColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "herda_de", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "herda_de", Type: field.TypeString, Nullable: true},
 	}
 	// PapeisTable holds the schema information for the "papeis" table.
 	PapeisTable = &schema.Table{
@@ -195,7 +202,7 @@ var (
 		PrimaryKey: []*schema.Column{PapeisColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "papeis_papeis_herda",
+				Symbol:     "papeis_papeis_filhos",
 				Columns:    []*schema.Column{PapeisColumns[1]},
 				RefColumns: []*schema.Column{PapeisColumns[0]},
 				OnDelete:   schema.Restrict,
@@ -296,13 +303,15 @@ var (
 
 func init() {
 	AtribuicoesTable.ForeignKeys[0].RefTable = PapeisTable
-	AtribuicoesTable.ForeignKeys[1].RefTable = UsuariosTable
+	AtribuicoesTable.ForeignKeys[1].RefTable = AdministradorasTable
+	AtribuicoesTable.ForeignKeys[2].RefTable = UsuariosTable
 	AtribuicoesTable.Annotation = &entsql.Annotation{
 		Table: "atribuicoes",
 	}
 	AtribuicoesTable.Annotation.Checks = map[string]string{
-		"atribuicoes_escopo_id":   "(escopo_tipo = 'superlogica') = (escopo_id = '')",
-		"atribuicoes_escopo_tipo": "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
+		"atribuicoes_administradora_id": "(escopo_tipo = 'condominio') = (administradora_id IS NOT NULL)",
+		"atribuicoes_escopo_id":         "(escopo_tipo = 'superlogica') = (escopo_id = '')",
+		"atribuicoes_escopo_tipo":       "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
 	}
 	ConcessoesTable.ForeignKeys[0].RefTable = AdministradorasTable
 	ConcessoesTable.ForeignKeys[1].RefTable = PapeisTable

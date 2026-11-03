@@ -4,6 +4,7 @@ package ent
 
 import (
 	"fmt"
+	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/usuario"
@@ -26,6 +27,8 @@ type Atribuicao struct {
 	EscopoTipo string `json:"escopo_tipo,omitempty"`
 	// EscopoID holds the value of the "escopo_id" field.
 	EscopoID string `json:"escopo_id,omitempty"`
+	// AdministradoraID holds the value of the "administradora_id" field.
+	AdministradoraID *string `json:"administradora_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the AtribuicaoQuery when eager-loading is set.
 	Edges        AtribuicaoEdges `json:"edges"`
@@ -38,9 +41,11 @@ type AtribuicaoEdges struct {
 	Usuario *Usuario `json:"usuario,omitempty"`
 	// Papel holds the value of the papel edge.
 	Papel *Papel `json:"papel,omitempty"`
+	// Administradora holds the value of the administradora edge.
+	Administradora *Administradora `json:"administradora,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [3]bool
 }
 
 // UsuarioOrErr returns the Usuario value or an error if the edge
@@ -65,6 +70,17 @@ func (e AtribuicaoEdges) PapelOrErr() (*Papel, error) {
 	return nil, &NotLoadedError{edge: "papel"}
 }
 
+// AdministradoraOrErr returns the Administradora value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e AtribuicaoEdges) AdministradoraOrErr() (*Administradora, error) {
+	if e.Administradora != nil {
+		return e.Administradora, nil
+	} else if e.loadedTypes[2] {
+		return nil, &NotFoundError{label: administradora.Label}
+	}
+	return nil, &NotLoadedError{edge: "administradora"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Atribuicao) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -72,7 +88,7 @@ func (*Atribuicao) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case atribuicao.FieldID:
 			values[i] = new(sql.NullInt64)
-		case atribuicao.FieldUsuarioID, atribuicao.FieldPapelID, atribuicao.FieldEscopoTipo, atribuicao.FieldEscopoID:
+		case atribuicao.FieldUsuarioID, atribuicao.FieldPapelID, atribuicao.FieldEscopoTipo, atribuicao.FieldEscopoID, atribuicao.FieldAdministradoraID:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -119,6 +135,13 @@ func (_m *Atribuicao) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.EscopoID = value.String
 			}
+		case atribuicao.FieldAdministradoraID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field administradora_id", values[i])
+			} else if value.Valid {
+				_m.AdministradoraID = new(string)
+				*_m.AdministradoraID = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -140,6 +163,11 @@ func (_m *Atribuicao) QueryUsuario() *UsuarioQuery {
 // QueryPapel queries the "papel" edge of the Atribuicao entity.
 func (_m *Atribuicao) QueryPapel() *PapelQuery {
 	return NewAtribuicaoClient(_m.config).QueryPapel(_m)
+}
+
+// QueryAdministradora queries the "administradora" edge of the Atribuicao entity.
+func (_m *Atribuicao) QueryAdministradora() *AdministradoraQuery {
+	return NewAtribuicaoClient(_m.config).QueryAdministradora(_m)
 }
 
 // Update returns a builder for updating this Atribuicao.
@@ -176,6 +204,11 @@ func (_m *Atribuicao) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("escopo_id=")
 	builder.WriteString(_m.EscopoID)
+	builder.WriteString(", ")
+	if v := _m.AdministradoraID; v != nil {
+		builder.WriteString("administradora_id=")
+		builder.WriteString(*v)
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

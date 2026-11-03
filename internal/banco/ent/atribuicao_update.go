@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/predicate"
@@ -85,6 +86,26 @@ func (_u *AtribuicaoUpdate) SetNillableEscopoID(v *string) *AtribuicaoUpdate {
 	return _u
 }
 
+// SetAdministradoraID sets the "administradora_id" field.
+func (_u *AtribuicaoUpdate) SetAdministradoraID(v string) *AtribuicaoUpdate {
+	_u.mutation.SetAdministradoraID(v)
+	return _u
+}
+
+// SetNillableAdministradoraID sets the "administradora_id" field if the given value is not nil.
+func (_u *AtribuicaoUpdate) SetNillableAdministradoraID(v *string) *AtribuicaoUpdate {
+	if v != nil {
+		_u.SetAdministradoraID(*v)
+	}
+	return _u
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (_u *AtribuicaoUpdate) ClearAdministradoraID() *AtribuicaoUpdate {
+	_u.mutation.ClearAdministradoraID()
+	return _u
+}
+
 // SetUsuario sets the "usuario" edge to the Usuario entity.
 func (_u *AtribuicaoUpdate) SetUsuario(v *Usuario) *AtribuicaoUpdate {
 	return _u.SetUsuarioID(v.ID)
@@ -93,6 +114,11 @@ func (_u *AtribuicaoUpdate) SetUsuario(v *Usuario) *AtribuicaoUpdate {
 // SetPapel sets the "papel" edge to the Papel entity.
 func (_u *AtribuicaoUpdate) SetPapel(v *Papel) *AtribuicaoUpdate {
 	return _u.SetPapelID(v.ID)
+}
+
+// SetAdministradora sets the "administradora" edge to the Administradora entity.
+func (_u *AtribuicaoUpdate) SetAdministradora(v *Administradora) *AtribuicaoUpdate {
+	return _u.SetAdministradoraID(v.ID)
 }
 
 // Mutation returns the AtribuicaoMutation object of the builder.
@@ -109,6 +135,12 @@ func (_u *AtribuicaoUpdate) ClearUsuario() *AtribuicaoUpdate {
 // ClearPapel clears the "papel" edge to the Papel entity.
 func (_u *AtribuicaoUpdate) ClearPapel() *AtribuicaoUpdate {
 	_u.mutation.ClearPapel()
+	return _u
+}
+
+// ClearAdministradora clears the "administradora" edge to the Administradora entity.
+func (_u *AtribuicaoUpdate) ClearAdministradora() *AtribuicaoUpdate {
+	_u.mutation.ClearAdministradora()
 	return _u
 }
 
@@ -241,6 +273,35 @@ func (_u *AtribuicaoUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.AdministradoraCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   atribuicao.AdministradoraTable,
+			Columns: []string{atribuicao.AdministradoraColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(administradora.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AdministradoraIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   atribuicao.AdministradoraTable,
+			Columns: []string{atribuicao.AdministradoraColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(administradora.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{atribuicao.Label}
@@ -317,6 +378,26 @@ func (_u *AtribuicaoUpdateOne) SetNillableEscopoID(v *string) *AtribuicaoUpdateO
 	return _u
 }
 
+// SetAdministradoraID sets the "administradora_id" field.
+func (_u *AtribuicaoUpdateOne) SetAdministradoraID(v string) *AtribuicaoUpdateOne {
+	_u.mutation.SetAdministradoraID(v)
+	return _u
+}
+
+// SetNillableAdministradoraID sets the "administradora_id" field if the given value is not nil.
+func (_u *AtribuicaoUpdateOne) SetNillableAdministradoraID(v *string) *AtribuicaoUpdateOne {
+	if v != nil {
+		_u.SetAdministradoraID(*v)
+	}
+	return _u
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (_u *AtribuicaoUpdateOne) ClearAdministradoraID() *AtribuicaoUpdateOne {
+	_u.mutation.ClearAdministradoraID()
+	return _u
+}
+
 // SetUsuario sets the "usuario" edge to the Usuario entity.
 func (_u *AtribuicaoUpdateOne) SetUsuario(v *Usuario) *AtribuicaoUpdateOne {
 	return _u.SetUsuarioID(v.ID)
@@ -325,6 +406,11 @@ func (_u *AtribuicaoUpdateOne) SetUsuario(v *Usuario) *AtribuicaoUpdateOne {
 // SetPapel sets the "papel" edge to the Papel entity.
 func (_u *AtribuicaoUpdateOne) SetPapel(v *Papel) *AtribuicaoUpdateOne {
 	return _u.SetPapelID(v.ID)
+}
+
+// SetAdministradora sets the "administradora" edge to the Administradora entity.
+func (_u *AtribuicaoUpdateOne) SetAdministradora(v *Administradora) *AtribuicaoUpdateOne {
+	return _u.SetAdministradoraID(v.ID)
 }
 
 // Mutation returns the AtribuicaoMutation object of the builder.
@@ -341,6 +427,12 @@ func (_u *AtribuicaoUpdateOne) ClearUsuario() *AtribuicaoUpdateOne {
 // ClearPapel clears the "papel" edge to the Papel entity.
 func (_u *AtribuicaoUpdateOne) ClearPapel() *AtribuicaoUpdateOne {
 	_u.mutation.ClearPapel()
+	return _u
+}
+
+// ClearAdministradora clears the "administradora" edge to the Administradora entity.
+func (_u *AtribuicaoUpdateOne) ClearAdministradora() *AtribuicaoUpdateOne {
+	_u.mutation.ClearAdministradora()
 	return _u
 }
 
@@ -496,6 +588,35 @@ func (_u *AtribuicaoUpdateOne) sqlSave(ctx context.Context) (_node *Atribuicao, 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AdministradoraCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   atribuicao.AdministradoraTable,
+			Columns: []string{atribuicao.AdministradoraColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(administradora.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AdministradoraIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   atribuicao.AdministradoraTable,
+			Columns: []string{atribuicao.AdministradoraColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(administradora.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

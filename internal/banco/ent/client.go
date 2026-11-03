@@ -571,6 +571,22 @@ func (c *AtribuicaoClient) QueryPapel(_m *Atribuicao) *PapelQuery {
 	return query
 }
 
+// QueryAdministradora queries the administradora edge of a Atribuicao.
+func (c *AtribuicaoClient) QueryAdministradora(_m *Atribuicao) *AdministradoraQuery {
+	query := (&AdministradoraClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(atribuicao.Table, atribuicao.FieldID, id),
+			sqlgraph.To(administradora.Table, administradora.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, atribuicao.AdministradoraTable, atribuicao.AdministradoraColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *AtribuicaoClient) Hooks() []Hook {
 	return c.hooks.Atribuicao
@@ -1364,6 +1380,22 @@ func (c *PapelClient) GetX(ctx context.Context, id string) *Papel {
 	return obj
 }
 
+// QueryFilhos queries the filhos edge of a Papel.
+func (c *PapelClient) QueryFilhos(_m *Papel) *PapelQuery {
+	query := (&PapelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(papel.Table, papel.FieldID, id),
+			sqlgraph.To(papel.Table, papel.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, papel.FilhosTable, papel.FilhosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryHerda queries the herda edge of a Papel.
 func (c *PapelClient) QueryHerda(_m *Papel) *PapelQuery {
 	query := (&PapelClient{config: c.config}).Query()
@@ -1372,7 +1404,7 @@ func (c *PapelClient) QueryHerda(_m *Papel) *PapelQuery {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(papel.Table, papel.FieldID, id),
 			sqlgraph.To(papel.Table, papel.FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, false, papel.HerdaTable, papel.HerdaColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, papel.HerdaTable, papel.HerdaColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil

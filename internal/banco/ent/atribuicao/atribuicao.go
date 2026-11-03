@@ -20,10 +20,14 @@ const (
 	FieldEscopoTipo = "escopo_tipo"
 	// FieldEscopoID holds the string denoting the escopo_id field in the database.
 	FieldEscopoID = "escopo_id"
+	// FieldAdministradoraID holds the string denoting the administradora_id field in the database.
+	FieldAdministradoraID = "administradora_id"
 	// EdgeUsuario holds the string denoting the usuario edge name in mutations.
 	EdgeUsuario = "usuario"
 	// EdgePapel holds the string denoting the papel edge name in mutations.
 	EdgePapel = "papel"
+	// EdgeAdministradora holds the string denoting the administradora edge name in mutations.
+	EdgeAdministradora = "administradora"
 	// Table holds the table name of the atribuicao in the database.
 	Table = "atribuicoes"
 	// UsuarioTable is the table that holds the usuario relation/edge.
@@ -40,6 +44,13 @@ const (
 	PapelInverseTable = "papeis"
 	// PapelColumn is the table column denoting the papel relation/edge.
 	PapelColumn = "papel_id"
+	// AdministradoraTable is the table that holds the administradora relation/edge.
+	AdministradoraTable = "atribuicoes"
+	// AdministradoraInverseTable is the table name for the Administradora entity.
+	// It exists in this package in order to avoid circular dependency with the "administradora" package.
+	AdministradoraInverseTable = "administradoras"
+	// AdministradoraColumn is the table column denoting the administradora relation/edge.
+	AdministradoraColumn = "administradora_id"
 )
 
 // Columns holds all SQL columns for atribuicao fields.
@@ -49,6 +60,7 @@ var Columns = []string{
 	FieldPapelID,
 	FieldEscopoTipo,
 	FieldEscopoID,
+	FieldAdministradoraID,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -100,6 +112,11 @@ func ByEscopoID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEscopoID, opts...).ToFunc()
 }
 
+// ByAdministradoraID orders the results by the administradora_id field.
+func ByAdministradoraID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAdministradoraID, opts...).ToFunc()
+}
+
 // ByUsuarioField orders the results by usuario field.
 func ByUsuarioField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -111,6 +128,13 @@ func ByUsuarioField(field string, opts ...sql.OrderTermOption) OrderOption {
 func ByPapelField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newPapelStep(), sql.OrderByField(field, opts...))
+	}
+}
+
+// ByAdministradoraField orders the results by administradora field.
+func ByAdministradoraField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAdministradoraStep(), sql.OrderByField(field, opts...))
 	}
 }
 func newUsuarioStep() *sqlgraph.Step {
@@ -125,5 +149,12 @@ func newPapelStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PapelInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, false, PapelTable, PapelColumn),
+	)
+}
+func newAdministradoraStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AdministradoraInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, false, AdministradoraTable, AdministradoraColumn),
 	)
 }

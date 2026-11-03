@@ -26,6 +26,8 @@ type Papel struct {
 
 // PapelEdges holds the relations/edges for other nodes in the graph.
 type PapelEdges struct {
+	// Filhos holds the value of the filhos edge.
+	Filhos []*Papel `json:"filhos,omitempty"`
 	// Herda holds the value of the herda edge.
 	Herda *Papel `json:"herda,omitempty"`
 	// Permissoes holds the value of the permissoes edge.
@@ -34,7 +36,16 @@ type PapelEdges struct {
 	Concessoes []*Concessao `json:"concessoes,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
+}
+
+// FilhosOrErr returns the Filhos value or an error if the edge
+// was not loaded in eager-loading.
+func (e PapelEdges) FilhosOrErr() ([]*Papel, error) {
+	if e.loadedTypes[0] {
+		return e.Filhos, nil
+	}
+	return nil, &NotLoadedError{edge: "filhos"}
 }
 
 // HerdaOrErr returns the Herda value or an error if the edge
@@ -42,7 +53,7 @@ type PapelEdges struct {
 func (e PapelEdges) HerdaOrErr() (*Papel, error) {
 	if e.Herda != nil {
 		return e.Herda, nil
-	} else if e.loadedTypes[0] {
+	} else if e.loadedTypes[1] {
 		return nil, &NotFoundError{label: papel.Label}
 	}
 	return nil, &NotLoadedError{edge: "herda"}
@@ -51,7 +62,7 @@ func (e PapelEdges) HerdaOrErr() (*Papel, error) {
 // PermissoesOrErr returns the Permissoes value or an error if the edge
 // was not loaded in eager-loading.
 func (e PapelEdges) PermissoesOrErr() ([]*PapelPermissao, error) {
-	if e.loadedTypes[1] {
+	if e.loadedTypes[2] {
 		return e.Permissoes, nil
 	}
 	return nil, &NotLoadedError{edge: "permissoes"}
@@ -60,7 +71,7 @@ func (e PapelEdges) PermissoesOrErr() ([]*PapelPermissao, error) {
 // ConcessoesOrErr returns the Concessoes value or an error if the edge
 // was not loaded in eager-loading.
 func (e PapelEdges) ConcessoesOrErr() ([]*Concessao, error) {
-	if e.loadedTypes[2] {
+	if e.loadedTypes[3] {
 		return e.Concessoes, nil
 	}
 	return nil, &NotLoadedError{edge: "concessoes"}
@@ -112,6 +123,11 @@ func (_m *Papel) assignValues(columns []string, values []any) error {
 // This includes values selected through modifiers, order, etc.
 func (_m *Papel) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
+}
+
+// QueryFilhos queries the "filhos" edge of the Papel entity.
+func (_m *Papel) QueryFilhos() *PapelQuery {
+	return NewPapelClient(_m.config).QueryFilhos(_m)
 }
 
 // QueryHerda queries the "herda" edge of the Papel entity.

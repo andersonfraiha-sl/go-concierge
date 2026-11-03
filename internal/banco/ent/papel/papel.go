@@ -14,6 +14,8 @@ const (
 	FieldID = "id"
 	// FieldHerdaDe holds the string denoting the herda_de field in the database.
 	FieldHerdaDe = "herda_de"
+	// EdgeFilhos holds the string denoting the filhos edge name in mutations.
+	EdgeFilhos = "filhos"
 	// EdgeHerda holds the string denoting the herda edge name in mutations.
 	EdgeHerda = "herda"
 	// EdgePermissoes holds the string denoting the permissoes edge name in mutations.
@@ -22,6 +24,10 @@ const (
 	EdgeConcessoes = "concessoes"
 	// Table holds the table name of the papel in the database.
 	Table = "papeis"
+	// FilhosTable is the table that holds the filhos relation/edge.
+	FilhosTable = "papeis"
+	// FilhosColumn is the table column denoting the filhos relation/edge.
+	FilhosColumn = "herda_de"
 	// HerdaTable is the table that holds the herda relation/edge.
 	HerdaTable = "papeis"
 	// HerdaColumn is the table column denoting the herda relation/edge.
@@ -76,6 +82,20 @@ func ByHerdaDe(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldHerdaDe, opts...).ToFunc()
 }
 
+// ByFilhosCount orders the results by filhos count.
+func ByFilhosCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newFilhosStep(), opts...)
+	}
+}
+
+// ByFilhos orders the results by filhos terms.
+func ByFilhos(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newFilhosStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByHerdaField orders the results by herda field.
 func ByHerdaField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -110,11 +130,18 @@ func ByConcessoes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newConcessoesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+func newFilhosStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(Table, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, FilhosTable, FilhosColumn),
+	)
+}
 func newHerdaStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(Table, FieldID),
-		sqlgraph.Edge(sqlgraph.O2O, false, HerdaTable, HerdaColumn),
+		sqlgraph.Edge(sqlgraph.M2O, true, HerdaTable, HerdaColumn),
 	)
 }
 func newPermissoesStep() *sqlgraph.Step {

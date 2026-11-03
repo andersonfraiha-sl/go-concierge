@@ -473,19 +473,21 @@ func (m *AdministradoraMutation) ResetEdge(name string) error {
 // AtribuicaoMutation represents an operation that mutates the Atribuicao nodes in the graph.
 type AtribuicaoMutation struct {
 	config
-	op             Op
-	typ            string
-	id             *int
-	escopo_tipo    *string
-	escopo_id      *string
-	clearedFields  map[string]struct{}
-	usuario        *string
-	clearedusuario bool
-	papel          *string
-	clearedpapel   bool
-	done           bool
-	oldValue       func(context.Context) (*Atribuicao, error)
-	predicates     []predicate.Atribuicao
+	op                    Op
+	typ                   string
+	id                    *int
+	escopo_tipo           *string
+	escopo_id             *string
+	clearedFields         map[string]struct{}
+	usuario               *string
+	clearedusuario        bool
+	papel                 *string
+	clearedpapel          bool
+	administradora        *string
+	clearedadministradora bool
+	done                  bool
+	oldValue              func(context.Context) (*Atribuicao, error)
+	predicates            []predicate.Atribuicao
 }
 
 var _ ent.Mutation = (*AtribuicaoMutation)(nil)
@@ -730,6 +732,55 @@ func (m *AtribuicaoMutation) ResetEscopoID() {
 	m.escopo_id = nil
 }
 
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *AtribuicaoMutation) SetAdministradoraID(s string) {
+	m.administradora = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *AtribuicaoMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the Atribuicao entity.
+// If the Atribuicao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AtribuicaoMutation) OldAdministradoraID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (m *AtribuicaoMutation) ClearAdministradoraID() {
+	m.administradora = nil
+	m.clearedFields[atribuicao.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraIDCleared returns if the "administradora_id" field was cleared in this mutation.
+func (m *AtribuicaoMutation) AdministradoraIDCleared() bool {
+	_, ok := m.clearedFields[atribuicao.FieldAdministradoraID]
+	return ok
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *AtribuicaoMutation) ResetAdministradoraID() {
+	m.administradora = nil
+	delete(m.clearedFields, atribuicao.FieldAdministradoraID)
+}
+
 // ClearUsuario clears the "usuario" edge to the Usuario entity.
 func (m *AtribuicaoMutation) ClearUsuario() {
 	m.clearedusuario = true
@@ -784,6 +835,33 @@ func (m *AtribuicaoMutation) ResetPapel() {
 	m.clearedpapel = false
 }
 
+// ClearAdministradora clears the "administradora" edge to the Administradora entity.
+func (m *AtribuicaoMutation) ClearAdministradora() {
+	m.clearedadministradora = true
+	m.clearedFields[atribuicao.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraCleared reports if the "administradora" edge to the Administradora entity was cleared.
+func (m *AtribuicaoMutation) AdministradoraCleared() bool {
+	return m.AdministradoraIDCleared() || m.clearedadministradora
+}
+
+// AdministradoraIDs returns the "administradora" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AdministradoraID instead. It exists only for internal usage by the builders.
+func (m *AtribuicaoMutation) AdministradoraIDs() (ids []string) {
+	if id := m.administradora; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAdministradora resets all changes to the "administradora" edge.
+func (m *AtribuicaoMutation) ResetAdministradora() {
+	m.administradora = nil
+	m.clearedadministradora = false
+}
+
 // Where appends a list predicates to the AtribuicaoMutation builder.
 func (m *AtribuicaoMutation) Where(ps ...predicate.Atribuicao) {
 	m.predicates = append(m.predicates, ps...)
@@ -818,7 +896,7 @@ func (m *AtribuicaoMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AtribuicaoMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m.usuario != nil {
 		fields = append(fields, atribuicao.FieldUsuarioID)
 	}
@@ -830,6 +908,9 @@ func (m *AtribuicaoMutation) Fields() []string {
 	}
 	if m.escopo_id != nil {
 		fields = append(fields, atribuicao.FieldEscopoID)
+	}
+	if m.administradora != nil {
+		fields = append(fields, atribuicao.FieldAdministradoraID)
 	}
 	return fields
 }
@@ -847,6 +928,8 @@ func (m *AtribuicaoMutation) Field(name string) (ent.Value, bool) {
 		return m.EscopoTipo()
 	case atribuicao.FieldEscopoID:
 		return m.EscopoID()
+	case atribuicao.FieldAdministradoraID:
+		return m.AdministradoraID()
 	}
 	return nil, false
 }
@@ -864,6 +947,8 @@ func (m *AtribuicaoMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldEscopoTipo(ctx)
 	case atribuicao.FieldEscopoID:
 		return m.OldEscopoID(ctx)
+	case atribuicao.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
 	}
 	return nil, fmt.Errorf("unknown Atribuicao field %s", name)
 }
@@ -901,6 +986,13 @@ func (m *AtribuicaoMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetEscopoID(v)
 		return nil
+	case atribuicao.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Atribuicao field %s", name)
 }
@@ -930,7 +1022,11 @@ func (m *AtribuicaoMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AtribuicaoMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(atribuicao.FieldAdministradoraID) {
+		fields = append(fields, atribuicao.FieldAdministradoraID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -943,6 +1039,11 @@ func (m *AtribuicaoMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AtribuicaoMutation) ClearField(name string) error {
+	switch name {
+	case atribuicao.FieldAdministradoraID:
+		m.ClearAdministradoraID()
+		return nil
+	}
 	return fmt.Errorf("unknown Atribuicao nullable field %s", name)
 }
 
@@ -962,18 +1063,24 @@ func (m *AtribuicaoMutation) ResetField(name string) error {
 	case atribuicao.FieldEscopoID:
 		m.ResetEscopoID()
 		return nil
+	case atribuicao.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
 	}
 	return fmt.Errorf("unknown Atribuicao field %s", name)
 }
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *AtribuicaoMutation) AddedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.usuario != nil {
 		edges = append(edges, atribuicao.EdgeUsuario)
 	}
 	if m.papel != nil {
 		edges = append(edges, atribuicao.EdgePapel)
+	}
+	if m.administradora != nil {
+		edges = append(edges, atribuicao.EdgeAdministradora)
 	}
 	return edges
 }
@@ -990,13 +1097,17 @@ func (m *AtribuicaoMutation) AddedIDs(name string) []ent.Value {
 		if id := m.papel; id != nil {
 			return []ent.Value{*id}
 		}
+	case atribuicao.EdgeAdministradora:
+		if id := m.administradora; id != nil {
+			return []ent.Value{*id}
+		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *AtribuicaoMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	return edges
 }
 
@@ -1008,12 +1119,15 @@ func (m *AtribuicaoMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *AtribuicaoMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.clearedusuario {
 		edges = append(edges, atribuicao.EdgeUsuario)
 	}
 	if m.clearedpapel {
 		edges = append(edges, atribuicao.EdgePapel)
+	}
+	if m.clearedadministradora {
+		edges = append(edges, atribuicao.EdgeAdministradora)
 	}
 	return edges
 }
@@ -1026,6 +1140,8 @@ func (m *AtribuicaoMutation) EdgeCleared(name string) bool {
 		return m.clearedusuario
 	case atribuicao.EdgePapel:
 		return m.clearedpapel
+	case atribuicao.EdgeAdministradora:
+		return m.clearedadministradora
 	}
 	return false
 }
@@ -1040,6 +1156,9 @@ func (m *AtribuicaoMutation) ClearEdge(name string) error {
 	case atribuicao.EdgePapel:
 		m.ClearPapel()
 		return nil
+	case atribuicao.EdgeAdministradora:
+		m.ClearAdministradora()
+		return nil
 	}
 	return fmt.Errorf("unknown Atribuicao unique edge %s", name)
 }
@@ -1053,6 +1172,9 @@ func (m *AtribuicaoMutation) ResetEdge(name string) error {
 		return nil
 	case atribuicao.EdgePapel:
 		m.ResetPapel()
+		return nil
+	case atribuicao.EdgeAdministradora:
+		m.ResetAdministradora()
 		return nil
 	}
 	return fmt.Errorf("unknown Atribuicao edge %s", name)
@@ -3548,6 +3670,9 @@ type PapelMutation struct {
 	typ               string
 	id                *string
 	clearedFields     map[string]struct{}
+	filhos            map[string]struct{}
+	removedfilhos     map[string]struct{}
+	clearedfilhos     bool
 	herda             *string
 	clearedherda      bool
 	permissoes        map[int]struct{}
@@ -3712,6 +3837,60 @@ func (m *PapelMutation) HerdaDeCleared() bool {
 func (m *PapelMutation) ResetHerdaDe() {
 	m.herda = nil
 	delete(m.clearedFields, papel.FieldHerdaDe)
+}
+
+// AddFilhoIDs adds the "filhos" edge to the Papel entity by ids.
+func (m *PapelMutation) AddFilhoIDs(ids ...string) {
+	if m.filhos == nil {
+		m.filhos = make(map[string]struct{})
+	}
+	for i := range ids {
+		m.filhos[ids[i]] = struct{}{}
+	}
+}
+
+// ClearFilhos clears the "filhos" edge to the Papel entity.
+func (m *PapelMutation) ClearFilhos() {
+	m.clearedfilhos = true
+}
+
+// FilhosCleared reports if the "filhos" edge to the Papel entity was cleared.
+func (m *PapelMutation) FilhosCleared() bool {
+	return m.clearedfilhos
+}
+
+// RemoveFilhoIDs removes the "filhos" edge to the Papel entity by IDs.
+func (m *PapelMutation) RemoveFilhoIDs(ids ...string) {
+	if m.removedfilhos == nil {
+		m.removedfilhos = make(map[string]struct{})
+	}
+	for i := range ids {
+		delete(m.filhos, ids[i])
+		m.removedfilhos[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedFilhos returns the removed IDs of the "filhos" edge to the Papel entity.
+func (m *PapelMutation) RemovedFilhosIDs() (ids []string) {
+	for id := range m.removedfilhos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// FilhosIDs returns the "filhos" edge IDs in the mutation.
+func (m *PapelMutation) FilhosIDs() (ids []string) {
+	for id := range m.filhos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetFilhos resets all changes to the "filhos" edge.
+func (m *PapelMutation) ResetFilhos() {
+	m.filhos = nil
+	m.clearedfilhos = false
+	m.removedfilhos = nil
 }
 
 // SetHerdaID sets the "herda" edge to the Papel entity by id.
@@ -4004,7 +4183,10 @@ func (m *PapelMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *PapelMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
+	if m.filhos != nil {
+		edges = append(edges, papel.EdgeFilhos)
+	}
 	if m.herda != nil {
 		edges = append(edges, papel.EdgeHerda)
 	}
@@ -4021,6 +4203,12 @@ func (m *PapelMutation) AddedEdges() []string {
 // name in this mutation.
 func (m *PapelMutation) AddedIDs(name string) []ent.Value {
 	switch name {
+	case papel.EdgeFilhos:
+		ids := make([]ent.Value, 0, len(m.filhos))
+		for id := range m.filhos {
+			ids = append(ids, id)
+		}
+		return ids
 	case papel.EdgeHerda:
 		if id := m.herda; id != nil {
 			return []ent.Value{*id}
@@ -4043,7 +4231,10 @@ func (m *PapelMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *PapelMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
+	if m.removedfilhos != nil {
+		edges = append(edges, papel.EdgeFilhos)
+	}
 	if m.removedpermissoes != nil {
 		edges = append(edges, papel.EdgePermissoes)
 	}
@@ -4057,6 +4248,12 @@ func (m *PapelMutation) RemovedEdges() []string {
 // the given name in this mutation.
 func (m *PapelMutation) RemovedIDs(name string) []ent.Value {
 	switch name {
+	case papel.EdgeFilhos:
+		ids := make([]ent.Value, 0, len(m.removedfilhos))
+		for id := range m.removedfilhos {
+			ids = append(ids, id)
+		}
+		return ids
 	case papel.EdgePermissoes:
 		ids := make([]ent.Value, 0, len(m.removedpermissoes))
 		for id := range m.removedpermissoes {
@@ -4075,7 +4272,10 @@ func (m *PapelMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *PapelMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
+	if m.clearedfilhos {
+		edges = append(edges, papel.EdgeFilhos)
+	}
 	if m.clearedherda {
 		edges = append(edges, papel.EdgeHerda)
 	}
@@ -4092,6 +4292,8 @@ func (m *PapelMutation) ClearedEdges() []string {
 // was cleared in this mutation.
 func (m *PapelMutation) EdgeCleared(name string) bool {
 	switch name {
+	case papel.EdgeFilhos:
+		return m.clearedfilhos
 	case papel.EdgeHerda:
 		return m.clearedherda
 	case papel.EdgePermissoes:
@@ -4117,6 +4319,9 @@ func (m *PapelMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *PapelMutation) ResetEdge(name string) error {
 	switch name {
+	case papel.EdgeFilhos:
+		m.ResetFilhos()
+		return nil
 	case papel.EdgeHerda:
 		m.ResetHerda()
 		return nil

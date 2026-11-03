@@ -44,6 +44,21 @@ func (_c *PapelCreate) SetID(v string) *PapelCreate {
 	return _c
 }
 
+// AddFilhoIDs adds the "filhos" edge to the Papel entity by IDs.
+func (_c *PapelCreate) AddFilhoIDs(ids ...string) *PapelCreate {
+	_c.mutation.AddFilhoIDs(ids...)
+	return _c
+}
+
+// AddFilhos adds the "filhos" edges to the Papel entity.
+func (_c *PapelCreate) AddFilhos(v ...*Papel) *PapelCreate {
+	ids := make([]string, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddFilhoIDs(ids...)
+}
+
 // SetHerdaID sets the "herda" edge to the Papel entity by ID.
 func (_c *PapelCreate) SetHerdaID(id string) *PapelCreate {
 	_c.mutation.SetHerdaID(id)
@@ -168,13 +183,29 @@ func (_c *PapelCreate) createSpec() (*Papel, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if nodes := _c.mutation.FilhosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   papel.FilhosTable,
+			Columns: []string{papel.FilhosColumn},
+			Bidi:    true,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	if nodes := _c.mutation.HerdaIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
 			Table:   papel.HerdaTable,
 			Columns: []string{papel.HerdaColumn},
-			Bidi:    true,
+			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(papel.FieldID, field.TypeString),
 			},

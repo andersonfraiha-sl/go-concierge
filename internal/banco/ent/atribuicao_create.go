@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/usuario"
@@ -55,6 +56,20 @@ func (_c *AtribuicaoCreate) SetNillableEscopoID(v *string) *AtribuicaoCreate {
 	return _c
 }
 
+// SetAdministradoraID sets the "administradora_id" field.
+func (_c *AtribuicaoCreate) SetAdministradoraID(v string) *AtribuicaoCreate {
+	_c.mutation.SetAdministradoraID(v)
+	return _c
+}
+
+// SetNillableAdministradoraID sets the "administradora_id" field if the given value is not nil.
+func (_c *AtribuicaoCreate) SetNillableAdministradoraID(v *string) *AtribuicaoCreate {
+	if v != nil {
+		_c.SetAdministradoraID(*v)
+	}
+	return _c
+}
+
 // SetUsuario sets the "usuario" edge to the Usuario entity.
 func (_c *AtribuicaoCreate) SetUsuario(v *Usuario) *AtribuicaoCreate {
 	return _c.SetUsuarioID(v.ID)
@@ -63,6 +78,11 @@ func (_c *AtribuicaoCreate) SetUsuario(v *Usuario) *AtribuicaoCreate {
 // SetPapel sets the "papel" edge to the Papel entity.
 func (_c *AtribuicaoCreate) SetPapel(v *Papel) *AtribuicaoCreate {
 	return _c.SetPapelID(v.ID)
+}
+
+// SetAdministradora sets the "administradora" edge to the Administradora entity.
+func (_c *AtribuicaoCreate) SetAdministradora(v *Administradora) *AtribuicaoCreate {
+	return _c.SetAdministradoraID(v.ID)
 }
 
 // Mutation returns the AtribuicaoMutation object of the builder.
@@ -210,6 +230,23 @@ func (_c *AtribuicaoCreate) createSpec() (*Atribuicao, *sqlgraph.CreateSpec) {
 		_node.PapelID = nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.AdministradoraIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   atribuicao.AdministradoraTable,
+			Columns: []string{atribuicao.AdministradoraColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(administradora.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.AdministradoraID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	return _node, _spec
 }
 
@@ -310,6 +347,24 @@ func (u *AtribuicaoUpsert) UpdateEscopoID() *AtribuicaoUpsert {
 	return u
 }
 
+// SetAdministradoraID sets the "administradora_id" field.
+func (u *AtribuicaoUpsert) SetAdministradoraID(v string) *AtribuicaoUpsert {
+	u.Set(atribuicao.FieldAdministradoraID, v)
+	return u
+}
+
+// UpdateAdministradoraID sets the "administradora_id" field to the value that was provided on create.
+func (u *AtribuicaoUpsert) UpdateAdministradoraID() *AtribuicaoUpsert {
+	u.SetExcluded(atribuicao.FieldAdministradoraID)
+	return u
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (u *AtribuicaoUpsert) ClearAdministradoraID() *AtribuicaoUpsert {
+	u.SetNull(atribuicao.FieldAdministradoraID)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -403,6 +458,27 @@ func (u *AtribuicaoUpsertOne) SetEscopoID(v string) *AtribuicaoUpsertOne {
 func (u *AtribuicaoUpsertOne) UpdateEscopoID() *AtribuicaoUpsertOne {
 	return u.Update(func(s *AtribuicaoUpsert) {
 		s.UpdateEscopoID()
+	})
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (u *AtribuicaoUpsertOne) SetAdministradoraID(v string) *AtribuicaoUpsertOne {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.SetAdministradoraID(v)
+	})
+}
+
+// UpdateAdministradoraID sets the "administradora_id" field to the value that was provided on create.
+func (u *AtribuicaoUpsertOne) UpdateAdministradoraID() *AtribuicaoUpsertOne {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.UpdateAdministradoraID()
+	})
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (u *AtribuicaoUpsertOne) ClearAdministradoraID() *AtribuicaoUpsertOne {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.ClearAdministradoraID()
 	})
 }
 
@@ -663,6 +739,27 @@ func (u *AtribuicaoUpsertBulk) SetEscopoID(v string) *AtribuicaoUpsertBulk {
 func (u *AtribuicaoUpsertBulk) UpdateEscopoID() *AtribuicaoUpsertBulk {
 	return u.Update(func(s *AtribuicaoUpsert) {
 		s.UpdateEscopoID()
+	})
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (u *AtribuicaoUpsertBulk) SetAdministradoraID(v string) *AtribuicaoUpsertBulk {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.SetAdministradoraID(v)
+	})
+}
+
+// UpdateAdministradoraID sets the "administradora_id" field to the value that was provided on create.
+func (u *AtribuicaoUpsertBulk) UpdateAdministradoraID() *AtribuicaoUpsertBulk {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.UpdateAdministradoraID()
+	})
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (u *AtribuicaoUpsertBulk) ClearAdministradoraID() *AtribuicaoUpsertBulk {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.ClearAdministradoraID()
 	})
 }
 

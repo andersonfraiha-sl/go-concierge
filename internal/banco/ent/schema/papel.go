@@ -23,7 +23,8 @@ func (Papel) Fields() []ent.Field {
 func (Papel) Edges() []ent.Edge {
 	return []ent.Edge{
 		// RESTRICT: apagar um papel herdado não pode soltar a herança dos filhos em silêncio.
-		edge.To("herda", Papel.Type).Field("herda_de").Unique().Annotations(entsql.OnDelete(entsql.Restrict)),
+		edge.To("filhos", Papel.Type).Annotations(entsql.OnDelete(entsql.Restrict)),
+		edge.From("herda", Papel.Type).Ref("filhos").Unique().Field("herda_de"),
 		edge.To("permissoes", PapelPermissao.Type),
 		edge.To("concessoes", Concessao.Type),
 	}

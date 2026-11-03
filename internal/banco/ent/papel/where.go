@@ -144,12 +144,35 @@ func HerdaDeContainsFold(v string) predicate.Papel {
 	return predicate.Papel(sql.FieldContainsFold(FieldHerdaDe, v))
 }
 
+// HasFilhos applies the HasEdge predicate on the "filhos" edge.
+func HasFilhos() predicate.Papel {
+	return predicate.Papel(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, FilhosTable, FilhosColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasFilhosWith applies the HasEdge predicate on the "filhos" edge with a given conditions (other predicates).
+func HasFilhosWith(preds ...predicate.Papel) predicate.Papel {
+	return predicate.Papel(func(s *sql.Selector) {
+		step := newFilhosStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasHerda applies the HasEdge predicate on the "herda" edge.
 func HasHerda() predicate.Papel {
 	return predicate.Papel(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, false, HerdaTable, HerdaColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, HerdaTable, HerdaColumn),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})

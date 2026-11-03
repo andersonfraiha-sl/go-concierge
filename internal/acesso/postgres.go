@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"go-concierge/internal/banco/ent"
@@ -11,19 +13,23 @@ import (
 	"go-concierge/internal/escopo"
 )
 
-const timeoutCarregar = 5 * time.Second
+const timeoutCarregar = 3 * time.Second
 
+// ErrUsuarioDesconhecido indica que o id não existe na tabela de usuários.
 var ErrUsuarioDesconhecido = errors.New("usuário desconhecido")
 
 // Postgres carrega o Acesso de um usuário a partir das tabelas de papéis e atribuições.
 type Postgres struct{ cli *ent.Client }
 
+// NovoPostgres usa cli, que o chamador abre e fecha.
 func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
 
-// Carregar monta o Acesso do usuário em 3 consultas do ent: o usuário com suas atribuições,
-// todos os papéis com permissões e concessões, e todos os condomínios com a administradora
-// atual de cada um. Papéis, concessões e condomínios vêm inteiros porque Permitido precisa da
-// cadeia de herança e do mapa condomínio → administradora para qualquer alvo.
+// Carregar monta o Acesso do usuário em 3 chamadas ao ent (cerca de 6 comandos SQL, pois cada
+// With* é uma consulta própria): o usuário com suas atribuições, todos os papéis com
+// permissões e concessões, e todos os condomínios com a administradora atual de cada um.
+// Papéis, concessões e condomínios vêm inteiros porque Permitido precisa da cadeia de herança
+// e do mapa condomínio → administradora para qualquer alvo. Herança cíclica no banco é erro:
+// o acesso falha fechado em vez de seguir com papéis incoerentes.
 func (p *Postgres) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (Acesso, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
 	defer cancel()
@@ -39,13 +45,19 @@ func (p *Postgres) Carregar(ctx context.Context, usuarioID string, imp escopo.Im
 	if err != nil {
 		return Acesso{}, fmt.Errorf("carregar papéis: %w", err)
 	}
+	// ponytail: lê todos os condomínios a cada Carregar; quando a tabela passar de alguns
+	// milhares, trocar por consulta só dos ids de atribuições e dos alvos da requisição.
 	condominios, err := p.cli.Condominio.Query().All(ctx)
 	if err != nil {
 		return Acesso{}, fmt.Errorf("carregar condomínios: %w", err)
 	}
+	porID := papeisDe(papeis)
+	if err := ValidarHeranca(slices.Collect(maps.Values(porID))); err != nil {
+		return Acesso{}, fmt.Errorf("carregar papéis: %w", err)
+	}
 	return Acesso{
 		UsuarioID:        usuarioID,
-		Papeis:           papeisDe(papeis),
+		Papeis:           porID,
 		Atribuicoes:      atribuicoesDe(u.Edges.Atribuicoes),
 		Concessoes:       concessoesDe(papeis),
 		AdministradoraDe: administradorasPorCondominio(condominios),
@@ -71,7 +83,11 @@ func papeisDe(rows []*ent.Papel) map[string]Papel {
 func atribuicoesDe(rows []*ent.Atribuicao) []Atribuicao {
 	out := make([]Atribuicao, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, Atribuicao{PapelID: r.PapelID, Escopo: Escopo{Tipo: TipoEscopo(r.EscopoTipo), ID: r.EscopoID}})
+		at := Atribuicao{PapelID: r.PapelID, Escopo: Escopo{Tipo: TipoEscopo(r.EscopoTipo), ID: r.EscopoID}}
+		if r.AdministradoraID != nil {
+			at.AdministradoraID = *r.AdministradoraID
+		}
+		out = append(out, at)
 	}
 	return out
 }

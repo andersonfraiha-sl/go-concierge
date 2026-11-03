@@ -120,19 +120,78 @@ func TestBancoRecusaEscopoInvalido(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
 
-	tests := []struct{ name, tipo, id string }{
-		{"tipo desconhecido", "planeta", "x"},
-		{"administradora sem id", "administradora", ""},
-		{"superlogica com id", "superlogica", "x"},
+	tests := []struct{ name, tipo, id, dona string }{
+		{"tipo desconhecido", "planeta", "x", ""},
+		{"administradora sem id", "administradora", "", ""},
+		{"superlogica com id", "superlogica", "x", ""},
+		{"condominio sem id", "condominio", "", "A"},
+		{"condominio sem administradora dona", "condominio", "c1", ""},
+		{"administradora com dona", "administradora", "A", "A"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := b.Ent.Atribuicao.Create().SetUsuarioID("u1").SetPapelID("gestor_administradora").
-				SetEscopoTipo(tt.tipo).SetEscopoID(tt.id).Exec(t.Context())
-			if err == nil {
-				t.Errorf("atribuição %q/%q aceita pelo banco", tt.tipo, tt.id)
+			c := b.Ent.Atribuicao.Create().SetUsuarioID("u1").SetPapelID("gestor_administradora").
+				SetEscopoTipo(tt.tipo).SetEscopoID(tt.id)
+			if tt.dona != "" {
+				c.SetAdministradoraID(tt.dona)
+			}
+			if err := c.Exec(t.Context()); !ent.IsConstraintError(err) {
+				t.Errorf("atribuição %q/%q/%q: erro %v, want violação de constraint", tt.tipo, tt.id, tt.dona, err)
 			}
 		})
 	}
 }
 
+func TestCarregarNegaAtribuicaoDeCondominioQueMudouDeAdministradora(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	b.Ent.Usuario.Create().SetID("u2").SetNome("Bia").SaveX(t.Context())
+	b.Ent.Atribuicao.Create().SetUsuarioID("u2").SetPapelID("gestor_administradora").
+		SetEscopoTipo("condominio").SetEscopoID("c1").SetAdministradoraID("A").SaveX(t.Context())
+	c1 := acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "c1"}
+	pg := acesso.NovoPostgres(b.Ent)
+
+	antes, err := pg.Carregar(t.Context(), "u2", escopo.Implantacao{})
+	if err != nil {
+		t.Fatalf("Carregar antes: %v", err)
+	}
+	if !acesso.Permitido(antes, acesso.SkillsLer, c1) {
+		t.Fatal("u2 deveria ler c1 enquanto c1 é de A")
+	}
+
+	b.Ent.Condominio.UpdateOneID("c1").SetAdministradoraID("B").ExecX(t.Context())
+	depois, err := pg.Carregar(t.Context(), "u2", escopo.Implantacao{})
+	if err != nil {
+		t.Fatalf("Carregar depois: %v", err)
+	}
+	if acesso.Permitido(depois, acesso.SkillsLer, c1) {
+		t.Error("u2 ainda lê c1 depois de c1 mudar para B")
+	}
+}
+
+func TestPapeisIrmaosHerdamDoMesmoPai(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	for _, id := range []string{"auditor", "suporte"} {
+		b.Ent.Papel.Create().SetID(id).SetHerdaDe("operador_administradora").SaveX(t.Context())
+	}
+
+	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	if err != nil {
+		t.Fatalf("Carregar: %v", err)
+	}
+	if a.Papeis["auditor"].HerdaDe != "operador_administradora" || a.Papeis["suporte"].HerdaDe != "operador_administradora" {
+		t.Errorf("irmãos perderam o pai: %+v %+v", a.Papeis["auditor"], a.Papeis["suporte"])
+	}
+}
+
+func TestCarregarFalhaFechadoComCicloDeHeranca(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	b.Ent.Papel.UpdateOneID("operador_administradora").SetHerdaDe("admin_superlogica").ExecX(t.Context())
+
+	_, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	if !errors.Is(err, acesso.ErrCicloHeranca) {
+		t.Fatalf("Carregar = %v, want ErrCicloHeranca", err)
+	}
+}
