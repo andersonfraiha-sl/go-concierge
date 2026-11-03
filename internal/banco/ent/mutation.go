@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"go-concierge/internal/banco/ent/administradora"
@@ -17,8 +18,10 @@ import (
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/predicate"
 	"go-concierge/internal/banco/ent/schema"
+	"go-concierge/internal/banco/ent/sessao"
 	"go-concierge/internal/banco/ent/usuario"
 	"sync"
+	"time"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
@@ -42,6 +45,7 @@ const (
 	TypePapel          = "Papel"
 	TypePapelPermissao = "PapelPermissao"
 	TypePayload        = "Payload"
+	TypeSessao         = "Sessao"
 	TypeUsuario        = "Usuario"
 )
 
@@ -5277,6 +5281,570 @@ func (m *PayloadMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Payload edge %s", name)
+}
+
+// SessaoMutation represents an operation that mutates the Sessao nodes in the graph.
+type SessaoMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *string
+	administradora_id *string
+	condominio_id     *string
+	protocolo         *string
+	atualizada_em     *time.Time
+	dados             *jsontext.Value
+	appenddados       jsontext.Value
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*Sessao, error)
+	predicates        []predicate.Sessao
+}
+
+var _ ent.Mutation = (*SessaoMutation)(nil)
+
+// sessaoOption allows management of the mutation configuration using functional options.
+type sessaoOption func(*SessaoMutation)
+
+// newSessaoMutation creates new mutation for the Sessao entity.
+func newSessaoMutation(c config, op Op, opts ...sessaoOption) *SessaoMutation {
+	m := &SessaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSessao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSessaoID sets the ID field of the mutation.
+func withSessaoID(id string) sessaoOption {
+	return func(m *SessaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Sessao
+		)
+		m.oldValue = func(ctx context.Context) (*Sessao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Sessao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSessao sets the old Sessao of the mutation.
+func withSessao(node *Sessao) sessaoOption {
+	return func(m *SessaoMutation) {
+		m.oldValue = func(context.Context) (*Sessao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SessaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SessaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Sessao entities.
+func (m *SessaoMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SessaoMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SessaoMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Sessao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *SessaoMutation) SetAdministradoraID(s string) {
+	m.administradora_id = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *SessaoMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the Sessao entity.
+// If the Sessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessaoMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *SessaoMutation) ResetAdministradoraID() {
+	m.administradora_id = nil
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *SessaoMutation) SetCondominioID(s string) {
+	m.condominio_id = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *SessaoMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the Sessao entity.
+// If the Sessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessaoMutation) OldCondominioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *SessaoMutation) ResetCondominioID() {
+	m.condominio_id = nil
+}
+
+// SetProtocolo sets the "protocolo" field.
+func (m *SessaoMutation) SetProtocolo(s string) {
+	m.protocolo = &s
+}
+
+// Protocolo returns the value of the "protocolo" field in the mutation.
+func (m *SessaoMutation) Protocolo() (r string, exists bool) {
+	v := m.protocolo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProtocolo returns the old "protocolo" field's value of the Sessao entity.
+// If the Sessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessaoMutation) OldProtocolo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProtocolo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProtocolo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProtocolo: %w", err)
+	}
+	return oldValue.Protocolo, nil
+}
+
+// ResetProtocolo resets all changes to the "protocolo" field.
+func (m *SessaoMutation) ResetProtocolo() {
+	m.protocolo = nil
+}
+
+// SetAtualizadaEm sets the "atualizada_em" field.
+func (m *SessaoMutation) SetAtualizadaEm(t time.Time) {
+	m.atualizada_em = &t
+}
+
+// AtualizadaEm returns the value of the "atualizada_em" field in the mutation.
+func (m *SessaoMutation) AtualizadaEm() (r time.Time, exists bool) {
+	v := m.atualizada_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAtualizadaEm returns the old "atualizada_em" field's value of the Sessao entity.
+// If the Sessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessaoMutation) OldAtualizadaEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAtualizadaEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAtualizadaEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAtualizadaEm: %w", err)
+	}
+	return oldValue.AtualizadaEm, nil
+}
+
+// ResetAtualizadaEm resets all changes to the "atualizada_em" field.
+func (m *SessaoMutation) ResetAtualizadaEm() {
+	m.atualizada_em = nil
+}
+
+// SetDados sets the "dados" field.
+func (m *SessaoMutation) SetDados(j jsontext.Value) {
+	m.dados = &j
+	m.appenddados = nil
+}
+
+// Dados returns the value of the "dados" field in the mutation.
+func (m *SessaoMutation) Dados() (r jsontext.Value, exists bool) {
+	v := m.dados
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDados returns the old "dados" field's value of the Sessao entity.
+// If the Sessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SessaoMutation) OldDados(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDados is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDados requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDados: %w", err)
+	}
+	return oldValue.Dados, nil
+}
+
+// AppendDados adds j to the "dados" field.
+func (m *SessaoMutation) AppendDados(j jsontext.Value) {
+	m.appenddados = append(m.appenddados, j...)
+}
+
+// AppendedDados returns the list of values that were appended to the "dados" field in this mutation.
+func (m *SessaoMutation) AppendedDados() (jsontext.Value, bool) {
+	if len(m.appenddados) == 0 {
+		return nil, false
+	}
+	return m.appenddados, true
+}
+
+// ResetDados resets all changes to the "dados" field.
+func (m *SessaoMutation) ResetDados() {
+	m.dados = nil
+	m.appenddados = nil
+}
+
+// Where appends a list predicates to the SessaoMutation builder.
+func (m *SessaoMutation) Where(ps ...predicate.Sessao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SessaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SessaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Sessao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SessaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SessaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Sessao).
+func (m *SessaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SessaoMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.administradora_id != nil {
+		fields = append(fields, sessao.FieldAdministradoraID)
+	}
+	if m.condominio_id != nil {
+		fields = append(fields, sessao.FieldCondominioID)
+	}
+	if m.protocolo != nil {
+		fields = append(fields, sessao.FieldProtocolo)
+	}
+	if m.atualizada_em != nil {
+		fields = append(fields, sessao.FieldAtualizadaEm)
+	}
+	if m.dados != nil {
+		fields = append(fields, sessao.FieldDados)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SessaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case sessao.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case sessao.FieldCondominioID:
+		return m.CondominioID()
+	case sessao.FieldProtocolo:
+		return m.Protocolo()
+	case sessao.FieldAtualizadaEm:
+		return m.AtualizadaEm()
+	case sessao.FieldDados:
+		return m.Dados()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SessaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case sessao.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case sessao.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case sessao.FieldProtocolo:
+		return m.OldProtocolo(ctx)
+	case sessao.FieldAtualizadaEm:
+		return m.OldAtualizadaEm(ctx)
+	case sessao.FieldDados:
+		return m.OldDados(ctx)
+	}
+	return nil, fmt.Errorf("unknown Sessao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SessaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case sessao.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case sessao.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case sessao.FieldProtocolo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProtocolo(v)
+		return nil
+	case sessao.FieldAtualizadaEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAtualizadaEm(v)
+		return nil
+	case sessao.FieldDados:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDados(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Sessao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SessaoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SessaoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SessaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Sessao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SessaoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SessaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SessaoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Sessao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SessaoMutation) ResetField(name string) error {
+	switch name {
+	case sessao.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case sessao.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case sessao.FieldProtocolo:
+		m.ResetProtocolo()
+		return nil
+	case sessao.FieldAtualizadaEm:
+		m.ResetAtualizadaEm()
+		return nil
+	case sessao.FieldDados:
+		m.ResetDados()
+		return nil
+	}
+	return fmt.Errorf("unknown Sessao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SessaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SessaoMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SessaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SessaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SessaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SessaoMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SessaoMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Sessao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SessaoMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Sessao edge %s", name)
 }
 
 // UsuarioMutation represents an operation that mutates the Usuario nodes in the graph.

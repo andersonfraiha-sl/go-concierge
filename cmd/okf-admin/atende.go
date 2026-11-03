@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -211,12 +212,18 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: ev.Data.Protocol.Number, Telefone: ev.Data.Contact.Phone, Canal: msg.Canal}
 	}
 	if tipo == atende.EventoHumano {
-		s.atende.RegistrarHumano(msg)
+		if _, err := s.atende.RegistrarHumano(r.Context(), msg); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": ev.Data.Protocol.Number})
 		return
 	}
 	if tipo == atende.EventoFechado {
-		s.atende.Encerrar(msg)
+		if _, err := s.atende.Encerrar(r.Context(), msg); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": ev.Data.Protocol.Number})
 		return
 	}
@@ -224,7 +231,11 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, http.StatusForbidden, errors.New("telefone diferente do morador configurado para o token B2C"))
 		return
 	}
-	msg, sess := s.atende.PrepararMensagem(msg)
+	msg, sess, err := s.atende.PrepararMensagem(r.Context(), msg)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
@@ -275,8 +286,30 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (s *servidor) atendeSessoes(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, map[string]any{"sessoes": s.atende.Sessoes.Lista()})
+// atendeSessoes: as sessões da administradora pedida (?administradora=) ou da fixa da
+// implantação; sem nenhuma, todas.
+func (s *servidor) atendeSessoes(w http.ResponseWriter, r *http.Request) {
+	adm := cmp.Or(strings.TrimSpace(r.URL.Query().Get("administradora")), s.implantacao.AdministradoraFixa)
+	sessoes, err := s.atende.Sessoes.Lista(r.Context(), adm)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"sessoes": sessoes})
+}
+
+// sessaoDaRota: a sessão pelo identificador (ID interno ou protocolo). Responde 404 ou
+// 500 e devolve false quando não há sessão para seguir.
+func (s *servidor) sessaoDaRota(w http.ResponseWriter, r *http.Request, identificador string) (*atende.Sessao, bool) {
+	sess, ok, err := s.atende.Sessoes.Get(r.Context(), identificador)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return nil, false
+	}
+	if !ok {
+		writeErr(w, 404, errNaoEncontrado)
+	}
+	return sess, ok
 }
 
 func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
@@ -284,9 +317,8 @@ func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
 	if identificador == "" {
 		identificador = r.URL.Query().Get("protocolo")
 	}
-	sess, ok := s.atende.Sessoes.Get(identificador)
+	sess, ok := s.sessaoDaRota(w, r, identificador)
 	if !ok {
-		writeErr(w, 404, errNaoEncontrado)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
@@ -315,11 +347,11 @@ func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 	)
 	switch corpo.Acao {
 	case "assumir":
-		sess, err = s.atende.Assumir(corpo.Protocolo, corpo.Atendente, corpo.Motivo)
+		sess, err = s.atende.Assumir(r.Context(), corpo.Protocolo, corpo.Atendente, corpo.Motivo)
 	case "responder":
 		sess, err = s.atende.Responder(r.Context(), corpo.Protocolo, corpo.Atendente, corpo.Texto)
 	case "devolver":
-		sess, err = s.atende.Devolver(corpo.Protocolo)
+		sess, err = s.atende.Devolver(r.Context(), corpo.Protocolo)
 	default:
 		err = errors.New("acao: assumir | responder | devolver")
 	}
@@ -335,12 +367,14 @@ func (s *servidor) atendeReiniciar(w http.ResponseWriter, r *http.Request) {
 	if p == "" {
 		p = r.URL.Query().Get("protocolo")
 	}
-	sess, ok := s.atende.Sessoes.Get(p)
+	sess, ok := s.sessaoDaRota(w, r, p)
 	if !ok {
-		writeErr(w, 404, errNaoEncontrado)
 		return
 	}
-	s.atende.Sessoes.Remover(sess.ID)
+	if err := s.atende.Sessoes.Remover(r.Context(), sess.ID); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
 	writeJSON(w, 200, map[string]any{"removido": p})
 }
 
@@ -350,9 +384,8 @@ func (s *servidor) atendeSaidas(w http.ResponseWriter, r *http.Request) {
 		identificador = r.URL.Query().Get("protocolo")
 	}
 	if identificador != "" {
-		sess, ok := s.atende.Sessoes.Get(identificador)
+		sess, ok := s.sessaoDaRota(w, r, identificador)
 		if !ok {
-			writeErr(w, 404, errNaoEncontrado)
 			return
 		}
 		identificador = sess.ID

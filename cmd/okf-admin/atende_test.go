@@ -42,7 +42,7 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 	s := &servidor{
 		atende: &atende.Servico{
 			Cat: cat, Agente: "agentes/concierge", Mapeamento: repo,
-			Sessoes: atende.NewSessoes(), Sender: out,
+			Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Sender: out,
 			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
 		},
 		admin: repo,
@@ -72,7 +72,7 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 			if saidas[0].Texto == "" {
 				t.Fatal("resposta vazia")
 			}
-			if sess := s.atende.Sessoes.Lista()[0]; sess.Condominio != "cond-x" || sess.AdministradoraID != "adm-x" {
+			if sess := listarSessoes(t, s.atende.Sessoes)[0]; sess.Condominio != "cond-x" || sess.AdministradoraID != "adm-x" {
 				t.Fatalf("condomínio da conversa: %s/%s", sess.AdministradoraID, sess.Condominio)
 			}
 			return
@@ -118,7 +118,7 @@ func requisicaoAssinadaTeste(corpo string) *http.Request {
 
 func servidorWebhookRealTeste() *servidor {
 	return &servidor{
-		atende:       &atende.Servico{Sessoes: atende.NewSessoes()},
+		atende:       &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())},
 		atendeTenant: "tenant-1", atendeTelefoneCanal: "+55 (19) 4040-2710",
 		atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "nao-exibida",
 		atendeAPISecret: segredoTeste,
@@ -144,8 +144,8 @@ func TestWebhookRealExigeAssinaturaHMAC(t *testing.T) {
 				r.Header.Set("X-Atende-Signature", c.assinatura)
 			}
 			s.webhookAtende(w, r)
-			if w.Code != c.status || len(s.atende.Sessoes.Lista()) != 0 {
-				t.Fatalf("status=%d (esperado %d) sessoes=%d body=%s", w.Code, c.status, len(s.atende.Sessoes.Lista()), w.Body.String())
+			if w.Code != c.status || len(listarSessoes(t, s.atende.Sessoes)) != 0 {
+				t.Fatalf("status=%d (esperado %d) sessoes=%d body=%s", w.Code, c.status, len(listarSessoes(t, s.atende.Sessoes)), w.Body.String())
 			}
 		})
 	}
@@ -196,24 +196,24 @@ func TestWebhookEmuladoAceitaSomenteTokenDoWebhook(t *testing.T) {
 }
 
 func TestWebhookIgnoraEventoDesconhecidoERecusaConexaoDivergente(t *testing.T) {
-	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key", atendeAPISecret: segredoTeste}
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key", atendeAPISecret: segredoTeste}
 	w := httptest.NewRecorder()
 	s.webhookAtende(w, requisicaoAssinadaTeste(corpoEventoTeste("com.echo.atende.evento.desconhecido", "outro", "1")))
-	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
+	if w.Code != 202 || len(listarSessoes(t, s.atende.Sessoes)) != 0 {
 		t.Fatalf("evento desconhecido deveria ser ignorado: status=%d body=%s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()
 	s.webhookAtende(w, requisicaoAssinadaTeste(corpoEventoTeste(atende.EventoProtocoloFechadoSistema, "outro", "551940402710")))
-	if w.Code != 403 || len(s.atende.Sessoes.Lista()) != 0 {
+	if w.Code != 403 || len(listarSessoes(t, s.atende.Sessoes)) != 0 {
 		t.Fatalf("conexão divergente deveria ser recusada sem criar sessão: status=%d", w.Code)
 	}
 }
 
 func TestWebhookEmuladoIgnoraEventoHumanoDesconhecido(t *testing.T) {
-	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}}
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())}}
 	w := httptest.NewRecorder()
 	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710"))))
-	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
+	if w.Code != 202 || len(listarSessoes(t, s.atende.Sessoes)) != 0 {
 		t.Fatalf("evento humano desconhecido criou sessão: status=%d", w.Code)
 	}
 }
@@ -283,7 +283,7 @@ func mapeamentoTeste(t *testing.T) *admin.EmMemoria {
 }
 
 func TestWebhookEmuladoRecusaCondominioDesconhecido(t *testing.T) {
-	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}, admin: mapeamentoTeste(t)}
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())}, admin: mapeamentoTeste(t)}
 	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-1","type":"text","content":"oi"}}}`
 	w := httptest.NewRecorder()
 	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=nao-existe", strings.NewReader(corpo)))
@@ -319,7 +319,7 @@ func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(), Memorias: st}, memorias: st, implantacao: tt.implantacao}
+			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Memorias: st}, memorias: st, implantacao: tt.implantacao}
 			mux := http.NewServeMux()
 			s.rotasAtende(mux)
 			w := httptest.NewRecorder()
@@ -329,4 +329,13 @@ func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 			}
 		})
 	}
+}
+
+func listarSessoes(t *testing.T, s *atende.Sessoes) []*atende.Sessao {
+	t.Helper()
+	sessoes, err := s.Lista(context.Background(), "")
+	if err != nil {
+		t.Fatalf("listar sessões: %v", err)
+	}
+	return sessoes
 }

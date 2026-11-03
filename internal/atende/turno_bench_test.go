@@ -32,7 +32,7 @@ func servicoParaBenchmark(b *testing.B) *Servico {
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	return &Servico{
-		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(b), Sessoes: NewSessoes(), Sender: &Outbox{},
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(b), Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: &Outbox{},
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: &mcpServicoFalso{}},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pedidos:  pedidos.NewArquivos(b.TempDir()),
@@ -84,7 +84,7 @@ func exigirAgendamento(b *testing.B, svc *Servico, msg entrada.Mensagem) {
 // identificado pelo token B2C, então a conversa nova vem de estado novo, não de telefone novo.
 func novaConversa(b *testing.B, svc *Servico) {
 	b.Helper()
-	svc.Sessoes = NewSessoes()
+	svc.Sessoes = NewSessoes(NovaSessaoEmMemoria())
 	svc.Pedidos = pedidos.NewArquivos(b.TempDir())
 	svc.Memorias = memoria.NewArquivos(b.TempDir())
 }

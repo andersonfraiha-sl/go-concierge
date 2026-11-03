@@ -32,6 +32,8 @@ type Tx struct {
 	PapelPermissao *PapelPermissaoClient
 	// Payload is the client for interacting with the Payload builders.
 	Payload *PayloadClient
+	// Sessao is the client for interacting with the Sessao builders.
+	Sessao *SessaoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 
@@ -174,6 +176,7 @@ func (tx *Tx) init() {
 	tx.Papel = NewPapelClient(tx.config)
 	tx.PapelPermissao = NewPapelPermissaoClient(tx.config)
 	tx.Payload = NewPayloadClient(tx.config)
+	tx.Sessao = NewSessaoClient(tx.config)
 	tx.Usuario = NewUsuarioClient(tx.config)
 }
 

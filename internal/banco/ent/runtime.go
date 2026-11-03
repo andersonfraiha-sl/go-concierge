@@ -13,6 +13,7 @@ import (
 	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/schema"
+	"go-concierge/internal/banco/ent/sessao"
 	"go-concierge/internal/banco/ent/usuario"
 )
 
@@ -122,6 +123,24 @@ func init() {
 	payloadDescRecurso := payloadFields[1].Descriptor()
 	// payload.RecursoValidator is a validator for the "recurso" field. It is called by the builders before save.
 	payload.RecursoValidator = payloadDescRecurso.Validators[0].(func(string) error)
+	sessaoFields := schema.Sessao{}.Fields()
+	_ = sessaoFields
+	// sessaoDescAdministradoraID is the schema descriptor for administradora_id field.
+	sessaoDescAdministradoraID := sessaoFields[1].Descriptor()
+	// sessao.DefaultAdministradoraID holds the default value on creation for the administradora_id field.
+	sessao.DefaultAdministradoraID = sessaoDescAdministradoraID.Default.(string)
+	// sessaoDescCondominioID is the schema descriptor for condominio_id field.
+	sessaoDescCondominioID := sessaoFields[2].Descriptor()
+	// sessao.DefaultCondominioID holds the default value on creation for the condominio_id field.
+	sessao.DefaultCondominioID = sessaoDescCondominioID.Default.(string)
+	// sessaoDescProtocolo is the schema descriptor for protocolo field.
+	sessaoDescProtocolo := sessaoFields[3].Descriptor()
+	// sessao.DefaultProtocolo holds the default value on creation for the protocolo field.
+	sessao.DefaultProtocolo = sessaoDescProtocolo.Default.(string)
+	// sessaoDescID is the schema descriptor for id field.
+	sessaoDescID := sessaoFields[0].Descriptor()
+	// sessao.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	sessao.IDValidator = sessaoDescID.Validators[0].(func(string) error)
 	usuarioFields := schema.Usuario{}.Fields()
 	_ = usuarioFields
 	// usuarioDescNome is the schema descriptor for nome field.

@@ -20,6 +20,7 @@ import (
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/sessao"
 	"go-concierge/internal/banco/ent/usuario"
 
 	"entgo.io/ent"
@@ -53,6 +54,8 @@ type Client struct {
 	PapelPermissao *PapelPermissaoClient
 	// Payload is the client for interacting with the Payload builders.
 	Payload *PayloadClient
+	// Sessao is the client for interacting with the Sessao builders.
+	Sessao *SessaoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 }
@@ -75,6 +78,7 @@ func (c *Client) init() {
 	c.Papel = NewPapelClient(c.config)
 	c.PapelPermissao = NewPapelPermissaoClient(c.config)
 	c.Payload = NewPayloadClient(c.config)
+	c.Sessao = NewSessaoClient(c.config)
 	c.Usuario = NewUsuarioClient(c.config)
 }
 
@@ -177,6 +181,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Papel:          NewPapelClient(cfg),
 		PapelPermissao: NewPapelPermissaoClient(cfg),
 		Payload:        NewPayloadClient(cfg),
+		Sessao:         NewSessaoClient(cfg),
 		Usuario:        NewUsuarioClient(cfg),
 	}, nil
 }
@@ -206,6 +211,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Papel:          NewPapelClient(cfg),
 		PapelPermissao: NewPapelPermissaoClient(cfg),
 		Payload:        NewPayloadClient(cfg),
+		Sessao:         NewSessaoClient(cfg),
 		Usuario:        NewUsuarioClient(cfg),
 	}, nil
 }
@@ -237,7 +243,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
-		c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Usuario,
+		c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Sessao, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -248,7 +254,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
-		c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Usuario,
+		c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Sessao, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -275,6 +281,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.PapelPermissao.mutate(ctx, m)
 	case *PayloadMutation:
 		return c.Payload.mutate(ctx, m)
+	case *SessaoMutation:
+		return c.Sessao.mutate(ctx, m)
 	case *UsuarioMutation:
 		return c.Usuario.mutate(ctx, m)
 	default:
@@ -1767,6 +1775,139 @@ func (c *PayloadClient) mutate(ctx context.Context, m *PayloadMutation) (Value, 
 	}
 }
 
+// SessaoClient is a client for the Sessao schema.
+type SessaoClient struct {
+	config
+}
+
+// NewSessaoClient returns a client for the Sessao from the given config.
+func NewSessaoClient(c config) *SessaoClient {
+	return &SessaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `sessao.Hooks(f(g(h())))`.
+func (c *SessaoClient) Use(hooks ...Hook) {
+	c.hooks.Sessao = append(c.hooks.Sessao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `sessao.Intercept(f(g(h())))`.
+func (c *SessaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Sessao = append(c.inters.Sessao, interceptors...)
+}
+
+// Create returns a builder for creating a Sessao entity.
+func (c *SessaoClient) Create() *SessaoCreate {
+	mutation := newSessaoMutation(c.config, OpCreate)
+	return &SessaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Sessao entities.
+func (c *SessaoClient) CreateBulk(builders ...*SessaoCreate) *SessaoCreateBulk {
+	return &SessaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SessaoClient) MapCreateBulk(slice any, setFunc func(*SessaoCreate, int)) *SessaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SessaoCreateBulk{err: fmt.Errorf("calling to SessaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SessaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SessaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Sessao.
+func (c *SessaoClient) Update() *SessaoUpdate {
+	mutation := newSessaoMutation(c.config, OpUpdate)
+	return &SessaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SessaoClient) UpdateOne(_m *Sessao) *SessaoUpdateOne {
+	mutation := newSessaoMutation(c.config, OpUpdateOne, withSessao(_m))
+	return &SessaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SessaoClient) UpdateOneID(id string) *SessaoUpdateOne {
+	mutation := newSessaoMutation(c.config, OpUpdateOne, withSessaoID(id))
+	return &SessaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Sessao.
+func (c *SessaoClient) Delete() *SessaoDelete {
+	mutation := newSessaoMutation(c.config, OpDelete)
+	return &SessaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SessaoClient) DeleteOne(_m *Sessao) *SessaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SessaoClient) DeleteOneID(id string) *SessaoDeleteOne {
+	builder := c.Delete().Where(sessao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SessaoDeleteOne{builder}
+}
+
+// Query returns a query builder for Sessao.
+func (c *SessaoClient) Query() *SessaoQuery {
+	return &SessaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSessao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Sessao entity by its id.
+func (c *SessaoClient) Get(ctx context.Context, id string) (*Sessao, error) {
+	return c.Query().Where(sessao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SessaoClient) GetX(ctx context.Context, id string) *Sessao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SessaoClient) Hooks() []Hook {
+	return c.hooks.Sessao
+}
+
+// Interceptors returns the client interceptors.
+func (c *SessaoClient) Interceptors() []Interceptor {
+	return c.inters.Sessao
+}
+
+func (c *SessaoClient) mutate(ctx context.Context, m *SessaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SessaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SessaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SessaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SessaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Sessao mutation op: %q", m.Op())
+	}
+}
+
 // UsuarioClient is a client for the Usuario schema.
 type UsuarioClient struct {
 	config
@@ -1920,11 +2061,11 @@ func (c *UsuarioClient) mutate(ctx context.Context, m *UsuarioMutation) (Value, 
 type (
 	hooks struct {
 		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, Orientacao,
-		Papel, PapelPermissao, Payload, Usuario []ent.Hook
+		Papel, PapelPermissao, Payload, Sessao, Usuario []ent.Hook
 	}
 	inters struct {
 		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, Orientacao,
-		Papel, PapelPermissao, Payload, Usuario []ent.Interceptor
+		Papel, PapelPermissao, Payload, Sessao, Usuario []ent.Interceptor
 	}
 )
 

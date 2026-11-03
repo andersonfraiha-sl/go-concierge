@@ -584,7 +584,10 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	if s.Pedidos == nil {
 		return nil, nil, pedidos.Saida{}, errors.New("pedidos desligados")
 	}
-	sess, ok := s.Sessoes.Get(protocoloAtende)
+	sess, ok, err := s.Sessoes.Get(ctx, protocoloAtende)
+	if err != nil {
+		return nil, nil, pedidos.Saida{}, fmt.Errorf("sessão do protocolo %s: %w", protocoloAtende, err)
+	}
 	if !ok {
 		return nil, nil, pedidos.Saida{}, fmt.Errorf("protocolo %s não está aberto neste servidor", protocoloAtende)
 	}

@@ -275,6 +275,33 @@ var (
 			},
 		},
 	}
+	// SessoesColumns holds the columns for the "sessoes" table.
+	SessoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "administradora_id", Type: field.TypeString, Default: ""},
+		{Name: "condominio_id", Type: field.TypeString, Default: ""},
+		{Name: "protocolo", Type: field.TypeString, Default: ""},
+		{Name: "atualizada_em", Type: field.TypeTime},
+		{Name: "dados", Type: field.TypeJSON},
+	}
+	// SessoesTable holds the schema information for the "sessoes" table.
+	SessoesTable = &schema.Table{
+		Name:       "sessoes",
+		Columns:    SessoesColumns,
+		PrimaryKey: []*schema.Column{SessoesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "sessao_administradora_id_atualizada_em",
+				Unique:  false,
+				Columns: []*schema.Column{SessoesColumns[1], SessoesColumns[4]},
+			},
+			{
+				Name:    "sessao_atualizada_em",
+				Unique:  false,
+				Columns: []*schema.Column{SessoesColumns[4]},
+			},
+		},
+	}
 	// UsuariosColumns holds the columns for the "usuarios" table.
 	UsuariosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -297,6 +324,7 @@ var (
 		PapeisTable,
 		PapelPermissoesTable,
 		PayloadsTable,
+		SessoesTable,
 		UsuariosTable,
 	}
 )
@@ -336,4 +364,7 @@ func init() {
 		Table: "papel_permissoes",
 	}
 	PayloadsTable.ForeignKeys[0].RefTable = CondominiosTable
+	SessoesTable.Annotation = &entsql.Annotation{
+		Table: "sessoes",
+	}
 }
