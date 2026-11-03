@@ -91,6 +91,30 @@ export function useProjecao(caminho: string) {
 export const MODOS_DE_ORQUESTRACAO = ['router', 'planning', 'react'] as const;
 export type ModoDeOrquestracao = (typeof MODOS_DE_ORQUESTRACAO)[number];
 
+/** Nome, descrição e quando usar cada modo, para a aba Orquestração. */
+export const MODOS: Record<
+  ModoDeOrquestracao,
+  { nome: string; descricao: string; quando: string }
+> = {
+  router: {
+    nome: 'Router',
+    descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.',
+    quando: 'Pedidos de um item só.',
+  },
+  planning: {
+    nome: 'Planning',
+    descricao:
+      'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
+    quando: 'Mensagens com vários pedidos; menos idas e vindas.',
+  },
+  react: {
+    nome: 'ReAct',
+    descricao:
+      'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
+    quando: 'Pedidos abertos, em que o próximo passo depende do resultado do anterior.',
+  },
+};
+
 const ModoSchema = z.enum(MODOS_DE_ORQUESTRACAO);
 
 const AjusteSchema = z.object({

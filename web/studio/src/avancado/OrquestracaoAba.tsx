@@ -17,8 +17,8 @@ import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   LIMITES_DE_ORQUESTRACAO,
+  MODOS,
   MODOS_DE_ORQUESTRACAO,
-  type ModoDeOrquestracao,
   mensagemDeErro,
   type Orquestracao,
   type OrquestracaoLida,
@@ -26,26 +26,6 @@ import {
   useOrquestracao,
   validarOrquestracao,
 } from './contratos';
-
-const MODOS: Record<ModoDeOrquestracao, { nome: string; descricao: string; quando: string }> = {
-  router: {
-    nome: 'Router',
-    descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.',
-    quando: 'Pedidos de um item só.',
-  },
-  planning: {
-    nome: 'Planning',
-    descricao:
-      'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
-    quando: 'Mensagens com vários pedidos; menos idas e vindas.',
-  },
-  react: {
-    nome: 'ReAct',
-    descricao:
-      'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
-    quando: 'Pedidos abertos, em que o próximo passo depende do resultado do anterior.',
-  },
-};
 
 const RascunhoSchema = z
   .object({
