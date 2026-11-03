@@ -7,6 +7,7 @@ export function criarTema(): Theme {
   return createTheme({
     palette: {
       primary: { main: tokens.color.primary.main, contrastText: tokens.color.primary.contrastText },
+      secondary: { main: tokens.color.navy },
       text: tokens.color.text,
       background: tokens.color.background,
       divider: tokens.color.divider,

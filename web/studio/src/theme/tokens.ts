@@ -1,10 +1,15 @@
+// Identidade visual da Superlógica, a mesma de web/okf/styles.css (Console).
+const FONTE_DE_TITULO = '"Paralucent", "Plus Jakarta Sans", system-ui, sans-serif';
+const titulo = { fontFamily: FONTE_DE_TITULO } as const;
+
 export const tokens = {
   color: {
     primary: { main: '#1034f2', contrastText: '#ffffff', outlinedBorder: '#1034f280' },
-    text: { primary: '#000000de', secondary: '#00000099' },
-    background: { default: '#ffffff', paper: '#ffffff' },
-    divider: '#0000001f',
-    elevation: { outlined: '#e0e0e0' },
+    navy: '#071950',
+    text: { primary: '#22252B', secondary: '#637792' },
+    background: { default: '#F5F6F8', paper: '#ffffff' },
+    divider: '#DBDFE5',
+    elevation: { outlined: '#DBDFE5' },
     danger: { main: '#F83333' },
     studio: {
       category: {
@@ -26,11 +31,17 @@ export const tokens = {
     },
   },
   typography: {
-    fontFamily: '"Lato", sans-serif',
+    fontFamily: '"Argumentum", "Inter", system-ui, sans-serif',
     fontWeightRegular: 400,
     fontWeightMedium: 500,
-    fontWeightBold: 700,
+    fontWeightBold: 600,
+    h1: titulo,
+    h2: titulo,
+    h3: titulo,
+    h4: titulo,
+    h5: titulo,
+    h6: titulo,
   },
-  shape: { borderRadius: 4 },
+  shape: { borderRadius: 8 },
   layout: { sidebarWidth: 238, sidebarCollapsedWidth: 56, navbarHeight: 60 },
 } as const;

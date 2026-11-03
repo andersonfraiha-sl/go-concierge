@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 
 command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado" >&2; exit 1; }
 
-STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src/studio node:26-alpine"
+STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src/web/studio node:26-alpine"
 GO="MSYS_NO_PATHCONV=1 docker run --rm -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-alpine"
 
 case "${1:-}" in

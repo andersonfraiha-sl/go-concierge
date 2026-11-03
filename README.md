@@ -141,8 +141,9 @@ e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
 
 Duas áreas: o **Studio** (`/studio/`, onde `/` redireciona) e o **Console** (`/console`, o
 emulador do ATENDE: a conversa do morador como o atendente a vê). O Studio é o front em
-React de `studio/`, compilado para `web/studio/dist` e embutido no binário; sem compilar,
-`/studio/` responde 503 `STUDIO_NAO_COMPILADO`. Em desenvolvimento, `npm --prefix studio run dev`
+React de `web/studio/`, compilado para `web/studio/dist` e embutido no binário (só o `dist`,
+nunca o código-fonte nem `node_modules`); sem compilar, `/studio/` responde 503
+`STUDIO_NAO_COMPILADO`. Em desenvolvimento, `npm --prefix web/studio run dev`
 serve o Studio com o proxy de `/api` para o okf-admin em 8090.
 
 No Studio: as skills (Quando usar, Fluxo, Regras, Base de conhecimento, Ferramentas), o
@@ -279,11 +280,12 @@ houver item esperando o morador. Código: `internal/harness/plano.go`.
 ## Estrutura
 
 ```
-cmd/okf-admin      servidor HTTP da interface (SPA embutida)
+cmd/okf-admin      servidor HTTP: o Studio embutido, o Console e o canal ATENDE
 cmd/okf-run        roda um agente pela linha de comando (harness Eino)
 internal/okf       pasta de agente: carga, herança, fronteira, vínculos, conhecimento OKF, projeção, rotas, escrita, catálogo
 internal/harness   adaptador Eino: modelo (Gemini | OpenRouter | Luna | mock), tools nativas, rota, trace e uso
-web/okf            a interface (HTML, CSS, JS, sem dependências)
+web/okf            o Console (HTML, CSS, JS, sem dependências nem build; servido do disco com -web)
+web/studio         o Studio (React + MUI): a exceção, compilado em web/studio/dist e embutido; mesma identidade visual do web/okf/styles.css
 okf/               o catálogo de exemplo: concierge (orquestrador) + observador-sessao, regimento, faq
 ```
 

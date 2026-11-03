@@ -22,7 +22,7 @@ export const componentOverrides: Components<Theme> = {
   MuiListItemButton: {
     styleOverrides: {
       root: ({ theme }) => ({
-        borderRadius: 2,
+        borderRadius: 1,
         '&:hover': {
           color: theme.palette.primary.main,
           fontWeight: 600,

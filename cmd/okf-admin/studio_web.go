@@ -15,7 +15,7 @@ func studioEstatico(arquivos fs.FS) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		index, err := fs.ReadFile(arquivos, "index.html")
 		if errors.Is(err, fs.ErrNotExist) {
-			writeJSON(w, http.StatusServiceUnavailable, erroAPI{Codigo: "STUDIO_NAO_COMPILADO", Mensagem: "O Studio não foi compilado: rode npm run build em studio/."})
+			writeJSON(w, http.StatusServiceUnavailable, erroAPI{Codigo: "STUDIO_NAO_COMPILADO", Mensagem: "O Studio não foi compilado: rode npm run build em web/studio/."})
 			return
 		}
 		if err != nil {

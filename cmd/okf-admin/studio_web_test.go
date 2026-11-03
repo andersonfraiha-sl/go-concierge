@@ -60,7 +60,7 @@ func TestStudioNaoCompiladoRespondeErroDaAPI(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("corpo não é JSON: %v (%s)", err, rec.Body.String())
 	}
-	quer := erroAPI{Codigo: "STUDIO_NAO_COMPILADO", Mensagem: "O Studio não foi compilado: rode npm run build em studio/."}
+	quer := erroAPI{Codigo: "STUDIO_NAO_COMPILADO", Mensagem: "O Studio não foi compilado: rode npm run build em web/studio/."}
 	if got.Codigo != quer.Codigo || got.Mensagem != quer.Mensagem {
 		t.Fatalf("erro = %+v, quer %+v", got, quer)
 	}

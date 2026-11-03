@@ -1,10 +1,10 @@
 # go-concierge: okf-admin (Studio, Console e o canal ATENDE) e okf-run.
 # O Studio é compilado no estágio front e embutido no binário pelo go:embed.
 FROM node:26-alpine AS front
-WORKDIR /src/studio
-COPY studio/package.json studio/package-lock.json ./
+WORKDIR /src/web/studio
+COPY web/studio/package.json web/studio/package-lock.json ./
 RUN npm ci
-COPY studio/ ./
+COPY web/studio/ ./
 RUN npm run build
 
 FROM golang:1.27-alpine AS build
