@@ -304,7 +304,11 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		extracao.Restante = ""
 	}
 
-	// avança os tocados e os abertos sem pergunta pendente (prontos para seguir)
+	// FILA: um pedido por vez. O ativo é o mais antigo em aberto (fora os que estão com
+	// o atendente); só ele avança, pergunta e lembra. Os outros ficam na fila: recebem os
+	// valores que o morador der, mas não perguntam nada. Quando o ativo termina
+	// (concluído, cancelado, falhou), o próximo da fila é puxado no mesmo turno, para o
+	// morador já receber a pergunta dele.
 	var partes, perguntas []string
 	precisaRedigir := false
 	transbordo := ""
@@ -312,17 +316,28 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		partes = append(partes, cancelados...)
 		precisaRedigir = true
 	}
+	var fila []*pedidos.Pedido
 	for _, p := range cart.Abertos() {
-		if p.Estado == pedidos.ComAtendente {
-			continue
+		if p.Estado != pedidos.ComAtendente {
+			if _, ok := contratos[p.Caso]; ok {
+				fila = append(fila, p)
+			}
 		}
+	}
+	var ativo *pedidos.Pedido
+	novosNaFila := false
+	for _, p := range fila {
+		if _, ok := tocados[p.Protocolo]; ok && p.Pendencia == nil && len(p.Historico) <= 1 {
+			novosNaFila = true
+		}
+	}
+	for len(fila) > 0 {
+		p := fila[0]
+		ativo = p
 		if _, ok := tocados[p.Protocolo]; !ok && p.Pendencia != nil {
-			continue
+			break // a pergunta em aberto volta pelo lembrete, abaixo
 		}
-		cc, ok := contratos[p.Caso]
-		if !ok {
-			continue
-		}
+		cc := contratos[p.Caso]
 		saida := pedidos.Avancar(ctx, cc.ct, p, &cart, amb)
 		if amb.escritaIniciada {
 			ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -379,6 +394,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				}
 			}
 		}
+		if p.Aberto() && p.Estado != pedidos.ComAtendente {
+			break // o ativo ainda está em andamento: os outros esperam
+		}
+		fila = fila[1:] // terminou: o próximo da fila é puxado neste mesmo turno
+		ativo = nil
+		if len(fila) > 0 {
+			tocados[fila[0].Protocolo] = fila[0]
+			passo("pedido", fila[0].Protocolo+" sai da fila: próximo da vez")
+		}
+	}
+	// o morador sabe a ordem: quando pedidos novos entraram na fila atrás do ativo
+	if ativo != nil && len(fila) > 1 && novosNaFila {
+		var nomes []string
+		for _, p := range fila[1:] {
+			nomes = append(nomes, strings.ToLower(p.CasoNome)+" ("+p.Protocolo+")")
+		}
+		perguntas = append(perguntas, "Vou cuidar de um pedido por vez: agora "+strings.ToLower(ativo.CasoNome)+" ("+ativo.Protocolo+"); depois "+strings.Join(nomes, ", ")+".")
+		precisaRedigir = true
 	}
 
 	// o que não é pedido vai ao orquestrador (dúvidas, conversa), em modo router. O
@@ -413,6 +446,9 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	for _, p := range cart.Abertos() {
 		if _, ok := tocados[p.Protocolo]; ok || p.Estado == pedidos.ComAtendente {
 			continue
+		}
+		if ativo != nil && p.Protocolo != ativo.Protocolo {
+			continue // na fila: espera a vez, sem lembrete
 		}
 		lembrete, vezes := p.Lembrete()
 		if lembrete == "" {

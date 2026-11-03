@@ -44,6 +44,11 @@ as marcadas **[prompt]** orientam o modelo.
 
 ## Pedidos em aberto
 
+- Um pedido por vez [código]: o mais antigo em aberto é o ativo; só ele pergunta. Os
+  outros esperam na fila (o morador é avisado da ordem) e são puxados quando o ativo
+  termina. "Quero fazer tudo isso" abre um pedido por serviço citado, na ordem; nunca
+  transfere ao atendente por haver vários.
+
 - Nenhum pedido do morador fica dormindo: enquanto faltar um dado ou uma confirmação, a
   pergunta volta em toda resposta, mesmo quando a mensagem foi sobre outra coisa.
 - Depois de três perguntas sem resposta, ofereça ao morador cancelar ou falar com um

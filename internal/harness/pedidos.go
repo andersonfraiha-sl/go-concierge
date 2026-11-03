@@ -62,6 +62,10 @@ Regras:
   consultar). PERGUNTA sobre regra, permissão ou horário ("posso?", "pode?", "é permitido?",
   "até que horas?") NÃO é pedido: vai em restante, com as palavras do morador;
 - um pedido por intenção; vários pedidos numa mensagem viram vários itens, na ordem;
+- "quero fazer tudo isso", "todos", "os dois", "esses aí": o morador se refere à lista de
+  serviços que o concierge acabou de enumerar (últimos turnos). Abra um pedido para cada
+  CASO de ação daquela lista (reservar, liberar, agendar, comunicar, atualizar…), na ordem;
+  dúvidas (regimento, horários) não viram pedido. Sem lista anterior, vai em restante;
 - trecho: copie as palavras do morador que falam DESTE pedido (numa mensagem com dois pedidos,
   cada item leva só a sua parte; nunca a mensagem inteira em todos);
 - só abra um pedido quando um caso de fato cobre o que o morador quer. Serviço que nenhum caso
