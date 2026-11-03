@@ -54,7 +54,7 @@ function Ficha({ estado, id }: { estado: Estado; id: string }): ReactNode {
         </Typography>
       )}
       <SkillsSecao estado={estado} condominio={id} titulos={titulos} editavel={editavel} />
-      <OrientacoesSecao estado={estado} condominio={id} titulos={titulos} editavel={editavel} />
+      <OrientacoesSecao estado={estado} condominio={id} editavel={editavel} />
       <AjustesSecao estado={estado} condominio={id} editavel={editavel} />
       {condominio && podeIdentificar && (
         <IdentificacaoSecao condominio={condominio} administradoras={estado.administradoras} />
