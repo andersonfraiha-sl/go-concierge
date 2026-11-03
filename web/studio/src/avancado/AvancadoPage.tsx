@@ -1,9 +1,10 @@
-import { Box, Button, MenuItem, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, MenuItem, Tab, Tabs, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
+import { tokens } from '@/theme/tokens';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, type NoDaArvore, useArvore } from './contratos';
 import { ImportarExportarAba } from './ImportarExportarAba';
@@ -29,7 +30,7 @@ const ABAS: readonly Aba[] = [
   },
   {
     id: 'projecao',
-    rotulo: 'Projeção',
+    rotulo: 'Prompt montado',
     porItem: true,
     desenhar: (c) => c && <ProjecaoAba caminho={c.no.caminho} />,
   },
@@ -69,9 +70,20 @@ export function AvancadoPage(): ReactNode {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h5" component="h1">
-        Avançado
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
+          Avançado
+        </Typography>
+        <Chip
+          size="small"
+          label="Mudanças aqui afetam todos os condomínios"
+          sx={{
+            bgcolor: tokens.color.warning.background,
+            color: tokens.color.warning.text,
+            fontWeight: 500,
+          }}
+        />
+      </Box>
       <Tabs
         value={aba.id}
         onChange={(_, valor: string) => mudar('aba', valor)}

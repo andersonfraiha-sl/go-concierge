@@ -239,6 +239,48 @@ describe('AvancadoPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('renamesProjectionToAssembledPrompt', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    expect(await screen.findByRole('tab', { name: 'Prompt montado' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Projeção' })).not.toBeInTheDocument();
+  });
+
+  it('warnsThatChangesAffectAllCondominios', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    expect(
+      await screen.findByText('Mudanças aqui afetam todos os condomínios'),
+    ).toBeInTheDocument();
+  });
+
+  it('showsLineNumbers', async () => {
+    responderCom(rotas(construtor));
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await screen.findByDisplayValue('Regra antiga');
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
+
+  it('keepsLineNumbersAlignedWithAVeryLongLine', async () => {
+    const linhaMuitoLonga = 'x'.repeat(400);
+    const conteudo = [linhaMuitoLonga, 'linha 2', 'linha 3', 'linha 4', 'linha 5'].join('\n');
+    responderCom(
+      rotas(construtor, {
+        'GET /api/arquivo': () => json({ caminho: 'rules/politicas.md', conteudo }),
+      }),
+    );
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await screen.findByLabelText('Conteúdo de rules/politicas.md');
+    const numerosExibidos = (
+      await screen.findByText(
+        (_, elemento) => elemento?.tagName === 'PRE' && /^1\n/.test(elemento.textContent ?? ''),
+      )
+    ).textContent;
+    expect(numerosExibidos).toBe('1\n2\n3\n4\n5');
+  });
+
   it('gestorWithGrantReadsOnly', async () => {
     responderCom(rotas(gestorAvancado));
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
