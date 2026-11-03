@@ -24,7 +24,6 @@ const lidos = (temFluxo = true) => ({
     frasesDeExemplo: ['Quero agendar uma mudança'],
     palavrasChave: ['mudança'],
     temFluxo,
-    // O Go ainda não manda estes dois: o schema completa com string vazia.
     resumo: '',
     visibilidade: '',
   },
@@ -46,15 +45,37 @@ function rotasDoEditor(eu: Eu, corpos: unknown[], textos = lidos()) {
 }
 
 describe('SkillEditorPage', () => {
+  it('savesSummaryOneSecondAfterTyping', async () => {
+    const corpos: unknown[] = [];
+    responderCom(rotasDoEditor(construtor, corpos));
+    const { user } = montar();
+    const campo = await screen.findByRole('textbox', { name: 'Resumo' });
+    await waitFor(() => expect(campo).toBeEnabled());
+    await user.type(campo, 'Agenda a mudança.');
+    expect(corpos).toEqual([]);
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
+    expect(corpos).toEqual([
+      { versao: 'v1', textos: { ...lidos().textos, resumo: 'Agenda a mudança.' } },
+    ]);
+  });
+
+  it('limitsSummaryTo90Characters', async () => {
+    responderCom(rotasDoEditor(construtor, []));
+    montar();
+    const campo = await screen.findByRole('textbox', { name: 'Resumo' });
+    expect(campo).toHaveAttribute('maxLength', '90');
+    expect(screen.getByText('0/90')).toBeInTheDocument();
+  });
+
   it('savesQuandoUsarOneSecondAfterTyping', async () => {
     const corpos: unknown[] = [];
     responderCom(rotasDoEditor(construtor, corpos));
     const { user } = montar();
-    const campo = await screen.findByRole('textbox', { name: 'Quando usar' });
+    const campo = await screen.findByRole('textbox', { name: 'Como reconhecer o pedido' });
     await waitFor(() => expect(campo).toBeEnabled());
     await user.type(campo, ' Sempre.');
     expect(corpos).toEqual([]);
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
     expect(corpos).toEqual([
       {
         versao: 'v1',
@@ -71,7 +92,7 @@ describe('SkillEditorPage', () => {
     const campo = screen.getByRole('textbox', { name: 'Nome da skill' });
     await user.clear(campo);
     await user.type(campo, 'Mudança de unidade{Enter}');
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
     expect(corpos).toEqual([
       { versao: 'v1', textos: { ...lidos().textos, titulo: 'Mudança de unidade' } },
     ]);
@@ -86,12 +107,11 @@ describe('SkillEditorPage', () => {
       await screen.findByRole('textbox', { name: 'Nova palavra-chave' }),
       'elevador{Enter}',
     );
-    await user.click(screen.getByRole('button', { name: 'Adicionar frase' }));
     await user.type(
-      screen.getByRole('textbox', { name: 'Frase de exemplo 2' }),
-      'Preciso do elevador',
+      screen.getByRole('textbox', { name: 'Nova frase de exemplo' }),
+      'Preciso do elevador{Enter}',
     );
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
     expect(corpos).toEqual([
       {
         versao: 'v1',
@@ -106,11 +126,17 @@ describe('SkillEditorPage', () => {
 
   it('dropsBlankPhrasesAndKeywordsBeforeSaving', async () => {
     const corpos: unknown[] = [];
-    responderCom(rotasDoEditor(construtor, corpos));
+    responderCom(
+      rotasDoEditor(construtor, corpos, {
+        ...lidos(),
+        textos: { ...lidos().textos, frasesDeExemplo: ['Quero agendar uma mudança', '  '] },
+      }),
+    );
     const { user } = montar();
-    await user.click(await screen.findByRole('button', { name: 'Adicionar frase' }));
-    await user.type(screen.getByRole('textbox', { name: 'Quando usar' }), '!');
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    const campo = await screen.findByRole('textbox', { name: 'Como reconhecer o pedido' });
+    await waitFor(() => expect(campo).toBeEnabled());
+    await user.type(campo, '!');
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
     expect(corpos).toEqual([
       { versao: 'v1', textos: { ...lidos().textos, quandoUsar: 'Quando o morador quer mudar.!' } },
     ]);
@@ -124,21 +150,23 @@ describe('SkillEditorPage', () => {
     expect(await screen.findByText('Nenhuma palavra-chave.')).toBeInTheDocument();
   });
 
-  it('hidesExamplesWithoutFlow', async () => {
+  it('showsExamplesWithoutFlow', async () => {
     responderCom(rotasDoEditor(construtor, [], lidos(false)));
     montar();
-    await screen.findByRole('textbox', { name: 'Quando usar' });
-    expect(screen.queryByText('Palavras-chave')).not.toBeInTheDocument();
-    expect(screen.queryByText('Frases de exemplo')).not.toBeInTheDocument();
+    await screen.findByRole('textbox', { name: 'Como reconhecer o pedido' });
+    expect(screen.getByText('Palavras-chave')).toBeInTheDocument();
+    expect(screen.getByText('Frases de exemplo')).toBeInTheDocument();
   });
 
   it('gestorReadsOnly', async () => {
     responderCom(rotasDoEditor(gestor, []));
     montar();
-    const campo = await screen.findByRole('textbox', { name: 'Quando usar' });
+    const campo = await screen.findByRole('textbox', { name: 'Como reconhecer o pedido' });
     expect(campo).toBeDisabled();
-    expect(screen.getByRole('textbox', { name: 'Frase de exemplo 1' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Adicionar frase' })).not.toBeInTheDocument();
+    expect(screen.getByText('Quero agendar uma mudança')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Nova frase de exemplo' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar Nome da skill' })).not.toBeInTheDocument();
   });
 

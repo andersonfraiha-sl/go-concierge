@@ -44,9 +44,12 @@ export const TextosLidosSchema = z.object({
   textos: TextosSchema,
   versao: z.string(),
 });
+export type TextosLidos = z.infer<typeof TextosLidosSchema>;
 
 const VersaoSchema = z.object({ versao: z.string() });
 const NomeSchema = z.object({ nome: z.string() });
+
+export const LIMITE_DO_RESUMO = 90;
 
 const caminhoDaSkill = (nome: string): string => `/api/skills/${encodeURIComponent(nome)}`;
 
@@ -57,10 +60,16 @@ export function useSkills() {
   });
 }
 
+export const chaveDosTextos = (nome: string) => ['skill', nome, 'textos'] as const;
+
+export function buscarTextos(nome: string): Promise<TextosLidos> {
+  return apiGet(caminhoDaSkill(nome), TextosLidosSchema);
+}
+
 export function useTextos(nome: string) {
   return useQuery({
-    queryKey: ['skill', nome, 'textos'],
-    queryFn: () => apiGet(caminhoDaSkill(nome), TextosLidosSchema),
+    queryKey: chaveDosTextos(nome),
+    queryFn: () => buscarTextos(nome),
   });
 }
 
@@ -92,6 +101,16 @@ export function salvarFluxo(
   corpo: { versao: string; fluxo: Fluxo },
 ): Promise<FluxoGravado> {
   return apiEnviar('PUT', `${caminhoDaSkill(nome)}/fluxo`, corpo, FluxoGravadoSchema);
+}
+
+/** Grava resumo e critério de uma skill recém-criada; sem efeito se os dois vierem em branco. */
+export async function preencherTextosNovos(
+  nome: string,
+  novos: { resumo: string; quandoUsar: string },
+): Promise<void> {
+  if (novos.resumo === '' && novos.quandoUsar === '') return;
+  const lido = await buscarTextos(nome);
+  await salvarTextos(nome, { versao: lido.versao, textos: { ...lido.textos, ...novos } });
 }
 
 /** Mutation que, ao dar certo, refaz a lista de skills. */

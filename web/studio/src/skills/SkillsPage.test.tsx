@@ -1,9 +1,15 @@
-import { screen, waitFor, within } from '@testing-library/react';
-import { useLocation } from 'react-router';
+import { CssBaseline, ThemeProvider } from '@mui/material';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
+import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
+import { criarTema } from '@/theme/theme';
+import { SkillEditorPage } from './SkillEditorPage';
 import { SkillsPage } from './SkillsPage';
 
 const construtor: Eu = {
@@ -95,26 +101,228 @@ describe('SkillsPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('createsSkillAndOpensEditor', async () => {
-    const corpos: unknown[] = [];
+  it('createsSkillWithSummaryAndWhenToUse', async () => {
+    const corposCriar: unknown[] = [];
+    const corposTextos: unknown[] = [];
     responderCom({
       'GET /api/eu': () => json(construtor),
       'GET /api/skills': () => lista([faq]),
       'POST /api/skills': async (req) => {
-        corpos.push(await req.json());
+        corposCriar.push(await req.json());
         return json({ nome: 'reserva-do-salao' }, 201);
+      },
+      'GET /api/skills/reserva-do-salao': () =>
+        json({
+          caminho: 'skills/reserva-do-salao',
+          versao: 'v1',
+          textos: {
+            titulo: 'Reserva do Salão',
+            quandoUsar: '',
+            frasesDeExemplo: [],
+            palavrasChave: [],
+            temFluxo: false,
+            resumo: '',
+            visibilidade: '',
+          },
+        }),
+      'PUT /api/skills/reserva-do-salao/textos': async (req) => {
+        corposTextos.push(await req.json());
+        return json({ versao: 'v2' });
       },
     });
     const { user } = montar();
     await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
     await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Como reconhecer o pedido' }),
+      'O morador quer reservar o salão.',
+    );
     expect(screen.getByText('Identificador: reserva-do-salao')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Criar' }));
     expect(await screen.findByText('Skill criada.')).toBeInTheDocument();
-    expect(corpos).toEqual([{ nome: 'reserva-do-salao', titulo: 'Reserva do Salão' }]);
+    expect(corposCriar).toEqual([{ nome: 'reserva-do-salao', titulo: 'Reserva do Salão' }]);
+    expect(corposTextos).toEqual([
+      {
+        versao: 'v1',
+        textos: {
+          titulo: 'Reserva do Salão',
+          quandoUsar: 'O morador quer reservar o salão.',
+          frasesDeExemplo: [],
+          palavrasChave: [],
+          temFluxo: false,
+          resumo: 'Reserva o salão de festas.',
+          visibilidade: '',
+        },
+      },
+    ]);
     await waitFor(() =>
       expect(screen.getByLabelText('rota')).toHaveTextContent('/skills/reserva-do-salao'),
     );
+  });
+
+  const rotasDaCriacaoComSkillJaCriada = (corposCriar: unknown[], aoChamarPut: () => Response) => ({
+    'GET /api/eu': () => json(construtor),
+    'GET /api/skills': () => lista([faq]),
+    'POST /api/skills': async (req: Request) => {
+      corposCriar.push(await req.json());
+      return json({ nome: 'reserva-do-salao' }, 201);
+    },
+    'GET /api/skills/reserva-do-salao': () =>
+      json({
+        caminho: 'skills/reserva-do-salao',
+        versao: 'v1',
+        textos: {
+          titulo: 'Reserva do Salão',
+          quandoUsar: '',
+          frasesDeExemplo: [],
+          palavrasChave: [],
+          temFluxo: false,
+          resumo: '',
+          visibilidade: '',
+        },
+      }),
+    'PUT /api/skills/reserva-do-salao/textos': () => aoChamarPut(),
+  });
+
+  it('showsFormMessageWhenTextsFailToSaveAfterCreating', async () => {
+    const corposCriar: unknown[] = [];
+    let tentativasPut = 0;
+    responderCom(
+      rotasDaCriacaoComSkillJaCriada(corposCriar, () => {
+        tentativasPut += 1;
+        return json({ codigo: 'X', mensagem: 'Servidor caiu.' }, 500);
+      }),
+    );
+    const { user } = montar();
+    await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.click(screen.getByRole('button', { name: 'Criar' }));
+
+    expect(
+      await screen.findByText('A skill foi criada, mas os textos não salvaram. Tente de novo.'),
+    ).toBeInTheDocument();
+    const nome = screen.getByRole('textbox', { name: 'Nome' });
+    expect(nome).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByText('Use letras ou números no nome.')).not.toBeInTheDocument();
+    expect(corposCriar).toHaveLength(1);
+    expect(tentativasPut).toBe(1);
+    expect(screen.getByLabelText('rota')).toHaveTextContent('/skills');
+  });
+
+  it('retrySendsOnlyThePutNotThePost', async () => {
+    const corposCriar: unknown[] = [];
+    let tentativasPut = 0;
+    responderCom(
+      rotasDaCriacaoComSkillJaCriada(corposCriar, () => {
+        tentativasPut += 1;
+        return tentativasPut === 1
+          ? json({ codigo: 'X', mensagem: 'Servidor caiu.' }, 500)
+          : json({ versao: 'v2' });
+      }),
+    );
+    const { user } = montar();
+    await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.click(screen.getByRole('button', { name: 'Criar' }));
+    await screen.findByText('A skill foi criada, mas os textos não salvaram. Tente de novo.');
+
+    await user.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('rota')).toHaveTextContent('/skills/reserva-do-salao'),
+    );
+    expect(corposCriar).toHaveLength(1);
+    expect(tentativasPut).toBe(2);
+  });
+
+  /** Router real com as duas páginas: a navegação do "Fechar" leva de fato ao editor. */
+  function montarComEditor() {
+    const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const rotas = createMemoryRouter(
+      [
+        { path: '/skills', element: <SkillsPage /> },
+        { path: '/skills/:nome', element: <SkillEditorPage /> },
+      ],
+      { initialEntries: ['/skills'] },
+    );
+    render(
+      <QueryClientProvider client={cliente}>
+        <ThemeProvider theme={criarTema()}>
+          <CssBaseline />
+          <SnackbarProvider>
+            <RouterProvider router={rotas} />
+          </SnackbarProvider>
+        </ThemeProvider>
+      </QueryClientProvider>,
+    );
+    return { user: userEvent.setup() };
+  }
+
+  it('sendsPendingTextsFromEditorAfterClosingOnFailure', async () => {
+    const corposCriar: unknown[] = [];
+    const corposTextos: unknown[] = [];
+    let tentativasPut = 0;
+    responderCom({
+      'GET /api/eu': () => json(construtor),
+      'GET /api/skills': () => lista([faq]),
+      'POST /api/skills': async (req) => {
+        corposCriar.push(await req.json());
+        return json({ nome: 'reserva-do-salao' }, 201);
+      },
+      'GET /api/skills/reserva-do-salao': () =>
+        json({
+          caminho: 'skills/reserva-do-salao',
+          versao: 'v1',
+          textos: {
+            titulo: 'Reserva do Salão',
+            quandoUsar: '',
+            frasesDeExemplo: [],
+            palavrasChave: [],
+            temFluxo: false,
+            resumo: '',
+            visibilidade: '',
+          },
+        }),
+      'PUT /api/skills/reserva-do-salao/textos': async (req) => {
+        tentativasPut += 1;
+        if (tentativasPut === 1) return json({ codigo: 'X', mensagem: 'Servidor caiu.' }, 500);
+        corposTextos.push(await req.json());
+        return json({ versao: 'v2' });
+      },
+    });
+    const { user } = montarComEditor();
+
+    await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Como reconhecer o pedido' }),
+      'O morador quer reservar o salão.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Criar' }));
+    await screen.findByText('A skill foi criada, mas os textos não salvaram. Tente de novo.');
+
+    await user.click(screen.getByRole('button', { name: 'Fechar' }));
+
+    await screen.findByRole('textbox', { name: 'Resumo' }); // já no editor, sem tocar em nada
+    await waitFor(() => expect(corposTextos).toHaveLength(1), { timeout: 5000 });
+    expect(corposTextos).toEqual([
+      {
+        versao: 'v1',
+        textos: {
+          titulo: 'Reserva do Salão',
+          quandoUsar: 'O morador quer reservar o salão.',
+          frasesDeExemplo: [],
+          palavrasChave: [],
+          temFluxo: false,
+          resumo: 'Reserva o salão de festas.',
+          visibilidade: '',
+        },
+      },
+    ]);
   });
 
   it('duplicatesSkillStartingFromCopyName', async () => {

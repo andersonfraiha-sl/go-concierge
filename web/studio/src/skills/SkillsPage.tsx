@@ -9,12 +9,14 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
 import {
+  preencherTextosNovos,
   type SkillResumo,
   useCriarSkill,
   useDuplicarSkill,
   useExcluirSkill,
   useSkills,
 } from './contratos';
+import { NovaSkillDialog } from './NovaSkillDialog';
 import { SkillCard } from './SkillCard';
 
 const FRASE_VAZIA =
@@ -40,11 +42,22 @@ export function SkillsPage(): ReactNode {
   const podeExcluir = usePodeEditar('skills.excluir');
   const fechar = () => setDialogo(null);
 
-  const criarEAbrir = async (nova: NomeEscolhido) => {
+  const criarSkill = async (nova: { nome: string; titulo: string }) => {
     const criada = await criar.mutateAsync(nova);
     mostrar('Skill criada.');
-    void navegar(caminhoDoEditor(criada.nome));
+    return criada;
   };
+
+  const abrirEditor = (nome: string) => void navegar(caminhoDoEditor(nome));
+
+  /**
+   * Textos não salvaram: a pessoa segue para o editor com o que digitou, levado como estado da
+   * navegação (não no cache), para o editor aplicar como alteração pendente e mandar ao servidor.
+   */
+  const abrirEditorComTextosPendentes = (
+    nome: string,
+    textos: { resumo: string; quandoUsar: string },
+  ) => void navegar(caminhoDoEditor(nome), { state: { textosPendentes: textos } });
 
   const duplicarEAbrir = async (origem: SkillResumo, nova: NomeEscolhido) => {
     const copia = await duplicar.mutateAsync({ origem: origem.nome, ...nova });
@@ -112,11 +125,11 @@ export function SkillsPage(): ReactNode {
       )}
 
       {dialogo?.tipo === 'nova' && (
-        <NomeDialog
-          titulo="Nova skill"
-          tituloInicial=""
-          confirmar="Criar"
-          onEnviar={criarEAbrir}
+        <NovaSkillDialog
+          onCriar={criarSkill}
+          onSalvarTextos={preencherTextosNovos}
+          onConcluida={abrirEditor}
+          onFecharComFalha={abrirEditorComTextosPendentes}
           onCancelar={fechar}
         />
       )}
