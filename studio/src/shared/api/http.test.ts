@@ -42,6 +42,13 @@ describe('apiGet', () => {
       mensagem: 'y',
     },
     {
+      caso: 'codigoMalformadoPreservaMensagem',
+      status: 422,
+      corpo: { codigo: 42, mensagem: 'z' },
+      codigo: 'HTTP_422',
+      mensagem: 'z',
+    },
+    {
       caso: 'corpoVazio',
       status: 500,
       corpo: {},

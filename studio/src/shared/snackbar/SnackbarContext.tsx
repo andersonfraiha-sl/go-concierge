@@ -1,4 +1,4 @@
-import { Alert, Snackbar } from '@mui/material';
+import { Alert, Snackbar, type SnackbarCloseReason } from '@mui/material';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
 type Tipo = 'success' | 'error' | 'info';
@@ -24,6 +24,10 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
     setAberto(true);
   };
   const fechar = () => setAberto(false);
+  // Clique fora não fecha: o aviso dura os 4000 ms inteiros.
+  const aoFecharSnackbar = (_: unknown, motivo: SnackbarCloseReason) => {
+    if (motivo !== 'clickaway') fechar();
+  };
 
   return (
     <SnackbarContext.Provider value={{ mostrar }}>
@@ -31,7 +35,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
       <Snackbar
         open={aberto}
         autoHideDuration={DURACAO_MS}
-        onClose={fechar}
+        onClose={aoFecharSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
         <Alert onClose={fechar} severity={aviso?.tipo ?? 'success'} variant="filled">

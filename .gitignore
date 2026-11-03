@@ -13,5 +13,4 @@ mcp/**/session-*.json
 mcp/**/.session-*.json
 studio/node_modules/
 web/studio/dist/
-studio/node_modules/
-web/studio/dist/
+studio/*.tsbuildinfo

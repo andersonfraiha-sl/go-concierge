@@ -19,6 +19,14 @@ describe('StudioLayout', () => {
     expect(screen.getByRole('link', { name: 'Atendente' })).toHaveAttribute('href', '/console');
   });
 
+  it('iniciaRecolhidoQuandoHaPreferenciaGravada', () => {
+    localStorage.setItem('studio.menuRecolhido', 'true');
+
+    renderComProvedores(<StudioLayout />);
+
+    expect(screen.getByRole('button', { name: 'Expandir menu' })).toBeInTheDocument();
+  });
+
   it('recolheOMenuELembraAPreferencia', async () => {
     const { user } = renderComProvedores(<StudioLayout />);
 

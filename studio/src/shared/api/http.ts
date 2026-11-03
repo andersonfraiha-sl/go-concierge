@@ -20,11 +20,14 @@ export class ApiError extends Error {
 }
 
 // Aceita o formato novo {codigo, mensagem} e o antigo {error}.
+// Cada campo é lido por conta própria: um `codigo` malformado não derruba a `mensagem` boa.
 const CorpoErro = z.object({
-  codigo: z.string().optional(),
-  mensagem: z.string().optional(),
-  error: z.string().optional(),
+  codigo: z.string().optional().catch(undefined),
+  mensagem: z.string().optional().catch(undefined),
+  error: z.string().optional().catch(undefined),
 });
+
+const CORPO_ERRO_VAZIO: z.infer<typeof CorpoErro> = {};
 
 export function apiGet<S extends z.ZodType>(caminho: string, schema: S): Promise<z.infer<S>> {
   return requisitar('GET', caminho, undefined, schema);
@@ -92,7 +95,7 @@ async function lerJson(resposta: Response): Promise<unknown> {
 
 function erroHttp(status: number, corpo: unknown): ApiError {
   const lido = CorpoErro.safeParse(corpo);
-  const { codigo, mensagem, error } = lido.success ? lido.data : CorpoErro.parse({});
+  const { codigo, mensagem, error } = lido.success ? lido.data : CORPO_ERRO_VAZIO;
   return new ApiError(
     status,
     codigo ?? `HTTP_${status}`,
