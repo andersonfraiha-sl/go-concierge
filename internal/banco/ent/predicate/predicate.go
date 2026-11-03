@@ -33,5 +33,11 @@ type PapelPermissao func(*sql.Selector)
 // Payload is the predicate function for payload builders.
 type Payload func(*sql.Selector)
 
+// Pedido is the predicate function for pedido builders.
+type Pedido func(*sql.Selector)
+
+// PedidoEvento is the predicate function for pedidoevento builders.
+type PedidoEvento func(*sql.Selector)
+
 // Usuario is the predicate function for usuario builders.
 type Usuario func(*sql.Selector)

@@ -15,6 +15,8 @@ import (
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/pedido"
+	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/usuario"
 	"reflect"
 	"sync"
@@ -91,6 +93,8 @@ func checkColumn(t, c string) error {
 			papel.Table:          papel.ValidColumn,
 			papelpermissao.Table: papelpermissao.ValidColumn,
 			payload.Table:        payload.ValidColumn,
+			pedido.Table:         pedido.ValidColumn,
+			pedidoevento.Table:   pedidoevento.ValidColumn,
 			usuario.Table:        usuario.ValidColumn,
 		})
 	})

@@ -12,6 +12,8 @@ import (
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/pedido"
+	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/banco/ent/usuario"
 )
@@ -122,6 +124,34 @@ func init() {
 	payloadDescRecurso := payloadFields[1].Descriptor()
 	// payload.RecursoValidator is a validator for the "recurso" field. It is called by the builders before save.
 	payload.RecursoValidator = payloadDescRecurso.Validators[0].(func(string) error)
+	pedidoFields := schema.Pedido{}.Fields()
+	_ = pedidoFields
+	// pedidoDescAdministradoraID is the schema descriptor for administradora_id field.
+	pedidoDescAdministradoraID := pedidoFields[1].Descriptor()
+	// pedido.AdministradoraIDValidator is a validator for the "administradora_id" field. It is called by the builders before save.
+	pedido.AdministradoraIDValidator = pedidoDescAdministradoraID.Validators[0].(func(string) error)
+	// pedidoDescCondominioID is the schema descriptor for condominio_id field.
+	pedidoDescCondominioID := pedidoFields[2].Descriptor()
+	// pedido.DefaultCondominioID holds the default value on creation for the condominio_id field.
+	pedido.DefaultCondominioID = pedidoDescCondominioID.Default.(string)
+	// pedidoDescTelefone is the schema descriptor for telefone field.
+	pedidoDescTelefone := pedidoFields[3].Descriptor()
+	// pedido.TelefoneValidator is a validator for the "telefone" field. It is called by the builders before save.
+	pedido.TelefoneValidator = pedidoDescTelefone.Validators[0].(func(string) error)
+	// pedidoDescID is the schema descriptor for id field.
+	pedidoDescID := pedidoFields[0].Descriptor()
+	// pedido.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	pedido.IDValidator = pedidoDescID.Validators[0].(func(string) error)
+	pedidoeventoFields := schema.PedidoEvento{}.Fields()
+	_ = pedidoeventoFields
+	// pedidoeventoDescProtocolo is the schema descriptor for protocolo field.
+	pedidoeventoDescProtocolo := pedidoeventoFields[0].Descriptor()
+	// pedidoevento.ProtocoloValidator is a validator for the "protocolo" field. It is called by the builders before save.
+	pedidoevento.ProtocoloValidator = pedidoeventoDescProtocolo.Validators[0].(func(string) error)
+	// pedidoeventoDescPor is the schema descriptor for por field.
+	pedidoeventoDescPor := pedidoeventoFields[4].Descriptor()
+	// pedidoevento.DefaultPor holds the default value on creation for the por field.
+	pedidoevento.DefaultPor = pedidoeventoDescPor.Default.(string)
 	usuarioFields := schema.Usuario{}.Fields()
 	_ = usuarioFields
 	// usuarioDescNome is the schema descriptor for nome field.

@@ -275,6 +275,62 @@ var (
 			},
 		},
 	}
+	// PedidosColumns holds the columns for the "pedidos" table.
+	PedidosColumns = []*schema.Column{
+		{Name: "protocolo", Type: field.TypeString},
+		{Name: "administradora_id", Type: field.TypeString},
+		{Name: "condominio_id", Type: field.TypeString, Default: ""},
+		{Name: "telefone", Type: field.TypeString},
+		{Name: "caso", Type: field.TypeString},
+		{Name: "estado", Type: field.TypeString},
+		{Name: "dados", Type: field.TypeJSON},
+		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "atualizado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// PedidosTable holds the schema information for the "pedidos" table.
+	PedidosTable = &schema.Table{
+		Name:       "pedidos",
+		Columns:    PedidosColumns,
+		PrimaryKey: []*schema.Column{PedidosColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "pedido_administradora_id_telefone",
+				Unique:  false,
+				Columns: []*schema.Column{PedidosColumns[1], PedidosColumns[3]},
+			},
+		},
+	}
+	// PedidoEventosColumns holds the columns for the "pedido_eventos" table.
+	PedidoEventosColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "seq", Type: field.TypeInt},
+		{Name: "tipo", Type: field.TypeString},
+		{Name: "texto", Type: field.TypeString, Size: 2147483647},
+		{Name: "por", Type: field.TypeString, Default: ""},
+		{Name: "quando", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "protocolo", Type: field.TypeString},
+	}
+	// PedidoEventosTable holds the schema information for the "pedido_eventos" table.
+	PedidoEventosTable = &schema.Table{
+		Name:       "pedido_eventos",
+		Columns:    PedidoEventosColumns,
+		PrimaryKey: []*schema.Column{PedidoEventosColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "pedido_eventos_pedidos_eventos",
+				Columns:    []*schema.Column{PedidoEventosColumns[6]},
+				RefColumns: []*schema.Column{PedidosColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "pedidoevento_protocolo_seq",
+				Unique:  true,
+				Columns: []*schema.Column{PedidoEventosColumns[6], PedidoEventosColumns[1]},
+			},
+		},
+	}
 	// UsuariosColumns holds the columns for the "usuarios" table.
 	UsuariosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -297,6 +353,8 @@ var (
 		PapeisTable,
 		PapelPermissoesTable,
 		PayloadsTable,
+		PedidosTable,
+		PedidoEventosTable,
 		UsuariosTable,
 	}
 )
@@ -336,4 +394,11 @@ func init() {
 		Table: "papel_permissoes",
 	}
 	PayloadsTable.ForeignKeys[0].RefTable = CondominiosTable
+	PedidosTable.Annotation = &entsql.Annotation{
+		Table: "pedidos",
+	}
+	PedidoEventosTable.ForeignKeys[0].RefTable = PedidosTable
+	PedidoEventosTable.Annotation = &entsql.Annotation{
+		Table: "pedido_eventos",
+	}
 }

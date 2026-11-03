@@ -12,6 +12,7 @@
 package pedidos
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -21,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -309,22 +311,68 @@ var naoDigitos = regexp.MustCompile(`\D+`)
 
 var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
-func (a *Arquivos) pasta(administradoraID string) (string, error) {
+// errProtocoloDeOutroContato: o protocolo é único no banco inteiro, mas só é sorteado único
+// dentro da carteira; gravar um que já é de outro contato tomaria o pedido dele.
+var errProtocoloDeOutroContato = errors.New("protocolo já pertence a outro contato")
+
+func validarAdministradora(administradoraID string) error {
 	if !escopo.AdministradoraValida(administradoraID) {
-		return "", fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
+		return fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
+	}
+	return nil
+}
+
+func validarContato(c escopo.Contato) error {
+	if err := validarAdministradora(c.AdministradoraID); err != nil {
+		return err
+	}
+	if c.Telefone == "" {
+		return errContatoInvalido
+	}
+	return nil
+}
+
+// copiasDoContato copia os pedidos com a administradora e o telefone do contato: quem grava é o
+// contato, não o que veio escrito no pedido. Os pedidos do chamador ficam intactos.
+func copiasDoContato(c escopo.Contato, pedidos []*Pedido) []Pedido {
+	out := make([]Pedido, 0, len(pedidos))
+	for _, p := range pedidos {
+		copia := *p
+		copia.AdministradoraID, copia.Telefone = c.AdministradoraID, c.Telefone
+		out = append(out, copia)
+	}
+	return out
+}
+
+// montar é a carteira do contato com os pedidos na ordem em que foram abertos; ela foi
+// atualizada quando o seu pedido mais recente foi.
+func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
+	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Pedidos: slices.Clone(pedidos)}
+	slices.SortStableFunc(cart.Pedidos, func(a, b *Pedido) int {
+		return cmp.Or(a.CriadoEm.Compare(b.CriadoEm), strings.Compare(a.Protocolo, b.Protocolo))
+	})
+	for _, p := range cart.Pedidos {
+		if p.AtualizadoEm.After(cart.AtualizadaEm) {
+			cart.AtualizadaEm = p.AtualizadoEm
+		}
+	}
+	return cart
+}
+
+func maisRecentesPrimeiro(a, b Carteira) int { return b.AtualizadaEm.Compare(a.AtualizadaEm) }
+
+func (a *Arquivos) pasta(administradoraID string) (string, error) {
+	if err := validarAdministradora(administradoraID); err != nil {
+		return "", err
 	}
 	return filepath.Join(a.Dir, administradoraID), nil
 }
 
 func (a *Arquivos) caminho(c escopo.Contato) (string, error) {
-	pasta, err := a.pasta(c.AdministradoraID)
-	if err != nil {
+	if err := validarContato(c); err != nil {
 		return "", err
 	}
-	if c.Telefone == "" {
-		return "", errContatoInvalido
-	}
-	return filepath.Join(pasta, c.Telefone+".json"), nil
+	return filepath.Join(a.Dir, c.AdministradoraID, c.Telefone+".json"), nil
 }
 
 func (a *Arquivos) Ler(_ context.Context, c escopo.Contato) (Carteira, error) {
