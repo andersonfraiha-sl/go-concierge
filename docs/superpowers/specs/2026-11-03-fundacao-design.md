@@ -15,7 +15,7 @@ A Fundação resolve as três coisas e deixa um padrão que os projetos seguinte
 ## 2. Objetivos, não objetivos e anti objetivos
 
 **Objetivos**
-1. Postgres como único armazenamento, com sqlc + pgx e migrations goose.
+1. Postgres como único armazenamento, com ent como ORM padrão, sqlc nas exceções de desempenho, pgx e migrations goose.
 2. Os quatro armazenamentos atuais (mapeamento, memória, pedidos, sessões) no Postgres, **com o mesmo comportamento visto de fora**, mais um comando que importa os JSON existentes.
 3. Autenticação e autorização em toda rota `/api/*`, com papéis em herança e escopo.
 4. O padrão funcional estabelecido e demonstrado nos pacotes que esta fase toca.
@@ -48,14 +48,22 @@ A Fundação resolve as três coisas e deixa um padrão que os projetos seguinte
 | pgx | (não tinha) | `github.com/jackc/pgx/v5` v5.12.0 |
 | goose | (não tinha) | `github.com/pressly/goose/v3` v3.29.0 (como biblioteca, migrations embutidas) |
 | sqlc | (não tinha; 1.30.0 instalado na máquina) | **v1.31.1** |
+| ent | (não tinha) | `entgo.io/ent` v0.14.6 |
+| Atlas | (não tinha) | `ariga.io/atlas` v1.3.0 (geração das migrations) |
 | testcontainers | (não tinha) | `testcontainers-go` e `modules/postgres` v0.44.0 |
 | Eino | v0.9.9 | v0.9.22 (`eino-ext` openai já está na última, v0.1.13) |
 | Node do servidor MCP | `node:24-alpine` | `node:26-alpine` (LTS ativo desde out/2026) |
+- **ORM + SQL tipado** (decisão do Felipe): o **ent** é o acesso padrão; o **sqlc** entra só onde a ORM não faz a operação com o melhor desempenho, com um comentário dizendo por quê.
+  - Por que ent e não GORM ou bun: o ent gera código tipado a partir do esquema (`client.Pedido.Query().Where(pedido.AdministradoraID(id))`), sem condição em string nem reflexão, e não muta structs de domínio. GORM e bun montam condição em string e usam reflexão, o que a constituição proíbe.
+  - Um esquema só: o esquema do ent (`internal/banco/ent/schema`) é a fonte; o Atlas gera as migrations no formato goose; o sqlc lê essas mesmas migrations como esquema. Ent e sqlc compartilham o mesmo pool pgx (`stdlib.OpenDBFromPool`).
+  - Nesta fase, sqlc só em dois lugares: a gravação em lote dos fatos da memória (apagar as chaves que saíram e fazer upsert das demais num comando só, com `unnest`) e o acréscimo dos eventos novos de pedido (`INSERT ... SELECT unnest ... ON CONFLICT DO NOTHING`). Nos dois, a ORM faria uma ida ao banco por linha.
 - **Estrutura**:
   ```
-  db/migrations/   NNNN_<nome>.sql  (goose, up e down)
-  db/queries/      <área>.sql       (sqlc)
-  internal/db/     código gerado pelo sqlc (não editado à mão)
+  internal/banco/ent/schema/   esquema do ent (fonte da verdade)
+  internal/banco/ent/          código gerado pelo ent (não editado à mão)
+  internal/banco/migrations/   NNNN_<nome>.sql  (goose, gerado pelo Atlas a partir do esquema)
+  internal/banco/queries/      <área>.sql       (sqlc, só exceções)
+  internal/banco/sqlc/         código gerado pelo sqlc (não editado à mão)
   sqlc.yaml
   ```
 - As migrations rodam no boot (`goose.Up`) atrás de flag `-migrar` (padrão ligado em dev, desligado em prod, onde rodam como job).
@@ -148,7 +156,7 @@ O provedor de login fica para depois. A Fundação entrega a identidade atrás d
 Vale para todo código novo e para o que esta fase tocar:
 
 - **Pacote de domínio sem I/O**: tipos e funções puras (`acesso.Permitido`, `admin.HabilitacaoEfetiva`, transições de pedido). Testes em tabela, sem banco.
-- **Store na borda**: traduz entre linhas do sqlc e tipos de domínio. Teste de integração com testcontainers.
+- **Store na borda**: traduz entre entidades do ent (ou linhas do sqlc) e tipos de domínio; entidade do ent nunca sai do pacote do store. Teste de integração com testcontainers.
 - **Handler fino**: decodifica, valida, chama domínio e store, codifica. Erro de negócio mapeado para status por tabela, não por `if` espalhado.
 - **Valores, não mutação**: funções devolvem a struct nova (`memoria.Upsert` passa a devolver `(Memoria, bool)` em vez de alterar o receptor).
 - **Erros**: sentinelas por pacote (`ErrNaoEncontrado`, `ErrSemPermissao`), contexto sem "failed to" (`"gravar pedido %s: %w"`); os três erros engolidos atuais são corrigidos.
@@ -157,7 +165,7 @@ Vale para todo código novo e para o que esta fase tocar:
 
 ## 6. Ordem de entrega (cada item é um PR que funciona sozinho)
 
-1. Postgres no compose, goose, sqlc, `DATABASE_URL`, healthcheck que testa o banco.
+1. Postgres no compose, ent, Atlas, goose, sqlc, `DATABASE_URL`, healthcheck que testa o banco.
 2. Mapeamento das administradoras no Postgres + importação.
 3. Memória (forma atual) no Postgres + importação + correção dos erros engolidos.
 4. Pedidos no Postgres + importação.
