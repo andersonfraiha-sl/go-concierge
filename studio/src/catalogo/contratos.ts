@@ -1,13 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { apiEnviar, apiGet } from '@/shared/api/http';
-
-/** O Go serializa slice nil como null: a borda entrega sempre lista. */
-export const listaDoGo = <S extends z.ZodType>(item: S) =>
-  z
-    .array(item)
-    .nullish()
-    .transform((lista) => lista ?? []);
+import { listaDoGo } from '@/shared/api/listaDoGo';
 
 const mapaDoGo = <S extends z.ZodType>(item: S) =>
   z

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { listaDoGo } from '@/shared/api/listaDoGo';
 
 export const TIPOS_BLOCO = [
   'buscar_dados',
@@ -75,8 +76,8 @@ export const InformacaoSchema = z.object({
 export type Informacao = z.infer<typeof InformacaoSchema>;
 
 export const FluxoSchema = z.object({
-  blocos: z.array(BlocoSchema),
-  informacoes: z.array(InformacaoSchema),
+  blocos: listaDoGo(BlocoSchema),
+  informacoes: listaDoGo(InformacaoSchema),
 });
 export type Fluxo = z.infer<typeof FluxoSchema>;
 
@@ -91,12 +92,12 @@ export type ProblemaFluxo = z.infer<typeof ProblemaFluxoSchema>;
 export const FluxoLidoSchema = z.object({
   fluxo: FluxoSchema,
   versao: z.string(),
-  problemas: z.array(ProblemaFluxoSchema),
+  problemas: listaDoGo(ProblemaFluxoSchema),
 });
 export type FluxoLido = z.infer<typeof FluxoLidoSchema>;
 
 export const FluxoGravadoSchema = z.object({
   versao: z.string(),
-  problemas: z.array(ProblemaFluxoSchema),
+  problemas: listaDoGo(ProblemaFluxoSchema),
 });
 export type FluxoGravado = z.infer<typeof FluxoGravadoSchema>;

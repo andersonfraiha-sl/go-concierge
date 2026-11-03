@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { listaDoGo } from '@/catalogo/contratos';
 import { apiEnviar, apiGet } from '@/shared/api/http';
+import { listaDoGo } from '@/shared/api/listaDoGo';
 import {
   FluxoGravadoSchema,
   FluxoLidoSchema,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fixture from './agendar-mudanca.fixture.json';
 import { novoBloco, resumoDoBloco, TIPOS_INSERIVEIS } from './catalogo';
 import { atualizarBloco, indiceAoSoltar, inserirBloco, moverBloco, removerBloco } from './edicao';
-import { BlocoSchema, FluxoLidoSchema, TIPOS_BLOCO, type Bloco, type Fluxo, type TipoBloco } from './tipos';
+import { BlocoSchema, FluxoLidoSchema, InformacaoSchema, TIPOS_BLOCO, type Bloco, type Fluxo, type TipoBloco } from './tipos';
 import { validarFluxo } from './validar';
 
 const fluxoDe = (...blocos: Bloco[]): Fluxo => ({ blocos, informacoes: [] });
@@ -12,10 +12,8 @@ function bloco(tipo: TipoBloco, id: string, campos: Record<string, unknown> = {}
 }
 
 const buscar = (id: string) => bloco('buscar_dados', id, { recurso: 'unidades.listar' });
-const escolha = (id: string) => bloco('pedir_escolha', id, { param: 'unidade' });
 const perguntar = (id: string) => bloco('perguntar', id, { campos: ['data'] });
 const confirmar = (id: string) => bloco('confirmar', id, { texto: 'Ok?' });
-const gravar = (id: string) => bloco('gravar_no_sistema', id, { recurso: 'mudancas.agendar' });
 const responder = (id: string) => bloco('responder', id, { texto: 'Pronto' });
 
 describe('FluxoLidoSchema', () => {
@@ -38,105 +36,218 @@ describe('FluxoLidoSchema', () => {
   });
 });
 
-describe('validarFluxo', () => {
-  const resumo = (f: Fluxo) => validarFluxo(f).map(({ codigo, blocoId }) => ({ codigo, blocoId }));
+// Tabela espelhada de internal/okf/fluxo_validacao_test.go (TestValidarFluxo): os dois lados andam juntos.
+const MSG_CONFIRMAR = 'Coloque um Confirmar antes de gravar no sistema.';
+const MSG_FIM = 'O Responder precisa ser o último bloco.';
 
+function blocosDeTipos(...tipos: TipoBloco[]): Bloco[] {
+  return tipos.map((tipo, i) => {
+    const id = `b${i + 1}`;
+    switch (tipo) {
+      case 'buscar_dados':
+      case 'gravar_no_sistema':
+        return bloco(tipo, id, { recurso: 'x.y' });
+      case 'pedir_escolha':
+        return bloco(tipo, id, { param: 'p' });
+      case 'perguntar':
+      case 'reaproveitar':
+        return bloco(tipo, id, { campos: ['c'] });
+      case 'formulario':
+        return bloco(tipo, id, { de: 'd' });
+      case 'confirmar':
+      case 'montar_texto':
+      case 'responder':
+        return bloco(tipo, id, { texto: 't' });
+    }
+  });
+}
+
+const comCampos = (blocos: Bloco[], indice: number, campos: Record<string, unknown>): Bloco[] =>
+  blocos.map((b, i) => (i === indice ? bloco(b.tipo, b.id, { ...b, ...campos }) : b));
+
+const problema = (blocoId: string | undefined, codigo: string, mensagem: string) =>
+  blocoId === undefined ? { codigo, nivel: 'erro', mensagem } : { blocoId, codigo, nivel: 'erro', mensagem };
+
+const informacao = (campos: Record<string, unknown>): Fluxo['informacoes'][number] =>
+  InformacaoSchema.parse({ nome: 'cor', ...campos });
+
+describe('validarFluxo', () => {
   it.each([
     {
-      caso: 'a) fluxo completo',
-      fluxo: fluxoDe(buscar('b1'), escolha('b2'), perguntar('b3'), confirmar('b4'), gravar('b5'), responder('b6')),
+      caso: 'fluxo completo',
+      fluxo: fluxoDe(
+        ...blocosDeTipos('buscar_dados', 'pedir_escolha', 'perguntar', 'confirmar', 'gravar_no_sistema', 'responder'),
+      ),
       esperado: [],
     },
     {
-      caso: 'b) gravar sem confirmar',
-      fluxo: fluxoDe(buscar('b1'), gravar('b2'), responder('b3')),
-      esperado: [{ codigo: 'GRAVAR_SEM_CONFIRMAR', blocoId: 'b2' }],
+      caso: 'gravar sem confirmar',
+      fluxo: fluxoDe(...blocosDeTipos('buscar_dados', 'gravar_no_sistema', 'responder')),
+      esperado: [problema('b2', 'GRAVAR_SEM_CONFIRMAR', MSG_CONFIRMAR)],
     },
     {
-      caso: 'c) um confirmar vale para uma gravacao',
-      fluxo: fluxoDe(confirmar('b1'), gravar('b2'), gravar('b3'), responder('b4')),
-      esperado: [{ codigo: 'GRAVAR_SEM_CONFIRMAR', blocoId: 'b3' }],
+      caso: 'cada confirmar vale uma gravacao',
+      fluxo: fluxoDe(...blocosDeTipos('confirmar', 'gravar_no_sistema', 'gravar_no_sistema', 'responder')),
+      esperado: [problema('b3', 'GRAVAR_SEM_CONFIRMAR', MSG_CONFIRMAR)],
     },
     {
-      caso: 'd) confirmar depois do gravar nao vale',
-      fluxo: fluxoDe(gravar('b1'), confirmar('b2'), responder('b3')),
-      esperado: [{ codigo: 'GRAVAR_SEM_CONFIRMAR', blocoId: 'b1' }],
+      caso: 'um confirmar nao vale para duas gravacoes',
+      fluxo: fluxoDe(...blocosDeTipos('confirmar', 'confirmar', 'gravar_no_sistema', 'gravar_no_sistema', 'responder')),
+      esperado: [problema('b4', 'GRAVAR_SEM_CONFIRMAR', MSG_CONFIRMAR)],
     },
     {
-      caso: 'e) sem responder',
-      fluxo: fluxoDe(buscar('b1')),
-      esperado: [{ codigo: 'SEM_RESPONDER', blocoId: undefined }],
+      caso: 'confirmar depois de gravar nao vale',
+      fluxo: fluxoDe(...blocosDeTipos('gravar_no_sistema', 'confirmar', 'responder')),
+      esperado: [problema('b1', 'GRAVAR_SEM_CONFIRMAR', MSG_CONFIRMAR)],
     },
     {
-      caso: 'f) responder fora do fim',
-      fluxo: fluxoDe(responder('b1'), buscar('b2')),
-      esperado: [{ codigo: 'RESPONDER_FORA_DO_FIM', blocoId: 'b1' }],
+      caso: 'sem responder',
+      fluxo: fluxoDe(...blocosDeTipos('buscar_dados')),
+      esperado: [problema(undefined, 'SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.')],
     },
     {
-      caso: 'g) dois responders no fim',
-      fluxo: fluxoDe(buscar('b1'), responder('b2'), responder('b3')),
-      esperado: [{ codigo: 'RESPONDER_FORA_DO_FIM', blocoId: 'b2' }],
+      caso: 'fluxo sem nenhum bloco',
+      fluxo: fluxoDe(),
+      esperado: [problema(undefined, 'SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.')],
     },
     {
-      caso: 'h) so responder',
-      fluxo: fluxoDe(responder('b1')),
-      esperado: [{ codigo: 'FLUXO_VAZIO', blocoId: undefined }],
+      caso: 'responder fora do fim',
+      fluxo: fluxoDe(...blocosDeTipos('responder', 'buscar_dados')),
+      esperado: [problema('b1', 'RESPONDER_FORA_DO_FIM', MSG_FIM)],
     },
     {
-      caso: 'i) buscar sem ferramenta',
-      fluxo: fluxoDe(bloco('buscar_dados', 'b1'), responder('b2')),
-      esperado: [{ codigo: 'BLOCO_INCOMPLETO', blocoId: 'b1' }],
+      caso: 'dois responders',
+      fluxo: fluxoDe(...blocosDeTipos('responder', 'responder')),
+      esperado: [problema('b1', 'RESPONDER_FORA_DO_FIM', MSG_FIM)],
+    },
+    {
+      caso: 'so responder',
+      fluxo: fluxoDe(...blocosDeTipos('responder')),
+      esperado: [problema(undefined, 'FLUXO_VAZIO', 'Adicione ao menos um bloco antes do Responder.')],
+    },
+    {
+      caso: 'recurso vazio',
+      fluxo: fluxoDe(...comCampos(blocosDeTipos('buscar_dados', 'responder'), 0, { recurso: '' })),
+      esperado: [problema('b1', 'BLOCO_INCOMPLETO', 'Preencha a ferramenta.')],
+    },
+    {
+      caso: 'extra repete campo do bloco',
+      fluxo: fluxoDe(
+        ...comCampos(blocosDeTipos('buscar_dados', 'responder'), 0, {
+          guardarEm: 'x',
+          extra: { save_as: 'x', timeout: 3 },
+        }),
+      ),
+      esperado: [problema('b1', 'EXTRA_REPETE_CAMPO', 'Este bloco tem um campo extra repetido: save_as.')],
+    },
+    {
+      caso: 'extra da informacao repete campo',
+      fluxo: {
+        blocos: blocosDeTipos('buscar_dados', 'responder'),
+        informacoes: [informacao({ tipo: 'string', extra: { type: 'x', help: 'ok' } })],
+      },
+      esperado: [problema(undefined, 'EXTRA_REPETE_CAMPO', 'A informação cor tem um campo extra repetido: type.')],
+    },
+    {
+      caso: 'extra repete campo de escolha',
+      fluxo: fluxoDe(
+        ...comCampos(blocosDeTipos('pedir_escolha', 'responder'), 0, { titulo: 'T', extra: { title: 't' } }),
+      ),
+      esperado: [problema('b1', 'EXTRA_REPETE_CAMPO', 'Este bloco tem um campo extra repetido: title.')],
+    },
+    {
+      caso: 'opcoes simples com rotulo diferente',
+      fluxo: {
+        blocos: blocosDeTipos('buscar_dados', 'responder'),
+        informacoes: [
+          informacao({
+            opcoesSimples: true,
+            opcoes: [
+              { valor: 'a', rotulo: 'a' },
+              { valor: 'b', rotulo: 'B' },
+            ],
+          }),
+        ],
+      },
+      esperado: [
+        problema(
+          undefined,
+          'OPCAO_ROTULO_PERDIDO',
+          'A informação cor tem opções simples com rótulo diferente do valor; o rótulo se perderia.',
+        ),
+      ],
+    },
+    {
+      caso: 'opcoes simples iguais passam',
+      fluxo: {
+        blocos: blocosDeTipos('buscar_dados', 'responder'),
+        informacoes: [informacao({ opcoesSimples: true, opcoes: [{ valor: 'a', rotulo: 'a' }] })],
+      },
+      esperado: [],
     },
   ])('$caso', ({ fluxo, esperado }) => {
-    expect(resumo(fluxo)).toEqual(esperado);
+    expect(validarFluxo(fluxo)).toEqual(esperado);
   });
 
-  it('devolveNivelEMensagemExatos', () => {
-    expect(validarFluxo(fluxoDe(bloco('buscar_dados', 'b1'), responder('b2')))).toEqual([
-      { blocoId: 'b1', codigo: 'BLOCO_INCOMPLETO', nivel: 'erro', mensagem: 'Preencha a ferramenta.' },
-    ]);
-    expect(validarFluxo(fluxoDe(buscar('b1'), gravar('b2'), responder('b3')))).toEqual([
-      {
-        blocoId: 'b2',
-        codigo: 'GRAVAR_SEM_CONFIRMAR',
-        nivel: 'erro',
-        mensagem: 'Coloque um Confirmar antes de gravar no sistema.',
-      },
-    ]);
-    expect(validarFluxo(fluxoDe(buscar('b1')))).toEqual([
-      { codigo: 'SEM_RESPONDER', nivel: 'erro', mensagem: 'O fluxo precisa terminar com um Responder.' },
-    ]);
-    expect(validarFluxo(fluxoDe(responder('b1'), buscar('b2')))[0]).toEqual({
-      blocoId: 'b1',
-      codigo: 'RESPONDER_FORA_DO_FIM',
-      nivel: 'erro',
-      mensagem: 'O Responder precisa ser o último bloco.',
+  it('ignoraExtraQueNaoRepeteChave', () => {
+    const blocos = comCampos(blocosDeTipos('buscar_dados', 'responder'), 0, { extra: { with: 'texto solto' } });
+    const informacoes = [informacao({ extra: { options: [] } })];
+    expect(validarFluxo({ blocos, informacoes })).toEqual([]);
+  });
+
+  it('repeteExtraDeWithQuandoHaCampos', () => {
+    const blocos = comCampos(blocosDeTipos('buscar_dados', 'responder'), 0, {
+      com: [{ campo: 'a', valor: 1 }],
+      extra: { with: 'x' },
     });
-    expect(validarFluxo(fluxoDe(responder('b1')))).toEqual([
-      { codigo: 'FLUXO_VAZIO', nivel: 'erro', mensagem: 'Adicione ao menos um bloco antes do Responder.' },
+    expect(validarFluxo(fluxoDe(...blocos)).map((p) => p.codigo)).toEqual(['EXTRA_REPETE_CAMPO']);
+  });
+
+  it('ordenaProblemasComoOServidor', () => {
+    const blocos = [
+      bloco('gravar_no_sistema', 'b1', { recurso: '', guardarEm: 'x', extra: { save_as: 1 } }),
+      bloco('responder', 'b2', { texto: 't' }),
+      bloco('buscar_dados', 'b3', { recurso: '' }),
+    ];
+    const informacoes = [informacao({ opcoesSimples: true, opcoes: [{ valor: 'a', rotulo: 'A' }] })];
+    expect(validarFluxo({ blocos, informacoes }).map((p) => `${p.blocoId ?? '-'}:${p.codigo}`)).toEqual([
+      'b1:BLOCO_INCOMPLETO',
+      'b1:EXTRA_REPETE_CAMPO',
+      'b3:BLOCO_INCOMPLETO',
+      'b1:GRAVAR_SEM_CONFIRMAR',
+      'b2:RESPONDER_FORA_DO_FIM',
+      '-:OPCAO_ROTULO_PERDIDO',
     ]);
+  });
+
+  it('semResponderVemDepoisDosProblemasDeBloco', () => {
+    const blocos = comCampos(blocosDeTipos('buscar_dados'), 0, { recurso: '' });
+    expect(validarFluxo(fluxoDe(...blocos)).map((p) => p.codigo)).toEqual(['BLOCO_INCOMPLETO', 'SEM_RESPONDER']);
   });
 
   it.each([
-    { tipo: 'pedir_escolha', rotulo: 'onde guardar a escolha' },
-    { tipo: 'perguntar', rotulo: 'as informações perguntadas' },
-    { tipo: 'formulario', rotulo: 'de onde vêm os campos' },
-    { tipo: 'confirmar', rotulo: 'a pergunta de confirmação' },
-    { tipo: 'montar_texto', rotulo: 'a instrução' },
-    { tipo: 'reaproveitar', rotulo: 'as informações reaproveitadas' },
-    { tipo: 'gravar_no_sistema', rotulo: 'a ferramenta' },
-  ] as const)('pedePreenchimentoDe $tipo', ({ tipo, rotulo }) => {
-    const [problema] = validarFluxo(fluxoDe(confirmar('b0'), bloco(tipo, 'b1'), responder('b2')));
-    expect(problema).toMatchObject({ blocoId: 'b1', codigo: 'BLOCO_INCOMPLETO', mensagem: `Preencha ${rotulo}.` });
-  });
-
-  it('pedeAResposta', () => {
-    const [problema] = validarFluxo(fluxoDe(buscar('b1'), bloco('responder', 'b2')));
-    expect(problema).toMatchObject({ blocoId: 'b2', mensagem: 'Preencha a resposta.' });
+    'buscar_dados',
+    'gravar_no_sistema',
+    'pedir_escolha',
+    'perguntar',
+    'formulario',
+    'confirmar',
+    'montar_texto',
+    'reaproveitar',
+    'responder',
+  ] as const)('exigeCampoDe %s', (tipo) => {
+    expect(validarFluxo(fluxoDe(bloco(tipo, 'b1')))).toContainEqual(
+      expect.objectContaining({ blocoId: 'b1', codigo: 'BLOCO_INCOMPLETO' }),
+    );
   });
 
   it('aceitaOFluxoReal', () => {
     expect(validarFluxo(FluxoLidoSchema.parse(fixture).fluxo)).toEqual([]);
+  });
+
+  it('aceitaFluxoComListasNulasDoGo', () => {
+    const lido = FluxoLidoSchema.parse({ fluxo: { blocos: null, informacoes: null }, versao: 'v', problemas: null });
+    expect(lido).toMatchObject({ fluxo: { blocos: [], informacoes: [] }, problemas: [] });
   });
 });
 
