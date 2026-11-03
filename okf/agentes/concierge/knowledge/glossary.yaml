@@ -23,6 +23,11 @@ terms:
     synonyms: [churrasqueira, salão de festas, salão, quadra, piscina, playground, academia]
     definition: Espaço reservável do condomínio. Reservar é escrita (caso de uso Reserva de Área Comum, com data e confirmação); horário de uso é dúvida (FAQ ou regimento).
     labels: [reserva]
+  - id: piscina
+    display_name: Piscina
+    synonyms: [nadar, mergulhar, cair na piscina, banho de piscina, tomar banho de piscina, usar a piscina]
+    definition: 'Área comum de uso livre, sem reserva. Horário de uso é dúvida da FAQ (8h às 22h no exemplo). "Tomar banho" SOZINHO é ambíguo: pode ser a piscina ou o banho no apartamento; responda as duas leituras numa linha (ver routers/desambiguacao.md).'
+    labels: [faq, ambiguo]
   - id: mudanca
     display_name: Mudança
     synonyms: [me mudar, mudança, elevador de serviço, carreto]

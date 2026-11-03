@@ -61,3 +61,22 @@
 - nome: Código de Retirada roteia
   pergunta: me passa o código de retirada
   rota: codigo-retirada
+- nome: tomar banho é dúvida de faq (piscina), não regimento
+  pergunta: que horas eu posso tomar banho?
+  rota: faq
+- nome: contestação não vira transbordo nem nova rota
+  pergunta: e por que nadar e tomar banho não são a mesma coisa?
+  rota: faq
+  nao_contem:
+  - transferido ao atendente
+- nome: serviço sem caso não roteia para o caso parecido
+  pergunta: quero cadastrar um novo morador no meu apartamento
+  rota: self
+  nao_contem:
+  - atualizar os dados
+  - Este atendimento é para
+- nome: curiosidade não transfere
+  pergunta: quem ganhou o jogo ontem?
+  rota: self
+  nao_contem:
+  - transferido ao atendente

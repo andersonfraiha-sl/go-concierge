@@ -1,0 +1,22 @@
+- nome: horário da piscina
+  pergunta: "até que horas a piscina abre?"
+  contem: ["8h", "22h"]
+- nome: tomar banho é ambíguo, responde as duas leituras
+  pergunta: "que horas eu posso tomar banho?"
+  contem: ["piscina", "8h", "22h"]
+  contem_algum: ["apartamento", "unidade", "em casa"]
+  nao_contem: ["não entendi"]
+- nome: nadar é piscina
+  pergunta: "que horas eu posso nadar?"
+  contem: ["8h", "22h"]
+- nome: contestação mantém a resposta que a fonte sustenta
+  pergunta: "e por que nadar e tomar banho não são a mesma coisa nesse caso?"
+  historico:
+    - morador: "que horas eu posso tomar banho?"
+    - concierge: "Na piscina, das 8h às 22h. No apartamento não há horário; só vale o silêncio das 22h às 8h (Art. 10)."
+  contem_algum: ["piscina", "Art. 10"]
+  nao_contem: ["misturei", "não devia", "me desculpe pela confusão", "errei"]
+- nome: dúvida respondida não leva rodapé
+  pergunta: "qual o telefone da administradora?"
+  contem: ["4000-0000"]
+  nao_contem: ["Qualquer coisa, é só chamar"]
