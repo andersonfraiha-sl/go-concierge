@@ -2,6 +2,7 @@ package atende
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -200,6 +201,37 @@ func TestServicoTransbordaQuandoOCondominioDaConversaMuda(t *testing.T) {
 	}
 	if sess.Transbordo == nil || !sess.Transbordo.Ativo || sess.AdministradoraID != "adm-a" {
 		t.Fatalf("deveria transbordar mantendo adm-a: %+v %s", sess.Transbordo, sess.AdministradoraID)
+	}
+}
+
+// Um condomínio que troca de dona no meio da conversa transborda: a conversa e o
+// histórico continuam na administradora de antes, nunca passam para a nova.
+func TestServicoTransbordaQuandoOCondominioTrocaDeDona(t *testing.T) {
+	svc, _, _ := servicoMultiAdministradora(t, escopo.Implantacao{})
+	ctx := context.Background()
+	sess, err := svc.Processar(ctx, mensagemDe(t, "P-1", tenantExemplo, "", "oi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := svc.Mapeamento.Ler(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	condo, _ := m.Condominio("cond-001")
+	visto := condo.Chaves()
+	condo.Administradora = "adm-b"
+	if _, err := svc.Mapeamento.EditarCondominio(ctx, condo, visto); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.condominioDaSessao(ctx, sess, sess.contato()); !errors.Is(err, errCondominioMudou) {
+		t.Fatalf("ações do atendente com a dona nova: err = %v, want errCondominioMudou", err)
+	}
+	sess, err = svc.Processar(ctx, mensagemDe(t, "P-1", tenantExemplo, "", "e agora?"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Transbordo == nil || !sess.Transbordo.Ativo || sess.Administradora() != "adm-a" {
+		t.Fatalf("deveria transbordar mantendo adm-a: %+v %s", sess.Transbordo, sess.Administradora())
 	}
 }
 

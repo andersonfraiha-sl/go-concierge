@@ -1164,6 +1164,9 @@ func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato 
 	if !ok {
 		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s: %w", contato.CondominioID, sess.ID, admin.ErrCondominioDesconhecido)
 	}
+	if condo.Administradora != contato.AdministradoraID {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s mudou de dona: %w", contato.CondominioID, sess.ID, errCondominioMudou)
+	}
 	return m, condo, nil
 }
 
@@ -1200,8 +1203,8 @@ func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entr
 	if err != nil {
 		return admin.Mapeamento{}, admin.Condominio{}, err
 	}
-	if atual := sess.contato(); atual.CondominioID != "" && atual.CondominioID != condo.ID {
-		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("conversa de %s recebeu mensagem de %s: %w", atual.CondominioID, condo.ID, errCondominioMudou)
+	if atual := sess.contato(); atual.CondominioID != "" && (atual.CondominioID != condo.ID || atual.AdministradoraID != condo.Administradora) {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("conversa de %s/%s recebeu mensagem de %s/%s: %w", atual.AdministradoraID, atual.CondominioID, condo.Administradora, condo.ID, errCondominioMudou)
 	}
 	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
 	if err != nil {
