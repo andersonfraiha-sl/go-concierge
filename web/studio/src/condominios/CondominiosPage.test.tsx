@@ -5,32 +5,113 @@ import { renderComProvedores } from '@/test/render';
 import { CondominiosPage } from './CondominiosPage';
 import { construtor, estadoFalso, gestor, rotasBase } from './estadoFalso';
 
-describe('CondominiosPage', () => {
-  it('showsDefaultFirst', async () => {
-    responderCom(rotasBase(construtor));
-    renderComProvedores(<CondominiosPage />);
+/** Vila Verde some; entram um condomínio sem ids de integração e um sem administradora. */
+const estadoComVarios = structuredClone(estadoFalso);
+estadoComVarios.mapeamento.condominios = [
+  {
+    id: 'vila-verde',
+    nome: 'Condomínio Vila Verde',
+    administradora_id: 'adm-exemplo',
+    account: 'acc-1',
+    company_id: 'gruvi-1',
+    tenant: 'atende-1',
+  },
+  {
+    id: 'acores',
+    nome: 'Residencial Açores',
+    administradora_id: 'adm-exemplo',
+    account: 'acc-2',
+    company_id: 'gruvi-2',
+    tenant: '',
+  },
+  {
+    id: 'solar',
+    nome: 'Edifício Solar',
+    administradora_id: '',
+    account: 'acc-3',
+    company_id: 'gruvi-3',
+    tenant: 'atende-3',
+  },
+];
 
-    const cartoes = await screen.findAllByRole('link');
-    expect(cartoes[0]).toHaveTextContent('Padrão (todos)');
-    expect(cartoes[0]).toHaveTextContent('Vale para todo condomínio que não tem decisão própria.');
-    expect(cartoes[1]).toHaveTextContent('Vila Verde');
+const renderComVarios = (eu = construtor) => {
+  responderCom({ ...rotasBase(eu), 'GET /api/admin/estado': () => json(estadoComVarios) });
+  return renderComProvedores(<CondominiosPage />);
+};
+
+describe('CondominiosPage', () => {
+  it('listsCondominiosAsTableWithSkillCount', async () => {
+    renderComVarios();
+
+    const linha = (await screen.findByText('Condomínio Vila Verde')).closest('tr');
+    expect(linha).not.toBeNull();
+    expect(within(linha as HTMLElement).getByText('1 de 2')).toBeInTheDocument();
     expect(screen.getByText('Diga o que o concierge faz em cada condomínio.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Novo condomínio' })).toBeInTheDocument();
   });
 
-  it('gestorRequestsOwnAdministradora', async () => {
-    const urls: string[] = [];
-    responderCom({
-      ...rotasBase(gestor),
-      'GET /api/admin/estado': (req) => {
-        urls.push(req.url);
-        return json(estadoFalso);
-      },
-    });
-    renderComProvedores(<CondominiosPage />);
+  it('pinsDefaultFirst', async () => {
+    renderComVarios();
+    await screen.findByText('Condomínio Vila Verde');
 
-    await screen.findByText('Vila Verde');
-    expect(new URL(urls[0] ?? '').searchParams.get('administradora')).toBe('adm-exemplo');
+    const linhas = screen.getAllByRole('row');
+    expect(linhas[1]).toHaveTextContent('Padrão (todos)');
+    expect(linhas[1]).toHaveTextContent('Vale para todo condomínio que não tem decisão própria.');
+  });
+
+  it('filtersBySearch', async () => {
+    const { user } = renderComVarios();
+    await screen.findByText('Condomínio Vila Verde');
+
+    await user.type(screen.getByRole('textbox', { name: 'Buscar condomínio' }), 'acores');
+
+    expect(screen.getByText('Residencial Açores')).toBeInTheDocument();
+    expect(screen.queryByText('Condomínio Vila Verde')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edifício Solar')).not.toBeInTheDocument();
+    expect(screen.getByText('Padrão (todos)')).toBeInTheDocument();
+  });
+
+  it('filtersByAdministradoraFromQuery', async () => {
+    responderCom(rotasBase(construtor));
+    const { user } = renderComProvedores(<CondominiosPage />, {
+      rota: '/condominios?administradora=adm-exemplo',
+    });
+
+    await screen.findByText('Administradora: Administradora Exemplo');
+    await user.click(screen.getByTestId('CancelIcon'));
+
+    expect(screen.queryByText('Administradora: Administradora Exemplo')).not.toBeInTheDocument();
+  });
+
+  it('flagsMissingIntegrationIds', async () => {
+    renderComVarios();
+
+    const linha = (await screen.findByText('Residencial Açores')).closest('tr');
+    expect(within(linha as HTMLElement).getByText('Faltam ids')).toBeInTheDocument();
+  });
+
+  it('highlightsWithoutAdministradora', async () => {
+    renderComVarios();
+
+    const linha = (await screen.findByText('Edifício Solar')).closest('tr');
+    expect(within(linha as HTMLElement).getByText('Sem administradora')).toBeInTheDocument();
+  });
+
+  it('hidesAdministradoraColumnForGestor', async () => {
+    renderComVarios(gestor);
+    await screen.findByText('Condomínio Vila Verde');
+
+    expect(screen.queryByRole('columnheader', { name: 'Administradora' })).not.toBeInTheDocument();
+  });
+
+  it('opensTabFromQuery', async () => {
+    responderCom(rotasBase(construtor));
+    renderComProvedores(<CondominiosPage />, { rota: '/condominios?aba=administradoras' });
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Nome da administradora' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum condomínio ainda.')).not.toBeInTheDocument();
   });
 
   it('hidesAdministradorasWithoutPermission', async () => {
