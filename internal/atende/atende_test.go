@@ -34,7 +34,7 @@ const eventoExemplo = `{
   }
 }`
 
-func raizDoRepo(t *testing.T) string {
+func raizDoRepo(t testing.TB) string {
 	_, arq, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(arq), "..", "..")
 }
