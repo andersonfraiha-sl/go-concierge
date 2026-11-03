@@ -1,22 +1,12 @@
-import {
-  Box,
-  Button,
-  Card,
-  CardActionArea,
-  CardContent,
-  Link as LinkExterno,
-  Tab,
-  Tabs,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Link as LinkExterno, Tab, Tabs, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { Link } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { usePodeEditarCondominio } from '@/acesso/eu';
-import { EmptyState } from '@/shared/ui/EmptyState';
 import { AdministradorasAba } from './AdministradorasAba';
 import { ComEstado } from './ComEstado';
-import { type Condominio, type Estado, PADRAO, useEstado } from './contratos';
+import { useEstado } from './contratos';
 import { NovoCondominio } from './NovoCondominio';
+import { TabelaDeCondominios } from './TabelaDeCondominios';
 
 type Aba = 'condominios' | 'administradoras';
 
@@ -50,8 +40,23 @@ export function CondominiosPage(): ReactNode {
   const consulta = useEstado();
   const podeCriar = usePodeEditarCondominio('condominios.editar');
   const podeVerAdministradoras = usePodeEditarCondominio('administradoras.editar');
-  const [aba, setAba] = useState<Aba>('condominios');
+  const [params, setParams] = useSearchParams();
   const [criando, setCriando] = useState(false);
+
+  const aba: Aba =
+    podeVerAdministradoras && params.get('aba') === 'administradoras'
+      ? 'administradoras'
+      : 'condominios';
+
+  const trocarAba = (valor: Aba): void =>
+    setParams(
+      (atual) => {
+        const proximos = new URLSearchParams(atual);
+        proximos.set('aba', valor);
+        return proximos;
+      },
+      { replace: true },
+    );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -72,7 +77,7 @@ export function CondominiosPage(): ReactNode {
       </Box>
 
       {podeVerAdministradoras && (
-        <Tabs value={aba} onChange={(_, valor: Aba) => setAba(valor)}>
+        <Tabs value={aba} onChange={(_, valor: Aba) => trocarAba(valor)}>
           <Tab value="condominios" label="Condomínios" />
           <Tab value="administradoras" label="Administradoras" />
         </Tabs>
@@ -82,7 +87,7 @@ export function CondominiosPage(): ReactNode {
         {(estado) => (
           <>
             {aba === 'condominios' ? (
-              <ListaDeCondominios estado={estado} />
+              <TabelaDeCondominios estado={estado} />
             ) : (
               <AdministradorasAba
                 administradoras={estado.administradoras}
@@ -95,57 +100,5 @@ export function CondominiosPage(): ReactNode {
         )}
       </ComEstado>
     </Box>
-  );
-}
-
-function ListaDeCondominios({ estado }: { estado: Estado }): ReactNode {
-  const { condominios } = estado.mapeamento;
-  const donaDe = (condominio: Condominio): string =>
-    estado.administradoras.find((a) => a.id === condominio.administradora_id)?.nome ??
-    'Sem administradora';
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-        }}
-      >
-        <CartaoDeCondominio
-          id={PADRAO}
-          titulo="Padrão (todos)"
-          legenda="Vale para todo condomínio que não tem decisão própria."
-          destaque
-        />
-        {condominios.map((c) => (
-          <CartaoDeCondominio key={c.id} id={c.id} titulo={c.nome} legenda={donaDe(c)} />
-        ))}
-      </Box>
-      {condominios.length === 0 && <EmptyState frase="Nenhum condomínio ainda." />}
-    </Box>
-  );
-}
-
-type CartaoProps = { id: string; titulo: string; legenda: string; destaque?: boolean };
-
-function CartaoDeCondominio({ id, titulo, legenda, destaque = false }: CartaoProps): ReactNode {
-  return (
-    <Card
-      variant="outlined"
-      sx={{ borderLeft: destaque ? 4 : 1, borderLeftColor: destaque ? 'primary.main' : 'divider' }}
-    >
-      <CardActionArea component={Link} to={`/condominios/${encodeURIComponent(id)}`}>
-        <CardContent>
-          <Typography variant="subtitle1" component="h2">
-            {titulo}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {legenda}
-          </Typography>
-        </CardContent>
-      </CardActionArea>
-    </Card>
   );
 }
