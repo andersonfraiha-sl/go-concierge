@@ -3,11 +3,14 @@ import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import { Box, Button, IconButton, Paper, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { Link } from 'react-router';
 import { z } from 'zod';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { InlineTitle } from '@/shared/ui/InlineTitle';
 import { paraIdentificador } from '@/skills/contratos';
+import { FONTE_MONO } from '@/theme/tokens';
 import {
   type Administradora,
   type Condominio,
@@ -29,10 +32,17 @@ const esquemaDaNova = (administradoras: Administradora[]) =>
       ),
   });
 
+/** Até 1, singular; a partir de 2, plural. */
+function contagemDeCondominios(quantidade: number): string {
+  if (quantidade === 0) return 'Nenhum condomínio';
+  if (quantidade === 1) return '1 condomínio';
+  return `${quantidade} condomínios`;
+}
+
 export function AdministradorasAba({ administradoras, condominios }: Props): ReactNode {
   const { executar, gravando } = useExecutar();
-  const temCondominios = (a: Administradora): boolean =>
-    condominios.some((c) => c.administradora_id === a.id);
+  const condominiosDe = (a: Administradora): Condominio[] =>
+    condominios.filter((c) => c.administradora_id === a.id);
   const [aRemover, setARemover] = useState<Administradora | null>(null);
   const { control, handleSubmit, reset } = useForm({
     resolver: zodResolver(esquemaDaNova(administradoras)),
@@ -56,6 +66,13 @@ export function AdministradorasAba({ administradoras, condominios }: Props): Rea
     );
   }
 
+  async function renomear(administradora: Administradora, nome: string): Promise<void> {
+    await executar(
+      (escopo) => salvarAdministradora({ id: administradora.id, nome }, escopo),
+      'Administradora renomeada.',
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box
@@ -73,35 +90,60 @@ export function AdministradorasAba({ administradoras, condominios }: Props): Rea
         <EmptyState frase="Nenhuma administradora ainda." />
       ) : (
         <Paper variant="outlined" component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
-          {administradoras.map((a) => (
-            <Box
-              component="li"
-              key={a.id}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                px: 2,
-                py: 1,
-                borderBottom: 1,
-                borderColor: 'divider',
-                '&:last-child': { borderBottom: 0 },
-              }}
-            >
-              <Typography sx={{ flex: 1 }}>{a.nome}</Typography>
-              {temCondominios(a) && (
-                <Typography variant="caption" color="text.secondary">
-                  Mova os condomínios dela antes de remover.
-                </Typography>
-              )}
-              <IconButton
-                aria-label={`Remover ${a.nome}`}
-                disabled={gravando || temCondominios(a)}
-                onClick={() => setARemover(a)}
+          {administradoras.map((a) => {
+            const doCondominio = condominiosDe(a);
+            return (
+              <Box
+                component="li"
+                key={a.id}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  px: 2,
+                  py: 1,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '&:last-child': { borderBottom: 0 },
+                }}
               >
-                <DeleteOutlined />
-              </IconButton>
-            </Box>
-          ))}
+                <InlineTitle
+                  valor={a.nome}
+                  editavel={!gravando}
+                  rotulo="nome da administradora"
+                  onMudar={(nome) => void renomear(a, nome)}
+                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontFamily: FONTE_MONO }}
+                >
+                  {a.id}
+                </Typography>
+                <Box sx={{ flex: 1 }} />
+                <Typography
+                  component={Link}
+                  to={`/condominios?aba=condominios&administradora=${encodeURIComponent(a.id)}`}
+                  variant="body2"
+                  color="primary"
+                >
+                  {contagemDeCondominios(doCondominio.length)}
+                </Typography>
+                {doCondominio.length > 0 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Mova os condomínios dela antes de remover.
+                  </Typography>
+                )}
+                <IconButton
+                  aria-label={`Remover ${a.nome}`}
+                  disabled={gravando || doCondominio.length > 0}
+                  onClick={() => setARemover(a)}
+                >
+                  <DeleteOutlined />
+                </IconButton>
+              </Box>
+            );
+          })}
         </Paper>
       )}
 
