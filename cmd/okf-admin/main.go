@@ -57,6 +57,7 @@ type servidor struct {
 	gruviBFF            string
 	gruviCompany        string
 	webhookToken        string
+	atendeAPISecret     string
 	replyURL            string
 	replyEmulada        bool
 	atendeBaseURL       string
@@ -136,6 +137,7 @@ func main() {
 	s.gruvi = gruvi.New(os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_COMPANY_ID"), os.Getenv("MCP_B2C_MOBILE"), tokenGruvi)
 	s.gruviOK, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.BFFURL, s.gruvi.CompanyID
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
+	s.atendeAPISecret = os.Getenv("ATENDE_API_SECRET")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
 	s.atendeBaseURL = os.Getenv("ATENDE_API_BASE_URL")
 	s.atendeAPIKey = os.Getenv("ATENDE_API_KEY")

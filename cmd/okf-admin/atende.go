@@ -118,6 +118,12 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, 400, err)
 		return
 	}
+	if !emulado {
+		if err := atende.VerificarAssinatura(s.atendeAPISecret, r.Header.Get("X-Atende-Signature"), raw); err != nil {
+			writeErr(w, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+	}
 	ev, err := atende.Parse(raw)
 	if err != nil {
 		writeErr(w, 400, err)
@@ -189,7 +195,7 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 		"account":                 s.account,
 		"gruvi":                   map[string]any{"configurado": s.gruviOK, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
 		"webhook_token":           s.webhookToken != "",
-		"hmac_verificacao_ativa":  false,
+		"hmac_verificacao_ativa":  true,
 		"atende_real_configurado": s.atendeTenant != "" && s.atendeTelefoneCanal != "" && s.atendeBaseURL != "" && s.atendeAPIKey != "",
 		"atende_api_base_url":     s.atendeBaseURL,
 		"webhook_real":            "/webhook/atende",
