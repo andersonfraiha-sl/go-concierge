@@ -25,6 +25,15 @@ const ABA_PADRAO: AbaId = 'quando-usar';
 
 const abaDe = (valor: string | null): AbaId => ABAS.find((aba) => aba.id === valor)?.id ?? ABA_PADRAO;
 
+const aparadasSemVazias = (itens: string[]): string[] => itens.map((i) => i.trim()).filter((i) => i !== '');
+
+/** Frase ou palavra em branco é rascunho na tela, não vai para o servidor. */
+const semVazios = (textos: Textos): Textos => ({
+  ...textos,
+  palavrasChave: aparadasSemVazias(textos.palavrasChave),
+  frasesDeExemplo: aparadasSemVazias(textos.frasesDeExemplo),
+});
+
 export function SkillEditorPage(): ReactNode {
   const { nome = '' } = useParams();
   const lidos = useTextos(nome);
@@ -60,7 +69,7 @@ function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactN
   const { estado, tentarDeNovo } = useAutosave({
     valor: textos,
     salvar: async (valor) => {
-      const gravado = await salvarTextos(nome, { versao: versao.current, textos: valor });
+      const gravado = await salvarTextos(nome, { versao: versao.current, textos: semVazios(valor) });
       versao.current = gravado.versao;
     },
   });

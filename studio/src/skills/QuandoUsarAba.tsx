@@ -1,6 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import { Box, Button, Chip, IconButton, TextField } from '@mui/material';
+import { Box, Button, Chip, IconButton, TextField, Typography } from '@mui/material';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import type { Textos } from './contratos';
@@ -65,6 +65,11 @@ function PalavrasChave({
 
   return (
     <SectionCard titulo="Palavras-chave" ajuda="Palavras que ajudam a reconhecer o pedido.">
+      {!editavel && palavras.length === 0 && (
+        <Typography variant="body2" color="text.secondary">
+          Nenhuma palavra-chave.
+        </Typography>
+      )}
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         {palavras.map((palavra) => (
           <Chip

@@ -2,7 +2,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { podeNoCatalogo, useEu } from '@/acesso/eu';
+import { usePodeEditar } from '@/acesso/eu';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
@@ -22,7 +22,6 @@ const caminhoDoEditor = (nome: string): string => `/skills/${encodeURIComponent(
 
 export function SkillsPage(): ReactNode {
   const skills = useSkills();
-  const { data: eu } = useEu();
   const navegar = useNavigate();
   const { mostrar } = useSnackbar();
   const criar = useCriarSkill();
@@ -30,8 +29,8 @@ export function SkillsPage(): ReactNode {
   const excluir = useExcluirSkill();
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
 
-  const podeCriar = eu !== undefined && podeNoCatalogo(eu, 'skills.criar');
-  const podeExcluir = eu !== undefined && podeNoCatalogo(eu, 'skills.excluir');
+  const podeCriar = usePodeEditar('skills.criar');
+  const podeExcluir = usePodeEditar('skills.excluir');
   const fechar = () => setDialogo(null);
 
   const criarEAbrir = async (nova: NovaSkill) => {
@@ -110,14 +109,16 @@ export function SkillsPage(): ReactNode {
           onCancelar={fechar}
         />
       )}
-      <ConfirmDialog
-        aberto={dialogo?.tipo === 'excluir'}
-        titulo="Excluir skill"
-        texto={`Excluir "${dialogo?.tipo === 'excluir' ? dialogo.skill.titulo : ''}"? O fluxo e as regras somem junto.`}
-        confirmar="Excluir"
-        onConfirmar={() => dialogo?.tipo === 'excluir' && void excluirSkill(dialogo.skill)}
-        onCancelar={fechar}
-      />
+      {dialogo?.tipo === 'excluir' && (
+        <ConfirmDialog
+          aberto
+          titulo="Excluir skill"
+          texto={`Excluir "${dialogo.skill.titulo}"? O fluxo e as regras somem junto.`}
+          confirmar="Excluir"
+          onConfirmar={() => void excluirSkill(dialogo.skill)}
+          onCancelar={fechar}
+        />
+      )}
     </Box>
   );
 }

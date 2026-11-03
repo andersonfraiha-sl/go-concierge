@@ -90,6 +90,24 @@ describe('SkillEditorPage', () => {
     ]);
   });
 
+  it('dropsBlankPhrasesAndKeywordsBeforeSaving', async () => {
+    const corpos: unknown[] = [];
+    responderCom(rotasDoEditor(construtor, corpos));
+    const { user } = montar();
+    await user.click(await screen.findByRole('button', { name: 'Adicionar frase' }));
+    await user.type(screen.getByRole('textbox', { name: 'Quando usar' }), '!');
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    expect(corpos).toEqual([
+      { versao: 'v1', textos: { ...lidos().textos, quandoUsar: 'Quando o morador quer mudar.!' } },
+    ]);
+  });
+
+  it('showsNoKeywordsMessageWhenReadOnly', async () => {
+    responderCom(rotasDoEditor(gestor, [], { ...lidos(), textos: { ...lidos().textos, palavrasChave: [] } }));
+    montar();
+    expect(await screen.findByText('Nenhuma palavra-chave.')).toBeInTheDocument();
+  });
+
   it('hidesExamplesWithoutFlow', async () => {
     responderCom(rotasDoEditor(construtor, [], lidos(false)));
     montar();

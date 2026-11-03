@@ -168,3 +168,25 @@ describe('SkillsPage', () => {
     expect(screen.queryByRole('button', { name: /Excluir/ })).not.toBeInTheDocument();
   });
 });
+
+describe('SkillsPage em tela estreita', () => {
+  it('narrowScreenHidesStructureButtons', async () => {
+    const original = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({ ...original(query), matches: true }),
+    });
+    try {
+      responderCom({ 'GET /api/eu': () => json(construtor), 'GET /api/skills': () => lista([faq]) });
+      montar();
+      await screen.findByRole('article', { name: 'Perguntas frequentes' });
+      expect(screen.getByRole('button', { name: 'Abrir Perguntas frequentes' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Nova skill' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Duplicar/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Excluir/ })).not.toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original });
+    }
+  });
+});
