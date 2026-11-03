@@ -23,7 +23,7 @@ describe('CondominioPage', () => {
       await screen.findByText('Vale para todas as administradoras; só a Superlógica muda.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
-    expect(screen.getByRole('textbox', { name: 'Para todas as skills' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Orientações gerais' })).toBeDisabled();
   });
 
   describe('em tela estreita', () => {
@@ -57,7 +57,7 @@ describe('CondominioPage', () => {
       expect(
         await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
       ).toBeDisabled();
-      expect(screen.getByRole('textbox', { name: 'Para todas as skills' })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: 'Orientações gerais' })).toBeDisabled();
       expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
     });
   });

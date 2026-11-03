@@ -1,83 +1,76 @@
-import { Box, TextField } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
-import { useValoresDoFormulario } from '@/shared/autosave/useValoresDoFormulario';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   type Estado,
-  type Orientacao,
+  PADRAO,
   salvarOrientacao,
   useAplicarMapeamento,
   useEscopo,
 } from './contratos';
 
-type Props = {
-  estado: Estado;
-  condominio: string;
-  titulos: ReadonlyMap<string, string>;
-  editavel: boolean;
-};
+type Props = { estado: Estado; condominio: string; editavel: boolean };
 
-const SEM_ORIENTACAO: Orientacao = { geral: '', por_caso: {} };
+const AJUDA =
+  'Escreva como você explicaria a um atendente novo: horários, nomes, regras locais, o que não fazer. O concierge lê isso em toda conversa deste condomínio.';
+const PLACEHOLDER =
+  'Ex.: A piscina fecha às 22h. O síndico é o sr. Paulo (não passe o telefone dele). Não aceitamos mudança aos domingos. Entregadores só até as 21h.';
 
-const semTextosVazios = (porCaso: Record<string, string>): Record<string, string> =>
-  Object.fromEntries(Object.entries(porCaso).filter(([, texto]) => texto.trim() !== ''));
-
-export function OrientacoesSecao({ estado, condominio, titulos, editavel }: Props): ReactNode {
+export function OrientacoesSecao({ estado, condominio, editavel }: Props): ReactNode {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
-  const { control } = useForm<Orientacao>({
-    defaultValues: estado.mapeamento.orientacoes[condominio] ?? SEM_ORIENTACAO,
+  const { control } = useForm<{ geral: string }>({
+    defaultValues: { geral: estado.mapeamento.orientacoes[condominio]?.geral ?? '' },
   });
 
   const { estado: salvamento, tentarDeNovo } = useAutosave({
-    valor: useValoresDoFormulario(control),
-    salvar: async ({ geral, por_caso }) => {
+    valor: useWatch({ control, name: 'geral' }),
+    salvar: async (geral) => {
       aplicar(
-        await salvarOrientacao({ condominio, geral, por_caso: semTextosVazios(por_caso) }, escopo),
+        await salvarOrientacao(
+          {
+            condominio,
+            geral,
+            por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
+          },
+          escopo,
+        ),
       );
     },
   });
 
+  const orientacaoDoPadrao =
+    condominio === PADRAO ? '' : (estado.mapeamento.orientacoes[PADRAO]?.geral ?? '').trim();
+
   return (
     <SectionCard
-      titulo="Orientações"
-      ajuda="O que o concierge precisa saber deste condomínio."
+      titulo="Orientações gerais"
+      ajuda={AJUDA}
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <CampoTexto
-          control={control}
-          name="geral"
-          label="Para todas as skills"
-          multiline
-          minRows={3}
-          disabled={!editavel}
-        />
-        {/* Um campo só para o mapa: nome de skill com ponto viraria caminho aninhado no formulário. */}
-        <Controller
-          control={control}
-          name="por_caso"
-          render={({ field }) => (
-            <>
-              {estado.casos.map((caso) => (
-                <TextField
-                  key={caso.nome}
-                  label={titulos.get(caso.nome) ?? caso.titulo}
-                  multiline
-                  minRows={2}
-                  disabled={!editavel}
-                  value={field.value[caso.nome] ?? ''}
-                  onChange={(e) => field.onChange({ ...field.value, [caso.nome]: e.target.value })}
-                />
-              ))}
-            </>
-          )}
-        />
-      </Box>
+      <CampoTexto
+        control={control}
+        name="geral"
+        label="Orientações gerais"
+        multiline
+        minRows={4}
+        placeholder={PLACEHOLDER}
+        disabled={!editavel}
+      />
+      {orientacaoDoPadrao !== '' && (
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            Também vale o do Padrão:
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {orientacaoDoPadrao}
+          </Typography>
+        </Box>
+      )}
     </SectionCard>
   );
 }
