@@ -8,6 +8,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Link as LinkExterno,
   Tab,
   Tabs,
   TextField,
@@ -26,6 +27,28 @@ import { PADRAO, salvarCondominio, useEscopo, useEstado, type Condominio, type E
 import { useExecutar } from './useExecutar';
 
 type Aba = 'condominios' | 'administradoras';
+
+// Temporário: o que o Studio ainda não faz fica nas telas antigas (fora do SPA).
+const TELAS_ANTIGAS = [
+  { rotulo: 'Skills × condomínios', destino: '/admin' },
+  { rotulo: 'Renomear administradora', destino: '/backdoor/administradoras' },
+  { rotulo: 'Definições livres', destino: '/backdoor/payloads' },
+] as const;
+
+function TelasAntigas(): ReactNode {
+  return (
+    <Box component="nav" aria-label="Tela antiga" sx={{ display: 'flex', gap: 1.5, typography: 'caption' }}>
+      <Typography variant="caption" color="text.secondary">
+        Tela antiga:
+      </Typography>
+      {TELAS_ANTIGAS.map((tela) => (
+        <LinkExterno key={tela.destino} href={tela.destino} variant="caption">
+          {tela.rotulo}
+        </LinkExterno>
+      ))}
+    </Box>
+  );
+}
 
 export function CondominiosPage(): ReactNode {
   const consulta = useEstado();
@@ -68,6 +91,7 @@ export function CondominiosPage(): ReactNode {
               <AdministradorasAba administradoras={estado.administradoras} condominios={estado.mapeamento.condominios} />
             )}
             <NovoCondominio aberto={criando} estado={estado} onFechar={() => setCriando(false)} />
+            {podeVerAdministradoras && <TelasAntigas />}
           </>
         )}
       </ComEstado>

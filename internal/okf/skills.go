@@ -484,7 +484,7 @@ func (c *Catalogo) ExcluirSkill(rel string) error {
 	if _, err := c.resolverSkill(rel); err != nil {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
-	if _, err := c.ExcluirAgente(rel); err != nil {
+	if _, err := c.excluirAgente(rel); err != nil {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
 	return nil

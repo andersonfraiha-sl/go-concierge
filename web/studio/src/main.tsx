@@ -1,11 +1,15 @@
-import '@fontsource/lato/400.css';
-import '@fontsource/lato/700.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/plus-jakarta-sans/500.css';
+import '@fontsource/plus-jakarta-sans/600.css';
+import '@fontsource/plus-jakarta-sans/700.css';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
-import { criarRoteador } from '@/app/router';
+import { criarRotas } from '@/app/router';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
 import { criarTema } from '@/theme/theme';
 
@@ -18,7 +22,7 @@ createRoot(raiz).render(
       <ThemeProvider theme={criarTema()}>
         <CssBaseline />
         <SnackbarProvider>
-          <RouterProvider router={criarRoteador()} />
+          <RouterProvider router={criarRotas()} />
         </SnackbarProvider>
       </ThemeProvider>
     </QueryClientProvider>

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
@@ -40,6 +40,18 @@ describe('CondominiosPage', () => {
     await screen.findByText('Vila Verde');
     expect(screen.queryByRole('tab', { name: 'Administradoras' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Novo condomínio' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Tela antiga' })).not.toBeInTheDocument();
+  });
+
+  it('linksLegacyScreensForSuperlogica', async () => {
+    responderCom(rotasBase(construtor));
+    renderComProvedores(<CondominiosPage />);
+
+    const telas = await screen.findByRole('navigation', { name: 'Tela antiga' });
+    const destinos = within(telas)
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+    expect(destinos).toEqual(['/admin', '/backdoor/administradoras', '/backdoor/payloads']);
   });
 
   it('removesAdministradoraAfterConfirmation', async () => {

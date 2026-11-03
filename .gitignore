@@ -11,6 +11,7 @@ mcp/.env
 mcp/node_modules/
 mcp/**/session-*.json
 mcp/**/.session-*.json
-studio/node_modules/
-web/studio/dist/
-studio/*.tsbuildinfo
+web/studio/node_modules/
+web/studio/dist/*
+!web/studio/dist/.gitkeep
+web/studio/*.tsbuildinfo

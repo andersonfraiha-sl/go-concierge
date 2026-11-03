@@ -329,8 +329,9 @@ func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string
 	return []string{fmt.Sprintf("agent.yaml: recursos %s %s", map[bool]string{true: "+=", false: "-="}[ligar], nome)}, nil
 }
 
-// ExcluirAgente apaga a pasta (com os subagentes) e tira a rota do pai.
-func (c *Catalogo) ExcluirAgente(agenteRel string) ([]string, error) {
+// excluirAgente apaga a pasta (com os subagentes) e tira a rota do pai. Não trava o
+// catálogo: quem chama é ExcluirSkill, que segura c.mu.
+func (c *Catalogo) excluirAgente(agenteRel string) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err
@@ -350,75 +351,6 @@ func (c *Catalogo) ExcluirAgente(agenteRel string) ([]string, error) {
 		}
 	}
 	return mudancas, nil
-}
-
-// Mover leva o agente para dentro de outro (destinoRel) ou para a raiz (""),
-// e acerta as rotas dos dois pais. Com clonar=true, copia em vez de mover.
-func (c *Catalogo) Mover(origemRel, destinoRel string, clonar bool) (string, []string, error) {
-	origem, err := c.ResolveAgente(origemRel)
-	if err != nil {
-		return "", nil, err
-	}
-	if !IsAgent(origem) {
-		return "", nil, fmt.Errorf("agente não existe: %s", origemRel)
-	}
-	destinoBase := filepath.Join(c.Root, DirAgentes)
-	paiNovo := ""
-	if destinoRel != "" {
-		paiNovo, err = c.ResolveAgente(destinoRel)
-		if err != nil {
-			return "", nil, err
-		}
-		if !IsAgent(paiNovo) {
-			return "", nil, fmt.Errorf("destino não é um agente: %s", destinoRel)
-		}
-		destinoBase = filepath.Join(paiNovo, DirAgentes)
-	}
-	if dentro(origem, destinoBase) {
-		return "", nil, errors.New("não dá pra mover um agente pra dentro dele mesmo")
-	}
-	if filepath.Dir(origem) == destinoBase && !clonar {
-		return "", nil, errors.New("o agente já está nesse lugar")
-	}
-	nome := filepath.Base(origem)
-	if clonar {
-		if dirExists(filepath.Join(destinoBase, nome)) {
-			for n := 2; ; n++ {
-				cand := fmt.Sprintf("%s-%d", nome, n)
-				if !dirExists(filepath.Join(destinoBase, cand)) {
-					nome = cand
-					break
-				}
-			}
-		}
-	} else if dirExists(filepath.Join(destinoBase, nome)) {
-		return "", nil, fmt.Errorf("já existe um agente %q no destino", nome)
-	}
-	alvo := filepath.Join(destinoBase, nome)
-	if err := os.MkdirAll(destinoBase, 0o755); err != nil {
-		return "", nil, err
-	}
-	paiAntigo := Pai(origem)
-	if clonar {
-		if err := copiarPasta(origem, alvo); err != nil {
-			return "", nil, err
-		}
-		if nome != filepath.Base(origem) {
-			if cfg, err := lerConfig(alvo); err == nil {
-				cfg["nome"] = nome
-				_ = gravarConfig(alvo, cfg)
-			}
-		}
-		paiAntigo = ""
-	} else if err := os.Rename(origem, alvo); err != nil {
-		return "", nil, err
-	}
-	mudancas, err := SincronizarRotas(paiAntigo, paiNovo, alvo, nome)
-	if err != nil {
-		return "", nil, err
-	}
-	rel, _ := filepath.Rel(c.Root, alvo)
-	return filepath.ToSlash(rel), mudancas, nil
 }
 
 var ignorarNaCopia = map[string]bool{".rag": true, "__pycache__": true, "var": true, ".git": true}

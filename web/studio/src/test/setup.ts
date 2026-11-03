@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { falharSeHouveRotaAusente } from './fetchFalso';
+
+// O primeiro render do React Flow passa de 1 s com a suíte inteira em paralelo.
+configure({ asyncUtilTimeout: 3000 });
 
 class ResizeObserverFalso {
   observe(): void {}
