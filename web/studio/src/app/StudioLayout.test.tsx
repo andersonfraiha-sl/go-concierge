@@ -50,4 +50,20 @@ describe('StudioLayout', () => {
     expect(screen.getByRole('button', { name: 'Expandir menu' })).toBeInTheDocument();
     expect(localStorage.getItem('studio.menuRecolhido')).toBe('true');
   });
+
+  it('placesCopilotLeftOfContent', async () => {
+    localStorage.setItem('studio.copilotoAberto', 'true');
+    responderCom({
+      'GET /api/eu': () => json(eu),
+      'GET /api/copiloto/estado': () => json({ disponivel: true }),
+    });
+
+    renderComProvedores(<StudioLayout />);
+
+    const painel = await screen.findByRole('complementary', { name: 'Copiloto' });
+    const conteudo = screen.getByRole('main');
+    const menu = screen.getByRole('navigation', { name: 'Menu principal' });
+    expect(menu.compareDocumentPosition(painel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(painel.compareDocumentPosition(conteudo)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });

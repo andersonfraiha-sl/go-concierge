@@ -1,6 +1,8 @@
 import { Box } from '@mui/material';
 import { useState } from 'react';
 import { Outlet } from 'react-router';
+import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
+import { PainelDoCopiloto } from '@/copiloto/PainelDoCopiloto';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -16,16 +18,18 @@ export function StudioLayout() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Topbar />
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />
-        {/* Lugar do painel do Copiloto, montado pela Task 25. */}
-        <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
-          <Outlet />
+    <CopilotoProvider>
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Topbar />
+        <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />
+          <PainelDoCopiloto />
+          <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
+            <Outlet />
+          </Box>
         </Box>
       </Box>
-    </Box>
+    </CopilotoProvider>
   );
 }
 
