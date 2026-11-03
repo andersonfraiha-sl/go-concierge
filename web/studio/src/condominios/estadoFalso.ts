@@ -29,8 +29,8 @@ export const estadoFalso = {
         nome: 'Vila Verde',
         administradora_id: 'adm-exemplo',
         account: 'acc-1',
-        company_id: 'gruvi-1',
-        tenant: 'atende-1',
+        company_id: '100',
+        tenant: 'aaaaaaaaaaaaaaaaaaaaaaaa',
       },
     ],
     habilitacoes: {
