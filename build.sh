@@ -18,7 +18,7 @@ GO="MSYS_NO_PATHCONV=1 docker run --rm $DOCKER_DO_HOST -v $PWD:/src -w /src -v s
 
 case "${1:-}" in
   --test)
-    eval "$GO" sh -c "'gofmt -l . && go vet ./... && go test ./...'"
+    eval "$GO" sh -c "'gofmt -l . && go vet ./... && go test -p 1 ./...'"
     ;;
   --run)
     docker compose up -d --wait postgres
@@ -30,7 +30,7 @@ case "${1:-}" in
     exec ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
     ;;
   *)
-    eval "$GO" sh -c "'gofmt -w . && go mod tidy && go vet ./... && go test ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin.exe ./cmd/okf-admin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run.exe ./cmd/okf-run && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin ./cmd/okf-admin && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run ./cmd/okf-run'"
+    eval "$GO" sh -c "'gofmt -w . && go mod tidy && go vet ./... && go test -p 1 ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin.exe ./cmd/okf-admin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run.exe ./cmd/okf-run && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-admin ./cmd/okf-admin && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags=\"-s -w\" -o bin/okf-run ./cmd/okf-run'"
     echo "binários em bin/: okf-admin e okf-run (.exe Windows e Linux)"
     ;;
 esac
