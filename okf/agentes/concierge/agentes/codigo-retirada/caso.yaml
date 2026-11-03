@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (gruvi/71_codigo_retirada.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: codigo_retirada
 name: Código de Retirada
+summary: Passa o código para retirar uma encomenda na portaria.
 visibility: private
 icon: key-round
 description: >

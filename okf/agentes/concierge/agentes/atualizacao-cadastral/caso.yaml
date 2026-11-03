@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (_default/40_atualizacao_cadastral.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: atualizacao_cadastral
 name: Atualização Cadastral
+summary: Atualiza e-mail, veículo e pets da unidade.
 visibility: private
 icon: file-pen-line
 description: >
