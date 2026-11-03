@@ -48,6 +48,8 @@ type casoDeUso struct {
 	ID        string   `json:"id"`   // id do caso.yaml, se houver
 	Titulo    string   `json:"titulo"`
 	Descricao string   `json:"descricao"`
+	Resumo    string   `json:"resumo"` // caso: deriva de summary/description; sem caso: agent.yaml resumo
+	Icone     string   `json:"icone"`  // caso.icon; sem caso, vazio
 	Escrita   bool     `json:"escrita"`
 	Tipo      string   `json:"tipo"`
 	Recursos  []string `json:"recursos"` // o que o caso usa (agent.yaml e caso.yaml)
@@ -78,6 +80,9 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 			continue
 		}
 		c := casoDeUso{Nome: sub.Nome, Titulo: sub.Nome, Descricao: sub.Descricao, Tipo: sub.Tipo, Recursos: []string{}}
+		if resumo, ok := sub.Config["resumo"].(string); ok {
+			c.Resumo = resumo
+		}
 		visto := map[string]bool{}
 		for _, r := range sub.Recursos {
 			if !visto[r] {
@@ -93,6 +98,8 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 			if d := strings.TrimSpace(sub.Caso.Description); d != "" {
 				c.Descricao = d // a descrição do caso fala com a administradora; a do agente é critério de rota
 			}
+			c.Resumo = okf.ResumoDe(sub.Caso.Summary, sub.Caso.Description)
+			c.Icone = sub.Caso.Icon
 			for _, r := range sub.Caso.Recursos {
 				if reg[r].Write {
 					c.Escrita = true

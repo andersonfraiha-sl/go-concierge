@@ -186,6 +186,16 @@ func TestStudioAPI(t *testing.T) {
 			},
 		},
 		{
+			nome: "recusa visibilidade invalida",
+			pedido: pedido{metodo: "PUT", caminho: skillMudanca + "/textos", corpo: func(t *testing.T, h http.Handler) string {
+				lidos := lerTextos(t, h)
+				lidos.Textos.Visibilidade = "todos"
+				return corpoJSON(t, lidos)
+			}},
+			querStatus: 422,
+			conferir:   exigirErroCom("VISIBILIDADE_INVALIDA", "Escolha quem pode usar a skill."),
+		},
+		{
 			nome: "recusa textos sem titulo",
 			pedido: pedido{metodo: "PUT", caminho: skillMudanca + "/textos", corpo: func(t *testing.T, h http.Handler) string {
 				lidos := lerTextos(t, h)
@@ -334,6 +344,93 @@ func TestStudioAPI(t *testing.T) {
 	}
 }
 
+func TestSkillsReaisTemResumo(t *testing.T) {
+	h := handlerDeTeste(t)
+	var corpo skillsDoAssistente
+	lerJSON(t, h, "/api/skills", &corpo)
+	for _, skill := range corpo.Skills {
+		runas := len([]rune(skill.Resumo))
+		if skill.Resumo == "" || runas > okf.LimiteDoResumo {
+			t.Errorf("%s: resumo = %q (%d runas)", skill.Nome, skill.Resumo, runas)
+		}
+		if skill.Resumo == skill.Descricao {
+			t.Errorf("%s: resumo igual à descrição", skill.Nome)
+		}
+	}
+}
+
+func TestSkillSemCasoSemResumoFicaVazio(t *testing.T) {
+	h := handlerDeTesteComAjuste(t, func(raiz string) {
+		apagarLinha(t, filepath.Join(raiz, "agentes/concierge/agentes/regimento/agent.yaml"), "resumo:")
+	})
+	var corpo skillsDoAssistente
+	lerJSON(t, h, "/api/skills", &corpo)
+	skill, ok := skillPorNome(corpo, "regimento")
+	if !ok {
+		t.Fatal("regimento não apareceu em /api/skills")
+	}
+	if skill.Resumo != "" {
+		t.Errorf("resumo = %q, quer vazio", skill.Resumo)
+	}
+}
+
+func TestCasoSemSummaryDerivaResumo(t *testing.T) {
+	h := handlerDeTesteComAjuste(t, func(raiz string) {
+		apagarLinha(t, filepath.Join(raiz, "agentes/concierge/agentes/listar-unidades/caso.yaml"), "summary:")
+	})
+	var corpo skillsDoAssistente
+	lerJSON(t, h, "/api/skills", &corpo)
+	skill, ok := skillPorNome(corpo, "listar-unidades")
+	if !ok {
+		t.Fatal("listar-unidades não apareceu em /api/skills")
+	}
+	quer := "Mostra as unidades (apartamentos/casas) vinculadas ao cadastro de quem pergunta."
+	if skill.Resumo != quer {
+		t.Errorf("resumo = %q, quer %q", skill.Resumo, quer)
+	}
+}
+
+func TestSkillsTrazemIcone(t *testing.T) {
+	h := handlerDeTeste(t)
+	var corpo skillsDoAssistente
+	lerJSON(t, h, "/api/skills", &corpo)
+	mudanca, ok := skillPorNome(corpo, "agendar-mudanca")
+	if !ok || mudanca.Icone != "truck" {
+		t.Errorf("agendar-mudanca.icone = %q", mudanca.Icone)
+	}
+	faq, ok := skillPorNome(corpo, "faq")
+	if !ok || faq.Icone != "" {
+		t.Errorf("faq.icone = %q", faq.Icone)
+	}
+}
+
+func skillPorNome(corpo skillsDoAssistente, nome string) (skillResumo, bool) {
+	i := slices.IndexFunc(corpo.Skills, func(s skillResumo) bool { return s.Nome == nome })
+	if i < 0 {
+		return skillResumo{}, false
+	}
+	return corpo.Skills[i], true
+}
+
+// apagarLinha remove toda linha do arquivo que começa (sem os espaços) com o prefixo dado.
+func apagarLinha(t *testing.T, caminho, prefixo string) {
+	t.Helper()
+	raw, err := os.ReadFile(caminho)
+	if err != nil {
+		t.Fatal(err)
+	}
+	linhas := strings.Split(string(raw), "\n")
+	restantes := make([]string, 0, len(linhas))
+	for _, l := range linhas {
+		if !strings.HasPrefix(strings.TrimSpace(l), prefixo) {
+			restantes = append(restantes, l)
+		}
+	}
+	if err := os.WriteFile(caminho, []byte(strings.Join(restantes, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestStudioAPINaoVazaErroInterno(t *testing.T) {
 	w := httptest.NewRecorder()
 	s := &servidor{log: log.New(io.Discard, "", 0)}
@@ -382,12 +479,20 @@ func TestComPrazoTransformaPanicoEmErro(t *testing.T) {
 // handlerDeTeste monta as rotas do Studio sobre uma cópia do catálogo real.
 func handlerDeTeste(t *testing.T) http.Handler {
 	t.Helper()
+	return handlerDeTesteComAjuste(t, func(string) {})
+}
+
+// handlerDeTesteComAjuste é handlerDeTeste, mas deixa mexer num arquivo da cópia (regressão
+// de resumo/ícone) antes de montar as rotas.
+func handlerDeTesteComAjuste(t *testing.T, ajustar func(raiz string)) http.Handler {
+	t.Helper()
 	raiz := t.TempDir()
 	for _, pasta := range []string{"agentes", "nexus"} {
 		if err := os.CopyFS(filepath.Join(raiz, pasta), os.DirFS(filepath.Join("..", "..", "okf", pasta))); err != nil {
 			t.Fatal(err)
 		}
 	}
+	ajustar(raiz)
 	cat, err := okf.NewCatalogo(raiz)
 	if err != nil {
 		t.Fatal(err)
