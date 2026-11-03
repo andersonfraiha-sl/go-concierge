@@ -243,17 +243,106 @@ func TestSalvarTextosAtualizaCasoAgenteERota(t *testing.T) {
 	if err := yaml.Unmarshal([]byte(lerArquivoDaSkill(t, c, relMudanca, AgentYAML)), &cfg); err != nil || cfg.Descricao != textos.QuandoUsar {
 		t.Errorf("agent.yaml descricao = %q (%v)", cfg.Descricao, err)
 	}
-	rotas := strings.Split(lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md"), "\n")
-	if !slices.ContainsFunc(rotas, func(l string) bool {
-		return strings.Contains(l, "rota `agendar-mudanca`") && strings.Contains(l, "Quando o morador quer marcar a mudança")
-	}) {
-		t.Errorf("rotas.md sem a rota nova:\n%s", strings.Join(rotas, "\n"))
+	rotas := lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md")
+	wantRota := "- Quando o morador quer marcar a mudança; palavras-chave: mudança, agendar,\n" +
+		"  agendamento, elevador, serviço, mudança de apartamento → rota\n" +
+		"  `agendar-mudanca`."
+	// a linha fica no mesmo lugar: logo depois da regra de dois pedidos
+	if !strings.Contains(rotas, "(o segundo fica para a próxima mensagem).\n"+wantRota+"\n- Saudação") {
+		t.Errorf("rota não trocada no lugar, com as palavras-chave:\n%s", rotas)
 	}
 	if got := lerArquivoDaSkill(t, c, relMudanca, "workflows/principal.md"); got != principalEsperado(t, c, relMudanca) {
 		t.Errorf("principal.md não regerado:\n%s", got)
 	}
 	if _, err := c.SalvarTextos(relMudanca, versao, textos); !errors.Is(err, ErrVersaoDesatualizada) {
 		t.Errorf("versão antiga: err = %v, want ErrVersaoDesatualizada", err)
+	}
+}
+
+func TestSalvarTextosSemMudarQuandoUsarNaoMexeNoRoteamento(t *testing.T) {
+	c := catalogoDeTeste(t)
+	rotas := lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md")
+	agente := lerArquivoDaSkill(t, c, relMudanca, AgentYAML)
+	textos, versao, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Titulo = "Mudança"
+	textos.FrasesDeExemplo = append(textos.FrasesDeExemplo, "quero me mudar")
+	if _, err := c.SalvarTextos(relMudanca, versao, textos); err != nil {
+		t.Fatal(err)
+	}
+	if lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md") != rotas || lerArquivoDaSkill(t, c, relMudanca, AgentYAML) != agente {
+		t.Error("título e frases não deveriam mexer no rotas.md nem no agent.yaml")
+	}
+}
+
+func TestSalvarTextosRecusaTituloVazio(t *testing.T) {
+	c := catalogoDeTeste(t)
+	textos, versao, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Titulo = "  "
+	if _, err := c.SalvarTextos(relMudanca, versao, textos); !errors.Is(err, ErrTituloVazio) {
+		t.Fatalf("err = %v, want ErrTituloVazio", err)
+	}
+}
+
+func TestCriterioDaRota(t *testing.T) {
+	tests := []struct {
+		name   string
+		textos Textos
+		want   string
+	}{
+		{"só quando usar", Textos{QuandoUsar: "Quando quer x.\n"}, "Quando quer x"},
+		{"com palavras", Textos{QuandoUsar: "Quando quer x.", PalavrasChave: []string{"a", "b"}}, "Quando quer x; palavras-chave: a, b"},
+		{"só palavras", Textos{PalavrasChave: []string{"a"}}, "palavras-chave: a"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := criterioDaRota(tt.textos); got != tt.want {
+				t.Errorf("criterioDaRota = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A fonte de recursos pode ir à rede (Nexus, tools/list do MCP): nunca é chamada com c.mu preso.
+func TestFonteDeRecursosNuncaSobATrava(t *testing.T) {
+	c := catalogoDeTeste(t)
+	recursos := c.RecursosNexus()
+	chamadasSobTrava := 0
+	c.Recursos = func() []Recurso {
+		if c.mu.TryLock() {
+			c.mu.Unlock()
+		} else {
+			chamadasSobTrava++
+		}
+		return recursos
+	}
+	lido, err := c.LerFluxo(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SalvarFluxo(relMudanca, lido.Versao, lido.Fluxo); err != nil {
+		t.Fatal(err)
+	}
+	textos, versao, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SalvarTextos(relMudanca, versao, textos); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.CriarSkill(relConcierge, "nova-skill", "Nova skill"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DuplicarSkill(relMudanca, "agendar-mudanca-2", "Cópia"); err != nil {
+		t.Fatal(err)
+	}
+	if chamadasSobTrava > 0 {
+		t.Fatalf("a fonte de recursos foi chamada %d vez(es) com a trava presa", chamadasSobTrava)
 	}
 }
 
@@ -276,6 +365,7 @@ func TestCriarSkill(t *testing.T) {
 		{"nova-skill", "Nova skill", nil},
 		{"Nova Skill", "Nova skill", ErrNomeInvalido},
 		{"agendar-mudanca", "Outra mudança", ErrSkillJaExiste},
+		{"sem-titulo", " ", ErrTituloVazio},
 	}
 	for _, tt := range tests {
 		t.Run(tt.nome, func(t *testing.T) {
@@ -312,51 +402,92 @@ func TestCriarSkill(t *testing.T) {
 }
 
 func TestDuplicarSkill(t *testing.T) {
-	c := catalogoDeTeste(t)
-	original := lerArquivoDaSkill(t, c, relMudanca, CasoYAML)
-	rel, err := c.DuplicarSkill(relMudanca, "agendar-mudanca-2", "Mudança (cópia)")
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name, nome, titulo string
+		wantErr            error
+	}{
+		{"copia com nome e titulo novos", "agendar-mudanca-2", "Mudança (cópia)", nil},
+		{"nome fora do padrao", "Copia", "Cópia", ErrNomeInvalido},
+		{"nome de irma existente", "encomendas", "Cópia", ErrSkillJaExiste},
+		{"titulo vazio", "agendar-mudanca-3", "", ErrTituloVazio},
 	}
-	caso, err := ParseCaso([]byte(lerArquivoDaSkill(t, c, rel, CasoYAML)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if caso.ID != "agendar_mudanca_2" || caso.Name != "Mudança (cópia)" {
-		t.Errorf("caso duplicado: id %q, name %q", caso.ID, caso.Name)
-	}
-	if lerArquivoDaSkill(t, c, relMudanca, CasoYAML) != original {
-		t.Error("original mudou")
-	}
-	if !strings.Contains(lerArquivoDaSkill(t, c, rel, AgentYAML), "nome: agendar-mudanca-2") {
-		t.Error("agent.yaml da cópia sem o nome novo")
-	}
-	if !strings.Contains(lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md"), "`agendar-mudanca-2`") {
-		t.Error("rota da cópia não registrada")
-	}
-	if got := lerArquivoDaSkill(t, c, rel, "workflows/principal.md"); got != principalEsperado(t, c, rel) {
-		t.Errorf("principal.md da cópia:\n%s", got)
-	}
-	for _, nome := range []string{"Copia", "agendar-mudanca"} {
-		if _, err := c.DuplicarSkill(relMudanca, nome, "x"); !errors.Is(err, ErrNomeInvalido) && !errors.Is(err, ErrSkillJaExiste) {
-			t.Errorf("DuplicarSkill(%q): err = %v", nome, err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := catalogoDeTeste(t)
+			original := lerArquivoDaSkill(t, c, relMudanca, CasoYAML)
+			rel, err := c.DuplicarSkill(relMudanca, tt.nome, tt.titulo)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if lerArquivoDaSkill(t, c, relMudanca, CasoYAML) != original {
+				t.Error("original mudou")
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			caso, err := ParseCaso([]byte(lerArquivoDaSkill(t, c, rel, CasoYAML)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if caso.ID != "agendar_mudanca_2" || caso.Name != tt.titulo {
+				t.Errorf("caso duplicado: id %q, name %q", caso.ID, caso.Name)
+			}
+			if !strings.Contains(lerArquivoDaSkill(t, c, rel, AgentYAML), "nome: agendar-mudanca-2") {
+				t.Error("agent.yaml da cópia sem o nome novo")
+			}
+			if !strings.Contains(lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md"), "`agendar-mudanca-2`") {
+				t.Error("rota da cópia não registrada")
+			}
+			if got := lerArquivoDaSkill(t, c, rel, "workflows/principal.md"); got != principalEsperado(t, c, rel) {
+				t.Errorf("principal.md da cópia:\n%s", got)
+			}
+		})
 	}
 }
 
+// Uma falha no meio da cópia desfaz tudo: sem pasta e com o rotas.md de antes, a nova tentativa funciona.
+func TestDuplicarSkillDesfazAoFalhar(t *testing.T) {
+	c := catalogoDeTeste(t)
+	casoOriginal := filepath.Join(c.Root, filepath.FromSlash(relMudanca), CasoYAML)
+	bom, err := os.ReadFile(casoOriginal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(casoOriginal, []byte("id: [\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rotas := lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md")
+	if _, err := c.DuplicarSkill(relMudanca, "agendar-mudanca-2", "Cópia"); err == nil {
+		t.Fatal("caso quebrado deveria falhar a cópia")
+	}
+	if dirExists(filepath.Join(c.Root, filepath.FromSlash(relConcierge), DirAgentes, "agendar-mudanca-2")) {
+		t.Error("a pasta da cópia ficou para trás")
+	}
+	if lerArquivoDaSkill(t, c, relConcierge, "routers/rotas.md") != rotas {
+		t.Error("o rotas.md não voltou ao que era")
+	}
+	if err := os.WriteFile(casoOriginal, bom, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.DuplicarSkill(relMudanca, "agendar-mudanca-2", "Cópia"); err != nil {
+		t.Fatalf("nova tentativa: %v", err)
+	}
+}
+
+// casosReais acha todo caso.yaml do catálogo real, em qualquer profundidade.
 func casosReais(t *testing.T) []string {
 	t.Helper()
-	arquivos, err := filepath.Glob("../../okf/agentes/*/agentes/*/caso.yaml")
-	if err != nil || len(arquivos) == 0 {
-		t.Fatalf("nenhum caso.yaml encontrado: %v", err)
-	}
-	rels := make([]string, len(arquivos))
-	for i, arq := range arquivos {
-		rel, err := filepath.Rel("../../okf", filepath.Dir(arq))
-		if err != nil {
-			t.Fatal(err)
+	var rels []string
+	err := filepath.WalkDir("../../okf/agentes", func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != CasoYAML {
+			return err
 		}
-		rels[i] = filepath.ToSlash(rel)
+		rel, err := filepath.Rel("../../okf", filepath.Dir(p))
+		rels = append(rels, filepath.ToSlash(rel))
+		return err
+	})
+	if err != nil || len(rels) == 0 {
+		t.Fatalf("nenhum caso.yaml encontrado: %v", err)
 	}
 	return rels
 }

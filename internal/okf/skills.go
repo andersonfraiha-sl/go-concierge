@@ -9,18 +9,23 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
 // Skills vistas pelo Studio: o fluxo e os textos de cada uma, lidos e gravados com
 // conferência de versão (quem grava em cima de uma versão velha é recusado), mais criar
 // e duplicar. Toda gravação do caso.yaml regera o workflows/principal.md junto.
+//
+// Trava: cada método público tira o retrato do catálogo de ferramentas (RecursosNexus,
+// que pode ir à rede) ANTES de pegar c.mu; sob a trava só há disco.
 
 var (
 	ErrSemFluxo            = errors.New("skill sem fluxo")
 	ErrVersaoDesatualizada = errors.New("versão desatualizada")
 	ErrNomeInvalido        = errors.New("nome inválido")
 	ErrSkillJaExiste       = errors.New("skill já existe")
+	ErrTituloVazio         = errors.New("título vazio")
 )
 
 // ErrFluxoInvalido recusa um fluxo com erros; os problemas apontam os blocos com os IDs do cliente.
@@ -54,8 +59,8 @@ type FluxoGravado struct {
 func Versao(v any) string {
 	raw, err := json.Marshal(v)
 	if err != nil {
-		// payload que o JSON não representa (mapa com chave não textual): fmt ordena os mapas, então segue determinístico
-		raw = fmt.Appendf(nil, "%#v", v)
+		// Erro de programação: Fluxo e Textos sempre viram JSON (os payloads vêm do YAML com chaves de texto).
+		panic(fmt.Sprintf("versão de %T: %v", v, err))
 	}
 	soma := sha256.Sum256(raw)
 	return hex.EncodeToString(soma[:])[:16]
@@ -74,7 +79,7 @@ func (cl classificar) conhecida(nome string) bool {
 	return conhecida
 }
 
-// classificador tira um retrato do catálogo: uma consulta à fonte por operação, não por ferramenta.
+// classificador tira um retrato do catálogo: uma consulta à fonte por operação, nunca sob c.mu.
 func (c *Catalogo) classificador() classificar {
 	gravam := map[string]bool{}
 	for _, r := range c.RecursosNexus() {
@@ -95,13 +100,14 @@ func (c *Catalogo) ClassificarFerramenta(nome string) (escrita, conhecida bool) 
 
 // LerFluxo lê o fluxo do caso.yaml da skill; sem caso.yaml, ErrSemFluxo.
 func (c *Catalogo) LerFluxo(rel string) (FluxoLido, error) {
+	cl := c.classificador()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	dir, err := c.resolverSkill(rel)
 	if err != nil {
 		return FluxoLido{}, fmt.Errorf("ler fluxo %s: %w", rel, err)
 	}
-	lido, _, err := lerFluxo(dir, c.classificador())
+	lido, _, err := lerFluxo(dir, cl)
 	if err != nil {
 		return FluxoLido{}, fmt.Errorf("ler fluxo %s: %w", rel, err)
 	}
@@ -125,21 +131,21 @@ func lerFluxo(dir string, cl classificar) (FluxoLido, []byte, error) {
 // SalvarFluxo grava o fluxo se a versão for a atual e o fluxo não tiver erro; o tipo
 // buscar/gravar de cada ferramenta é decidido aqui, não pelo cliente.
 func (c *Catalogo) SalvarFluxo(rel, versao string, f Fluxo) (FluxoGravado, error) {
+	cl := c.classificador()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	gravado, err := c.salvarFluxo(rel, versao, f)
+	gravado, err := c.salvarFluxo(rel, versao, f, cl)
 	if err != nil {
 		return FluxoGravado{}, fmt.Errorf("salvar fluxo %s: %w", rel, err)
 	}
 	return gravado, nil
 }
 
-func (c *Catalogo) salvarFluxo(rel, versao string, f Fluxo) (FluxoGravado, error) {
+func (c *Catalogo) salvarFluxo(rel, versao string, f Fluxo, cl classificar) (FluxoGravado, error) {
 	dir, err := c.resolverSkill(rel)
 	if err != nil {
 		return FluxoGravado{}, err
 	}
-	cl := c.classificador()
 	atual, raw, err := lerFluxo(dir, cl)
 	if err != nil {
 		return FluxoGravado{}, err
@@ -206,19 +212,24 @@ func textosDoAgente(dir string) (Textos, error) {
 	return Textos{Titulo: nome, QuandoUsar: descricao, FrasesDeExemplo: []string{}, PalavrasChave: []string{}}, nil
 }
 
-// SalvarTextos grava os textos no caso.yaml (quando há), na descrição do agente e na rota do pai.
-// Sem caso.yaml o título não é gravado: o nome do agente é o nome da pasta.
+// SalvarTextos grava os textos no caso.yaml (quando há); a descrição do agente e a rota no pai
+// só mudam quando o "quando usar" ou as palavras-chave mudam. Sem caso.yaml o título não é
+// gravado: o nome do agente é o nome da pasta.
 func (c *Catalogo) SalvarTextos(rel, versao string, t Textos) (string, error) {
+	if strings.TrimSpace(t.Titulo) == "" {
+		return "", fmt.Errorf("salvar textos %s: %w", rel, ErrTituloVazio)
+	}
+	cl := c.classificador()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	nova, err := c.salvarTextos(rel, versao, t)
+	nova, err := c.salvarTextos(rel, versao, t, cl)
 	if err != nil {
 		return "", fmt.Errorf("salvar textos %s: %w", rel, err)
 	}
 	return nova, nil
 }
 
-func (c *Catalogo) salvarTextos(rel, versao string, t Textos) (string, error) {
+func (c *Catalogo) salvarTextos(rel, versao string, t Textos, cl classificar) (string, error) {
 	dir, err := c.resolverSkill(rel)
 	if err != nil {
 		return "", err
@@ -231,21 +242,25 @@ func (c *Catalogo) salvarTextos(rel, versao string, t Textos) (string, error) {
 		return "", ErrVersaoDesatualizada
 	}
 	if atual.TemFluxo {
-		if err := gravarTextosNoCaso(dir, t, c.classificador()); err != nil {
+		if err := gravarTextosNoCaso(dir, t, cl); err != nil {
 			return "", err
 		}
 	}
-	if err := c.SalvarConfig(rel, map[string]any{"descricao": t.QuandoUsar}); err != nil {
-		return "", err
-	}
-	if err := atualizarRota(dir, t.QuandoUsar); err != nil {
-		return "", err
+	if mudaRoteamento(atual, t) {
+		if err := c.atualizarRoteamento(rel, dir, t); err != nil {
+			return "", err
+		}
 	}
 	novo, err := lerTextos(dir)
 	if err != nil {
 		return "", err
 	}
 	return Versao(novo), nil
+}
+
+// mudaRoteamento: só o "quando usar" e as palavras-chave alimentam a descrição e a rota.
+func mudaRoteamento(atual, novo Textos) bool {
+	return atual.QuandoUsar != novo.QuandoUsar || !slices.Equal(atual.PalavrasChave, novo.PalavrasChave)
 }
 
 func gravarTextosNoCaso(dir string, t Textos, cl classificar) error {
@@ -271,36 +286,49 @@ func gravarTextosNoCaso(dir string, t Textos, cl classificar) error {
 	return err
 }
 
-// atualizarRota reescreve a linha da skill no rotas.md do pai com o "quando usar" novo.
-func atualizarRota(dir, quandoUsar string) error {
+// atualizarRoteamento grava a descrição do agente e reescreve, no mesmo lugar, a linha da skill no rotas.md do pai.
+func (c *Catalogo) atualizarRoteamento(rel, dir string, t Textos) error {
+	if err := c.SalvarConfig(rel, map[string]any{"descricao": t.QuandoUsar}); err != nil {
+		return err
+	}
 	pai := Pai(dir)
 	if pai == "" {
 		return nil
 	}
-	nome := filepath.Base(dir)
-	if _, err := RemoverRota(pai, nome); err != nil {
-		return fmt.Errorf("rota: %w", err)
-	}
-	if _, err := RegistrarRota(pai, nome, colapsar(quandoUsar)); err != nil {
+	if _, err := TrocarRota(pai, filepath.Base(dir), criterioDaRota(t)); err != nil {
 		return fmt.Errorf("rota: %w", err)
 	}
 	return nil
 }
 
+// criterioDaRota: `<quando usar>; palavras-chave: k1, k2`, para o roteador manter o sinal das palavras.
+func criterioDaRota(t Textos) string {
+	quando := strings.TrimRight(colapsar(t.QuandoUsar), ".;")
+	if len(t.PalavrasChave) == 0 {
+		return quando
+	}
+	palavras := "palavras-chave: " + strings.Join(t.PalavrasChave, ", ")
+	if quando == "" {
+		return palavras
+	}
+	return quando + "; " + palavras
+}
+
 // CriarSkill cria a pasta da skill dentro do pai, com um fluxo mínimo, e devolve o caminho dela.
 func (c *Catalogo) CriarSkill(paiRel, nome, titulo string) (string, error) {
+	cl := c.classificador()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	rel, err := c.criarSkill(paiRel, nome, titulo)
+	rel, err := c.criarSkill(paiRel, nome, titulo, cl)
 	if err != nil {
 		return "", fmt.Errorf("criar skill %s: %w", nome, err)
 	}
 	return rel, nil
 }
 
-func (c *Catalogo) criarSkill(paiRel, nome, titulo string) (string, error) {
-	if !SlugOK(nome) {
-		return "", ErrNomeInvalido
+func (c *Catalogo) criarSkill(paiRel, nome, titulo string, cl classificar) (string, error) {
+	if err := conferirNomeETitulo(nome, titulo); err != nil {
+		return "", err
 	}
 	paiDir, err := c.ResolveAgente(paiRel)
 	if err != nil {
@@ -310,18 +338,20 @@ func (c *Catalogo) criarSkill(paiRel, nome, titulo string) (string, error) {
 	if dirExists(dir) {
 		return "", ErrSkillJaExiste
 	}
-	rel, _, err := c.CriarAgente(NovoAgente{Pai: paiRel, Nome: nome, Descricao: titulo})
-	if err != nil {
-		return "", err
-	}
-	raw, err := casoNovo(nome, titulo)
-	if err != nil {
-		return "", err
-	}
-	if _, err := gravarCaso(dir, raw, c.classificador()); err != nil {
-		return "", err
-	}
-	return rel, nil
+	var rel string
+	err = criarComVolta(dir, func() error {
+		var err error
+		if rel, _, err = c.CriarAgente(NovoAgente{Pai: paiRel, Nome: nome, Descricao: titulo}); err != nil {
+			return err
+		}
+		raw, err := casoNovo(nome, titulo)
+		if err != nil {
+			return err
+		}
+		_, err = gravarCaso(dir, raw, cl)
+		return err
+	})
+	return rel, err
 }
 
 func casoNovo(nome, titulo string) ([]byte, error) {
@@ -343,18 +373,19 @@ func casoNovo(nome, titulo string) ([]byte, error) {
 
 // DuplicarSkill copia a skill para uma irmã com nome e título novos e devolve o caminho dela.
 func (c *Catalogo) DuplicarSkill(rel, novoNome, novoTitulo string) (string, error) {
+	cl := c.classificador()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	novoRel, err := c.duplicarSkill(rel, novoNome, novoTitulo)
+	novoRel, err := c.duplicarSkill(rel, novoNome, novoTitulo, cl)
 	if err != nil {
 		return "", fmt.Errorf("duplicar skill %s: %w", rel, err)
 	}
 	return novoRel, nil
 }
 
-func (c *Catalogo) duplicarSkill(rel, novoNome, novoTitulo string) (string, error) {
-	if !SlugOK(novoNome) {
-		return "", ErrNomeInvalido
+func (c *Catalogo) duplicarSkill(rel, novoNome, novoTitulo string, cl classificar) (string, error) {
+	if err := conferirNomeETitulo(novoNome, novoTitulo); err != nil {
+		return "", err
 	}
 	origem, err := c.resolverSkill(rel)
 	if err != nil {
@@ -364,13 +395,17 @@ func (c *Catalogo) duplicarSkill(rel, novoNome, novoTitulo string) (string, erro
 	if dirExists(destino) {
 		return "", ErrSkillJaExiste
 	}
-	if err := copiarPasta(origem, destino); err != nil {
-		return "", err
-	}
-	if err := renomearCopia(destino, novoNome, novoTitulo, c.classificador()); err != nil {
-		return "", err
-	}
-	if _, err := SincronizarRotas("", Pai(destino), destino, novoNome); err != nil {
+	err = criarComVolta(destino, func() error {
+		if err := copiarPasta(origem, destino); err != nil {
+			return err
+		}
+		if err := renomearCopia(destino, novoNome, novoTitulo, cl); err != nil {
+			return err
+		}
+		_, err := SincronizarRotas("", Pai(destino), destino, novoNome)
+		return err
+	})
+	if err != nil {
 		return "", err
 	}
 	novoRel, err := filepath.Rel(c.Root, destino)
@@ -378,6 +413,38 @@ func (c *Catalogo) duplicarSkill(rel, novoNome, novoTitulo string) (string, erro
 		return "", err
 	}
 	return filepath.ToSlash(novoRel), nil
+}
+
+func conferirNomeETitulo(nome, titulo string) error {
+	if !SlugOK(nome) {
+		return ErrNomeInvalido
+	}
+	if strings.TrimSpace(titulo) == "" {
+		return ErrTituloVazio
+	}
+	return nil
+}
+
+// criarComVolta roda criar; se falhar, apaga a pasta e devolve o rotas.md do pai ao que era,
+// para uma nova tentativa não esbarrar em ErrSkillJaExiste nem deixar rota órfã.
+func criarComVolta(dir string, criar func() error) error {
+	pai := Pai(dir)
+	rotasAntes, errLer := []byte(nil), fs.ErrNotExist
+	if pai != "" {
+		rotasAntes, errLer = os.ReadFile(caminhoRotas(pai))
+	}
+	err := criar()
+	if err == nil {
+		return nil
+	}
+	limpeza := os.RemoveAll(dir)
+	if errLer == nil {
+		limpeza = errors.Join(limpeza, os.WriteFile(caminhoRotas(pai), rotasAntes, 0o644))
+	}
+	if limpeza != nil {
+		return errors.Join(err, fmt.Errorf("desfazer %s: %w", filepath.Base(dir), limpeza))
+	}
+	return err
 }
 
 // renomearCopia troca o nome no agent.yaml e, se houver caso, o id e o name dele.
