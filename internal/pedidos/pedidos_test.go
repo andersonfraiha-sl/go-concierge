@@ -154,7 +154,7 @@ func TestMotorDaReserva(t *testing.T) {
 	if p.AdministradoraID != "adm-a" || p.CondominioID != "cond-1" {
 		t.Fatalf("escopo do pedido: %+v", p)
 	}
-	if !strings.HasPrefix(p.Protocolo, "P-") || len(p.Protocolo) != 7 || p.Estado != Coletando {
+	if !strings.HasPrefix(p.Protocolo, "P-") || len(p.Protocolo) != len("P-")+8 || p.Estado != Coletando {
 		t.Fatalf("pedido novo: %+v", p)
 	}
 	ctx := context.Background()

@@ -140,6 +140,30 @@ func (f PayloadFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PayloadMutation", m)
 }
 
+// The PedidoFunc type is an adapter to allow the use of ordinary
+// function as Pedido mutator.
+type PedidoFunc func(context.Context, *ent.PedidoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PedidoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PedidoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PedidoMutation", m)
+}
+
+// The PedidoEventoFunc type is an adapter to allow the use of ordinary
+// function as PedidoEvento mutator.
+type PedidoEventoFunc func(context.Context, *ent.PedidoEventoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PedidoEventoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PedidoEventoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PedidoEventoMutation", m)
+}
+
 // The UsuarioFunc type is an adapter to allow the use of ordinary
 // function as Usuario mutator.
 type UsuarioFunc func(context.Context, *ent.UsuarioMutation) (ent.Value, error)

@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"go-concierge/internal/banco/ent/administradora"
@@ -17,6 +18,8 @@ import (
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/pedido"
+	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/predicate"
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/banco/ent/usuario"
@@ -47,6 +50,8 @@ const (
 	TypePapel          = "Papel"
 	TypePapelPermissao = "PapelPermissao"
 	TypePayload        = "Payload"
+	TypePedido         = "Pedido"
+	TypePedidoEvento   = "PedidoEvento"
 	TypeUsuario        = "Usuario"
 )
 
@@ -6510,6 +6515,1524 @@ func (m *PayloadMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Payload edge %s", name)
+}
+
+// PedidoMutation represents an operation that mutates the Pedido nodes in the graph.
+type PedidoMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *string
+	administradora_id *string
+	condominio_id     *string
+	telefone          *string
+	caso              *string
+	estado            *string
+	dados             *jsontext.Value
+	appenddados       jsontext.Value
+	criado_em         *time.Time
+	atualizado_em     *time.Time
+	clearedFields     map[string]struct{}
+	eventos           map[int]struct{}
+	removedeventos    map[int]struct{}
+	clearedeventos    bool
+	done              bool
+	oldValue          func(context.Context) (*Pedido, error)
+	predicates        []predicate.Pedido
+}
+
+var _ ent.Mutation = (*PedidoMutation)(nil)
+
+// pedidoOption allows management of the mutation configuration using functional options.
+type pedidoOption func(*PedidoMutation)
+
+// newPedidoMutation creates new mutation for the Pedido entity.
+func newPedidoMutation(c config, op Op, opts ...pedidoOption) *PedidoMutation {
+	m := &PedidoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePedido,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPedidoID sets the ID field of the mutation.
+func withPedidoID(id string) pedidoOption {
+	return func(m *PedidoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Pedido
+		)
+		m.oldValue = func(ctx context.Context) (*Pedido, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Pedido.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPedido sets the old Pedido of the mutation.
+func withPedido(node *Pedido) pedidoOption {
+	return func(m *PedidoMutation) {
+		m.oldValue = func(context.Context) (*Pedido, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PedidoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PedidoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Pedido entities.
+func (m *PedidoMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PedidoMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PedidoMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Pedido.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *PedidoMutation) SetAdministradoraID(s string) {
+	m.administradora_id = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *PedidoMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *PedidoMutation) ResetAdministradoraID() {
+	m.administradora_id = nil
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *PedidoMutation) SetCondominioID(s string) {
+	m.condominio_id = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *PedidoMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldCondominioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *PedidoMutation) ResetCondominioID() {
+	m.condominio_id = nil
+}
+
+// SetTelefone sets the "telefone" field.
+func (m *PedidoMutation) SetTelefone(s string) {
+	m.telefone = &s
+}
+
+// Telefone returns the value of the "telefone" field in the mutation.
+func (m *PedidoMutation) Telefone() (r string, exists bool) {
+	v := m.telefone
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTelefone returns the old "telefone" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldTelefone(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTelefone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTelefone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTelefone: %w", err)
+	}
+	return oldValue.Telefone, nil
+}
+
+// ResetTelefone resets all changes to the "telefone" field.
+func (m *PedidoMutation) ResetTelefone() {
+	m.telefone = nil
+}
+
+// SetCaso sets the "caso" field.
+func (m *PedidoMutation) SetCaso(s string) {
+	m.caso = &s
+}
+
+// Caso returns the value of the "caso" field in the mutation.
+func (m *PedidoMutation) Caso() (r string, exists bool) {
+	v := m.caso
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCaso returns the old "caso" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldCaso(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCaso is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCaso requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCaso: %w", err)
+	}
+	return oldValue.Caso, nil
+}
+
+// ResetCaso resets all changes to the "caso" field.
+func (m *PedidoMutation) ResetCaso() {
+	m.caso = nil
+}
+
+// SetEstado sets the "estado" field.
+func (m *PedidoMutation) SetEstado(s string) {
+	m.estado = &s
+}
+
+// Estado returns the value of the "estado" field in the mutation.
+func (m *PedidoMutation) Estado() (r string, exists bool) {
+	v := m.estado
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEstado returns the old "estado" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldEstado(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEstado is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEstado requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEstado: %w", err)
+	}
+	return oldValue.Estado, nil
+}
+
+// ResetEstado resets all changes to the "estado" field.
+func (m *PedidoMutation) ResetEstado() {
+	m.estado = nil
+}
+
+// SetDados sets the "dados" field.
+func (m *PedidoMutation) SetDados(j jsontext.Value) {
+	m.dados = &j
+	m.appenddados = nil
+}
+
+// Dados returns the value of the "dados" field in the mutation.
+func (m *PedidoMutation) Dados() (r jsontext.Value, exists bool) {
+	v := m.dados
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDados returns the old "dados" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldDados(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDados is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDados requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDados: %w", err)
+	}
+	return oldValue.Dados, nil
+}
+
+// AppendDados adds j to the "dados" field.
+func (m *PedidoMutation) AppendDados(j jsontext.Value) {
+	m.appenddados = append(m.appenddados, j...)
+}
+
+// AppendedDados returns the list of values that were appended to the "dados" field in this mutation.
+func (m *PedidoMutation) AppendedDados() (jsontext.Value, bool) {
+	if len(m.appenddados) == 0 {
+		return nil, false
+	}
+	return m.appenddados, true
+}
+
+// ResetDados resets all changes to the "dados" field.
+func (m *PedidoMutation) ResetDados() {
+	m.dados = nil
+	m.appenddados = nil
+}
+
+// SetCriadoEm sets the "criado_em" field.
+func (m *PedidoMutation) SetCriadoEm(t time.Time) {
+	m.criado_em = &t
+}
+
+// CriadoEm returns the value of the "criado_em" field in the mutation.
+func (m *PedidoMutation) CriadoEm() (r time.Time, exists bool) {
+	v := m.criado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCriadoEm returns the old "criado_em" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldCriadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCriadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCriadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCriadoEm: %w", err)
+	}
+	return oldValue.CriadoEm, nil
+}
+
+// ResetCriadoEm resets all changes to the "criado_em" field.
+func (m *PedidoMutation) ResetCriadoEm() {
+	m.criado_em = nil
+}
+
+// SetAtualizadoEm sets the "atualizado_em" field.
+func (m *PedidoMutation) SetAtualizadoEm(t time.Time) {
+	m.atualizado_em = &t
+}
+
+// AtualizadoEm returns the value of the "atualizado_em" field in the mutation.
+func (m *PedidoMutation) AtualizadoEm() (r time.Time, exists bool) {
+	v := m.atualizado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAtualizadoEm returns the old "atualizado_em" field's value of the Pedido entity.
+// If the Pedido object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoMutation) OldAtualizadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAtualizadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAtualizadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAtualizadoEm: %w", err)
+	}
+	return oldValue.AtualizadoEm, nil
+}
+
+// ResetAtualizadoEm resets all changes to the "atualizado_em" field.
+func (m *PedidoMutation) ResetAtualizadoEm() {
+	m.atualizado_em = nil
+}
+
+// AddEventoIDs adds the "eventos" edge to the PedidoEvento entity by ids.
+func (m *PedidoMutation) AddEventoIDs(ids ...int) {
+	if m.eventos == nil {
+		m.eventos = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.eventos[ids[i]] = struct{}{}
+	}
+}
+
+// ClearEventos clears the "eventos" edge to the PedidoEvento entity.
+func (m *PedidoMutation) ClearEventos() {
+	m.clearedeventos = true
+}
+
+// EventosCleared reports if the "eventos" edge to the PedidoEvento entity was cleared.
+func (m *PedidoMutation) EventosCleared() bool {
+	return m.clearedeventos
+}
+
+// RemoveEventoIDs removes the "eventos" edge to the PedidoEvento entity by IDs.
+func (m *PedidoMutation) RemoveEventoIDs(ids ...int) {
+	if m.removedeventos == nil {
+		m.removedeventos = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.eventos, ids[i])
+		m.removedeventos[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedEventos returns the removed IDs of the "eventos" edge to the PedidoEvento entity.
+func (m *PedidoMutation) RemovedEventosIDs() (ids []int) {
+	for id := range m.removedeventos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// EventosIDs returns the "eventos" edge IDs in the mutation.
+func (m *PedidoMutation) EventosIDs() (ids []int) {
+	for id := range m.eventos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetEventos resets all changes to the "eventos" edge.
+func (m *PedidoMutation) ResetEventos() {
+	m.eventos = nil
+	m.clearedeventos = false
+	m.removedeventos = nil
+}
+
+// Where appends a list predicates to the PedidoMutation builder.
+func (m *PedidoMutation) Where(ps ...predicate.Pedido) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PedidoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PedidoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Pedido, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PedidoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PedidoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Pedido).
+func (m *PedidoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PedidoMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.administradora_id != nil {
+		fields = append(fields, pedido.FieldAdministradoraID)
+	}
+	if m.condominio_id != nil {
+		fields = append(fields, pedido.FieldCondominioID)
+	}
+	if m.telefone != nil {
+		fields = append(fields, pedido.FieldTelefone)
+	}
+	if m.caso != nil {
+		fields = append(fields, pedido.FieldCaso)
+	}
+	if m.estado != nil {
+		fields = append(fields, pedido.FieldEstado)
+	}
+	if m.dados != nil {
+		fields = append(fields, pedido.FieldDados)
+	}
+	if m.criado_em != nil {
+		fields = append(fields, pedido.FieldCriadoEm)
+	}
+	if m.atualizado_em != nil {
+		fields = append(fields, pedido.FieldAtualizadoEm)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PedidoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case pedido.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case pedido.FieldCondominioID:
+		return m.CondominioID()
+	case pedido.FieldTelefone:
+		return m.Telefone()
+	case pedido.FieldCaso:
+		return m.Caso()
+	case pedido.FieldEstado:
+		return m.Estado()
+	case pedido.FieldDados:
+		return m.Dados()
+	case pedido.FieldCriadoEm:
+		return m.CriadoEm()
+	case pedido.FieldAtualizadoEm:
+		return m.AtualizadoEm()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PedidoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case pedido.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case pedido.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case pedido.FieldTelefone:
+		return m.OldTelefone(ctx)
+	case pedido.FieldCaso:
+		return m.OldCaso(ctx)
+	case pedido.FieldEstado:
+		return m.OldEstado(ctx)
+	case pedido.FieldDados:
+		return m.OldDados(ctx)
+	case pedido.FieldCriadoEm:
+		return m.OldCriadoEm(ctx)
+	case pedido.FieldAtualizadoEm:
+		return m.OldAtualizadoEm(ctx)
+	}
+	return nil, fmt.Errorf("unknown Pedido field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PedidoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case pedido.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case pedido.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case pedido.FieldTelefone:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTelefone(v)
+		return nil
+	case pedido.FieldCaso:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCaso(v)
+		return nil
+	case pedido.FieldEstado:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEstado(v)
+		return nil
+	case pedido.FieldDados:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDados(v)
+		return nil
+	case pedido.FieldCriadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCriadoEm(v)
+		return nil
+	case pedido.FieldAtualizadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAtualizadoEm(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Pedido field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PedidoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PedidoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PedidoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Pedido numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PedidoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PedidoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PedidoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Pedido nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PedidoMutation) ResetField(name string) error {
+	switch name {
+	case pedido.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case pedido.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case pedido.FieldTelefone:
+		m.ResetTelefone()
+		return nil
+	case pedido.FieldCaso:
+		m.ResetCaso()
+		return nil
+	case pedido.FieldEstado:
+		m.ResetEstado()
+		return nil
+	case pedido.FieldDados:
+		m.ResetDados()
+		return nil
+	case pedido.FieldCriadoEm:
+		m.ResetCriadoEm()
+		return nil
+	case pedido.FieldAtualizadoEm:
+		m.ResetAtualizadoEm()
+		return nil
+	}
+	return fmt.Errorf("unknown Pedido field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PedidoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.eventos != nil {
+		edges = append(edges, pedido.EdgeEventos)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PedidoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case pedido.EdgeEventos:
+		ids := make([]ent.Value, 0, len(m.eventos))
+		for id := range m.eventos {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PedidoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedeventos != nil {
+		edges = append(edges, pedido.EdgeEventos)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PedidoMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case pedido.EdgeEventos:
+		ids := make([]ent.Value, 0, len(m.removedeventos))
+		for id := range m.removedeventos {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PedidoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedeventos {
+		edges = append(edges, pedido.EdgeEventos)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PedidoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case pedido.EdgeEventos:
+		return m.clearedeventos
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PedidoMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Pedido unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PedidoMutation) ResetEdge(name string) error {
+	switch name {
+	case pedido.EdgeEventos:
+		m.ResetEventos()
+		return nil
+	}
+	return fmt.Errorf("unknown Pedido edge %s", name)
+}
+
+// PedidoEventoMutation represents an operation that mutates the PedidoEvento nodes in the graph.
+type PedidoEventoMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	seq           *int
+	addseq        *int
+	tipo          *string
+	texto         *string
+	por           *string
+	quando        *time.Time
+	clearedFields map[string]struct{}
+	pedido        *string
+	clearedpedido bool
+	done          bool
+	oldValue      func(context.Context) (*PedidoEvento, error)
+	predicates    []predicate.PedidoEvento
+}
+
+var _ ent.Mutation = (*PedidoEventoMutation)(nil)
+
+// pedidoeventoOption allows management of the mutation configuration using functional options.
+type pedidoeventoOption func(*PedidoEventoMutation)
+
+// newPedidoEventoMutation creates new mutation for the PedidoEvento entity.
+func newPedidoEventoMutation(c config, op Op, opts ...pedidoeventoOption) *PedidoEventoMutation {
+	m := &PedidoEventoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePedidoEvento,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPedidoEventoID sets the ID field of the mutation.
+func withPedidoEventoID(id int) pedidoeventoOption {
+	return func(m *PedidoEventoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *PedidoEvento
+		)
+		m.oldValue = func(ctx context.Context) (*PedidoEvento, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().PedidoEvento.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPedidoEvento sets the old PedidoEvento of the mutation.
+func withPedidoEvento(node *PedidoEvento) pedidoeventoOption {
+	return func(m *PedidoEventoMutation) {
+		m.oldValue = func(context.Context) (*PedidoEvento, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PedidoEventoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PedidoEventoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PedidoEventoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PedidoEventoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().PedidoEvento.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetProtocolo sets the "protocolo" field.
+func (m *PedidoEventoMutation) SetProtocolo(s string) {
+	m.pedido = &s
+}
+
+// Protocolo returns the value of the "protocolo" field in the mutation.
+func (m *PedidoEventoMutation) Protocolo() (r string, exists bool) {
+	v := m.pedido
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProtocolo returns the old "protocolo" field's value of the PedidoEvento entity.
+// If the PedidoEvento object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoEventoMutation) OldProtocolo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProtocolo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProtocolo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProtocolo: %w", err)
+	}
+	return oldValue.Protocolo, nil
+}
+
+// ResetProtocolo resets all changes to the "protocolo" field.
+func (m *PedidoEventoMutation) ResetProtocolo() {
+	m.pedido = nil
+}
+
+// SetSeq sets the "seq" field.
+func (m *PedidoEventoMutation) SetSeq(i int) {
+	m.seq = &i
+	m.addseq = nil
+}
+
+// Seq returns the value of the "seq" field in the mutation.
+func (m *PedidoEventoMutation) Seq() (r int, exists bool) {
+	v := m.seq
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSeq returns the old "seq" field's value of the PedidoEvento entity.
+// If the PedidoEvento object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoEventoMutation) OldSeq(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSeq is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSeq requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSeq: %w", err)
+	}
+	return oldValue.Seq, nil
+}
+
+// AddSeq adds i to the "seq" field.
+func (m *PedidoEventoMutation) AddSeq(i int) {
+	if m.addseq != nil {
+		*m.addseq += i
+	} else {
+		m.addseq = &i
+	}
+}
+
+// AddedSeq returns the value that was added to the "seq" field in this mutation.
+func (m *PedidoEventoMutation) AddedSeq() (r int, exists bool) {
+	v := m.addseq
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSeq resets all changes to the "seq" field.
+func (m *PedidoEventoMutation) ResetSeq() {
+	m.seq = nil
+	m.addseq = nil
+}
+
+// SetTipo sets the "tipo" field.
+func (m *PedidoEventoMutation) SetTipo(s string) {
+	m.tipo = &s
+}
+
+// Tipo returns the value of the "tipo" field in the mutation.
+func (m *PedidoEventoMutation) Tipo() (r string, exists bool) {
+	v := m.tipo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTipo returns the old "tipo" field's value of the PedidoEvento entity.
+// If the PedidoEvento object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoEventoMutation) OldTipo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTipo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTipo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTipo: %w", err)
+	}
+	return oldValue.Tipo, nil
+}
+
+// ResetTipo resets all changes to the "tipo" field.
+func (m *PedidoEventoMutation) ResetTipo() {
+	m.tipo = nil
+}
+
+// SetTexto sets the "texto" field.
+func (m *PedidoEventoMutation) SetTexto(s string) {
+	m.texto = &s
+}
+
+// Texto returns the value of the "texto" field in the mutation.
+func (m *PedidoEventoMutation) Texto() (r string, exists bool) {
+	v := m.texto
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTexto returns the old "texto" field's value of the PedidoEvento entity.
+// If the PedidoEvento object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoEventoMutation) OldTexto(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTexto is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTexto requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTexto: %w", err)
+	}
+	return oldValue.Texto, nil
+}
+
+// ResetTexto resets all changes to the "texto" field.
+func (m *PedidoEventoMutation) ResetTexto() {
+	m.texto = nil
+}
+
+// SetPor sets the "por" field.
+func (m *PedidoEventoMutation) SetPor(s string) {
+	m.por = &s
+}
+
+// Por returns the value of the "por" field in the mutation.
+func (m *PedidoEventoMutation) Por() (r string, exists bool) {
+	v := m.por
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPor returns the old "por" field's value of the PedidoEvento entity.
+// If the PedidoEvento object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoEventoMutation) OldPor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPor: %w", err)
+	}
+	return oldValue.Por, nil
+}
+
+// ResetPor resets all changes to the "por" field.
+func (m *PedidoEventoMutation) ResetPor() {
+	m.por = nil
+}
+
+// SetQuando sets the "quando" field.
+func (m *PedidoEventoMutation) SetQuando(t time.Time) {
+	m.quando = &t
+}
+
+// Quando returns the value of the "quando" field in the mutation.
+func (m *PedidoEventoMutation) Quando() (r time.Time, exists bool) {
+	v := m.quando
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuando returns the old "quando" field's value of the PedidoEvento entity.
+// If the PedidoEvento object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PedidoEventoMutation) OldQuando(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuando is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuando requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuando: %w", err)
+	}
+	return oldValue.Quando, nil
+}
+
+// ResetQuando resets all changes to the "quando" field.
+func (m *PedidoEventoMutation) ResetQuando() {
+	m.quando = nil
+}
+
+// SetPedidoID sets the "pedido" edge to the Pedido entity by id.
+func (m *PedidoEventoMutation) SetPedidoID(id string) {
+	m.pedido = &id
+}
+
+// ClearPedido clears the "pedido" edge to the Pedido entity.
+func (m *PedidoEventoMutation) ClearPedido() {
+	m.clearedpedido = true
+	m.clearedFields[pedidoevento.FieldProtocolo] = struct{}{}
+}
+
+// PedidoCleared reports if the "pedido" edge to the Pedido entity was cleared.
+func (m *PedidoEventoMutation) PedidoCleared() bool {
+	return m.clearedpedido
+}
+
+// PedidoID returns the "pedido" edge ID in the mutation.
+func (m *PedidoEventoMutation) PedidoID() (id string, exists bool) {
+	if m.pedido != nil {
+		return *m.pedido, true
+	}
+	return
+}
+
+// PedidoIDs returns the "pedido" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PedidoID instead. It exists only for internal usage by the builders.
+func (m *PedidoEventoMutation) PedidoIDs() (ids []string) {
+	if id := m.pedido; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPedido resets all changes to the "pedido" edge.
+func (m *PedidoEventoMutation) ResetPedido() {
+	m.pedido = nil
+	m.clearedpedido = false
+}
+
+// Where appends a list predicates to the PedidoEventoMutation builder.
+func (m *PedidoEventoMutation) Where(ps ...predicate.PedidoEvento) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PedidoEventoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PedidoEventoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.PedidoEvento, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PedidoEventoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PedidoEventoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (PedidoEvento).
+func (m *PedidoEventoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PedidoEventoMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.pedido != nil {
+		fields = append(fields, pedidoevento.FieldProtocolo)
+	}
+	if m.seq != nil {
+		fields = append(fields, pedidoevento.FieldSeq)
+	}
+	if m.tipo != nil {
+		fields = append(fields, pedidoevento.FieldTipo)
+	}
+	if m.texto != nil {
+		fields = append(fields, pedidoevento.FieldTexto)
+	}
+	if m.por != nil {
+		fields = append(fields, pedidoevento.FieldPor)
+	}
+	if m.quando != nil {
+		fields = append(fields, pedidoevento.FieldQuando)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PedidoEventoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case pedidoevento.FieldProtocolo:
+		return m.Protocolo()
+	case pedidoevento.FieldSeq:
+		return m.Seq()
+	case pedidoevento.FieldTipo:
+		return m.Tipo()
+	case pedidoevento.FieldTexto:
+		return m.Texto()
+	case pedidoevento.FieldPor:
+		return m.Por()
+	case pedidoevento.FieldQuando:
+		return m.Quando()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PedidoEventoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case pedidoevento.FieldProtocolo:
+		return m.OldProtocolo(ctx)
+	case pedidoevento.FieldSeq:
+		return m.OldSeq(ctx)
+	case pedidoevento.FieldTipo:
+		return m.OldTipo(ctx)
+	case pedidoevento.FieldTexto:
+		return m.OldTexto(ctx)
+	case pedidoevento.FieldPor:
+		return m.OldPor(ctx)
+	case pedidoevento.FieldQuando:
+		return m.OldQuando(ctx)
+	}
+	return nil, fmt.Errorf("unknown PedidoEvento field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PedidoEventoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case pedidoevento.FieldProtocolo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProtocolo(v)
+		return nil
+	case pedidoevento.FieldSeq:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSeq(v)
+		return nil
+	case pedidoevento.FieldTipo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTipo(v)
+		return nil
+	case pedidoevento.FieldTexto:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTexto(v)
+		return nil
+	case pedidoevento.FieldPor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPor(v)
+		return nil
+	case pedidoevento.FieldQuando:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuando(v)
+		return nil
+	}
+	return fmt.Errorf("unknown PedidoEvento field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PedidoEventoMutation) AddedFields() []string {
+	var fields []string
+	if m.addseq != nil {
+		fields = append(fields, pedidoevento.FieldSeq)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PedidoEventoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case pedidoevento.FieldSeq:
+		return m.AddedSeq()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PedidoEventoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case pedidoevento.FieldSeq:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSeq(v)
+		return nil
+	}
+	return fmt.Errorf("unknown PedidoEvento numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PedidoEventoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PedidoEventoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PedidoEventoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown PedidoEvento nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PedidoEventoMutation) ResetField(name string) error {
+	switch name {
+	case pedidoevento.FieldProtocolo:
+		m.ResetProtocolo()
+		return nil
+	case pedidoevento.FieldSeq:
+		m.ResetSeq()
+		return nil
+	case pedidoevento.FieldTipo:
+		m.ResetTipo()
+		return nil
+	case pedidoevento.FieldTexto:
+		m.ResetTexto()
+		return nil
+	case pedidoevento.FieldPor:
+		m.ResetPor()
+		return nil
+	case pedidoevento.FieldQuando:
+		m.ResetQuando()
+		return nil
+	}
+	return fmt.Errorf("unknown PedidoEvento field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PedidoEventoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.pedido != nil {
+		edges = append(edges, pedidoevento.EdgePedido)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PedidoEventoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case pedidoevento.EdgePedido:
+		if id := m.pedido; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PedidoEventoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PedidoEventoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PedidoEventoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedpedido {
+		edges = append(edges, pedidoevento.EdgePedido)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PedidoEventoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case pedidoevento.EdgePedido:
+		return m.clearedpedido
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PedidoEventoMutation) ClearEdge(name string) error {
+	switch name {
+	case pedidoevento.EdgePedido:
+		m.ClearPedido()
+		return nil
+	}
+	return fmt.Errorf("unknown PedidoEvento unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PedidoEventoMutation) ResetEdge(name string) error {
+	switch name {
+	case pedidoevento.EdgePedido:
+		m.ResetPedido()
+		return nil
+	}
+	return fmt.Errorf("unknown PedidoEvento edge %s", name)
 }
 
 // UsuarioMutation represents an operation that mutates the Usuario nodes in the graph.

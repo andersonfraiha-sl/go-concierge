@@ -112,7 +112,7 @@ func ultimasFalas(sess *Sessao, n int) []string {
 	return out
 }
 
-var reCancelar = regexp.MustCompile(`CANCELA[R]?\s+(P-[A-Z0-9]{5})`)
+var reCancelar = regexp.MustCompile(`CANCELA[R]?\s+(P-[A-Z0-9]{8}|P-[A-Z0-9]{5})\b`) // 8 nos novos, 5 nos antigos
 var reMencionaData = regexp.MustCompile(`\d|janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|fim de semana|semana que vem|próxim|proxim`)
 
 // mencionaData: a mensagem fala de alguma data (dígito, mês, dia da semana, hoje…).

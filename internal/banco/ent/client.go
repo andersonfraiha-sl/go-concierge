@@ -22,6 +22,8 @@ import (
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/pedido"
+	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/usuario"
 
 	"entgo.io/ent"
@@ -59,6 +61,10 @@ type Client struct {
 	PapelPermissao *PapelPermissaoClient
 	// Payload is the client for interacting with the Payload builders.
 	Payload *PayloadClient
+	// Pedido is the client for interacting with the Pedido builders.
+	Pedido *PedidoClient
+	// PedidoEvento is the client for interacting with the PedidoEvento builders.
+	PedidoEvento *PedidoEventoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 }
@@ -83,6 +89,8 @@ func (c *Client) init() {
 	c.Papel = NewPapelClient(c.config)
 	c.PapelPermissao = NewPapelPermissaoClient(c.config)
 	c.Payload = NewPayloadClient(c.config)
+	c.Pedido = NewPedidoClient(c.config)
+	c.PedidoEvento = NewPedidoEventoClient(c.config)
 	c.Usuario = NewUsuarioClient(c.config)
 }
 
@@ -187,6 +195,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Papel:          NewPapelClient(cfg),
 		PapelPermissao: NewPapelPermissaoClient(cfg),
 		Payload:        NewPayloadClient(cfg),
+		Pedido:         NewPedidoClient(cfg),
+		PedidoEvento:   NewPedidoEventoClient(cfg),
 		Usuario:        NewUsuarioClient(cfg),
 	}, nil
 }
@@ -218,6 +228,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Papel:          NewPapelClient(cfg),
 		PapelPermissao: NewPapelPermissaoClient(cfg),
 		Payload:        NewPayloadClient(cfg),
+		Pedido:         NewPedidoClient(cfg),
+		PedidoEvento:   NewPedidoEventoClient(cfg),
 		Usuario:        NewUsuarioClient(cfg),
 	}, nil
 }
@@ -250,7 +262,7 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
 		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Usuario,
+		c.Payload, c.Pedido, c.PedidoEvento, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -262,7 +274,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
 		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Usuario,
+		c.Payload, c.Pedido, c.PedidoEvento, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -293,6 +305,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.PapelPermissao.mutate(ctx, m)
 	case *PayloadMutation:
 		return c.Payload.mutate(ctx, m)
+	case *PedidoMutation:
+		return c.Pedido.mutate(ctx, m)
+	case *PedidoEventoMutation:
+		return c.PedidoEvento.mutate(ctx, m)
 	case *UsuarioMutation:
 		return c.Usuario.mutate(ctx, m)
 	default:
@@ -2051,6 +2067,304 @@ func (c *PayloadClient) mutate(ctx context.Context, m *PayloadMutation) (Value, 
 	}
 }
 
+// PedidoClient is a client for the Pedido schema.
+type PedidoClient struct {
+	config
+}
+
+// NewPedidoClient returns a client for the Pedido from the given config.
+func NewPedidoClient(c config) *PedidoClient {
+	return &PedidoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `pedido.Hooks(f(g(h())))`.
+func (c *PedidoClient) Use(hooks ...Hook) {
+	c.hooks.Pedido = append(c.hooks.Pedido, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `pedido.Intercept(f(g(h())))`.
+func (c *PedidoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Pedido = append(c.inters.Pedido, interceptors...)
+}
+
+// Create returns a builder for creating a Pedido entity.
+func (c *PedidoClient) Create() *PedidoCreate {
+	mutation := newPedidoMutation(c.config, OpCreate)
+	return &PedidoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Pedido entities.
+func (c *PedidoClient) CreateBulk(builders ...*PedidoCreate) *PedidoCreateBulk {
+	return &PedidoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PedidoClient) MapCreateBulk(slice any, setFunc func(*PedidoCreate, int)) *PedidoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PedidoCreateBulk{err: fmt.Errorf("calling to PedidoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PedidoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PedidoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Pedido.
+func (c *PedidoClient) Update() *PedidoUpdate {
+	mutation := newPedidoMutation(c.config, OpUpdate)
+	return &PedidoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PedidoClient) UpdateOne(_m *Pedido) *PedidoUpdateOne {
+	mutation := newPedidoMutation(c.config, OpUpdateOne, withPedido(_m))
+	return &PedidoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PedidoClient) UpdateOneID(id string) *PedidoUpdateOne {
+	mutation := newPedidoMutation(c.config, OpUpdateOne, withPedidoID(id))
+	return &PedidoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Pedido.
+func (c *PedidoClient) Delete() *PedidoDelete {
+	mutation := newPedidoMutation(c.config, OpDelete)
+	return &PedidoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PedidoClient) DeleteOne(_m *Pedido) *PedidoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PedidoClient) DeleteOneID(id string) *PedidoDeleteOne {
+	builder := c.Delete().Where(pedido.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PedidoDeleteOne{builder}
+}
+
+// Query returns a query builder for Pedido.
+func (c *PedidoClient) Query() *PedidoQuery {
+	return &PedidoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePedido},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Pedido entity by its id.
+func (c *PedidoClient) Get(ctx context.Context, id string) (*Pedido, error) {
+	return c.Query().Where(pedido.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PedidoClient) GetX(ctx context.Context, id string) *Pedido {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryEventos queries the eventos edge of a Pedido.
+func (c *PedidoClient) QueryEventos(_m *Pedido) *PedidoEventoQuery {
+	query := (&PedidoEventoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(pedido.Table, pedido.FieldID, id),
+			sqlgraph.To(pedidoevento.Table, pedidoevento.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, pedido.EventosTable, pedido.EventosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PedidoClient) Hooks() []Hook {
+	return c.hooks.Pedido
+}
+
+// Interceptors returns the client interceptors.
+func (c *PedidoClient) Interceptors() []Interceptor {
+	return c.inters.Pedido
+}
+
+func (c *PedidoClient) mutate(ctx context.Context, m *PedidoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PedidoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PedidoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PedidoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PedidoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Pedido mutation op: %q", m.Op())
+	}
+}
+
+// PedidoEventoClient is a client for the PedidoEvento schema.
+type PedidoEventoClient struct {
+	config
+}
+
+// NewPedidoEventoClient returns a client for the PedidoEvento from the given config.
+func NewPedidoEventoClient(c config) *PedidoEventoClient {
+	return &PedidoEventoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `pedidoevento.Hooks(f(g(h())))`.
+func (c *PedidoEventoClient) Use(hooks ...Hook) {
+	c.hooks.PedidoEvento = append(c.hooks.PedidoEvento, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `pedidoevento.Intercept(f(g(h())))`.
+func (c *PedidoEventoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PedidoEvento = append(c.inters.PedidoEvento, interceptors...)
+}
+
+// Create returns a builder for creating a PedidoEvento entity.
+func (c *PedidoEventoClient) Create() *PedidoEventoCreate {
+	mutation := newPedidoEventoMutation(c.config, OpCreate)
+	return &PedidoEventoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PedidoEvento entities.
+func (c *PedidoEventoClient) CreateBulk(builders ...*PedidoEventoCreate) *PedidoEventoCreateBulk {
+	return &PedidoEventoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PedidoEventoClient) MapCreateBulk(slice any, setFunc func(*PedidoEventoCreate, int)) *PedidoEventoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PedidoEventoCreateBulk{err: fmt.Errorf("calling to PedidoEventoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PedidoEventoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PedidoEventoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PedidoEvento.
+func (c *PedidoEventoClient) Update() *PedidoEventoUpdate {
+	mutation := newPedidoEventoMutation(c.config, OpUpdate)
+	return &PedidoEventoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PedidoEventoClient) UpdateOne(_m *PedidoEvento) *PedidoEventoUpdateOne {
+	mutation := newPedidoEventoMutation(c.config, OpUpdateOne, withPedidoEvento(_m))
+	return &PedidoEventoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PedidoEventoClient) UpdateOneID(id int) *PedidoEventoUpdateOne {
+	mutation := newPedidoEventoMutation(c.config, OpUpdateOne, withPedidoEventoID(id))
+	return &PedidoEventoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PedidoEvento.
+func (c *PedidoEventoClient) Delete() *PedidoEventoDelete {
+	mutation := newPedidoEventoMutation(c.config, OpDelete)
+	return &PedidoEventoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PedidoEventoClient) DeleteOne(_m *PedidoEvento) *PedidoEventoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PedidoEventoClient) DeleteOneID(id int) *PedidoEventoDeleteOne {
+	builder := c.Delete().Where(pedidoevento.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PedidoEventoDeleteOne{builder}
+}
+
+// Query returns a query builder for PedidoEvento.
+func (c *PedidoEventoClient) Query() *PedidoEventoQuery {
+	return &PedidoEventoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePedidoEvento},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PedidoEvento entity by its id.
+func (c *PedidoEventoClient) Get(ctx context.Context, id int) (*PedidoEvento, error) {
+	return c.Query().Where(pedidoevento.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PedidoEventoClient) GetX(ctx context.Context, id int) *PedidoEvento {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryPedido queries the pedido edge of a PedidoEvento.
+func (c *PedidoEventoClient) QueryPedido(_m *PedidoEvento) *PedidoQuery {
+	query := (&PedidoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(pedidoevento.Table, pedidoevento.FieldID, id),
+			sqlgraph.To(pedido.Table, pedido.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, pedidoevento.PedidoTable, pedidoevento.PedidoColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PedidoEventoClient) Hooks() []Hook {
+	return c.hooks.PedidoEvento
+}
+
+// Interceptors returns the client interceptors.
+func (c *PedidoEventoClient) Interceptors() []Interceptor {
+	return c.inters.PedidoEvento
+}
+
+func (c *PedidoEventoClient) mutate(ctx context.Context, m *PedidoEventoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PedidoEventoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PedidoEventoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PedidoEventoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PedidoEventoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PedidoEvento mutation op: %q", m.Op())
+	}
+}
+
 // UsuarioClient is a client for the Usuario schema.
 type UsuarioClient struct {
 	config
@@ -2204,11 +2518,12 @@ func (c *UsuarioClient) mutate(ctx context.Context, m *UsuarioMutation) (Value, 
 type (
 	hooks struct {
 		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaContato,
-		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload, Usuario []ent.Hook
+		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento,
+		Usuario []ent.Hook
 	}
 	inters struct {
 		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaContato,
-		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
+		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento,
 		Usuario []ent.Interceptor
 	}
 )

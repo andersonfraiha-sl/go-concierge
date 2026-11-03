@@ -12,15 +12,18 @@
 package pedidos
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -276,12 +279,13 @@ func (c *Carteira) ValorReutilizavel(slot string) (any, string, bool) {
 	return nil, "", false
 }
 
-// NovoProtocolo gera "P-" + 5 caracteres sem ambiguidade (sem 0/O, 1/I).
+// NovoProtocolo gera "P-" + 8 caracteres sem ambiguidade (sem 0/O, 1/I). Os pedidos antigos
+// têm 5 e continuam valendo.
 func NovoProtocolo() string {
 	const alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	b := make([]byte, 5)
+	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("P-%05d", time.Now().UnixNano()%100000)
+		return fmt.Sprintf("P-%08d", time.Now().UnixNano()%100000000)
 	}
 	for i := range b {
 		b[i] = alfabeto[int(b[i])%len(alfabeto)]
@@ -291,6 +295,8 @@ func NovoProtocolo() string {
 
 // ---- armazenamento ----------------------------------------------------------------------
 
+// Store guarda as carteiras. Gravar pode trocar o protocolo de um pedido novo que colide com
+// o de outro contato (veja redesenharColisoes); o pedido da carteira passa a ter o novo.
 type Store interface {
 	Ler(ctx context.Context, c escopo.Contato) (Carteira, error)
 	Gravar(ctx context.Context, c escopo.Contato, cart Carteira) error
@@ -309,22 +315,126 @@ var naoDigitos = regexp.MustCompile(`\D+`)
 
 var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
-func (a *Arquivos) pasta(administradoraID string) (string, error) {
+// ErrProtocoloEmUso: o protocolo de um pedido novo já é de outro contato e nenhum dos
+// tentativasProtocolo sorteios saiu livre.
+var ErrProtocoloEmUso = errors.New("protocolo já em uso por outro contato")
+
+// tentativasProtocolo: quantos sorteios um pedido novo com protocolo de outro contato ganha.
+const tentativasProtocolo = 3
+
+// deOutros devolve, dentre os protocolos, os que já são de outro contato.
+type deOutros func(protocolos []string) (map[string]bool, error)
+
+// redesenharColisoes devolve os pedidos com novo protocolo para os que colidem com o de outro
+// contato. O protocolo é único no banco inteiro, mas Carteira.Novo só o sorteia único na
+// carteira. Só pedido novo colide: o que já está gravado para o contato é dele e nunca muda
+// de protocolo.
+func redesenharColisoes(pedidos []Pedido, alheios deOutros, sortear func() string) ([]Pedido, error) {
+	usados := map[string]bool{}
+	for _, p := range pedidos {
+		usados[p.Protocolo] = true
+	}
+	colidem, err := alheios(slices.Collect(maps.Keys(usados)))
+	if err != nil || len(colidem) == 0 {
+		return pedidos, err
+	}
+	out := slices.Clone(pedidos)
+	for i := range out {
+		if !colidem[out[i].Protocolo] {
+			continue
+		}
+		novo, err := sortearLivre(usados, alheios, sortear)
+		if err != nil {
+			return nil, fmt.Errorf("pedido %s: %w", out[i].Protocolo, err)
+		}
+		usados[novo] = true
+		out[i].Protocolo = novo
+	}
+	return out, nil
+}
+
+func sortearLivre(usados map[string]bool, alheios deOutros, sortear func() string) (string, error) {
+	for range tentativasProtocolo {
+		candidato := sortear()
+		if usados[candidato] {
+			continue
+		}
+		colide, err := alheios([]string{candidato})
+		if err != nil {
+			return "", err
+		}
+		if !colide[candidato] {
+			return candidato, nil
+		}
+	}
+	return "", ErrProtocoloEmUso
+}
+
+// adotarProtocolos leva aos pedidos do chamador os protocolos redesenhados, na mesma ordem.
+func adotarProtocolos(carteira []*Pedido, gravados []Pedido) {
+	for i, p := range carteira {
+		p.Protocolo = gravados[i].Protocolo
+	}
+}
+
+func validarAdministradora(administradoraID string) error {
 	if !escopo.AdministradoraValida(administradoraID) {
-		return "", fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
+		return fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
+	}
+	return nil
+}
+
+func validarContato(c escopo.Contato) error {
+	if err := validarAdministradora(c.AdministradoraID); err != nil {
+		return err
+	}
+	if c.Telefone == "" {
+		return errContatoInvalido
+	}
+	return nil
+}
+
+// copiasDoContato copia os pedidos com a administradora e o telefone do contato: quem grava é o
+// contato, não o que veio escrito no pedido. Os pedidos do chamador ficam intactos.
+func copiasDoContato(c escopo.Contato, pedidos []*Pedido) []Pedido {
+	out := make([]Pedido, 0, len(pedidos))
+	for _, p := range pedidos {
+		copia := *p
+		copia.AdministradoraID, copia.Telefone = c.AdministradoraID, c.Telefone
+		out = append(out, copia)
+	}
+	return out
+}
+
+// montar é a carteira do contato com os pedidos na ordem em que foram abertos; ela foi
+// atualizada quando o seu pedido mais recente foi.
+func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
+	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Pedidos: slices.Clone(pedidos)}
+	slices.SortStableFunc(cart.Pedidos, func(a, b *Pedido) int {
+		return cmp.Or(a.CriadoEm.Compare(b.CriadoEm), strings.Compare(a.Protocolo, b.Protocolo))
+	})
+	for _, p := range cart.Pedidos {
+		if p.AtualizadoEm.After(cart.AtualizadaEm) {
+			cart.AtualizadaEm = p.AtualizadoEm
+		}
+	}
+	return cart
+}
+
+func maisRecentesPrimeiro(a, b Carteira) int { return b.AtualizadaEm.Compare(a.AtualizadaEm) }
+
+func (a *Arquivos) pasta(administradoraID string) (string, error) {
+	if err := validarAdministradora(administradoraID); err != nil {
+		return "", err
 	}
 	return filepath.Join(a.Dir, administradoraID), nil
 }
 
 func (a *Arquivos) caminho(c escopo.Contato) (string, error) {
-	pasta, err := a.pasta(c.AdministradoraID)
-	if err != nil {
+	if err := validarContato(c); err != nil {
 		return "", err
 	}
-	if c.Telefone == "" {
-		return "", errContatoInvalido
-	}
-	return filepath.Join(pasta, c.Telefone+".json"), nil
+	return filepath.Join(a.Dir, c.AdministradoraID, c.Telefone+".json"), nil
 }
 
 func (a *Arquivos) Ler(_ context.Context, c escopo.Contato) (Carteira, error) {
