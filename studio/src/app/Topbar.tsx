@@ -1,7 +1,11 @@
 import { Box, Typography } from '@mui/material';
+import { DevRoleSwitch } from '@/acesso/DevRoleSwitch';
+import { useEu } from '@/acesso/eu';
 import { tokens } from '@/theme/tokens';
 
 export function Topbar() {
+  const { data: eu } = useEu();
+
   return (
     <Box
       component="header"
@@ -20,7 +24,12 @@ export function Topbar() {
       <Typography variant="h6" component="div" color="primary" sx={{ fontWeight: 700 }}>
         Studio
       </Typography>
-      <Box data-slot="usuario" />
+      {eu && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {eu.dev && <DevRoleSwitch />}
+          <Typography variant="body2">{eu.nome}</Typography>
+        </Box>
+      )}
     </Box>
   );
 }
