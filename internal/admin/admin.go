@@ -27,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 // Padrao é a chave do mapeamento comum a todos os condomínios.
@@ -216,21 +218,31 @@ func (m Mapeamento) Condominio(id string) (Condominio, bool) {
 	return Condominio{}, false
 }
 
-// Resolver acha o condomínio pelos ids que chegam em tempo de execução: company do
-// Gruvi, tenant do ATENDE ou account do Nexus. Sem casar, devolve ok=false (vale o padrão).
-func (m Mapeamento) Resolver(companyID, tenant, account string) (Condominio, bool) {
-	for _, c := range m.Condominios {
-		if companyID != "" && c.CompanyID == companyID {
-			return c, true
-		}
+var (
+	ErrCondominioDesconhecido = errors.New("condomínio não identificado")
+	ErrForaDaImplantacao      = errors.New("condomínio de outra administradora")
+)
+
+// ResolverCondominio acha o condomínio da mensagem pela company do Gruvi e, sem ela,
+// pelo tenant do ATENDE. Condomínio sem administradora não é atendido; com a
+// implantação fixa, o de outra administradora também não.
+func ResolverCondominio(m Mapeamento, imp escopo.Implantacao, companyID, tenant string) (Condominio, error) {
+	c, ok := condominioPor(m, func(c Condominio) bool { return companyID != "" && c.CompanyID == companyID })
+	if !ok {
+		c, ok = condominioPor(m, func(c Condominio) bool { return tenant != "" && c.Tenant == tenant })
 	}
-	for _, c := range m.Condominios {
-		if tenant != "" && c.Tenant == tenant {
-			return c, true
-		}
+	if !ok || c.Administradora == "" {
+		return Condominio{}, fmt.Errorf("company %q, tenant %q: %w", companyID, tenant, ErrCondominioDesconhecido)
 	}
+	if !imp.Permite(c.Administradora) {
+		return Condominio{}, fmt.Errorf("condomínio %s: %w", c.ID, ErrForaDaImplantacao)
+	}
+	return c, nil
+}
+
+func condominioPor(m Mapeamento, casa func(Condominio) bool) (Condominio, bool) {
 	for _, c := range m.Condominios {
-		if account != "" && c.Account == account {
+		if casa(c) {
 			return c, true
 		}
 	}

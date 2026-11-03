@@ -27,7 +27,7 @@ func servicoComPedidos(t *testing.T) (*Servico, *Outbox, *pedidos.Arquivos) {
 	st := pedidos.NewArquivos(t.TempDir())
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
-		Cat: cat, Agente: "agentes/concierge", Account: "cond-001", Sessoes: NewSessoes(), Sender: out,
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(), Sender: out,
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pedidos: st,
@@ -76,7 +76,7 @@ func TestPedidoDeReservaPeloRegistro(t *testing.T) {
 		t.Fatalf("turno devia registrar o pedido aberto: %+v", r.Pedidos)
 	}
 	prot := r.Pedidos[0].Protocolo
-	cart, _ := st.Ler(ctx, "cond-001", "5519981621916")
+	cart, _ := st.Ler(ctx, contatoDeTeste(t, "adm-a"))
 	p := cart.Por(prot)
 	if p == nil || p.Estado != pedidos.Coletando || p.Valores["unidade"] != "109" || p.Pendencia == nil || p.Pendencia.Slot != "area" {
 		t.Fatalf("pedido gravado com a unidade da identidade e a área pendente: %+v", p)
@@ -94,7 +94,7 @@ func TestPedidoDeReservaPeloRegistro(t *testing.T) {
 	if r = ultimoConcierge(sess); !strings.Contains(r.Texto, "Confirma a reserva de Salão de festas em 15 de novembro de 2026 para A - 101? (sim/não)") {
 		t.Fatalf("confirmação renderizada do caso.yaml: %q", r.Texto)
 	}
-	cart, _ = st.Ler(ctx, "cond-001", "5519981621916")
+	cart, _ = st.Ler(ctx, contatoDeTeste(t, "adm-a"))
 	if p = cart.Por(prot); p.Estado != pedidos.Confirmando {
 		t.Fatalf("estado devia ser aguardando_confirmacao: %s", p.Estado)
 	}
@@ -103,7 +103,7 @@ func TestPedidoDeReservaPeloRegistro(t *testing.T) {
 	if !strings.Contains(r.Texto, "Reserva confirmada: Salão de festas em 15 de novembro de 2026 (A - 101). Protocolo: MOCK-") {
 		t.Fatalf("output do caso com o protocolo do recurso: %q", r.Texto)
 	}
-	cart, _ = st.Ler(ctx, "cond-001", "5519981621916")
+	cart, _ = st.Ler(ctx, contatoDeTeste(t, "adm-a"))
 	p = cart.Por(prot)
 	if p.Estado != pedidos.Concluido || p.Resultado == nil || !strings.HasPrefix(p.Resultado.Protocolo, "MOCK-") || p.Confirmacao.Por != pedidos.OrigemMorador {
 		t.Fatalf("concluído com protocolo do recurso: %+v %+v", p.Estado, p.Resultado)
@@ -142,7 +142,7 @@ func TestPedidoPendenteVaiAoAtendente(t *testing.T) {
 	if sess.Transbordo == nil || !sess.Transbordo.Ativo || !strings.Contains(sess.Transbordo.Motivo, prot) || !strings.Contains(sess.Transbordo.Motivo, "falta") {
 		t.Fatalf("transbordo com a pendência do pedido: %+v", sess.Transbordo)
 	}
-	cart, _ := st.Ler(ctx, "cond-001", "5519981621916")
+	cart, _ := st.Ler(ctx, contatoDeTeste(t, "adm-a"))
 	p := cart.Por(prot)
 	if p.Estado != pedidos.ComAtendente || !strings.Contains(p.Resumo, "Falta:") || !strings.Contains(p.Resumo, "Pergunta em aberto") {
 		t.Fatalf("pedido com o atendente e resumo: %s %q", p.Estado, p.Resumo)
@@ -169,13 +169,13 @@ func TestPedidoPendenteVaiAoAtendente(t *testing.T) {
 	if err == nil {
 		t.Fatal("pedido inexistente devia falhar")
 	}
-	cart, _ = st.Ler(ctx, "cond-001", "5519981621916")
-	p2 := cart.Novo(mustContrato(t, svc), "reserva-area-comum", pedidos.Origem{})
-	_ = st.Gravar(ctx, cart)
+	cart, _ = st.Ler(ctx, contatoDeTeste(t, "adm-a"))
+	p2 := cart.Novo(mustContrato(t, svc), "reserva-area-comum", "cond-001", pedidos.Origem{})
+	_ = st.Gravar(ctx, contatoDeTeste(t, "adm-a"), cart)
 	if _, _, _, err := svc.PreencherPedido(ctx, sess.Protocolo, p2.Protocolo, "Ana", map[string]any{"data": "ontem"}, false); err == nil || !strings.Contains(err.Error(), "data") {
 		t.Fatalf("valor inválido do atendente é rejeitado: %v", err)
 	}
-	if p, err := svc.CancelarPedido(ctx, "5519981621916", p2.Protocolo, "Ana", "teste"); err != nil || p.Estado != pedidos.Cancelado {
+	if p, err := svc.CancelarPedido(ctx, contatoDeTeste(t, "adm-a"), p2.Protocolo, "Ana", "teste"); err != nil || p.Estado != pedidos.Cancelado {
 		t.Fatalf("cancelar: %v %+v", err, p)
 	}
 }
@@ -218,7 +218,7 @@ func TestPendenciasNaoDormem(t *testing.T) {
 	if sess.Transbordo == nil || !sess.Transbordo.Ativo || !strings.Contains(sess.Transbordo.Motivo, prot) {
 		t.Fatalf("na quinta vez vai ao atendente: %+v", sess.Transbordo)
 	}
-	cart, _ := st.Ler(ctx, "cond-001", "5519981621916")
+	cart, _ := st.Ler(ctx, contatoDeTeste(t, "adm-a"))
 	if p := cart.Por(prot); p == nil || p.Estado != pedidos.ComAtendente || p.Pendencia == nil || p.Pendencia.Vezes != 5 {
 		t.Fatalf("pedido com o atendente depois de 5 perguntas: %+v", cart.Por(prot))
 	}
@@ -234,7 +234,7 @@ func TestCancelarPorProtocolo(t *testing.T) {
 	if !strings.Contains(r.Texto, "cancelado") || len(r.Pedidos) != 1 || r.Pedidos[0].Evento != "cancelado" {
 		t.Fatalf("cancelamento pelo protocolo: %q %+v", r.Texto, r.Pedidos)
 	}
-	cart, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, _ := st.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if p := cart.Por(prot); p == nil || p.Estado != pedidos.Cancelado {
 		t.Fatalf("estado: %+v", cart.Por(prot))
 	}
@@ -246,20 +246,20 @@ func TestRemoverPedidoEncerrado(t *testing.T) {
 	ctx := context.Background()
 	sess := falar(t, svc, "r1", "quero reservar uma área comum")
 	prot := ultimoConcierge(sess).Pedidos[0].Protocolo
-	if err := svc.RemoverPedido(ctx, "5519981621916", prot); err == nil {
+	if err := svc.RemoverPedido(ctx, contatoDeTeste(t, "adm-a"), prot); err == nil {
 		t.Fatalf("pedido aberto não pode ser removido")
 	}
-	if _, err := svc.CancelarPedido(ctx, "5519981621916", prot, "Atendente", "teste"); err != nil {
+	if _, err := svc.CancelarPedido(ctx, contatoDeTeste(t, "adm-a"), prot, "Atendente", "teste"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.RemoverPedido(ctx, "5519981621916", strings.ToLower(prot)); err != nil {
+	if err := svc.RemoverPedido(ctx, contatoDeTeste(t, "adm-a"), strings.ToLower(prot)); err != nil {
 		t.Fatal(err)
 	}
-	cart, _ := st.Ler(ctx, "cond-001", "5519981621916")
+	cart, _ := st.Ler(ctx, contatoDeTeste(t, "adm-a"))
 	if cart.Por(prot) != nil || len(cart.Pedidos) != 0 {
 		t.Fatalf("pedido devia ter saído da carteira: %+v", cart.Pedidos)
 	}
-	if err := svc.RemoverPedido(ctx, "5519981621916", prot); err == nil {
+	if err := svc.RemoverPedido(ctx, contatoDeTeste(t, "adm-a"), prot); err == nil {
 		t.Fatalf("remover de novo devia falhar: não encontrado")
 	}
 }

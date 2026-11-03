@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/okf"
 )
 
@@ -147,8 +149,11 @@ func TestMotorDaReserva(t *testing.T) {
 	defer func() { Agora = time.Now }()
 	ct := casoReserva(t)
 	amb := &ambienteFalso{unidades: []any{map[string]any{"id": "109", "label": "Jataí - 101"}}}
-	cart := &Carteira{Account: "cond-001", Telefone: "5511999"}
-	p := cart.Novo(ct, "reserva-area-comum", Origem{ProtocoloAtende: "ATD-1"})
+	cart := &Carteira{AdministradoraID: "adm-a", Telefone: "5511999"}
+	p := cart.Novo(ct, "reserva-area-comum", "cond-1", Origem{ProtocoloAtende: "ATD-1"})
+	if p.AdministradoraID != "adm-a" || p.CondominioID != "cond-1" {
+		t.Fatalf("escopo do pedido: %+v", p)
+	}
 	if !strings.HasPrefix(p.Protocolo, "P-") || len(p.Protocolo) != 7 || p.Estado != Coletando {
 		t.Fatalf("pedido novo: %+v", p)
 	}
@@ -213,7 +218,7 @@ func TestMotorDaReserva(t *testing.T) {
 
 	// um segundo pedido reaproveita a unidade (reuse: always) mesmo com duas unidades
 	amb.unidades = append(amb.unidades, map[string]any{"id": "110", "label": "Jataí - 102"})
-	p2 := cart.Novo(ct, "reserva-area-comum", Origem{})
+	p2 := cart.Novo(ct, "reserva-area-comum", "cond-1", Origem{})
 	s = Avancar(ctx, ct, p2, cart, amb)
 	if p2.Valores["unidade"] != "109" || p2.Origens["unidade"] != OrigemMemoria || s.Slot != "area" {
 		t.Fatalf("unidade reutilizada do pedido anterior: %+v %+v", p2.Valores, s)
@@ -354,25 +359,36 @@ func slots(ct *Contrato) []*Slot {
 
 func TestArquivosEResumo(t *testing.T) {
 	ct := casoReserva(t)
-	st := NewArquivos(t.TempDir())
+	dir := t.TempDir()
+	st := NewArquivos(dir)
 	ctx := context.Background()
-	c, err := st.Ler(ctx, "cond-001", "+55 (11) 99999-0000")
-	if err != nil || len(c.Pedidos) != 0 || c.Telefone != "5511999990000" {
-		t.Fatalf("carteira vazia: %+v %v", c, err)
-	}
-	p := c.Novo(ct, "reserva-area-comum", Origem{ProtocoloAtende: "ATD-9"})
-	p.Valor("area", "salao", "Salão de festas", OrigemMorador)
-	p.Pendencia = &Pendencia{Slot: "data", Pergunta: "Para qual data? (dd/mm)", Vezes: 2, Motivo: "data inválida"}
-	if err := st.Gravar(ctx, c); err != nil {
+	ctt, err := escopo.NovoContato("adm-a", "cond-1", "+55 (11) 99999-0000")
+	if err != nil {
 		t.Fatal(err)
 	}
-	c2, _ := st.Ler(ctx, "cond-001", "5511999990000")
+	c, err := st.Ler(ctx, ctt)
+	if err != nil || len(c.Pedidos) != 0 || c.Telefone != "5511999990000" || c.AdministradoraID != "adm-a" {
+		t.Fatalf("carteira vazia: %+v %v", c, err)
+	}
+	p := c.Novo(ct, "reserva-area-comum", ctt.CondominioID, Origem{ProtocoloAtende: "ATD-9"})
+	p.Valor("area", "salao", "Salão de festas", OrigemMorador)
+	p.Pendencia = &Pendencia{Slot: "data", Pergunta: "Para qual data? (dd/mm)", Vezes: 2, Motivo: "data inválida"}
+	if err := st.Gravar(ctx, ctt, c); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "adm-a", "5511999990000.json")); err != nil {
+		t.Fatalf("arquivo por administradora: %v", err)
+	}
+	c2, _ := st.Ler(ctx, ctt)
 	if len(c2.Pedidos) != 1 || c2.Por(p.Protocolo) == nil || c2.Pedidos[0].Rotulos["area"] != "Salão de festas" {
 		t.Fatalf("ida e volta: %+v", c2)
 	}
-	lista, _ := st.Listar(ctx, "cond-001")
-	if len(lista) != 1 {
-		t.Fatalf("listar: %d", len(lista))
+	lista, err := st.Listar(ctx, "adm-a")
+	if err != nil || len(lista) != 1 {
+		t.Fatalf("listar: %d %v", len(lista), err)
+	}
+	if outra, err := st.Listar(ctx, "adm-b"); err != nil || len(outra) != 0 {
+		t.Fatalf("outra administradora: %d %v", len(outra), err)
 	}
 	r := ResumoParaAtendente(ct, c2.Pedidos[0], []string{"morador: dia trinta e dois", "concierge: Não consegui usar a resposta"})
 	for _, trecho := range []string{p.Protocolo, "Reserva de Área Comum", "Área comum: Salão de festas", "Falta: Unidade; Data da reserva", "feita 2 vezes", "data inválida", "dia trinta e dois"} {

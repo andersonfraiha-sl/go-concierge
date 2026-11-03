@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
-	"go-concierge/internal/pedidos"
 )
 
 // Canal ATENDE: o webhook que recebe os eventos, e a API do Console (emulador):
@@ -51,15 +52,50 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/memorias", s.memoriasListar)
 }
 
+// ---- escopo das rotas de memória e pedidos -----------------------------
+
+// administradoraDaRota: a administradora pedida (?administradora=), ou a fixa da
+// implantação. Sem nenhuma, 400; fora da implantação, 403.
+func (s *servidor) administradoraDaRota(w http.ResponseWriter, r *http.Request) (string, bool) {
+	adm := strings.TrimSpace(r.URL.Query().Get("administradora"))
+	if adm == "" {
+		adm = s.implantacao.AdministradoraFixa
+	}
+	if adm == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_OBRIGATORIA", "error": "informe administradora"})
+		return "", false
+	}
+	if !s.implantacao.Permite(adm) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"codigo": "FORA_DA_IMPLANTACAO", "error": "administradora fora desta implantação"})
+		return "", false
+	}
+	return adm, true
+}
+
+// contatoDaRota: o contato (administradora + telefone) que a rota consulta. Memória e
+// pedidos são guardados por administradora e telefone; o condomínio não entra na
+// chave, e o Console não o conhece aqui: vale o padrão.
+func (s *servidor) contatoDaRota(w http.ResponseWriter, r *http.Request, phone string) (escopo.Contato, bool) {
+	adm, ok := s.administradoraDaRota(w, r)
+	if !ok {
+		return escopo.Contato{}, false
+	}
+	c, err := escopo.NovoContato(adm, admin.Padrao, phone)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errTelefone)
+		return escopo.Contato{}, false
+	}
+	return c, true
+}
+
 // ---- memória relacional por contato ------------------------------------
 
 func (s *servidor) memoriaLer(w http.ResponseWriter, r *http.Request) {
-	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
-	if phone == "" {
-		writeErr(w, 400, errTelefone)
+	contato, ok := s.contatoDaRota(w, r, r.URL.Query().Get("phone"))
+	if !ok {
 		return
 	}
-	m, err := s.memorias.Ler(r.Context(), s.account, phone)
+	m, err := s.memorias.Ler(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -69,12 +105,11 @@ func (s *servidor) memoriaLer(w http.ResponseWriter, r *http.Request) {
 
 func (s *servidor) memoriaEsquecer(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	phone, chave := strings.TrimSpace(q.Get("phone")), strings.TrimSpace(q.Get("chave"))
-	if phone == "" {
-		writeErr(w, 400, errTelefone)
+	contato, ok := s.contatoDaRota(w, r, q.Get("phone"))
+	if !ok {
 		return
 	}
-	m, err := s.atende.EsquecerMemoria(r.Context(), phone, chave)
+	m, err := s.atende.EsquecerMemoria(r.Context(), contato, strings.TrimSpace(q.Get("chave")))
 	if err != nil {
 		if errors.Is(err, atende.ErrFatoNaoEncontrado) {
 			writeErr(w, 404, err)
@@ -87,12 +122,16 @@ func (s *servidor) memoriaEsquecer(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *servidor) memoriasListar(w http.ResponseWriter, r *http.Request) {
-	l, err := s.memorias.Listar(r.Context(), s.account)
+	adm, ok := s.administradoraDaRota(w, r)
+	if !ok {
+		return
+	}
+	l, err := s.memorias.Listar(r.Context(), adm)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"account": s.account, "memorias": l})
+	writeJSON(w, 200, map[string]any{"administradora": adm, "memorias": l})
 }
 
 // webhookAtende aceita o evento (202) e processa em segundo plano; a resposta ao
@@ -161,6 +200,9 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		msg.Destino.Telefone = s.atende.TelefoneB2C
 	}
 	if emulado {
+		if !s.condominioEmulado(w, r, &msg) {
+			return
+		}
 		msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
 		msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: ev.Data.Protocol.Number, Telefone: ev.Data.Contact.Phone, Canal: msg.Canal}
 	}
@@ -187,6 +229,27 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		}
 	}()
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": sess.Protocolo, "session_id": sess.ID})
+}
+
+// condominioEmulado: com ?condominio=, a mensagem forjada pelo Console sai com o tenant
+// e a company daquele condomínio (é por eles que o concierge resolve o condomínio).
+func (s *servidor) condominioEmulado(w http.ResponseWriter, r *http.Request, msg *entrada.Mensagem) bool {
+	id := strings.TrimSpace(r.URL.Query().Get("condominio"))
+	if id == "" {
+		return true
+	}
+	m, err := s.admin.Ler(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, fmt.Errorf("condomínio do emulador: %w", err))
+		return false
+	}
+	c, ok := m.Condominio(id)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "CONDOMINIO_DESCONHECIDO", "error": "condomínio desconhecido: " + id})
+		return false
+	}
+	msg.Tenant, msg.CompanyID = c.Tenant, c.CompanyID
+	return true
 }
 
 func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
@@ -335,16 +398,15 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 // ---- pedidos: o registro por contato e as ações do atendente ----
 
 func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
-	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
-	if phone == "" {
-		writeErr(w, 400, errTelefone)
+	contato, ok := s.contatoDaRota(w, r, r.URL.Query().Get("phone"))
+	if !ok {
 		return
 	}
 	if s.atende.Pedidos == nil {
 		writeJSON(w, 200, map[string]any{"ligado": false})
 		return
 	}
-	cart, slots, err := s.atende.Carteira(r.Context(), phone)
+	cart, slots, err := s.atende.Carteira(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -382,14 +444,22 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, map[string]any{"pedido": p, "saida": saida, "sessao": sess, "saidas": s.outbox.Itens(sess.ID), "recebidas": s.emulador.Recebidas(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
 	case "cancelar":
-		p, err := s.atende.CancelarPedido(ctx, corpo.Phone, corpo.Pedido, corpo.Atendente, corpo.Motivo)
+		contato, ok := s.contatoDaRota(w, r, corpo.Phone)
+		if !ok {
+			return
+		}
+		p, err := s.atende.CancelarPedido(ctx, contato, corpo.Pedido, corpo.Atendente, corpo.Motivo)
 		if err != nil {
 			writeErr(w, 400, err)
 			return
 		}
 		writeJSON(w, 200, map[string]any{"pedido": p})
 	case "remover":
-		if err := s.atende.RemoverPedido(ctx, corpo.Phone, corpo.Pedido); err != nil {
+		contato, ok := s.contatoDaRota(w, r, corpo.Phone)
+		if !ok {
+			return
+		}
+		if err := s.atende.RemoverPedido(ctx, contato, corpo.Pedido); err != nil {
 			writeErr(w, 400, err)
 			return
 		}
@@ -402,21 +472,20 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 // pedidosExportar baixa a carteira do telefone: JSON (completo, com histórico) ou CSV
 // (uma linha por pedido, para planilha).
 func (s *servidor) pedidosExportar(w http.ResponseWriter, r *http.Request) {
-	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
-	if phone == "" {
-		writeErr(w, 400, errTelefone)
+	contato, ok := s.contatoDaRota(w, r, r.URL.Query().Get("phone"))
+	if !ok {
 		return
 	}
 	if s.atende.Pedidos == nil {
 		writeErr(w, 400, errors.New("registro de pedidos desligado"))
 		return
 	}
-	cart, slots, err := s.atende.Carteira(r.Context(), phone)
+	cart, slots, err := s.atende.Carteira(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
 	}
-	nome := "pedidos-" + pedidos.NormalizarTelefone(phone) + "-" + time.Now().Format("20060102-1504")
+	nome := "pedidos-" + contato.AdministradoraID + "-" + contato.Telefone + "-" + time.Now().Format("20060102-1504")
 	if strings.EqualFold(r.URL.Query().Get("formato"), "csv") {
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=\""+nome+".csv\"")

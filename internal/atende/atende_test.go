@@ -246,7 +246,7 @@ func TestProcessarEntradaIndependenteDoAtende(t *testing.T) {
 	msg := entrada.Mensagem{
 		ID:         "mensagem-1",
 		ConversaID: "conversa-1",
-		Tenant:     "tenant-1",
+		Tenant:     tenantExemplo,
 		Contato:    entrada.Contato{Phone: "5519981621916", Name: "Morador"},
 		Canal:      map[string]string{"type": "outro-canal"},
 		Tipo:       "text",
@@ -289,7 +289,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	out := &Outbox{}
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
-		Cat: cat, Agente: "agentes/concierge", Account: "cond-001", Sessoes: NewSessoes(), Sender: out,
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(), Sender: out,
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 	}
@@ -323,7 +323,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	}
 	// memória relacional: o que o morador afirma sobre si fica guardado por telefone
 	st := memoria.NewArquivos(t.TempDir())
-	svcM := Servico{Cat: svc.Cat, Agente: svc.Agente, Account: svc.Account, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi, Memorias: st}
+	svcM := Servico{Cat: svc.Cat, Agente: svc.Agente, Mapeamento: svc.Mapeamento, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi, Memorias: st}
 	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "na verdade só tenho um apartamento, tenho um cachorro", 1)))
 	ev3.ID = "evt_3"
 	s4, err := svcM.Processar(context.Background(), ev3.Normalizar())
@@ -335,7 +335,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	if len(ult.Memorias) != 2 {
 		t.Fatalf("deveria ter capturado unidades e pets: %+v", ult.Memorias)
 	}
-	mem, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	mem, _ := st.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if len(mem.Fatos) != 2 || mem.Fatos[0].Fonte != "344200011995" {
 		t.Fatalf("memória gravada: %+v", mem)
 	}
@@ -348,7 +348,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	dir, _ := cat.ResolveAgente("agentes/concierge")
 	def, _ := cat.Load(dir)
 	cfg := svcM.Config
-	m2, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	m2, _ := st.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	cfg.Contexto = harness.ContextoDeMemoria(m2)
 	ag, err := harness.Build(context.Background(), cat, def, cfg)
 	if err != nil {
@@ -363,7 +363,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	}
 
 	// identidade falha: segue como público, com o erro registrado
-	svc2 := Servico{Cat: svc.Cat, Agente: svc.Agente, Account: svc.Account, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi}
+	svc2 := Servico{Cat: svc.Cat, Agente: svc.Agente, Mapeamento: svc.Mapeamento, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi}
 	svc2.Config.MCP = &mcpServicoFalso{erroToken: errors.New("bff fora")}
 	s3, err := svc2.Processar(context.Background(), ev.Normalizar())
 	if err == nil || s3.Identidade.Authenticated || !strings.Contains(s3.IdentErro, "bff fora") {

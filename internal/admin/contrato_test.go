@@ -75,14 +75,8 @@ func cenarioMapeamento(t *testing.T, r Repositorio) {
 	ok(r.SalvarPayload(ctx, "cond-x", "unidades.listar", map[string]any{"company_id": "5982"}))
 
 	m := ok(r.Ler(ctx))
-	if c, achou := m.Resolver("5982", "", ""); !achou || c.ID != "cond-x" || c.Account != "cond-001" || c.Tenant != "t1" {
-		t.Fatalf("resolver por company: %+v %v", c, achou)
-	}
-	if c, achou := m.Resolver("", "t1", ""); !achou || c.ID != "cond-x" {
-		t.Fatal("resolver por tenant")
-	}
-	if _, achou := m.Resolver("999", "nao", "nao"); achou {
-		t.Fatal("sem casar deveria ser false")
+	if c, achou := m.Condominio("cond-x"); !achou || c.Account != "cond-001" || c.CompanyID != "5982" || c.Tenant != "t1" {
+		t.Fatalf("condomínio gravado: %+v %v", c, achou)
 	}
 	if !m.Habilitado("cond-x", "liberacao_visitante", "morador") {
 		t.Fatal("sem entrada = habilitado")

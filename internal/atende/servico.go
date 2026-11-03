@@ -18,6 +18,7 @@ import (
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -318,10 +319,11 @@ func DividirMensagem(texto string, maxUTF16 int) []string {
 var extracoes sync.WaitGroup
 
 type Servico struct {
-	Cat         *okf.Catalogo
-	Agente      string // caminho relativo do agente de primeiro nível (agentes/concierge)
-	Config      harness.Config
-	Account     string // account do Nexus para os recursos (DEFAULT_ACCOUNT_ID)
+	Cat    *okf.Catalogo
+	Agente string // caminho relativo do agente de primeiro nível (agentes/concierge)
+	Config harness.Config
+	// Implantacao restringe o processo a uma administradora (vazia = todas).
+	Implantacao escopo.Implantacao
 	Gruvi       *gruvi.Client
 	TelefoneB2C string
 	Sender      Sender
@@ -332,8 +334,8 @@ type Servico struct {
 	// fatos novos a cada troca (nil = memoria.Regras).
 	Memorias memoria.Store
 	Extrator memoria.Extrator
-	// Mapeamento é o Admin da administradora (nil = tudo habilitado, sem payloads):
-	// resolve o condomínio da conversa, filtra os casos de uso e injeta os payloads.
+	// Mapeamento é o Admin das administradoras: resolve o condomínio de cada mensagem
+	// (sem ele nenhuma é atendida), filtra os casos de uso e injeta os payloads.
 	Mapeamento admin.Repositorio
 	// Pedidos é o registro de pedidos por contato (nil = desligado: a conversa segue só
 	// pelo orquestrador). ExtratorPedidos detecta os pedidos na mensagem (nil = Regras).
@@ -362,29 +364,29 @@ func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, 
 	return lock.Unlock
 }
 
-func (s *Servico) bloquearPedidos(phone string) func() {
-	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, s.Account+":"+pedidos.NormalizarTelefone(phone))
+func (s *Servico) bloquearPedidos(c escopo.Contato) func() {
+	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, c.Chave())
 }
 
-func (s *Servico) carregarCarteira(ctx context.Context, phone string) (pedidos.Carteira, error) {
-	chave := s.Account + ":" + pedidos.NormalizarTelefone(phone)
+func (s *Servico) carregarCarteira(ctx context.Context, c escopo.Contato) (pedidos.Carteira, error) {
+	chave := c.Chave()
 	s.pedidoMu.Lock()
 	pendente, existe := s.pedidosPendentes[chave]
 	s.pedidoMu.Unlock()
 	if existe {
-		if err := s.Pedidos.Gravar(ctx, pendente); err != nil {
+		if err := s.Pedidos.Gravar(ctx, c, pendente); err != nil {
 			return pedidos.Carteira{}, fmt.Errorf("pedidos: estado pendente ainda não pôde ser salvo: %w", err)
 		}
 		s.pedidoMu.Lock()
 		delete(s.pedidosPendentes, chave)
 		s.pedidoMu.Unlock()
 	}
-	return s.Pedidos.Ler(ctx, s.Account, phone)
+	return s.Pedidos.Ler(ctx, c)
 }
 
-func (s *Servico) salvarCarteira(ctx context.Context, cart pedidos.Carteira) error {
-	chave := s.Account + ":" + pedidos.NormalizarTelefone(cart.Telefone)
-	if err := s.Pedidos.Gravar(ctx, cart); err != nil {
+func (s *Servico) salvarCarteira(ctx context.Context, c escopo.Contato, cart pedidos.Carteira) error {
+	chave := c.Chave()
+	if err := s.Pedidos.Gravar(ctx, c, cart); err != nil {
 		s.pedidoMu.Lock()
 		if s.pedidosPendentes == nil {
 			s.pedidosPendentes = map[string]pedidos.Carteira{}
@@ -399,22 +401,22 @@ func (s *Servico) salvarCarteira(ctx context.Context, cart pedidos.Carteira) err
 	return nil
 }
 
-func (s *Servico) bloquearMemoria(phone string) func() {
-	return s.lockPorChave(&s.memoriaMu, &s.memoriaLocks, s.Account+":"+memoria.NormalizarTelefone(phone))
+func (s *Servico) bloquearMemoria(c escopo.Contato) func() {
+	return s.lockPorChave(&s.memoriaMu, &s.memoriaLocks, c.Chave())
 }
 
-func (s *Servico) revisaoMemoria(phone string) uint64 {
+func (s *Servico) revisaoMemoria(c escopo.Contato) uint64 {
 	s.memoriaMu.Lock()
 	defer s.memoriaMu.Unlock()
-	return s.memoriaRevisoes[s.Account+":"+memoria.NormalizarTelefone(phone)]
+	return s.memoriaRevisoes[c.Chave()]
 }
 
 var ErrFatoNaoEncontrado = errors.New("fato não encontrado")
 
-func (s *Servico) EsquecerMemoria(ctx context.Context, phone, chave string) (memoria.Memoria, error) {
-	desbloquear := s.bloquearMemoria(phone)
+func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave string) (memoria.Memoria, error) {
+	desbloquear := s.bloquearMemoria(c)
 	defer desbloquear()
-	m, err := s.Memorias.Ler(ctx, s.Account, phone)
+	m, err := s.Memorias.Ler(ctx, c)
 	if err != nil {
 		return m, err
 	}
@@ -426,14 +428,14 @@ func (s *Servico) EsquecerMemoria(ctx context.Context, phone, chave string) (mem
 	if m.Fatos == nil {
 		m.Fatos = []memoria.Fato{}
 	}
-	if err := s.Memorias.Gravar(ctx, m); err != nil {
+	if err := s.Memorias.Gravar(ctx, c, m); err != nil {
 		return m, err
 	}
 	s.memoriaMu.Lock()
 	if s.memoriaRevisoes == nil {
 		s.memoriaRevisoes = map[string]uint64{}
 	}
-	s.memoriaRevisoes[s.Account+":"+memoria.NormalizarTelefone(phone)]++
+	s.memoriaRevisoes[c.Chave()]++
 	s.memoriaMu.Unlock()
 	return m, nil
 }
@@ -519,6 +521,18 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		return sess, nil
 	}
+	if err := s.resolverCondominio(ctx, sess, msg); err != nil {
+		if !condominioNaoAtendido(err) {
+			s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+			historicoRegistrado = true
+			return sess, err
+		}
+		s.avisar("resolver_condominio", sess, err)
+		sess.historicoAdicionar(schema.UserMessage(texto))
+		s.transbordar(sess, "condomínio não identificado", "concierge", "")
+		return sess, nil
+	}
+	contato := sess.contato()
 
 	if identidadeVazia {
 		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone)
@@ -543,7 +557,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		}
 	}
 
-	revisaoMemoria := s.revisaoMemoria(sess.Contato.Phone)
+	revisaoMemoria := s.revisaoMemoria(contato)
 	cfg, mem, dir, err := s.montar(ctx, sess)
 	if err != nil {
 		return sess, err
@@ -668,7 +682,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	if s.Pedidos != nil {
 		ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		err := s.marcarConfirmacoesEntregues(ctxSalvar, sess.Contato.Phone, pedidosTurno, res.Resposta)
+		err := s.marcarConfirmacoesEntregues(ctxSalvar, contato, pedidosTurno, res.Resposta)
 		cancelar()
 		if err != nil {
 			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
@@ -808,7 +822,8 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 	sess.mu.Lock()
 	identidade := sess.Identidade
 	sess.mu.Unlock()
-	cfg.Identidade = harness.Identidade{Authenticated: identidade.Authenticated, AccountID: s.Account, Role: identidade.Role}
+	cfg.Identidade = harness.Identidade{Authenticated: identidade.Authenticated, Role: identidade.Role}
+	contato := sess.contato()
 	cfg.MCPResultados = sess.resultadosMCP()
 
 	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
@@ -816,17 +831,12 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 	var contexto []string
 	if s.Mapeamento != nil {
 		if m, err := s.Mapeamento.Ler(ctx); err == nil {
-			condo, ok := m.Resolver(identidade.CompanyID, sess.Tenant, s.Account)
+			condo, ok := m.Condominio(contato.CondominioID)
 			condoID := admin.Padrao
 			if ok {
 				condoID = condo.ID
-				if condo.Account != "" {
-					cfg.Identidade.AccountID = condo.Account
-				}
+				cfg.Identidade.AccountID = condo.Account
 			}
-			sess.mu.Lock()
-			sess.Condominio = condoID
-			sess.mu.Unlock()
 			papel := identidade.Role
 			cfg.Casos = func(nome, casoID string) bool {
 				return m.Habilitado(condoID, nome, papel) && (casoID == "" || m.Habilitado(condoID, casoID, papel))
@@ -853,11 +863,11 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
 	if s.Memorias != nil {
-		desbloquear := s.bloquearMemoria(sess.Contato.Phone)
-		m, err := s.Memorias.Ler(ctx, s.Account, sess.Contato.Phone)
+		desbloquear := s.bloquearMemoria(contato)
+		m, err := s.Memorias.Ler(ctx, contato)
 		desbloquear()
 		if err != nil && s.Log != nil {
-			s.Log.Printf("atende: memória de %s: %v", sess.Contato.Phone, err)
+			s.Log.Printf("atende: memória de %s: %v", contato.Chave(), err)
 		}
 		mem = m
 		if c := harness.ContextoDeMemoria(mem); c != "" {
@@ -900,6 +910,40 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 }
 
 // transbordar passa o protocolo ao atendente humano.
+// resolverCondominio fixa na sessão o condomínio da mensagem e o contato na
+// administradora dele. Sem mapeamento, nenhum condomínio é conhecido.
+func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entrada.Mensagem) error {
+	if s.Mapeamento == nil {
+		return fmt.Errorf("resolver condomínio sem mapeamento: %w", admin.ErrCondominioDesconhecido)
+	}
+	m, err := s.Mapeamento.Ler(ctx)
+	if err != nil {
+		return fmt.Errorf("resolver condomínio: %w", err)
+	}
+	condo, err := admin.ResolverCondominio(m, s.Implantacao, msg.CompanyID, msg.Tenant)
+	if err != nil {
+		return err
+	}
+	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
+	if err != nil {
+		return fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
+	}
+	sess.fixarContato(contato)
+	return nil
+}
+
+// condominioNaoAtendido: a mensagem é de um condomínio que este processo não atende
+// (desconhecido ou de outra administradora); o resto é falha de infraestrutura.
+func condominioNaoAtendido(err error) bool {
+	return errors.Is(err, admin.ErrCondominioDesconhecido) || errors.Is(err, admin.ErrForaDaImplantacao)
+}
+
+func (s *Servico) avisar(operacao string, sess *Sessao, err error) {
+	if s.Log != nil {
+		s.Log.Printf("WARN operacao=%s sessao=%s protocolo=%s: %v", operacao, sess.ID, sess.Protocolo, err)
+	}
+}
+
 func (s *Servico) transbordar(sess *Sessao, motivo, pedidoPor, atendente string) {
 	sess.mu.Lock()
 	sess.Transbordo = &Transbordo{Ativo: true, Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
@@ -1044,12 +1088,13 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 		}
 		return nil
 	}
-	desbloquear := s.bloquearMemoria(sess.Contato.Phone)
+	contato := sess.contato()
+	desbloquear := s.bloquearMemoria(contato)
 	defer desbloquear()
-	if s.revisaoMemoria(sess.Contato.Phone) != revisao {
+	if s.revisaoMemoria(contato) != revisao {
 		return nil
 	}
-	memAtual, err := s.Memorias.Ler(ctx, s.Account, sess.Contato.Phone)
+	memAtual, err := s.Memorias.Ler(ctx, contato)
 	if err != nil {
 		if s.Log != nil {
 			s.Log.Printf("atende: leitura da memória para mesclagem: %v", err)
@@ -1057,24 +1102,19 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 		return nil
 	}
 	*mem = memAtual
-	if mem.Account == "" {
-		mem.Account = s.Account
-	}
-	if mem.Telefone == "" {
-		mem.Telefone = sess.Contato.Phone
-	}
 	if mem.Nome == "" {
 		mem.Nome = sess.Identidade.Name
 	}
 	var novos []memoria.Fato
 	for _, f := range fatos {
 		f.Fonte = sess.Protocolo
+		f.CondominioID = contato.CondominioID
 		if mem.Upsert(f) {
 			novos = append(novos, f)
 		}
 	}
 	if len(novos) > 0 {
-		if err := s.Memorias.Gravar(ctx, *mem); err != nil && s.Log != nil {
+		if err := s.Memorias.Gravar(ctx, contato, *mem); err != nil && s.Log != nil {
 			s.Log.Printf("atende: gravar memória: %v", err)
 		}
 	}

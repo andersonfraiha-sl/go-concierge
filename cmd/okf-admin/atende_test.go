@@ -15,10 +15,13 @@ import (
 	"testing"
 	"time"
 
+	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
+	"go-concierge/internal/memoria"
 	"go-concierge/internal/okf"
 )
 
@@ -35,17 +38,20 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 	}
 	cat.Recursos = func() []okf.Recurso { return fix }
 	out := &atende.Outbox{}
+	repo := mapeamentoTeste(t)
 	s := &servidor{
 		atende: &atende.Servico{
-			Cat: cat, Agente: "agentes/concierge", Account: "cond-001",
+			Cat: cat, Agente: "agentes/concierge", Mapeamento: repo,
 			Sessoes: atende.NewSessoes(), Sender: out,
 			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
 		},
-		log: log.New(io.Discard, "", 0),
+		admin: repo,
+		log:   log.New(io.Discard, "", 0),
 	}
 	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-1","type":"text","content":"posso fazer barulho depois das 22h?"}}}`
 	w := httptest.NewRecorder()
-	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpo)))
+	// o evento vem com um tenant que nenhum condomínio tem: o seletor do Console decide
+	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=cond-x", strings.NewReader(corpo)))
 	if w.Code != 202 {
 		t.Fatalf("status HTTP %d: %s", w.Code, w.Body.String())
 	}
@@ -65,6 +71,9 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 		if saidas := out.Itens("protocolo-1"); len(saidas) > 0 {
 			if saidas[0].Texto == "" {
 				t.Fatal("resposta vazia")
+			}
+			if sess := s.atende.Sessoes.Lista()[0]; sess.Condominio != "cond-x" || sess.AdministradoraID != "adm-x" {
+				t.Fatalf("condomínio da conversa: %s/%s", sess.AdministradoraID, sess.Condominio)
 			}
 			return
 		}
@@ -257,5 +266,66 @@ func TestBotaoIdentidadeDevolveContratoDaConsole(t *testing.T) {
 	}
 	if fake.chamadas != 1 || fake.args["companyId"] != "5982" || fake.args["filter_mobile_number"] != "5519981621916" {
 		t.Fatalf("chamada MCP filtrada pelo telefone B2C: %+v", fake)
+	}
+}
+
+// mapeamentoTeste: a administradora adm-x, dona do condomínio cond-x (tenant-x, company 123).
+func mapeamentoTeste(t *testing.T) *admin.EmMemoria {
+	t.Helper()
+	repo := admin.NovaEmMemoria()
+	if _, err := repo.SalvarAdministradora(t.Context(), admin.Administradora{ID: "adm-x", Nome: "X"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.SalvarCondominio(t.Context(), admin.Condominio{ID: "cond-x", Nome: "X", Administradora: "adm-x", Account: "cond-001", CompanyID: "123", Tenant: "tenant-x"}); err != nil {
+		t.Fatal(err)
+	}
+	return repo
+}
+
+func TestWebhookEmuladoRecusaCondominioDesconhecido(t *testing.T) {
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}, admin: mapeamentoTeste(t)}
+	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-1","type":"text","content":"oi"}}}`
+	w := httptest.NewRecorder()
+	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=nao-existe", strings.NewReader(corpo)))
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "CONDOMINIO_DESCONHECIDO") {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
+	st := memoria.NewArquivos(t.TempDir())
+	c, err := escopo.NovoContato("adm-x", admin.Padrao, "5519981621916")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Gravar(t.Context(), c, memoria.Memoria{Fatos: []memoria.Fato{{Chave: "pets", Texto: "tem um cachorro"}}}); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name        string
+		implantacao escopo.Implantacao
+		url         string
+		status      int
+		trecho      string
+	}{
+		{"sem administradora", escopo.Implantacao{}, "/api/memoria?phone=5519981621916", 400, "ADMINISTRADORA_OBRIGATORIA"},
+		{"administradora informada", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=adm-x", 200, "tem um cachorro"},
+		{"outra administradora nao ve", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=adm-y", 200, `"fatos":[]`},
+		{"fixa vale por padrao", escopo.Implantacao{AdministradoraFixa: "adm-x"}, "/api/memoria?phone=5519981621916", 200, "tem um cachorro"},
+		{"fora da implantacao", escopo.Implantacao{AdministradoraFixa: "adm-x"}, "/api/memoria?phone=5519981621916&administradora=adm-y", 403, "FORA_DA_IMPLANTACAO"},
+		{"listagem sem administradora", escopo.Implantacao{}, "/api/memorias", 400, "ADMINISTRADORA_OBRIGATORIA"},
+		{"pedidos sem administradora", escopo.Implantacao{}, "/api/pedidos?phone=5519981621916", 400, "ADMINISTRADORA_OBRIGATORIA"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(), Memorias: st}, memorias: st, implantacao: tt.implantacao}
+			mux := http.NewServeMux()
+			s.rotasAtende(mux)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, httptest.NewRequest("GET", tt.url, nil))
+			if w.Code != tt.status || !strings.Contains(w.Body.String(), tt.trecho) {
+				t.Fatalf("status %d: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }
