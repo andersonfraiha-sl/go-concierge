@@ -65,7 +65,7 @@ export function CondominiosPage(): ReactNode {
             {aba === 'condominios' ? (
               <ListaDeCondominios estado={estado} />
             ) : (
-              <AdministradorasAba administradoras={estado.administradoras} />
+              <AdministradorasAba administradoras={estado.administradoras} condominios={estado.mapeamento.condominios} />
             )}
             <NovoCondominio aberto={criando} estado={estado} onFechar={() => setCriando(false)} />
           </>
@@ -124,7 +124,7 @@ type NovoProps = { aberto: boolean; estado: Estado; onFechar: () => void };
 
 function NovoCondominio({ aberto, estado, onFechar }: NovoProps): ReactNode {
   const escopo = useEscopo() ?? null;
-  const executar = useExecutar();
+  const { executar, gravando } = useExecutar();
   const navegar = useNavigate();
   const { mostrar } = useSnackbar();
   const [nome, setNome] = useState('');
@@ -156,7 +156,7 @@ function NovoCondominio({ aberto, estado, onFechar }: NovoProps): ReactNode {
       </DialogContent>
       <DialogActions>
         <Button onClick={onFechar}>Cancelar</Button>
-        <Button variant="contained" disabled={nome.trim() === ''} onClick={() => void criar()}>
+        <Button variant="contained" disabled={gravando || nome.trim() === ''} onClick={() => void criar()}>
           Criar condomínio
         </Button>
       </DialogActions>

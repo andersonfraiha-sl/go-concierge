@@ -1,4 +1,4 @@
-import { FormControlLabel, Switch, TextField } from '@mui/material';
+import { Box, Button, FormControlLabel, Switch, TextField } from '@mui/material';
 import type { ReactNode } from 'react';
 import type { Ferramenta } from '@/catalogo/contratos';
 import type { Valor } from './contratos';
@@ -21,12 +21,22 @@ export function CampoAjuste({ definicao, valor, herdado, desabilitado, onMudar }
   const dica = textoDe(herdado) === '' ? 'Sem padrão' : `Padrão: ${textoDe(herdado)}`;
   const comum = { label: rotulo, disabled: desabilitado, helperText: definicao.description ?? dica, fullWidth: true } as const;
 
+  const temDecisao = valor !== undefined && valor !== '';
+  const usarOPadrao = (
+    <Button size="small" aria-label={`Usar o padrão: ${rotulo}`} onClick={() => onMudar('')}>
+      Usar o padrão
+    </Button>
+  );
+
   if (definicao.type === 'boolean') {
     return (
-      <FormControlLabel
-        label={`${rotulo} (${valor === undefined ? dica.toLowerCase() : valor ? 'sim' : 'não'})`}
-        control={<Switch checked={valor === true} disabled={desabilitado} onChange={(_, ligado) => onMudar(ligado)} />}
-      />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <FormControlLabel
+          label={`${rotulo} (${temDecisao ? (valor ? 'sim' : 'não') : dica.toLowerCase()})`}
+          control={<Switch checked={valor === true} disabled={desabilitado} onChange={(_, ligado) => onMudar(ligado)} />}
+        />
+        {temDecisao && !desabilitado && usarOPadrao}
+      </Box>
     );
   }
   if (definicao.type === 'select') {
@@ -49,12 +59,15 @@ export function CampoAjuste({ definicao, valor, herdado, desabilitado, onMudar }
   }
   if (definicao.type === 'number') {
     return (
-      <TextField
-        {...comum}
-        type="number"
-        value={textoDe(valor)}
-        onChange={(e) => onMudar(e.target.value === '' ? '' : Number(e.target.value))}
-      />
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+        <TextField
+          {...comum}
+          type="number"
+          value={textoDe(valor)}
+          onChange={(e) => onMudar(e.target.value === '' ? '' : Number(e.target.value))}
+        />
+        {temDecisao && !desabilitado && usarOPadrao}
+      </Box>
     );
   }
   return (

@@ -1,22 +1,35 @@
+import { useState } from 'react';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { useAplicarMapeamento, useEscopo, type Escopo, type RespostaMapeamento } from './contratos';
 
 type Gravacao = (escopo: Escopo) => Promise<RespostaMapeamento>;
 
-/** Roda uma gravação, aplica a resposta no cache e avisa no rodapé; devolve se deu certo. */
-export function useExecutar(): (gravacao: Gravacao, sucesso?: string) => Promise<boolean> {
+type Execucao = {
+  /** Roda uma gravação, aplica a resposta no cache e avisa no rodapé; devolve se deu certo. */
+  executar: (gravacao: Gravacao, sucesso?: string) => Promise<boolean>;
+  /** Há gravação em andamento: quem usa desabilita os controles para não enviar dado velho. */
+  gravando: boolean;
+};
+
+export function useExecutar(): Execucao {
   const aplicar = useAplicarMapeamento();
   const escopo = useEscopo() ?? null;
   const { mostrar } = useSnackbar();
+  const [gravando, setGravando] = useState(false);
 
-  return async (gravacao, sucesso) => {
+  async function executar(gravacao: Gravacao, sucesso?: string): Promise<boolean> {
+    setGravando(true);
     try {
       aplicar(await gravacao(escopo));
     } catch (erro) {
       mostrar(erro instanceof Error ? erro.message : String(erro), 'error');
       return false;
+    } finally {
+      setGravando(false);
     }
     if (sucesso !== undefined) mostrar(sucesso);
     return true;
-  };
+  }
+
+  return { executar, gravando };
 }

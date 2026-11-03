@@ -1,5 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { CondominioPage } from './CondominioPage';
@@ -136,5 +136,56 @@ describe('CondominioPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Padrão (todos)' })).toBeInTheDocument();
     expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
+  });
+
+  it('gestorCannotEditDefault', async () => {
+    responderCom(rotasBase(gestor));
+    abrir('*');
+
+    expect(await screen.findByText('Vale para todas as administradoras; só a Superlógica muda.')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Para todas as skills' })).toBeDisabled();
+  });
+
+  it('clearsAdjustmentOverrideWithUsarOPadrao', async () => {
+    const ajustes = gravador('PUT /api/admin/ajustes');
+    const comValor = structuredClone(estadoFalso);
+    comValor.mapeamento.payloads = { 'vila-verde': { 'agenda-mudanca': { antecedencia_dias: 5 } } } as never;
+    responderCom({ ...rotasBase(gestor), 'GET /api/admin/estado': () => json(comValor), ...ajustes.handlers });
+    const { user } = abrir();
+
+    await user.click(await screen.findByRole('button', { name: 'Usar o padrão: Antecedência mínima (dias)' }));
+
+    expect(screen.getByLabelText('Antecedência mínima (dias)')).toHaveValue(null);
+    await waitFor(() => expect(ajustes.corpos).toHaveLength(1), { timeout: 3000 });
+    expect(ajustes.corpos[0]).toMatchObject({ ajustes: { 'agenda-mudanca': { antecedencia_dias: '' } } });
+  });
+
+  describe('em tela estreita', () => {
+    const original = window.matchMedia;
+    afterEach(() => Object.defineProperty(window, 'matchMedia', { value: original, configurable: true, writable: true }));
+
+    it('staysReadOnlyBelow900px', async () => {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches: true,
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+          onchange: null,
+        }),
+      });
+      responderCom(rotasBase(construtor));
+      abrir();
+
+      expect(await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: 'Para todas as skills' })).toBeDisabled();
+      expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
+    });
   });
 });

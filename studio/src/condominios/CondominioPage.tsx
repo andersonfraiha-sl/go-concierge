@@ -6,7 +6,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
 import { AjustesSecao } from './AjustesSecao';
 import { ComEstado } from './ComEstado';
-import { PADRAO, useEstado, type Estado } from './contratos';
+import { PADRAO, useEscopo, useEstado, type Estado } from './contratos';
 import { IdentificacaoSecao } from './IdentificacaoSecao';
 import { OrientacoesSecao } from './OrientacoesSecao';
 import { SkillsSecao } from './SkillsSecao';
@@ -29,10 +29,14 @@ export function CondominioPage(): ReactNode {
 
 function Ficha({ estado, id }: { estado: Estado; id: string }): ReactNode {
   const { data: skills } = useSkills();
+  const escopo = useEscopo();
   const podeHabilitar = usePodeEditarCondominio('condominios.habilitar');
   const podeIdentificar = usePodeEditarCondominio('condominios.editar');
   const condominio = estado.mapeamento.condominios.find((c) => c.id === id);
   const ehPadrao = id === PADRAO;
+  // O padrão vale para todas as administradoras: só a Superlógica (sem escopo) o altera.
+  const padraoTravado = ehPadrao && escopo !== null;
+  const editavel = podeHabilitar && !padraoTravado;
 
   if (!ehPadrao && !condominio) return <EmptyState frase="Não encontramos este condomínio." />;
 
@@ -42,9 +46,14 @@ function Ficha({ estado, id }: { estado: Estado; id: string }): ReactNode {
       <Typography variant="h5" component="h1">
         {condominio?.nome ?? TITULO_DO_PADRAO}
       </Typography>
-      <SkillsSecao estado={estado} condominio={id} titulos={titulos} editavel={podeHabilitar} />
-      <OrientacoesSecao estado={estado} condominio={id} titulos={titulos} editavel={podeHabilitar} />
-      <AjustesSecao estado={estado} condominio={id} editavel={podeHabilitar} />
+      {padraoTravado && (
+        <Typography variant="body2" color="text.secondary">
+          Vale para todas as administradoras; só a Superlógica muda.
+        </Typography>
+      )}
+      <SkillsSecao estado={estado} condominio={id} titulos={titulos} editavel={editavel} />
+      <OrientacoesSecao estado={estado} condominio={id} titulos={titulos} editavel={editavel} />
+      <AjustesSecao estado={estado} condominio={id} editavel={editavel} />
       {condominio && podeIdentificar && (
         <IdentificacaoSecao condominio={condominio} administradoras={estado.administradoras} />
       )}

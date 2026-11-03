@@ -5,13 +5,14 @@ import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { paraIdentificador } from '@/skills/contratos';
-import { removerAdministradora, salvarAdministradora, type Administradora } from './contratos';
+import { removerAdministradora, salvarAdministradora, type Administradora, type Condominio } from './contratos';
 import { useExecutar } from './useExecutar';
 
-type Props = { administradoras: Administradora[] };
+type Props = { administradoras: Administradora[]; condominios: Condominio[] };
 
-export function AdministradorasAba({ administradoras }: Props): ReactNode {
-  const executar = useExecutar();
+export function AdministradorasAba({ administradoras, condominios }: Props): ReactNode {
+  const { executar, gravando } = useExecutar();
+  const temCondominios = (a: Administradora): boolean => condominios.some((c) => c.administradora_id === a.id);
   const { mostrar } = useSnackbar();
   const [nome, setNome] = useState('');
   const [aRemover, setARemover] = useState<Administradora | null>(null);
@@ -34,7 +35,7 @@ export function AdministradorasAba({ administradoras }: Props): ReactNode {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box component="form" onSubmit={(e) => void criar(e)} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
         <TextField size="small" label="Nome da administradora" value={nome} onChange={(e) => setNome(e.target.value)} />
-        <Button type="submit" variant="contained" disabled={nome.trim() === ''}>
+        <Button type="submit" variant="contained" disabled={gravando || nome.trim() === ''}>
           Criar administradora
         </Button>
       </Box>
@@ -50,7 +51,16 @@ export function AdministradorasAba({ administradoras }: Props): ReactNode {
               sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, borderBottom: 1, borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
             >
               <Typography sx={{ flex: 1 }}>{a.nome}</Typography>
-              <IconButton aria-label={`Remover ${a.nome}`} onClick={() => setARemover(a)}>
+              {temCondominios(a) && (
+                <Typography variant="caption" color="text.secondary">
+                  Mova os condomínios dela antes de remover.
+                </Typography>
+              )}
+              <IconButton
+                aria-label={`Remover ${a.nome}`}
+                disabled={gravando || temCondominios(a)}
+                onClick={() => setARemover(a)}
+              >
                 <DeleteOutlined />
               </IconButton>
             </Box>
@@ -61,7 +71,7 @@ export function AdministradorasAba({ administradoras }: Props): ReactNode {
       <ConfirmDialog
         aberto={aRemover !== null}
         titulo="Remover administradora"
-        texto={`Remover "${aRemover?.nome ?? ''}"? Os condomínios dela ficam sem administradora.`}
+        texto={`Remover "${aRemover?.nome ?? ''}"? Não dá para desfazer.`}
         confirmar="Remover"
         onConfirmar={() => aRemover && void remover(aRemover)}
         onCancelar={() => setARemover(null)}

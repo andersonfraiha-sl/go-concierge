@@ -21,7 +21,7 @@ type Props = {
 };
 
 export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): ReactNode {
-  const executar = useExecutar();
+  const { executar, gravando } = useExecutar();
 
   const gravar = (caso: Caso, habilitado: boolean, papeis: string[]): Promise<boolean> =>
     executar((escopo) =>
@@ -46,7 +46,7 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Switch
                 checked={habilitacao.habilitado}
-                disabled={!editavel}
+                disabled={!editavel || gravando}
                 onChange={(_, ligado) => void gravar(caso, ligado, habilitacao.papeis)}
                 slotProps={{ input: { 'aria-label': `${titulo} neste condomínio` } }}
               />
@@ -57,7 +57,7 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
                 </Typography>
               </Box>
               {propria && editavel && (
-                <Button size="small" aria-label={`Usar o padrão: ${titulo}`} onClick={() => void usarOPadrao(caso)}>
+                <Button size="small" disabled={gravando} aria-label={`Usar o padrão: ${titulo}`} onClick={() => void usarOPadrao(caso)}>
                   Usar o padrão
                 </Button>
               )}
@@ -74,7 +74,7 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
                     color={marcado ? 'primary' : 'default'}
                     variant={marcado ? 'filled' : 'outlined'}
                     clickable={editavel}
-                    disabled={!editavel}
+                    disabled={!editavel || gravando}
                     aria-label={`${rotuloDoPapel(papel)} em ${titulo}`}
                     onClick={() => void gravar(caso, habilitacao.habilitado, proximos)}
                   />

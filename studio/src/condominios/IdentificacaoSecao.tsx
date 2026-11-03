@@ -10,7 +10,7 @@ import { useExecutar } from './useExecutar';
 type Props = { condominio: Condominio; administradoras: Administradora[] };
 
 export function IdentificacaoSecao({ condominio, administradoras }: Props): ReactNode {
-  const executar = useExecutar();
+  const { executar, gravando } = useExecutar();
   const navegar = useNavigate();
   const doGestor = useEscopo() !== null;
   const [rascunho, setRascunho] = useState<Condominio>(condominio);
@@ -45,12 +45,12 @@ export function IdentificacaoSecao({ condominio, administradoras }: Props): Reac
         {campo('Canal do Atende', 'tenant')}
       </Box>
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
-        <Button color="error" onClick={() => setRemovendo(true)}>
+        <Button color="error" disabled={gravando} onClick={() => setRemovendo(true)}>
           Remover condomínio
         </Button>
         <Button
           variant="contained"
-          disabled={rascunho.nome.trim() === ''}
+          disabled={gravando || rascunho.nome.trim() === ''}
           onClick={() => void executar((escopo) => salvarCondominio({ ...rascunho, nome: rascunho.nome.trim() }, escopo), 'Identificação salva.')}
         >
           Salvar
