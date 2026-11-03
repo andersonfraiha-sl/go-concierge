@@ -39,7 +39,7 @@ type Operacao struct {
 	Texto      string          `json:"texto,omitempty"`
 	Agente     string          `json:"agente,omitempty"`
 	Caminho    string          `json:"caminho,omitempty"`
-	Conteudo   string          `json:"conteudo,omitempty"`
+	Conteudo   *string         `json:"conteudo,omitempty"` // nil = faltou; "" = esvaziar o arquivo
 }
 
 // TextosParciais traz só os textos que o Copiloto quer trocar; nil = mantém.
@@ -71,32 +71,29 @@ const (
 	motivoIncompleta    = "Proposta incompleta."
 )
 
-var permissaoPorTipo = map[TipoDeOperacao]string{
-	PreencherTextos: "skills.editar_textos",
-	TrocarFluxo:     "skills.editar_fluxo",
-	CriarSkill:      "skills.criar",
-	ExcluirSkill:    "skills.excluir",
-	HabilitarSkill:  "condominios.habilitar",
-	Orientar:        "condominios.habilitar",
-	Ajustar:         "condominios.habilitar",
-	EditarPersona:   "skills.editar_textos",
-	EditarArquivo:   "studio.avancado",
-}
+// alcance diz que regra extra a operação segue além da permissão. O zero é indefinido e recusa.
+type alcance int
 
-// doCatalogo são as operações no catálogo global, mesma regra de podeNoCatalogo no front.
-var doCatalogo = []TipoDeOperacao{PreencherTextos, TrocarFluxo, CriarSkill, ExcluirSkill, EditarPersona}
-
-// doCondominio são as operações que mexem num condomínio e por isso passam pelo escopo.
-var doCondominio = []TipoDeOperacao{HabilitarSkill, Orientar, Ajustar}
-
-// PermissaoDe devolve a permissão exigida pelo tipo; "" para tipo desconhecido.
-func PermissaoDe(t TipoDeOperacao) string {
-	return permissaoPorTipo[t]
-}
+const (
+	alcanceIndefinido alcance = iota
+	alcanceCatalogo           // catálogo global: só a Superlógica muda (podeNoCatalogo no front)
+	alcanceCondominio         // mexe num condomínio: precisa estar no escopo de quem pede
+)
 
 type campo struct {
 	rotulo     string
 	preenchido func(Operacao) bool
+}
+
+// regra é tudo que decide se um tipo de operação passa. Tipo sem regra completa é recusado.
+type regra struct {
+	permissao string
+	alcance   alcance
+	campos    []campo
+}
+
+func (r regra) completa() bool {
+	return r.permissao != "" && r.alcance != alcanceIndefinido && len(r.campos) > 0
 }
 
 func texto(get func(Operacao) string) func(Operacao) bool {
@@ -109,30 +106,41 @@ var (
 	campoTexto      = campo{"texto", texto(func(op Operacao) string { return op.Texto })}
 )
 
-var camposPorTipo = map[TipoDeOperacao][]campo{
-	PreencherTextos: {campoSkill, {"textos", func(op Operacao) bool { return op.Textos != nil }}},
-	TrocarFluxo:     {campoSkill, {"fluxo", func(op Operacao) bool { return op.Fluxo != nil }}},
-	CriarSkill:      {{"titulo", texto(func(op Operacao) string { return op.Titulo })}},
-	ExcluirSkill:    {campoSkill},
-	HabilitarSkill:  {campoSkill, campoCondominio, {"habilitado", func(op Operacao) bool { return op.Habilitado != nil }}},
-	Orientar:        {campoCondominio, campoTexto},
-	Ajustar: {
+var regras = map[TipoDeOperacao]regra{
+	PreencherTextos: {"skills.editar_textos", alcanceCatalogo, []campo{campoSkill, {"textos", func(op Operacao) bool { return op.Textos != nil }}}},
+	TrocarFluxo:     {"skills.editar_fluxo", alcanceCatalogo, []campo{campoSkill, {"fluxo", func(op Operacao) bool { return op.Fluxo != nil }}}},
+	CriarSkill:      {"skills.criar", alcanceCatalogo, []campo{{"titulo", texto(func(op Operacao) string { return op.Titulo })}}},
+	ExcluirSkill:    {"skills.excluir", alcanceCatalogo, []campo{campoSkill}},
+	HabilitarSkill: {"condominios.habilitar", alcanceCondominio, []campo{
+		campoSkill, campoCondominio, {"habilitado", func(op Operacao) bool { return op.Habilitado != nil }},
+	}},
+	Orientar: {"condominios.habilitar", alcanceCondominio, []campo{campoCondominio, campoTexto}},
+	Ajustar: {"condominios.habilitar", alcanceCondominio, []campo{
 		campoCondominio,
 		{"recurso", texto(func(op Operacao) string { return op.Recurso })},
 		{"campos", func(op Operacao) bool { return len(op.Campos) > 0 }},
-	},
-	EditarPersona: {{"agente", texto(func(op Operacao) string { return op.Agente })}, campoTexto},
-	EditarArquivo: {{"caminho", texto(func(op Operacao) string { return op.Caminho })}},
+	}},
+	EditarPersona: {"skills.editar_textos", alcanceCatalogo, []campo{{"agente", texto(func(op Operacao) string { return op.Agente })}, campoTexto}},
+	// Os arquivos do Avançado valem para todas as administradoras; Conteudo vazio explícito é permitido.
+	EditarArquivo: {"studio.avancado", alcanceCatalogo, []campo{
+		{"caminho", texto(func(op Operacao) string { return op.Caminho })},
+		{"conteudo", func(op Operacao) bool { return op.Conteudo != nil }},
+	}},
+}
+
+// PermissaoDe devolve a permissão exigida pelo tipo; "" para tipo desconhecido.
+func PermissaoDe(t TipoDeOperacao) string {
+	return regras[t].permissao
 }
 
 // ValidarForma confere os campos obrigatórios do tipo.
 func ValidarForma(op Operacao) error {
-	campos, conhecido := camposPorTipo[op.Tipo]
-	if !conhecido {
+	r := regras[op.Tipo]
+	if !r.completa() {
 		return fmt.Errorf("operação %q: tipo desconhecido", op.Tipo)
 	}
 	var faltando []error
-	for _, c := range campos {
+	for _, c := range r.campos {
 		if !c.preenchido(op) {
 			faltando = append(faltando, fmt.Errorf("falta %s", c.rotulo))
 		}
@@ -156,29 +164,34 @@ func Filtrar(ops []Operacao, ctx Contexto, quem Quem, condominiosDoEscopo func(i
 	return aceitas, recusas
 }
 
-// motivoDaRecusa devolve "" quando a operação pode ser aplicada.
+// motivoDaRecusa devolve "" quando a operação pode ser aplicada. Forma vem antes do escopo
+// porque o escopo precisa do condomínio preenchido.
 func motivoDaRecusa(op Operacao, ctx Contexto, quem Quem, doEscopo func(string) bool) string {
+	r := regras[op.Tipo]
 	switch {
 	case !telaFaz(ctx.Tela, op.Tipo):
 		return motivoForaDaTela
-	case !slices.Contains(quem.Permissoes, PermissaoDe(op.Tipo)):
+	case !r.completa():
+		return motivoIncompleta
+	case !slices.Contains(quem.Permissoes, r.permissao):
 		return motivoSemPermissao
-	case slices.Contains(doCatalogo, op.Tipo) && quem.Administradora != "":
+	case r.alcance == alcanceCatalogo && quem.Administradora != "":
 		return motivoSoSuperlogica
 	case ValidarForma(op) != nil:
 		return motivoIncompleta
-	case slices.Contains(doCondominio, op.Tipo) && !condominioPermitido(op.Condominio, ctx, doEscopo):
+	case r.alcance == alcanceCondominio && !condominioPermitido(op.Condominio, ctx, doEscopo):
 		return motivoForaDoEscopo
 	}
 	return ""
 }
 
 // condominioPermitido: na ficha de um condomínio, só ele vale, além de estar no escopo.
+// doEscopo nil = nenhum condomínio é de quem pede.
 func condominioPermitido(id string, ctx Contexto, doEscopo func(string) bool) bool {
 	if ctx.Tela == TelaCondominio && id != ctx.Condominio {
 		return false
 	}
-	return doEscopo(id)
+	return doEscopo != nil && doEscopo(id)
 }
 
 // ValidarFluxoProposto decide no servidor quais blocos gravam e devolve o que impede gravar.

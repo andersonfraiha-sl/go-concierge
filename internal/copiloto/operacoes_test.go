@@ -1,8 +1,12 @@
 package copiloto
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 
 	"go-concierge/internal/okf"
@@ -56,8 +60,10 @@ func TestValidarForma(t *testing.T) {
 		{"habilitar completo", Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c1", Habilitado: ptr(false)}, false},
 		{"orientar sem condominio", Operacao{Tipo: Orientar, Texto: "Seja breve."}, true},
 		{"orientar geral sem skill", Operacao{Tipo: Orientar, Condominio: "c1", Texto: "Seja breve."}, false},
-		{"editar arquivo sem caminho", Operacao{Tipo: EditarArquivo, Conteudo: "x"}, true},
-		{"editar arquivo completo", Operacao{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: "x"}, false},
+		{"editar arquivo sem caminho", Operacao{Tipo: EditarArquivo, Conteudo: ptr("x")}, true},
+		{"editar arquivo sem conteudo", Operacao{Tipo: EditarArquivo, Caminho: "persona.md"}, true},
+		{"editar arquivo esvaziando", Operacao{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: ptr("")}, false},
+		{"editar arquivo completo", Operacao{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: ptr("x")}, false},
 		{"preencher textos sem textos", Operacao{Tipo: PreencherTextos, Skill: "boleto"}, true},
 		{"preencher textos completo", Operacao{Tipo: PreencherTextos, Skill: "boleto", Textos: &TextosParciais{Resumo: ptr("Envia a segunda via.")}}, false},
 		{"trocar fluxo sem fluxo", Operacao{Tipo: TrocarFluxo, Skill: "boleto"}, true},
@@ -97,7 +103,7 @@ func TestFiltrarPorPermissaoEEscopo(t *testing.T) {
 		{"troca fluxo sem permissao", Contexto{Tela: TelaFluxo, Skill: "boleto"},
 			Operacao{Tipo: TrocarFluxo, Skill: "boleto", Fluxo: fluxoValido()}, motivoSemPermissao},
 		{"edita arquivo sem permissao", Contexto{Tela: TelaAvancado},
-			Operacao{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: "x"}, motivoSemPermissao},
+			Operacao{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: ptr("x")}, motivoSemPermissao},
 		{"preenche textos do catalogo sendo da administradora", Contexto{Tela: TelaSkill, Skill: "boleto"},
 			Operacao{Tipo: PreencherTextos, Skill: "boleto", Textos: &TextosParciais{Resumo: ptr("r")}}, motivoSoSuperlogica},
 		{"orienta outro condominio na ficha aberta", Contexto{Tela: TelaCondominio, Condominio: "c-dele"},
@@ -124,6 +130,88 @@ func TestFiltrarPorPermissaoEEscopo(t *testing.T) {
 	}
 }
 
+func TestFiltrarArquivoDoAvancadoSoParaSuperlogica(t *testing.T) {
+	op := Operacao{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: ptr("x")}
+	casos := []struct {
+		nome   string
+		quem   Quem
+		motivo string
+	}{
+		{"gestor com avancado", Quem{Permissoes: append(slices.Clone(permissoesDoGestor), "studio.avancado"), Administradora: "adm-exemplo"}, motivoSoSuperlogica},
+		{"superlogica", Quem{Permissoes: todasAsPermissoes}, ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			aceitas, recusas := Filtrar([]Operacao{op}, Contexto{Tela: TelaAvancado}, c.quem, nil)
+			if c.motivo == "" {
+				if len(aceitas) != 1 || len(recusas) != 0 {
+					t.Fatalf("quer aceita, veio aceitas=%v recusas=%v", aceitas, recusas)
+				}
+				return
+			}
+			if quer := []Recusa{{Indice: 0, Motivo: c.motivo}}; len(aceitas) != 0 || !reflect.DeepEqual(recusas, quer) {
+				t.Fatalf("quer recusa %q, veio aceitas=%v recusas=%v", c.motivo, aceitas, recusas)
+			}
+		})
+	}
+}
+
+// tiposDeclarados lê do código-fonte todas as constantes TipoDeOperacao, para um tipo novo não
+// escapar do teste de regras.
+func tiposDeclarados(t *testing.T) []TipoDeOperacao {
+	t.Helper()
+	arquivo, err := parser.ParseFile(token.NewFileSet(), "operacoes.go", nil, 0)
+	if err != nil {
+		t.Fatalf("ler operacoes.go: %v", err)
+	}
+	var tipos []TipoDeOperacao
+	ast.Inspect(arquivo, func(n ast.Node) bool {
+		spec, ok := n.(*ast.ValueSpec)
+		if !ok {
+			return true
+		}
+		if ident, ok := spec.Type.(*ast.Ident); !ok || ident.Name != "TipoDeOperacao" {
+			return true
+		}
+		for _, v := range spec.Values {
+			if lit, ok := v.(*ast.BasicLit); ok {
+				valor, err := strconv.Unquote(lit.Value)
+				if err != nil {
+					t.Fatalf("constante %s: %v", lit.Value, err)
+				}
+				tipos = append(tipos, TipoDeOperacao(valor))
+			}
+		}
+		return true
+	})
+	return tipos
+}
+
+func TestCadaTipoTemRegraCompleta(t *testing.T) {
+	tipos := tiposDeclarados(t)
+	if len(tipos) < 9 {
+		t.Fatalf("achou %d tipos em operacoes.go, quer ao menos 9", len(tipos))
+	}
+	for _, tipo := range tipos {
+		r, ok := regras[tipo]
+		if !ok || !r.completa() {
+			t.Errorf("tipo %q sem regra completa (permissão, alcance e campos): %+v", tipo, r)
+		}
+	}
+	if len(regras) != len(tipos) {
+		t.Errorf("regras tem %d entradas, há %d tipos declarados", len(regras), len(tipos))
+	}
+}
+
+func TestTipoSemRegraEhRecusado(t *testing.T) {
+	if ValidarForma(Operacao{Tipo: "inventada"}) == nil {
+		t.Error("ValidarForma aceitou tipo sem regra")
+	}
+	if (regra{}).completa() {
+		t.Error("regra zerada contou como completa")
+	}
+}
+
 func TestFiltrarCatalogoParaSuperlogica(t *testing.T) {
 	superlogica := Quem{Permissoes: todasAsPermissoes}
 	ops := []Operacao{
@@ -141,7 +229,7 @@ func TestFiltrarForaDaTela(t *testing.T) {
 	ops := []Operacao{
 		{Tipo: CriarSkill, Titulo: "Nova"},
 		{Tipo: PreencherTextos, Skill: "boleto", Textos: &TextosParciais{Titulo: ptr("Boleto")}},
-		{Tipo: EditarArquivo, Caminho: "persona.md"},
+		{Tipo: EditarArquivo, Caminho: "persona.md", Conteudo: ptr("x")},
 	}
 	aceitas, recusas := Filtrar(ops, Contexto{Tela: TelaSkill, Skill: "boleto"}, superlogica, func(string) bool { return true })
 	if len(aceitas) != 1 || aceitas[0].Tipo != PreencherTextos {
