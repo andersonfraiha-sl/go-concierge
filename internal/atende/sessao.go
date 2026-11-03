@@ -57,7 +57,9 @@ type Sessao struct {
 // quem está atendendo.
 type Transbordo struct {
 	Ativo     bool       `json:"ativo"`
+	Estado    string     `json:"estado"`
 	Motivo    string     `json:"motivo"`
+	Erro      string     `json:"erro,omitempty"`
 	PedidoPor string     `json:"pedido_por"` // concierge | atendente
 	Quando    time.Time  `json:"quando"`
 	Atendente string     `json:"atendente,omitempty"`

@@ -79,6 +79,12 @@ type Outbox struct {
 	Emulado Sender
 }
 
+func (o *Outbox) PodeEntregarTransbordo() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.ATENDE != nil
+}
+
 func (o *Outbox) Enviar(ctx context.Context, destino entrada.Destino, texto string) error {
 	if !autorizarEntrega(ctx) {
 		return errEntregaSuprimida
@@ -117,12 +123,15 @@ func (o *Outbox) Enviar(ctx context.Context, destino entrada.Destino, texto stri
 }
 
 // Itens devolve as saídas de um protocolo ("" = todas).
-// Transbordar registra o pedido de atendente humano ao ATENDE. No ATENDE real isso vira
-// a chamada que tira o protocolo do bot (isHumanAttendance); aqui fica na caixa.
+// Transbordar registra o pedido de atendente humano no emulador.
 func (o *Outbox) Transbordar(destino entrada.Destino, motivo string) {
+	o.RegistrarTransbordo(destino, motivo, destino.Conector == "atende-emulado", "")
+}
+
+func (o *Outbox) RegistrarTransbordo(destino entrada.Destino, motivo string, enviada bool, erro string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.itens = append(o.itens, Saida{SessaoID: destino.SessaoID, Protocolo: destino.Protocolo, Tipo: "transbordo", Texto: motivo, Quando: time.Now(), Enviada: destino.Conector == "atende-emulado"})
+	o.itens = append(o.itens, Saida{SessaoID: destino.SessaoID, Protocolo: destino.Protocolo, Tipo: "transbordo", Texto: motivo, Quando: time.Now(), Enviada: enviada, Erro: erro})
 }
 
 func (o *Outbox) Itens(protocolo string) []Saida {
@@ -191,6 +200,8 @@ type ATENDESender struct {
 	HTTP    *http.Client
 }
 
+const telefoneDestinoTemporarioATENDE = "5519981621916"
+
 func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, texto string) error {
 	if strings.TrimSpace(a.BaseURL) == "" || strings.TrimSpace(a.APIKey) == "" {
 		return errors.New("ATENDE: configuração de envio incompleta")
@@ -217,7 +228,7 @@ func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, text
 	for i, parte := range partes {
 		formatada := FormatarMensagem(parte)
 		corpo, err := json.Marshal(map[string]any{
-			"contact": map[string]string{"phone": "5519981621916"},
+			"contact": map[string]string{"phone": telefoneDestinoTemporarioATENDE},
 			// "contact": map[string]string{"phone": destino.Telefone},
 			"message": map[string]string{"type": "text", "text": formatada},
 		})
@@ -318,16 +329,17 @@ func DividirMensagem(texto string, maxUTF16 int) []string {
 var extracoes sync.WaitGroup
 
 type Servico struct {
-	Cat         *okf.Catalogo
-	Agente      string // caminho relativo do agente de primeiro nível (agentes/concierge)
-	Config      harness.Config
-	Account     string // account do Nexus para os recursos (DEFAULT_ACCOUNT_ID)
-	Gruvi       *gruvi.Client
-	TelefoneB2C string
-	Sender      Sender
-	Sessoes     *Sessoes
-	Timeout     time.Duration
-	Log         *log.Logger
+	Cat          *okf.Catalogo
+	Agente       string // caminho relativo do agente de primeiro nível (agentes/concierge)
+	Config       harness.Config
+	Account      string // account do Nexus para os recursos (DEFAULT_ACCOUNT_ID)
+	Gruvi        *gruvi.Client
+	TelefoneB2C  string
+	Sender       Sender
+	Transferidor Transferidor
+	Sessoes      *Sessoes
+	Timeout      time.Duration
+	Log          *log.Logger
 	// Memorias é a memória relacional por contato (nil = desligada); Extrator captura
 	// fatos novos a cada troca (nil = memoria.Regras).
 	Memorias memoria.Store
@@ -511,7 +523,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}()
 	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
 	sess.mu.Lock()
-	transbordado := sess.Transbordo != nil && sess.Transbordo.Ativo
+	transbordado := sess.Transbordo != nil && (sess.Transbordo.Ativo || sess.Transbordo.Estado == "solicitado" || sess.Transbordo.Estado == "incerto")
 	identidadeVazia := sess.Identidade.Phone == ""
 	plano := sess.Plano
 	sess.mu.Unlock()
@@ -584,13 +596,43 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		historicoRegistrado = true
 		return sess, err
 	}
-	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" {
+	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 		res.Resposta = "Não consigo transferir esta conversa para um atendente por este canal. Posso continuar ajudando por aqui."
 		mensagens := append([]*schema.Message(nil), res.Mensagens...)
 		if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
 			mensagens[len(mensagens)-1] = schema.AssistantMessage(res.Resposta, nil)
 		}
 		res.Mensagens = mensagens
+	}
+	transferivel := s.transferidorDisponivel(sess.Destino)
+	bloqueioAvisoTransbordo := ""
+	if res.Transbordo != "" && sess.Destino.Conector == "atende" {
+		if s.Sender == nil {
+			bloqueioAvisoTransbordo = "aviso de transbordo não enviado: sender não configurado"
+		} else if ob, ok := s.Sender.(*Outbox); ok && !ob.PodeEntregarTransbordo() {
+			bloqueioAvisoTransbordo = "aviso de transbordo não enviado: sender ATENDE não configurado"
+		}
+		if bloqueioAvisoTransbordo != "" {
+			mensagens := append([]*schema.Message(nil), res.Mensagens...)
+			if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
+				mensagens = mensagens[:len(mensagens)-1]
+			}
+			res.Resposta = ""
+			res.Mensagens = mensagens
+		} else if s.Pedidos == nil {
+			aviso := "Não consegui solicitar um atendente por este canal agora. Posso continuar ajudando por aqui."
+			if transferivel {
+				aviso = "Vou solicitar que uma pessoa da administração assuma este protocolo. Ainda não tenho confirmação de que ela assumiu a conversa."
+			}
+			res.Resposta = anotarAvisoTransbordo(res.Resposta, aviso)
+			res.Mensagens = substituirUltimaResposta(res.Mensagens, res.Resposta)
+		}
+	}
+	if bloqueioAvisoTransbordo != "" {
+		sess.historicoAtualizar(baseHistorico, res.Mensagens)
+		historicoRegistrado = true
+		s.registrarAvisoTransbordoFalho(sess, res.Transbordo, errors.New(bloqueioAvisoTransbordo))
+		return sess, nil
 	}
 	var erroEntrega error
 	if s.Sender != nil && res.Resposta != "" {
@@ -635,6 +677,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 				sess.registrar(Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo, Plano: res.Plano, Pedidos: pedidosTurno})
 			}
 			sess.registrar(Turno{Quem: "sistema", Texto: "Resposta automática não entregue integralmente após mudança de atendimento."})
+			if res.Transbordo != "" {
+				s.registrarAvisoTransbordoFalho(sess, res.Transbordo, errEntregaSuprimida)
+			}
 			return sess, nil
 		}
 	}
@@ -648,6 +693,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			sess.historicoAtualizar(baseHistorico, mensagens)
 			historicoRegistrado = true
 			sess.registrar(Turno{Quem: "erro", Texto: erroEntrega.Error()})
+			if res.Transbordo != "" {
+				s.registrarAvisoTransbordoFalho(sess, res.Transbordo, erroEntrega)
+			}
 			return sess, erroEntrega
 		}
 	}
@@ -664,6 +712,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	idx := sess.registrar(turno)
 	if erroEntrega != nil {
 		sess.registrar(Turno{Quem: "erro", Texto: erroEntrega.Error()})
+		if res.Transbordo != "" {
+			s.registrarAvisoTransbordoFalho(sess, res.Transbordo, erroEntrega)
+		}
 		return sess, erroEntrega
 	}
 	if s.Pedidos != nil {
@@ -690,7 +741,57 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	if res.Transbordo != "" {
 		if sess.Destino.Conector == "atende-emulado" {
-			s.transbordar(sess, res.Transbordo, "concierge", "")
+			if s.Transferidor == nil {
+				s.transbordar(sess, res.Transbordo, "concierge", "")
+			} else if err := s.Transferidor.Transferir(ctx, sess.Destino, res.Transbordo); err != nil {
+				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
+			} else {
+				s.registrarSucessoTransbordo(sess, res.Transbordo)
+			}
+			sess.mu.Lock()
+			transferido := sess.Transbordo != nil && sess.Transbordo.Estado == "transferido"
+			sess.mu.Unlock()
+			if transferido {
+				s.marcarPedidosTransbordados(sess, pedidosTurno)
+			}
+		} else if sess.Destino.Conector == "atende" {
+			if !transferivel {
+				err := errors.New("ATENDE: transferência não configurada para este canal")
+				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
+				if ob, ok := s.Sender.(*Outbox); ok {
+					ob.RegistrarTransbordo(sess.Destino, res.Transbordo, false, err.Error())
+				}
+				return sess, nil
+			}
+			if !s.iniciarTransbordo(sess, msg.Revisao, res.Transbordo) {
+				sess.registrar(Turno{Quem: "sistema", Texto: "Transbordo não solicitado porque o protocolo mudou para atendimento humano ou foi encerrado durante o aviso."})
+				return sess, nil
+			}
+			err := s.Transferidor.Transferir(ctx, sess.Destino, res.Transbordo)
+			if err != nil {
+				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
+				if ob, ok := s.Sender.(*Outbox); ok {
+					ob.RegistrarTransbordo(sess.Destino, res.Transbordo, false, err.Error())
+				}
+				if s.Log != nil {
+					s.Log.Printf("atende: transbordo do protocolo %s: %v", sess.Protocolo, err)
+				}
+				return sess, nil
+			}
+			s.registrarSucessoTransbordo(sess, res.Transbordo)
+			if ob, ok := s.Sender.(*Outbox); ok {
+				ob.RegistrarTransbordo(sess.Destino, res.Transbordo, true, "")
+			}
+			ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			err = s.marcarPedidosAoAtendente(ctxSalvar, sess.Contato.Phone, pedidosTurno)
+			cancelar()
+			if err != nil {
+				sess.registrar(Turno{Quem: "erro", Texto: "transbordo confirmado, mas não foi possível atualizar os pedidos: " + err.Error()})
+				if s.Log != nil {
+					s.Log.Printf("atende: atualizar pedidos após transbordo do protocolo %s: %v", sess.Protocolo, err)
+				}
+				return sess, nil
+			}
 		} else {
 			sess.registrar(Turno{Quem: "sistema", Texto: "Solicitação de atendimento humano não encaminhada pelo canal ATENDE."})
 		}
@@ -740,6 +841,9 @@ func (s *Servico) Encerrar(msg entrada.Mensagem) bool {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	sess.Encerrada = true
+	if sess.Transbordo != nil {
+		sess.Transbordo.Ativo = false
+	}
 	sess.revisaoEstado++
 	if sess.cancelarTurno != nil {
 		sess.cancelarTurno()
@@ -902,11 +1006,161 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 // transbordar passa o protocolo ao atendente humano.
 func (s *Servico) transbordar(sess *Sessao, motivo, pedidoPor, atendente string) {
 	sess.mu.Lock()
-	sess.Transbordo = &Transbordo{Ativo: true, Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
+	if sess.Encerrada {
+		sess.mu.Unlock()
+		sess.registrar(Turno{Quem: "sistema", Texto: "Transbordo não registrado porque o protocolo está encerrado."})
+		return
+	}
+	sess.Transbordo = &Transbordo{Ativo: true, Estado: "transferido", Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
 	sess.mu.Unlock()
 	sess.registrar(Turno{Quem: "sistema", Texto: "Transferido ao atendente humano: " + motivo})
 	if ob, ok := s.Sender.(*Outbox); ok && ob != nil {
 		ob.Transbordar(sess.Destino, motivo)
+	}
+}
+
+func substituirUltimaResposta(mensagens []*schema.Message, resposta string) []*schema.Message {
+	mensagens = append([]*schema.Message(nil), mensagens...)
+	if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
+		mensagens[len(mensagens)-1] = schema.AssistantMessage(resposta, nil)
+	}
+	return mensagens
+}
+
+func prometeTransbordo(texto string) bool {
+	t := strings.ToLower(texto)
+	if harness.AnunciaTransferencia(t) {
+		return true
+	}
+	if !strings.Contains(t, "atendente") && !strings.Contains(t, "humano") && !strings.Contains(t, "administra") && !strings.Contains(t, "equipe") && !strings.Contains(t, "pessoa") {
+		return false
+	}
+	for _, termo := range []string{"assum", "encaminh", "transfer", "passar", "repass", "continu", "entrar", "receber", "vai assumir", "irá assumir", "já foi"} {
+		if strings.Contains(t, termo) {
+			return true
+		}
+	}
+	return false
+}
+
+func removerPromessasTransbordo(texto string) string {
+	var partes []string
+	inicio := 0
+	for i, r := range texto {
+		if r == '.' || r == '!' || r == '?' || r == ';' || r == '\n' {
+			fim := i + 1
+			if !prometeTransbordo(strings.TrimSpace(texto[inicio:fim])) {
+				partes = append(partes, texto[inicio:fim])
+			}
+			inicio = fim
+		}
+	}
+	if inicio < len(texto) && !prometeTransbordo(strings.TrimSpace(texto[inicio:])) {
+		partes = append(partes, texto[inicio:])
+	}
+	return strings.Join(partes, "")
+}
+
+func anotarAvisoTransbordo(texto, aviso string) string {
+	conteudo := removerPromessasTransbordo(texto)
+	if strings.TrimSpace(conteudo) == "" {
+		return aviso
+	}
+	return conteudo + "\n\n" + aviso
+}
+
+func (s *Servico) transferidorDisponivel(destino entrada.Destino) bool {
+	if s.Transferidor == nil {
+		return destino.Conector == "atende-emulado"
+	}
+	if disponibilidade, ok := s.Transferidor.(interface{ Disponivel(entrada.Destino) bool }); ok {
+		return disponibilidade.Disponivel(destino)
+	}
+	return true
+}
+
+func (s *Servico) iniciarTransbordo(sess *Sessao, revisao uint64, motivo string) bool {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.Encerrada || sess.AtendimentoHumano || sess.revisaoEstado != revisao || sess.Transbordo != nil && sess.Transbordo.Ativo {
+		return false
+	}
+	sess.Transbordo = &Transbordo{Estado: "solicitado", Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	return true
+}
+
+func (s *Servico) registrarSucessoTransbordo(sess *Sessao, motivo string) {
+	sess.mu.Lock()
+	if sess.Transbordo == nil {
+		sess.Transbordo = &Transbordo{Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	}
+	sess.Transbordo.Estado = "transferido"
+	sess.Transbordo.Ativo = !sess.Encerrada
+	if sess.Transbordo.Motivo == "" {
+		sess.Transbordo.Motivo = motivo
+	}
+	sess.mu.Unlock()
+	texto := "O ATENDE confirmou a transferência deste protocolo ao atendimento humano."
+	if sess.Destino.Conector == "atende-emulado" {
+		texto = "O emulador registrou o transbordo deste protocolo."
+	}
+	sess.registrar(Turno{Quem: "sistema", Texto: texto})
+}
+
+func (s *Servico) registrarFalhaTransbordo(sess *Sessao, motivo string, err error) {
+	var incerta *TransferenciaIncerta
+	estado := "falhou"
+	if errors.As(err, &incerta) {
+		estado = "incerto"
+	}
+	sess.mu.Lock()
+	if sess.Transbordo == nil {
+		sess.Transbordo = &Transbordo{Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	}
+	sess.Transbordo.Estado = estado
+	sess.Transbordo.Erro = err.Error()
+	if !sess.AtendimentoHumano && !sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	if sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	sess.mu.Unlock()
+	texto := "A transferência ao atendimento humano falhou: " + err.Error()
+	if estado == "incerto" {
+		texto = "O resultado da transferência ao atendimento humano é incerto. O protocolo ficará bloqueado para evitar respostas duplicadas. Erro: " + err.Error()
+	}
+	sess.registrar(Turno{Quem: "erro", Texto: texto})
+}
+
+func (s *Servico) registrarAvisoTransbordoFalho(sess *Sessao, motivo string, err error) {
+	sess.mu.Lock()
+	if sess.Transbordo == nil {
+		sess.Transbordo = &Transbordo{Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	}
+	sess.Transbordo.Estado = "falhou"
+	sess.Transbordo.Erro = err.Error()
+	if !sess.AtendimentoHumano && !sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	if sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	sess.mu.Unlock()
+	sess.registrar(Turno{Quem: "sistema", Texto: "Transbordo não solicitado porque o aviso ao morador não foi entregue integralmente: " + err.Error()})
+	if ob, ok := s.Sender.(*Outbox); ok {
+		ob.RegistrarTransbordo(sess.Destino, motivo, false, err.Error())
+	}
+}
+
+func (s *Servico) marcarPedidosTransbordados(sess *Sessao, turnos []PedidoTurno) {
+	ctx, cancelar := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelar()
+	if err := s.marcarPedidosAoAtendente(ctx, sess.Contato.Phone, turnos); err != nil {
+		sess.registrar(Turno{Quem: "erro", Texto: "transbordo confirmado, mas não foi possível atualizar os pedidos: " + err.Error()})
+		if s.Log != nil {
+			s.Log.Printf("atende: atualizar pedidos após transbordo emulado do protocolo %s: %v", sess.Protocolo, err)
+		}
 	}
 }
 
@@ -942,6 +1196,12 @@ func (s *Servico) Assumir(protocolo, atendente, motivo string) (*Sessao, error) 
 	defer sess.workMu.Unlock()
 	if sess.Destino.Conector != "atende-emulado" {
 		return sess, errors.New("transferência de atendimento indisponível neste canal")
+	}
+	sess.mu.Lock()
+	encerrada := sess.Encerrada
+	sess.mu.Unlock()
+	if encerrada {
+		return sess, errors.New("o protocolo está encerrado")
 	}
 	if atendente == "" {
 		atendente = "atendente"
