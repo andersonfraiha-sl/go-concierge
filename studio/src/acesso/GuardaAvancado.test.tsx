@@ -21,7 +21,11 @@ describe('GuardaAvancado', () => {
   });
 
   it('showsPageWithPermission', async () => {
-    responderCom({ 'GET /api/eu': () => json({ ...eu, permissoes: ['studio.avancado'] }) });
+    responderCom({
+      'GET /api/eu': () => json({ ...eu, permissoes: ['studio.avancado'] }),
+      'GET /api/agentes': () => json({ agentes: [] }),
+      'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
+    });
     renderComProvedores(<GuardaAvancado />);
     expect(await screen.findByRole('heading', { name: 'Avançado' })).toBeInTheDocument();
   });

@@ -39,37 +39,53 @@ export function apiEnviar<S extends z.ZodType>(
   corpo: unknown,
   schema: S,
 ): Promise<z.infer<S>> {
-  return requisitar(metodo, caminho, corpo, schema);
+  return requisitar(metodo, caminho, corpo === undefined ? undefined : JSON.stringify(corpo), schema);
 }
+
+/** Corpo binário (ex.: zip): mesmo tratamento de erro, papel e timeout do cliente JSON. */
+export function apiEnviarBinario<S extends z.ZodType>(
+  metodo: 'POST' | 'PUT',
+  caminho: string,
+  corpo: BodyInit,
+  tipo: string,
+  schema: S,
+  timeoutMs: number = TIMEOUT_MS,
+): Promise<z.infer<S>> {
+  return requisitar(metodo, caminho, corpo, schema, { tipo, timeoutMs });
+}
+
+type Envio = { tipo: string; timeoutMs: number };
+const ENVIO_JSON: Envio = { tipo: 'application/json', timeoutMs: TIMEOUT_MS };
 
 async function requisitar<S extends z.ZodType>(
   metodo: Metodo,
   caminho: string,
-  corpo: unknown,
+  corpo: BodyInit | undefined,
   schema: S,
+  envio: Envio = ENVIO_JSON,
 ): Promise<z.infer<S>> {
-  const resposta = await buscar(metodo, caminho, corpo);
+  const resposta = await buscar(metodo, caminho, corpo, envio);
   const dados = resposta.status === 204 ? null : await lerJson(resposta);
   if (!resposta.ok) throw erroHttp(resposta.status, dados);
   return interpretar(schema, dados, resposta.status);
 }
 
-async function buscar(metodo: Metodo, caminho: string, corpo: unknown): Promise<Response> {
+async function buscar(metodo: Metodo, caminho: string, corpo: BodyInit | undefined, envio: Envio): Promise<Response> {
   try {
     return await fetch(caminho, {
       method: metodo,
-      headers: montarCabecalhos(corpo !== undefined),
-      body: corpo === undefined ? null : JSON.stringify(corpo),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: montarCabecalhos(corpo === undefined ? null : envio.tipo),
+      body: corpo ?? null,
+      signal: AbortSignal.timeout(envio.timeoutMs),
     });
   } catch (cause) {
     throw new ApiError(0, 'SEM_CONEXAO', 'Sem conexão com o servidor.', cause);
   }
 }
 
-function montarCabecalhos(temCorpo: boolean): Headers {
+function montarCabecalhos(tipoDoCorpo: string | null): Headers {
   const cabecalhos = new Headers({ Accept: 'application/json' });
-  if (temCorpo) cabecalhos.set('Content-Type', 'application/json');
+  if (tipoDoCorpo) cabecalhos.set('Content-Type', tipoDoCorpo);
   const papel = lerPapelDev();
   if (papel) cabecalhos.set('X-Studio-Papel', papel);
   return cabecalhos;
