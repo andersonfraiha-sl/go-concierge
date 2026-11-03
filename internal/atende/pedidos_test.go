@@ -235,3 +235,27 @@ func TestCancelarPorProtocolo(t *testing.T) {
 		t.Fatalf("estado: %+v", cart.Por(prot))
 	}
 }
+
+// Remover só tira pedidos encerrados; um aberto precisa ser cancelado antes.
+func TestRemoverPedidoEncerrado(t *testing.T) {
+	svc, _, st := servicoComPedidos(t)
+	ctx := context.Background()
+	sess := falar(t, svc, "r1", "quero reservar uma área comum")
+	prot := ultimoConcierge(sess).Pedidos[0].Protocolo
+	if err := svc.RemoverPedido(ctx, "5519981621916", prot); err == nil {
+		t.Fatalf("pedido aberto não pode ser removido")
+	}
+	if _, err := svc.CancelarPedido(ctx, "5519981621916", prot, "Atendente", "teste"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RemoverPedido(ctx, "5519981621916", strings.ToLower(prot)); err != nil {
+		t.Fatal(err)
+	}
+	cart, _ := st.Ler(ctx, "cond-001", "5519981621916")
+	if cart.Por(prot) != nil || len(cart.Pedidos) != 0 {
+		t.Fatalf("pedido devia ter saído da carteira: %+v", cart.Pedidos)
+	}
+	if err := svc.RemoverPedido(ctx, "5519981621916", prot); err == nil {
+		t.Fatalf("remover de novo devia falhar: não encontrado")
+	}
+}

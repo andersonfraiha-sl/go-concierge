@@ -244,7 +244,7 @@ func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
 
 func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 	var corpo struct {
-		Acao      string         `json:"acao"` // preencher | cancelar
+		Acao      string         `json:"acao"` // preencher | cancelar | remover
 		Protocolo string         `json:"protocolo"`
 		Pedido    string         `json:"pedido"`
 		Phone     string         `json:"phone"`
@@ -274,8 +274,14 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, 200, map[string]any{"pedido": p})
+	case "remover":
+		if err := s.atende.RemoverPedido(ctx, corpo.Phone, corpo.Pedido); err != nil {
+			writeErr(w, 400, err)
+			return
+		}
+		writeJSON(w, 200, map[string]any{"removido": corpo.Pedido})
 	default:
-		writeErr(w, 400, errors.New("acao: preencher | cancelar"))
+		writeErr(w, 400, errors.New("acao: preencher | cancelar | remover"))
 	}
 }
 

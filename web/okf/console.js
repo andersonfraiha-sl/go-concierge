@@ -271,12 +271,19 @@
         p.erro ? `<div class="notice bad" style="margin-top:8px"><i data-lucide="circle-alert"></i><span>${esc(p.erro)}</span></div>` : '',
       ].join('');
       const hist = (p.historico || []).map((h) => `<li><span class="muted">${quando(h.quando)}</span> <b>${esc(h.tipo)}</b> ${esc(h.texto)}${h.por ? ` <span class="muted">· ${esc(h.por)}</span>` : ''}</li>`).join('');
-      const acoes = !['concluido', 'cancelado', 'falhou'].includes(p.estado) ? `<div class="form-actions" style="margin-top:8px"><button class="btn btn-ghost btn-sm" data-cancelar="${esc(p.protocolo)}"><i data-lucide="x" class="i-sm"></i>Cancelar pedido</button></div>` : '';
+      const encerrado = ['concluido', 'cancelado', 'falhou'].includes(p.estado);
+      const acoes = `<div class="form-actions" style="margin-top:8px">${encerrado
+        ? `<button class="btn btn-ghost btn-sm" data-remover="${esc(p.protocolo)}" title="tira este pedido encerrado do registro do telefone"><i data-lucide="trash-2" class="i-sm"></i>Remover do registro</button>`
+        : `<button class="btn btn-ghost btn-sm" data-cancelar="${esc(p.protocolo)}"><i data-lucide="x" class="i-sm"></i>Cancelar pedido</button>`}</div>`;
       return `<div class="card" style="margin-bottom:10px">${cab}<table class="res-table larga kv" style="margin-top:8px"><thead><tr><th>Parâmetro</th><th>Valor</th><th>Origem</th></tr></thead><tbody>${linhas || '<tr><td colspan="3" class="muted">sem parâmetros</td></tr>'}</tbody></table>${extra}<details class="bloco-sub" style="margin-top:8px"><summary class="muted">Histórico (${(p.historico || []).length})</summary><ul style="margin:6px 0 0 16px;padding:0;font-size:12px">${hist}</ul></details>${acoes}</div>`;
     }).join('');
     $$('#pedidosLista [data-cancelar]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm('Cancelar o pedido ' + b.dataset.cancelar + '?')) return;
       try { await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'cancelar', phone: $('#formContato').phone.value.trim(), pedido: b.dataset.cancelar, atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', motivo: 'cancelado pelo Console' }) }); estado.chavePedidos = ''; carregarPedidos(); toast('pedido cancelado'); } catch (err) { toast(err.message, true); }
+    }));
+    $$('#pedidosLista [data-remover]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('Remover o pedido ' + b.dataset.remover + ' do registro? Ele some da lista e da exportação.')) return;
+      try { await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'remover', phone: $('#formContato').phone.value.trim(), pedido: b.dataset.remover }) }); estado.chavePedidos = ''; carregarPedidos(); toast('pedido removido'); } catch (err) { toast(err.message, true); }
     }));
     icons();
   }

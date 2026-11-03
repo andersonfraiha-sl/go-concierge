@@ -213,6 +213,23 @@ func (c *Carteira) Por(protocolo string) *Pedido {
 	return nil
 }
 
+// Remover tira da carteira um pedido encerrado (concluído, cancelado ou falhou). Um
+// pedido aberto não sai: cancela-se antes, para o morador ficar sabendo.
+func (c *Carteira) Remover(protocolo string) error {
+	for i, p := range c.Pedidos {
+		if !strings.EqualFold(p.Protocolo, protocolo) {
+			continue
+		}
+		if p.Aberto() {
+			return fmt.Errorf("pedido %s ainda está %s: cancele antes de remover", p.Protocolo, p.Estado)
+		}
+		c.Pedidos = append(c.Pedidos[:i], c.Pedidos[i+1:]...)
+		c.AtualizadaEm = time.Now()
+		return nil
+	}
+	return fmt.Errorf("pedido %s não encontrado", protocolo)
+}
+
 // AbertoDoCaso devolve o pedido aberto deste caso, se houver (um por vez por caso).
 func (c *Carteira) AbertoDoCaso(caso string) *Pedido {
 	for _, p := range c.Pedidos {

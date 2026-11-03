@@ -555,3 +555,19 @@ func (s *Servico) CancelarPedido(ctx context.Context, phone, protocoloPedido, at
 	pedidos.Cancelar(p, atendente, motivo)
 	return p, s.Pedidos.Gravar(ctx, cart)
 }
+
+// RemoverPedido apaga do registro um pedido encerrado (concluído, cancelado ou que
+// falhou). É limpeza do Console: o morador não é avisado.
+func (s *Servico) RemoverPedido(ctx context.Context, phone, protocoloPedido string) error {
+	if s.Pedidos == nil {
+		return errors.New("pedidos desligados")
+	}
+	cart, err := s.Pedidos.Ler(ctx, s.Account, phone)
+	if err != nil {
+		return err
+	}
+	if err := cart.Remover(protocoloPedido); err != nil {
+		return err
+	}
+	return s.Pedidos.Gravar(ctx, cart)
+}
