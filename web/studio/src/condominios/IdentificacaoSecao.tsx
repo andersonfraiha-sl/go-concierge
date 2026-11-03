@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Box, Button, Chip, TextField } from '@mui/material';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
@@ -19,13 +19,11 @@ import {
   useAplicarMapeamento,
   useEscopo,
 } from './contratos';
-import { type CampoDeIdentificacao, validarIdentificacao } from './identificacao';
+import { type CampoDeIdentificacao, payloadSeguro, validarIdentificacao } from './identificacao';
 import { SeletorDeAdministradora } from './SeletorDeAdministradora';
 import { useExecutar } from './useExecutar';
 
 type Props = { condominio: Condominio; administradoras: Administradora[] };
-
-const BLOQUEIO_POR_ERRO = 'corrija o campo marcado.';
 
 const IdentificacaoSchema = z
   .object({
@@ -57,13 +55,16 @@ export function IdentificacaoSecao({ condominio, administradoras }: Props): Reac
     mode: 'onChange',
   });
   const valores = useValoresDoFormulario(control);
-  const temErro = Object.keys(validarIdentificacao(valores)).length > 0;
+  // Base dos campos inválidos quando o envio precisa descartar uma digitação ainda errada.
+  const ultimoSalvo = useRef<Condominio>(condominio);
 
   const { estado: salvamento, tentarDeNovo } = useAutosave({
     valor: valores,
-    bloqueio: temErro ? BLOQUEIO_POR_ERRO : null,
     salvar: async (rascunho) => {
-      aplicar(await salvarCondominio({ ...rascunho, nome: rascunho.nome.trim() }, escopo));
+      const corrigido: Condominio = { ...rascunho, nome: rascunho.nome.trim() };
+      const seguro = payloadSeguro(corrigido, ultimoSalvo.current);
+      aplicar(await salvarCondominio(seguro, escopo));
+      ultimoSalvo.current = seguro;
     },
   });
 

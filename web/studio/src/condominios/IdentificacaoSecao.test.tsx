@@ -38,7 +38,7 @@ describe('IdentificacaoSecao', () => {
     );
   });
 
-  it('blocksSaveOnInvalidTenant', async () => {
+  it('keepsInvalidTenantUnsavedWhileSendingTheRest', async () => {
     const { corpos, handlers } = gravador('PUT /api/admin/condominio');
     responderCom({ ...rotasBase(construtor), ...handlers });
     const { user } = abrirCondominio();
@@ -48,8 +48,55 @@ describe('IdentificacaoSecao', () => {
     await user.type(tenant, 'xyz');
 
     await screen.findByText('São 24 caracteres, de 0 a 9 e de a a f.');
-    await screen.findByText('Não salvo: corrija o campo marcado.');
-    expect(corpos).toHaveLength(0);
+
+    await waitFor(() => expect(corpos[0]).toMatchObject({ tenant: 'aaaaaaaaaaaaaaaaaaaaaaaa' }), {
+      timeout: 3000,
+    });
+    expect(screen.getByRole('textbox', { name: 'Canal do Atende' })).toHaveValue('xyz');
+  });
+
+  it('savesNewNomeWithLastValidTenantWhenTenantIsInvalid', async () => {
+    const { corpos, handlers } = gravador('PUT /api/admin/condominio');
+    responderCom({ ...rotasBase(construtor), ...handlers });
+    const { user } = abrirCondominio();
+
+    const tenant = await screen.findByRole('textbox', { name: 'Canal do Atende' });
+    await user.clear(tenant);
+    await user.type(tenant, 'xyz');
+    const nome = screen.getByRole('textbox', { name: 'Nome' });
+    await user.clear(nome);
+    await user.type(nome, 'Vila Verde III');
+
+    await waitFor(
+      () =>
+        expect(corpos[0]).toMatchObject({
+          nome: 'Vila Verde III',
+          tenant: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+        }),
+      { timeout: 3000 },
+    );
+  });
+
+  it('flushesValidEditOnUnmountDespiteInvalidField', async () => {
+    const { corpos, handlers } = gravador('PUT /api/admin/condominio');
+    responderCom({ ...rotasBase(construtor), ...handlers });
+    const { user, unmount } = abrirCondominio();
+
+    const tenant = await screen.findByRole('textbox', { name: 'Canal do Atende' });
+    await user.clear(tenant);
+    await user.type(tenant, 'xyz');
+    const nome = screen.getByRole('textbox', { name: 'Nome' });
+    await user.clear(nome);
+    await user.type(nome, 'Vila Verde IV');
+
+    unmount();
+
+    await waitFor(() =>
+      expect(corpos[0]).toMatchObject({
+        nome: 'Vila Verde IV',
+        tenant: 'aaaaaaaaaaaaaaaaaaaaaaaa',
+      }),
+    );
   });
 
   it('showsIdAndPlaceholders', async () => {

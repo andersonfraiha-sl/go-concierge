@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Condominio } from './contratos';
-import { validarIdentificacao } from './identificacao';
+import { payloadSeguro, validarIdentificacao } from './identificacao';
 
 const BASE: Condominio = {
   id: 'vila-verde',
@@ -9,6 +9,13 @@ const BASE: Condominio = {
   account: '',
   company_id: '',
   tenant: '',
+};
+
+const SALVO: Condominio = {
+  ...BASE,
+  account: 'acc-1',
+  company_id: '100',
+  tenant: 'aaaaaaaaaaaaaaaaaaaaaaaa',
 };
 
 describe('validarIdentificacao', () => {
@@ -30,5 +37,22 @@ describe('validarIdentificacao', () => {
     },
   ])('validatesEachFormat $parcial', ({ parcial, esperado }) => {
     expect(validarIdentificacao({ ...BASE, ...parcial })).toEqual(esperado);
+  });
+});
+
+describe('payloadSeguro', () => {
+  it('keepsEveryFieldWhenAllAreValid', () => {
+    const atual = { ...SALVO, nome: 'Vila Verde II' };
+    expect(payloadSeguro(atual, SALVO)).toEqual(atual);
+  });
+
+  it('fallsBackOnlyTheInvalidField', () => {
+    const atual = { ...SALVO, nome: 'Vila Verde II', tenant: 'xyz' };
+    expect(payloadSeguro(atual, SALVO)).toEqual({ ...atual, tenant: SALVO.tenant });
+  });
+
+  it('fallsBackEveryInvalidField', () => {
+    const atual = { ...SALVO, company_id: 'abc', tenant: 'xyz' };
+    expect(payloadSeguro(atual, SALVO)).toEqual(SALVO);
   });
 });

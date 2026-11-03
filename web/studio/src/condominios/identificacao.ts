@@ -34,3 +34,15 @@ export function validarIdentificacao(
 
   return erros;
 }
+
+/**
+ * O que ir para o servidor: cada campo inválido volta para o último valor salvo, os demais
+ * seguem a edição atual. Um campo com formato errado nunca trava os outros nem apaga a digitação
+ * na tela (quem chama continua mostrando `atual`, só o envio usa este resultado).
+ */
+export function payloadSeguro(atual: Condominio, ultimoSalvo: Condominio): Condominio {
+  const camposInvalidos = Object.keys(validarIdentificacao(atual)) as CampoDeIdentificacao[];
+  const seguro = { ...atual };
+  for (const campo of camposInvalidos) seguro[campo] = ultimoSalvo[campo];
+  return seguro;
+}
