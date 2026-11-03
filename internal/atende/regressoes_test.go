@@ -116,7 +116,7 @@ func TestEsquecimentoNaoRessuscitaExtracaoEmAndamento(t *testing.T) {
 	ex := extratorBloqueado{iniciado: make(chan struct{}), liberar: make(chan struct{})}
 	svc := &Servico{Memorias: store, Extrator: ex}
 	sess := &Sessao{Protocolo: "p", Contato: entrada.Contato{Phone: contato.Telefone}}
-	sess.fixarContato(contato)
+	sess.fixarContato(contato, "5982")
 	revisao := svc.revisaoMemoria(contato)
 	fim := make(chan struct{})
 	go func() { svc.lembrar(ctx, &m, sess, "oi", "oi", revisao); close(fim) }()

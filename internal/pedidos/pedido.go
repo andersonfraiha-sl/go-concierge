@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -306,16 +307,10 @@ func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
 
 var naoDigitos = regexp.MustCompile(`\D+`)
 
-// NormalizarTelefone deixa só os dígitos.
-func NormalizarTelefone(t string) string { return naoDigitos.ReplaceAllString(t, "") }
-
 var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
-// reAdministradora é o formato de id do Admin; vale também como nome de pasta seguro.
-var reAdministradora = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-
 func (a *Arquivos) pasta(administradoraID string) (string, error) {
-	if !reAdministradora.MatchString(administradoraID) {
+	if !escopo.AdministradoraValida(administradoraID) {
 		return "", fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
 	}
 	return filepath.Join(a.Dir, administradoraID), nil
@@ -349,10 +344,10 @@ func lerArquivo(p string, c escopo.Contato) (Carteira, error) {
 		return cart, nil
 	}
 	if err != nil {
-		return cart, fmt.Errorf("ler pedidos %s: %w", p, err)
+		return cart, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), semCaminho(err))
 	}
 	if err := json.Unmarshal(raw, &cart); err != nil {
-		return cart, fmt.Errorf("ler pedidos %s: %w", p, err)
+		return cart, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err)
 	}
 	return cart, nil
 }
@@ -367,21 +362,35 @@ func (a *Arquivos) Gravar(_ context.Context, c escopo.Contato, cart Carteira) er
 	cart.AtualizadaEm = time.Now()
 	raw, err := json.MarshalIndent(cart, "", "  ")
 	if err != nil {
-		return fmt.Errorf("codificar pedidos de %s: %w", c.Chave(), err)
+		return fmt.Errorf("codificar pedidos de %s: %w", c.Mascarado(), err)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return fmt.Errorf("gravar pedidos %s: %w", p, err)
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return fmt.Errorf("gravar pedidos %s: %w", p, err)
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
 	}
 	if err := os.Rename(tmp, p); err != nil {
-		return fmt.Errorf("gravar pedidos %s: %w", p, err)
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
 	}
 	return nil
+}
+
+// semCaminho tira do erro de arquivo o caminho, que tem o telefone; quem embrulha
+// identifica o contato mascarado.
+func semCaminho(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return fmt.Errorf("%s: %w", pe.Op, pe.Err)
+	}
+	var le *os.LinkError
+	if errors.As(err, &le) {
+		return fmt.Errorf("%s: %w", le.Op, le.Err)
+	}
+	return err
 }
 
 func (a *Arquivos) Listar(_ context.Context, administradoraID string) ([]Carteira, error) {

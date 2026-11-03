@@ -55,7 +55,7 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 // ---- escopo das rotas de memória e pedidos -----------------------------
 
 // administradoraDaRota: a administradora pedida (?administradora=), ou a fixa da
-// implantação. Sem nenhuma, 400; fora da implantação, 403.
+// implantação. Sem nenhuma ou fora do formato, 400; fora da implantação, 403.
 func (s *servidor) administradoraDaRota(w http.ResponseWriter, r *http.Request) (string, bool) {
 	adm := strings.TrimSpace(r.URL.Query().Get("administradora"))
 	if adm == "" {
@@ -63,6 +63,10 @@ func (s *servidor) administradoraDaRota(w http.ResponseWriter, r *http.Request) 
 	}
 	if adm == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_OBRIGATORIA", "error": "informe administradora"})
+		return "", false
+	}
+	if !escopo.AdministradoraValida(adm) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "ADMINISTRADORA_INVALIDA", "error": "administradora com formato inválido"})
 		return "", false
 	}
 	if !s.implantacao.Permite(adm) {

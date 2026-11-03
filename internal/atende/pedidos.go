@@ -179,7 +179,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	casos, contratos := casosDisponiveis(ag)
 	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
-		return nil, nil, fmt.Errorf("pedidos de %s: %w", contato.Chave(), err)
+		return nil, nil, fmt.Errorf("pedidos de %s: %w", contato.Mascarado(), err)
 	}
 
 	ex := s.ExtratorPedidos

@@ -15,32 +15,34 @@ import (
 )
 
 const (
-	tenantExemplo   = "69a5a131e67bd8e2f54e5981" // o tenant de eventoExemplo
-	telefoneMorador = "5519981621916"
+	tenantExemplo     = "69a5a131e67bd8e2f54e5981" // o tenant de eventoExemplo
+	telefoneMorador   = "5519981621916"
+	ferramentaEmpresa = "gruvi.bff.building-operation.get-company-by-document-controller-handle"
 )
 
 // mapeamentoDeTeste: a administradora A dona do condomínio do eventoExemplo
-// (cond-001, pelo tenant) e a B dona de cond-b (company 7777, tenant-b).
+// (cond-001, pelo tenant) e a B dona de cond-b (company 7777, tenant-b). Os outros
+// condomínios de B são os que não se atendem: sem account, sem company, e um tenant
+// que as duas administradoras usam.
 func mapeamentoDeTeste(t testing.TB) *admin.EmMemoria {
 	t.Helper()
 	ctx := context.Background()
 	repo := admin.NovaEmMemoria()
-	passos := []func() (admin.Mapeamento, error){
-		func() (admin.Mapeamento, error) {
-			return repo.SalvarAdministradora(ctx, admin.Administradora{ID: "adm-a", Nome: "A"})
-		},
-		func() (admin.Mapeamento, error) {
-			return repo.SalvarAdministradora(ctx, admin.Administradora{ID: "adm-b", Nome: "B"})
-		},
-		func() (admin.Mapeamento, error) {
-			return repo.SalvarCondominio(ctx, admin.Condominio{ID: "cond-001", Nome: "Exemplo", Administradora: "adm-a", Account: "cond-001", CompanyID: "5982", Tenant: tenantExemplo})
-		},
-		func() (admin.Mapeamento, error) {
-			return repo.SalvarCondominio(ctx, admin.Condominio{ID: "cond-b", Nome: "Condomínio B", Administradora: "adm-b", Account: "acc-b", CompanyID: "7777", Tenant: "tenant-b"})
-		},
+	for _, a := range []admin.Administradora{{ID: "adm-a", Nome: "A"}, {ID: "adm-b", Nome: "B"}} {
+		if _, err := repo.SalvarAdministradora(ctx, a); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for _, passo := range passos {
-		if _, err := passo(); err != nil {
+	condominios := []admin.Condominio{
+		{ID: "cond-001", Nome: "Exemplo", Administradora: "adm-a", Account: "cond-001", CompanyID: "5982", Tenant: tenantExemplo},
+		{ID: "cond-b", Nome: "Condomínio B", Administradora: "adm-b", Account: "acc-b", CompanyID: "7777", Tenant: "tenant-b"},
+		{ID: "cond-b-sem-account", Nome: "B sem account", Administradora: "adm-b", CompanyID: "8888", Tenant: "tenant-b-sem-account"},
+		{ID: "cond-b-sem-company", Nome: "B sem company", Administradora: "adm-b", Account: "acc-b2", Tenant: "tenant-b-sem-company"},
+		{ID: "cond-a-dividido", Nome: "A dividido", Administradora: "adm-a", Account: "acc-ad", CompanyID: "9001", Tenant: "tenant-dividido"},
+		{ID: "cond-b-dividido", Nome: "B dividido", Administradora: "adm-b", Account: "acc-bd", CompanyID: "9002", Tenant: "tenant-dividido"},
+	}
+	for _, c := range condominios {
+		if _, err := repo.SalvarCondominio(ctx, c); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -57,7 +59,7 @@ func contatoDeTeste(t testing.TB, administradoraID string) escopo.Contato {
 	return c
 }
 
-func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico, *memoria.Arquivos) {
+func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico, *memoria.Arquivos, *mcpServicoFalso) {
 	t.Helper()
 	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
 	if err != nil {
@@ -67,12 +69,13 @@ func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico,
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	st := memoria.NewArquivos(t.TempDir())
+	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
 		Cat: cat, Agente: "agentes/concierge", Sessoes: NewSessoes(), Sender: &Outbox{},
-		Config:     harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: &mcpServicoFalso{}},
+		Config:     harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
 		Mapeamento: mapeamentoDeTeste(t), Implantacao: imp, Memorias: st,
 	}
-	return svc, st
+	return svc, st, mcpFalso
 }
 
 // mensagemDe: o eventoExemplo vindo de outro protocolo, tenant e company.
@@ -82,7 +85,7 @@ func mensagemDe(t *testing.T, protocolo, tenant, company, texto string) entrada.
 	if err != nil {
 		t.Fatal(err)
 	}
-	ev.ID = "evt-" + protocolo
+	ev.ID = "evt-" + protocolo + "-" + texto
 	ev.Tenant = tenant
 	ev.Data.Protocol.Number = protocolo
 	msg := ev.Normalizar()
@@ -91,7 +94,7 @@ func mensagemDe(t *testing.T, protocolo, tenant, company, texto string) entrada.
 }
 
 func TestServicoAtendeDuasAdministradoras(t *testing.T) {
-	svc, st := servicoMultiAdministradora(t, escopo.Implantacao{})
+	svc, st, _ := servicoMultiAdministradora(t, escopo.Implantacao{})
 	ctx := context.Background()
 	sessA, err := svc.Processar(ctx, mensagemDe(t, "P-A", tenantExemplo, "", "tenho um cachorro"))
 	if err != nil {
@@ -108,15 +111,16 @@ func TestServicoAtendeDuasAdministradoras(t *testing.T) {
 		administradora string
 		condominio     string
 		account        string
+		company        string
 		fato           string
 	}{
-		{sessA, "adm-a", "cond-001", "cond-001", "tem um cachorro"},
-		{sessB, "adm-b", "cond-b", "acc-b", "tem dois gatos"},
+		{sessA, "adm-a", "cond-001", "cond-001", "5982", "tem um cachorro"},
+		{sessB, "adm-b", "cond-b", "acc-b", "7777", "tem dois gatos"},
 	}
 	for _, c := range casos {
 		t.Run(c.administradora, func(t *testing.T) {
-			if c.sess.AdministradoraID != c.administradora || c.sess.Condominio != c.condominio {
-				t.Fatalf("sessão resolvida em %s/%s", c.sess.AdministradoraID, c.sess.Condominio)
+			if c.sess.AdministradoraID != c.administradora || c.sess.Condominio != c.condominio || c.sess.CompanyID != c.company {
+				t.Fatalf("sessão resolvida em %s/%s company %s", c.sess.AdministradoraID, c.sess.Condominio, c.sess.CompanyID)
 			}
 			mem, err := st.Ler(ctx, contatoDeTeste(t, c.administradora))
 			if err != nil {
@@ -132,38 +136,77 @@ func TestServicoAtendeDuasAdministradoras(t *testing.T) {
 			if cfg.Identidade.AccountID != c.account {
 				t.Fatalf("account das tools = %q, want %q", cfg.Identidade.AccountID, c.account)
 			}
+			if got := cfg.Payloads[ferramentaEmpresa]["companyId"]; got != c.company {
+				t.Fatalf("companyId das tools MCP = %v, want %s", got, c.company)
+			}
 		})
+	}
+}
+
+// A identidade no Gruvi consulta a company do condomínio da mensagem, não a do processo.
+func TestIdentidadeUsaCompanyDoCondominio(t *testing.T) {
+	svc, _, mcpFalso := servicoMultiAdministradora(t, escopo.Implantacao{})
+	svc.TelefoneB2C = telefoneMorador
+	sess, err := svc.Processar(context.Background(), mensagemDe(t, "P-B", "tenant-b", "7777", "oi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Identidade.CompanyID != "7777" || !strings.Contains(strings.Join(mcpFalso.chamadas, ","), ferramentaEmpresa) {
+		t.Fatalf("identidade pela company do condomínio: %+v chamadas %v", sess.Identidade, mcpFalso.chamadas)
 	}
 }
 
 func TestServicoTransbordaCondominioNaoAtendido(t *testing.T) {
 	tests := []struct {
-		name string
-		imp  escopo.Implantacao
-		msg  func(t *testing.T) entrada.Mensagem
+		name                  string
+		imp                   escopo.Implantacao
+		tenant, company, prot string
 	}{
-		{"company desconhecida", escopo.Implantacao{}, func(t *testing.T) entrada.Mensagem {
-			return mensagemDe(t, "P-X", "tenant-x", "999", "oi")
-		}},
-		{"condominio de outra administradora", escopo.Implantacao{AdministradoraFixa: "adm-a"}, func(t *testing.T) entrada.Mensagem {
-			return mensagemDe(t, "P-B", "tenant-b", "7777", "oi")
-		}},
+		{"company desconhecida", escopo.Implantacao{}, "tenant-x", "999", "P-X"},
+		{"condominio de outra administradora", escopo.Implantacao{AdministradoraFixa: "adm-a"}, "tenant-b", "7777", "P-B"},
+		{"condominio sem account", escopo.Implantacao{}, "tenant-b-sem-account", "", "P-SA"},
+		{"condominio sem company", escopo.Implantacao{}, "tenant-b-sem-company", "", "P-SC"},
+		{"tenant de duas administradoras", escopo.Implantacao{}, "tenant-dividido", "", "P-D"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, _ := servicoMultiAdministradora(t, tt.imp)
-			sess, err := svc.Processar(context.Background(), tt.msg(t))
+			svc, _, mcpFalso := servicoMultiAdministradora(t, tt.imp)
+			sess, err := svc.Processar(context.Background(), mensagemDe(t, tt.prot, tt.tenant, tt.company, "oi"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if sess.Transbordo == nil || !sess.Transbordo.Ativo {
-				t.Fatalf("deveria transbordar: %+v", sess.Transbordo)
-			}
-			for _, turno := range sess.Turnos {
-				if turno.Quem == "concierge" {
-					t.Fatalf("o concierge não deveria responder: %+v", sess.Turnos)
-				}
+			exigirTransbordoSemConcierge(t, sess)
+			if len(mcpFalso.chamadas) != 0 {
+				t.Fatalf("nenhuma tool deveria ser chamada: %v", mcpFalso.chamadas)
 			}
 		})
+	}
+}
+
+// Uma conversa não troca de condomínio no meio: a segunda resolução diferente transborda.
+func TestServicoTransbordaQuandoOCondominioDaConversaMuda(t *testing.T) {
+	svc, _, _ := servicoMultiAdministradora(t, escopo.Implantacao{})
+	ctx := context.Background()
+	if _, err := svc.Processar(ctx, mensagemDe(t, "P-1", tenantExemplo, "", "oi")); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := svc.Processar(ctx, mensagemDe(t, "P-1", tenantExemplo, "7777", "e agora?"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.Transbordo == nil || !sess.Transbordo.Ativo || sess.AdministradoraID != "adm-a" {
+		t.Fatalf("deveria transbordar mantendo adm-a: %+v %s", sess.Transbordo, sess.AdministradoraID)
+	}
+}
+
+func exigirTransbordoSemConcierge(t *testing.T, sess *Sessao) {
+	t.Helper()
+	if sess.Transbordo == nil || !sess.Transbordo.Ativo {
+		t.Fatalf("deveria transbordar: %+v", sess.Transbordo)
+	}
+	for _, turno := range sess.Turnos {
+		if turno.Quem == "concierge" {
+			t.Fatalf("o concierge não deveria responder: %+v", sess.Turnos)
+		}
 	}
 }

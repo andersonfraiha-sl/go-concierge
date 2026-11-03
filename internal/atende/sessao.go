@@ -32,6 +32,7 @@ type Sessao struct {
 	IdentErro         string            `json:"identidade_erro,omitempty"`
 	Condominio        string            `json:"condominio,omitempty"` // id no Admin, resolvido pela mensagem
 	AdministradoraID  string            `json:"administradora_id,omitempty"`
+	CompanyID         string            `json:"company_id,omitempty"` // company do Gruvi do condomínio resolvido
 	Turnos            []Turno           `json:"turnos"`
 	CriadaEm          time.Time         `json:"criada_em"`
 	AtualizadaEm      time.Time         `json:"atualizada_em"`
@@ -242,10 +243,17 @@ func (sess *Sessao) contato() escopo.Contato {
 	return sess.escopo
 }
 
-func (sess *Sessao) fixarContato(c escopo.Contato) {
+// companyDoCondominio é a company do Gruvi do condomínio resolvido (vazia até resolver).
+func (sess *Sessao) companyDoCondominio() string {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
-	sess.escopo, sess.AdministradoraID, sess.Condominio = c, c.AdministradoraID, c.CondominioID
+	return sess.CompanyID
+}
+
+func (sess *Sessao) fixarContato(c escopo.Contato, companyID string) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.escopo, sess.AdministradoraID, sess.Condominio, sess.CompanyID = c, c.AdministradoraID, c.CondominioID, companyID
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.

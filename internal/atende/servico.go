@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -528,7 +529,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			historicoRegistrado = true
 			return sess, err
 		}
-		s.avisar("resolver_condominio", sess, err)
+		s.avisar(ctx, "resolver_condominio", sess, err)
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		s.transbordar(sess, "condomínio não identificado", "concierge", "")
 		return sess, nil
@@ -536,7 +537,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	contato := sess.contato()
 
 	if identidadeVazia {
-		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone)
+		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone, sess.companyDoCondominio())
 		if err != nil {
 			if errors.Is(err, context.Canceled) && interrompido() {
 				return sess, nil
@@ -829,31 +830,21 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 
 	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
 	// quais definições (payloads) valem para os recursos
+	m, condo, err := s.condominioDaSessao(ctx, sess, contato)
+	if err != nil {
+		return cfg, mem, "", err
+	}
+	cfg.Identidade.AccountID = condo.Account
+	papel := identidade.Role
+	cfg.Casos = func(nome, casoID string) bool {
+		return m.Habilitado(condo.ID, nome, papel) && (casoID == "" || m.Habilitado(condo.ID, casoID, papel))
+	}
+	cfg.Payloads = m.PayloadsDe(condo.ID)
+	orient := m.OrientacaoDe(condo.ID)
+	cfg.Orientacoes = orient.PorCaso
 	var contexto []string
-	if s.Mapeamento != nil {
-		if m, err := s.Mapeamento.Ler(ctx); err == nil {
-			condo, ok := m.Condominio(contato.CondominioID)
-			condoID := admin.Padrao
-			if ok {
-				condoID = condo.ID
-				cfg.Identidade.AccountID = condo.Account
-			}
-			papel := identidade.Role
-			cfg.Casos = func(nome, casoID string) bool {
-				return m.Habilitado(condoID, nome, papel) && (casoID == "" || m.Habilitado(condoID, casoID, papel))
-			}
-			cfg.Payloads = m.PayloadsDe(condoID)
-			orient := m.OrientacaoDe(condoID)
-			cfg.Orientacoes = orient.PorCaso
-			if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" && (ok || len(cfg.Payloads) > 0 || orient.Geral != "") {
-				contexto = append(contexto, c)
-			}
-		} else {
-			// falha fechada: sem o mapeamento não se sabe o que a administradora desligou
-			cfg.Casos = func(string, string) bool { return false }
-			slog.ErrorContext(ctx, "atende: mapeamento indisponível; nenhum caso de uso liberado",
-				"operacao", "ler_mapeamento", "sessao", sess.ID, "erro", err)
-		}
+	if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" {
+		contexto = append(contexto, c)
 	}
 	s.injetarParametrosMCP(&cfg, sess)
 
@@ -871,7 +862,7 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 		m, err := s.Memorias.Ler(ctx, contato)
 		desbloquear()
 		if err != nil && s.Log != nil {
-			s.Log.Printf("atende: memória de %s: %v", contato.Chave(), err)
+			s.Log.Printf("atende: memória de %s: %v", contato.Mascarado(), err)
 		}
 		mem = m
 		if c := harness.ContextoDeMemoria(mem); c != "" {
@@ -898,6 +889,25 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 		}
 	}
 	return cfg, mem, dir, nil
+}
+
+// condominioDaSessao lê o mapeamento e o condomínio resolvido para a sessão. Falha
+// fechada: sem mapeamento ou sem o condomínio, nada é montado.
+func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato escopo.Contato) (admin.Mapeamento, admin.Condominio, error) {
+	if s.Mapeamento == nil {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("montar sessão %s sem mapeamento: %w", sess.ID, admin.ErrCondominioDesconhecido)
+	}
+	m, err := s.Mapeamento.Ler(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "atende: mapeamento indisponível; sessão não montada",
+			"operacao", "ler_mapeamento", "sessao", sess.ID, "erro", err)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("ler mapeamento: %w", err)
+	}
+	condo, ok := m.Condominio(contato.CondominioID)
+	if !ok {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s: %w", contato.CondominioID, sess.ID, admin.ErrCondominioDesconhecido)
+	}
+	return m, condo, nil
 }
 
 // agenteDaSessao constrói a família de agentes para a sessão (ações do atendente).
@@ -928,24 +938,30 @@ func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entr
 	if err != nil {
 		return err
 	}
+	if atual := sess.contato(); atual.CondominioID != "" && atual.CondominioID != condo.ID {
+		return fmt.Errorf("conversa de %s recebeu mensagem de %s: %w", atual.CondominioID, condo.ID, errCondominioMudou)
+	}
 	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
 	if err != nil {
 		return fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
 	}
-	sess.fixarContato(contato)
+	sess.fixarContato(contato, condo.CompanyID)
 	return nil
 }
 
-// condominioNaoAtendido: a mensagem é de um condomínio que este processo não atende
-// (desconhecido ou de outra administradora); o resto é falha de infraestrutura.
+var errCondominioMudou = errors.New("condomínio da conversa mudou")
+
+// naoAtendidos: a mensagem é de um condomínio que este processo não atende; qualquer
+// outro erro da resolução é falha de infraestrutura.
+var naoAtendidos = []error{admin.ErrCondominioDesconhecido, admin.ErrForaDaImplantacao, admin.ErrCondominioAmbiguo, admin.ErrCondominioIncompleto, errCondominioMudou}
+
 func condominioNaoAtendido(err error) bool {
-	return errors.Is(err, admin.ErrCondominioDesconhecido) || errors.Is(err, admin.ErrForaDaImplantacao)
+	return slices.ContainsFunc(naoAtendidos, func(alvo error) bool { return errors.Is(err, alvo) })
 }
 
-func (s *Servico) avisar(operacao string, sess *Sessao, err error) {
-	if s.Log != nil {
-		s.Log.Printf("WARN operacao=%s sessao=%s protocolo=%s: %v", operacao, sess.ID, sess.Protocolo, err)
-	}
+func (s *Servico) avisar(ctx context.Context, operacao string, sess *Sessao, err error) {
+	slog.WarnContext(ctx, "atende: condomínio não atendido; conversa transbordada",
+		"operacao", operacao, "sessao", sess.ID, "erro", err)
 }
 
 func (s *Servico) transbordar(sess *Sessao, motivo, pedidoPor, atendente string) {
@@ -1125,7 +1141,7 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	return novos
 }
 
-func (s *Servico) identidade(ctx context.Context, phone string) (gruvi.Identidade, any, error) {
+func (s *Servico) identidade(ctx context.Context, phone, companyID string) (gruvi.Identidade, any, error) {
 	id := gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}
 	if s.TelefoneB2C == "" {
 		return id, nil, nil
@@ -1140,11 +1156,9 @@ func (s *Servico) identidade(ctx context.Context, phone string) (gruvi.Identidad
 	if err := validar.ValidarToken(ctx); err != nil {
 		return id, nil, fmt.Errorf("atende: autenticação B2C: %w", err)
 	}
-	if s.Gruvi != nil {
-		id.CompanyID = s.Gruvi.CompanyID
-	}
+	id.CompanyID = companyID
 	if id.CompanyID == "" {
-		return id, nil, errors.New("atende: GRUVI_COMPANY_ID não configurado")
+		return id, nil, errors.New("atende: condomínio sem company do Gruvi")
 	}
 	const ferramenta = "gruvi.bff.building-operation.get-company-by-document-controller-handle"
 	resultado, err := s.Config.MCP.CallTool(ctx, ferramenta, map[string]any{
@@ -1166,10 +1180,7 @@ func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
 	if cfg.Payloads == nil {
 		cfg.Payloads = map[string]map[string]any{}
 	}
-	companyID := strings.TrimSpace(sess.Identidade.CompanyID)
-	if companyID == "" && s.Gruvi != nil {
-		companyID = strings.TrimSpace(s.Gruvi.CompanyID)
-	}
+	companyID := sess.companyDoCondominio()
 	telefone := gruvi.NormalizarTelefone(sess.Contato.Phone)
 	company := "gruvi.bff.building-operation.get-company-by-document-controller-handle"
 	packages := "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"

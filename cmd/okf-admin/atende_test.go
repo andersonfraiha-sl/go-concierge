@@ -313,6 +313,7 @@ func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 		{"outra administradora nao ve", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=adm-y", 200, `"fatos":[]`},
 		{"fixa vale por padrao", escopo.Implantacao{AdministradoraFixa: "adm-x"}, "/api/memoria?phone=5519981621916", 200, "tem um cachorro"},
 		{"fora da implantacao", escopo.Implantacao{AdministradoraFixa: "adm-x"}, "/api/memoria?phone=5519981621916&administradora=adm-y", 403, "FORA_DA_IMPLANTACAO"},
+		{"administradora com formato invalido", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=..%2Fx", 400, "ADMINISTRADORA_INVALIDA"},
 		{"listagem sem administradora", escopo.Implantacao{}, "/api/memorias", 400, "ADMINISTRADORA_OBRIGATORIA"},
 		{"pedidos sem administradora", escopo.Implantacao{}, "/api/pedidos?phone=5519981621916", 400, "ADMINISTRADORA_OBRIGATORIA"},
 	}

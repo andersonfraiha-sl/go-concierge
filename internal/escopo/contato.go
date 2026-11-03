@@ -2,6 +2,7 @@ package escopo
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 )
 
@@ -27,6 +28,21 @@ func NovoContato(administradoraID, condominioID, telefone string) (Contato, erro
 
 // Chave identifica o contato no armazenamento: o condomínio não entra.
 func (c Contato) Chave() string { return c.AdministradoraID + ":" + c.Telefone }
+
+// Mascarado é o contato para log e mensagem de erro: o telefone sem o miolo.
+func (c Contato) Mascarado() string {
+	const visiveis = 4
+	if len(c.Telefone) <= 2*visiveis {
+		return c.AdministradoraID + ":****"
+	}
+	return c.AdministradoraID + ":" + c.Telefone[:visiveis] + "****" + c.Telefone[len(c.Telefone)-visiveis:]
+}
+
+// reAdministradora é o formato de id do Admin; também serve de nome de pasta seguro.
+var reAdministradora = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// AdministradoraValida diz se o id tem o formato do Admin.
+func AdministradoraValida(id string) bool { return reAdministradora.MatchString(id) }
 
 func normalizarTelefone(t string) string {
 	digitos := strings.Map(func(r rune) rune {

@@ -429,7 +429,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	sessB.mu.Lock()
 	sessB.Identidade = identidade
 	sessB.mu.Unlock()
-	sessB.fixarContato(sessA.contato())
+	sessB.fixarContato(sessA.contato(), sessA.companyDoCondominio())
 	_, p, saida, err := svc.PreencherPedido(context.Background(), sessB.ID, prot, "Ana", map[string]any{"visitante_telefone": "5511888888888"}, true)
 	if err != nil || saida.Tipo != "confirmar" || p.Confirmacao == nil {
 		t.Fatalf("dados alterados deveriam exigir nova confirmação: %+v %v", saida, err)

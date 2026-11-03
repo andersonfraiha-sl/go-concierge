@@ -41,3 +41,42 @@ func TestContatoChave(t *testing.T) {
 		t.Errorf("Chave() = %q, want %q", got, want)
 	}
 }
+
+func TestContatoMascarado(t *testing.T) {
+	tests := []struct {
+		name, telefone, want string
+	}{
+		{"celular", "19940402710", "A:5519****2710"},
+		{"curto esconde tudo", "12345678", "A:****"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := NovoContato("A", "c1", tt.telefone)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := c.Mascarado(); got != tt.want {
+				t.Errorf("Mascarado() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAdministradoraValida(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"adm-a", true},
+		{"adm_1", true},
+		{"", false},
+		{"Adm", false},
+		{"../x", false},
+		{"-a", false},
+	}
+	for _, tt := range tests {
+		if got := AdministradoraValida(tt.id); got != tt.want {
+			t.Errorf("AdministradoraValida(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}

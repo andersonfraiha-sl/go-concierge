@@ -593,7 +593,11 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 		n = col.proximaInvocacao()
 	}
 	idem := fmt.Sprintf("%s:%s:%s:%d", ag.cfg.sessao(), ag.Def.Nome, nome, n)
-	raw, err := cli.Invoke(ctx, nome, ag.cfg.account(), params, idem)
+	account := ag.cfg.Identidade.AccountID
+	if account == "" {
+		return erro("sem account do condomínio: não há como chamar %s agora; avise o morador", nome), nil
+	}
+	raw, err := cli.Invoke(ctx, nome, account, params, idem)
 	if err != nil {
 		return erro("falha ao chamar %s: %v", nome, err), nil
 	}

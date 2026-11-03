@@ -10,6 +10,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -184,9 +185,11 @@ func main() {
 	}
 
 	// Admin das administradoras: mapeamento condomínio × casos de uso × payloads. O
-	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev.
+	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev. Sem
+	// GRUVI_COMPANY_ID ele ganha a company "exemplo": condomínio sem company não é atendido,
+	// e sem Gruvi configurado a identidade não é consultada.
 	s.admin = admin.NovoPostgres(db.Ent)
-	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
+	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
 	if err := semearMapeamento(s.admin, os.Getenv("AMBIENTE"), exemplo); err != nil {
 		log.Fatal(err)
 	}

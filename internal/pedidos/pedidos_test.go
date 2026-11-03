@@ -397,3 +397,26 @@ func TestArquivosEResumo(t *testing.T) {
 		}
 	}
 }
+
+func TestErrosDosPedidosNaoExpoemOTelefone(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	st := NewArquivos(dir)
+	c, err := escopo.NovoContato("adm-a", "cond-1", "5519981621916")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "adm-a", c.Telefone+".json.tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "adm-a", c.Telefone+".json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, errLer := st.Ler(ctx, c)
+	errGravar := st.Gravar(ctx, c, Carteira{})
+	for _, err := range []error{errLer, errGravar} {
+		if err == nil || strings.Contains(err.Error(), "981621916") {
+			t.Fatalf("erro deveria existir e mascarar o telefone: %v", err)
+		}
+	}
+}

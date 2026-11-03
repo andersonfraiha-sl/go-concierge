@@ -79,3 +79,26 @@ func TestRegras(t *testing.T) {
 		t.Fatalf("pergunta não gera fato: %+v", f)
 	}
 }
+
+func TestErrosNaoExpoemOTelefone(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	st := NewArquivos(dir)
+	c := contato(t, "adm-a", "5519981621916")
+	if err := os.WriteFile(filepath.Join(dir, "adm-b"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "adm-a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "adm-a", c.Telefone+".json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, errLer := st.Ler(ctx, c)
+	errGravar := st.Gravar(ctx, contato(t, "adm-b", "5519981621916"), Memoria{})
+	for _, err := range []error{errLer, errGravar} {
+		if err == nil || strings.Contains(err.Error(), "981621916") {
+			t.Fatalf("erro deveria existir e mascarar o telefone: %v", err)
+		}
+	}
+}
