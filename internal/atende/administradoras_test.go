@@ -129,7 +129,11 @@ func TestServicoAtendeDuasAdministradoras(t *testing.T) {
 			if len(mem.Fatos) != 1 || mem.Fatos[0].Texto != c.fato || mem.Fatos[0].CondominioID != c.condominio {
 				t.Fatalf("memória de %s: %+v", c.administradora, mem.Fatos)
 			}
-			cfg, _, _, err := svc.montar(ctx, c.sess)
+			m, condo, err := svc.condominioDaSessao(ctx, c.sess, c.sess.contato())
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg, _, _, err := svc.montar(ctx, c.sess, m, condo)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -208,5 +212,54 @@ func exigirTransbordoSemConcierge(t *testing.T, sess *Sessao) {
 		if turno.Quem == "concierge" {
 			t.Fatalf("o concierge não deveria responder: %+v", sess.Turnos)
 		}
+	}
+}
+
+// mapeamentoContado conta as leituras: o turno lê o mapeamento uma vez só, na resolução.
+type mapeamentoContado struct {
+	admin.Repositorio
+	leituras int
+}
+
+func (m *mapeamentoContado) Ler(ctx context.Context) (admin.Mapeamento, error) {
+	m.leituras++
+	return m.Repositorio.Ler(ctx)
+}
+
+func TestTurnoLeOMapeamentoUmaVez(t *testing.T) {
+	svc, _, _ := servicoMultiAdministradora(t, escopo.Implantacao{})
+	contado := &mapeamentoContado{Repositorio: svc.Mapeamento}
+	svc.Mapeamento = contado
+	if _, err := svc.Processar(context.Background(), mensagemDe(t, "P-1", tenantExemplo, "", "oi")); err != nil {
+		t.Fatal(err)
+	}
+	if contado.leituras != 1 {
+		t.Fatalf("leituras do mapeamento no turno = %d, want 1", contado.leituras)
+	}
+}
+
+// Falha ao montar o turno (aqui, o agente não existe no catálogo): o morador recebe a
+// frase de falha, a troca entra no histórico e nenhum agente ou tool roda.
+func TestFalhaAoMontarOTurnoRespondeAoMorador(t *testing.T) {
+	svc, _, mcpFalso := servicoMultiAdministradora(t, escopo.Implantacao{})
+	svc.Agente = "agentes/nao-existe"
+	out := svc.Sender.(*Outbox)
+	msg := mensagemDe(t, "P-1", tenantExemplo, "", "oi")
+	sess, err := svc.Processar(context.Background(), msg)
+	if err == nil {
+		t.Fatal("o erro da montagem deveria voltar")
+	}
+	ultimo := sess.Turnos[len(sess.Turnos)-1]
+	if ultimo.Quem != "concierge" || ultimo.Texto != FraseFalha || ultimo.Erro == "" {
+		t.Fatalf("resposta de falha: %+v", ultimo)
+	}
+	if saidas := out.Itens(msg.ConversaID); len(saidas) != 1 || saidas[0].Texto != FraseFalha {
+		t.Fatalf("o morador deveria receber a frase de falha: %+v", saidas)
+	}
+	if h := sess.historicoSnapshot(); len(h) != 2 {
+		t.Fatalf("a troca deveria entrar no histórico: %d mensagens", len(h))
+	}
+	if len(mcpFalso.chamadas) != 0 {
+		t.Fatalf("nenhuma tool deveria rodar: %v", mcpFalso.chamadas)
 	}
 }

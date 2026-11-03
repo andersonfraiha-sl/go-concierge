@@ -523,7 +523,8 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		return sess, nil
 	}
-	if err := s.resolverCondominio(ctx, sess, msg); err != nil {
+	m, condo, err := s.resolverCondominio(ctx, sess, msg)
+	if err != nil {
 		if !condominioNaoAtendido(err) {
 			s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
 			historicoRegistrado = true
@@ -560,12 +561,11 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 
 	revisaoMemoria := s.revisaoMemoria(contato)
-	cfg, mem, dir, err := s.montar(ctx, sess)
+	cfg, mem, def, err := s.prepararTurno(ctx, sess, m, condo)
 	if err != nil {
-		return sess, err
-	}
-	def, err := s.Cat.Load(dir)
-	if err != nil {
+		slog.ErrorContext(ctx, "atende: turno não montado", "operacao", "montar_turno", "sessao", sess.ID, "erro", err)
+		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		historicoRegistrado = true
 		return sess, err
 	}
 	if s.Timeout > 0 {
@@ -816,9 +816,23 @@ func (s *Servico) responderFalha(ctx context.Context, sess *Sessao, texto string
 	}
 }
 
+// prepararTurno monta a Config e carrega o agente de primeiro nível.
+func (s *Servico) prepararTurno(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (harness.Config, memoria.Memoria, *okf.Agent, error) {
+	cfg, mem, dir, err := s.montar(ctx, sess, m, condo)
+	if err != nil {
+		return cfg, mem, nil, err
+	}
+	def, err := s.Cat.Load(dir)
+	if err != nil {
+		return cfg, mem, nil, fmt.Errorf("carregar agente %s: %w", dir, err)
+	}
+	return cfg, mem, def, nil
+}
+
 // montar prepara a Config do harness para a sessão (identidade, Admin do condomínio,
-// data e hora, unidades, memória) e devolve a memória lida e a pasta do agente.
-func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
+// data e hora, unidades, memória) e devolve a memória lida e a pasta do agente. m e
+// condo vêm de quem resolveu o condomínio: o turno não relê o mapeamento.
+func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
 	cfg = s.Config
 	cfg.Sessao = sess.ID
 	sess.mu.Lock()
@@ -828,12 +842,8 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 	contato := sess.contato()
 	cfg.MCPResultados = sess.resultadosMCP()
 
-	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
-	// quais definições (payloads) valem para os recursos
-	m, condo, err := s.condominioDaSessao(ctx, sess, contato)
-	if err != nil {
-		return cfg, mem, "", err
-	}
+	// Admin da administradora: quais casos o condomínio pode usar e quais definições
+	// (payloads) valem para os recursos
 	cfg.Identidade.AccountID = condo.Account
 	papel := identidade.Role
 	cfg.Casos = func(nome, casoID string) bool {
@@ -912,7 +922,11 @@ func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato 
 
 // agenteDaSessao constrói a família de agentes para a sessão (ações do atendente).
 func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Agente, error) {
-	cfg, _, dir, err := s.montar(ctx, sess)
+	m, condo, err := s.condominioDaSessao(ctx, sess, sess.contato())
+	if err != nil {
+		return nil, err
+	}
+	cfg, _, dir, err := s.montar(ctx, sess, m, condo)
 	if err != nil {
 		return nil, err
 	}
@@ -926,27 +940,28 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 // transbordar passa o protocolo ao atendente humano.
 // resolverCondominio fixa na sessão o condomínio da mensagem e o contato na
 // administradora dele. Sem mapeamento, nenhum condomínio é conhecido.
-func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entrada.Mensagem) error {
+// Devolve o mapeamento lido e o condomínio, que o turno usa sem reler.
+func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entrada.Mensagem) (admin.Mapeamento, admin.Condominio, error) {
 	if s.Mapeamento == nil {
-		return fmt.Errorf("resolver condomínio sem mapeamento: %w", admin.ErrCondominioDesconhecido)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("resolver condomínio sem mapeamento: %w", admin.ErrCondominioDesconhecido)
 	}
 	m, err := s.Mapeamento.Ler(ctx)
 	if err != nil {
-		return fmt.Errorf("resolver condomínio: %w", err)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("resolver condomínio: %w", err)
 	}
 	condo, err := admin.ResolverCondominio(m, s.Implantacao, msg.CompanyID, msg.Tenant)
 	if err != nil {
-		return err
+		return admin.Mapeamento{}, admin.Condominio{}, err
 	}
 	if atual := sess.contato(); atual.CondominioID != "" && atual.CondominioID != condo.ID {
-		return fmt.Errorf("conversa de %s recebeu mensagem de %s: %w", atual.CondominioID, condo.ID, errCondominioMudou)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("conversa de %s recebeu mensagem de %s: %w", atual.CondominioID, condo.ID, errCondominioMudou)
 	}
 	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
 	if err != nil {
-		return fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
 	}
 	sess.fixarContato(contato, condo.CompanyID)
-	return nil
+	return m, condo, nil
 }
 
 var errCondominioMudou = errors.New("condomínio da conversa mudou")

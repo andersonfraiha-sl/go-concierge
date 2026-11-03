@@ -34,6 +34,7 @@ func TestResolverCondominio(t *testing.T) {
 		{"company vence o tenant", escopo.Implantacao{}, "200", "t-a", "c-b", nil},
 		{"tenant conhecido sem company", escopo.Implantacao{}, "", "t-a", "c-a", nil},
 		{"company desconhecida", escopo.Implantacao{}, "999", "", "", ErrCondominioDesconhecido},
+		{"company desconhecida nao cai no tenant", escopo.Implantacao{}, "999", "t-a", "", ErrCondominioDesconhecido},
 		{"nada informado", escopo.Implantacao{}, "", "", "", ErrCondominioDesconhecido},
 		{"condominio sem administradora", escopo.Implantacao{}, "300", "", "", ErrCondominioIncompleto},
 		{"condominio sem account", escopo.Implantacao{}, "400", "", "", ErrCondominioIncompleto},

@@ -226,16 +226,18 @@ var (
 	ErrCondominioIncompleto   = errors.New("condomínio sem administradora, account ou company")
 )
 
-// ResolverCondominio acha o condomínio da mensagem pela company do Gruvi e, sem ela,
-// pelo tenant do ATENDE. Se os que casam são de mais de uma administradora, é ambíguo;
+// ResolverCondominio acha o condomínio da mensagem pela company do Gruvi ou, só quando
+// ela não vem, pelo tenant do ATENDE. Se os que casam são de mais de uma administradora, é ambíguo;
 // na mesma administradora vale o primeiro na ordem do mapeamento (nome, depois id). Só
 // é atendido o condomínio completo (administradora, account e company) e permitido pela
 // implantação.
 func ResolverCondominio(m Mapeamento, imp escopo.Implantacao, companyID, tenant string) (Condominio, error) {
-	candidatos := condominiosPor(m, func(c Condominio) bool { return companyID != "" && c.CompanyID == companyID })
-	if len(candidatos) == 0 {
-		candidatos = condominiosPor(m, func(c Condominio) bool { return tenant != "" && c.Tenant == tenant })
+	// a company, quando vem, decide sozinha: uma company que não casa não cai no tenant
+	casa := func(c Condominio) bool { return c.CompanyID == companyID }
+	if companyID == "" {
+		casa = func(c Condominio) bool { return tenant != "" && c.Tenant == tenant }
 	}
+	candidatos := condominiosPor(m, casa)
 	if len(candidatos) == 0 {
 		return Condominio{}, fmt.Errorf("company %q, tenant %q: %w", companyID, tenant, ErrCondominioDesconhecido)
 	}
