@@ -35,8 +35,22 @@ A Fundação resolve as três coisas e deixa um padrão que os projetos seguinte
 
 ## 3. Banco e acesso a dados
 
-- **Postgres 16** no `docker-compose.yml` como serviço `postgres`, com volume. O concierge recebe `DATABASE_URL`.
-- **Sem SQLite** (minha decisão, diverge do DEFINICOES 4.6): com sqlc, dois dialetos dobram todas as queries. Desenvolvimento local usa o Postgres do compose; testes de integração usam testcontainers.
+- **Postgres 18** (`postgres:18-alpine`, 18.6 hoje; o 19 ainda é RC) no `docker-compose.yml` como serviço `postgres`, com volume montado em `/var/lib/postgresql` (a partir do 18 a imagem guarda os dados em subpasta por versão; montar em `/var/lib/postgresql/data` como antes quebra). O concierge recebe `DATABASE_URL`.
+- **Sem SQLite** (decisão confirmada pelo Felipe, diverge do DEFINICOES 4.6): com sqlc, dois dialetos dobram todas as queries. Desenvolvimento local usa o Postgres do compose; testes de integração usam testcontainers.
+
+### Versões (conferidas em 2026-11-03, sempre a estável mais recente)
+
+| Item | Hoje no projeto | Passa a ser |
+|---|---|---|
+| Go | 1.26 (`golang:1.26-alpine`) | **1.27** (1.27.3, `golang:1.27-alpine`) |
+| Imagem final | `alpine:3.22` | `alpine:3.24` |
+| Postgres | (não tinha) | **18** (`postgres:18-alpine`) |
+| pgx | (não tinha) | `github.com/jackc/pgx/v5` v5.12.0 |
+| goose | (não tinha) | `github.com/pressly/goose/v3` v3.29.0 (como biblioteca, migrations embutidas) |
+| sqlc | (não tinha; 1.30.0 instalado na máquina) | **v1.31.1** |
+| testcontainers | (não tinha) | `testcontainers-go` e `modules/postgres` v0.44.0 |
+| Eino | v0.9.9 | v0.9.22 (`eino-ext` openai já está na última, v0.1.13) |
+| Node do servidor MCP | `node:24-alpine` | `node:26-alpine` (LTS ativo desde out/2026) |
 - **Estrutura**:
   ```
   db/migrations/   NNNN_<nome>.sql  (goose, up e down)
@@ -178,7 +192,7 @@ Vale para todo código novo e para o que esta fase tocar:
 
 ## 9. Decisões que tomei
 
-- Sem SQLite em dev (diverge do DEFINICOES 4.6).
+- Atualizar Go, Eino, Alpine e Node junto, na primeira entrega, para começar tudo na versão mais recente (pedido do Felipe).
 - Catálogo de skills continua em arquivo até o projeto 3.
 - Quatro papéis iniciais e a lista de permissões acima.
 - "Papel de acesso" com nome distinto do "papel do morador".

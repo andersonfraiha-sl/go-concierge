@@ -69,7 +69,8 @@ Todo erro é tratado ou propagado com contexto; toda chamada externa tem timeout
 | Area | Decision | Status | Rationale |
 |------|----------|--------|-----------|
 | Back-end | Go | Non-negotiable | harness (Eino), motor de pedidos e integrações já estão em Go |
-| Banco | PostgreSQL | Non-negotiable | decisão do projeto (DEFINICOES 4.6) |
+| Banco | PostgreSQL 18 (sempre a estável mais recente), sem SQLite | Non-negotiable | decisão do projeto (DEFINICOES 4.6) e do Felipe |
+| Versões | estável mais recente de toolchain e dependências, conferida ao iniciar cada projeto | Non-negotiable | pedido do Felipe |
 | Acesso ao banco | sqlc + pgx v5, migrations goose | Non-negotiable | SQL tipado sem ORM |
 | Front do Studio | React + React Flow (@xyflow/react) + MUI | Flexible | mesma base do Studio de IA do Atende |
 | Classificador | Jev atrás de interface, LLM de reserva | Flexible | Jev está em early access |
@@ -87,3 +88,4 @@ Todo erro é tratado ou propagado com contexto; toda chamada externa tem timeout
 | Date | Change | Rationale | Author |
 |------|--------|-----------|--------|
 | 2026-11-03 | Initial constitution | Início da reestruturação (fundação, memória, Studio) | Felipe |
+| 2026-11-03 | Postgres 18, sem SQLite; regra de versões mais recentes | Pedido do Felipe | Felipe |
