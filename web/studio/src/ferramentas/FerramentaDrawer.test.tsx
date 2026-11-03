@@ -60,6 +60,10 @@ describe('FerramentaDrawer', () => {
     const { user, chamadas } = abrirDrawer(ferramenta({ name: 'Legado_X' }));
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(chamadas).toHaveLength(1));
+    expect(chamadas[0]).toMatchObject({
+      original: 'Legado_X',
+      recurso: { name: 'Legado_X' },
+    });
   });
 
   it('savesHeadersAsMap', async () => {

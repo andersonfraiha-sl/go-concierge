@@ -6,12 +6,7 @@ import { useForm } from 'react-hook-form';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { ApiError } from '@/shared/api/http';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { CamposDeAjustes } from './CamposDeAjustes';
-import { CamposDeConexao } from './CamposDeConexao';
-import { CamposDeParametros, CamposDeSaida } from './CamposDeEntradaESaida';
-import { CamposDeIdentificacao } from './CamposDeIdentificacao';
 import {
   ferramentaNova,
   lerAmostra,
@@ -27,6 +22,7 @@ import {
   valoresIniciais,
 } from './formularioDaFerramenta';
 import { SecaoDoDrawer } from './SecaoDoDrawer';
+import { type Secao, secoesDoFormulario } from './secoesDoFormulario';
 
 type Props = {
   /** `null` abre o formulário de uma ferramenta nova. */
@@ -36,16 +32,6 @@ type Props = {
 };
 
 const AVISO_FORA_DO_STUDIO = 'Esta ferramenta é mantida fora do Studio.';
-
-const SECOES = [
-  'Básico',
-  'Parâmetros',
-  'Saída',
-  'Conexão',
-  'Amostra',
-  'Ajustes por condomínio',
-] as const;
-type Secao = (typeof SECOES)[number];
 
 export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): ReactNode {
   const clienteDeConsultas = useQueryClient();
@@ -65,6 +51,7 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
 
   const foraDoStudio = (ferramenta !== null && mantidaFora(ferramenta)) || recusadaPeloServidor;
   const travado = !podeEditar || foraDoStudio;
+  const secoes = secoesDoFormulario(control, travado, inicial.kind);
 
   const alternarSecao = (secao: Secao) => () =>
     setSecoesAbertas((atuais) => {
@@ -126,56 +113,16 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
         {foraDoStudio && <Alert severity="info">{AVISO_FORA_DO_STUDIO}</Alert>}
         {mensagemDeErro && <Alert severity="error">{mensagemDeErro}</Alert>}
 
-        <SecaoDoDrawer
-          titulo="Básico"
-          aberta={secoesAbertas.has('Básico')}
-          onAlternar={alternarSecao('Básico')}
-        >
-          <CamposDeIdentificacao control={control} travado={travado} tipoInicial={inicial.kind} />
-        </SecaoDoDrawer>
-        <SecaoDoDrawer
-          titulo="Parâmetros"
-          aberta={secoesAbertas.has('Parâmetros')}
-          onAlternar={alternarSecao('Parâmetros')}
-        >
-          <CamposDeParametros control={control} travado={travado} />
-        </SecaoDoDrawer>
-        <SecaoDoDrawer
-          titulo="Saída"
-          aberta={secoesAbertas.has('Saída')}
-          onAlternar={alternarSecao('Saída')}
-        >
-          <CamposDeSaida control={control} travado={travado} />
-        </SecaoDoDrawer>
-        <SecaoDoDrawer
-          titulo="Conexão"
-          aberta={secoesAbertas.has('Conexão')}
-          onAlternar={alternarSecao('Conexão')}
-        >
-          <CamposDeConexao control={control} travado={travado} />
-        </SecaoDoDrawer>
-        <SecaoDoDrawer
-          titulo="Amostra"
-          aberta={secoesAbertas.has('Amostra')}
-          onAlternar={alternarSecao('Amostra')}
-        >
-          <CampoTexto
-            control={control}
-            name="textoAmostra"
-            label="Amostra de retorno"
-            disabled={travado}
-            multiline
-            minRows={4}
-            slotProps={{ input: { sx: { fontFamily: 'monospace' } } }}
-          />
-        </SecaoDoDrawer>
-        <SecaoDoDrawer
-          titulo="Ajustes por condomínio"
-          aberta={secoesAbertas.has('Ajustes por condomínio')}
-          onAlternar={alternarSecao('Ajustes por condomínio')}
-        >
-          <CamposDeAjustes control={control} travado={travado} />
-        </SecaoDoDrawer>
+        {secoes.map(({ titulo, conteudo }) => (
+          <SecaoDoDrawer
+            key={titulo}
+            titulo={titulo}
+            aberta={secoesAbertas.has(titulo)}
+            onAlternar={alternarSecao(titulo)}
+          >
+            {conteudo}
+          </SecaoDoDrawer>
+        ))}
 
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
           {ferramenta && (
