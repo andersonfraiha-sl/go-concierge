@@ -508,6 +508,11 @@ func substituirChaves(raw []byte, chaves []chaveNo) ([]byte, error) {
 	for _, c := range chaves {
 		raiz.Content = definirChave(raiz.Content, c)
 	}
+	return codificarCaso(doc)
+}
+
+// codificarCaso escreve o nó como o caso.yaml é escrito em todo lugar: indentação 2.
+func codificarCaso(doc *yaml.Node) ([]byte, error) {
 	var saida bytes.Buffer
 	enc := yaml.NewEncoder(&saida)
 	enc.SetIndent(2)

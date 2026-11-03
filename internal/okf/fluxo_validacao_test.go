@@ -177,8 +177,17 @@ func TestClassificarFerramenta(t *testing.T) {
 		"gruvi.bff.building-operation.get-company-by-document-controller-handle": false,
 		"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":     false,
 		"gruvi.bff.building-operation.create-visit-controller-handle":            true,
-		"mudancas.agendar": true,
-		"health":           false,
+		"mudancas.agendar":         true,
+		"health":                   false,
+		"unidades.listar":          false,
+		"cadastro.consultar-dados": false,
+		"faq.buscar":               false,
+		"perfil.obter_email":       false,
+		"boleto.ler":               false,
+		"saldo.ver":                false,
+		"areas.reservar":           true,
+		"reserva.verificar":        true,
+		"recibo.lerdo":             true,
 	}
 	for nome, want := range tests {
 		if got := EscritaPeloNome(nome); got != want {
