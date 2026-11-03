@@ -44,6 +44,7 @@ export const TextosLidosSchema = z.object({
   textos: TextosSchema,
   versao: z.string(),
 });
+export type TextosLidos = z.infer<typeof TextosLidosSchema>;
 
 const VersaoSchema = z.object({ versao: z.string() });
 const NomeSchema = z.object({ nome: z.string() });
@@ -59,10 +60,16 @@ export function useSkills() {
   });
 }
 
+export const chaveDosTextos = (nome: string) => ['skill', nome, 'textos'] as const;
+
+export function buscarTextos(nome: string): Promise<TextosLidos> {
+  return apiGet(caminhoDaSkill(nome), TextosLidosSchema);
+}
+
 export function useTextos(nome: string) {
   return useQuery({
-    queryKey: ['skill', nome, 'textos'],
-    queryFn: () => apiGet(caminhoDaSkill(nome), TextosLidosSchema),
+    queryKey: chaveDosTextos(nome),
+    queryFn: () => buscarTextos(nome),
   });
 }
 
@@ -102,7 +109,7 @@ export async function preencherTextosNovos(
   novos: { resumo: string; quandoUsar: string },
 ): Promise<void> {
   if (novos.resumo === '' && novos.quandoUsar === '') return;
-  const lido = await apiGet(caminhoDaSkill(nome), TextosLidosSchema);
+  const lido = await buscarTextos(nome);
   await salvarTextos(nome, { versao: lido.versao, textos: { ...lido.textos, ...novos } });
 }
 

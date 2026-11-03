@@ -1,5 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
@@ -9,6 +10,8 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
 import {
+  buscarTextos,
+  chaveDosTextos,
   preencherTextosNovos,
   type SkillResumo,
   useCriarSkill,
@@ -16,7 +19,7 @@ import {
   useExcluirSkill,
   useSkills,
 } from './contratos';
-import { NovaSkillDialog, type SkillNova } from './NovaSkillDialog';
+import { NovaSkillDialog } from './NovaSkillDialog';
 import { SkillCard } from './SkillCard';
 
 const FRASE_VAZIA =
@@ -32,6 +35,7 @@ const caminhoDoEditor = (nome: string): string => `/skills/${encodeURIComponent(
 export function SkillsPage(): ReactNode {
   const skills = useSkills();
   const navegar = useNavigate();
+  const cliente = useQueryClient();
   const { mostrar } = useSnackbar();
   const criar = useCriarSkill();
   const duplicar = useDuplicarSkill();
@@ -42,11 +46,29 @@ export function SkillsPage(): ReactNode {
   const podeExcluir = usePodeEditar('skills.excluir');
   const fechar = () => setDialogo(null);
 
-  const criarEAbrir = async (nova: SkillNova) => {
-    const criada = await criar.mutateAsync({ nome: nova.nome, titulo: nova.titulo });
-    await preencherTextosNovos(criada.nome, { resumo: nova.resumo, quandoUsar: nova.quandoUsar });
+  const criarSkill = async (nova: { nome: string; titulo: string }) => {
+    const criada = await criar.mutateAsync(nova);
     mostrar('Skill criada.');
-    void navegar(caminhoDoEditor(criada.nome));
+    return criada;
+  };
+
+  const abrirEditor = (nome: string) => void navegar(caminhoDoEditor(nome));
+
+  /** Textos não salvaram: a pessoa segue para o editor com o que digitou, não com o que está (vazio) no servidor. */
+  const abrirEditorComTextosPendentes = async (
+    nome: string,
+    textos: { resumo: string; quandoUsar: string },
+  ) => {
+    try {
+      const lido = await buscarTextos(nome);
+      cliente.setQueryData(chaveDosTextos(nome), {
+        ...lido,
+        textos: { ...lido.textos, ...textos },
+      });
+    } catch {
+      // sem GET para mesclar: o editor busca os textos de novo, sem os que foram digitados aqui.
+    }
+    abrirEditor(nome);
   };
 
   const duplicarEAbrir = async (origem: SkillResumo, nova: NomeEscolhido) => {
@@ -114,7 +136,15 @@ export function SkillsPage(): ReactNode {
         </Box>
       )}
 
-      {dialogo?.tipo === 'nova' && <NovaSkillDialog onEnviar={criarEAbrir} onCancelar={fechar} />}
+      {dialogo?.tipo === 'nova' && (
+        <NovaSkillDialog
+          onCriar={criarSkill}
+          onSalvarTextos={preencherTextosNovos}
+          onConcluida={abrirEditor}
+          onFecharComFalha={(nome, textos) => void abrirEditorComTextosPendentes(nome, textos)}
+          onCancelar={fechar}
+        />
+      )}
       {dialogo?.tipo === 'duplicar' && (
         <NomeDialog
           titulo="Duplicar skill"

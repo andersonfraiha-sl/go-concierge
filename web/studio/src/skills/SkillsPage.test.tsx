@@ -155,6 +155,83 @@ describe('SkillsPage', () => {
     );
   });
 
+  const rotasDaCriacaoComSkillJaCriada = (corposCriar: unknown[], aoChamarPut: () => Response) => ({
+    'GET /api/eu': () => json(construtor),
+    'GET /api/skills': () => lista([faq]),
+    'POST /api/skills': async (req: Request) => {
+      corposCriar.push(await req.json());
+      return json({ nome: 'reserva-do-salao' }, 201);
+    },
+    'GET /api/skills/reserva-do-salao': () =>
+      json({
+        caminho: 'skills/reserva-do-salao',
+        versao: 'v1',
+        textos: {
+          titulo: 'Reserva do Salão',
+          quandoUsar: '',
+          frasesDeExemplo: [],
+          palavrasChave: [],
+          temFluxo: false,
+          resumo: '',
+          visibilidade: '',
+        },
+      }),
+    'PUT /api/skills/reserva-do-salao/textos': () => aoChamarPut(),
+  });
+
+  it('showsFormMessageWhenTextsFailToSaveAfterCreating', async () => {
+    const corposCriar: unknown[] = [];
+    let tentativasPut = 0;
+    responderCom(
+      rotasDaCriacaoComSkillJaCriada(corposCriar, () => {
+        tentativasPut += 1;
+        return json({ codigo: 'X', mensagem: 'Servidor caiu.' }, 500);
+      }),
+    );
+    const { user } = montar();
+    await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.click(screen.getByRole('button', { name: 'Criar' }));
+
+    expect(
+      await screen.findByText('A skill foi criada, mas os textos não salvaram. Tente de novo.'),
+    ).toBeInTheDocument();
+    const nome = screen.getByRole('textbox', { name: 'Nome' });
+    expect(nome).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByText('Use letras ou números no nome.')).not.toBeInTheDocument();
+    expect(corposCriar).toHaveLength(1);
+    expect(tentativasPut).toBe(1);
+    expect(screen.getByLabelText('rota')).toHaveTextContent('/skills');
+  });
+
+  it('retrySendsOnlyThePutNotThePost', async () => {
+    const corposCriar: unknown[] = [];
+    let tentativasPut = 0;
+    responderCom(
+      rotasDaCriacaoComSkillJaCriada(corposCriar, () => {
+        tentativasPut += 1;
+        return tentativasPut === 1
+          ? json({ codigo: 'X', mensagem: 'Servidor caiu.' }, 500)
+          : json({ versao: 'v2' });
+      }),
+    );
+    const { user } = montar();
+    await user.click(await screen.findByRole('button', { name: 'Nova skill' }));
+    await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Reserva do Salão');
+    await user.type(screen.getByRole('textbox', { name: 'Resumo' }), 'Reserva o salão de festas.');
+    await user.click(screen.getByRole('button', { name: 'Criar' }));
+    await screen.findByText('A skill foi criada, mas os textos não salvaram. Tente de novo.');
+
+    await user.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('rota')).toHaveTextContent('/skills/reserva-do-salao'),
+    );
+    expect(corposCriar).toHaveLength(1);
+    expect(tentativasPut).toBe(2);
+  });
+
   it('duplicatesSkillStartingFromCopyName', async () => {
     const corpos: unknown[] = [];
     responderCom({
