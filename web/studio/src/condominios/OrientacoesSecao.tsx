@@ -45,7 +45,7 @@ export function OrientacoesSecao({ estado, condominio, titulos, editavel }: Prop
   return (
     <SectionCard
       titulo="Orientações"
-      ajuda="O que a assistente precisa saber deste condomínio."
+      ajuda="O que o concierge precisa saber deste condomínio."
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

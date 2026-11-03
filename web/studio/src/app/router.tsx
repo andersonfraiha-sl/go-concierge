@@ -3,8 +3,8 @@ import { createBrowserRouter, Navigate } from 'react-router';
 import { StudioLayout } from './StudioLayout';
 
 // Uma tela por chunk: quem abre o Studio baixa só a tela que está vendo.
-const AssistentePage = lazy(() =>
-  import('@/assistente/AssistentePage').then((m) => ({ default: m.AssistentePage })),
+const ConciergePage = lazy(() =>
+  import('@/concierge/ConciergePage').then((m) => ({ default: m.ConciergePage })),
 );
 const SkillsPage = lazy(() =>
   import('@/skills/SkillsPage').then((m) => ({ default: m.SkillsPage })),
@@ -34,11 +34,11 @@ export function criarRotas() {
         path: '/',
         element: <StudioLayout />,
         children: [
-          { index: true, element: <Navigate to="/assistente" replace /> },
+          { index: true, element: <Navigate to="/concierge" replace /> },
           { path: 'skills', element: tela(<SkillsPage />) },
           // A aba aberta fica em ?aba=
           { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
-          { path: 'assistente', element: tela(<AssistentePage />) },
+          { path: 'concierge', element: tela(<ConciergePage />) },
           { path: 'ferramentas', element: tela(<FerramentasPage />) },
           { path: 'condominios', element: tela(<CondominiosPage />) },
           { path: 'condominios/:id', element: tela(<CondominioPage />) },

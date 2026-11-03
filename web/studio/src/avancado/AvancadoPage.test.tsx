@@ -235,7 +235,7 @@ describe('AvancadoPage', () => {
     responderCom(rotas(construtor, { 'GET /api/agentes': () => json({ agentes: [] }) }));
     renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
     expect(
-      await screen.findByText('Ainda não há assistente nem skills para mostrar.'),
+      await screen.findByText('Ainda não há concierge nem skills para mostrar.'),
     ).toBeInTheDocument();
   });
 

@@ -21,7 +21,7 @@ export const GRUPOS: Record<Classe, string> = {
   conhecimento: 'Conteúdos',
   memoria: 'Memória',
   acao: 'Ações',
-  agente: 'Assistentes',
+  agente: 'Agentes',
   form: 'Formulários',
 };
 
@@ -33,7 +33,7 @@ export const TIPOS: Record<string, string> = {
   memory: 'Memória',
   action: 'Ação',
   activity: 'Atividade',
-  agent: 'Concierge',
+  agent: 'Agente',
   form: 'Formulário',
 };
 

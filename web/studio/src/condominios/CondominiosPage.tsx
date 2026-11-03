@@ -61,7 +61,7 @@ export function CondominiosPage(): ReactNode {
             Condomínios
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Diga o que a assistente faz em cada condomínio.
+            Diga o que o concierge faz em cada condomínio.
           </Typography>
         </Box>
         {podeCriar && aba === 'condominios' && (

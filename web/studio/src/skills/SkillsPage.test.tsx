@@ -76,7 +76,7 @@ describe('SkillsPage', () => {
     montar();
     expect(
       await screen.findByText(
-        'Nenhuma skill ainda. Uma skill é algo que a assistente sabe fazer pelo morador, como reservar uma área comum.',
+        'Nenhuma skill ainda. Uma skill é algo que o concierge sabe fazer pelo morador, como reservar uma área comum.',
       ),
     ).toBeInTheDocument();
   });
