@@ -21,6 +21,12 @@ const TIPOS_DE_INFORMACAO: Record<string, string> = {
 
 const tipoMostrado = (tipo: string): string => tipo || 'text';
 
+const TIPO_ESCOLHA = 'select';
+
+/** Só Escolha tem opções: trocar o tipo não pode deixar opções órfãs indo para o servidor. */
+const semOpcoesForaDeEscolha = (tipo: string): Partial<Informacao> =>
+  tipo === TIPO_ESCOLHA ? { tipo } : { tipo, opcoes: [] };
+
 const nomeDaInformacao = (texto: string): string => paraIdentificador(texto).replaceAll('-', '_');
 
 export function InformacoesPainel({ informacoes, editavel, onMudar }: Props): ReactNode {
@@ -76,15 +82,15 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
         multiline
         onChange={(e) => onMudar({ pergunta: e.target.value })}
       />
-      <TextField select size="small" label="Tipo" value={tipo} disabled={!editavel} onChange={(e) => onMudar({ tipo: e.target.value })}>
+      <TextField select size="small" label="Tipo" value={tipo} disabled={!editavel} onChange={(e) => onMudar(semOpcoesForaDeEscolha(e.target.value))}>
         {Object.entries(TIPOS_DE_INFORMACAO).map(([valor, rotulo]) => (
           <MenuItem key={valor} value={valor}>
             {rotulo}
           </MenuItem>
         ))}
-        {!(tipo in TIPOS_DE_INFORMACAO) && <MenuItem value={tipo}>{tipo}</MenuItem>}
+        {!Object.hasOwn(TIPOS_DE_INFORMACAO, tipo) && <MenuItem value={tipo}>{tipo}</MenuItem>}
       </TextField>
-      {tipo === 'select' && (
+      {tipo === TIPO_ESCOLHA && (
         <ListaEditavel
           titulo="Opções"
           adicionar="Adicionar opção"

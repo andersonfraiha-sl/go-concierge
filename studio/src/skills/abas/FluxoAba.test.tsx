@@ -1,9 +1,10 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import fixture from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
+import { useState } from 'react';
 import { FluxoAba } from './FluxoAba';
 
 const construtor: Eu = {
@@ -48,6 +49,29 @@ function putQueGuarda(corpos: unknown[], resposta: () => Response = () => json({
 }
 
 const montar = () => renderComProvedores(<FluxoAba nome="agendar-mudanca" caminho="skills/agendar-mudanca" />);
+
+/** Simula a troca de aba do editor: a aba sai da tela e volta, com o mesmo cache de consultas. */
+function ComTrocaDeAba() {
+  const [visivel, setVisivel] = useState(true);
+  return (
+    <>
+      <button type="button" onClick={() => setVisivel(!visivel)}>
+        Trocar de aba
+      </button>
+      {visivel && <FluxoAba nome="agendar-mudanca" caminho="skills/agendar-mudanca" />}
+    </>
+  );
+}
+
+/** Ao sair da tela com a gravação falhada, o autosave tenta de novo e registra o erro: é esperado. */
+function silenciarGravacaoAoSair() {
+  const erros = vi.spyOn(console, 'error').mockImplementation(() => {});
+  return async (sair: () => void) => {
+    sair();
+    await waitFor(() => expect(erros).toHaveBeenCalledWith('salvar ao sair da tela', expect.anything()));
+    erros.mockRestore();
+  };
+}
 
 const rotulosDosBlocos = (): (string | null)[] =>
   within(screen.getByRole('region', { name: 'Fluxo' }))
@@ -164,19 +188,22 @@ describe('FluxoAba', () => {
         422,
       );
     responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda([], rejeicao) }));
-    const { user } = montar();
+    const conferirSaida = silenciarGravacaoAoSair();
+    const { user, unmount } = montar();
     await selecionar('Confirmar');
     await user.type(screen.getByRole('textbox', { name: 'Pergunta de confirmação' }), '!');
     expect(await screen.findByText('Falha ao salvar', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(
       within(await bloco('Gravar no sistema')).getByLabelText('Erro: A ferramenta recusou os dados.'),
     ).toBeInTheDocument();
+    await conferirSaida(unmount);
   });
 
   it('showsConflictAndKeepsEdit', async () => {
     const conflito = () => json({ codigo: 'VERSAO_ANTIGA', mensagem: CONFLITO }, 409);
     responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda([], conflito) }));
-    const { user } = montar();
+    const conferirSaida = silenciarGravacaoAoSair();
+    const { user, unmount } = montar();
     await selecionar('Confirmar');
     const campo = screen.getByRole('textbox', { name: 'Pergunta de confirmação' });
     await user.clear(campo);
@@ -184,6 +211,80 @@ describe('FluxoAba', () => {
     expect(await screen.findByText('Falha ao salvar', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByLabelText(CONFLITO)).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveValue('Posso agendar?');
+    await conferirSaida(unmount);
+  });
+
+  it('keepsSavedEditAfterSwitchingTabs', async () => {
+    const corpos: { versao: string }[] = [];
+    let versaoAtual = fixture.versao;
+    const putComVersao: Rota = async (req) => {
+      const corpo = await req.json();
+      corpos.push(corpo);
+      if (corpo.versao !== versaoAtual) return json({ codigo: 'VERSAO_ANTIGA', mensagem: CONFLITO }, 409);
+      versaoAtual = `v${corpos.length + 1}`;
+      return json({ versao: versaoAtual, problemas: [] });
+    };
+    responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putComVersao }));
+    const { user } = renderComProvedores(<ComTrocaDeAba />);
+    await selecionar('Confirmar');
+    await user.type(screen.getByRole('textbox', { name: 'Pergunta de confirmação' }), ' Primeira.');
+    expect(await screen.findByText(/Salvo às/, {}, { timeout: 3000 })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Trocar de aba' }));
+    await user.click(screen.getByRole('button', { name: 'Trocar de aba' }));
+    await selecionar('Confirmar');
+    const campo = screen.getByRole('textbox', { name: 'Pergunta de confirmação' });
+    expect(campo).toHaveValue(`${fixture.fluxo.blocos[3]?.texto ?? ''} Primeira.`);
+    await user.type(campo, ' Segunda.');
+    await waitFor(() => expect(corpos).toHaveLength(2), { timeout: 3000 });
+    expect(await screen.findByText(/Salvo às/, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByText('Falha ao salvar')).not.toBeInTheDocument();
+    expect(corpos.map((c) => c.versao)).toEqual([fixture.versao, 'v2']);
+  }, 10_000);
+
+  it('keepsStructuredValueReadOnly', async () => {
+    const visitantes = { campo: 'visitantes', valor: ['Ana', 'Bia'] };
+    const blocos = fixture.fluxo.blocos.map((b) => (b.id === 'b5' && 'com' in b ? { ...b, com: [...b.com, visitantes] } : b));
+    const comLista = { ...fixture, fluxo: { ...fixture.fluxo, blocos } };
+    const corpos: { fluxo: { blocos: { id: string; com?: unknown }[] } }[] = [];
+    responderCom(
+      rotas(construtor, {
+        'GET /api/skills/agendar-mudanca/fluxo': () => json(comLista),
+        'PUT /api/skills/agendar-mudanca/fluxo': putQueGuarda(corpos),
+      }),
+    );
+    const { user } = montar();
+    await selecionar('Gravar no sistema');
+    const valores = screen.getAllByRole('textbox', { name: 'Valor' });
+    expect(valores).toHaveLength(4);
+    expect(valores[0]).toBeEnabled();
+    expect(valores[3]).toBeDisabled();
+    expect(screen.getByText('Este valor só pode ser editado na área Avançado.')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox', { name: 'Guardar resultado em' }), '_novo');
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    const enviado = corpos[0]?.fluxo.blocos.find((b) => b.id === 'b5');
+    expect(enviado?.com).toContainEqual({ campo: 'visitantes', valor: ['Ana', 'Bia'] });
+  });
+
+  it('showsFlowLevelServerProblem', async () => {
+    const comAviso = {
+      ...fixture,
+      problemas: [{ codigo: 'SEM_GATILHO', nivel: 'aviso', mensagem: 'Nenhuma frase leva a esta skill.' }],
+    };
+    responderCom(rotas(construtor, { 'GET /api/skills/agendar-mudanca/fluxo': () => json(comAviso) }));
+    montar();
+    expect(await screen.findByText('Nenhuma frase leva a esta skill.')).toBeInTheDocument();
+  });
+
+  it('showsToolsLoadError', async () => {
+    responderCom(
+      rotas(construtor, { 'GET /api/nexus/recursos': () => json({ codigo: 'ERRO', mensagem: 'Caiu.' }, 500) }),
+    );
+    montar();
+    await selecionar('Buscar dados');
+    expect(await screen.findByText('Não deu para carregar as ferramentas.')).toBeInTheDocument();
+    expect(screen.queryByText(/não encontrada/)).not.toBeInTheDocument();
   });
 
   it('showsUnknownToolWarning', async () => {

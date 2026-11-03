@@ -17,8 +17,11 @@ func blocosDeTipos(tipos ...TipoBloco) []Bloco {
 			b.Recurso = "x.y"
 		case BlocoEscolha:
 			b.Param = "p"
-		case BlocoPerguntar, BlocoReaproveitar:
+		case BlocoPerguntar:
 			b.Campos = []string{"c"}
+		case BlocoReaproveitar:
+			b.Campos = []string{"c"}
+			b.Confirmacao = "resposta"
 		case BlocoFormulario:
 			b.De = "d"
 		default:
@@ -47,6 +50,8 @@ func TestValidarFluxo(t *testing.T) {
 	extraEmEscolha := blocosDeTipos(BlocoEscolha, BlocoResponder)
 	extraEmEscolha[0].Titulo = "T"
 	extraEmEscolha[0].Extra = map[string]any{"title": "t"}
+	reaproveitarSemGuardar := blocosDeTipos(BlocoReaproveitar, BlocoResponder)
+	reaproveitarSemGuardar[0].Confirmacao = ""
 
 	tests := []struct {
 		name string
@@ -63,6 +68,7 @@ func TestValidarFluxo(t *testing.T) {
 		{"dois responders", Fluxo{Blocos: blocosDeTipos(BlocoResponder, BlocoResponder)}, []ProblemaFluxo{prob("b1", "RESPONDER_FORA_DO_FIM", msgFim)}},
 		{"so responder", Fluxo{Blocos: blocosDeTipos(BlocoResponder)}, []ProblemaFluxo{prob("", "FLUXO_VAZIO", "Adicione ao menos um bloco antes do Responder.")}},
 		{"recurso vazio", Fluxo{Blocos: buscarVazio}, []ProblemaFluxo{prob("b1", "BLOCO_INCOMPLETO", "Preencha a ferramenta.")}},
+		{"reaproveitar sem onde guardar a resposta", Fluxo{Blocos: reaproveitarSemGuardar}, []ProblemaFluxo{prob("b1", "BLOCO_INCOMPLETO", "Preencha onde guardar a resposta.")}},
 		{"extra repete campo do bloco", Fluxo{Blocos: extraDuplicado}, []ProblemaFluxo{prob("b1", "EXTRA_REPETE_CAMPO", "Este bloco tem um campo extra repetido: save_as.")}},
 		{"extra da informacao repete campo", Fluxo{
 			Blocos:      blocosDeTipos(BlocoBuscar, BlocoResponder),

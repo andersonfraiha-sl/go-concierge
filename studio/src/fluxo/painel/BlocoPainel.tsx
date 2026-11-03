@@ -1,24 +1,23 @@
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import { Box, Button, Divider, Typography } from '@mui/material';
 import { useState, type ReactNode } from 'react';
-import type { Ferramenta } from '@/catalogo/contratos';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import type { Bloco, Informacao, ProblemaFluxo } from '@/fluxo/modelo/tipos';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { tokens } from '@/theme/tokens';
-import { CamposDoBloco } from './camposPorTipo';
+import { CamposDoBloco, type CatalogoDeFerramentas } from './camposPorTipo';
 
 type Props = {
   bloco: Bloco;
   problemas: readonly ProblemaFluxo[];
-  ferramentas: readonly Ferramenta[];
+  catalogo: CatalogoDeFerramentas;
   informacoes: readonly Informacao[];
   editavel: boolean;
   onMudar: (bloco: Bloco) => void;
   onExcluir: (id: string) => void;
 };
 
-export function BlocoPainel({ bloco, problemas, ferramentas, informacoes, editavel, onMudar, onExcluir }: Props): ReactNode {
+export function BlocoPainel({ bloco, problemas, catalogo, informacoes, editavel, onMudar, onExcluir }: Props): ReactNode {
   const { rotulo, descricao, cor, Icone } = BLOCOS[bloco.tipo];
   const [confirmando, setConfirmando] = useState(false);
   const podeExcluir = editavel && bloco.tipo !== 'responder';
@@ -40,7 +39,7 @@ export function BlocoPainel({ bloco, problemas, ferramentas, informacoes, editav
       </Box>
       <ListaDeProblemas problemas={problemas} />
       <Divider />
-      <CamposDoBloco bloco={bloco} editavel={editavel} ferramentas={ferramentas} informacoes={informacoes} onMudar={onMudar} />
+      <CamposDoBloco bloco={bloco} editavel={editavel} catalogo={catalogo} informacoes={informacoes} onMudar={onMudar} />
       {podeExcluir && (
         <>
           <Divider />

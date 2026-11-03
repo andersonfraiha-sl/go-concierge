@@ -24,7 +24,7 @@ func erro(blocoID, codigo, mensagem string) ProblemaFluxo {
 	return ProblemaFluxo{BlocoID: blocoID, Codigo: codigo, Nivel: nivelErro, Mensagem: mensagem}
 }
 
-// obrigatorio descreve o campo sem o qual um bloco não funciona.
+// obrigatorio descreve um campo sem o qual um bloco não funciona.
 type obrigatorio struct {
 	rotulo  string
 	preench func(Bloco) bool
@@ -34,16 +34,30 @@ func texto(get func(Bloco) string) func(Bloco) bool {
 	return func(b Bloco) bool { return get(b) != "" }
 }
 
-var obrigatorios = map[TipoBloco]obrigatorio{
-	BlocoBuscar:       {"a ferramenta", texto(func(b Bloco) string { return b.Recurso })},
-	BlocoGravar:       {"a ferramenta", texto(func(b Bloco) string { return b.Recurso })},
-	BlocoEscolha:      {"onde guardar a escolha", texto(func(b Bloco) string { return b.Param })},
-	BlocoPerguntar:    {"as informações perguntadas", func(b Bloco) bool { return len(b.Campos) > 0 }},
-	BlocoFormulario:   {"de onde vêm os campos", texto(func(b Bloco) string { return b.De })},
-	BlocoConfirmar:    {"a pergunta de confirmação", texto(func(b Bloco) string { return b.Texto })},
-	BlocoMontarTexto:  {"a instrução", texto(func(b Bloco) string { return b.Texto })},
-	BlocoReaproveitar: {"as informações reaproveitadas", func(b Bloco) bool { return len(b.Campos) > 0 }},
-	BlocoResponder:    {"a resposta", texto(func(b Bloco) string { return b.Texto })},
+// obrigatorios lista, em ordem, os campos de cada tipo; o primeiro vazio vira o BLOCO_INCOMPLETO.
+var obrigatorios = map[TipoBloco][]obrigatorio{
+	BlocoBuscar:      {{"a ferramenta", texto(func(b Bloco) string { return b.Recurso })}},
+	BlocoGravar:      {{"a ferramenta", texto(func(b Bloco) string { return b.Recurso })}},
+	BlocoEscolha:     {{"onde guardar a escolha", texto(func(b Bloco) string { return b.Param })}},
+	BlocoPerguntar:   {{"as informações perguntadas", func(b Bloco) bool { return len(b.Campos) > 0 }}},
+	BlocoFormulario:  {{"de onde vêm os campos", texto(func(b Bloco) string { return b.De })}},
+	BlocoConfirmar:   {{"a pergunta de confirmação", texto(func(b Bloco) string { return b.Texto })}},
+	BlocoMontarTexto: {{"a instrução", texto(func(b Bloco) string { return b.Texto })}},
+	BlocoReaproveitar: {
+		{"as informações reaproveitadas", func(b Bloco) bool { return len(b.Campos) > 0 }},
+		{"onde guardar a resposta", texto(func(b Bloco) string { return b.Confirmacao })},
+	},
+	BlocoResponder: {{"a resposta", texto(func(b Bloco) string { return b.Texto })}},
+}
+
+// campoVazio devolve o primeiro campo obrigatório vazio do bloco.
+func campoVazio(b Bloco) (obrigatorio, bool) {
+	for _, o := range obrigatorios[b.Tipo] {
+		if !o.preench(b) {
+			return o, true
+		}
+	}
+	return obrigatorio{}, false
 }
 
 // tiposComExtra são os blocos cuja gravação escreve o Extra junto das chaves próprias.
@@ -92,7 +106,7 @@ func ValidarFluxo(f Fluxo) []ProblemaFluxo {
 func problemasDeBlocos(blocos []Bloco) []ProblemaFluxo {
 	var problemas []ProblemaFluxo
 	for _, b := range blocos {
-		if o, ok := obrigatorios[b.Tipo]; ok && !o.preench(b) {
+		if o, vazio := campoVazio(b); vazio {
 			problemas = append(problemas, erro(b.ID, "BLOCO_INCOMPLETO", "Preencha "+o.rotulo+"."))
 		}
 		problemas = append(problemas, extrasRepetidos(b.ID, blocoEmiteExtra(b), b.Extra, "Este bloco")...)

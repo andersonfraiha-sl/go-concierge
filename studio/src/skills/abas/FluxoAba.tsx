@@ -1,7 +1,8 @@
 import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { z } from 'zod';
-import { useFerramentas, type Ferramenta } from '@/catalogo/contratos';
+import { useFerramentas } from '@/catalogo/contratos';
 import { tituloDe } from '@/ferramentas/contratos';
 import { FluxoCanvas } from '@/fluxo/canvas/FluxoCanvas';
 import { novoBloco } from '@/fluxo/modelo/catalogo';
@@ -17,6 +18,7 @@ import {
 } from '@/fluxo/modelo/tipos';
 import { validarFluxo } from '@/fluxo/modelo/validar';
 import { BlocoPainel } from '@/fluxo/painel/BlocoPainel';
+import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { InformacoesPainel } from '@/fluxo/painel/InformacoesPainel';
 import { usePodeEditar } from '@/acesso/eu';
 import { ApiError } from '@/shared/api/http';
@@ -25,12 +27,15 @@ import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { tokens } from '@/theme/tokens';
-import { useFluxo, salvarFluxo } from '../contratos';
+import { chaveDoFluxo, useFluxo, salvarFluxo } from '../contratos';
 
 type Props = { nome: string; caminho: string };
 
 const LARGURA_PAINEL = 360;
-const SEM_FERRAMENTAS: readonly Ferramenta[] = [];
+// Título da skill, abas e margens do editor acima da aba; o resto da janela é do canvas.
+const ALTURA_DO_CABECALHO_DO_EDITOR = 160;
+const ALTURA_DA_AREA = `calc(100vh - ${tokens.layout.navbarHeight + ALTURA_DO_CABECALHO_DO_EDITOR}px)`;
+const ALTURA_MINIMA_DA_AREA = 480;
 
 const ehSemFluxo = (erro: Error): boolean =>
   erro instanceof ApiError && erro.status === 404 && erro.codigo === 'SEM_FLUXO';
@@ -62,12 +67,12 @@ function problemasDaRecusa(erro: unknown): ProblemaFluxo[] | null {
 
 const chaveDoProblema = (p: ProblemaFluxo): string => `${p.blocoId ?? ''}|${p.codigo}|${p.mensagem}`;
 
-/** Os locais valem sempre; os do servidor, só os de blocos que ainda existem e que o local não repete. */
+/** Os locais valem sempre; os do servidor, os do fluxo todo e os de blocos que ainda existem, sem repetir os locais. */
 function juntarProblemas(locais: ProblemaFluxo[], doServidor: ProblemaFluxo[], blocos: readonly Bloco[]): ProblemaFluxo[] {
   const ids = new Set(blocos.map((b) => b.id));
   const jaVistos = new Set(locais.map(chaveDoProblema));
   const aindaValidos = doServidor.filter(
-    (p) => p.blocoId !== undefined && ids.has(p.blocoId) && !jaVistos.has(chaveDoProblema(p)),
+    (p) => (p.blocoId === undefined || ids.has(p.blocoId)) && !jaVistos.has(chaveDoProblema(p)),
   );
   return [...locais, ...aindaValidos];
 }
@@ -80,6 +85,16 @@ function novoId(blocos: readonly Bloco[]): string {
   return `b${numero}`;
 }
 
+function useCatalogoDeFerramentas(): CatalogoDeFerramentas {
+  const consulta = useFerramentas();
+  if (consulta.isPending) return { estado: 'carregando' };
+  if (consulta.isError) return { estado: 'erro' };
+  return { estado: 'pronto', ferramentas: consulta.data.recursos };
+}
+
+const corDoNivel = (nivel: ProblemaFluxo['nivel']): string =>
+  nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
+
 type EditorProps = { nome: string; lido: FluxoLido };
 
 function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
@@ -88,7 +103,9 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const versao = useRef(lido.versao);
   const editavel = usePodeEditar('skills.editar_fluxo');
-  const ferramentas = useFerramentas().data?.recursos ?? SEM_FERRAMENTAS;
+  const cliente = useQueryClient();
+  const catalogo = useCatalogoDeFerramentas();
+  const ferramentas = catalogo.estado === 'pronto' ? catalogo.ferramentas : null;
 
   const locais = useMemo(() => validarFluxo(fluxo), [fluxo]);
   const problemas = useMemo(
@@ -96,7 +113,7 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
     [locais, problemasDoServidor, fluxo.blocos],
   );
   const tituloDaFerramenta = useMemo(() => {
-    const titulos = new Map(ferramentas.map((f) => [f.name, tituloDe(f)]));
+    const titulos = new Map((ferramentas ?? []).map((f) => [f.name, tituloDe(f)]));
     return (recurso: string): string => titulos.get(recurso) ?? recurso;
   }, [ferramentas]);
 
@@ -108,6 +125,8 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
         const gravado = await salvarFluxo(nome, { versao: versao.current, fluxo: valor });
         versao.current = gravado.versao;
         setProblemasDoServidor(gravado.problemas);
+        // A aba sai da tela ao trocar de aba; ao voltar, o cache precisa ter a versão e o fluxo gravados.
+        cliente.setQueryData<FluxoLido>(chaveDoFluxo(nome), { versao: gravado.versao, fluxo: valor, problemas: gravado.problemas });
       } catch (erro) {
         const recusados = problemasDaRecusa(erro);
         if (recusados !== null) setProblemasDoServidor(recusados);
@@ -131,10 +150,10 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
   const doFluxoTodo = problemas.filter((p) => p.blocoId === undefined);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: 'calc(100vh - 220px)', minHeight: 480 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: ALTURA_DA_AREA, minHeight: ALTURA_MINIMA_DA_AREA }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minHeight: 32 }}>
         {doFluxoTodo.map((p) => (
-          <Typography key={p.codigo} variant="caption" sx={{ color: tokens.color.studio.issueError }}>
+          <Typography key={chaveDoProblema(p)} variant="caption" sx={{ color: corDoNivel(p.nivel) }}>
             {p.mensagem}
           </Typography>
         ))}
@@ -164,7 +183,7 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
               key={blocoSelecionado.id}
               bloco={blocoSelecionado}
               problemas={problemas.filter((p) => p.blocoId === blocoSelecionado.id)}
-              ferramentas={ferramentas}
+              catalogo={catalogo}
               informacoes={fluxo.informacoes}
               editavel={editavel}
               onMudar={(bloco) => setFluxo((atual) => atualizarBloco(atual, bloco))}

@@ -50,8 +50,9 @@ function blocosDeTipos(...tipos: TipoBloco[]): Bloco[] {
       case 'pedir_escolha':
         return bloco(tipo, id, { param: 'p' });
       case 'perguntar':
-      case 'reaproveitar':
         return bloco(tipo, id, { campos: ['c'] });
+      case 'reaproveitar':
+        return bloco(tipo, id, { campos: ['c'], confirmacao: 'resposta' });
       case 'formulario':
         return bloco(tipo, id, { de: 'd' });
       case 'confirmar':
@@ -217,6 +218,13 @@ describe('validarFluxo', () => {
       'b1:GRAVAR_SEM_CONFIRMAR',
       'b2:RESPONDER_FORA_DO_FIM',
       '-:OPCAO_ROTULO_PERDIDO',
+    ]);
+  });
+
+  it('exigeOndeGuardarARespostaDoReaproveitar', () => {
+    const blocos = comCampos(blocosDeTipos('reaproveitar', 'responder'), 0, { confirmacao: '' });
+    expect(validarFluxo(fluxoDe(...blocos))).toEqual([
+      problema('b1', 'BLOCO_INCOMPLETO', 'Preencha onde guardar a resposta.'),
     ]);
   });
 

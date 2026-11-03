@@ -10,7 +10,7 @@ const erro = (codigo: string, mensagem: string, blocoId?: string): ProblemaFluxo
 
 const temTexto = (valor: string): boolean => valor !== '';
 
-/** Rótulo do campo sem o qual o bloco não funciona, ou null se está preenchido. */
+/** Rótulo do primeiro campo sem o qual o bloco não funciona, ou null se estão preenchidos. */
 function campoVazio(bloco: Bloco): string | null {
   switch (bloco.tipo) {
     case 'buscar_dados':
@@ -27,7 +27,8 @@ function campoVazio(bloco: Bloco): string | null {
     case 'montar_texto':
       return temTexto(bloco.texto) ? null : 'a instrução';
     case 'reaproveitar':
-      return bloco.campos.length > 0 ? null : 'as informações reaproveitadas';
+      if (bloco.campos.length === 0) return 'as informações reaproveitadas';
+      return temTexto(bloco.confirmacao) ? null : 'onde guardar a resposta';
     case 'responder':
       return temTexto(bloco.texto) ? null : 'a resposta';
   }

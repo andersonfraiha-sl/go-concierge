@@ -9,7 +9,7 @@ import {
   Switch,
   TextField,
 } from '@mui/material';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { tituloDe } from '@/ferramentas/contratos';
@@ -17,9 +17,15 @@ import type { Bloco, Informacao, TipoBloco } from '@/fluxo/modelo/tipos';
 
 type BlocoDo<T extends TipoBloco> = Extract<Bloco, { tipo: T }>;
 
+/** O que se sabe do catálogo de ferramentas; enquanto não está pronto, nenhuma é "não encontrada". */
+export type CatalogoDeFerramentas =
+  | { estado: 'carregando' }
+  | { estado: 'erro' }
+  | { estado: 'pronto'; ferramentas: readonly Ferramenta[] };
+
 type Contexto = {
   editavel: boolean;
-  ferramentas: readonly Ferramenta[];
+  catalogo: CatalogoDeFerramentas;
   informacoes: readonly Informacao[];
   /** Recebe `Bloco`, não o tipo exato: escolher a ferramenta pode trocar Buscar por Gravar. */
   onMudar: (bloco: Bloco) => void;
@@ -119,15 +125,18 @@ function Texto({ rotulo, valor, editavel, linhas, onMudar }: TextoProps): ReactN
   );
 }
 
-function CamposDeFerramenta({ bloco, editavel, ferramentas, onMudar }: CamposProps<'buscar_dados' | 'gravar_no_sistema'>): ReactNode {
+const ferramentasDe = (catalogo: CatalogoDeFerramentas): readonly Ferramenta[] =>
+  catalogo.estado === 'pronto' ? catalogo.ferramentas : [];
+
+function CamposDeFerramenta({ bloco, editavel, catalogo, onMudar }: CamposProps<'buscar_dados' | 'gravar_no_sistema'>): ReactNode {
   const escolher = (recurso: string) => {
-    const escolhida = ferramentas.find((f) => f.name === recurso);
+    const escolhida = ferramentasDe(catalogo).find((f) => f.name === recurso);
     const tipo = escolhida === undefined ? bloco.tipo : escolhida.write ? 'gravar_no_sistema' : 'buscar_dados';
     onMudar({ ...bloco, tipo, recurso });
   };
   return (
     <>
-      <SeletorDeFerramenta valor={bloco.recurso} ferramentas={ferramentas} editavel={editavel} onMudar={escolher} />
+      <SeletorDeFerramenta valor={bloco.recurso} catalogo={catalogo} editavel={editavel} onMudar={escolher} />
       <ListaEditavel
         titulo="Dados enviados"
         adicionar="Adicionar dado"
@@ -138,7 +147,11 @@ function CamposDeFerramenta({ bloco, editavel, ferramentas, onMudar }: CamposPro
         renderLinha={(linha, mudar) => (
           <>
             <Texto rotulo="Campo" valor={linha.campo} editavel={editavel} onMudar={(campo) => mudar({ campo })} />
-            <Texto rotulo="Valor" valor={textoDoValor(linha.valor)} editavel={editavel} onMudar={(valor) => mudar({ valor })} />
+            {typeof linha.valor === 'string' ? (
+              <Texto rotulo="Valor" valor={linha.valor} editavel={editavel} onMudar={(valor) => mudar({ valor })} />
+            ) : (
+              <ValorEstruturado valor={linha.valor} />
+            )}
           </>
         )}
       />
@@ -152,12 +165,30 @@ function CamposDeFerramenta({ bloco, editavel, ferramentas, onMudar }: CamposPro
   );
 }
 
-// ponytail: valor que não é texto aparece como JSON e, se editado, volta como texto. Editor de JSON se aparecer caso real.
-const textoDoValor = (valor: unknown): string => (typeof valor === 'string' ? valor : JSON.stringify(valor));
+/** Lista ou objeto não cabe num campo de texto: editar aqui gravaria texto no lugar da estrutura. */
+function ValorEstruturado({ valor }: { valor: unknown }): ReactNode {
+  return (
+    <TextField
+      size="small"
+      fullWidth
+      label="Valor"
+      value={JSON.stringify(valor)}
+      disabled
+      helperText="Este valor só pode ser editado na área Avançado."
+    />
+  );
+}
 
-type SeletorProps = { valor: string; ferramentas: readonly Ferramenta[]; editavel: boolean; onMudar: (nome: string) => void };
+const AVISO_DO_CATALOGO: Record<CatalogoDeFerramentas['estado'], string | undefined> = {
+  carregando: 'Carregando ferramentas…',
+  erro: 'Não deu para carregar as ferramentas.',
+  pronto: undefined,
+};
 
-function SeletorDeFerramenta({ valor, ferramentas, editavel, onMudar }: SeletorProps): ReactNode {
+type SeletorProps = { valor: string; catalogo: CatalogoDeFerramentas; editavel: boolean; onMudar: (nome: string) => void };
+
+function SeletorDeFerramenta({ valor, catalogo, editavel, onMudar }: SeletorProps): ReactNode {
+  const ferramentas = ferramentasDe(catalogo);
   const opcoes = (write: boolean) =>
     ferramentas
       .filter((f) => f.write === write)
@@ -166,17 +197,25 @@ function SeletorDeFerramenta({ valor, ferramentas, editavel, onMudar }: SeletorP
           {tituloDe(f)}
         </MenuItem>
       ));
-  const desconhecida = valor !== '' && !ferramentas.some((f) => f.name === valor);
+  const foraDaLista = valor !== '' && !ferramentas.some((f) => f.name === valor);
   return (
-    <TextField select size="small" fullWidth label="Ferramenta" value={valor} disabled={!editavel} onChange={(e) => onMudar(e.target.value)}>
+    <TextField
+      select
+      size="small"
+      fullWidth
+      label="Ferramenta"
+      value={valor}
+      disabled={!editavel}
+      error={catalogo.estado === 'erro'}
+      helperText={AVISO_DO_CATALOGO[catalogo.estado]}
+      onChange={(e) => onMudar(e.target.value)}
+    >
       <ListSubheader>Consultas</ListSubheader>
       {opcoes(false)}
       <ListSubheader>Gravações</ListSubheader>
       {opcoes(true)}
-      {desconhecida && (
-        <MenuItem value={valor}>
-          {valor} (não encontrada)
-        </MenuItem>
+      {foraDaLista && (
+        <MenuItem value={valor}>{catalogo.estado === 'pronto' ? `${valor} (não encontrada)` : valor}</MenuItem>
       )}
     </TextField>
   );
@@ -221,7 +260,7 @@ function SelecaoDeInformacoes({ rotulo, valor, informacoes, editavel, onMudar }:
   const titulo = (nome: string): string => informacoes.find((i) => i.nome === nome)?.titulo || nome;
   const semCadastro = valor.filter((nome) => !informacoes.some((i) => i.nome === nome));
   const nomes = [...informacoes.map((i) => i.nome), ...semCadastro];
-  const id = `selecao-${rotulo}`;
+  const id = useId();
   return (
     <FormControl size="small" fullWidth disabled={!editavel}>
       <InputLabel id={id}>{rotulo}</InputLabel>
