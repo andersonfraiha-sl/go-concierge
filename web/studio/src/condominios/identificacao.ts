@@ -1,0 +1,36 @@
+import type { Condominio } from './contratos';
+
+export type CampoDeIdentificacao = 'nome' | 'account' | 'company_id' | 'tenant';
+
+type CampoDeFormato = 'account' | 'company_id' | 'tenant';
+
+const FORMATOS: Record<CampoDeFormato, { regex: RegExp; mensagem: string }> = {
+  account: {
+    regex: /^[a-z0-9][a-z0-9-]*$/,
+    mensagem: 'Use letras minúsculas, números e hífen, como cond-001.',
+  },
+  company_id: {
+    regex: /^\d+$/,
+    mensagem: 'Use só números, como 5982.',
+  },
+  tenant: {
+    regex: /^[0-9a-f]{24}$/,
+    mensagem: 'São 24 caracteres, de 0 a 9 e de a a f.',
+  },
+};
+
+/** Nome é obrigatório; account/company_id/tenant são opcionais, mas quando preenchidos seguem o formato. */
+export function validarIdentificacao(
+  condominio: Condominio,
+): Partial<Record<CampoDeIdentificacao, string>> {
+  const erros: Partial<Record<CampoDeIdentificacao, string>> = {};
+  if (condominio.nome.trim() === '') erros.nome = 'Informe o nome.';
+
+  for (const campo of Object.keys(FORMATOS) as CampoDeFormato[]) {
+    const valor = condominio[campo];
+    const { regex, mensagem } = FORMATOS[campo];
+    if (valor !== '' && !regex.test(valor)) erros[campo] = mensagem;
+  }
+
+  return erros;
+}
