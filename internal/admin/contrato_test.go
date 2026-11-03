@@ -3,7 +3,6 @@ package admin
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -21,12 +20,6 @@ func TestMain(m *testing.M) {
 
 func TestContratoMemoria(t *testing.T) {
 	testarRepositorio(t, func(*testing.T) Repositorio { return NovaEmMemoria() })
-}
-
-func TestContratoArquivo(t *testing.T) {
-	testarRepositorio(t, func(t *testing.T) Repositorio {
-		return NovoArquivo(filepath.Join(t.TempDir(), "mapeamento.json"))
-	})
 }
 
 func TestContratoPostgres(t *testing.T) {

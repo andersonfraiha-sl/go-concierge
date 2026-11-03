@@ -14,7 +14,7 @@ import (
 	"go-concierge/internal/pedidos"
 )
 
-func servicoComPedidos(t *testing.T) (*Servico, *Outbox, *pedidos.Arquivos) {
+func servicoComPedidos(t *testing.T) (*Servico, *Outbox, *pedidos.Fake) {
 	t.Helper()
 	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
 	if err != nil {
@@ -24,7 +24,7 @@ func servicoComPedidos(t *testing.T) (*Servico, *Outbox, *pedidos.Arquivos) {
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	out := &Outbox{}
-	st := pedidos.NewArquivos(t.TempDir())
+	st := pedidos.NovoFake()
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
 		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: out,

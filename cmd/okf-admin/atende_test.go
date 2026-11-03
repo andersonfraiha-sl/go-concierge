@@ -295,7 +295,7 @@ func TestWebhookEmuladoRecusaCondominioDesconhecido(t *testing.T) {
 }
 
 func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
-	st := memoria.NewArquivos(t.TempDir())
+	st := memoria.NovoFake()
 	c, err := escopo.NovoContato("adm-x", admin.Padrao, "5519981621916")
 	if err != nil {
 		t.Fatal(err)

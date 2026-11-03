@@ -1,20 +1,16 @@
 package admin
 
 import (
-	"os"
-	"path/filepath"
+	"encoding/json"
 	"testing"
 )
 
-func TestArquivoMigraAdministradoraLegado(t *testing.T) {
-	caminho := filepath.Join(t.TempDir(), "m.json")
-	if err := os.WriteFile(caminho, []byte(`{"administradora":"Antiga","condominios":[{"id":"c9","nome":"C9"}]}`), 0o644); err != nil {
+func TestNormalizadoMigraAdministradoraLegado(t *testing.T) {
+	var m Mapeamento
+	if err := json.Unmarshal([]byte(`{"administradora":"Antiga","condominios":[{"id":"c9","nome":"C9"}]}`), &m); err != nil {
 		t.Fatal(err)
 	}
-	ml, err := NovoArquivo(caminho).Ler(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	ml := m.Normalizado()
 	if len(ml.Administradoras) != 1 || ml.Administradoras[0].Nome != "Antiga" || ml.Condominios[0].Administradora != "adm-1" {
 		t.Fatalf("migração do legado: %+v", ml)
 	}

@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"go-concierge/internal/escopo"
 	"go-concierge/internal/okf"
 )
 
@@ -357,66 +355,16 @@ func slots(ct *Contrato) []*Slot {
 	return out
 }
 
-func TestArquivosEResumo(t *testing.T) {
+func TestResumoParaAtendente(t *testing.T) {
 	ct := casoReserva(t)
-	dir := t.TempDir()
-	st := NewArquivos(dir)
-	ctx := context.Background()
-	ctt, err := escopo.NovoContato("adm-a", "cond-1", "+55 (11) 99999-0000")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := st.Ler(ctx, ctt)
-	if err != nil || len(c.Pedidos) != 0 || c.Telefone != "5511999990000" || c.AdministradoraID != "adm-a" {
-		t.Fatalf("carteira vazia: %+v %v", c, err)
-	}
-	p := c.Novo(ct, "reserva-area-comum", ctt.CondominioID, Origem{ProtocoloAtende: "ATD-9"})
+	var c Carteira
+	p := c.Novo(ct, "reserva-area-comum", "cond-1", Origem{ProtocoloAtende: "ATD-9"})
 	p.Valor("area", "salao", "Salão de festas", OrigemMorador)
 	p.Pendencia = &Pendencia{Slot: "data", Pergunta: "Para qual data? (dd/mm)", Vezes: 2, Motivo: "data inválida"}
-	if err := st.Gravar(ctx, ctt, c); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "adm-a", "5511999990000.json")); err != nil {
-		t.Fatalf("arquivo por administradora: %v", err)
-	}
-	c2, _ := st.Ler(ctx, ctt)
-	if len(c2.Pedidos) != 1 || c2.Por(p.Protocolo) == nil || c2.Pedidos[0].Rotulos["area"] != "Salão de festas" {
-		t.Fatalf("ida e volta: %+v", c2)
-	}
-	lista, err := st.Listar(ctx, "adm-a")
-	if err != nil || len(lista) != 1 {
-		t.Fatalf("listar: %d %v", len(lista), err)
-	}
-	if outra, err := st.Listar(ctx, "adm-b"); err != nil || len(outra) != 0 {
-		t.Fatalf("outra administradora: %d %v", len(outra), err)
-	}
-	r := ResumoParaAtendente(ct, c2.Pedidos[0], []string{"morador: dia trinta e dois", "concierge: Não consegui usar a resposta"})
+	r := ResumoParaAtendente(ct, p, []string{"morador: dia trinta e dois", "concierge: Não consegui usar a resposta"})
 	for _, trecho := range []string{p.Protocolo, "Reserva de Área Comum", "Área comum: Salão de festas", "Falta: Unidade; Data da reserva", "feita 2 vezes", "data inválida", "dia trinta e dois"} {
 		if !strings.Contains(r, trecho) {
 			t.Fatalf("resumo sem %q:\n%s", trecho, r)
-		}
-	}
-}
-
-func TestErrosDosPedidosNaoExpoemOTelefone(t *testing.T) {
-	ctx := context.Background()
-	dir := t.TempDir()
-	st := NewArquivos(dir)
-	c, err := escopo.NovoContato("adm-a", "cond-1", "5519981621916")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "adm-a", c.Telefone+".json.tmp"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "adm-a", c.Telefone+".json"), []byte("{"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, errLer := st.Ler(ctx, c)
-	errGravar := st.Gravar(ctx, c, Carteira{})
-	for _, err := range []error{errLer, errGravar} {
-		if err == nil || strings.Contains(err.Error(), "981621916") {
-			t.Fatalf("erro deveria existir e mascarar o telefone: %v", err)
 		}
 	}
 }

@@ -59,7 +59,7 @@ func contatoDeTeste(t testing.TB, administradoraID string) escopo.Contato {
 	return c
 }
 
-func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico, *memoria.Arquivos, *mcpServicoFalso) {
+func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico, *memoria.Fake, *mcpServicoFalso) {
 	t.Helper()
 	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
 	if err != nil {
@@ -68,7 +68,7 @@ func servicoMultiAdministradora(t *testing.T, imp escopo.Implantacao) (*Servico,
 	fix, _ := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
-	st := memoria.NewArquivos(t.TempDir())
+	st := memoria.NovoFake()
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
 		Cat: cat, Agente: "agentes/concierge", Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: &Outbox{},

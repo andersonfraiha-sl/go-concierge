@@ -4,23 +4,16 @@
 // Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
 // volta ao prompt em toda conversa seguinte daquele telefone.
 //
-// O armazenamento é o Postgres (tabela memoria_fatos); o JSON por contato
-// (okf/var/memorias/<administradora>/<telefone>.json) ainda existe até a importação.
+// O armazenamento é o Postgres (tabela memoria_fatos).
 package memoria
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"go-concierge/internal/escopo"
@@ -169,133 +162,10 @@ type Store interface {
 	Listar(ctx context.Context, administradoraID string) ([]Memoria, error)
 }
 
-// Arquivos é o Store em JSON: <Dir>/<administradora>/<telefone>.json.
-type Arquivos struct {
-	Dir string
-	mu  sync.Mutex
-}
-
-func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
-
 var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
 // ErrRespostaForaDoFormato: o extrator com modelo recebeu algo que não é o JSON pedido.
 var ErrRespostaForaDoFormato = errors.New("resposta do extrator fora do formato")
-
-func (a *Arquivos) pasta(administradoraID string) (string, error) {
-	if err := validarAdministradora(administradoraID); err != nil {
-		return "", err
-	}
-	return filepath.Join(a.Dir, administradoraID), nil
-}
-
-func (a *Arquivos) caminho(c escopo.Contato) (string, error) {
-	pasta, err := a.pasta(c.AdministradoraID)
-	if err != nil {
-		return "", err
-	}
-	if c.Telefone == "" {
-		return "", errContatoInvalido
-	}
-	return filepath.Join(pasta, c.Telefone+".json"), nil
-}
-
-func (a *Arquivos) Ler(_ context.Context, c escopo.Contato) (Memoria, error) {
-	p, err := a.caminho(c)
-	if err != nil {
-		return Memoria{}, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return lerArquivo(p, c)
-}
-
-func lerArquivo(p string, c escopo.Contato) (Memoria, error) {
-	m := Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: []Fato{}}
-	raw, err := os.ReadFile(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return m, nil
-	}
-	if err != nil {
-		return m, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return m, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err)
-	}
-	if m.Fatos == nil {
-		m.Fatos = []Fato{}
-	}
-	return m, nil
-}
-
-// Gravar guarda a memória sob o contato: a administradora e o telefone são os dele.
-func (a *Arquivos) Gravar(_ context.Context, c escopo.Contato, m Memoria) error {
-	p, err := a.caminho(c)
-	if err != nil {
-		return err
-	}
-	m.AdministradoraID, m.Telefone = c.AdministradoraID, c.Telefone
-	if m.AtualizadaEm.IsZero() {
-		m.AtualizadaEm = time.Now()
-	}
-	raw, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return fmt.Errorf("codificar memória de %s: %w", c.Mascarado(), err)
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	if err := os.WriteFile(p, raw, 0o644); err != nil {
-		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	return nil
-}
-
-// semCaminho tira do erro de arquivo o caminho, que tem o telefone; quem embrulha
-// identifica o contato mascarado.
-func semCaminho(err error) error {
-	var pe *fs.PathError
-	if errors.As(err, &pe) {
-		return fmt.Errorf("%s: %w", pe.Op, pe.Err)
-	}
-	var le *os.LinkError
-	if errors.As(err, &le) {
-		return fmt.Errorf("%s: %w", le.Op, le.Err)
-	}
-	return err
-}
-
-func (a *Arquivos) Listar(_ context.Context, administradoraID string) ([]Memoria, error) {
-	pasta, err := a.pasta(administradoraID)
-	if err != nil {
-		return nil, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	entradas, err := os.ReadDir(pasta)
-	if errors.Is(err, os.ErrNotExist) {
-		return []Memoria{}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("listar memórias %s: %w", pasta, err)
-	}
-	out := []Memoria{}
-	for _, e := range entradas {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		c := escopo.Contato{AdministradoraID: administradoraID, Telefone: strings.TrimSuffix(e.Name(), ".json")}
-		m, err := lerArquivo(filepath.Join(pasta, e.Name()), c)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].AtualizadaEm.After(out[j].AtualizadaEm) })
-	return out, nil
-}
 
 // Extrator decide, a partir de uma troca (mensagem do morador e resposta), quais
 // fatos duráveis sobre a pessoa valem guardar. O harness fornece o extrator com

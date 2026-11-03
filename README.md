@@ -82,7 +82,7 @@ disponível quando identifica uma sessão sem ambiguidade.
 
 Tudo o que o morador afirma sobre si ("só tenho um apartamento", "pode me chamar de
 Van", "tenho um cachorro") vira um fato com chave estável na memória do telefone
-(`internal/memoria`, JSON em `okf/var/memorias/<account>/<telefone>.json`). A cada
+(`internal/memoria`, tabelas `memoria_contatos` e `memoria_fatos` no Postgres). A cada
 troca um extrator (modelo `MODEL_EXTRACT`, ou regras sem modelo) captura o que é
 durável; em toda conversa seguinte a memória entra na instrução da família inteira
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
@@ -154,10 +154,25 @@ As migrations rodam no boot com `AMBIENTE` vazio ou `dev` (do ambiente ou do `.e
 `-migrar=false` desliga. Os testes de `internal/banco` sobem um Postgres por
 testcontainers, então precisam do Docker de pé.
 
-O mapeamento das administradoras mora no Postgres. Em `dev`, um banco sem nenhum
-mapeamento ganha no boot uma administradora e um condomínio de exemplo (ligado ao
-`DEFAULT_ACCOUNT_ID`). Fora de `dev` o boot não grava nada: rode `importar-json` antes do
-primeiro boot fora de dev; com o mapeamento vazio o log avisa (WARN).
+Tudo o que o concierge guarda mora no Postgres: o mapeamento das administradoras, a
+memória por contato, os pedidos e as sessões do ATENDE. Não há mais persistência em
+arquivo (`MEMORIAS_DIR`, `PEDIDOS_DIR` e `ADMIN_DIR` saíram); sem `DATABASE_URL` o boot
+falha dizendo como subir o Postgres.
+
+Em `dev`, um banco sem nenhum mapeamento ganha no boot uma administradora e um condomínio
+de exemplo (ligado ao `DEFAULT_ACCOUNT_ID`). Fora de `dev` o boot não grava nada: rode o
+`importar-json` antes do primeiro boot fora de dev; com o mapeamento vazio o log avisa
+(WARN). Ele leva para o banco os JSON da versão anterior (`admin/`, `memorias/` e
+`pedidos/` sob a pasta dada) e lê o `DATABASE_URL` do ambiente ou do `-env`:
+
+```bash
+./bin/okf-admin.exe importar-json -dir okf/var -env .env
+```
+
+Limite conhecido: o Gravar da memória troca a lista inteira de fatos do contato, e quem
+serializa ler, alterar e gravar por contato é um lock dentro do processo. Com uma réplica
+é seguro; com duas, trocas simultâneas do mesmo telefone em réplicas diferentes podem
+perder um fato.
 
 Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
 casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
@@ -269,7 +284,7 @@ A cada mensagem (`internal/atende/pedidos.go`):
 
 Onde ver: aba **Pedidos** do Console (ao lado de Memória): protocolo, caso, estado,
 parâmetros com origem, pergunta em aberto, confirmação, resultado e histórico. Os pedidos
-ficam em `okf/var/pedidos/<account>/<telefone>.json` (`PEDIDOS_DIR`); `PEDIDOS=off` desliga
+ficam no Postgres (tabelas `pedidos` e `pedido_eventos`); `PEDIDOS=off` desliga
 e a conversa volta a seguir só pelo orquestrador. API: `GET /api/pedidos?phone=`,
 `POST /api/pedidos/acao` (`preencher`, `cancelar`). Casos com passo `form` (formulário
 dinâmico) ficam registrados, mas seguem pelo subagente conversacional.

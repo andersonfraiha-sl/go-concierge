@@ -322,7 +322,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 		t.Fatalf("sessão deveria continuar: %d turnos, %d sessões", len(sess.Turnos), len(listar(t, svc.Sessoes)))
 	}
 	// memória relacional: o que o morador afirma sobre si fica guardado por telefone
-	st := memoria.NewArquivos(t.TempDir())
+	st := memoria.NovoFake()
 	svcM := Servico{Cat: svc.Cat, Agente: svc.Agente, Mapeamento: svc.Mapeamento, Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi, Memorias: st}
 	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "na verdade só tenho um apartamento, tenho um cachorro", 1)))
 	ev3.ID = "evt_3"

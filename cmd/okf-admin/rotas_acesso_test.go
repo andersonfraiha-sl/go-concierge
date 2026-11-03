@@ -108,7 +108,7 @@ func novoAmbienteRotas(t *testing.T) ambienteRotas {
 			t.Fatal(err)
 		}
 	}
-	memorias := memoria.NewArquivos(t.TempDir())
+	memorias := memoria.NovoFake()
 	outbox := &atende.Outbox{}
 	sessoes := atende.NewSessoes(atende.NovaSessaoEmMemoria())
 	s := &servidor{

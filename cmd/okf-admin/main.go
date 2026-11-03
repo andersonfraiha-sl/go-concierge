@@ -190,7 +190,7 @@ func main() {
 	if mcpCli != nil {
 		cfgHarness.MCP = mcpCli
 	}
-	s.memorias = memoria.NewArquivos(env.Ou("MEMORIAS_DIR", filepath.Join(cat.Root, "var", "memorias")))
+	s.memorias = memoria.NovoPostgres(db)
 	s.atende = &atende.Servico{
 		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
@@ -202,7 +202,7 @@ func main() {
 	}
 	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {
-		s.atende.Pedidos = pedidos.NewArquivos(env.Ou("PEDIDOS_DIR", filepath.Join(cat.Root, "var", "pedidos")))
+		s.atende.Pedidos = pedidos.NovoPostgres(db)
 		s.atende.ExtratorPedidos = harness.NovoExtratorPedidos(context.Background(), cfgHarness)
 	}
 

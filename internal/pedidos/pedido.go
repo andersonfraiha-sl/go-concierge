@@ -18,15 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"maps"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"go-concierge/internal/escopo"
@@ -303,14 +298,6 @@ type Store interface {
 	Listar(ctx context.Context, administradoraID string) ([]Carteira, error)
 }
 
-// Arquivos guarda uma carteira por contato em <dir>/<administradora>/<telefone>.json.
-type Arquivos struct {
-	Dir string
-	mu  sync.Mutex
-}
-
-func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
-
 var naoDigitos = regexp.MustCompile(`\D+`)
 
 var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
@@ -422,113 +409,3 @@ func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
 }
 
 func maisRecentesPrimeiro(a, b Carteira) int { return b.AtualizadaEm.Compare(a.AtualizadaEm) }
-
-func (a *Arquivos) pasta(administradoraID string) (string, error) {
-	if err := validarAdministradora(administradoraID); err != nil {
-		return "", err
-	}
-	return filepath.Join(a.Dir, administradoraID), nil
-}
-
-func (a *Arquivos) caminho(c escopo.Contato) (string, error) {
-	if err := validarContato(c); err != nil {
-		return "", err
-	}
-	return filepath.Join(a.Dir, c.AdministradoraID, c.Telefone+".json"), nil
-}
-
-func (a *Arquivos) Ler(_ context.Context, c escopo.Contato) (Carteira, error) {
-	p, err := a.caminho(c)
-	if err != nil {
-		return Carteira{}, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return lerArquivo(p, c)
-}
-
-func lerArquivo(p string, c escopo.Contato) (Carteira, error) {
-	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}
-	raw, err := os.ReadFile(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return cart, nil
-	}
-	if err != nil {
-		return cart, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	if err := json.Unmarshal(raw, &cart); err != nil {
-		return cart, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err)
-	}
-	return cart, nil
-}
-
-// Gravar guarda a carteira sob o contato: a administradora e o telefone são os dele.
-func (a *Arquivos) Gravar(_ context.Context, c escopo.Contato, cart Carteira) error {
-	p, err := a.caminho(c)
-	if err != nil {
-		return err
-	}
-	cart.AdministradoraID, cart.Telefone = c.AdministradoraID, c.Telefone
-	cart.AtualizadaEm = time.Now()
-	raw, err := json.MarshalIndent(cart, "", "  ")
-	if err != nil {
-		return fmt.Errorf("codificar pedidos de %s: %w", c.Mascarado(), err)
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), semCaminho(err))
-	}
-	return nil
-}
-
-// semCaminho tira do erro de arquivo o caminho, que tem o telefone; quem embrulha
-// identifica o contato mascarado.
-func semCaminho(err error) error {
-	var pe *fs.PathError
-	if errors.As(err, &pe) {
-		return fmt.Errorf("%s: %w", pe.Op, pe.Err)
-	}
-	var le *os.LinkError
-	if errors.As(err, &le) {
-		return fmt.Errorf("%s: %w", le.Op, le.Err)
-	}
-	return err
-}
-
-func (a *Arquivos) Listar(_ context.Context, administradoraID string) ([]Carteira, error) {
-	pasta, err := a.pasta(administradoraID)
-	if err != nil {
-		return nil, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	entradas, err := os.ReadDir(pasta)
-	if errors.Is(err, os.ErrNotExist) {
-		return []Carteira{}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("listar pedidos %s: %w", pasta, err)
-	}
-	out := []Carteira{}
-	for _, e := range entradas {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		c := escopo.Contato{AdministradoraID: administradoraID, Telefone: strings.TrimSuffix(e.Name(), ".json")}
-		cart, err := lerArquivo(filepath.Join(pasta, e.Name()), c)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, cart)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].AtualizadaEm.After(out[j].AtualizadaEm) })
-	return out, nil
-}

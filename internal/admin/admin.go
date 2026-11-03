@@ -17,16 +17,12 @@
 package admin
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"go-concierge/internal/escopo"
@@ -356,125 +352,6 @@ func ContextoDoCondominio(c Condominio, payloads map[string]map[string]any, orie
 		fmt.Fprintf(&b, "- `%s`: %s\n", r, raw)
 	}
 	return strings.TrimRight(b.String(), "\n")
-}
-
-// Arquivo guarda o mapeamento em JSON. Sai quando a importação para o Postgres existir.
-type Arquivo struct {
-	Path string
-	mu   sync.Mutex
-}
-
-func NovoArquivo(path string) *Arquivo { return &Arquivo{Path: path} }
-
-// Ler devolve o mapeamento (vazio e normalizado se o arquivo não existe).
-func (s *Arquivo) Ler(context.Context) (Mapeamento, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ler()
-}
-
-func (s *Arquivo) ler() (Mapeamento, error) {
-	var m Mapeamento
-	raw, err := os.ReadFile(s.Path)
-	if errors.Is(err, os.ErrNotExist) {
-		m.normalizar()
-		return m, nil
-	}
-	if err != nil {
-		return Mapeamento{}, fmt.Errorf("ler mapeamento %s: %w", s.Path, err)
-	}
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return Mapeamento{}, fmt.Errorf("ler mapeamento %s: %w", s.Path, err)
-	}
-	m.normalizar()
-	return m, nil
-}
-
-func (s *Arquivo) gravar(m Mapeamento) error {
-	m.normalizar()
-	m.AtualizadoEm = time.Now()
-	raw, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return fmt.Errorf("codificar mapeamento: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
-		return fmt.Errorf("gravar mapeamento %s: %w", s.Path, err)
-	}
-	if err := os.WriteFile(s.Path, raw, 0o644); err != nil {
-		return fmt.Errorf("gravar mapeamento %s: %w", s.Path, err)
-	}
-	return nil
-}
-
-// alterar lê, aplica a regra e grava, sob o mesmo lock.
-func (s *Arquivo) alterar(r regra) (Mapeamento, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	atual, err := s.ler()
-	if err != nil {
-		return Mapeamento{}, err
-	}
-	novo, err := r(atual)
-	if err != nil {
-		return Mapeamento{}, err
-	}
-	if err := s.gravar(novo); err != nil {
-		return Mapeamento{}, err
-	}
-	return s.ler()
-}
-
-func (s *Arquivo) SalvarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarAdministradora(a) })
-}
-
-func (s *Arquivo) RemoverAdministradora(_ context.Context, id string) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.removerAdministradora(id) })
-}
-
-func (s *Arquivo) SalvarCondominio(_ context.Context, c Condominio) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.salvarCondominio(c) })
-}
-
-func (s *Arquivo) RemoverCondominio(_ context.Context, alvo Alvo) (Mapeamento, error) {
-	id := alvo.Condominio
-	return s.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.removerCondominio(id) }))
-}
-
-func (s *Arquivo) SalvarHabilitacao(_ context.Context, alvo Alvo, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
-	condoID := alvo.Condominio
-	return s.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarHabilitacao(condoID, caso, h, limpar) }))
-}
-
-func (s *Arquivo) SalvarOrientacao(_ context.Context, alvo Alvo, o Orientacao) (Mapeamento, error) {
-	condoID := alvo.Condominio
-	return s.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarOrientacao(condoID, o) }))
-}
-
-func (s *Arquivo) SalvarAjustes(_ context.Context, alvo Alvo, ajustes map[string]map[string]any) (Mapeamento, error) {
-	condoID := alvo.Condominio
-	return s.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarAjustes(condoID, ajustes) }))
-}
-
-func (s *Arquivo) SalvarPayload(_ context.Context, alvo Alvo, recurso string, payload map[string]any) (Mapeamento, error) {
-	condoID := alvo.Condominio
-	return s.alterar(comDona(alvo, func(m Mapeamento) (Mapeamento, error) { return m.salvarPayload(condoID, recurso, payload) }))
-}
-
-func (s *Arquivo) CriarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarAdministradora(a) })
-}
-
-func (s *Arquivo) EditarAdministradora(_ context.Context, a Administradora) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarAdministradora(a) })
-}
-
-func (s *Arquivo) CriarCondominio(_ context.Context, c Condominio) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.criarCondominio(c) })
-}
-
-func (s *Arquivo) EditarCondominio(_ context.Context, c Condominio, visto Chaves) (Mapeamento, error) {
-	return s.alterar(func(m Mapeamento) (Mapeamento, error) { return m.editarCondominio(c, visto) })
 }
 
 // Normalizado devolve o mapeamento lido de fora (JSON de uma versão antiga, por exemplo) na

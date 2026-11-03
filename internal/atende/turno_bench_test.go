@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"go-concierge/internal/admin"
+	"go-concierge/internal/banco"
+	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
@@ -17,10 +20,11 @@ import (
 	"go-concierge/internal/pedidos"
 )
 
-// servicoParaBenchmark isola a montagem dos stores: a Task 13 troca só esta função
-// quando a persistência passar para Postgres.
-func servicoParaBenchmark(b *testing.B) *Servico {
+// servicoParaBenchmark monta o serviço como em produção: sessões, pedidos, memória e
+// mapeamento no Postgres (um banco de teste para o benchmark inteiro).
+func servicoParaBenchmark(b *testing.B) (*Servico, banco.Banco) {
 	b.Helper()
+	db := bancotest.Novo(b)
 	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(b), "okf"))
 	if err != nil {
 		b.Fatal(err)
@@ -32,12 +36,33 @@ func servicoParaBenchmark(b *testing.B) *Servico {
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	return &Servico{
-		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(b), Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: &Outbox{},
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoNoPostgres(b, db), Sessoes: NewSessoes(NovoSessaoPostgres(db.Ent)), Sender: &Outbox{},
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: &mcpServicoFalso{}},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
-		Pedidos:  pedidos.NewArquivos(b.TempDir()),
-		Memorias: memoria.NewArquivos(b.TempDir()),
+		Pedidos:  pedidos.NovoPostgres(db),
+		Memorias: memoria.NovoPostgres(db),
+	}, db
+}
+
+// mapeamentoNoPostgres grava no banco o mesmo mapeamento de mapeamentoDeTeste.
+func mapeamentoNoPostgres(b *testing.B, db banco.Banco) *admin.Postgres {
+	b.Helper()
+	m, err := mapeamentoDeTeste(b).Ler(b.Context())
+	if err != nil {
+		b.Fatal(err)
 	}
+	repo := admin.NovoPostgres(db.Ent)
+	for _, a := range m.Administradoras {
+		if _, err := repo.SalvarAdministradora(b.Context(), a); err != nil {
+			b.Fatal(err)
+		}
+	}
+	for _, c := range m.Condominios {
+		if _, err := repo.SalvarCondominio(b.Context(), c); err != nil {
+			b.Fatal(err)
+		}
+	}
+	return repo
 }
 
 func percentil(ordenado []time.Duration, p float64) time.Duration {
@@ -80,19 +105,29 @@ func exigirAgendamento(b *testing.B, svc *Servico, msg entrada.Mensagem) {
 	b.Fatalf("pedido %s não aberto: %+v", casoTurno, carteira.Pedidos)
 }
 
-// novaConversa zera sessões e stores (fora do cronômetro): o morador é o único
+// novaConversa zera sessões, pedidos e memória (fora do cronômetro): o morador é o único
 // identificado pelo token B2C, então a conversa nova vem de estado novo, não de telefone novo.
-func novaConversa(b *testing.B, svc *Servico) {
+func novaConversa(b *testing.B, svc *Servico, db banco.Banco) {
 	b.Helper()
-	svc.Sessoes = NewSessoes(NovaSessaoEmMemoria())
-	svc.Pedidos = pedidos.NewArquivos(b.TempDir())
-	svc.Memorias = memoria.NewArquivos(b.TempDir())
+	ctx := b.Context()
+	apagar := []func(context.Context) (int, error){
+		db.Ent.Sessao.Delete().Exec,
+		db.Ent.Pedido.Delete().Exec, // eventos vão junto (ON DELETE CASCADE)
+		db.Ent.MemoriaFato.Delete().Exec,
+		db.Ent.MemoriaContato.Delete().Exec,
+	}
+	for _, apagarTabela := range apagar {
+		if _, err := apagarTabela(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
+	svc.Sessoes = NewSessoes(NovoSessaoPostgres(db.Ent))
 }
 
 // Cada iteração é o primeiro turno de uma conversa nova, para que o histórico não
 // cresça com -benchtime.
 func BenchmarkTurnoMock(b *testing.B) {
-	svc := servicoParaBenchmark(b)
+	svc, db := servicoParaBenchmark(b)
 	ev, err := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", textoTurno, 1)))
 	if err != nil {
 		b.Fatal(err)
@@ -102,7 +137,7 @@ func BenchmarkTurnoMock(b *testing.B) {
 	b.ResetTimer()
 	for i := 1; i <= b.N; i++ {
 		b.StopTimer()
-		novaConversa(b, svc)
+		novaConversa(b, svc, db)
 		msg := mensagemDoMorador(*ev, i)
 		b.StartTimer()
 		inicio := time.Now()

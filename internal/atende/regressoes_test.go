@@ -107,7 +107,7 @@ func (e extratorBloqueado) Extrair(_ context.Context, _, _ string, _ memoria.Mem
 
 func TestEsquecimentoNaoRessuscitaExtracaoEmAndamento(t *testing.T) {
 	ctx := context.Background()
-	store := memoria.NewArquivos(t.TempDir())
+	store := memoria.NovoFake()
 	contato := contatoDeTeste(t, "adm-a")
 	m := memoria.Memoria{Fatos: []memoria.Fato{{Chave: "nome", Texto: "texto antigo"}}}
 	if err := store.Gravar(ctx, contato, m); err != nil {
