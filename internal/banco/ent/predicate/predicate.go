@@ -9,6 +9,12 @@ import (
 // Administradora is the predicate function for administradora builders.
 type Administradora func(*sql.Selector)
 
+// Atribuicao is the predicate function for atribuicao builders.
+type Atribuicao func(*sql.Selector)
+
+// Concessao is the predicate function for concessao builders.
+type Concessao func(*sql.Selector)
+
 // Condominio is the predicate function for condominio builders.
 type Condominio func(*sql.Selector)
 
@@ -18,5 +24,14 @@ type Habilitacao func(*sql.Selector)
 // Orientacao is the predicate function for orientacao builders.
 type Orientacao func(*sql.Selector)
 
+// Papel is the predicate function for papel builders.
+type Papel func(*sql.Selector)
+
+// PapelPermissao is the predicate function for papelpermissao builders.
+type PapelPermissao func(*sql.Selector)
+
 // Payload is the predicate function for payload builders.
 type Payload func(*sql.Selector)
+
+// Usuario is the predicate function for usuario builders.
+type Usuario func(*sql.Selector)

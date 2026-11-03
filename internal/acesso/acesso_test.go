@@ -63,6 +63,9 @@ func TestPermitido(t *testing.T) {
 		{"admin superlogica permitido em A com fixa A", base(superl, nil, fixaA), UsuariosEditar, admA(), true},
 		{"sem atribuicoes nega", base(nil, nil, escopo.Implantacao{}), SkillsLer, admA(), false},
 		{"papel desconhecido nega", base([]Atribuicao{{"fantasma", admA()}}, nil, escopo.Implantacao{}), SkillsLer, admA(), false},
+		{"condominio vazio nunca casa", base([]Atribuicao{{"gestor_administradora", cond("")}}, nil, escopo.Implantacao{}), SkillsLer, cond(""), false},
+		{"duas atribuicoes: gestor A permite c1", base([]Atribuicao{{"gestor_administradora", admA()}, {"operador_administradora", Escopo{TipoAdministradora, "B"}}}, concGestor, escopo.Implantacao{}), StudioAvancado, cond("c1"), true},
+		{"duas atribuicoes: concessao de A nao vale em c9 de B", base([]Atribuicao{{"gestor_administradora", admA()}, {"operador_administradora", Escopo{TipoAdministradora, "B"}}}, concGestor, escopo.Implantacao{}), StudioAvancado, cond("c9"), false},
 		{"condominio sem administradora conhecida nega", base(gestorA, nil, escopo.Implantacao{}), SkillsLer, cond("zz"), false},
 	}
 	for _, tt := range tests {
@@ -87,6 +90,9 @@ func TestPermitidoEmAlgum(t *testing.T) {
 		{"concessao conta", base(gestorB, []Concessao{{"B", "gestor_administradora", StudioAvancado}}, escopo.Implantacao{}), StudioAvancado, true},
 		{"atribuicao de outra administradora ignorada com fixa", base(gestorB, nil, escopo.Implantacao{AdministradoraFixa: "A"}), SkillsLer, false},
 		{"sem atribuicoes", base(nil, nil, escopo.Implantacao{}), SkillsLer, false},
+		{"atribuicao superlogica vale com fixa A", base([]Atribuicao{{"admin_superlogica", Escopo{Tipo: TipoSuperlogica}}}, nil, escopo.Implantacao{AdministradoraFixa: "A"}), UsuariosEditar, true},
+		{"atribuicao de tipo vazio ignorada", base([]Atribuicao{{"admin_superlogica", Escopo{}}}, nil, escopo.Implantacao{}), SkillsLer, false},
+		{"atribuicao de tipo desconhecido ignorada", base([]Atribuicao{{"admin_superlogica", Escopo{Tipo: "x", ID: "A"}}}, nil, escopo.Implantacao{}), SkillsLer, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

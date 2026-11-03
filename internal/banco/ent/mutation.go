@@ -7,12 +7,17 @@ import (
 	"errors"
 	"fmt"
 	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/papel"
+	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/predicate"
 	"go-concierge/internal/banco/ent/schema"
+	"go-concierge/internal/banco/ent/usuario"
 	"sync"
 
 	"entgo.io/ent"
@@ -29,10 +34,15 @@ const (
 
 	// Node types.
 	TypeAdministradora = "Administradora"
+	TypeAtribuicao     = "Atribuicao"
+	TypeConcessao      = "Concessao"
 	TypeCondominio     = "Condominio"
 	TypeHabilitacao    = "Habilitacao"
 	TypeOrientacao     = "Orientacao"
+	TypePapel          = "Papel"
+	TypePapelPermissao = "PapelPermissao"
 	TypePayload        = "Payload"
+	TypeUsuario        = "Usuario"
 )
 
 // AdministradoraMutation represents an operation that mutates the Administradora nodes in the graph.
@@ -458,6 +468,1128 @@ func (m *AdministradoraMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Administradora edge %s", name)
+}
+
+// AtribuicaoMutation represents an operation that mutates the Atribuicao nodes in the graph.
+type AtribuicaoMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	escopo_tipo    *string
+	escopo_id      *string
+	clearedFields  map[string]struct{}
+	usuario        *string
+	clearedusuario bool
+	papel          *string
+	clearedpapel   bool
+	done           bool
+	oldValue       func(context.Context) (*Atribuicao, error)
+	predicates     []predicate.Atribuicao
+}
+
+var _ ent.Mutation = (*AtribuicaoMutation)(nil)
+
+// atribuicaoOption allows management of the mutation configuration using functional options.
+type atribuicaoOption func(*AtribuicaoMutation)
+
+// newAtribuicaoMutation creates new mutation for the Atribuicao entity.
+func newAtribuicaoMutation(c config, op Op, opts ...atribuicaoOption) *AtribuicaoMutation {
+	m := &AtribuicaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAtribuicao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAtribuicaoID sets the ID field of the mutation.
+func withAtribuicaoID(id int) atribuicaoOption {
+	return func(m *AtribuicaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Atribuicao
+		)
+		m.oldValue = func(ctx context.Context) (*Atribuicao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Atribuicao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAtribuicao sets the old Atribuicao of the mutation.
+func withAtribuicao(node *Atribuicao) atribuicaoOption {
+	return func(m *AtribuicaoMutation) {
+		m.oldValue = func(context.Context) (*Atribuicao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AtribuicaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AtribuicaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AtribuicaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AtribuicaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Atribuicao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetUsuarioID sets the "usuario_id" field.
+func (m *AtribuicaoMutation) SetUsuarioID(s string) {
+	m.usuario = &s
+}
+
+// UsuarioID returns the value of the "usuario_id" field in the mutation.
+func (m *AtribuicaoMutation) UsuarioID() (r string, exists bool) {
+	v := m.usuario
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsuarioID returns the old "usuario_id" field's value of the Atribuicao entity.
+// If the Atribuicao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AtribuicaoMutation) OldUsuarioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsuarioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsuarioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsuarioID: %w", err)
+	}
+	return oldValue.UsuarioID, nil
+}
+
+// ResetUsuarioID resets all changes to the "usuario_id" field.
+func (m *AtribuicaoMutation) ResetUsuarioID() {
+	m.usuario = nil
+}
+
+// SetPapelID sets the "papel_id" field.
+func (m *AtribuicaoMutation) SetPapelID(s string) {
+	m.papel = &s
+}
+
+// PapelID returns the value of the "papel_id" field in the mutation.
+func (m *AtribuicaoMutation) PapelID() (r string, exists bool) {
+	v := m.papel
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPapelID returns the old "papel_id" field's value of the Atribuicao entity.
+// If the Atribuicao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AtribuicaoMutation) OldPapelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPapelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPapelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPapelID: %w", err)
+	}
+	return oldValue.PapelID, nil
+}
+
+// ResetPapelID resets all changes to the "papel_id" field.
+func (m *AtribuicaoMutation) ResetPapelID() {
+	m.papel = nil
+}
+
+// SetEscopoTipo sets the "escopo_tipo" field.
+func (m *AtribuicaoMutation) SetEscopoTipo(s string) {
+	m.escopo_tipo = &s
+}
+
+// EscopoTipo returns the value of the "escopo_tipo" field in the mutation.
+func (m *AtribuicaoMutation) EscopoTipo() (r string, exists bool) {
+	v := m.escopo_tipo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEscopoTipo returns the old "escopo_tipo" field's value of the Atribuicao entity.
+// If the Atribuicao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AtribuicaoMutation) OldEscopoTipo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEscopoTipo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEscopoTipo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEscopoTipo: %w", err)
+	}
+	return oldValue.EscopoTipo, nil
+}
+
+// ResetEscopoTipo resets all changes to the "escopo_tipo" field.
+func (m *AtribuicaoMutation) ResetEscopoTipo() {
+	m.escopo_tipo = nil
+}
+
+// SetEscopoID sets the "escopo_id" field.
+func (m *AtribuicaoMutation) SetEscopoID(s string) {
+	m.escopo_id = &s
+}
+
+// EscopoID returns the value of the "escopo_id" field in the mutation.
+func (m *AtribuicaoMutation) EscopoID() (r string, exists bool) {
+	v := m.escopo_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEscopoID returns the old "escopo_id" field's value of the Atribuicao entity.
+// If the Atribuicao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AtribuicaoMutation) OldEscopoID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEscopoID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEscopoID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEscopoID: %w", err)
+	}
+	return oldValue.EscopoID, nil
+}
+
+// ResetEscopoID resets all changes to the "escopo_id" field.
+func (m *AtribuicaoMutation) ResetEscopoID() {
+	m.escopo_id = nil
+}
+
+// ClearUsuario clears the "usuario" edge to the Usuario entity.
+func (m *AtribuicaoMutation) ClearUsuario() {
+	m.clearedusuario = true
+	m.clearedFields[atribuicao.FieldUsuarioID] = struct{}{}
+}
+
+// UsuarioCleared reports if the "usuario" edge to the Usuario entity was cleared.
+func (m *AtribuicaoMutation) UsuarioCleared() bool {
+	return m.clearedusuario
+}
+
+// UsuarioIDs returns the "usuario" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UsuarioID instead. It exists only for internal usage by the builders.
+func (m *AtribuicaoMutation) UsuarioIDs() (ids []string) {
+	if id := m.usuario; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUsuario resets all changes to the "usuario" edge.
+func (m *AtribuicaoMutation) ResetUsuario() {
+	m.usuario = nil
+	m.clearedusuario = false
+}
+
+// ClearPapel clears the "papel" edge to the Papel entity.
+func (m *AtribuicaoMutation) ClearPapel() {
+	m.clearedpapel = true
+	m.clearedFields[atribuicao.FieldPapelID] = struct{}{}
+}
+
+// PapelCleared reports if the "papel" edge to the Papel entity was cleared.
+func (m *AtribuicaoMutation) PapelCleared() bool {
+	return m.clearedpapel
+}
+
+// PapelIDs returns the "papel" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PapelID instead. It exists only for internal usage by the builders.
+func (m *AtribuicaoMutation) PapelIDs() (ids []string) {
+	if id := m.papel; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPapel resets all changes to the "papel" edge.
+func (m *AtribuicaoMutation) ResetPapel() {
+	m.papel = nil
+	m.clearedpapel = false
+}
+
+// Where appends a list predicates to the AtribuicaoMutation builder.
+func (m *AtribuicaoMutation) Where(ps ...predicate.Atribuicao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AtribuicaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AtribuicaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Atribuicao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AtribuicaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AtribuicaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Atribuicao).
+func (m *AtribuicaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AtribuicaoMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.usuario != nil {
+		fields = append(fields, atribuicao.FieldUsuarioID)
+	}
+	if m.papel != nil {
+		fields = append(fields, atribuicao.FieldPapelID)
+	}
+	if m.escopo_tipo != nil {
+		fields = append(fields, atribuicao.FieldEscopoTipo)
+	}
+	if m.escopo_id != nil {
+		fields = append(fields, atribuicao.FieldEscopoID)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AtribuicaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case atribuicao.FieldUsuarioID:
+		return m.UsuarioID()
+	case atribuicao.FieldPapelID:
+		return m.PapelID()
+	case atribuicao.FieldEscopoTipo:
+		return m.EscopoTipo()
+	case atribuicao.FieldEscopoID:
+		return m.EscopoID()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AtribuicaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case atribuicao.FieldUsuarioID:
+		return m.OldUsuarioID(ctx)
+	case atribuicao.FieldPapelID:
+		return m.OldPapelID(ctx)
+	case atribuicao.FieldEscopoTipo:
+		return m.OldEscopoTipo(ctx)
+	case atribuicao.FieldEscopoID:
+		return m.OldEscopoID(ctx)
+	}
+	return nil, fmt.Errorf("unknown Atribuicao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AtribuicaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case atribuicao.FieldUsuarioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsuarioID(v)
+		return nil
+	case atribuicao.FieldPapelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPapelID(v)
+		return nil
+	case atribuicao.FieldEscopoTipo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEscopoTipo(v)
+		return nil
+	case atribuicao.FieldEscopoID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEscopoID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Atribuicao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AtribuicaoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AtribuicaoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AtribuicaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Atribuicao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AtribuicaoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AtribuicaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AtribuicaoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Atribuicao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AtribuicaoMutation) ResetField(name string) error {
+	switch name {
+	case atribuicao.FieldUsuarioID:
+		m.ResetUsuarioID()
+		return nil
+	case atribuicao.FieldPapelID:
+		m.ResetPapelID()
+		return nil
+	case atribuicao.FieldEscopoTipo:
+		m.ResetEscopoTipo()
+		return nil
+	case atribuicao.FieldEscopoID:
+		m.ResetEscopoID()
+		return nil
+	}
+	return fmt.Errorf("unknown Atribuicao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AtribuicaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.usuario != nil {
+		edges = append(edges, atribuicao.EdgeUsuario)
+	}
+	if m.papel != nil {
+		edges = append(edges, atribuicao.EdgePapel)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AtribuicaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case atribuicao.EdgeUsuario:
+		if id := m.usuario; id != nil {
+			return []ent.Value{*id}
+		}
+	case atribuicao.EdgePapel:
+		if id := m.papel; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AtribuicaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AtribuicaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AtribuicaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedusuario {
+		edges = append(edges, atribuicao.EdgeUsuario)
+	}
+	if m.clearedpapel {
+		edges = append(edges, atribuicao.EdgePapel)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AtribuicaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case atribuicao.EdgeUsuario:
+		return m.clearedusuario
+	case atribuicao.EdgePapel:
+		return m.clearedpapel
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AtribuicaoMutation) ClearEdge(name string) error {
+	switch name {
+	case atribuicao.EdgeUsuario:
+		m.ClearUsuario()
+		return nil
+	case atribuicao.EdgePapel:
+		m.ClearPapel()
+		return nil
+	}
+	return fmt.Errorf("unknown Atribuicao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AtribuicaoMutation) ResetEdge(name string) error {
+	switch name {
+	case atribuicao.EdgeUsuario:
+		m.ResetUsuario()
+		return nil
+	case atribuicao.EdgePapel:
+		m.ResetPapel()
+		return nil
+	}
+	return fmt.Errorf("unknown Atribuicao edge %s", name)
+}
+
+// ConcessaoMutation represents an operation that mutates the Concessao nodes in the graph.
+type ConcessaoMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	permissao             *string
+	clearedFields         map[string]struct{}
+	administradora        *string
+	clearedadministradora bool
+	papel                 *string
+	clearedpapel          bool
+	done                  bool
+	oldValue              func(context.Context) (*Concessao, error)
+	predicates            []predicate.Concessao
+}
+
+var _ ent.Mutation = (*ConcessaoMutation)(nil)
+
+// concessaoOption allows management of the mutation configuration using functional options.
+type concessaoOption func(*ConcessaoMutation)
+
+// newConcessaoMutation creates new mutation for the Concessao entity.
+func newConcessaoMutation(c config, op Op, opts ...concessaoOption) *ConcessaoMutation {
+	m := &ConcessaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeConcessao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withConcessaoID sets the ID field of the mutation.
+func withConcessaoID(id int) concessaoOption {
+	return func(m *ConcessaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Concessao
+		)
+		m.oldValue = func(ctx context.Context) (*Concessao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Concessao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withConcessao sets the old Concessao of the mutation.
+func withConcessao(node *Concessao) concessaoOption {
+	return func(m *ConcessaoMutation) {
+		m.oldValue = func(context.Context) (*Concessao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ConcessaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ConcessaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ConcessaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ConcessaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Concessao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *ConcessaoMutation) SetAdministradoraID(s string) {
+	m.administradora = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *ConcessaoMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the Concessao entity.
+// If the Concessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConcessaoMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *ConcessaoMutation) ResetAdministradoraID() {
+	m.administradora = nil
+}
+
+// SetPapelID sets the "papel_id" field.
+func (m *ConcessaoMutation) SetPapelID(s string) {
+	m.papel = &s
+}
+
+// PapelID returns the value of the "papel_id" field in the mutation.
+func (m *ConcessaoMutation) PapelID() (r string, exists bool) {
+	v := m.papel
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPapelID returns the old "papel_id" field's value of the Concessao entity.
+// If the Concessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConcessaoMutation) OldPapelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPapelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPapelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPapelID: %w", err)
+	}
+	return oldValue.PapelID, nil
+}
+
+// ResetPapelID resets all changes to the "papel_id" field.
+func (m *ConcessaoMutation) ResetPapelID() {
+	m.papel = nil
+}
+
+// SetPermissao sets the "permissao" field.
+func (m *ConcessaoMutation) SetPermissao(s string) {
+	m.permissao = &s
+}
+
+// Permissao returns the value of the "permissao" field in the mutation.
+func (m *ConcessaoMutation) Permissao() (r string, exists bool) {
+	v := m.permissao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPermissao returns the old "permissao" field's value of the Concessao entity.
+// If the Concessao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConcessaoMutation) OldPermissao(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPermissao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPermissao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPermissao: %w", err)
+	}
+	return oldValue.Permissao, nil
+}
+
+// ResetPermissao resets all changes to the "permissao" field.
+func (m *ConcessaoMutation) ResetPermissao() {
+	m.permissao = nil
+}
+
+// ClearAdministradora clears the "administradora" edge to the Administradora entity.
+func (m *ConcessaoMutation) ClearAdministradora() {
+	m.clearedadministradora = true
+	m.clearedFields[concessao.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraCleared reports if the "administradora" edge to the Administradora entity was cleared.
+func (m *ConcessaoMutation) AdministradoraCleared() bool {
+	return m.clearedadministradora
+}
+
+// AdministradoraIDs returns the "administradora" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AdministradoraID instead. It exists only for internal usage by the builders.
+func (m *ConcessaoMutation) AdministradoraIDs() (ids []string) {
+	if id := m.administradora; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAdministradora resets all changes to the "administradora" edge.
+func (m *ConcessaoMutation) ResetAdministradora() {
+	m.administradora = nil
+	m.clearedadministradora = false
+}
+
+// ClearPapel clears the "papel" edge to the Papel entity.
+func (m *ConcessaoMutation) ClearPapel() {
+	m.clearedpapel = true
+	m.clearedFields[concessao.FieldPapelID] = struct{}{}
+}
+
+// PapelCleared reports if the "papel" edge to the Papel entity was cleared.
+func (m *ConcessaoMutation) PapelCleared() bool {
+	return m.clearedpapel
+}
+
+// PapelIDs returns the "papel" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PapelID instead. It exists only for internal usage by the builders.
+func (m *ConcessaoMutation) PapelIDs() (ids []string) {
+	if id := m.papel; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPapel resets all changes to the "papel" edge.
+func (m *ConcessaoMutation) ResetPapel() {
+	m.papel = nil
+	m.clearedpapel = false
+}
+
+// Where appends a list predicates to the ConcessaoMutation builder.
+func (m *ConcessaoMutation) Where(ps ...predicate.Concessao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ConcessaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ConcessaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Concessao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ConcessaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ConcessaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Concessao).
+func (m *ConcessaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ConcessaoMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.administradora != nil {
+		fields = append(fields, concessao.FieldAdministradoraID)
+	}
+	if m.papel != nil {
+		fields = append(fields, concessao.FieldPapelID)
+	}
+	if m.permissao != nil {
+		fields = append(fields, concessao.FieldPermissao)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ConcessaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case concessao.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case concessao.FieldPapelID:
+		return m.PapelID()
+	case concessao.FieldPermissao:
+		return m.Permissao()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ConcessaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case concessao.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case concessao.FieldPapelID:
+		return m.OldPapelID(ctx)
+	case concessao.FieldPermissao:
+		return m.OldPermissao(ctx)
+	}
+	return nil, fmt.Errorf("unknown Concessao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ConcessaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case concessao.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case concessao.FieldPapelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPapelID(v)
+		return nil
+	case concessao.FieldPermissao:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPermissao(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Concessao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ConcessaoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ConcessaoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ConcessaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Concessao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ConcessaoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ConcessaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ConcessaoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Concessao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ConcessaoMutation) ResetField(name string) error {
+	switch name {
+	case concessao.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case concessao.FieldPapelID:
+		m.ResetPapelID()
+		return nil
+	case concessao.FieldPermissao:
+		m.ResetPermissao()
+		return nil
+	}
+	return fmt.Errorf("unknown Concessao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ConcessaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.administradora != nil {
+		edges = append(edges, concessao.EdgeAdministradora)
+	}
+	if m.papel != nil {
+		edges = append(edges, concessao.EdgePapel)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ConcessaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case concessao.EdgeAdministradora:
+		if id := m.administradora; id != nil {
+			return []ent.Value{*id}
+		}
+	case concessao.EdgePapel:
+		if id := m.papel; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ConcessaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ConcessaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ConcessaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedadministradora {
+		edges = append(edges, concessao.EdgeAdministradora)
+	}
+	if m.clearedpapel {
+		edges = append(edges, concessao.EdgePapel)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ConcessaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case concessao.EdgeAdministradora:
+		return m.clearedadministradora
+	case concessao.EdgePapel:
+		return m.clearedpapel
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ConcessaoMutation) ClearEdge(name string) error {
+	switch name {
+	case concessao.EdgeAdministradora:
+		m.ClearAdministradora()
+		return nil
+	case concessao.EdgePapel:
+		m.ClearPapel()
+		return nil
+	}
+	return fmt.Errorf("unknown Concessao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ConcessaoMutation) ResetEdge(name string) error {
+	switch name {
+	case concessao.EdgeAdministradora:
+		m.ResetAdministradora()
+		return nil
+	case concessao.EdgePapel:
+		m.ResetPapel()
+		return nil
+	}
+	return fmt.Errorf("unknown Concessao edge %s", name)
 }
 
 // CondominioMutation represents an operation that mutates the Condominio nodes in the graph.
@@ -2409,6 +3541,1029 @@ func (m *OrientacaoMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Orientacao edge %s", name)
 }
 
+// PapelMutation represents an operation that mutates the Papel nodes in the graph.
+type PapelMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *string
+	clearedFields     map[string]struct{}
+	herda             *string
+	clearedherda      bool
+	permissoes        map[int]struct{}
+	removedpermissoes map[int]struct{}
+	clearedpermissoes bool
+	concessoes        map[int]struct{}
+	removedconcessoes map[int]struct{}
+	clearedconcessoes bool
+	done              bool
+	oldValue          func(context.Context) (*Papel, error)
+	predicates        []predicate.Papel
+}
+
+var _ ent.Mutation = (*PapelMutation)(nil)
+
+// papelOption allows management of the mutation configuration using functional options.
+type papelOption func(*PapelMutation)
+
+// newPapelMutation creates new mutation for the Papel entity.
+func newPapelMutation(c config, op Op, opts ...papelOption) *PapelMutation {
+	m := &PapelMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePapel,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPapelID sets the ID field of the mutation.
+func withPapelID(id string) papelOption {
+	return func(m *PapelMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Papel
+		)
+		m.oldValue = func(ctx context.Context) (*Papel, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Papel.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPapel sets the old Papel of the mutation.
+func withPapel(node *Papel) papelOption {
+	return func(m *PapelMutation) {
+		m.oldValue = func(context.Context) (*Papel, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PapelMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PapelMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Papel entities.
+func (m *PapelMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PapelMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PapelMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Papel.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetHerdaDe sets the "herda_de" field.
+func (m *PapelMutation) SetHerdaDe(s string) {
+	m.herda = &s
+}
+
+// HerdaDe returns the value of the "herda_de" field in the mutation.
+func (m *PapelMutation) HerdaDe() (r string, exists bool) {
+	v := m.herda
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHerdaDe returns the old "herda_de" field's value of the Papel entity.
+// If the Papel object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PapelMutation) OldHerdaDe(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHerdaDe is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHerdaDe requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHerdaDe: %w", err)
+	}
+	return oldValue.HerdaDe, nil
+}
+
+// ClearHerdaDe clears the value of the "herda_de" field.
+func (m *PapelMutation) ClearHerdaDe() {
+	m.herda = nil
+	m.clearedFields[papel.FieldHerdaDe] = struct{}{}
+}
+
+// HerdaDeCleared returns if the "herda_de" field was cleared in this mutation.
+func (m *PapelMutation) HerdaDeCleared() bool {
+	_, ok := m.clearedFields[papel.FieldHerdaDe]
+	return ok
+}
+
+// ResetHerdaDe resets all changes to the "herda_de" field.
+func (m *PapelMutation) ResetHerdaDe() {
+	m.herda = nil
+	delete(m.clearedFields, papel.FieldHerdaDe)
+}
+
+// SetHerdaID sets the "herda" edge to the Papel entity by id.
+func (m *PapelMutation) SetHerdaID(id string) {
+	m.herda = &id
+}
+
+// ClearHerda clears the "herda" edge to the Papel entity.
+func (m *PapelMutation) ClearHerda() {
+	m.clearedherda = true
+	m.clearedFields[papel.FieldHerdaDe] = struct{}{}
+}
+
+// HerdaCleared reports if the "herda" edge to the Papel entity was cleared.
+func (m *PapelMutation) HerdaCleared() bool {
+	return m.HerdaDeCleared() || m.clearedherda
+}
+
+// HerdaID returns the "herda" edge ID in the mutation.
+func (m *PapelMutation) HerdaID() (id string, exists bool) {
+	if m.herda != nil {
+		return *m.herda, true
+	}
+	return
+}
+
+// HerdaIDs returns the "herda" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// HerdaID instead. It exists only for internal usage by the builders.
+func (m *PapelMutation) HerdaIDs() (ids []string) {
+	if id := m.herda; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetHerda resets all changes to the "herda" edge.
+func (m *PapelMutation) ResetHerda() {
+	m.herda = nil
+	m.clearedherda = false
+}
+
+// AddPermissoIDs adds the "permissoes" edge to the PapelPermissao entity by ids.
+func (m *PapelMutation) AddPermissoIDs(ids ...int) {
+	if m.permissoes == nil {
+		m.permissoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.permissoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearPermissoes clears the "permissoes" edge to the PapelPermissao entity.
+func (m *PapelMutation) ClearPermissoes() {
+	m.clearedpermissoes = true
+}
+
+// PermissoesCleared reports if the "permissoes" edge to the PapelPermissao entity was cleared.
+func (m *PapelMutation) PermissoesCleared() bool {
+	return m.clearedpermissoes
+}
+
+// RemovePermissoIDs removes the "permissoes" edge to the PapelPermissao entity by IDs.
+func (m *PapelMutation) RemovePermissoIDs(ids ...int) {
+	if m.removedpermissoes == nil {
+		m.removedpermissoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.permissoes, ids[i])
+		m.removedpermissoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedPermissoes returns the removed IDs of the "permissoes" edge to the PapelPermissao entity.
+func (m *PapelMutation) RemovedPermissoesIDs() (ids []int) {
+	for id := range m.removedpermissoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// PermissoesIDs returns the "permissoes" edge IDs in the mutation.
+func (m *PapelMutation) PermissoesIDs() (ids []int) {
+	for id := range m.permissoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetPermissoes resets all changes to the "permissoes" edge.
+func (m *PapelMutation) ResetPermissoes() {
+	m.permissoes = nil
+	m.clearedpermissoes = false
+	m.removedpermissoes = nil
+}
+
+// AddConcessoIDs adds the "concessoes" edge to the Concessao entity by ids.
+func (m *PapelMutation) AddConcessoIDs(ids ...int) {
+	if m.concessoes == nil {
+		m.concessoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.concessoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearConcessoes clears the "concessoes" edge to the Concessao entity.
+func (m *PapelMutation) ClearConcessoes() {
+	m.clearedconcessoes = true
+}
+
+// ConcessoesCleared reports if the "concessoes" edge to the Concessao entity was cleared.
+func (m *PapelMutation) ConcessoesCleared() bool {
+	return m.clearedconcessoes
+}
+
+// RemoveConcessoIDs removes the "concessoes" edge to the Concessao entity by IDs.
+func (m *PapelMutation) RemoveConcessoIDs(ids ...int) {
+	if m.removedconcessoes == nil {
+		m.removedconcessoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.concessoes, ids[i])
+		m.removedconcessoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedConcessoes returns the removed IDs of the "concessoes" edge to the Concessao entity.
+func (m *PapelMutation) RemovedConcessoesIDs() (ids []int) {
+	for id := range m.removedconcessoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ConcessoesIDs returns the "concessoes" edge IDs in the mutation.
+func (m *PapelMutation) ConcessoesIDs() (ids []int) {
+	for id := range m.concessoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetConcessoes resets all changes to the "concessoes" edge.
+func (m *PapelMutation) ResetConcessoes() {
+	m.concessoes = nil
+	m.clearedconcessoes = false
+	m.removedconcessoes = nil
+}
+
+// Where appends a list predicates to the PapelMutation builder.
+func (m *PapelMutation) Where(ps ...predicate.Papel) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PapelMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PapelMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Papel, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PapelMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PapelMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Papel).
+func (m *PapelMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PapelMutation) Fields() []string {
+	fields := make([]string, 0, 1)
+	if m.herda != nil {
+		fields = append(fields, papel.FieldHerdaDe)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PapelMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case papel.FieldHerdaDe:
+		return m.HerdaDe()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PapelMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case papel.FieldHerdaDe:
+		return m.OldHerdaDe(ctx)
+	}
+	return nil, fmt.Errorf("unknown Papel field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PapelMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case papel.FieldHerdaDe:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHerdaDe(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Papel field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PapelMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PapelMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PapelMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Papel numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PapelMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(papel.FieldHerdaDe) {
+		fields = append(fields, papel.FieldHerdaDe)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PapelMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PapelMutation) ClearField(name string) error {
+	switch name {
+	case papel.FieldHerdaDe:
+		m.ClearHerdaDe()
+		return nil
+	}
+	return fmt.Errorf("unknown Papel nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PapelMutation) ResetField(name string) error {
+	switch name {
+	case papel.FieldHerdaDe:
+		m.ResetHerdaDe()
+		return nil
+	}
+	return fmt.Errorf("unknown Papel field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PapelMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.herda != nil {
+		edges = append(edges, papel.EdgeHerda)
+	}
+	if m.permissoes != nil {
+		edges = append(edges, papel.EdgePermissoes)
+	}
+	if m.concessoes != nil {
+		edges = append(edges, papel.EdgeConcessoes)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PapelMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case papel.EdgeHerda:
+		if id := m.herda; id != nil {
+			return []ent.Value{*id}
+		}
+	case papel.EdgePermissoes:
+		ids := make([]ent.Value, 0, len(m.permissoes))
+		for id := range m.permissoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case papel.EdgeConcessoes:
+		ids := make([]ent.Value, 0, len(m.concessoes))
+		for id := range m.concessoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PapelMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.removedpermissoes != nil {
+		edges = append(edges, papel.EdgePermissoes)
+	}
+	if m.removedconcessoes != nil {
+		edges = append(edges, papel.EdgeConcessoes)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PapelMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case papel.EdgePermissoes:
+		ids := make([]ent.Value, 0, len(m.removedpermissoes))
+		for id := range m.removedpermissoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case papel.EdgeConcessoes:
+		ids := make([]ent.Value, 0, len(m.removedconcessoes))
+		for id := range m.removedconcessoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PapelMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedherda {
+		edges = append(edges, papel.EdgeHerda)
+	}
+	if m.clearedpermissoes {
+		edges = append(edges, papel.EdgePermissoes)
+	}
+	if m.clearedconcessoes {
+		edges = append(edges, papel.EdgeConcessoes)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PapelMutation) EdgeCleared(name string) bool {
+	switch name {
+	case papel.EdgeHerda:
+		return m.clearedherda
+	case papel.EdgePermissoes:
+		return m.clearedpermissoes
+	case papel.EdgeConcessoes:
+		return m.clearedconcessoes
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PapelMutation) ClearEdge(name string) error {
+	switch name {
+	case papel.EdgeHerda:
+		m.ClearHerda()
+		return nil
+	}
+	return fmt.Errorf("unknown Papel unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PapelMutation) ResetEdge(name string) error {
+	switch name {
+	case papel.EdgeHerda:
+		m.ResetHerda()
+		return nil
+	case papel.EdgePermissoes:
+		m.ResetPermissoes()
+		return nil
+	case papel.EdgeConcessoes:
+		m.ResetConcessoes()
+		return nil
+	}
+	return fmt.Errorf("unknown Papel edge %s", name)
+}
+
+// PapelPermissaoMutation represents an operation that mutates the PapelPermissao nodes in the graph.
+type PapelPermissaoMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	permissao     *string
+	clearedFields map[string]struct{}
+	papel         *string
+	clearedpapel  bool
+	done          bool
+	oldValue      func(context.Context) (*PapelPermissao, error)
+	predicates    []predicate.PapelPermissao
+}
+
+var _ ent.Mutation = (*PapelPermissaoMutation)(nil)
+
+// papelpermissaoOption allows management of the mutation configuration using functional options.
+type papelpermissaoOption func(*PapelPermissaoMutation)
+
+// newPapelPermissaoMutation creates new mutation for the PapelPermissao entity.
+func newPapelPermissaoMutation(c config, op Op, opts ...papelpermissaoOption) *PapelPermissaoMutation {
+	m := &PapelPermissaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypePapelPermissao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withPapelPermissaoID sets the ID field of the mutation.
+func withPapelPermissaoID(id int) papelpermissaoOption {
+	return func(m *PapelPermissaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *PapelPermissao
+		)
+		m.oldValue = func(ctx context.Context) (*PapelPermissao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().PapelPermissao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withPapelPermissao sets the old PapelPermissao of the mutation.
+func withPapelPermissao(node *PapelPermissao) papelpermissaoOption {
+	return func(m *PapelPermissaoMutation) {
+		m.oldValue = func(context.Context) (*PapelPermissao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m PapelPermissaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m PapelPermissaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *PapelPermissaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *PapelPermissaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().PapelPermissao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetPapelID sets the "papel_id" field.
+func (m *PapelPermissaoMutation) SetPapelID(s string) {
+	m.papel = &s
+}
+
+// PapelID returns the value of the "papel_id" field in the mutation.
+func (m *PapelPermissaoMutation) PapelID() (r string, exists bool) {
+	v := m.papel
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPapelID returns the old "papel_id" field's value of the PapelPermissao entity.
+// If the PapelPermissao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PapelPermissaoMutation) OldPapelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPapelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPapelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPapelID: %w", err)
+	}
+	return oldValue.PapelID, nil
+}
+
+// ResetPapelID resets all changes to the "papel_id" field.
+func (m *PapelPermissaoMutation) ResetPapelID() {
+	m.papel = nil
+}
+
+// SetPermissao sets the "permissao" field.
+func (m *PapelPermissaoMutation) SetPermissao(s string) {
+	m.permissao = &s
+}
+
+// Permissao returns the value of the "permissao" field in the mutation.
+func (m *PapelPermissaoMutation) Permissao() (r string, exists bool) {
+	v := m.permissao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPermissao returns the old "permissao" field's value of the PapelPermissao entity.
+// If the PapelPermissao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PapelPermissaoMutation) OldPermissao(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPermissao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPermissao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPermissao: %w", err)
+	}
+	return oldValue.Permissao, nil
+}
+
+// ResetPermissao resets all changes to the "permissao" field.
+func (m *PapelPermissaoMutation) ResetPermissao() {
+	m.permissao = nil
+}
+
+// ClearPapel clears the "papel" edge to the Papel entity.
+func (m *PapelPermissaoMutation) ClearPapel() {
+	m.clearedpapel = true
+	m.clearedFields[papelpermissao.FieldPapelID] = struct{}{}
+}
+
+// PapelCleared reports if the "papel" edge to the Papel entity was cleared.
+func (m *PapelPermissaoMutation) PapelCleared() bool {
+	return m.clearedpapel
+}
+
+// PapelIDs returns the "papel" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// PapelID instead. It exists only for internal usage by the builders.
+func (m *PapelPermissaoMutation) PapelIDs() (ids []string) {
+	if id := m.papel; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPapel resets all changes to the "papel" edge.
+func (m *PapelPermissaoMutation) ResetPapel() {
+	m.papel = nil
+	m.clearedpapel = false
+}
+
+// Where appends a list predicates to the PapelPermissaoMutation builder.
+func (m *PapelPermissaoMutation) Where(ps ...predicate.PapelPermissao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the PapelPermissaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *PapelPermissaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.PapelPermissao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *PapelPermissaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *PapelPermissaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (PapelPermissao).
+func (m *PapelPermissaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *PapelPermissaoMutation) Fields() []string {
+	fields := make([]string, 0, 2)
+	if m.papel != nil {
+		fields = append(fields, papelpermissao.FieldPapelID)
+	}
+	if m.permissao != nil {
+		fields = append(fields, papelpermissao.FieldPermissao)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *PapelPermissaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case papelpermissao.FieldPapelID:
+		return m.PapelID()
+	case papelpermissao.FieldPermissao:
+		return m.Permissao()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *PapelPermissaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case papelpermissao.FieldPapelID:
+		return m.OldPapelID(ctx)
+	case papelpermissao.FieldPermissao:
+		return m.OldPermissao(ctx)
+	}
+	return nil, fmt.Errorf("unknown PapelPermissao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PapelPermissaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case papelpermissao.FieldPapelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPapelID(v)
+		return nil
+	case papelpermissao.FieldPermissao:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPermissao(v)
+		return nil
+	}
+	return fmt.Errorf("unknown PapelPermissao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *PapelPermissaoMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *PapelPermissaoMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *PapelPermissaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown PapelPermissao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *PapelPermissaoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *PapelPermissaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *PapelPermissaoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown PapelPermissao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *PapelPermissaoMutation) ResetField(name string) error {
+	switch name {
+	case papelpermissao.FieldPapelID:
+		m.ResetPapelID()
+		return nil
+	case papelpermissao.FieldPermissao:
+		m.ResetPermissao()
+		return nil
+	}
+	return fmt.Errorf("unknown PapelPermissao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *PapelPermissaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.papel != nil {
+		edges = append(edges, papelpermissao.EdgePapel)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *PapelPermissaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case papelpermissao.EdgePapel:
+		if id := m.papel; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *PapelPermissaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *PapelPermissaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *PapelPermissaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedpapel {
+		edges = append(edges, papelpermissao.EdgePapel)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *PapelPermissaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case papelpermissao.EdgePapel:
+		return m.clearedpapel
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *PapelPermissaoMutation) ClearEdge(name string) error {
+	switch name {
+	case papelpermissao.EdgePapel:
+		m.ClearPapel()
+		return nil
+	}
+	return fmt.Errorf("unknown PapelPermissao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *PapelPermissaoMutation) ResetEdge(name string) error {
+	switch name {
+	case papelpermissao.EdgePapel:
+		m.ResetPapel()
+		return nil
+	}
+	return fmt.Errorf("unknown PapelPermissao edge %s", name)
+}
+
 // PayloadMutation represents an operation that mutates the Payload nodes in the graph.
 type PayloadMutation struct {
 	config
@@ -2917,4 +5072,429 @@ func (m *PayloadMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Payload edge %s", name)
+}
+
+// UsuarioMutation represents an operation that mutates the Usuario nodes in the graph.
+type UsuarioMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *string
+	nome               *string
+	clearedFields      map[string]struct{}
+	atribuicoes        map[int]struct{}
+	removedatribuicoes map[int]struct{}
+	clearedatribuicoes bool
+	done               bool
+	oldValue           func(context.Context) (*Usuario, error)
+	predicates         []predicate.Usuario
+}
+
+var _ ent.Mutation = (*UsuarioMutation)(nil)
+
+// usuarioOption allows management of the mutation configuration using functional options.
+type usuarioOption func(*UsuarioMutation)
+
+// newUsuarioMutation creates new mutation for the Usuario entity.
+func newUsuarioMutation(c config, op Op, opts ...usuarioOption) *UsuarioMutation {
+	m := &UsuarioMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeUsuario,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withUsuarioID sets the ID field of the mutation.
+func withUsuarioID(id string) usuarioOption {
+	return func(m *UsuarioMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Usuario
+		)
+		m.oldValue = func(ctx context.Context) (*Usuario, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Usuario.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withUsuario sets the old Usuario of the mutation.
+func withUsuario(node *Usuario) usuarioOption {
+	return func(m *UsuarioMutation) {
+		m.oldValue = func(context.Context) (*Usuario, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m UsuarioMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m UsuarioMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Usuario entities.
+func (m *UsuarioMutation) SetID(id string) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *UsuarioMutation) ID() (id string, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *UsuarioMutation) IDs(ctx context.Context) ([]string, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []string{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Usuario.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetNome sets the "nome" field.
+func (m *UsuarioMutation) SetNome(s string) {
+	m.nome = &s
+}
+
+// Nome returns the value of the "nome" field in the mutation.
+func (m *UsuarioMutation) Nome() (r string, exists bool) {
+	v := m.nome
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNome returns the old "nome" field's value of the Usuario entity.
+// If the Usuario object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsuarioMutation) OldNome(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNome is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNome requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNome: %w", err)
+	}
+	return oldValue.Nome, nil
+}
+
+// ResetNome resets all changes to the "nome" field.
+func (m *UsuarioMutation) ResetNome() {
+	m.nome = nil
+}
+
+// AddAtribuicoIDs adds the "atribuicoes" edge to the Atribuicao entity by ids.
+func (m *UsuarioMutation) AddAtribuicoIDs(ids ...int) {
+	if m.atribuicoes == nil {
+		m.atribuicoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.atribuicoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAtribuicoes clears the "atribuicoes" edge to the Atribuicao entity.
+func (m *UsuarioMutation) ClearAtribuicoes() {
+	m.clearedatribuicoes = true
+}
+
+// AtribuicoesCleared reports if the "atribuicoes" edge to the Atribuicao entity was cleared.
+func (m *UsuarioMutation) AtribuicoesCleared() bool {
+	return m.clearedatribuicoes
+}
+
+// RemoveAtribuicoIDs removes the "atribuicoes" edge to the Atribuicao entity by IDs.
+func (m *UsuarioMutation) RemoveAtribuicoIDs(ids ...int) {
+	if m.removedatribuicoes == nil {
+		m.removedatribuicoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.atribuicoes, ids[i])
+		m.removedatribuicoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAtribuicoes returns the removed IDs of the "atribuicoes" edge to the Atribuicao entity.
+func (m *UsuarioMutation) RemovedAtribuicoesIDs() (ids []int) {
+	for id := range m.removedatribuicoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// AtribuicoesIDs returns the "atribuicoes" edge IDs in the mutation.
+func (m *UsuarioMutation) AtribuicoesIDs() (ids []int) {
+	for id := range m.atribuicoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAtribuicoes resets all changes to the "atribuicoes" edge.
+func (m *UsuarioMutation) ResetAtribuicoes() {
+	m.atribuicoes = nil
+	m.clearedatribuicoes = false
+	m.removedatribuicoes = nil
+}
+
+// Where appends a list predicates to the UsuarioMutation builder.
+func (m *UsuarioMutation) Where(ps ...predicate.Usuario) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the UsuarioMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *UsuarioMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Usuario, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *UsuarioMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *UsuarioMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Usuario).
+func (m *UsuarioMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *UsuarioMutation) Fields() []string {
+	fields := make([]string, 0, 1)
+	if m.nome != nil {
+		fields = append(fields, usuario.FieldNome)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *UsuarioMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case usuario.FieldNome:
+		return m.Nome()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *UsuarioMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case usuario.FieldNome:
+		return m.OldNome(ctx)
+	}
+	return nil, fmt.Errorf("unknown Usuario field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UsuarioMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case usuario.FieldNome:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNome(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Usuario field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *UsuarioMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *UsuarioMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *UsuarioMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Usuario numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *UsuarioMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *UsuarioMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *UsuarioMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown Usuario nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *UsuarioMutation) ResetField(name string) error {
+	switch name {
+	case usuario.FieldNome:
+		m.ResetNome()
+		return nil
+	}
+	return fmt.Errorf("unknown Usuario field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *UsuarioMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.atribuicoes != nil {
+		edges = append(edges, usuario.EdgeAtribuicoes)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *UsuarioMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case usuario.EdgeAtribuicoes:
+		ids := make([]ent.Value, 0, len(m.atribuicoes))
+		for id := range m.atribuicoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *UsuarioMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedatribuicoes != nil {
+		edges = append(edges, usuario.EdgeAtribuicoes)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *UsuarioMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case usuario.EdgeAtribuicoes:
+		ids := make([]ent.Value, 0, len(m.removedatribuicoes))
+		for id := range m.removedatribuicoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *UsuarioMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedatribuicoes {
+		edges = append(edges, usuario.EdgeAtribuicoes)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *UsuarioMutation) EdgeCleared(name string) bool {
+	switch name {
+	case usuario.EdgeAtribuicoes:
+		return m.clearedatribuicoes
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *UsuarioMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Usuario unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *UsuarioMutation) ResetEdge(name string) error {
+	switch name {
+	case usuario.EdgeAtribuicoes:
+		m.ResetAtribuicoes()
+		return nil
+	}
+	return fmt.Errorf("unknown Usuario edge %s", name)
 }

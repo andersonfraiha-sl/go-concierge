@@ -7,10 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/papel"
+	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
+	"go-concierge/internal/banco/ent/usuario"
 	"reflect"
 	"sync"
 
@@ -78,10 +83,15 @@ func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			administradora.Table: administradora.ValidColumn,
+			atribuicao.Table:     atribuicao.ValidColumn,
+			concessao.Table:      concessao.ValidColumn,
 			condominio.Table:     condominio.ValidColumn,
 			habilitacao.Table:    habilitacao.ValidColumn,
 			orientacao.Table:     orientacao.ValidColumn,
+			papel.Table:          papel.ValidColumn,
+			papelpermissao.Table: papelpermissao.ValidColumn,
 			payload.Table:        payload.ValidColumn,
+			usuario.Table:        usuario.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

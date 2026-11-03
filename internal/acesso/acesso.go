@@ -91,10 +91,12 @@ func Permitido(a Acesso, p Permissao, alvo Escopo) bool {
 	})
 }
 
-// PermitidoEmAlgum diz se alguma atribuição válida na implantação confere a permissão.
+// PermitidoEmAlgum diz se alguma atribuição válida na implantação confere a permissão,
+// sem olhar para um alvo. Serve só para ler dados globais (catálogos, listas); nunca para
+// escrita nem para dados de administradora, que exigem Permitido com o escopo do alvo.
 func PermitidoEmAlgum(a Acesso, p Permissao) bool {
 	return slices.ContainsFunc(a.Atribuicoes, func(at Atribuicao) bool {
-		return implantacaoAceitaAtribuicao(a, at.Escopo) && atribuicaoTem(a, at, p)
+		return tipoConhecido(at.Escopo.Tipo) && implantacaoAceitaAtribuicao(a, at.Escopo) && atribuicaoTem(a, at, p)
 	})
 }
 
@@ -158,7 +160,7 @@ func contem(a Acesso, externo, interno Escopo) bool {
 	case TipoAdministradora:
 		return externo.ID != "" && administradoraDe(a, interno) == externo.ID
 	case TipoCondominio:
-		return interno == externo
+		return externo.ID != "" && interno == externo
 	}
 	return false
 }
@@ -172,6 +174,10 @@ func administradoraDe(a Acesso, e Escopo) string {
 		return a.AdministradoraDe[e.ID]
 	}
 	return ""
+}
+
+func tipoConhecido(t TipoEscopo) bool {
+	return t == TipoSuperlogica || t == TipoAdministradora || t == TipoCondominio
 }
 
 func implantacaoAceita(a Acesso, alvo Escopo) bool {
