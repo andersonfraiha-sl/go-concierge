@@ -136,8 +136,23 @@ e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
 
 ```bash
 ./build.sh            # gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (no contêiner, sem Go local)
-./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
+./build.sh --run      # sobe o Postgres do compose, espera ficar saudável e roda o okf-admin
 ```
+
+O okf-admin exige o Postgres (`DATABASE_URL`). O `--run` cuida disso: sobe o serviço
+`postgres` do compose e, sem `DATABASE_URL` no ambiente nem no `.env`, usa
+`postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable`. Rodando o
+binário à mão:
+
+```bash
+docker compose up -d --wait postgres
+DATABASE_URL='postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable' \
+  ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
+```
+
+As migrations rodam no boot com `AMBIENTE` vazio ou `dev` (do ambiente ou do `.env`);
+`-migrar=false` desliga. Os testes de `internal/banco` sobem um Postgres por
+testcontainers, então precisam do Docker de pé.
 
 Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
 casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
