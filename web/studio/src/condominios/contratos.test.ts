@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { EstadoSchema, habilitacaoDe, PADRAO } from './contratos';
+import {
+  EstadoSchema,
+  faltamIds,
+  ferramentasDaSkill,
+  ferramentasGerais,
+  habilitacaoDe,
+  PADRAO,
+} from './contratos';
 import { estadoFalso } from './estadoFalso';
 
 describe('contratos de condomínios', () => {
@@ -57,5 +64,44 @@ describe('habilitacaoDe', () => {
       habilitacao: { habilitado },
       propria,
     });
+  });
+});
+
+describe('faltamIds', () => {
+  it('flagsMissingIntegrationIds', () => {
+    const condominio = EstadoSchema.parse(estadoFalso).mapeamento.condominios[0];
+    if (!condominio) throw new Error('fixture sem condomínio');
+    expect(faltamIds(condominio)).toBe(false);
+    expect(faltamIds({ ...condominio, tenant: '  ' })).toBe(true);
+    expect(faltamIds({ ...condominio, account: '' })).toBe(true);
+  });
+});
+
+describe('ferramentasDaSkill e ferramentasGerais', () => {
+  const estado = EstadoSchema.parse(estadoFalso);
+
+  it('splitsSkillAndGeneralTools', () => {
+    const agendarMudanca = estado.casos.find((caso) => caso.nome === 'agendar-mudanca');
+    if (!agendarMudanca) throw new Error('fixture sem caso agendar-mudanca');
+
+    expect(ferramentasDaSkill(estado, agendarMudanca).map((f) => f.name)).toEqual([
+      'agenda-mudanca',
+    ]);
+    expect(ferramentasGerais(estado).map((f) => f.name)).toEqual(['horario-portaria']);
+  });
+});
+
+describe('CasoSchema', () => {
+  it('defaultsSummaryAndIconWhenGoOmits', () => {
+    // Simula o Go sem os campos novos: object literal fora do tipo de Caso de propósito.
+    const bruto = structuredClone(estadoFalso) as unknown as { casos: Record<string, unknown>[] };
+    const [primeiro, ...resto] = bruto.casos;
+    if (!primeiro) throw new Error('fixture sem casos');
+    const { resumo: _resumo, icone: _icone, id: _id, ...semResumoEIcone } = primeiro;
+    bruto.casos = [semResumoEIcone, ...resto];
+
+    const estado = EstadoSchema.parse(bruto);
+
+    expect(estado.casos[0]).toMatchObject({ resumo: '', icone: '', id: '' });
   });
 });
