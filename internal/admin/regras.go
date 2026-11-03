@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -20,6 +21,14 @@ func invalido(formato string, args ...any) error {
 }
 
 var reID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// A ordem do mapeamento é a mesma em todo repositório: administradoras por id, condomínios
+// por nome e, no empate, por id (Resolver devolve o primeiro que casa).
+func compararAdministradoras(x, y Administradora) int { return strings.Compare(x.ID, y.ID) }
+
+func compararCondominios(x, y Condominio) int {
+	return cmp.Or(strings.Compare(x.Nome, y.Nome), strings.Compare(x.ID, y.ID))
+}
 
 // prepararAdministradora normaliza e valida a administradora vinda de fora.
 func prepararAdministradora(a Administradora) (Administradora, error) {
@@ -55,7 +64,7 @@ func (m Mapeamento) salvarAdministradora(a Administradora) (Mapeamento, error) {
 		return m, err
 	}
 	m.Administradoras = comItem(m.Administradoras, a, func(x Administradora) bool { return x.ID == a.ID })
-	slices.SortFunc(m.Administradoras, func(x, y Administradora) int { return strings.Compare(x.Nome, y.Nome) })
+	slices.SortFunc(m.Administradoras, compararAdministradoras)
 	return m, nil
 }
 
@@ -79,7 +88,7 @@ func (m Mapeamento) salvarCondominio(c Condominio) (Mapeamento, error) {
 		return m, invalido("administradora desconhecida: %s", c.Administradora)
 	}
 	m.Condominios = comItem(m.Condominios, c, func(x Condominio) bool { return x.ID == c.ID })
-	slices.SortFunc(m.Condominios, func(x, y Condominio) int { return strings.Compare(x.Nome, y.Nome) })
+	slices.SortFunc(m.Condominios, compararCondominios)
 	return m, nil
 }
 
@@ -137,6 +146,9 @@ func (m Mapeamento) salvarOrientacao(condoID string, o Orientacao) (Mapeamento, 
 func (m Mapeamento) salvarAjustes(condoID string, ajustes map[string]map[string]any) (Mapeamento, error) {
 	if err := m.exigirCondominio(condoID); err != nil {
 		return m, err
+	}
+	if _, temVazio := ajustes[""]; temVazio {
+		return m, invalido("recurso vazio")
 	}
 	for recurso, campos := range ajustes {
 		p := mesclarAjustes(m.Payloads[condoID][recurso], campos)

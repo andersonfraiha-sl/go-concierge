@@ -76,6 +76,8 @@ func gerar(ctx context.Context, pasta, nome string) (err error) {
 		schema.WithDialect(dialect.Postgres),
 		schema.WithFormatter(sqltool.GooseFormatter),
 		schema.WithErrNoPlan(true),
+		schema.WithDropColumn(true),
+		schema.WithDropIndex(true),
 	)
 	if err != nil {
 		return fmt.Errorf("abrir migrador do ent: %w", err)

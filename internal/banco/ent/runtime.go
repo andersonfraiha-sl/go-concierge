@@ -4,11 +4,16 @@ package ent
 
 import (
 	"go-concierge/internal/banco/ent/administradora"
+	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/orientacao"
+	"go-concierge/internal/banco/ent/papel"
+	"go-concierge/internal/banco/ent/papelpermissao"
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/schema"
+	"go-concierge/internal/banco/ent/usuario"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -25,6 +30,38 @@ func init() {
 	administradoraDescID := administradoraFields[0].Descriptor()
 	// administradora.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	administradora.IDValidator = administradoraDescID.Validators[0].(func(string) error)
+	atribuicaoFields := schema.Atribuicao{}.Fields()
+	_ = atribuicaoFields
+	// atribuicaoDescUsuarioID is the schema descriptor for usuario_id field.
+	atribuicaoDescUsuarioID := atribuicaoFields[0].Descriptor()
+	// atribuicao.UsuarioIDValidator is a validator for the "usuario_id" field. It is called by the builders before save.
+	atribuicao.UsuarioIDValidator = atribuicaoDescUsuarioID.Validators[0].(func(string) error)
+	// atribuicaoDescPapelID is the schema descriptor for papel_id field.
+	atribuicaoDescPapelID := atribuicaoFields[1].Descriptor()
+	// atribuicao.PapelIDValidator is a validator for the "papel_id" field. It is called by the builders before save.
+	atribuicao.PapelIDValidator = atribuicaoDescPapelID.Validators[0].(func(string) error)
+	// atribuicaoDescEscopoTipo is the schema descriptor for escopo_tipo field.
+	atribuicaoDescEscopoTipo := atribuicaoFields[2].Descriptor()
+	// atribuicao.EscopoTipoValidator is a validator for the "escopo_tipo" field. It is called by the builders before save.
+	atribuicao.EscopoTipoValidator = atribuicaoDescEscopoTipo.Validators[0].(func(string) error)
+	// atribuicaoDescEscopoID is the schema descriptor for escopo_id field.
+	atribuicaoDescEscopoID := atribuicaoFields[3].Descriptor()
+	// atribuicao.DefaultEscopoID holds the default value on creation for the escopo_id field.
+	atribuicao.DefaultEscopoID = atribuicaoDescEscopoID.Default.(string)
+	concessaoFields := schema.Concessao{}.Fields()
+	_ = concessaoFields
+	// concessaoDescAdministradoraID is the schema descriptor for administradora_id field.
+	concessaoDescAdministradoraID := concessaoFields[0].Descriptor()
+	// concessao.AdministradoraIDValidator is a validator for the "administradora_id" field. It is called by the builders before save.
+	concessao.AdministradoraIDValidator = concessaoDescAdministradoraID.Validators[0].(func(string) error)
+	// concessaoDescPapelID is the schema descriptor for papel_id field.
+	concessaoDescPapelID := concessaoFields[1].Descriptor()
+	// concessao.PapelIDValidator is a validator for the "papel_id" field. It is called by the builders before save.
+	concessao.PapelIDValidator = concessaoDescPapelID.Validators[0].(func(string) error)
+	// concessaoDescPermissao is the schema descriptor for permissao field.
+	concessaoDescPermissao := concessaoFields[2].Descriptor()
+	// concessao.PermissaoValidator is a validator for the "permissao" field. It is called by the builders before save.
+	concessao.PermissaoValidator = concessaoDescPermissao.Validators[0].(func(string) error)
 	condominioFields := schema.Condominio{}.Fields()
 	_ = condominioFields
 	// condominioDescNome is the schema descriptor for nome field.
@@ -63,10 +100,36 @@ func init() {
 	orientacaoDescGeral := orientacaoFields[1].Descriptor()
 	// orientacao.DefaultGeral holds the default value on creation for the geral field.
 	orientacao.DefaultGeral = orientacaoDescGeral.Default.(string)
+	papelFields := schema.Papel{}.Fields()
+	_ = papelFields
+	// papelDescID is the schema descriptor for id field.
+	papelDescID := papelFields[0].Descriptor()
+	// papel.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	papel.IDValidator = papelDescID.Validators[0].(func(string) error)
+	papelpermissaoFields := schema.PapelPermissao{}.Fields()
+	_ = papelpermissaoFields
+	// papelpermissaoDescPapelID is the schema descriptor for papel_id field.
+	papelpermissaoDescPapelID := papelpermissaoFields[0].Descriptor()
+	// papelpermissao.PapelIDValidator is a validator for the "papel_id" field. It is called by the builders before save.
+	papelpermissao.PapelIDValidator = papelpermissaoDescPapelID.Validators[0].(func(string) error)
+	// papelpermissaoDescPermissao is the schema descriptor for permissao field.
+	papelpermissaoDescPermissao := papelpermissaoFields[1].Descriptor()
+	// papelpermissao.PermissaoValidator is a validator for the "permissao" field. It is called by the builders before save.
+	papelpermissao.PermissaoValidator = papelpermissaoDescPermissao.Validators[0].(func(string) error)
 	payloadFields := schema.Payload{}.Fields()
 	_ = payloadFields
 	// payloadDescRecurso is the schema descriptor for recurso field.
 	payloadDescRecurso := payloadFields[1].Descriptor()
 	// payload.RecursoValidator is a validator for the "recurso" field. It is called by the builders before save.
 	payload.RecursoValidator = payloadDescRecurso.Validators[0].(func(string) error)
+	usuarioFields := schema.Usuario{}.Fields()
+	_ = usuarioFields
+	// usuarioDescNome is the schema descriptor for nome field.
+	usuarioDescNome := usuarioFields[1].Descriptor()
+	// usuario.NomeValidator is a validator for the "nome" field. It is called by the builders before save.
+	usuario.NomeValidator = usuarioDescNome.Validators[0].(func(string) error)
+	// usuarioDescID is the schema descriptor for id field.
+	usuarioDescID := usuarioFields[0].Descriptor()
+	// usuario.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	usuario.IDValidator = usuarioDescID.Validators[0].(func(string) error)
 }

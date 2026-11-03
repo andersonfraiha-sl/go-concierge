@@ -154,6 +154,11 @@ As migrations rodam no boot com `AMBIENTE` vazio ou `dev` (do ambiente ou do `.e
 `-migrar=false` desliga. Os testes de `internal/banco` sobem um Postgres por
 testcontainers, então precisam do Docker de pé.
 
+O mapeamento das administradoras mora no Postgres. Em `dev`, um banco sem nenhum
+mapeamento ganha no boot uma administradora e um condomínio de exemplo (ligado ao
+`DEFAULT_ACCOUNT_ID`). Fora de `dev` o boot não grava nada: rode `importar-json` antes do
+primeiro boot fora de dev; com o mapeamento vazio o log avisa (WARN).
+
 Três áreas na barra, nesta ordem: **Atendente** (`/console`, o emulador do ATENDE: a conversa do morador como o atendente a vê), **Admin** (`/`, a administradora: seus condomínios e a matriz de
 casos de uso; o seletor no topo emula o login e o servidor recorta o mapeamento por
 `?administradora=<id>`) e **Backdoor**

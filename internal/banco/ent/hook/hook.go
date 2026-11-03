@@ -20,6 +20,30 @@ func (f AdministradoraFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AdministradoraMutation", m)
 }
 
+// The AtribuicaoFunc type is an adapter to allow the use of ordinary
+// function as Atribuicao mutator.
+type AtribuicaoFunc func(context.Context, *ent.AtribuicaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AtribuicaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AtribuicaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AtribuicaoMutation", m)
+}
+
+// The ConcessaoFunc type is an adapter to allow the use of ordinary
+// function as Concessao mutator.
+type ConcessaoFunc func(context.Context, *ent.ConcessaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ConcessaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ConcessaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ConcessaoMutation", m)
+}
+
 // The CondominioFunc type is an adapter to allow the use of ordinary
 // function as Condominio mutator.
 type CondominioFunc func(context.Context, *ent.CondominioMutation) (ent.Value, error)
@@ -56,6 +80,30 @@ func (f OrientacaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.OrientacaoMutation", m)
 }
 
+// The PapelFunc type is an adapter to allow the use of ordinary
+// function as Papel mutator.
+type PapelFunc func(context.Context, *ent.PapelMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PapelFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PapelMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PapelMutation", m)
+}
+
+// The PapelPermissaoFunc type is an adapter to allow the use of ordinary
+// function as PapelPermissao mutator.
+type PapelPermissaoFunc func(context.Context, *ent.PapelPermissaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PapelPermissaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PapelPermissaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PapelPermissaoMutation", m)
+}
+
 // The PayloadFunc type is an adapter to allow the use of ordinary
 // function as Payload mutator.
 type PayloadFunc func(context.Context, *ent.PayloadMutation) (ent.Value, error)
@@ -66,6 +114,18 @@ func (f PayloadFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PayloadMutation", m)
+}
+
+// The UsuarioFunc type is an adapter to allow the use of ordinary
+// function as Usuario mutator.
+type UsuarioFunc func(context.Context, *ent.UsuarioMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f UsuarioFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.UsuarioMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UsuarioMutation", m)
 }
 
 // Condition is a hook condition function.

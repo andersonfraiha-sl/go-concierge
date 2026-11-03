@@ -50,9 +50,12 @@ type Papel struct {
 	Permissoes  []Permissao
 }
 
+// Atribuicao dá um papel num escopo. Em escopo de condomínio, AdministradoraID é a dona do
+// condomínio quando foi atribuído; se ele mudar de administradora, a atribuição deixa de valer.
 type Atribuicao struct {
-	PapelID string
-	Escopo  Escopo
+	PapelID          string
+	Escopo           Escopo
+	AdministradoraID string
 }
 
 type Concessao struct {
@@ -87,14 +90,16 @@ func Permitido(a Acesso, p Permissao, alvo Escopo) bool {
 		return false
 	}
 	return slices.ContainsFunc(a.Atribuicoes, func(at Atribuicao) bool {
-		return contem(a, at.Escopo, alvo) && atribuicaoTem(a, at, p)
+		return vigente(a, at) && contem(a, at.Escopo, alvo) && atribuicaoTem(a, at, p)
 	})
 }
 
-// PermitidoEmAlgum diz se alguma atribuição válida na implantação confere a permissão.
+// PermitidoEmAlgum diz se alguma atribuição válida na implantação confere a permissão,
+// sem olhar para um alvo. Serve só para ler dados globais (catálogos, listas); nunca para
+// escrita nem para dados de administradora, que exigem Permitido com o escopo do alvo.
 func PermitidoEmAlgum(a Acesso, p Permissao) bool {
 	return slices.ContainsFunc(a.Atribuicoes, func(at Atribuicao) bool {
-		return implantacaoAceitaAtribuicao(a, at.Escopo) && atribuicaoTem(a, at, p)
+		return vigente(a, at) && implantacaoAceitaAtribuicao(a, at.Escopo) && atribuicaoTem(a, at, p)
 	})
 }
 
@@ -158,7 +163,7 @@ func contem(a Acesso, externo, interno Escopo) bool {
 	case TipoAdministradora:
 		return externo.ID != "" && administradoraDe(a, interno) == externo.ID
 	case TipoCondominio:
-		return interno == externo
+		return externo.ID != "" && interno == externo
 	}
 	return false
 }
@@ -172,6 +177,18 @@ func administradoraDe(a Acesso, e Escopo) string {
 		return a.AdministradoraDe[e.ID]
 	}
 	return ""
+}
+
+// vigente descarta atribuição de tipo desconhecido e a de condomínio cuja dona registrada
+// não é mais a administradora atual dele.
+func vigente(a Acesso, at Atribuicao) bool {
+	switch at.Escopo.Tipo {
+	case TipoSuperlogica, TipoAdministradora:
+		return true
+	case TipoCondominio:
+		return at.AdministradoraID != "" && a.AdministradoraDe[at.Escopo.ID] == at.AdministradoraID
+	}
+	return false
 }
 
 func implantacaoAceita(a Acesso, alvo Escopo) bool {

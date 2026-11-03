@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"go-concierge/internal/banco/bancotest"
+	"go-concierge/internal/escopo"
 )
 
 func TestMain(m *testing.M) {
@@ -37,6 +39,70 @@ func testarRepositorio(t *testing.T, novo func(t *testing.T) Repositorio) {
 	t.Run("administradoras e visao", func(t *testing.T) { cenarioAdministradoras(t, novo(t)) })
 	t.Run("orientacoes e ajustes", func(t *testing.T) { cenarioOrientacoes(t, novo(t)) })
 	t.Run("padrao regravado", func(t *testing.T) { cenarioPadraoRegravado(t, novo(t)) })
+	t.Run("ordem", func(t *testing.T) { cenarioOrdem(t, novo(t)) })
+	t.Run("escritas simultaneas", func(t *testing.T) { cenarioEscritasSimultaneas(t, novo(t)) })
+}
+
+// cenarioOrdem: administradoras por id; condomínios por nome e, no empate, por id. ResolverCondominio
+// devolve o primeiro que casa, então a ordem decide o condomínio.
+func cenarioOrdem(t *testing.T, r Repositorio) {
+	ctx := t.Context()
+	ok := exigir(t)
+	ok(r.SalvarAdministradora(ctx, Administradora{ID: "adm-z", Nome: "Aaa"}))
+	ok(r.SalvarAdministradora(ctx, Administradora{ID: "adm-a", Nome: "Zzz"}))
+	for _, c := range []Condominio{{ID: "c-z", Nome: "Mesmo", Administradora: "adm-a", Account: "acc", CompanyID: "1", Tenant: "t"}, {ID: "c-a", Nome: "Mesmo", Administradora: "adm-a", Account: "acc", CompanyID: "2", Tenant: "t"}, {ID: "c-m", Nome: "Alfa"}} {
+		ok(r.SalvarCondominio(ctx, c))
+	}
+	m := ok(r.Ler(ctx))
+	adms := []string{}
+	for _, a := range m.Administradoras {
+		adms = append(adms, a.ID)
+	}
+	condos := []string{}
+	for _, c := range m.Condominios {
+		condos = append(condos, c.ID)
+	}
+	if !slices.Equal(adms, []string{"adm-a", "adm-z"}) || !slices.Equal(condos, []string{"c-m", "c-a", "c-z"}) {
+		t.Fatalf("ordem: administradoras %v, condomínios %v", adms, condos)
+	}
+	if c, err := ResolverCondominio(m, escopo.Implantacao{}, "", "t"); err != nil || c.ID != "c-a" {
+		t.Fatalf("empate de tenant na mesma administradora resolve pelo menor id: %s %v", c.ID, err)
+	}
+}
+
+// cenarioEscritasSimultaneas: duas escritas ao mesmo tempo em condomínios diferentes passam
+// as duas (no Postgres, o conflito de serialização é refeito).
+func cenarioEscritasSimultaneas(t *testing.T, r Repositorio) {
+	ctx := t.Context()
+	ok := exigir(t)
+	condos := []string{"c1", "c2"}
+	for _, id := range condos {
+		ok(r.SalvarCondominio(ctx, Condominio{ID: id, Nome: strings.ToUpper(id)}))
+	}
+	const rodadas = 3
+	for rodada := range rodadas {
+		erros := make(chan error, len(condos))
+		var wg sync.WaitGroup
+		for _, id := range condos {
+			wg.Go(func() {
+				_, err := r.SalvarAjustes(ctx, id, map[string]map[string]any{"areas.reservar": {"rodada": rodada}})
+				erros <- err
+			})
+		}
+		wg.Wait()
+		close(erros)
+		for err := range erros {
+			if err != nil {
+				t.Fatalf("rodada %d: %v", rodada, err)
+			}
+		}
+	}
+	m := ok(r.Ler(ctx))
+	for _, id := range condos {
+		if m.Payloads[id]["areas.reservar"]["rodada"] != float64(rodadas-1) {
+			t.Fatalf("escrita de %s perdida: %+v", id, m.Payloads)
+		}
+	}
 }
 
 // exigir falha o teste se a operação deu erro e devolve o mapeamento.
@@ -131,9 +197,8 @@ func cenarioAdministradoras(t *testing.T, r Repositorio) {
 	ok(r.SalvarPayload(ctx, "c1", "unidades.listar", map[string]any{"x": 1}))
 
 	m := ok(r.Ler(ctx))
-	nomes := []string{m.Administradoras[0].Nome, m.Administradoras[1].Nome}
-	if !slices.Equal(nomes, []string{"Alfa", "Beta"}) {
-		t.Fatalf("administradoras normalizadas e por nome: %+v", m.Administradoras)
+	if !slices.Equal(m.Administradoras, []Administradora{{ID: "adm-a", Nome: "Alfa"}, {ID: "adm-b", Nome: "Beta"}}) {
+		t.Fatalf("administradoras normalizadas: %+v", m.Administradoras)
 	}
 	v := m.Visao("adm-a")
 	if len(v.Administradoras) != 1 || v.Administradoras[0].ID != "adm-a" || len(v.Condominios) != 1 || v.Condominios[0].ID != "c1" {
@@ -170,6 +235,7 @@ func cenarioOrientacoes(t *testing.T, r Repositorio) {
 	ok(r.SalvarOrientacao(ctx, Padrao, Orientacao{Geral: "Trate todos por você."}))
 	ok(r.SalvarOrientacao(ctx, "c1", Orientacao{Geral: "A piscina fecha às 22h.", PorCaso: map[string]string{"reserva-area-comum": "Churrasqueira só aos fins de semana.", "faq": "  "}}))
 	nao("condomínio desconhecido")(r.SalvarOrientacao(ctx, "zz", Orientacao{Geral: "x"}))
+	nao("ajuste sem recurso")(r.SalvarAjustes(ctx, "c1", map[string]map[string]any{"": {"x": 1}}))
 	ok(r.SalvarPayload(ctx, "c1", "areas.reservar", map[string]any{"do_backdoor": true, "max_dias": 60}))
 	ok(r.SalvarAjustes(ctx, "c1", map[string]map[string]any{"areas.reservar": {"antecedencia_min_dias": 2, "max_dias": ""}, "unidades.listar": {"company_id": "5982"}}))
 

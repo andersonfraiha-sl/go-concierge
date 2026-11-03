@@ -16,14 +16,24 @@ type Tx struct {
 	config
 	// Administradora is the client for interacting with the Administradora builders.
 	Administradora *AdministradoraClient
+	// Atribuicao is the client for interacting with the Atribuicao builders.
+	Atribuicao *AtribuicaoClient
+	// Concessao is the client for interacting with the Concessao builders.
+	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
 	Condominio *CondominioClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
 	// Orientacao is the client for interacting with the Orientacao builders.
 	Orientacao *OrientacaoClient
+	// Papel is the client for interacting with the Papel builders.
+	Papel *PapelClient
+	// PapelPermissao is the client for interacting with the PapelPermissao builders.
+	PapelPermissao *PapelPermissaoClient
 	// Payload is the client for interacting with the Payload builders.
 	Payload *PayloadClient
+	// Usuario is the client for interacting with the Usuario builders.
+	Usuario *UsuarioClient
 
 	// lazily loaded.
 	client     *Client
@@ -156,10 +166,15 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Administradora = NewAdministradoraClient(tx.config)
+	tx.Atribuicao = NewAtribuicaoClient(tx.config)
+	tx.Concessao = NewConcessaoClient(tx.config)
 	tx.Condominio = NewCondominioClient(tx.config)
 	tx.Habilitacao = NewHabilitacaoClient(tx.config)
 	tx.Orientacao = NewOrientacaoClient(tx.config)
+	tx.Papel = NewPapelClient(tx.config)
+	tx.PapelPermissao = NewPapelPermissaoClient(tx.config)
 	tx.Payload = NewPayloadClient(tx.config)
+	tx.Usuario = NewUsuarioClient(tx.config)
 }
 
 // txDriver wraps the given dialect.Tx with a nop dialect.Driver implementation.

@@ -20,6 +20,82 @@ var (
 		Columns:    AdministradorasColumns,
 		PrimaryKey: []*schema.Column{AdministradorasColumns[0]},
 	}
+	// AtribuicoesColumns holds the columns for the "atribuicoes" table.
+	AtribuicoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "escopo_tipo", Type: field.TypeString},
+		{Name: "escopo_id", Type: field.TypeString, Default: ""},
+		{Name: "papel_id", Type: field.TypeString},
+		{Name: "administradora_id", Type: field.TypeString, Nullable: true},
+		{Name: "usuario_id", Type: field.TypeString},
+	}
+	// AtribuicoesTable holds the schema information for the "atribuicoes" table.
+	AtribuicoesTable = &schema.Table{
+		Name:       "atribuicoes",
+		Columns:    AtribuicoesColumns,
+		PrimaryKey: []*schema.Column{AtribuicoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "atribuicoes_papeis_papel",
+				Columns:    []*schema.Column{AtribuicoesColumns[3]},
+				RefColumns: []*schema.Column{PapeisColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "atribuicoes_administradoras_administradora",
+				Columns:    []*schema.Column{AtribuicoesColumns[4]},
+				RefColumns: []*schema.Column{AdministradorasColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+			{
+				Symbol:     "atribuicoes_usuarios_atribuicoes",
+				Columns:    []*schema.Column{AtribuicoesColumns[5]},
+				RefColumns: []*schema.Column{UsuariosColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "atribuicao_usuario_id_papel_id_escopo_tipo_escopo_id",
+				Unique:  true,
+				Columns: []*schema.Column{AtribuicoesColumns[5], AtribuicoesColumns[3], AtribuicoesColumns[1], AtribuicoesColumns[2]},
+			},
+		},
+	}
+	// ConcessoesColumns holds the columns for the "concessoes" table.
+	ConcessoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "permissao", Type: field.TypeString},
+		{Name: "administradora_id", Type: field.TypeString},
+		{Name: "papel_id", Type: field.TypeString},
+	}
+	// ConcessoesTable holds the schema information for the "concessoes" table.
+	ConcessoesTable = &schema.Table{
+		Name:       "concessoes",
+		Columns:    ConcessoesColumns,
+		PrimaryKey: []*schema.Column{ConcessoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "concessoes_administradoras_administradora",
+				Columns:    []*schema.Column{ConcessoesColumns[2]},
+				RefColumns: []*schema.Column{AdministradorasColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "concessoes_papeis_concessoes",
+				Columns:    []*schema.Column{ConcessoesColumns[3]},
+				RefColumns: []*schema.Column{PapeisColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "concessao_administradora_id_papel_id_permissao",
+				Unique:  true,
+				Columns: []*schema.Column{ConcessoesColumns[2], ConcessoesColumns[3], ConcessoesColumns[1]},
+			},
+		},
+	}
 	// CondominiosColumns holds the columns for the "condominios" table.
 	CondominiosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -114,6 +190,52 @@ var (
 			},
 		},
 	}
+	// PapeisColumns holds the columns for the "papeis" table.
+	PapeisColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "herda_de", Type: field.TypeString, Nullable: true},
+	}
+	// PapeisTable holds the schema information for the "papeis" table.
+	PapeisTable = &schema.Table{
+		Name:       "papeis",
+		Columns:    PapeisColumns,
+		PrimaryKey: []*schema.Column{PapeisColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "papeis_papeis_filhos",
+				Columns:    []*schema.Column{PapeisColumns[1]},
+				RefColumns: []*schema.Column{PapeisColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+	}
+	// PapelPermissoesColumns holds the columns for the "papel_permissoes" table.
+	PapelPermissoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "permissao", Type: field.TypeString},
+		{Name: "papel_id", Type: field.TypeString},
+	}
+	// PapelPermissoesTable holds the schema information for the "papel_permissoes" table.
+	PapelPermissoesTable = &schema.Table{
+		Name:       "papel_permissoes",
+		Columns:    PapelPermissoesColumns,
+		PrimaryKey: []*schema.Column{PapelPermissoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "papel_permissoes_papeis_permissoes",
+				Columns:    []*schema.Column{PapelPermissoesColumns[2]},
+				RefColumns: []*schema.Column{PapeisColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "papelpermissao_papel_id_permissao",
+				Unique:  true,
+				Columns: []*schema.Column{PapelPermissoesColumns[2], PapelPermissoesColumns[1]},
+			},
+		},
+	}
 	// PayloadsColumns holds the columns for the "payloads" table.
 	PayloadsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -153,17 +275,49 @@ var (
 			},
 		},
 	}
+	// UsuariosColumns holds the columns for the "usuarios" table.
+	UsuariosColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString},
+		{Name: "nome", Type: field.TypeString},
+	}
+	// UsuariosTable holds the schema information for the "usuarios" table.
+	UsuariosTable = &schema.Table{
+		Name:       "usuarios",
+		Columns:    UsuariosColumns,
+		PrimaryKey: []*schema.Column{UsuariosColumns[0]},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AdministradorasTable,
+		AtribuicoesTable,
+		ConcessoesTable,
 		CondominiosTable,
 		HabilitacoesTable,
 		OrientacoesTable,
+		PapeisTable,
+		PapelPermissoesTable,
 		PayloadsTable,
+		UsuariosTable,
 	}
 )
 
 func init() {
+	AtribuicoesTable.ForeignKeys[0].RefTable = PapeisTable
+	AtribuicoesTable.ForeignKeys[1].RefTable = AdministradorasTable
+	AtribuicoesTable.ForeignKeys[2].RefTable = UsuariosTable
+	AtribuicoesTable.Annotation = &entsql.Annotation{
+		Table: "atribuicoes",
+	}
+	AtribuicoesTable.Annotation.Checks = map[string]string{
+		"atribuicoes_administradora_id": "(escopo_tipo = 'condominio') = (administradora_id IS NOT NULL)",
+		"atribuicoes_escopo_id":         "(escopo_tipo = 'superlogica') = (escopo_id = '')",
+		"atribuicoes_escopo_tipo":       "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
+	}
+	ConcessoesTable.ForeignKeys[0].RefTable = AdministradorasTable
+	ConcessoesTable.ForeignKeys[1].RefTable = PapeisTable
+	ConcessoesTable.Annotation = &entsql.Annotation{
+		Table: "concessoes",
+	}
 	CondominiosTable.ForeignKeys[0].RefTable = AdministradorasTable
 	HabilitacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	HabilitacoesTable.Annotation = &entsql.Annotation{
@@ -172,6 +326,14 @@ func init() {
 	OrientacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	OrientacoesTable.Annotation = &entsql.Annotation{
 		Table: "orientacoes",
+	}
+	PapeisTable.ForeignKeys[0].RefTable = PapeisTable
+	PapeisTable.Annotation = &entsql.Annotation{
+		Table: "papeis",
+	}
+	PapelPermissoesTable.ForeignKeys[0].RefTable = PapeisTable
+	PapelPermissoesTable.Annotation = &entsql.Annotation{
+		Table: "papel_permissoes",
 	}
 	PayloadsTable.ForeignKeys[0].RefTable = CondominiosTable
 }

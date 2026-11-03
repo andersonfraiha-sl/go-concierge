@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -25,7 +26,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"time"
 
@@ -187,7 +187,7 @@ func main() {
 	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev.
 	s.admin = admin.NovoPostgres(db.Ent)
 	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
-	if err := semearMapeamento(s.admin, exemplo); err != nil {
+	if err := semearMapeamento(s.admin, os.Getenv("AMBIENTE"), exemplo); err != nil {
 		log.Fatal(err)
 	}
 	s.atende.Mapeamento = s.admin
@@ -223,9 +223,10 @@ func main() {
 
 // migrarPorPadrao liga as migrations no boot só em desenvolvimento; nos demais ambientes
 // elas rodam como job antes do deploy.
-func migrarPorPadrao(ambiente string) bool {
-	return ambiente == "" || ambiente == "dev"
-}
+func migrarPorPadrao(ambiente string) bool { return ehDesenvolvimento(ambiente) }
+
+// ehDesenvolvimento: AMBIENTE vazio ou dev.
+func ehDesenvolvimento(ambiente string) bool { return ambiente == "" || ambiente == "dev" }
 
 // flagInformada diz se a flag veio na linha de comando (e não do padrão).
 func flagInformada(nome string) bool {
@@ -256,33 +257,48 @@ func abrirBanco(url string, migrar bool) (banco.Banco, error) {
 	return db, nil
 }
 
-// semearMapeamento: no primeiro uso, a administradora de exemplo, dona do condomínio de
-// exemplo (ligado à account, ao Gruvi e ao tenant do ATENDE); num mapeamento de antes das
-// administradoras, ela recebe os condomínios sem dona.
-func semearMapeamento(repo admin.Repositorio, exemplo admin.Condominio) error {
+// semearMapeamento: em desenvolvimento, um banco sem mapeamento ganha a administradora de
+// exemplo, dona do condomínio de exemplo (ligado à account, ao Gruvi e ao tenant do ATENDE).
+// Fora de dev o boot não grava nada: mapeamento vazio só gera um WARN pedindo o importar-json.
+func semearMapeamento(repo admin.Repositorio, ambiente string, exemplo admin.Condominio) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
 	defer cancel()
 	m, err := repo.Ler(ctx)
 	if err != nil {
 		return fmt.Errorf("semear mapeamento: %w", err)
 	}
-	if len(m.Condominios) > 0 && len(m.Administradoras) > 0 {
+	if len(m.Condominios) > 0 || len(m.Administradoras) > 0 {
 		return nil
 	}
-	if _, err := repo.SalvarAdministradora(ctx, admin.Administradora{ID: exemplo.Administradora, Nome: "Administradora exemplo"}); err != nil {
+	if !ehDesenvolvimento(ambiente) {
+		slog.WarnContext(ctx, "mapeamento das administradoras vazio; rode okf-admin importar-json",
+			"operacao", "semear_mapeamento", "ambiente", ambiente)
+		return nil
+	}
+	err = gravarExemplo(ctx, repo, exemplo)
+	if errors.Is(err, admin.ErrInvalido) {
+		slog.WarnContext(ctx, "mapeamento de exemplo não semeado", "operacao", "semear_mapeamento", "erro", err)
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("semear mapeamento: %w", err)
 	}
-	semDona := []admin.Condominio{exemplo}
-	if len(m.Condominios) > 0 {
-		semDona = slices.DeleteFunc(m.Condominios, func(c admin.Condominio) bool { return c.Administradora != "" })
-	}
-	for _, c := range semDona {
-		c.Administradora = exemplo.Administradora
-		if _, err := repo.SalvarCondominio(ctx, c); err != nil {
-			return fmt.Errorf("semear mapeamento: %w", err)
-		}
-	}
 	return nil
+}
+
+// gravarExemplo grava o condomínio primeiro, ainda sem dona: um DEFAULT_ACCOUNT_ID fora da
+// regra de id é recusado antes de qualquer outra escrita.
+func gravarExemplo(ctx context.Context, repo admin.Repositorio, exemplo admin.Condominio) error {
+	semDona := exemplo
+	semDona.Administradora = ""
+	if _, err := repo.SalvarCondominio(ctx, semDona); err != nil {
+		return err
+	}
+	if _, err := repo.SalvarAdministradora(ctx, admin.Administradora{ID: exemplo.Administradora, Nome: "Administradora exemplo"}); err != nil {
+		return err
+	}
+	_, err := repo.SalvarCondominio(ctx, exemplo)
+	return err
 }
 
 // healthz responde 503 quando o Postgres não responde em timeoutHealthz.
