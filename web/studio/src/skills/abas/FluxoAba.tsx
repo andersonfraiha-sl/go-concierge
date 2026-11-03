@@ -1,33 +1,29 @@
 import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useMemo, useRef, useState } from 'react';
-import { z } from 'zod';
 import { usePodeEditar } from '@/acesso/eu';
-import { useFerramentas } from '@/catalogo/contratos';
 import { tituloDe } from '@/ferramentas/contratos';
 import { FluxoCanvas } from '@/fluxo/canvas/FluxoCanvas';
 import { novoBloco } from '@/fluxo/modelo/catalogo';
 import { atualizarBloco, inserirBloco, moverBloco, removerBloco } from '@/fluxo/modelo/edicao';
-import {
-  type Bloco,
-  type Fluxo,
-  type FluxoLido,
-  type Informacao,
-  type ProblemaFluxo,
-  ProblemaFluxoSchema,
-  type TipoBloco,
-} from '@/fluxo/modelo/tipos';
+import type { Fluxo, FluxoLido, Informacao, TipoBloco } from '@/fluxo/modelo/tipos';
 import { validarFluxo } from '@/fluxo/modelo/validar';
 import { BlocoPainel } from '@/fluxo/painel/BlocoPainel';
-import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { InformacoesPainel } from '@/fluxo/painel/InformacoesPainel';
 import { ApiError } from '@/shared/api/http';
-import { listaDoGo } from '@/shared/api/listaDoGo';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { tokens } from '@/theme/tokens';
 import { chaveDoFluxo, salvarFluxo, useFluxo } from '../contratos';
+import {
+  chaveDoProblema,
+  corDoNivel,
+  juntarProblemas,
+  novoId,
+  problemasDaRecusa,
+  useCatalogoDeFerramentas,
+} from './fluxoDaSkill';
 
 type Props = { nome: string; caminho: string };
 
@@ -60,50 +56,6 @@ export function FluxoAba({ nome }: Props): ReactNode {
   }
   return <EditorDeFluxo key={nome} nome={nome} lido={lido.data} />;
 }
-
-const RecusaSchema = z.object({ problemas: listaDoGo(ProblemaFluxoSchema) });
-
-/** Problemas que o servidor mandou junto do 422; null para qualquer outra falha. */
-function problemasDaRecusa(erro: unknown): ProblemaFluxo[] | null {
-  if (!(erro instanceof ApiError) || erro.status !== 422) return null;
-  const lida = RecusaSchema.safeParse(erro.corpo);
-  return lida.success ? lida.data.problemas : null;
-}
-
-const chaveDoProblema = (p: ProblemaFluxo): string =>
-  `${p.blocoId ?? ''}|${p.codigo}|${p.mensagem}`;
-
-/** Os locais valem sempre; os do servidor, os do fluxo todo e os de blocos que ainda existem, sem repetir os locais. */
-function juntarProblemas(
-  locais: ProblemaFluxo[],
-  doServidor: ProblemaFluxo[],
-  blocos: readonly Bloco[],
-): ProblemaFluxo[] {
-  const ids = new Set(blocos.map((b) => b.id));
-  const jaVistos = new Set(locais.map(chaveDoProblema));
-  const aindaValidos = doServidor.filter(
-    (p) => (p.blocoId === undefined || ids.has(p.blocoId)) && !jaVistos.has(chaveDoProblema(p)),
-  );
-  return [...locais, ...aindaValidos];
-}
-
-/** Primeiro `bN` livre: curto, legível e sem colidir com os IDs que vieram do servidor. */
-function novoId(blocos: readonly Bloco[]): string {
-  const usados = new Set(blocos.map((b) => b.id));
-  let numero = blocos.length + 1;
-  while (usados.has(`b${numero}`)) numero += 1;
-  return `b${numero}`;
-}
-
-function useCatalogoDeFerramentas(): CatalogoDeFerramentas {
-  const consulta = useFerramentas();
-  if (consulta.isPending) return { estado: 'carregando' };
-  if (consulta.isError) return { estado: 'erro' };
-  return { estado: 'pronto', ferramentas: consulta.data.recursos };
-}
-
-const corDoNivel = (nivel: ProblemaFluxo['nivel']): string =>
-  nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
 
 type EditorProps = { nome: string; lido: FluxoLido };
 

@@ -1,46 +1,19 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  Paper,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Box, Button, Paper, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { Controller, useForm, useWatch } from 'react-hook-form';
-import { z } from 'zod';
-import {
-  type Arquivo,
-  excluirArquivo,
-  lerModeloDeArquivo,
-  type Problema,
-  salvarArquivo,
-  useAgente,
-  useArquivo,
-} from '@/catalogo/contratos';
+import { type Arquivo, lerModeloDeArquivo, salvarArquivo, useAgente } from '@/catalogo/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   ARQUIVO_DE_CASO,
   ARQUIVO_DE_IDENTIDADE,
   ARQUIVO_DE_PERSONA,
-  caminhoNaPasta,
   mensagemDeErro,
   type NoDaArvore,
-  PASTA_INICIAL,
-  PASTAS_DE_ARQUIVOS,
-  type PastaDeArquivos,
-  SUGESTAO_DE_NOME,
   useRecarregarAvancado,
 } from './contratos';
+import { EditorDeArquivo } from './EditorDeArquivo';
 import { ESTILO_DE_CODIGO } from './estilo';
+import { NovoArquivoDialog } from './NovoArquivoDialog';
+import { Problemas } from './ProblemasDoItem';
 
 type Props = { no: NoDaArvore; editar: boolean };
 
@@ -179,184 +152,5 @@ function ListaDaPasta({ grupo, aberto, onAbrir }: ListaProps): ReactNode {
         ),
       )}
     </Box>
-  );
-}
-
-type EditorProps = { agente: string; caminho: string; editar: boolean; onExcluido: () => void };
-
-function EditorDeArquivo(props: EditorProps): ReactNode {
-  const arquivo = useArquivo(props.agente, props.caminho);
-  if (arquivo.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
-  if (arquivo.isError) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography role="alert">Não foi possível abrir o arquivo.</Typography>
-        <Button size="small" onClick={() => void arquivo.refetch()}>
-          Tentar de novo
-        </Button>
-      </Box>
-    );
-  }
-  return <EditorCarregado {...props} conteudoInicial={arquivo.data.conteudo} />;
-}
-
-function EditorCarregado({
-  agente,
-  caminho,
-  editar,
-  onExcluido,
-  conteudoInicial,
-}: EditorProps & { conteudoInicial: string }): ReactNode {
-  const { mostrar } = useSnackbar();
-  const recarregar = useRecarregarAvancado();
-  const [excluindo, setExcluindo] = useState(false);
-  const { control, handleSubmit } = useForm({ defaultValues: { texto: conteudoInicial } });
-
-  const salvar = handleSubmit(async ({ texto }) => {
-    try {
-      await salvarArquivo({ agente, caminho, conteudo: texto });
-      await recarregar();
-      mostrar(`Arquivo ${caminho} salvo`);
-    } catch (erro) {
-      mostrar(mensagemDeErro(erro), 'error');
-    }
-  });
-
-  const excluir = async (): Promise<void> => {
-    setExcluindo(false);
-    try {
-      await excluirArquivo(agente, caminho);
-      await recarregar();
-      onExcluido();
-      mostrar(`Arquivo ${caminho} excluído`);
-    } catch (erro) {
-      mostrar(mensagemDeErro(erro), 'error');
-    }
-  };
-
-  return (
-    <SectionCard
-      titulo={caminho}
-      ajuda="O texto exatamente como está gravado."
-      acao={
-        editar && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button color="error" onClick={() => setExcluindo(true)}>
-              Excluir
-            </Button>
-            <Button variant="contained" onClick={() => void salvar()}>
-              Salvar
-            </Button>
-          </Box>
-        )
-      }
-    >
-      <CampoTexto
-        control={control}
-        name="texto"
-        multiline
-        minRows={16}
-        fullWidth
-        slotProps={{
-          htmlInput: {
-            readOnly: !editar,
-            'aria-label': `Conteúdo de ${caminho}`,
-            style: ESTILO_DE_CODIGO,
-          },
-        }}
-      />
-      <ConfirmDialog
-        aberto={excluindo}
-        titulo={`Excluir ${caminho}?`}
-        texto="O arquivo sai deste item e não dá para desfazer."
-        confirmar="Excluir"
-        onConfirmar={() => void excluir()}
-        onCancelar={() => setExcluindo(false)}
-      />
-    </SectionCard>
-  );
-}
-
-function Problemas({ problemas }: { problemas: Problema[] }): ReactNode {
-  return (
-    <SectionCard titulo="Problemas" ajuda="O que o servidor achou de errado neste item.">
-      {problemas.length === 0 && (
-        <Typography variant="body2">Nenhum problema encontrado.</Typography>
-      )}
-      {problemas.map((problema) => (
-        <Box key={`${problema.onde}-${problema.texto}`}>
-          <Typography variant="body2" color={problema.nivel === 'erro' ? 'error' : 'text.primary'}>
-            {problema.nivel === 'erro' ? 'Erro' : 'Aviso'} em {problema.onde}
-          </Typography>
-          <Typography variant="body2">{problema.texto}</Typography>
-          {problema.solucao && (
-            <Typography variant="caption" color="text.secondary">
-              {problema.solucao}
-            </Typography>
-          )}
-        </Box>
-      ))}
-    </SectionCard>
-  );
-}
-
-const NovoArquivoSchema = z.object({
-  pasta: z.enum(PASTAS_DE_ARQUIVOS),
-  nome: z.string().refine((nome) => nome.trim() !== ''),
-});
-
-type NovoProps = {
-  aberto: boolean;
-  onCriar: (caminho: string) => Promise<void>;
-  onFechar: () => void;
-};
-
-function NovoArquivoDialog({ aberto, onCriar, onFechar }: NovoProps): ReactNode {
-  const { control, handleSubmit, setValue } = useForm({
-    resolver: zodResolver(NovoArquivoSchema),
-    defaultValues: { pasta: PASTA_INICIAL, nome: SUGESTAO_DE_NOME[PASTA_INICIAL] },
-  });
-  const nome = useWatch({ control, name: 'nome' });
-  const criar = handleSubmit(({ pasta, nome }) => onCriar(caminhoNaPasta(pasta, nome.trim())));
-
-  const escolherPasta = (valor: string, mudarPasta: (pasta: PastaDeArquivos) => void): void => {
-    const escolhida = PASTAS_DE_ARQUIVOS.find((p) => p === valor);
-    if (!escolhida) return;
-    mudarPasta(escolhida);
-    setValue('nome', SUGESTAO_DE_NOME[escolhida]);
-  };
-
-  return (
-    <Dialog open={aberto} onClose={onFechar} fullWidth maxWidth="xs">
-      <DialogTitle>Novo arquivo</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-        <Controller
-          control={control}
-          name="pasta"
-          render={({ field }) => (
-            <TextField
-              select
-              size="small"
-              label="Pasta"
-              value={field.value}
-              onChange={(evento) => escolherPasta(evento.target.value, field.onChange)}
-            >
-              {PASTAS_DE_ARQUIVOS.map((p) => (
-                <MenuItem key={p} value={p}>
-                  {p}
-                </MenuItem>
-              ))}
-            </TextField>
-          )}
-        />
-        <CampoTexto control={control} name="nome" size="small" label="Nome do arquivo" />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onFechar}>Cancelar</Button>
-        <Button variant="contained" disabled={nome.trim() === ''} onClick={() => void criar()}>
-          Criar
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }
