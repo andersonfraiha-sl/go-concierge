@@ -1,7 +1,7 @@
 import { useMediaQuery } from '@mui/material';
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
-import { apiGet, type ApiError } from '@/shared/api/http';
+import { type ApiError, apiGet } from '@/shared/api/http';
 
 export const PERMISSOES = [
   'skills.ler',

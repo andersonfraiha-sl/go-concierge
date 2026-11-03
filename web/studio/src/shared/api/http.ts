@@ -39,7 +39,12 @@ export function apiEnviar<S extends z.ZodType>(
   corpo: unknown,
   schema: S,
 ): Promise<z.infer<S>> {
-  return requisitar(metodo, caminho, corpo === undefined ? undefined : JSON.stringify(corpo), schema);
+  return requisitar(
+    metodo,
+    caminho,
+    corpo === undefined ? undefined : JSON.stringify(corpo),
+    schema,
+  );
 }
 
 /** Corpo binário (ex.: zip): mesmo tratamento de erro, papel e timeout do cliente JSON. */
@@ -70,7 +75,12 @@ async function requisitar<S extends z.ZodType>(
   return interpretar(schema, dados, resposta.status);
 }
 
-async function buscar(metodo: Metodo, caminho: string, corpo: BodyInit | undefined, envio: Envio): Promise<Response> {
+async function buscar(
+  metodo: Metodo,
+  caminho: string,
+  corpo: BodyInit | undefined,
+  envio: Envio,
+): Promise<Response> {
   try {
     return await fetch(caminho, {
       method: metodo,

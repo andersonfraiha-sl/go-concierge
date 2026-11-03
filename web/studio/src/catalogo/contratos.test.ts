@@ -36,8 +36,8 @@ const agente = {
 describe('AgenteSchema', () => {
   it('leARespostaDeApiAgente', () => {
     const lido = AgenteSchema.parse(agente);
-    expect(lido.agente.arquivos['rules']).toHaveLength(1);
-    expect(lido.agente.herdados['rules']?.[0]?.herdado_de).toBe('concierge');
+    expect(lido.agente.arquivos.rules).toHaveLength(1);
+    expect(lido.agente.herdados.rules?.[0]?.herdado_de).toBe('concierge');
     expect(lido.recursos).toHaveLength(2);
   });
 
@@ -46,7 +46,10 @@ describe('AgenteSchema', () => {
       agente: { ...agente.agente, arquivos: null, herdados: null, problemas: null },
       recursos: null,
     });
-    expect(lido).toMatchObject({ agente: { arquivos: {}, herdados: {}, problemas: [] }, recursos: [] });
+    expect(lido).toMatchObject({
+      agente: { arquivos: {}, herdados: {}, problemas: [] },
+      recursos: [],
+    });
   });
 });
 
@@ -69,7 +72,14 @@ describe('FerramentasSchema', () => {
           saida: [{ name: 'protocolo', path: 'data.protocolo' }],
           amostra: { protocolo: 'ABC' },
         },
-        { name: 'saude', kind: 'api', visibility: 'public', write: false, description: '', params: null },
+        {
+          name: 'saude',
+          kind: 'api',
+          visibility: 'public',
+          write: false,
+          description: '',
+          params: null,
+        },
       ],
     });
     expect(lido.recursos[0]?.write).toBe(true);
@@ -94,7 +104,9 @@ describe('chamadas', () => {
         return json({ salvo: 'rules/a.md' });
       },
     });
-    await expect(salvarArquivo({ agente: 'ag', caminho: 'rules/a.md', conteudo: 'oi' })).resolves.toBeUndefined();
+    await expect(
+      salvarArquivo({ agente: 'ag', caminho: 'rules/a.md', conteudo: 'oi' }),
+    ).resolves.toBeUndefined();
     expect(corpo).toEqual({ agente: 'ag', caminho: 'rules/a.md', conteudo: 'oi' });
   });
 
@@ -112,7 +124,9 @@ describe('chamadas', () => {
   });
 
   it('leOModeloDeArquivo', async () => {
-    responderCom({ 'GET /api/arquivo/modelo': () => json({ caminho: 'rules/a.md', conteudo: '# Regra' }) });
+    responderCom({
+      'GET /api/arquivo/modelo': () => json({ caminho: 'rules/a.md', conteudo: '# Regra' }),
+    });
     await expect(lerModeloDeArquivo('rules/a.md')).resolves.toBe('# Regra');
   });
 
@@ -124,7 +138,9 @@ describe('chamadas', () => {
         return json({ recurso: 'x', ligado: true, mudancas: ['nada a fazer'] });
       },
     });
-    await expect(vincularFerramenta({ agente: 'ag', nome: 'x', ligar: true })).resolves.toBeUndefined();
+    await expect(
+      vincularFerramenta({ agente: 'ag', nome: 'x', ligar: true }),
+    ).resolves.toBeUndefined();
     expect(corpo).toEqual({ agente: 'ag', nome: 'x', ligar: true });
   });
 });

@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { ApiError, apiEnviar, apiGet } from '@/shared/api/http';
-import { listaDoGo } from '@/shared/api/listaDoGo';
 import {
-  FluxoGravadoSchema,
-  FluxoLidoSchema,
   type Fluxo,
   type FluxoGravado,
+  FluxoGravadoSchema,
+  FluxoLidoSchema,
 } from '@/fluxo/modelo/tipos';
+import { ApiError, apiEnviar, apiGet } from '@/shared/api/http';
+import { listaDoGo } from '@/shared/api/listaDoGo';
 
 export const SkillResumoSchema = z.object({
   nome: z.string(),
@@ -76,11 +76,17 @@ export function useFluxo(nome: string) {
   });
 }
 
-export function salvarTextos(nome: string, corpo: { versao: string; textos: Textos }): Promise<{ versao: string }> {
+export function salvarTextos(
+  nome: string,
+  corpo: { versao: string; textos: Textos },
+): Promise<{ versao: string }> {
   return apiEnviar('PUT', `${caminhoDaSkill(nome)}/textos`, corpo, VersaoSchema);
 }
 
-export function salvarFluxo(nome: string, corpo: { versao: string; fluxo: Fluxo }): Promise<FluxoGravado> {
+export function salvarFluxo(
+  nome: string,
+  corpo: { versao: string; fluxo: Fluxo },
+): Promise<FluxoGravado> {
   return apiEnviar('PUT', `${caminhoDaSkill(nome)}/fluxo`, corpo, FluxoGravadoSchema);
 }
 
@@ -101,7 +107,12 @@ export function useCriarSkill() {
 
 export function useDuplicarSkill() {
   return useMutationDeSkills((c: { origem: string; nome: string; titulo: string }) =>
-    apiEnviar('POST', `${caminhoDaSkill(c.origem)}/duplicar`, { nome: c.nome, titulo: c.titulo }, NomeSchema),
+    apiEnviar(
+      'POST',
+      `${caminhoDaSkill(c.origem)}/duplicar`,
+      { nome: c.nome, titulo: c.titulo },
+      NomeSchema,
+    ),
   );
 }
 

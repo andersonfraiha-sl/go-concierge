@@ -1,14 +1,20 @@
 import AddIcon from '@mui/icons-material/Add';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
+import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
-import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { useCriarSkill, useDuplicarSkill, useExcluirSkill, useSkills, type SkillResumo } from './contratos';
 import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
+import {
+  type SkillResumo,
+  useCriarSkill,
+  useDuplicarSkill,
+  useExcluirSkill,
+  useSkills,
+} from './contratos';
 import { SkillCard } from './SkillCard';
 
 const FRASE_VAZIA =
@@ -63,27 +69,42 @@ export function SkillsPage(): ReactNode {
           Skills
         </Typography>
         {podeCriar && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogo({ tipo: 'nova' })}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setDialogo({ tipo: 'nova' })}
+          >
             Nova skill
           </Button>
         )}
       </Box>
 
-      {skills.isPending && <CircularProgress aria-label="Carregando skills" sx={{ alignSelf: 'center' }} />}
+      {skills.isPending && (
+        <CircularProgress aria-label="Carregando skills" sx={{ alignSelf: 'center' }} />
+      )}
       {skills.isError && (
-        <ErroComRetry mensagem={skills.error.message} onTentarDeNovo={() => void skills.refetch()} />
+        <ErroComRetry
+          mensagem={skills.error.message}
+          onTentarDeNovo={() => void skills.refetch()}
+        />
       )}
       {skills.isSuccess && skills.data.skills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
       {skills.isSuccess && skills.data.skills.length > 0 && (
         <Box
-          sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+          sx={{
+            display: 'grid',
+            gap: 2,
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          }}
         >
           {skills.data.skills.map((skill) => (
             <SkillCard
               key={skill.nome}
               skill={skill}
               onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
-              {...(podeCriar && { onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }) })}
+              {...(podeCriar && {
+                onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }),
+              })}
               {...(podeExcluir && { onExcluir: () => setDialogo({ tipo: 'excluir', skill }) })}
             />
           ))}

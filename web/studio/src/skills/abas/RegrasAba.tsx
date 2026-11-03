@@ -1,12 +1,12 @@
 import AddIcon from '@mui/icons-material/Add';
 import { Box, Button, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
-import { useAgente } from '@/catalogo/contratos';
+import { type ReactNode, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
-import { ErroComRetry } from '@/shared/ui/ErroComRetry';
-import { NomeDialog } from '@/shared/ui/NomeDialog';
+import { useAgente } from '@/catalogo/contratos';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
+import { NomeDialog } from '@/shared/ui/NomeDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { regrasDe, tituloDaRegra, useGestaoDeArquivos } from './arquivosDaSkill';
 import { DocumentoEditavel } from './DocumentoEditavel';
@@ -28,12 +28,21 @@ export function RegrasAba({ caminho }: Props): ReactNode {
   );
 
   return (
-    <SectionCard titulo="Regras" ajuda="Orientações que a skill sempre segue ao responder." acao={botaoNova}>
+    <SectionCard
+      titulo="Regras"
+      ajuda="Orientações que a skill sempre segue ao responder."
+      acao={botaoNova}
+    >
       {agente.isPending && <Typography variant="caption">Carregando…</Typography>}
       {agente.isError && (
-        <ErroComRetry mensagem="Não foi possível carregar as regras." onTentarDeNovo={() => void agente.refetch()} />
+        <ErroComRetry
+          mensagem="Não foi possível carregar as regras."
+          onTentarDeNovo={() => void agente.refetch()}
+        />
       )}
-      {agente.isSuccess && regras.length === 0 && <EmptyState frase="Esta skill ainda não tem regras." />}
+      {agente.isSuccess && regras.length === 0 && (
+        <EmptyState frase="Esta skill ainda não tem regras." />
+      )}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {regras.map((regra) => (
           <DocumentoEditavel

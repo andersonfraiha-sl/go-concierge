@@ -31,11 +31,17 @@ export function moverBloco(f: Fluxo, de: number, para: number): Fluxo {
 export function removerBloco(f: Fluxo, id: string): Fluxo {
   const alvo = f.blocos.find((b) => b.id === id);
   if (!alvo || alvo.tipo === 'responder') return f;
-  return comBlocos(f, f.blocos.filter((b) => b.id !== id));
+  return comBlocos(
+    f,
+    f.blocos.filter((b) => b.id !== id),
+  );
 }
 
 export function atualizarBloco(f: Fluxo, bloco: Bloco): Fluxo {
-  return comBlocos(f, f.blocos.map((b) => (b.id === bloco.id ? bloco : b)));
+  return comBlocos(
+    f,
+    f.blocos.map((b) => (b.id === bloco.id ? bloco : b)),
+  );
 }
 
 /** Posição em que um bloco arrastado cai, dado o y do soltar no canvas. */

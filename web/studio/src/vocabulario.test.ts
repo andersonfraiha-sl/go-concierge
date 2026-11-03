@@ -21,7 +21,11 @@ const TERMOS_PROIBIDOS: readonly RegExp[] = [
   /\bYAML\b/i,
 ];
 
-const telas = import.meta.glob<string>('./**/*.tsx', { query: '?raw', import: 'default', eager: true });
+const telas = import.meta.glob<string>('./**/*.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
 
 const telasForaDoAvancado = Object.entries(telas).filter(
   ([arquivo]) => !arquivo.startsWith('./avancado/') && !arquivo.endsWith('.test.tsx'),
@@ -33,7 +37,9 @@ describe('vocabulário das telas', () => {
   });
 
   it.each(telasForaDoAvancado)('%s não usa termo proibido', (arquivo, conteudo) => {
-    const usados = TERMOS_PROIBIDOS.filter((termo) => termo.test(conteudo)).map((termo) => `${arquivo}: ${termo}`);
+    const usados = TERMOS_PROIBIDOS.filter((termo) => termo.test(conteudo)).map(
+      (termo) => `${arquivo}: ${termo}`,
+    );
     expect(usados).toEqual([]);
   });
 });

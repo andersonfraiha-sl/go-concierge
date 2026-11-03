@@ -25,7 +25,9 @@ describe('SaveIndicator', () => {
 
   it('retriesOnClickWhenFailed', async () => {
     const onTentarDeNovo = vi.fn();
-    render(<SaveIndicator estado={{ tipo: 'erro', mensagem: 'caiu' }} onTentarDeNovo={onTentarDeNovo} />);
+    render(
+      <SaveIndicator estado={{ tipo: 'erro', mensagem: 'caiu' }} onTentarDeNovo={onTentarDeNovo} />,
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }));
     expect(onTentarDeNovo).toHaveBeenCalledTimes(1);
   });

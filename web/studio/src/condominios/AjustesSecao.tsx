@@ -1,18 +1,22 @@
-import { Box, Button, TextField, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Box, Button, Typography } from '@mui/material';
+import { type ReactNode, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import { z } from 'zod';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { CampoAjuste } from './CampoAjuste';
 import {
+  type Ajustes,
+  type Estado,
   PADRAO,
   salvarAjustes,
   sugerirAjustes,
   useAplicarMapeamento,
   useEscopo,
-  type Ajustes,
-  type Estado,
   type Valor,
 } from './contratos';
 
@@ -21,6 +25,8 @@ type Props = { estado: Estado; condominio: string; editavel: boolean };
 export function AjustesSecao({ estado, condominio, editavel }: Props): ReactNode {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
+  // Fora do react-hook-form de propósito: Valor é JSON recursivo e os tipos de caminho do RHF
+  // não instanciam sobre ele (TS2589). Cada CampoAjuste já é um campo controlado deste mapa.
   const [ajustes, setAjustes] = useState<Ajustes>(estado.mapeamento.payloads[condominio] ?? {});
   const ferramentas = estado.recursos.filter((r) => r.definicoes.length > 0);
 
@@ -44,7 +50,9 @@ export function AjustesSecao({ estado, condominio, editavel }: Props): ReactNode
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
       {ferramentas.length === 0 && (
-        <Typography color="text.secondary">Nenhuma ferramenta tem ajustes por condomínio.</Typography>
+        <Typography color="text.secondary">
+          Nenhuma ferramenta tem ajustes por condomínio.
+        </Typography>
       )}
       {ferramentas.map((ferramenta) => (
         <AjustesDaFerramenta
@@ -61,6 +69,8 @@ export function AjustesSecao({ estado, condominio, editavel }: Props): ReactNode
   );
 }
 
+const SugestaoSchema = z.object({ frase: z.string().refine((frase) => frase.trim() !== '') });
+
 type FerramentaProps = {
   ferramenta: Ferramenta;
   condominio: string;
@@ -70,14 +80,23 @@ type FerramentaProps = {
   onMudar: (campos: Record<string, Valor>) => void;
 };
 
-function AjustesDaFerramenta({ ferramenta, condominio, valores, padrao, editavel, onMudar }: FerramentaProps): ReactNode {
+function AjustesDaFerramenta({
+  ferramenta,
+  condominio,
+  valores,
+  padrao,
+  editavel,
+  onMudar,
+}: FerramentaProps): ReactNode {
   const escopo = useEscopo() ?? null;
-  const [frase, setFrase] = useState('');
-  const [pensando, setPensando] = useState(false);
+  const { control, handleSubmit, formState } = useForm({
+    resolver: zodResolver(SugestaoSchema),
+    defaultValues: { frase: '' },
+  });
+  const frase = useWatch({ control, name: 'frase' });
   const [aviso, setAviso] = useState<string | null>(null);
 
-  async function sugerir(): Promise<void> {
-    setPensando(true);
+  const sugerir = handleSubmit(async ({ frase }) => {
     setAviso(null);
     try {
       const sugestao = await sugerirAjustes(
@@ -86,27 +105,33 @@ function AjustesDaFerramenta({ ferramenta, condominio, valores, padrao, editavel
       );
       onMudar(sugestao.payload);
       const semNada = Object.keys(sugestao.payload).length === 0;
-      setAviso(sugestao.nota || (semNada ? 'Não encontrei nada no texto.' : 'Revise os campos preenchidos.'));
+      setAviso(
+        sugestao.nota ||
+          (semNada ? 'Não encontrei nada no texto.' : 'Revise os campos preenchidos.'),
+      );
     } catch (erro) {
       setAviso(erro instanceof Error ? erro.message : String(erro));
-    } finally {
-      setPensando(false);
     }
-  }
+  });
+  const pensando = formState.isSubmitting;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Typography variant="subtitle2">{ferramenta.titulo ?? ferramenta.name}</Typography>
       {editavel && (
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-          <TextField
+          <CampoTexto
+            control={control}
+            name="frase"
             size="small"
             fullWidth
             label="Descreva em uma frase"
-            value={frase}
-            onChange={(e) => setFrase(e.target.value)}
           />
-          <Button variant="outlined" disabled={pensando || frase.trim() === ''} onClick={() => void sugerir()}>
+          <Button
+            variant="outlined"
+            disabled={pensando || frase.trim() === ''}
+            onClick={() => void sugerir()}
+          >
             {pensando ? 'Pensando…' : 'Sugerir'}
           </Button>
         </Box>

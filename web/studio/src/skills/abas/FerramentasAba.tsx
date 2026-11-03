@@ -15,19 +15,19 @@ import {
   Typography,
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
 import {
   chaveDoAgente,
+  type Ferramenta,
+  type RecursoDeclarado,
   useAgente,
   useFerramentas,
   vincularFerramenta,
-  type Ferramenta,
-  type RecursoDeclarado,
 } from '@/catalogo/contratos';
 import { mensagemDe } from '@/shared/api/mensagemDe';
-import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
+import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { vemDoFluxo } from './arquivosDaSkill';
 
@@ -64,7 +64,10 @@ export function FerramentasAba({ caminho }: Props): ReactNode {
     >
       {agente.isPending && <Typography variant="caption">Carregando…</Typography>}
       {agente.isError && (
-        <ErroComRetry mensagem="Não foi possível carregar as ferramentas." onTentarDeNovo={() => void agente.refetch()} />
+        <ErroComRetry
+          mensagem="Não foi possível carregar as ferramentas."
+          onTentarDeNovo={() => void agente.refetch()}
+        />
       )}
       {agente.isSuccess && recursos.length === 0 && (
         <Typography color="text.secondary">Esta skill ainda não usa nenhuma ferramenta.</Typography>
@@ -126,7 +129,11 @@ function LinhaDeFerramenta({ recurso, editavel, onDesligar }: LinhaProps): React
   );
 }
 
-type AdicionarProps = { jaLigadas: string[]; onEscolher: (nome: string) => void; onFechar: () => void };
+type AdicionarProps = {
+  jaLigadas: string[];
+  onEscolher: (nome: string) => void;
+  onFechar: () => void;
+};
 
 function AdicionarFerramenta({ jaLigadas, onEscolher, onFechar }: AdicionarProps): ReactNode {
   const ferramentas = useFerramentas();
@@ -140,7 +147,10 @@ function AdicionarFerramenta({ jaLigadas, onEscolher, onFechar }: AdicionarProps
       <DialogContent>
         {ferramentas.isPending && <Typography variant="caption">Carregando…</Typography>}
         {ferramentas.isError && (
-          <ErroComRetry mensagem="Não foi possível carregar a lista." onTentarDeNovo={() => void ferramentas.refetch()} />
+          <ErroComRetry
+            mensagem="Não foi possível carregar a lista."
+            onTentarDeNovo={() => void ferramentas.refetch()}
+          />
         )}
         {ferramentas.isSuccess && disponiveis.length === 0 && (
           <Typography color="text.secondary">Não há mais ferramentas para adicionar.</Typography>
@@ -148,7 +158,10 @@ function AdicionarFerramenta({ jaLigadas, onEscolher, onFechar }: AdicionarProps
         <List>
           {disponiveis.map((ferramenta) => (
             <ListItemButton key={ferramenta.name} onClick={() => onEscolher(ferramenta.name)}>
-              <ListItemText primary={ferramenta.titulo ?? ferramenta.name} secondary={ferramenta.description} />
+              <ListItemText
+                primary={ferramenta.titulo ?? ferramenta.name}
+                secondary={ferramenta.description}
+              />
             </ListItemButton>
           ))}
         </List>

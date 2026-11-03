@@ -1,10 +1,18 @@
 import { z } from 'zod';
-import { FerramentasSchema, type Ferramenta } from '@/catalogo/contratos';
+import { type Ferramenta, FerramentasSchema } from '@/catalogo/contratos';
 import { apiEnviar } from '@/shared/api/http';
 
 export type Ferramentas = z.infer<typeof FerramentasSchema>;
 
-export const CLASSES = ['leitura', 'escrita', 'conhecimento', 'memoria', 'acao', 'agente', 'form'] as const;
+export const CLASSES = [
+  'leitura',
+  'escrita',
+  'conhecimento',
+  'memoria',
+  'acao',
+  'agente',
+  'form',
+] as const;
 export type Classe = (typeof CLASSES)[number];
 
 export const GRUPOS: Record<Classe, string> = {
@@ -85,15 +93,24 @@ export function paraGravar(rascunho: Ferramenta, amostra: Amostra & { ok: true }
   const conexao = rascunho.conexao;
   const temConexao =
     conexao !== undefined &&
-    Boolean(aparado(conexao.metodo) || aparado(conexao.url) || aparado(conexao.corpo) || Object.keys(conexao.headers ?? {}).length);
+    Boolean(
+      aparado(conexao.metodo) ||
+        aparado(conexao.url) ||
+        aparado(conexao.corpo) ||
+        Object.keys(conexao.headers ?? {}).length,
+    );
   return {
     ...rascunho,
     name: rascunho.name.trim(),
     titulo: aparado(rascunho.titulo),
     description: rascunho.description.trim(),
     output: aparado(rascunho.output),
-    params: rascunho.params.filter((p) => p.name.trim() !== '').map((p) => ({ ...p, name: p.name.trim() })),
-    saida: rascunho.saida.filter((s) => s.name.trim() !== '').map((s) => ({ ...s, name: s.name.trim() })),
+    params: rascunho.params
+      .filter((p) => p.name.trim() !== '')
+      .map((p) => ({ ...p, name: p.name.trim() })),
+    saida: rascunho.saida
+      .filter((s) => s.name.trim() !== '')
+      .map((s) => ({ ...s, name: s.name.trim() })),
     definicoes: rascunho.definicoes
       .filter((d) => d.name.trim() !== '')
       .map((d) => ({
@@ -106,10 +123,18 @@ export function paraGravar(rascunho: Ferramenta, amostra: Amostra & { ok: true }
   };
 }
 
-export function salvarFerramenta(c: { original: string; recurso: Ferramenta }): Promise<Ferramentas> {
+export function salvarFerramenta(c: {
+  original: string;
+  recurso: Ferramenta;
+}): Promise<Ferramentas> {
   return apiEnviar('PUT', '/api/nexus/recurso', c, FerramentasSchema);
 }
 
 export function removerFerramenta(nome: string): Promise<Ferramentas> {
-  return apiEnviar('DELETE', `/api/nexus/recurso?${new URLSearchParams({ nome })}`, undefined, FerramentasSchema);
+  return apiEnviar(
+    'DELETE',
+    `/api/nexus/recurso?${new URLSearchParams({ nome })}`,
+    undefined,
+    FerramentasSchema,
+  );
 }

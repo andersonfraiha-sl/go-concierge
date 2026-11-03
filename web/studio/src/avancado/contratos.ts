@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { apiEnviar, apiEnviarBinario, apiGet } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
 
-const consulta = (parametros: Record<string, string>): string => new URLSearchParams(parametros).toString();
+const consulta = (parametros: Record<string, string>): string =>
+  new URLSearchParams(parametros).toString();
 
 // ---- árvore de itens (assistente e skills) ----
 
@@ -47,7 +48,14 @@ export function achatar(nos: NoDaArvore[]): NoDaArvore[] {
 
 // ---- arquivos ----
 
-export const PASTAS_DE_ARQUIVOS = ['rules', 'workflows', 'routers', 'knowledge', 'assets', 'evals'] as const;
+export const PASTAS_DE_ARQUIVOS = [
+  'rules',
+  'workflows',
+  'routers',
+  'knowledge',
+  'assets',
+  'evals',
+] as const;
 export type PastaDeArquivos = (typeof PASTAS_DE_ARQUIVOS)[number];
 
 export const ARQUIVO_DE_IDENTIDADE = 'agent.yaml';
@@ -116,9 +124,30 @@ export function salvarOrquestracao(ajuste: Orquestracao): Promise<OrquestracaoLi
 
 /** Os mesmos limites de adminSalvarOrquestracao (cmd/okf-admin/admin.go). */
 export const LIMITES_DE_ORQUESTRACAO = [
-  { campo: 'bind_confidence', rotulo: 'Confiança mínima', min: 0.5, max: 1, passo: 0.05, texto: 'entre 0,5 e 1' },
-  { campo: 'max_itens', rotulo: 'Itens por plano', min: 1, max: 10, passo: 1, texto: 'entre 1 e 10' },
-  { campo: 'max_iteracoes', rotulo: 'Passos por pedido', min: 1, max: 15, passo: 1, texto: 'entre 1 e 15' },
+  {
+    campo: 'bind_confidence',
+    rotulo: 'Confiança mínima',
+    min: 0.5,
+    max: 1,
+    passo: 0.05,
+    texto: 'entre 0,5 e 1',
+  },
+  {
+    campo: 'max_itens',
+    rotulo: 'Itens por plano',
+    min: 1,
+    max: 10,
+    passo: 1,
+    texto: 'entre 1 e 10',
+  },
+  {
+    campo: 'max_iteracoes',
+    rotulo: 'Passos por pedido',
+    min: 1,
+    max: 15,
+    passo: 1,
+    texto: 'entre 1 e 15',
+  },
 ] as const satisfies ReadonlyArray<{
   campo: keyof Orquestracao;
   rotulo: string;
@@ -128,12 +157,17 @@ export const LIMITES_DE_ORQUESTRACAO = [
   texto: string;
 }>;
 
-/** Mensagens de quem ficou fora dos limites; lista vazia quando o ajuste vale. */
-export function validarOrquestracao(ajuste: Orquestracao): string[] {
+export type LimiteFurado = {
+  campo: (typeof LIMITES_DE_ORQUESTRACAO)[number]['campo'];
+  mensagem: string;
+};
+
+/** Campos fora dos limites, com a mensagem; lista vazia quando o ajuste vale. */
+export function validarOrquestracao(ajuste: Orquestracao): LimiteFurado[] {
   return LIMITES_DE_ORQUESTRACAO.filter(({ campo, min, max }) => {
     const valor = ajuste[campo];
     return Number.isNaN(valor) || valor < min || valor > max;
-  }).map(({ rotulo, texto }) => `${rotulo} deve ficar ${texto}.`);
+  }).map(({ campo, rotulo, texto }) => ({ campo, mensagem: `${rotulo} deve ficar ${texto}.` }));
 }
 
 // ---- importar e exportar ----
@@ -141,9 +175,13 @@ export function validarOrquestracao(ajuste: Orquestracao): string[] {
 const ImportadoSchema = z.object({ instalado: z.string(), arquivos: listaDoGo(z.string()) });
 const TIMEOUT_IMPORTACAO_MS = 120_000;
 
-export const urlExportar = (caminho: string): string => `/api/agentes/exportar?${consulta({ agente: caminho })}`;
+export const urlExportar = (caminho: string): string =>
+  `/api/agentes/exportar?${consulta({ agente: caminho })}`;
 
-export function importarZip(caminho: string, arquivo: File): Promise<z.infer<typeof ImportadoSchema>> {
+export function importarZip(
+  caminho: string,
+  arquivo: File,
+): Promise<z.infer<typeof ImportadoSchema>> {
   return apiEnviarBinario(
     'POST',
     `/api/agentes/importar?${consulta({ caminho })}`,
@@ -167,4 +205,5 @@ export function useRecarregarAvancado(): () => Promise<void> {
   };
 }
 
-export const mensagemDeErro = (erro: unknown): string => (erro instanceof Error ? erro.message : String(erro));
+export const mensagemDeErro = (erro: unknown): string =>
+  erro instanceof Error ? erro.message : String(erro);

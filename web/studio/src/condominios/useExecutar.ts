@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { useAplicarMapeamento, useEscopo, type Escopo, type RespostaMapeamento } from './contratos';
+import { type Escopo, type RespostaMapeamento, useAplicarMapeamento, useEscopo } from './contratos';
 
 type Gravacao = (escopo: Escopo) => Promise<RespostaMapeamento>;
 

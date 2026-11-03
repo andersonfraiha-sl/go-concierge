@@ -1,10 +1,12 @@
-import { Box, Button, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Box, Button, Tab, Tabs, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { usePodeEditar } from '@/acesso/eu';
 import { CAMINHO_PERSONA, salvarArquivo, useAgente } from '@/catalogo/contratos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { useSkills } from '@/skills/contratos';
 
@@ -32,12 +34,18 @@ function PersonaDoAgente({ assistente }: { assistente: string }): ReactNode {
   return <PersonaEditor assistente={assistente} personaInicial={agente.data.agente.persona} />;
 }
 
-function PersonaEditor({ assistente, personaInicial }: { assistente: string; personaInicial: string }): ReactNode {
+function PersonaEditor({
+  assistente,
+  personaInicial,
+}: {
+  assistente: string;
+  personaInicial: string;
+}): ReactNode {
   const editavel = usePodeEditar('skills.editar_textos');
   const cliente = useQueryClient();
-  const [persona, setPersona] = useState(personaInicial);
+  const { control } = useForm({ defaultValues: { persona: personaInicial } });
   const { estado, tentarDeNovo } = useAutosave({
-    valor: persona,
+    valor: useWatch({ control, name: 'persona' }),
     salvar: async (conteudo) => {
       await salvarArquivo({ agente: assistente, caminho: CAMINHO_PERSONA, conteudo });
       await cliente.invalidateQueries({ queryKey: ['agente', assistente] });
@@ -50,12 +58,12 @@ function PersonaEditor({ assistente, personaInicial }: { assistente: string; per
       ajuda="A voz da assistente em todas as respostas ao morador."
       acao={<SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
-      <TextField
+      <CampoTexto
+        control={control}
+        name="persona"
         multiline
         minRows={12}
         fullWidth
-        value={persona}
-        onChange={(evento) => setPersona(evento.target.value)}
         slotProps={{ htmlInput: { readOnly: !editavel, 'aria-label': 'Texto da persona' } }}
       />
     </SectionCard>

@@ -1,6 +1,6 @@
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import { Box, Button, Divider, Typography } from '@mui/material';
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import type { Bloco, Informacao, ProblemaFluxo } from '@/fluxo/modelo/tipos';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -17,15 +17,37 @@ type Props = {
   onExcluir: (id: string) => void;
 };
 
-export function BlocoPainel({ bloco, problemas, catalogo, informacoes, editavel, onMudar, onExcluir }: Props): ReactNode {
+export function BlocoPainel({
+  bloco,
+  problemas,
+  catalogo,
+  informacoes,
+  editavel,
+  onMudar,
+  onExcluir,
+}: Props): ReactNode {
   const { rotulo, descricao, cor, Icone } = BLOCOS[bloco.tipo];
   const [confirmando, setConfirmando] = useState(false);
   const podeExcluir = editavel && bloco.tipo !== 'responder';
 
   return (
-    <Box component="section" aria-label="Bloco selecionado" sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}>
+    <Box
+      component="section"
+      aria-label="Bloco selecionado"
+      sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box sx={{ width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: 1, bgcolor: `${cor}1A`, color: cor }}>
+        <Box
+          sx={{
+            width: 36,
+            height: 36,
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: 1,
+            bgcolor: `${cor}1A`,
+            color: cor,
+          }}
+        >
           <Icone fontSize="small" />
         </Box>
         <Box>
@@ -39,11 +61,22 @@ export function BlocoPainel({ bloco, problemas, catalogo, informacoes, editavel,
       </Box>
       <ListaDeProblemas problemas={problemas} />
       <Divider />
-      <CamposDoBloco bloco={bloco} editavel={editavel} catalogo={catalogo} informacoes={informacoes} onMudar={onMudar} />
+      <CamposDoBloco
+        bloco={bloco}
+        editavel={editavel}
+        catalogo={catalogo}
+        informacoes={informacoes}
+        onMudar={onMudar}
+      />
       {podeExcluir && (
         <>
           <Divider />
-          <Button color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setConfirmando(true)} sx={{ alignSelf: 'flex-start' }}>
+          <Button
+            color="error"
+            startIcon={<DeleteOutlineIcon />}
+            onClick={() => setConfirmando(true)}
+            sx={{ alignSelf: 'flex-start' }}
+          >
             Excluir bloco
           </Button>
           <ConfirmDialog
@@ -72,7 +105,12 @@ function ListaDeProblemas({ problemas }: { problemas: readonly ProblemaFluxo[] }
           key={`${p.codigo}-${p.mensagem}`}
           component="li"
           variant="body2"
-          sx={{ color: p.nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning }}
+          sx={{
+            color:
+              p.nivel === 'erro'
+                ? tokens.color.studio.issueError
+                : tokens.color.studio.issueWarning,
+          }}
         >
           {p.mensagem}
         </Typography>

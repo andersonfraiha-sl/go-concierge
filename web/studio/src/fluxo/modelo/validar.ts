@@ -46,7 +46,11 @@ function chavesEmitidas(bloco: Bloco): string[] {
   switch (bloco.tipo) {
     case 'buscar_dados':
     case 'gravar_no_sistema':
-      return ['resource', ...chaveSe('with', bloco.com.length > 0), ...chaveSe('save_as', temTexto(bloco.guardarEm))];
+      return [
+        'resource',
+        ...chaveSe('with', bloco.com.length > 0),
+        ...chaveSe('save_as', temTexto(bloco.guardarEm)),
+      ];
     case 'pedir_escolha':
       return [
         ...chaveSe('param', temTexto(bloco.param)),
@@ -59,7 +63,10 @@ function chavesEmitidas(bloco: Bloco): string[] {
         ...chaveSe('reuse', temTexto(bloco.reaproveitar)),
       ];
     case 'formulario':
-      return [...chaveSe('fields_from', temTexto(bloco.de)), ...chaveSe('save_as', temTexto(bloco.guardarEm))];
+      return [
+        ...chaveSe('fields_from', temTexto(bloco.de)),
+        ...chaveSe('save_as', temTexto(bloco.guardarEm)),
+      ];
     case 'reaproveitar':
       return [
         ...chavesDeSlots(bloco.campos),
@@ -96,7 +103,9 @@ function extrasRepetidos(
   return Object.keys(extra ?? {})
     .sort()
     .filter((chave) => emitidas.includes(chave))
-    .map((chave) => erro('EXTRA_REPETE_CAMPO', `${quem} tem um campo extra repetido: ${chave}.`, blocoId));
+    .map((chave) =>
+      erro('EXTRA_REPETE_CAMPO', `${quem} tem um campo extra repetido: ${chave}.`, blocoId),
+    );
 }
 
 function problemasDoBloco(bloco: Bloco): ProblemaFluxo[] {
@@ -115,7 +124,9 @@ function gravacoesSemConfirmar(blocos: readonly Bloco[]): ProblemaFluxo[] {
     if (bloco.tipo === 'confirmar') confirmado = true;
     if (bloco.tipo !== 'gravar_no_sistema') continue;
     if (!confirmado) {
-      problemas.push(erro('GRAVAR_SEM_CONFIRMAR', 'Coloque um Confirmar antes de gravar no sistema.', bloco.id));
+      problemas.push(
+        erro('GRAVAR_SEM_CONFIRMAR', 'Coloque um Confirmar antes de gravar no sistema.', bloco.id),
+      );
     }
     confirmado = false;
   }
@@ -131,7 +142,8 @@ function problemasDoResponder(blocos: readonly Bloco[]): ProblemaFluxo[] {
   );
   const respostas = blocos.filter((b) => ehResponder(b.tipo)).length;
   const outros = blocos.length - respostas;
-  if (respostas === 0) return [...foraDoFim, erro('SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.')];
+  if (respostas === 0)
+    return [...foraDoFim, erro('SEM_RESPONDER', 'O fluxo precisa terminar com um Responder.')];
   if (respostas === 1 && outros === 0) {
     return [...foraDoFim, erro('FLUXO_VAZIO', 'Adicione ao menos um bloco antes do Responder.')];
   }
@@ -141,7 +153,12 @@ function problemasDoResponder(blocos: readonly Bloco[]): ProblemaFluxo[] {
 /** A gravação de opções simples só guarda o valor: um rótulo diferente se perderia. */
 function problemasDeInformacoes(informacoes: readonly Informacao[]): ProblemaFluxo[] {
   return informacoes.flatMap((info) => [
-    ...extrasRepetidos(undefined, chavesDaInformacao(info), info.extra, `A informação ${info.nome}`),
+    ...extrasRepetidos(
+      undefined,
+      chavesDaInformacao(info),
+      info.extra,
+      `A informação ${info.nome}`,
+    ),
     ...(info.opcoesSimples && info.opcoes.some((o) => o.rotulo !== o.valor)
       ? [
           erro(

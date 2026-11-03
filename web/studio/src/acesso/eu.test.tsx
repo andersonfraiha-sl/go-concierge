@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { pode, podeNoCatalogo, useEu, usePodeEditar, type Eu } from './eu';
+import { type Eu, pode, podeNoCatalogo, useEu, usePodeEditar } from './eu';
 
 const construtor: Eu = {
   id: 'u1',
@@ -18,7 +18,11 @@ const gestor: Eu = {
   permissoes: ['skills.ler', 'skills.editar_textos'],
   administradoraId: 'adm-1',
 };
-const gestorAvancado: Eu = { ...gestor, papel: 'gestor_avancado', permissoes: [...gestor.permissoes, 'studio.avancado'] };
+const gestorAvancado: Eu = {
+  ...gestor,
+  papel: 'gestor_avancado',
+  permissoes: [...gestor.permissoes, 'studio.avancado'],
+};
 
 describe('permissões', () => {
   it.each([

@@ -1,4 +1,11 @@
-import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+} from '@mui/material';
 import type { ReactNode } from 'react';
 
 type Props = {
@@ -10,7 +17,14 @@ type Props = {
   onCancelar: () => void;
 };
 
-export function ConfirmDialog({ aberto, titulo, texto, confirmar, onConfirmar, onCancelar }: Props): ReactNode {
+export function ConfirmDialog({
+  aberto,
+  titulo,
+  texto,
+  confirmar,
+  onConfirmar,
+  onCancelar,
+}: Props): ReactNode {
   return (
     <Dialog open={aberto} onClose={onCancelar}>
       <DialogTitle>{titulo}</DialogTitle>

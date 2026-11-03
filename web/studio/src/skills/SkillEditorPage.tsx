@@ -1,16 +1,18 @@
 import { Box, CircularProgress, Tab, Tabs } from '@mui/material';
-import { useRef, useState, type ReactNode } from 'react';
+import { type ReactNode, useRef } from 'react';
+import { type Control, Controller, useForm } from 'react-hook-form';
 import { useParams, useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { useValoresDoFormulario } from '@/shared/autosave/useValoresDoFormulario';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { InlineTitle } from '@/shared/ui/InlineTitle';
 import { ConhecimentoAba } from './abas/ConhecimentoAba';
 import { FerramentasAba } from './abas/FerramentasAba';
 import { FluxoAba } from './abas/FluxoAba';
 import { RegrasAba } from './abas/RegrasAba';
-import { salvarTextos, useTextos, type Textos } from './contratos';
+import { salvarTextos, type Textos, useTextos } from './contratos';
 import { QuandoUsarAba } from './QuandoUsarAba';
 
 const ABAS = [
@@ -24,9 +26,11 @@ type AbaId = (typeof ABAS)[number]['id'];
 
 const ABA_PADRAO: AbaId = 'quando-usar';
 
-const abaDe = (valor: string | null): AbaId => ABAS.find((aba) => aba.id === valor)?.id ?? ABA_PADRAO;
+const abaDe = (valor: string | null): AbaId =>
+  ABAS.find((aba) => aba.id === valor)?.id ?? ABA_PADRAO;
 
-const aparadasSemVazias = (itens: string[]): string[] => itens.map((i) => i.trim()).filter((i) => i !== '');
+const aparadasSemVazias = (itens: string[]): string[] =>
+  itens.map((i) => i.trim()).filter((i) => i !== '');
 
 /** Frase ou palavra em branco é rascunho na tela, não vai para o servidor. */
 const semVazios = (textos: Textos): Textos => ({
@@ -59,7 +63,8 @@ export function SkillEditorPage(): ReactNode {
 type EditorProps = { nome: string; caminho: string; textosLidos: Textos; versaoLida: string };
 
 function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactNode {
-  const [textos, setTextos] = useState(textosLidos);
+  const { control } = useForm({ defaultValues: textosLidos });
+  const textos = useValoresDoFormulario(control);
   const versao = useRef(versaoLida);
   const editavel = usePodeEditar('skills.editar_textos');
   const [params, setParams] = useSearchParams();
@@ -68,7 +73,10 @@ function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactN
   const { estado, tentarDeNovo } = useAutosave({
     valor: textos,
     salvar: async (valor) => {
-      const gravado = await salvarTextos(nome, { versao: versao.current, textos: semVazios(valor) });
+      const gravado = await salvarTextos(nome, {
+        versao: versao.current,
+        textos: semVazios(valor),
+      });
       versao.current = gravado.versao;
     },
   });
@@ -76,11 +84,17 @@ function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactN
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <InlineTitle
-          rotulo="Nome da skill"
-          valor={textos.titulo}
-          editavel={editavel}
-          onMudar={(titulo) => setTextos({ ...textos, titulo })}
+        <Controller
+          control={control}
+          name="titulo"
+          render={({ field }) => (
+            <InlineTitle
+              rotulo="Nome da skill"
+              valor={field.value}
+              editavel={editavel}
+              onMudar={field.onChange}
+            />
+          )}
         />
         <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
       </Box>
@@ -93,7 +107,13 @@ function Editor({ nome, caminho, textosLidos, versaoLida }: EditorProps): ReactN
           <Tab key={id} value={id} label={rotulo} />
         ))}
       </Tabs>
-      <ConteudoDaAba aba={aba} nome={nome} caminho={caminho} textos={textos} editavel={editavel} onMudar={setTextos} />
+      <ConteudoDaAba
+        aba={aba}
+        nome={nome}
+        caminho={caminho}
+        control={control}
+        editavel={editavel}
+      />
     </Box>
   );
 }
@@ -102,15 +122,14 @@ type ConteudoProps = {
   aba: AbaId;
   nome: string;
   caminho: string;
-  textos: Textos;
+  control: Control<Textos>;
   editavel: boolean;
-  onMudar: (textos: Textos) => void;
 };
 
-function ConteudoDaAba({ aba, nome, caminho, textos, editavel, onMudar }: ConteudoProps): ReactNode {
+function ConteudoDaAba({ aba, nome, caminho, control, editavel }: ConteudoProps): ReactNode {
   switch (aba) {
     case 'quando-usar':
-      return <QuandoUsarAba textos={textos} editavel={editavel} onMudar={onMudar} />;
+      return <QuandoUsarAba control={control} editavel={editavel} />;
     case 'fluxo':
       return <FluxoAba nome={nome} caminho={caminho} />;
     case 'regras':

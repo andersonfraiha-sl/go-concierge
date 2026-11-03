@@ -1,5 +1,6 @@
 import type { Components, Theme } from '@mui/material/styles';
 import { alpha } from '@mui/material/styles';
+import { tokens } from './tokens';
 
 export const componentOverrides: Components<Theme> = {
   MuiCssBaseline: {
@@ -7,8 +8,11 @@ export const componentOverrides: Components<Theme> = {
       ':root': { colorScheme: 'light' },
       '*::-webkit-scrollbar': { width: '6px', height: '6px' },
       '*::-webkit-scrollbar-track': { background: 'transparent' },
-      '*::-webkit-scrollbar-thumb': { background: '#c1c1c1', borderRadius: '3px' },
-      '*::-webkit-scrollbar-thumb:hover': { background: '#a8a8a8' },
+      '*::-webkit-scrollbar-thumb': {
+        background: tokens.color.scrollbar.thumb,
+        borderRadius: '3px',
+      },
+      '*::-webkit-scrollbar-thumb:hover': { background: tokens.color.scrollbar.thumbHover },
     },
   },
   MuiButton: {

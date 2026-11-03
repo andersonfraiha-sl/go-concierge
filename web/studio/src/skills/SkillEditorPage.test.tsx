@@ -53,7 +53,10 @@ describe('SkillEditorPage', () => {
     expect(corpos).toEqual([]);
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos).toEqual([
-      { versao: 'v1', textos: { ...lidos().textos, quandoUsar: 'Quando o morador quer mudar. Sempre.' } },
+      {
+        versao: 'v1',
+        textos: { ...lidos().textos, quandoUsar: 'Quando o morador quer mudar. Sempre.' },
+      },
     ]);
   });
 
@@ -66,7 +69,9 @@ describe('SkillEditorPage', () => {
     await user.clear(campo);
     await user.type(campo, 'Mudança de unidade{Enter}');
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
-    expect(corpos).toEqual([{ versao: 'v1', textos: { ...lidos().textos, titulo: 'Mudança de unidade' } }]);
+    expect(corpos).toEqual([
+      { versao: 'v1', textos: { ...lidos().textos, titulo: 'Mudança de unidade' } },
+    ]);
     expect(await screen.findByText(/Salvo às/)).toBeInTheDocument();
   });
 
@@ -74,9 +79,15 @@ describe('SkillEditorPage', () => {
     const corpos: unknown[] = [];
     responderCom(rotasDoEditor(construtor, corpos));
     const { user } = montar();
-    await user.type(await screen.findByRole('textbox', { name: 'Nova palavra-chave' }), 'elevador{Enter}');
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Nova palavra-chave' }),
+      'elevador{Enter}',
+    );
     await user.click(screen.getByRole('button', { name: 'Adicionar frase' }));
-    await user.type(screen.getByRole('textbox', { name: 'Frase de exemplo 2' }), 'Preciso do elevador');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Frase de exemplo 2' }),
+      'Preciso do elevador',
+    );
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos).toEqual([
       {
@@ -103,7 +114,9 @@ describe('SkillEditorPage', () => {
   });
 
   it('showsNoKeywordsMessageWhenReadOnly', async () => {
-    responderCom(rotasDoEditor(gestor, [], { ...lidos(), textos: { ...lidos().textos, palavrasChave: [] } }));
+    responderCom(
+      rotasDoEditor(gestor, [], { ...lidos(), textos: { ...lidos().textos, palavrasChave: [] } }),
+    );
     montar();
     expect(await screen.findByText('Nenhuma palavra-chave.')).toBeInTheDocument();
   });
@@ -130,7 +143,15 @@ describe('SkillEditorPage', () => {
     responderCom({
       ...rotasDoEditor(construtor, []),
       'GET /api/agente': () =>
-        json({ agente: { caminho: 'skills/agendar-mudanca', nome: 'agendar-mudanca', descricao: '', persona: '' }, recursos: [] }),
+        json({
+          agente: {
+            caminho: 'skills/agendar-mudanca',
+            nome: 'agendar-mudanca',
+            descricao: '',
+            persona: '',
+          },
+          recursos: [],
+        }),
     });
     montar('/skills/agendar-mudanca?aba=regras');
     expect(await screen.findByRole('tab', { name: 'Regras', selected: true })).toBeInTheDocument();

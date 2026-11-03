@@ -28,9 +28,19 @@ const nadaCasa = (query: string): MediaQueryList => ({
 });
 
 // defineProperty, e não vi.stubGlobal: unstubAllGlobals não pode desfazer estes mocks.
-Object.defineProperty(globalThis, 'ResizeObserver', { value: ResizeObserverFalso, configurable: true });
-Object.defineProperty(globalThis, 'DOMMatrixReadOnly', { value: DOMMatrixReadOnlyFalso, configurable: true });
-Object.defineProperty(window, 'matchMedia', { value: nadaCasa, configurable: true, writable: true });
+Object.defineProperty(globalThis, 'ResizeObserver', {
+  value: ResizeObserverFalso,
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'DOMMatrixReadOnly', {
+  value: DOMMatrixReadOnlyFalso,
+  configurable: true,
+});
+Object.defineProperty(window, 'matchMedia', {
+  value: nadaCasa,
+  configurable: true,
+  writable: true,
+});
 
 afterEach(() => {
   cleanup();

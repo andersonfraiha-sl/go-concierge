@@ -11,6 +11,18 @@ const politicas = caminhoDeRegra('politicas.md');
 
 const montar = () => renderComProvedores(<RegrasAba nome="agendar-mudanca" caminho={AGENTE} />);
 
+function Alternavel() {
+  const [visivel, setVisivel] = useState(true);
+  return (
+    <>
+      <button type="button" onClick={() => setVisivel((v) => !v)}>
+        Alternar
+      </button>
+      {visivel && <RegrasAba nome="agendar-mudanca" caminho={AGENTE} />}
+    </>
+  );
+}
+
 const rotasBase = () => ({
   'GET /api/eu': () => json(construtor),
   'GET /api/agente': () =>
@@ -50,7 +62,9 @@ describe('RegrasAba', () => {
     await user.type(campo, ' Sempre.');
     expect(corpos).toEqual([]);
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
-    expect(corpos).toEqual([{ agente: AGENTE, caminho: politicas, conteudo: 'Seja gentil. Sempre.' }]);
+    expect(corpos).toEqual([
+      { agente: AGENTE, caminho: politicas, conteudo: 'Seja gentil. Sempre.' },
+    ]);
   });
 
   it('createsRule', async () => {
@@ -67,7 +81,9 @@ describe('RegrasAba', () => {
     await user.type(screen.getByRole('textbox', { name: 'Nome' }), 'Prazo de resposta');
     await user.click(screen.getByRole('button', { name: 'Criar' }));
     await waitFor(() => expect(corpos).toHaveLength(1));
-    expect(corpos).toEqual([{ agente: AGENTE, caminho: caminhoDeRegra('prazo-de-resposta.md'), conteudo: '' }]);
+    expect(corpos).toEqual([
+      { agente: AGENTE, caminho: caminhoDeRegra('prazo-de-resposta.md'), conteudo: '' },
+    ]);
   });
 
   it('deletesRuleAfterConfirmation', async () => {
@@ -81,7 +97,9 @@ describe('RegrasAba', () => {
     });
     const { user } = montar();
     await user.click(await screen.findByRole('button', { name: 'Excluir Politicas' }));
-    expect(screen.getByText('Excluir a regra "Politicas"? A skill deixa de segui-la.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Excluir a regra "Politicas"? A skill deixa de segui-la.'),
+    ).toBeInTheDocument();
     expect(apagados).toEqual([]);
     await user.click(screen.getByRole('button', { name: 'Excluir' }));
     await waitFor(() => expect(apagados).toEqual([politicas]));
@@ -100,15 +118,6 @@ describe('RegrasAba', () => {
         return json({ salvo: politicas });
       },
     });
-    function Alternavel() {
-      const [visivel, setVisivel] = useState(true);
-      return (
-        <>
-          <button onClick={() => setVisivel((v) => !v)}>Alternar</button>
-          {visivel && <RegrasAba nome="agendar-mudanca" caminho={AGENTE} />}
-        </>
-      );
-    }
     const { user } = renderComProvedores(<Alternavel />);
     const primeiro = await screen.findByRole('textbox', { name: 'Politicas' });
     await waitFor(() => expect(primeiro).toBeEnabled());
@@ -147,7 +156,9 @@ describe('RegrasAba', () => {
     await user.type(campo, ' pendente');
     await user.click(screen.getByRole('button', { name: 'Excluir Politicas' }));
     await user.click(screen.getByRole('button', { name: 'Excluir' }));
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Politicas' })).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Politicas' })).not.toBeInTheDocument(),
+    );
     await new Promise((resolve) => setTimeout(resolve, 1500));
     expect(metodos).toEqual(['DELETE']);
   });
@@ -157,7 +168,9 @@ describe('RegrasAba', () => {
     responderCom({
       ...rotasBase(),
       'GET /api/agente': () =>
-        falhar ? json({ codigo: 'ERRO', mensagem: 'boom' }, 500) : json(agenteLido({ regras: [arquivo(politicas)] })),
+        falhar
+          ? json({ codigo: 'ERRO', mensagem: 'boom' }, 500)
+          : json(agenteLido({ regras: [arquivo(politicas)] })),
     });
     const { user } = montar();
     const tentar = await screen.findByRole('button', { name: 'Tentar de novo' });

@@ -109,10 +109,12 @@ export const AgenteSchema = z.object({
 
 const ConteudoSchema = z.object({ caminho: z.string(), conteudo: z.string() });
 
-const consulta = (parametros: Record<string, string>): string => new URLSearchParams(parametros).toString();
+const consulta = (parametros: Record<string, string>): string =>
+  new URLSearchParams(parametros).toString();
 
 export const chaveDoAgente = (caminho: string) => ['agente', caminho] as const;
-export const chaveDoArquivo = (agente: string, caminho: string) => ['arquivo', agente, caminho] as const;
+export const chaveDoArquivo = (agente: string, caminho: string) =>
+  ['arquivo', agente, caminho] as const;
 
 export function useAgente(caminho: string) {
   return useQuery({
@@ -135,12 +137,21 @@ export function useFerramentas() {
   });
 }
 
-export async function salvarArquivo(c: { agente: string; caminho: string; conteudo: string }): Promise<void> {
+export async function salvarArquivo(c: {
+  agente: string;
+  caminho: string;
+  conteudo: string;
+}): Promise<void> {
   await apiEnviar('PUT', '/api/arquivo', c, z.object({ salvo: z.string() }));
 }
 
 export async function excluirArquivo(agente: string, caminho: string): Promise<void> {
-  await apiEnviar('DELETE', `/api/arquivo?${consulta({ agente, caminho })}`, undefined, z.object({ excluido: z.string() }));
+  await apiEnviar(
+    'DELETE',
+    `/api/arquivo?${consulta({ agente, caminho })}`,
+    undefined,
+    z.object({ excluido: z.string() }),
+  );
 }
 
 export async function lerModeloDeArquivo(caminho: string): Promise<string> {
@@ -148,6 +159,10 @@ export async function lerModeloDeArquivo(caminho: string): Promise<string> {
   return modelo.conteudo;
 }
 
-export async function vincularFerramenta(c: { agente: string; nome: string; ligar: boolean }): Promise<void> {
+export async function vincularFerramenta(c: {
+  agente: string;
+  nome: string;
+  ligar: boolean;
+}): Promise<void> {
   await apiEnviar('POST', '/api/agente/recursos', c, z.object({ ligado: z.boolean() }));
 }

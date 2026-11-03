@@ -4,7 +4,14 @@ import type { Eu } from '@/acesso/eu';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { FerramentasAba } from './FerramentasAba';
-import { AGENTE, agenteLido, construtor, ferramenta, gestor, recursoDeclarado } from './fixturesDeAbas';
+import {
+  AGENTE,
+  agenteLido,
+  construtor,
+  ferramenta,
+  gestor,
+  recursoDeclarado,
+} from './fixturesDeAbas';
 
 const catalogo = {
   account: 'superlogica',
@@ -32,7 +39,8 @@ const rotas = (eu: Eu, extras: Parameters<typeof responderCom>[0] = {}) => ({
   ...extras,
 });
 
-const montar = () => renderComProvedores(<FerramentasAba nome="agendar-mudanca" caminho={AGENTE} />);
+const montar = () =>
+  renderComProvedores(<FerramentasAba nome="agendar-mudanca" caminho={AGENTE} />);
 
 describe('FerramentasAba', () => {
   it('flowToolsAreLocked', async () => {
@@ -57,7 +65,9 @@ describe('FerramentasAba', () => {
     const chave = await screen.findByLabelText('Usar unidades.consultar');
     await waitFor(() => expect(chave).toBeEnabled());
     await user.click(chave);
-    await waitFor(() => expect(corpos).toEqual([{ agente: AGENTE, nome: 'unidades.consultar', ligar: false }]));
+    await waitFor(() =>
+      expect(corpos).toEqual([{ agente: AGENTE, nome: 'unidades.consultar', ligar: false }]),
+    );
   });
 
   it('addsOnlyReadTools', async () => {

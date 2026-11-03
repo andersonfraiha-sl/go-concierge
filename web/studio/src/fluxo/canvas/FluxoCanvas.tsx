@@ -5,16 +5,21 @@ import {
   Background,
   BackgroundVariant,
   Controls,
-  ReactFlow,
   type NodeChange,
   type OnNodeDrag,
+  ReactFlow,
 } from '@xyflow/react';
-import { useMemo, useState, type ReactNode } from 'react';
-import { ALTURA_BLOCO, ESPACO, indiceAoSoltar } from '@/fluxo/modelo/edicao';
+import { type ReactNode, useMemo, useState } from 'react';
 import { resumoDoBloco } from '@/fluxo/modelo/catalogo';
+import { ALTURA_BLOCO, ESPACO, indiceAoSoltar } from '@/fluxo/modelo/edicao';
 import type { Fluxo, ProblemaFluxo, TipoBloco } from '@/fluxo/modelo/tipos';
 import { tokens } from '@/theme/tokens';
-import { ArestaComMais, PedirInsercaoContext, type ArestaComMaisTipo, type PedirInsercao } from './ArestaComMais';
+import {
+  ArestaComMais,
+  type ArestaComMaisTipo,
+  type PedirInsercao,
+  PedirInsercaoContext,
+} from './ArestaComMais';
 import { BlocoNode, type BlocoNodeTipo } from './BlocoNode';
 import { MenuDeBlocos } from './MenuDeBlocos';
 
@@ -45,7 +50,10 @@ function problemasPorBloco(problemas: readonly ProblemaFluxo[]): Map<string, Pro
 }
 
 /** Nós novos herdam a medida dos antigos: sem ela o React Flow esconde o nó até medir de novo. */
-const comMedidas = (anteriores: readonly BlocoNodeTipo[], novos: BlocoNodeTipo[]): BlocoNodeTipo[] =>
+const comMedidas = (
+  anteriores: readonly BlocoNodeTipo[],
+  novos: BlocoNodeTipo[],
+): BlocoNodeTipo[] =>
   novos.map((no) => {
     const medido = anteriores.find((a) => a.id === no.id)?.measured;
     return medido ? { ...no, measured: medido } : no;
@@ -106,7 +114,12 @@ export function FluxoCanvas({
   );
 
   const aoMudarNos = (mudancas: NodeChange<BlocoNodeTipo>[]) =>
-    setNos((atuais) => applyNodeChanges(mudancas.filter((m) => m.type !== 'select' && m.type !== 'remove'), atuais));
+    setNos((atuais) =>
+      applyNodeChanges(
+        mudancas.filter((m) => m.type !== 'select' && m.type !== 'remove'),
+        atuais,
+      ),
+    );
 
   const aoSoltar: OnNodeDrag<BlocoNodeTipo> = (_, no) => {
     const de = fluxo.blocos.findIndex((b) => b.id === no.id);
@@ -122,7 +135,11 @@ export function FluxoCanvas({
 
   return (
     <PedirInsercaoContext value={pedirInsercao}>
-      <Box component="section" aria-label="Fluxo" sx={{ height: '100%', width: '100%', bgcolor: tokens.color.studio.canvasBg }}>
+      <Box
+        component="section"
+        aria-label="Fluxo"
+        sx={{ height: '100%', width: '100%', bgcolor: tokens.color.studio.canvasBg }}
+      >
         <ReactFlow<BlocoNodeTipo, ArestaComMaisTipo>
           nodes={nos}
           edges={arestas}
@@ -142,10 +159,19 @@ export function FluxoCanvas({
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color={tokens.color.studio.canvasDot} />
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={1.5}
+            color={tokens.color.studio.canvasDot}
+          />
           <Controls showInteractive={false} />
         </ReactFlow>
-        <MenuDeBlocos ancora={pedido?.ancora ?? null} onEscolher={escolher} onFechar={() => setPedido(null)} />
+        <MenuDeBlocos
+          ancora={pedido?.ancora ?? null}
+          onEscolher={escolher}
+          onFechar={() => setPedido(null)}
+        />
       </Box>
     </PedirInsercaoContext>
   );

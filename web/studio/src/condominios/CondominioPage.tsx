@@ -6,7 +6,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
 import { AjustesSecao } from './AjustesSecao';
 import { ComEstado } from './ComEstado';
-import { PADRAO, useEscopo, useEstado, type Estado } from './contratos';
+import { type Estado, PADRAO, useEscopo, useEstado } from './contratos';
 import { IdentificacaoSecao } from './IdentificacaoSecao';
 import { OrientacoesSecao } from './OrientacoesSecao';
 import { SkillsSecao } from './SkillsSecao';
@@ -22,7 +22,9 @@ export function CondominioPage(): ReactNode {
       <Button component={Link} to="/condominios" size="small" sx={{ alignSelf: 'flex-start' }}>
         Condomínios
       </Button>
-      <ComEstado consulta={consulta}>{(estado) => <Ficha key={id} estado={estado} id={id} />}</ComEstado>
+      <ComEstado consulta={consulta}>
+        {(estado) => <Ficha key={id} estado={estado} id={id} />}
+      </ComEstado>
     </Box>
   );
 }

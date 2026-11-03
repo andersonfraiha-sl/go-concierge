@@ -1,33 +1,62 @@
-import { Alert, Box, Button, FormControlLabel, Radio, RadioGroup, TextField, Typography } from '@mui/material';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Alert,
+  Box,
+  Button,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   LIMITES_DE_ORQUESTRACAO,
   MODOS_DE_ORQUESTRACAO,
+  type ModoDeOrquestracao,
   mensagemDeErro,
+  type Orquestracao,
+  type OrquestracaoLida,
   salvarOrquestracao,
   useOrquestracao,
   validarOrquestracao,
-  type ModoDeOrquestracao,
-  type Orquestracao,
-  type OrquestracaoLida,
 } from './contratos';
 
 const MODOS: Record<ModoDeOrquestracao, { nome: string; descricao: string }> = {
-  router: { nome: 'Router', descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.' },
+  router: {
+    nome: 'Router',
+    descricao: 'Escolhe uma skill por mensagem. Serve para pedidos de um item só.',
+  },
   planning: {
     nome: 'Planning',
-    descricao: 'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
+    descricao:
+      'Monta a lista de tudo o que o morador pediu e cumpre item por item. Serve para mensagens com vários pedidos.',
   },
   react: {
     nome: 'ReAct',
-    descricao: 'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
+    descricao:
+      'Pensa, age e observa a cada passo. Serve para pedidos abertos, em que o próximo passo depende do anterior.',
   },
 };
 
-type Rascunho = { modo: ModoDeOrquestracao; bind_confidence: string; max_itens: string; max_iteracoes: string };
+const RascunhoSchema = z
+  .object({
+    modo: z.enum(MODOS_DE_ORQUESTRACAO),
+    bind_confidence: z.string(),
+    max_itens: z.string(),
+    max_iteracoes: z.string(),
+  })
+  .superRefine((rascunho, contexto) => {
+    for (const { campo, mensagem } of validarOrquestracao(ajusteDe(rascunho))) {
+      contexto.addIssue({ code: 'custom', path: [campo], message: mensagem });
+    }
+  });
+type Rascunho = z.infer<typeof RascunhoSchema>;
 
 const rascunhoDe = (ajuste: Orquestracao): Rascunho => ({
   modo: ajuste.modo,
@@ -62,26 +91,23 @@ export function OrquestracaoAba({ editar }: { editar: boolean }): ReactNode {
 function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean }): ReactNode {
   const { mostrar } = useSnackbar();
   const cliente = useQueryClient();
-  const [rascunho, setRascunho] = useState(rascunhoDe(lida.arquivo));
-  const [problemas, setProblemas] = useState<string[]>([]);
-  const [salvando, setSalvando] = useState(false);
+  const { control, handleSubmit, formState } = useForm({
+    resolver: zodResolver(RascunhoSchema),
+    defaultValues: rascunhoDe(lida.arquivo),
+  });
+  const problemas = LIMITES_DE_ORQUESTRACAO.flatMap(
+    ({ campo }) => formState.errors[campo]?.message ?? [],
+  );
 
-  const salvar = async (): Promise<void> => {
-    const ajuste = ajusteDe(rascunho);
-    const invalidos = validarOrquestracao(ajuste);
-    setProblemas(invalidos);
-    if (invalidos.length > 0) return;
-    setSalvando(true);
+  const salvar = handleSubmit(async (rascunho) => {
     try {
-      const gravada = await salvarOrquestracao(ajuste);
+      const gravada = await salvarOrquestracao(ajusteDe(rascunho));
       await cliente.invalidateQueries({ queryKey: ['avancado', 'orquestracao'] });
       mostrar(avisoDeSalvo(gravada));
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
-    } finally {
-      setSalvando(false);
     }
-  };
+  });
 
   return (
     <SectionCard
@@ -89,7 +115,11 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
       ajuda="Como a assistente decide o que fazer com cada mensagem."
       acao={
         editar && (
-          <Button variant="contained" disabled={salvando} onClick={() => void salvar()}>
+          <Button
+            variant="contained"
+            disabled={formState.isSubmitting}
+            onClick={() => void salvar()}
+          >
             Salvar
           </Button>
         )
@@ -97,47 +127,60 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
     >
       {lida.ambiente !== '' && (
         <Alert severity="warning">
-          O ambiente está forçando o modo {lida.ambiente}. O que você salvar aqui só vale quando essa trava sair.
+          O ambiente está forçando o modo {lida.ambiente}. O que você salvar aqui só vale quando
+          essa trava sair.
         </Alert>
       )}
-      <RadioGroup
-        aria-label="Modo"
-        value={rascunho.modo}
-        onChange={(_, valor) => {
-          const modo = MODOS_DE_ORQUESTRACAO.find((m) => m === valor);
-          if (modo) setRascunho({ ...rascunho, modo });
-        }}
-      >
-        {MODOS_DE_ORQUESTRACAO.map((modo) => (
-          <FormControlLabel
-            key={modo}
-            value={modo}
-            disabled={!editar}
-            control={<Radio />}
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {MODOS[modo].nome}
-                  {lida.efetivo.modo === modo && ' (em uso)'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {MODOS[modo].descricao}
-                </Typography>
-              </Box>
-            }
-          />
-        ))}
-      </RadioGroup>
+      <Controller
+        control={control}
+        name="modo"
+        render={({ field }) => (
+          <RadioGroup
+            aria-label="Modo"
+            value={field.value}
+            onChange={(_, valor) => {
+              const modo = MODOS_DE_ORQUESTRACAO.find((m) => m === valor);
+              if (modo) field.onChange(modo);
+            }}
+          >
+            {MODOS_DE_ORQUESTRACAO.map((modo) => (
+              <FormControlLabel
+                key={modo}
+                value={modo}
+                disabled={!editar}
+                control={<Radio />}
+                label={
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {MODOS[modo].nome}
+                      {lida.efetivo.modo === modo && ' (em uso)'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {MODOS[modo].descricao}
+                    </Typography>
+                  </Box>
+                }
+              />
+            ))}
+          </RadioGroup>
+        )}
+      />
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
         {LIMITES_DE_ORQUESTRACAO.map(({ campo, rotulo, min, max, passo }) => (
-          <TextField
+          <Controller
             key={campo}
-            type="number"
-            size="small"
-            label={rotulo}
-            value={rascunho[campo]}
-            onChange={(evento) => setRascunho({ ...rascunho, [campo]: evento.target.value })}
-            slotProps={{ htmlInput: { min, max, step: passo, readOnly: !editar } }}
+            control={control}
+            name={campo}
+            render={({ field }) => (
+              <TextField
+                type="number"
+                size="small"
+                label={rotulo}
+                value={field.value}
+                onChange={field.onChange}
+                slotProps={{ htmlInput: { min, max, step: passo, readOnly: !editar } }}
+              />
+            )}
           />
         ))}
       </Box>

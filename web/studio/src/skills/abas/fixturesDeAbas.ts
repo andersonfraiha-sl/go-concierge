@@ -22,7 +22,12 @@ type Conteudo = {
 };
 
 /** Resposta de `GET /api/agente` no formato que o Go devolve. */
-export const agenteLido = ({ regras = [], documentos = [], herdados = [], recursos = [] }: Conteudo = {}) => ({
+export const agenteLido = ({
+  regras = [],
+  documentos = [],
+  herdados = [],
+  recursos = [],
+}: Conteudo = {}) => ({
   agente: {
     caminho: AGENTE,
     nome: 'agendar-mudanca',
@@ -44,7 +49,11 @@ export const ferramenta = (name: string, write: boolean, titulo = name) => ({
   description: `Descrição de ${titulo}`,
 });
 
-export const recursoDeclarado = (name: string, origem: string, extras: { ok?: boolean; problema?: string } = {}) => ({
+export const recursoDeclarado = (
+  name: string,
+  origem: string,
+  extras: { ok?: boolean; problema?: string } = {},
+) => ({
   nome: name,
   origem,
   ok: extras.ok ?? true,
