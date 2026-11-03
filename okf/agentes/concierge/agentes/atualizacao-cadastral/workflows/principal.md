@@ -1,6 +1,6 @@
 # Workflow — Atualização Cadastral
 
-Atualiza dados cadastrais da unidade (e-mail, veículo, pets...). Os campos do formulário são dinâmicos: vêm do Nexus para a unidade escolhida.
+Atualiza dados cadastrais da unidade (e-mail, veículo, pets...). Os campos do formulário mudam conforme a unidade escolhida.
 
 A ordem do acontecimento (os passos de `caso.yaml`, que o harness executa de forma determinística):
 

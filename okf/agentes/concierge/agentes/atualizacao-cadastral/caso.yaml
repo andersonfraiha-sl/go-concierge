@@ -6,7 +6,7 @@ visibility: private
 icon: file-pen-line
 description: >
   Atualiza dados cadastrais da unidade (e-mail, veículo, pets...). Os campos do
-  formulário são dinâmicos: vêm do Nexus para a unidade escolhida.
+  formulário mudam conforme a unidade escolhida.
 keywords: [cadastro, cadastral, atualizar, alterar, mudar, email, veículo, placa, pet, dados]
 examples:
   - quero atualizar meu cadastro
