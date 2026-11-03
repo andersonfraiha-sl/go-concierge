@@ -18,6 +18,8 @@ export const SkillResumoSchema = z.object({
   tipo: z.string(),
   recursos: listaDoGo(z.string()),
   caminho: z.string(),
+  resumo: z.string().default(''),
+  icone: z.string().default(''),
 });
 export type SkillResumo = z.infer<typeof SkillResumoSchema>;
 
@@ -32,6 +34,8 @@ export const TextosSchema = z.object({
   frasesDeExemplo: listaDoGo(z.string()),
   palavrasChave: listaDoGo(z.string()),
   temFluxo: z.boolean(),
+  resumo: z.string().default(''),
+  visibilidade: z.string().default(''),
 });
 export type Textos = z.infer<typeof TextosSchema>;
 

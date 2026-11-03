@@ -24,6 +24,9 @@ const lidos = (temFluxo = true) => ({
     frasesDeExemplo: ['Quero agendar uma mudança'],
     palavrasChave: ['mudança'],
     temFluxo,
+    // O Go ainda não manda estes dois: o schema completa com string vazia.
+    resumo: '',
+    visibilidade: '',
   },
 });
 

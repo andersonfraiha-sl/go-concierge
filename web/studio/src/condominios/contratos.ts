@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useEu } from '@/acesso/eu';
-import { FerramentaSchema } from '@/catalogo/contratos';
+import { type Ferramenta, FerramentaSchema } from '@/catalogo/contratos';
 import { apiEnviar, apiGet } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
 
@@ -56,6 +56,9 @@ const CasoSchema = z.object({
   descricao: z.string(),
   escrita: z.boolean(),
   recursos: listaDoGo(z.string()),
+  id: z.string().default(''),
+  resumo: z.string().default(''),
+  icone: z.string().default(''),
 });
 export type Caso = z.infer<typeof CasoSchema>;
 
@@ -117,6 +120,11 @@ export const salvarOrientacao = (
 export const salvarAjustes = (corpo: { condominio: string; ajustes: Ajustes }, escopo: Escopo) =>
   gravar('ajustes', escopo, corpo);
 
+export const salvarPayload = (
+  corpo: { condominio: string; recurso: string; payload: Record<string, Valor>; apagar: boolean },
+  escopo: Escopo,
+) => gravar('payload', escopo, corpo);
+
 export const salvarAdministradora = (administradora: Administradora, escopo: Escopo) =>
   gravar('administradora', escopo, administradora);
 
@@ -169,4 +177,24 @@ export function habilitacaoDe(
   if (propria) return { habilitacao: propria, propria: true };
   const doPadrao = condominio === PADRAO ? undefined : mapeamento.habilitacoes[PADRAO]?.[caso];
   return { habilitacao: doPadrao ?? { habilitado: true, papeis: [] }, propria: false };
+}
+
+/** account, company_id ou tenant vazio (depois de trim) trava a integração deste condomínio. */
+export function faltamIds(c: Condominio): boolean {
+  return [c.account, c.company_id, c.tenant].some((valor) => valor.trim() === '');
+}
+
+/** Ferramentas com campo de ajuste que esta skill usa. */
+export function ferramentasDaSkill(estado: Estado, caso: Caso): Ferramenta[] {
+  return estado.recursos.filter(
+    (recurso) => recurso.definicoes.length > 0 && caso.recursos.includes(recurso.name),
+  );
+}
+
+/** Ferramentas com campo de ajuste que não pertencem a nenhuma skill (ajuste geral do condomínio). */
+export function ferramentasGerais(estado: Estado): Ferramenta[] {
+  const usadasPorAlgumaSkill = new Set(estado.casos.flatMap((caso) => caso.recursos));
+  return estado.recursos.filter(
+    (recurso) => recurso.definicoes.length > 0 && !usadasPorAlgumaSkill.has(recurso.name),
+  );
 }
