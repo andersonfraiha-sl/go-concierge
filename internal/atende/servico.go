@@ -529,6 +529,10 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			sess.mu.Lock()
 			sess.IdentErro = err.Error()
 			sess.mu.Unlock()
+			// o morador não fica sem resposta: a falha de vínculo (MCP, B2C) é dita
+			// de forma amigável, e o erro técnico fica no turno
+			s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+			historicoRegistrado = true
 			return sess, err
 		}
 		sess.mu.Lock()

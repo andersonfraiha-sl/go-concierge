@@ -114,3 +114,24 @@ func TestExtratorForaDoArAvisaInstabilidade(t *testing.T) {
 		t.Fatalf("resposta: %q", r.Texto)
 	}
 }
+
+// A consulta de vínculo B2C fora do ar (502 do backend pelo MCP): o morador recebe a
+// frase de instabilidade, não fica sem resposta; o erro técnico fica no turno.
+func TestFalhaNoVinculoB2CViraMensagemAmigavel(t *testing.T) {
+	svc, out, _ := servicoComPedidos(t)
+	svc.Config.MCP = &mcpServicoFalso{erroEmpresa: errors.New("servidor MCP: HTTP error 502: Bad Gateway - <!DOCTYPE html>")}
+	sess, err := svc.Processar(context.Background(), mensagemExemplo(t))
+	if err == nil || !strings.Contains(err.Error(), "502") {
+		t.Fatalf("o erro técnico vai ao log: %v", err)
+	}
+	r := ultimoConcierge(sess)
+	if r.Texto != FraseInstabilidade || !strings.Contains(r.Erro, "502") {
+		t.Fatalf("resposta ao morador: %q (erro: %q)", r.Texto, r.Erro)
+	}
+	if itens := out.Itens(sess.Protocolo); len(itens) != 1 || itens[0].Texto != FraseInstabilidade {
+		t.Fatalf("o morador recebe a frase: %+v", itens)
+	}
+	if sess.IdentErro == "" {
+		t.Fatal("o erro de identidade continua anotado na sessão")
+	}
+}
