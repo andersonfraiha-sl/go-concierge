@@ -2,6 +2,7 @@ package okf
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -51,6 +52,7 @@ func TestValidarFluxo(t *testing.T) {
 		{"fluxo completo", Fluxo{Blocos: blocosDeTipos(BlocoBuscar, BlocoEscolha, BlocoPerguntar, BlocoConfirmar, BlocoGravar, BlocoResponder)}, []ProblemaFluxo{}},
 		{"gravar sem confirmar", Fluxo{Blocos: blocosDeTipos(BlocoBuscar, BlocoGravar, BlocoResponder)}, []ProblemaFluxo{prob("b2", "GRAVAR_SEM_CONFIRMAR", msgConfirmar)}},
 		{"cada confirmar vale uma gravacao", Fluxo{Blocos: blocosDeTipos(BlocoConfirmar, BlocoGravar, BlocoGravar, BlocoResponder)}, []ProblemaFluxo{prob("b3", "GRAVAR_SEM_CONFIRMAR", msgConfirmar)}},
+		{"um confirmar nao vale para duas gravacoes", Fluxo{Blocos: blocosDeTipos(BlocoConfirmar, BlocoConfirmar, BlocoGravar, BlocoGravar, BlocoResponder)}, []ProblemaFluxo{prob("b4", "GRAVAR_SEM_CONFIRMAR", msgConfirmar)}},
 		{"confirmar depois de gravar nao vale", Fluxo{Blocos: blocosDeTipos(BlocoGravar, BlocoConfirmar, BlocoResponder)}, []ProblemaFluxo{prob("b1", "GRAVAR_SEM_CONFIRMAR", msgConfirmar)}},
 		{"sem responder", Fluxo{Blocos: blocosDeTipos(BlocoBuscar)}, []ProblemaFluxo{prob("", "SEM_RESPONDER", "O fluxo precisa terminar com um Responder.")}},
 		{"responder fora do fim", Fluxo{Blocos: blocosDeTipos(BlocoResponder, BlocoBuscar)}, []ProblemaFluxo{prob("b1", "RESPONDER_FORA_DO_FIM", msgFim)}},
@@ -58,6 +60,10 @@ func TestValidarFluxo(t *testing.T) {
 		{"so responder", Fluxo{Blocos: blocosDeTipos(BlocoResponder)}, []ProblemaFluxo{prob("", "FLUXO_VAZIO", "Adicione ao menos um bloco antes do Responder.")}},
 		{"recurso vazio", Fluxo{Blocos: buscarVazio}, []ProblemaFluxo{prob("b1", "BLOCO_INCOMPLETO", "Preencha a ferramenta.")}},
 		{"extra repete campo do bloco", Fluxo{Blocos: extraDuplicado}, []ProblemaFluxo{prob("b1", "EXTRA_REPETE_CAMPO", "Este bloco tem um campo extra repetido: save_as.")}},
+		{"extra da informacao repete campo", Fluxo{
+			Blocos:      blocosDeTipos(BlocoBuscar, BlocoResponder),
+			Informacoes: []Informacao{{Nome: "cor", Extra: map[string]any{"type": "x", "help": "ok"}}},
+		}, []ProblemaFluxo{prob("", "EXTRA_REPETE_CAMPO", "A informação cor tem um campo extra repetido: type.")}},
 		{"extra repete campo de escolha", Fluxo{Blocos: extraEmEscolha}, []ProblemaFluxo{prob("b1", "EXTRA_REPETE_CAMPO", "Este bloco tem um campo extra repetido: title.")}},
 		{"opcoes simples com rotulo diferente", Fluxo{
 			Blocos:      blocosDeTipos(BlocoBuscar, BlocoResponder),
@@ -75,6 +81,27 @@ func TestValidarFluxo(t *testing.T) {
 				t.Fatalf("got %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestValidarFluxoExigeCampoDeCadaTipo(t *testing.T) {
+	tipos := []TipoBloco{BlocoBuscar, BlocoGravar, BlocoEscolha, BlocoPerguntar, BlocoFormulario, BlocoConfirmar, BlocoMontarTexto, BlocoReaproveitar, BlocoResponder}
+	for _, tipo := range tipos {
+		t.Run(string(tipo), func(t *testing.T) {
+			vazio := Bloco{ID: "b1", Tipo: tipo}
+			got := problemasDeBlocos([]Bloco{vazio})
+			if !slices.ContainsFunc(got, func(pr ProblemaFluxo) bool { return pr.Codigo == "BLOCO_INCOMPLETO" && pr.BlocoID == "b1" }) {
+				t.Fatalf("sem BLOCO_INCOMPLETO: %+v", got)
+			}
+		})
+	}
+}
+
+func TestReclassificarMantemRecursoVazio(t *testing.T) {
+	f := Fluxo{Blocos: []Bloco{{ID: "b1", Tipo: BlocoBuscar}, {ID: "b2", Tipo: BlocoGravar}}}
+	got := Reclassificar(f, func(string) bool { return true })
+	if got.Blocos[0].Tipo != BlocoBuscar || got.Blocos[1].Tipo != BlocoGravar {
+		t.Fatalf("recurso vazio não deve mudar de tipo: %+v", got.Blocos)
 	}
 }
 

@@ -53,43 +53,54 @@ var chavesDoBloco = map[TipoBloco][]string{
 	BlocoEscolha:      {"param", "title", "from", "label", "value", "ask", "empty", "reuse"},
 	BlocoFormulario:   {"fields_from", "save_as"},
 	BlocoReaproveitar: {"slot", "slots", "confirm", "from", "label", "value", "ask"},
+	tipoInformacao:    {"name", "title", "ask", "type", "options"},
 }
+
+// tipoInformacao reaproveita a tabela de chaves para os parâmetros do caso (não é um bloco).
+const tipoInformacao TipoBloco = "informacao"
 
 // ValidarFluxo devolve todos os erros que impedem gravar o fluxo; nunca nil.
 func ValidarFluxo(f Fluxo) []ProblemaFluxo {
 	problemas := []ProblemaFluxo{}
 	problemas = append(problemas, problemasDeBlocos(f.Blocos)...)
 	problemas = append(problemas, problemasDeResponder(f.Blocos)...)
-	return append(problemas, problemasDeOpcoes(f.Informacoes)...)
+	return append(problemas, problemasDeInformacoes(f.Informacoes)...)
 }
 
 func problemasDeBlocos(blocos []Bloco) []ProblemaFluxo {
 	var problemas []ProblemaFluxo
-	confirmacoes := 0
 	for _, b := range blocos {
 		if o, ok := obrigatorios[b.Tipo]; ok && !o.preench(b) {
 			problemas = append(problemas, erro(b.ID, "BLOCO_INCOMPLETO", "Preencha "+o.rotulo+"."))
 		}
-		problemas = append(problemas, extrasRepetidos(b)...)
+		problemas = append(problemas, extrasRepetidos(b.ID, b.Tipo, b.Extra, "Este bloco")...)
+	}
+	return append(problemas, gravacoesSemConfirmar(blocos)...)
+}
+
+// gravacoesSemConfirmar: cada Confirmar vale para a próxima gravação, e só para ela.
+func gravacoesSemConfirmar(blocos []Bloco) []ProblemaFluxo {
+	var problemas []ProblemaFluxo
+	confirmado := false
+	for _, b := range blocos {
 		switch b.Tipo {
 		case BlocoConfirmar:
-			confirmacoes++
+			confirmado = true
 		case BlocoGravar:
-			if confirmacoes == 0 {
+			if !confirmado {
 				problemas = append(problemas, erro(b.ID, "GRAVAR_SEM_CONFIRMAR", "Coloque um Confirmar antes de gravar no sistema."))
-				continue
 			}
-			confirmacoes--
+			confirmado = false
 		}
 	}
 	return problemas
 }
 
-func extrasRepetidos(b Bloco) []ProblemaFluxo {
+func extrasRepetidos(blocoID string, tipo TipoBloco, extra map[string]any, quem string) []ProblemaFluxo {
 	var problemas []ProblemaFluxo
-	for _, chave := range slices.Sorted(maps.Keys(b.Extra)) {
-		if slices.Contains(chavesDoBloco[b.Tipo], chave) {
-			problemas = append(problemas, erro(b.ID, "EXTRA_REPETE_CAMPO", "Este bloco tem um campo extra repetido: "+chave+"."))
+	for _, chave := range slices.Sorted(maps.Keys(extra)) {
+		if slices.Contains(chavesDoBloco[tipo], chave) {
+			problemas = append(problemas, erro(blocoID, "EXTRA_REPETE_CAMPO", quem+" tem um campo extra repetido: "+chave+"."))
 		}
 	}
 	return problemas
@@ -117,10 +128,11 @@ func problemasDeResponder(blocos []Bloco) []ProblemaFluxo {
 	return problemas
 }
 
-// problemasDeOpcoes: a gravação de opções simples só guarda o valor, então um rótulo diferente se perderia.
-func problemasDeOpcoes(informacoes []Informacao) []ProblemaFluxo {
+// problemasDeInformacoes: a gravação de opções simples só guarda o valor, então um rótulo diferente se perderia.
+func problemasDeInformacoes(informacoes []Informacao) []ProblemaFluxo {
 	var problemas []ProblemaFluxo
 	for _, info := range informacoes {
+		problemas = append(problemas, extrasRepetidos("", tipoInformacao, info.Extra, "A informação "+info.Nome)...)
 		if info.OpcoesSimples && slices.ContainsFunc(info.Opcoes, func(o Opcao) bool { return o.Rotulo != o.Valor }) {
 			mensagem := fmt.Sprintf("A informação %s tem opções simples com rótulo diferente do valor; o rótulo se perderia.", info.Nome)
 			problemas = append(problemas, erro("", "OPCAO_ROTULO_PERDIDO", mensagem))
@@ -161,6 +173,7 @@ func FerramentasDesconhecidas(f Fluxo, conhecida func(string) bool) []ProblemaFl
 
 var verbosLeitura = []string{"get-", "list-", "find-", "search-", "read-", "fetch-", "show-", "count-", "check-", "health", "hello", "status"}
 
+// EscritaPeloNome("") é true (nome sem verbo de leitura); quem classifica trata recurso vazio antes.
 // EscritaPeloNome deduz pelo último nível do nome (a operação) se a ferramenta grava no sistema.
 func EscritaPeloNome(recurso string) bool {
 	op := strings.ToLower(recurso[strings.LastIndex(recurso, ".")+1:])
