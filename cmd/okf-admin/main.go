@@ -181,6 +181,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	s.rotas(mux)
+	s.rotasStudio(mux)
 	s.rotasAtende(mux)
 	s.rotasAdmin(mux)
 	if mcpCli != nil {
