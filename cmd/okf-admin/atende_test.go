@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -87,30 +91,77 @@ func corpoEventoTeste(evento, tenant, canal string) string {
 	return string(corpo)
 }
 
-func TestWebhookRealBypassHMACEClassificaAntesDeValidarContato(t *testing.T) {
-	s := &servidor{
+const segredoTeste = "segredo-hmac-teste"
+
+func assinaturaTeste(corpo string) string {
+	mac := hmac.New(sha256.New, []byte(segredoTeste))
+	mac.Write([]byte("1." + corpo))
+	return "t=1,v1=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func requisicaoAssinadaTeste(corpo string) *http.Request {
+	r := httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpo))
+	r.Header.Set("X-Atende-Signature", assinaturaTeste(corpo))
+	return r
+}
+
+func servidorWebhookRealTeste() *servidor {
+	return &servidor{
 		atende:       &atende.Servico{Sessoes: atende.NewSessoes()},
 		atendeTenant: "tenant-1", atendeTelefoneCanal: "+55 (19) 4040-2710",
 		atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "nao-exibida",
+		atendeAPISecret: segredoTeste,
 	}
+}
+
+func TestWebhookRealExigeAssinaturaHMAC(t *testing.T) {
+	corpo := corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710")
+	casos := []struct {
+		nome, assinatura string
+		status           int
+	}{
+		{"sem cabecalho", "", 401},
+		{"assinatura incorreta", "t=1,v1=assinatura-incorreta", 401},
+		{"assinatura valida", assinaturaTeste(corpo), 202},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			s := servidorWebhookRealTeste()
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpo))
+			if c.assinatura != "" {
+				r.Header.Set("X-Atende-Signature", c.assinatura)
+			}
+			s.webhookAtende(w, r)
+			if w.Code != c.status || len(s.atende.Sessoes.Lista()) != 0 {
+				t.Fatalf("status=%d (esperado %d) sessoes=%d body=%s", w.Code, c.status, len(s.atende.Sessoes.Lista()), w.Body.String())
+			}
+		})
+	}
+}
+
+func TestWebhookRealSemSegredoConfiguradoRecusa(t *testing.T) {
+	s := servidorWebhookRealTeste()
+	s.atendeAPISecret = ""
+	corpo := corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710")
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpoEventoTeste(atende.EventoMensagemAtendente, "tenant-1", "551940402710")))
-	r.Header.Set("X-Atende-Signature", "t=1,v1=assinatura-incorreta")
+	r := httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpo))
+	r.Header.Set("X-Atende-Signature", assinaturaTeste(corpo))
 	s.webhookAtende(w, r)
-	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
-		t.Fatalf("assinatura não verificada ou sessão humana criada: status=%d body=%s", w.Code, w.Body.String())
+	if w.Code != 401 {
+		t.Fatalf("sem segredo deveria recusar: status=%d", w.Code)
 	}
 }
 
 func TestWebhookIgnoraEventoDesconhecidoERecusaConexaoDivergente(t *testing.T) {
-	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key"}
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes()}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key", atendeAPISecret: segredoTeste}
 	w := httptest.NewRecorder()
-	s.webhookAtende(w, httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpoEventoTeste("com.echo.atende.evento.desconhecido", "outro", "1"))))
+	s.webhookAtende(w, requisicaoAssinadaTeste(corpoEventoTeste("com.echo.atende.evento.desconhecido", "outro", "1")))
 	if w.Code != 202 || len(s.atende.Sessoes.Lista()) != 0 {
 		t.Fatalf("evento desconhecido deveria ser ignorado: status=%d body=%s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()
-	s.webhookAtende(w, httptest.NewRequest("POST", "/webhook/atende", strings.NewReader(corpoEventoTeste(atende.EventoProtocoloFechadoSistema, "outro", "551940402710"))))
+	s.webhookAtende(w, requisicaoAssinadaTeste(corpoEventoTeste(atende.EventoProtocoloFechadoSistema, "outro", "551940402710")))
 	if w.Code != 403 || len(s.atende.Sessoes.Lista()) != 0 {
 		t.Fatalf("conexão divergente deveria ser recusada sem criar sessão: status=%d", w.Code)
 	}
