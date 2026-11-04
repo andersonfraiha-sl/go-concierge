@@ -11,3 +11,10 @@ mcp/.env
 mcp/node_modules/
 mcp/**/session-*.json
 mcp/**/.session-*.json
+web/studio/node_modules/
+web/studio/dist/*
+!web/studio/dist/.gitkeep
+web/studio/*.tsbuildinfo
+# content-addressable store do pnpm quando ./build.sh roda em contêiner (store e install
+# ficam no mesmo filesystem do bind mount, por isso cai na raiz do repo, não em web/studio/).
+.pnpm-store/

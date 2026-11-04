@@ -17,10 +17,18 @@ type Autenticador interface {
 
 const (
 	cabecalhoUsuarioDev = "X-Dev-Usuario"
-	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento:
-	// fora de AUTH_MODE=dev ninguém entra com ele, venha de que autenticador vier.
+	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento,
+	// o padrão de AUTH_DEV_USUARIO.
 	usuarioSemeadoDev = "admin-superlogica"
 )
+
+// usuariosSemeadosDev são os usuários que as migrations semeiam para desenvolvimento: fora de
+// AUTH_MODE=dev ninguém entra com eles, venha de que autenticador vier. Só lido, nunca escrito.
+var usuariosSemeadosDev = map[string]bool{
+	usuarioSemeadoDev: true, "construtor-superlogica": true, "gestor-exemplo": true, "gestor-avancado": true,
+}
+
+func semeadoDev(id string) bool { return usuariosSemeadosDev[id] }
 
 var (
 	errSemUsuario      = errors.New("requisição sem usuário")
@@ -71,14 +79,14 @@ func acessoDe(ctx context.Context) (acesso.Acesso, bool) {
 func (s *servidor) autenticado(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		usuarioID, err := s.autenticador.Autenticar(r)
-		if err != nil || (usuarioID == usuarioSemeadoDev && s.authMode != authModeDev) {
-			responderNaoAutenticado(w)
+		if err != nil || (semeadoDev(usuarioID) && s.authMode != authModeDev) {
+			s.recusarLogin(w)
 			return
 		}
 		anotarUsuario(r.Context(), usuarioID)
 		a, err := s.acessos.Carregar(r.Context(), usuarioID, s.implantacao)
 		if errors.Is(err, acesso.ErrUsuarioDesconhecido) {
-			responderNaoAutenticado(w)
+			s.recusarLogin(w)
 			return
 		}
 		if err != nil {
@@ -89,8 +97,21 @@ func (s *servidor) autenticado(next http.Handler) http.Handler {
 	})
 }
 
+// naoAutenticado é o corpo do 401. Dev diz ao Studio que pode oferecer o "Ver como" mesmo sem
+// /api/eu; fora de AUTH_MODE=dev o campo nem aparece.
+type naoAutenticado struct {
+	Codigo string `json:"codigo"`
+	Error  string `json:"error"`
+	Dev    bool   `json:"dev,omitempty"`
+}
+
 func responderNaoAutenticado(w http.ResponseWriter) {
-	writeJSON(w, http.StatusUnauthorized, map[string]string{"codigo": "NAO_AUTENTICADO", "error": "usuário não autenticado"})
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado"})
+}
+
+// recusarLogin é o 401 do middleware: o único ponto em que o usuário ainda não foi reconhecido.
+func (s *servidor) recusarLogin(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado", Dev: s.authMode == authModeDev})
 }
 
 func responderSemPermissao(w http.ResponseWriter) {

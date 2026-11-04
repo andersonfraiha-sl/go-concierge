@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (_default/30_reserva_area_comum.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: reserva_area_comum
 name: Reserva de Área Comum
+summary: Reserva churrasqueira, salão ou quadra para uma data.
 visibility: private
 icon: calendar-check
 description: Reserva uma área comum do condomínio (churrasqueira, salão de festas, quadra) para uma data.

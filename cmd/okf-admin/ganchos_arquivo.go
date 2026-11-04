@@ -197,7 +197,7 @@ func (s *servidor) lerArquivoAssinado(w http.ResponseWriter, r *http.Request) ([
 	if err := s.exigirSegredo(); err != nil {
 		return nil, err
 	}
-	raw, err := lerCorpo(w, r, limiteArquivo, codigoArquivoGrande)
+	raw, err := lerCorpoBruto(w, r, limiteArquivo, codigoArquivoGrande)
 	if err != nil {
 		return nil, err
 	}

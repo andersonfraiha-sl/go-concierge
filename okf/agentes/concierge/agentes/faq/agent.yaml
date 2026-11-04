@@ -1,5 +1,6 @@
 nome: faq
 tipo: operador
 descricao: dúvidas gerais e operacionais do condomínio — horários (portaria, piscina), endereço, contato da administradora, taxa e boleto — respondidas só com a base de perguntas frequentes
+resumo: "Responde dúvidas gerais: horários, endereço, contato, boleto."
 recursos:
     - faq.buscar

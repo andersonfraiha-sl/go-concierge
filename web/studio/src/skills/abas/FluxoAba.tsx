@@ -1,0 +1,254 @@
+import { Alert, Box, Button, CircularProgress } from '@mui/material';
+import { type QueryClient, useQueryClient } from '@tanstack/react-query';
+import { type Dispatch, type ReactNode, type SetStateAction, useMemo, useState } from 'react';
+import { usePodeEditar } from '@/acesso/eu';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
+import { useCopiloto } from '@/copiloto/CopilotoProvider';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
+import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
+import { tituloDe } from '@/ferramentas/contratos';
+import { FluxoCanvas } from '@/fluxo/canvas/FluxoCanvas';
+import { novoBloco } from '@/fluxo/modelo/catalogo';
+import { inserirBloco, moverBloco, removerBloco } from '@/fluxo/modelo/edicao';
+import type { Fluxo, FluxoLido, ProblemaFluxo, TipoBloco } from '@/fluxo/modelo/tipos';
+import { validarFluxo } from '@/fluxo/modelo/validar';
+import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
+import { ApiError } from '@/shared/api/http';
+import { useAutosave } from '@/shared/autosave/useAutosave';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { tokens } from '@/theme/tokens';
+import { chaveDoFluxo, salvarFluxo, useFluxo } from '../contratos';
+import { BarraDoFluxo } from './BarraDoFluxo';
+import {
+  blocosRealcados,
+  juntarProblemas,
+  novoId,
+  problemasDaRecusa,
+  useCatalogoDeFerramentas,
+} from './fluxoDaSkill';
+import { PainelLateralDoFluxo } from './PainelLateralDoFluxo';
+
+type Props = { nome: string; caminho: string };
+
+// Título da skill, abas e margens do editor acima da aba; o resto da janela é do canvas.
+const ALTURA_DO_CABECALHO_DO_EDITOR = 160;
+const ALTURA_DA_AREA = `calc(100vh - ${tokens.layout.navbarHeight + ALTURA_DO_CABECALHO_DO_EDITOR}px)`;
+const ALTURA_MINIMA_DA_AREA = 480;
+
+function ehSemFluxo(erro: Error): boolean {
+  return erro instanceof ApiError && erro.status === 404 && erro.codigo === 'SEM_FLUXO';
+}
+
+export function FluxoAba({ nome }: Props): ReactNode {
+  const lido = useFluxo(nome);
+  useContextoDaTela({ tela: 'fluxo', skill: nome });
+  if (lido.isPending) return <CircularProgress aria-label="Carregando fluxo" />;
+  if (lido.isError)
+    return <FalhaDoFluxo erro={lido.error} onTentarDeNovo={() => void lido.refetch()} />;
+  return <EditorDeFluxo key={nome} nome={nome} lido={lido.data} />;
+}
+
+function FalhaDoFluxo({ erro, onTentarDeNovo }: { erro: Error; onTentarDeNovo: () => void }) {
+  if (ehSemFluxo(erro)) {
+    return <EmptyState frase="Esta skill não tem fluxo: ela responde pela base de conhecimento." />;
+  }
+  return (
+    <Alert severity="error" action={<Button onClick={onTentarDeNovo}>Tentar de novo</Button>}>
+      {erro.message}
+    </Alert>
+  );
+}
+
+type EditorProps = { nome: string; lido: FluxoLido };
+
+function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
+  const [fluxo, setFluxo] = useState<Fluxo>(lido.fluxo);
+  const editavel = usePodeEditar('skills.editar_fluxo');
+  const catalogo = useCatalogoDeFerramentas();
+  const { locais, problemas, setProblemasDoServidor } = useProblemasDoFluxo(fluxo, lido.problemas);
+  const salvamento = useSalvamentoDoFluxo({
+    nome,
+    lido,
+    fluxo,
+    locais,
+    setFluxo,
+    setProblemasDoServidor,
+  });
+  const edicao = useEdicaoDosBlocos(fluxo, setFluxo);
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+        height: ALTURA_DA_AREA,
+        minHeight: ALTURA_MINIMA_DA_AREA,
+      }}
+    >
+      <AvisoDeConflito
+        conflito={salvamento.sincronia.conflito}
+        onManterOMeu={salvamento.sincronia.manterOMeu}
+        onUsarONovo={salvamento.sincronia.usarONovo}
+      />
+      <BarraDoFluxo
+        editavel={editavel}
+        doFluxoTodo={problemas.filter((p) => p.blocoId === undefined)}
+        salvamento={salvamento.estado}
+        onTentarDeNovo={() => void salvamento.tentarDeNovo()}
+      />
+      <CanvasEPainel
+        nome={nome}
+        fluxo={fluxo}
+        problemas={problemas}
+        catalogo={catalogo}
+        editavel={editavel}
+        edicao={edicao}
+        onMudarFluxo={setFluxo}
+      />
+    </Box>
+  );
+}
+
+function useProblemasDoFluxo(fluxo: Fluxo, doLido: FluxoLido['problemas']) {
+  const [problemasDoServidor, setProblemasDoServidor] = useState(doLido);
+  const locais = useMemo(() => validarFluxo(fluxo), [fluxo]);
+  const problemas = useMemo(
+    () => juntarProblemas(locais, problemasDoServidor, fluxo.blocos),
+    [locais, problemasDoServidor, fluxo.blocos],
+  );
+  return { locais, problemas, setProblemasDoServidor };
+}
+
+type PropsDoSalvamento = {
+  nome: string;
+  lido: FluxoLido;
+  fluxo: Fluxo;
+  locais: readonly ProblemaFluxo[];
+  setFluxo: (fluxo: Fluxo) => void;
+  setProblemasDoServidor: (problemas: FluxoLido['problemas']) => void;
+};
+
+function useSalvamentoDoFluxo(props: PropsDoSalvamento) {
+  const { nome, lido, fluxo, locais, setFluxo, setProblemasDoServidor } = props;
+  const cliente = useQueryClient();
+  const sincronia = useEdicaoSobOServidor({
+    servidor: lido.fluxo,
+    alvos: [`skill:${nome}:fluxo`],
+    versao: lido.versao,
+    local: fluxo,
+    resetar: setFluxo,
+    salvar: (valor, versao) =>
+      gravarFluxo({ nome, valor, versao, cliente, aoMudarProblemas: setProblemasDoServidor }),
+  });
+  const { estado, tentarDeNovo } = useAutosave({
+    valor: fluxo,
+    bloqueio: sincronia.bloqueio ?? (locais.length > 0 ? 'corrija o bloco marcado' : null),
+    salvar: sincronia.salvar,
+  });
+  return { sincronia, estado, tentarDeNovo };
+}
+
+type Gravacao = {
+  nome: string;
+  valor: Fluxo;
+  versao: string;
+  cliente: QueryClient;
+  aoMudarProblemas: (problemas: FluxoLido['problemas']) => void;
+};
+
+async function gravarFluxo({ nome, valor, versao, cliente, aoMudarProblemas }: Gravacao) {
+  try {
+    const gravado = await salvarFluxo(nome, { versao, fluxo: valor });
+    aoMudarProblemas(gravado.problemas);
+    // A aba sai da tela ao trocar de aba; ao voltar, o cache precisa ter a versão e o fluxo gravados.
+    cliente.setQueryData<FluxoLido>(chaveDoFluxo(nome), {
+      versao: gravado.versao,
+      fluxo: valor,
+      problemas: gravado.problemas,
+    });
+    return gravado.versao;
+  } catch (erro) {
+    const recusados = problemasDaRecusa(erro);
+    if (recusados !== null) aoMudarProblemas(recusados);
+    throw erro;
+  }
+}
+
+function useEdicaoDosBlocos(fluxo: Fluxo, setFluxo: Dispatch<SetStateAction<Fluxo>>) {
+  const [selecionado, setSelecionado] = useState<string | null>(null);
+  const inserir = (indice: number, tipo: TipoBloco) => {
+    const id = novoId(fluxo.blocos);
+    setFluxo((atual) => inserirBloco(atual, indice, novoBloco(tipo, id)));
+    setSelecionado(id);
+  };
+  const excluir = (id: string) => {
+    setFluxo((atual) => removerBloco(atual, id));
+    setSelecionado(null);
+  };
+  return { selecionado, setSelecionado, inserir, excluir };
+}
+
+function useTituloDaFerramenta(catalogo: CatalogoDeFerramentas) {
+  const ferramentas = catalogo.estado === 'pronto' ? catalogo.ferramentas : null;
+  return useMemo(() => {
+    const titulos = new Map((ferramentas ?? []).map((f) => [f.name, tituloDe(f)]));
+    return (recurso: string): string => titulos.get(recurso) ?? recurso;
+  }, [ferramentas]);
+}
+
+type PropsDoCanvas = {
+  nome: string;
+  fluxo: Fluxo;
+  problemas: ProblemaFluxo[];
+  catalogo: CatalogoDeFerramentas;
+  editavel: boolean;
+  edicao: ReturnType<typeof useEdicaoDosBlocos>;
+  onMudarFluxo: Dispatch<SetStateAction<Fluxo>>;
+};
+
+// por que: monta canvas e painel lado a lado; o que tem de lógica já saiu para os hooks acima.
+function CanvasEPainel(props: PropsDoCanvas): ReactNode {
+  const { nome, fluxo, problemas, catalogo, editavel, edicao, onMudarFluxo } = props;
+  const { alvosRealcados } = useCopiloto();
+  const realcados = useMemo(() => blocosRealcados(alvosRealcados, nome), [alvosRealcados, nome]);
+  const tituloDaFerramenta = useTituloDaFerramenta(catalogo);
+  const blocoSelecionado = fluxo.blocos.find((b) => b.id === edicao.selecionado);
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flex: 1,
+        minHeight: 0,
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1,
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <FluxoCanvas
+          fluxo={fluxo}
+          problemas={problemas}
+          selecionado={edicao.selecionado}
+          editavel={editavel}
+          tituloDaFerramenta={tituloDaFerramenta}
+          realcados={realcados}
+          onSelecionar={edicao.setSelecionado}
+          onInserir={edicao.inserir}
+          onMover={(de, para) => onMudarFluxo((atual) => moverBloco(atual, de, para))}
+        />
+      </Box>
+      <PainelLateralDoFluxo
+        fluxo={fluxo}
+        bloco={blocoSelecionado}
+        problemas={problemas}
+        catalogo={catalogo}
+        editavel={editavel}
+        onMudarFluxo={onMudarFluxo}
+        onExcluir={edicao.excluir}
+      />
+    </Box>
+  );
+}

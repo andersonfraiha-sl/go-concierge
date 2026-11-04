@@ -34,6 +34,14 @@ const (
 	GanchosHistorico      Permissao = "ganchos.historico"
 )
 
+// todasAsPermissoes lista as permissões na ordem das constantes.
+var todasAsPermissoes = []Permissao{
+	SkillsLer, SkillsEditarTextos, SkillsEditarFluxo, SkillsCriar, SkillsExcluir,
+	FerramentasEditar, CondominiosHabilitar, CondominiosEditar, ConversasVer, ConversasAtender,
+	PedidosVer, PedidosEditar, MemoriaVer, MemoriaEsquecer, AdministradorasEditar,
+	UsuariosEditar, StudioAvancado,
+}
+
 type TipoEscopo string
 
 const (
@@ -67,6 +75,7 @@ type Concessao struct {
 
 type Acesso struct {
 	UsuarioID        string
+	Nome             string
 	Papeis           map[string]Papel
 	Atribuicoes      []Atribuicao
 	Concessoes       []Concessao
@@ -103,6 +112,30 @@ func PermitidoEmAlgum(a Acesso, p Permissao) bool {
 	return slices.ContainsFunc(a.Atribuicoes, func(at Atribuicao) bool {
 		return vigente(a, at) && implantacaoAceitaAtribuicao(a, at.Escopo) && atribuicaoTem(a, at, p)
 	})
+}
+
+// PermissoesEmAlgum lista, na ordem das constantes, as permissões que PermitidoEmAlgum
+// confere. Nunca devolve nil.
+func PermissoesEmAlgum(a Acesso) []Permissao {
+	out := []Permissao{}
+	for _, p := range todasAsPermissoes {
+		if PermitidoEmAlgum(a, p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// PapelPrincipal devolve o papel da atribuição vigente com a cadeia de herança mais longa
+// (a primeira em caso de empate), ou vazio sem atribuição vigente.
+func PapelPrincipal(a Acesso) string {
+	principal, maior := "", 0
+	for _, at := range a.Atribuicoes {
+		if n := len(cadeia(a.Papeis, at.PapelID)); vigente(a, at) && n > maior {
+			principal, maior = at.PapelID, n
+		}
+	}
+	return principal
 }
 
 // ValidarHeranca devolve ErrCicloHeranca se algum papel herda de si mesmo, direta ou indiretamente.

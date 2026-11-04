@@ -1,0 +1,77 @@
+import { Box, Button, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
+import { Link, useParams } from 'react-router';
+import { usePodeEditarCondominio } from '@/acesso/eu';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { useSkills } from '@/skills/contratos';
+import { AjustesSecao } from './AjustesSecao';
+import { ComEstado } from './ComEstado';
+import { type Estado, PADRAO, useEscopo, useEstado } from './contratos';
+import { IdentificacaoSecao } from './IdentificacaoSecao';
+import { OrientacoesSecao } from './OrientacoesSecao';
+import { SkillsSecao } from './SkillsSecao';
+
+const TITULO_DO_PADRAO = 'Padrão (todos)';
+
+export function CondominioPage(): ReactNode {
+  const { id = PADRAO } = useParams();
+  const consulta = useEstado();
+  useContextoDaTela({ tela: 'condominio', condominio: id });
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 880 }}>
+      <Button component={Link} to="/condominios" size="small" sx={{ alignSelf: 'flex-start' }}>
+        Condomínios
+      </Button>
+      <ComEstado consulta={consulta}>
+        {(estado) => <Ficha key={id} estado={estado} id={id} />}
+      </ComEstado>
+    </Box>
+  );
+}
+
+function usePermissoesDaFicha(ehPadrao: boolean): { padraoTravado: boolean; editavel: boolean } {
+  const escopo = useEscopo();
+  const podeHabilitar = usePodeEditarCondominio('condominios.habilitar');
+  // O padrão vale para todas as administradoras: só a Superlógica (sem escopo) o altera.
+  const padraoTravado = ehPadrao && escopo !== null;
+  return { padraoTravado, editavel: podeHabilitar && !padraoTravado };
+}
+
+function Ficha({ estado, id }: { estado: Estado; id: string }): ReactNode {
+  const { data: skills } = useSkills();
+  const { padraoTravado, editavel } = usePermissoesDaFicha(id === PADRAO);
+  const podeIdentificar = usePodeEditarCondominio('condominios.editar');
+  const condominio = estado.mapeamento.condominios.find((c) => c.id === id);
+
+  if (id !== PADRAO && !condominio) return <EmptyState frase="Não encontramos este condomínio." />;
+
+  const titulos = new Map((skills?.skills ?? []).map((skill) => [skill.nome, skill.titulo]));
+  return (
+    <>
+      <TituloDaFicha nome={condominio?.nome ?? TITULO_DO_PADRAO} padraoTravado={padraoTravado} />
+      <SkillsSecao estado={estado} condominio={id} titulos={titulos} editavel={editavel} />
+      <OrientacoesSecao estado={estado} condominio={id} editavel={editavel} />
+      <AjustesSecao estado={estado} condominio={id} editavel={editavel} />
+      {condominio && podeIdentificar && (
+        <IdentificacaoSecao condominio={condominio} administradoras={estado.administradoras} />
+      )}
+    </>
+  );
+}
+
+function TituloDaFicha({ nome, padraoTravado }: { nome: string; padraoTravado: boolean }) {
+  return (
+    <>
+      <Typography variant="h5" component="h1">
+        {nome}
+      </Typography>
+      {padraoTravado && (
+        <Typography variant="body2" color="text.secondary">
+          Vale para todas as administradoras; só a Superlógica muda.
+        </Typography>
+      )}
+    </>
+  );
+}

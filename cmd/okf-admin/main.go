@@ -61,6 +61,7 @@ import (
 type servidor struct {
 	cat     *okf.Catalogo
 	web     fs.FS
+	studio  fs.FS
 	account string
 	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	log     *log.Logger
@@ -88,7 +89,9 @@ type servidor struct {
 	implantacao         escopo.Implantacao // ADMINISTRADORA_ID: o processo atende só essa (vazia = todas)
 	banco               banco.Banco
 	regras              *regras.Postgres
-	segredoExportacao   []byte // GANCHOS_SEGREDO_EXPORTACAO; vazio só em dev, e aí exportar e importar recusam
+	segredoExportacao   []byte           // GANCHOS_SEGREDO_EXPORTACAO; vazio só em dev, e aí exportar e importar recusam
+	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
+	limiteCopiloto      *limiteDoCopiloto
 
 	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
 	autenticador Autenticador
@@ -151,7 +154,7 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
+	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
 		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
 		autenticador:      novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
 		authMode:          cfg.AuthMode,
@@ -257,6 +260,11 @@ func main() {
 	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
 		log.Fatal(err)
 	}
+	if ehDesenvolvimento(cfg.Ambiente) && cfg.AuthMode == authModeDev {
+		if err := semearAcessoDev(context.Background(), adminPG, acesso.NovoPostgres(db.Ent).Conceder); err != nil {
+			log.Fatal(err)
+		}
+	}
 	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
 	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
 	mapeamento := admin.NovoCache(adminPG)
@@ -264,6 +272,10 @@ func main() {
 		log.Printf("okf-admin: mapeamento não aquecido no boot, o primeiro turno lê do banco: %v", err)
 	}
 	s.atende.Mapeamento = mapeamento
+	if c, ok := harness.NovoCopiloto(s.atende.Config); ok {
+		s.copiloto = c
+	}
+	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
 
 	// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o repassa,
 	// para testar de fora (Inspector, curl) pela porta do concierge. O token NÃO é injetado:
@@ -442,6 +454,7 @@ func mcpPath(raw string) string {
 
 func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.Handle(padraoEstaticos, semCache(http.FileServerFS(s.web)))
+	mux.Handle("GET /{$}", http.RedirectHandler("/studio/", http.StatusFound))
 	mux.HandleFunc("GET /healthz", s.healthz)
 
 	// leitura do catálogo: skills.ler em qualquer escopo
@@ -489,6 +502,40 @@ func (s *servidor) anatomia(w http.ResponseWriter, _ *http.Request) {
 		"account":      s.account,
 		"nexus_origem": s.nexus,
 	})
+}
+
+func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
+	var n okf.NovoAgente
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&n); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	rel, mud, err := s.cat.CriarAgente(n)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 201, map[string]any{"caminho": rel, "mudancas": mud})
+}
+
+func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("agente")
+	if err := s.cat.ExcluirSkill(rel); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	// ExcluirSkill não devolve as rotas que ajustou (ao contrário da ExcluirAgente antiga);
+	// mudancas fica vazia em vez de ausente, pois backdoor.js:464 lê r.mudancas.length sem
+	// checar undefined.
+	writeJSON(w, 200, map[string]any{"excluido": rel, "mudancas": []string{}})
+}
+
+// mover: a árvore do Backdoor ainda tem o drag-and-drop de mover/clonar agente, mas o
+// catálogo não tem mais Mover (retirado na fase 1 do Studio, junto da limpeza que
+// manteve o Admin no ar). A rota continua registrada para o Backdoor não
+// quebrar ao carregar; o retorno é um erro claro em vez de fingir que moveu algo.
+func (s *servidor) mover(w http.ResponseWriter, _ *http.Request) {
+	writeErr(w, http.StatusGone, errors.New("mover agente: recurso retirado do catálogo nesta fase"))
 }
 
 func (s *servidor) arvore(w http.ResponseWriter, _ *http.Request) {
@@ -574,26 +621,12 @@ func paiRel(rel string) string {
 	return rel[:i]
 }
 
-func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
-	var n okf.NovoAgente
-	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	rel, mud, err := s.cat.CriarAgente(n)
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 201, map[string]any{"caminho": rel, "mudancas": mud})
-}
-
 func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
 	var corpo struct {
 		Agente string         `json:"agente"`
 		Campos map[string]any `json:"campos"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&corpo); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -602,33 +635,6 @@ func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"salvo": corpo.Agente})
-}
-
-func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
-	mud, err := s.cat.ExcluirAgente(r.URL.Query().Get("agente"))
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"excluido": r.URL.Query().Get("agente"), "mudancas": mud})
-}
-
-func (s *servidor) mover(w http.ResponseWriter, r *http.Request) {
-	var corpo struct {
-		Origem  string `json:"origem"`
-		Destino string `json:"destino"`
-		Clonar  bool   `json:"clonar"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	rel, mud, err := s.cat.Mover(corpo.Origem, corpo.Destino, corpo.Clonar)
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"caminho": rel, "mudancas": mud})
 }
 
 func (s *servidor) importar(w http.ResponseWriter, r *http.Request) {

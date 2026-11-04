@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
@@ -51,7 +52,7 @@ func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.
 	for _, p := range acesso.PapeisIniciais() {
 		papeis[p.ID] = p
 	}
-	return acesso.Acesso{UsuarioID: usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes[usuarioID], AdministradoraDe: donas, Implantacao: imp}, nil
+	return acesso.Acesso{UsuarioID: usuarioID, Nome: "Nome de " + usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes[usuarioID], AdministradoraDe: donas, Implantacao: imp}, nil
 }
 
 func naAdministradora(papel, adm string) []acesso.Atribuicao {
@@ -62,14 +63,18 @@ func naAdministradora(papel, adm string) []acesso.Atribuicao {
 // construtor só em adm-a (tem as permissões, não o escopo da Superlógica); e um sem papel.
 func usuariosTeste() map[string][]acesso.Atribuicao {
 	return map[string][]acesso.Atribuicao{
-		"admin":           {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
-		"gestor-a":        naAdministradora("gestor_administradora", "adm-a"),
-		"gestor-b":        naAdministradora("gestor_administradora", "adm-b"),
-		"operador-a":      naAdministradora("operador_administradora", "adm-a"),
-		"construtor-a":    naAdministradora("construtor_superlogica", "adm-a"),
-		"sem-papel":       {},
-		"gestor-ab":       append(naAdministradora("gestor_administradora", "adm-a"), naAdministradora("gestor_administradora", "adm-b")...),
-		usuarioSemeadoDev: {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"admin":                  {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor-a":               naAdministradora("gestor_administradora", "adm-a"),
+		"gestor-b":               naAdministradora("gestor_administradora", "adm-b"),
+		"operador-a":             naAdministradora("operador_administradora", "adm-a"),
+		"construtor-a":           naAdministradora("construtor_superlogica", "adm-a"),
+		"sem-papel":              {},
+		"gestor-av":              naAdministradora("gestor_administradora", "adm-av"),
+		"gestor-ab":              append(naAdministradora("gestor_administradora", "adm-a"), naAdministradora("gestor_administradora", "adm-b")...),
+		usuarioSemeadoDev:        {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"construtor-superlogica": {{PapelID: "construtor_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor-exemplo":         naAdministradora("gestor_administradora", "adm-exemplo"),
+		"gestor-avancado":        naAdministradora("gestor_administradora", "adm-avancado"),
 	}
 }
 
@@ -113,13 +118,13 @@ func novoAmbienteRotas(t *testing.T) ambienteRotas {
 	outbox := &atende.Outbox{}
 	sessoes := atende.NewSessoes(atende.NovaSessaoEmMemoria())
 	s := &servidor{
-		cat: cat, web: os.DirFS(filepath.Join("..", "..", "web", "okf")), account: "cond-001", log: log.New(io.Discard, "", 0),
+		cat: cat, web: os.DirFS(filepath.Join("..", "..", "web", "okf")), studio: fstest.MapFS{"index.html": {Data: []byte("<html>studio</html>")}}, account: "cond-001", log: log.New(io.Discard, "", 0),
 		atende: &atende.Servico{
 			Cat: cat, Agente: "agentes/concierge", Mapeamento: repo, Sessoes: sessoes, Sender: outbox, Memorias: memorias,
 			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
 		},
 		outbox: outbox, emulador: atende.NewEmulador(), memorias: memorias, admin: repo,
-		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo},
+		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo, concessoes: map[string][]acesso.Concessao{"gestor-av": {{AdministradoraID: "adm-av", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}}}},
 		autenticador: autenticadorDev{}, authMode: authModeDev,
 		registro: slog.New(slog.NewJSONHandler(io.Discard, nil)),
 	}
@@ -177,7 +182,7 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "criar agente", metodo: "POST", url: "/api/agentes", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "config do agente", metodo: "PUT", url: "/api/agente/config", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "excluir agente", metodo: "DELETE", url: "/api/agente?agente=agentes/nao-existe", sem: "construtor-a", com: "admin", quer: 400},
-		{nome: "mover agente", metodo: "POST", url: "/api/agentes/mover", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "mover agente", metodo: "POST", url: "/api/agentes/mover", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 410},
 		{nome: "importar agente", metodo: "POST", url: "/api/agentes/importar?caminho=x", sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "salvar arquivo", metodo: "PUT", url: "/api/arquivo", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "excluir arquivo", metodo: "DELETE", url: "/api/arquivo?agente=agentes/nao-existe&caminho=x.md", sem: "construtor-a", com: "admin", quer: 400},
@@ -186,13 +191,25 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "remover recurso", metodo: "DELETE", url: "/api/nexus/recurso?nome=nao-existe", sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "vincular recurso", metodo: "POST", url: "/api/agente/recursos", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		// studio.avancado na Superlógica
-		{nome: "ler orquestracao", metodo: "GET", url: "/api/admin/orquestracao", sem: "construtor-a", com: "admin", quer: 200},
+		{nome: "ler orquestracao", metodo: "GET", url: "/api/admin/orquestracao", sem: "gestor-a", com: "gestor-av", quer: 200},
 		{nome: "salvar orquestracao", metodo: "PUT", url: "/api/admin/orquestracao", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "webhook emulado", metodo: "POST", url: "/emulador/atende/webhook", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "caixa do emulador", metodo: "POST", url: "/emulador/atende/messages", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "proxy mcp", metodo: "POST", url: "/mcp/gruvi/bff", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 200},
 		// estado: skills.ler em qualquer escopo
 		{nome: "estado", metodo: "GET", url: "/api/admin/estado?administradora=adm-a", sem: "sem-papel", com: "operador-a", quer: 200},
+		// skills do Studio
+		// copiloto: skills.ler em qualquer escopo (sem modelo ligado, 503 prova que passou do acesso)
+		{nome: "estado do copiloto", metodo: "GET", url: "/api/copiloto/estado", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "perguntar ao copiloto", metodo: "POST", url: "/api/copiloto", corpo: `{}`, sem: "sem-papel", com: "operador-a", quer: 503},
+		{nome: "listar skills", metodo: "GET", url: "/api/skills", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "textos da skill", metodo: "GET", url: "/api/skills/agendar-mudanca", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "fluxo da skill", metodo: "GET", url: "/api/skills/agendar-mudanca/fluxo", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "criar skill", metodo: "POST", url: "/api/skills", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "duplicar skill", metodo: "POST", url: "/api/skills/nao-existe/duplicar", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "salvar textos", metodo: "PUT", url: "/api/skills/nao-existe/textos", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 422},
+		{nome: "salvar fluxo", metodo: "PUT", url: "/api/skills/nao-existe/fluxo", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 404},
+		{nome: "excluir skill", metodo: "DELETE", url: "/api/skills/nao-existe", sem: "construtor-a", com: "admin", quer: 404},
 		// administradoras.editar na Superlógica
 		{nome: "criar administradora", metodo: "POST", url: "/api/admin/administradora", corpo: `{"id":"adm-c","nome":"C"}`, sem: "construtor-a", com: "admin", quer: 201},
 		{nome: "editar administradora", metodo: "PUT", url: "/api/admin/administradora", corpo: `{"id":"adm-a","nome":"A"}`, sem: "construtor-a", com: "admin", quer: 200},
@@ -251,6 +268,24 @@ func TestRotasExigemPermissao(t *testing.T) {
 	}
 }
 
+func TestRotearNaoEntraEmPanico(t *testing.T) {
+	for _, nome := range []string{"sem mcp", "com mcp"} {
+		t.Run(nome, func(t *testing.T) {
+			amb := novoAmbienteRotas(t)
+			var mcp http.Handler
+			if nome == "com mcp" {
+				mcp = http.NotFoundHandler()
+			}
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("rotear entrou em panic: %v", r)
+				}
+			}()
+			amb.s.rotear(mcp)
+		})
+	}
+}
+
 func TestRotasAutenticacao(t *testing.T) {
 	amb := novoAmbienteRotas(t)
 	casos := []struct {
@@ -261,7 +296,10 @@ func TestRotasAutenticacao(t *testing.T) {
 		{nome: "sem cabeçalho e sem usuário padrão", url: "/api/agentes", status: http.StatusUnauthorized, trecho: "NAO_AUTENTICADO"},
 		{nome: "usuário desconhecido", usuario: "fantasma", url: "/api/agentes", status: http.StatusUnauthorized, trecho: "NAO_AUTENTICADO"},
 		{nome: "gestor de A pede memória de B", usuario: "gestor-a", url: "/api/memoria?phone=5519999992710&administradora=adm-b", status: http.StatusForbidden, trecho: "SEM_PERMISSAO"},
-		{nome: "página do Admin é pública", url: "/", status: http.StatusOK},
+		{nome: "raiz redireciona para o Studio", url: "/", status: http.StatusFound},
+		{nome: "Admin antigo é público", url: "/admin", status: http.StatusOK},
+		{nome: "arquivo do Admin é público", url: "/admin.js", status: http.StatusOK},
+		{nome: "Studio é público", url: "/studio/", status: http.StatusOK},
 		{nome: "Console é público", url: "/console", status: http.StatusOK},
 		{nome: "Backdoor é público", url: "/backdoor", status: http.StatusOK},
 	}
@@ -273,6 +311,11 @@ func TestRotasAutenticacao(t *testing.T) {
 			}
 		})
 	}
+	t.Run("raiz aponta para /studio/", func(t *testing.T) {
+		if got := amb.pedir(t, "", "GET", "/", "").Header().Get("Location"); got != "/studio/" {
+			t.Fatalf("Location = %q, quero /studio/", got)
+		}
+	})
 	t.Run("usuário padrão do modo dev", func(t *testing.T) {
 		amb.s.autenticador = autenticadorDev{padrao: "operador-a"}
 		defer func() { amb.s.autenticador = autenticadorDev{} }()
@@ -402,7 +445,7 @@ type autenticadorFixo string
 func (a autenticadorFixo) Autenticar(*http.Request) (string, error) { return string(a), nil }
 
 func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
-	casos := []struct {
+	modos := []struct {
 		nome     string
 		authMode string
 		quer     int
@@ -410,14 +453,16 @@ func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
 		{nome: "modo dev aceita", authMode: authModeDev, quer: http.StatusOK},
 		{nome: "fora de dev recusa", authMode: "", quer: http.StatusUnauthorized},
 	}
-	for _, c := range casos {
-		t.Run(c.nome, func(t *testing.T) {
-			amb := novoAmbienteRotas(t)
-			amb.s.autenticador, amb.s.authMode = autenticadorFixo(usuarioSemeadoDev), c.authMode
-			if w := amb.pedir(t, "", "GET", "/api/agentes", ""); w.Code != c.quer {
-				t.Fatalf("status %d: %s", w.Code, w.Body.String())
-			}
-		})
+	for id := range usuariosSemeadosDev {
+		for _, m := range modos {
+			t.Run(id+"/"+m.nome, func(t *testing.T) {
+				amb := novoAmbienteRotas(t)
+				amb.s.autenticador, amb.s.authMode = autenticadorFixo(id), m.authMode
+				if w := amb.pedir(t, "", "GET", "/api/agentes", ""); w.Code != m.quer {
+					t.Fatalf("status %d: %s", w.Code, w.Body.String())
+				}
+			})
+		}
 	}
 }
 
@@ -530,5 +575,16 @@ func TestLogDeRotaInexistenteDaAPI(t *testing.T) {
 	amb.pedir(t, "", "GET", "/styles.css", "")
 	if n := strings.Count(buf.String(), "\n"); n != 1 || !strings.Contains(buf.String(), `"caminho":"/api/nao-existe"`) {
 		t.Fatalf("quero só a linha de /api/nao-existe:\n%s", buf.String())
+	}
+}
+
+func TestOrquestracaoComAvancadoConcedido(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	if w := amb.pedir(t, "gestor-av", "GET", "/api/admin/orquestracao", ""); w.Code != http.StatusOK {
+		t.Fatalf("leitura: status %d: %s", w.Code, w.Body.String())
+	}
+	w := amb.pedir(t, "gestor-av", "PUT", "/api/admin/orquestracao", `{}`)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "SEM_PERMISSAO") {
+		t.Fatalf("escrita: status %d: %s", w.Code, w.Body.String())
 	}
 }

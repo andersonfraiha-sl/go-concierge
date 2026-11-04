@@ -1,0 +1,719 @@
+{
+  "account": "cond-001",
+  "administradoras": [
+    {
+      "id": "adm-a",
+      "nome": "A"
+    }
+  ],
+  "casos": [
+    {
+      "nome": "agendar-mudanca",
+      "id": "agendar_mudanca",
+      "titulo": "Agendamento de Mudança",
+      "descricao": "Usado para o morador agendar uma data e período para sua mudança,\ngarantindo a reserva do elevador de serviço.",
+      "resumo": "Agenda o dia e o período da mudança, com o elevador de serviço.",
+      "icone": "truck",
+      "escrita": true,
+      "tipo": "operador",
+      "recursos": [
+        "unidades.listar",
+        "mudancas.agendar"
+      ]
+    },
+    {
+      "nome": "atualizacao-cadastral",
+      "id": "atualizacao_cadastral",
+      "titulo": "Atualização Cadastral",
+      "descricao": "Atualiza dados cadastrais da unidade (e-mail, veículo, pets...). Os campos do formulário mudam conforme a unidade escolhida.",
+      "resumo": "Atualiza e-mail, veículo e pets da unidade.",
+      "icone": "file-pen-line",
+      "escrita": true,
+      "tipo": "operador",
+      "recursos": [
+        "unidades.listar",
+        "cadastro.campos",
+        "cadastro.atualizar"
+      ]
+    },
+    {
+      "nome": "comunicar-obra",
+      "id": "comunicar_obra",
+      "titulo": "Comunicação de Obra",
+      "descricao": "Usado quando o morador vai fazer obra, reforma ou reparo na unidade (pintura, elétrica, hidráulica, marcenaria...) e precisa avisar a administração e liberar os prestadores na portaria.",
+      "resumo": "Avisa a administração sobre uma obra e libera os prestadores.",
+      "icone": "hammer",
+      "escrita": true,
+      "tipo": "operador",
+      "recursos": [
+        "unidades.listar",
+        "obras.comunicar"
+      ]
+    },
+    {
+      "nome": "codigo-retirada",
+      "id": "codigo_retirada",
+      "titulo": "Código de Retirada",
+      "descricao": "Informa o código para retirar uma encomenda que já está na portaria.",
+      "resumo": "Passa o código para retirar uma encomenda na portaria.",
+      "icone": "key-round",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.building-operation.get-company-by-document-controller-handle",
+        "gruvi.bff.building-operation.fetch-unit-packages-controller-handle",
+        "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
+      ]
+    },
+    {
+      "nome": "liberacao-visitante",
+      "id": "liberacao_visitante",
+      "titulo": "Liberação de Visitante",
+      "descricao": "Usado para o dono ou morador da unidade autorizar a entrada de um visitante na portaria (amigo, parente, prestador de serviço, entregador). Liberações para depois de amanhã ou recorrentes devem ser feitas no app Gruvi: https://gruvi.link/guest.",
+      "resumo": "Autoriza a entrada de um visitante para hoje ou amanhã.",
+      "icone": "user-check",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.building-operation.get-company-by-document-controller-handle",
+        "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle",
+        "gruvi.bff.building-operation.create-visit-controller-handle"
+      ]
+    },
+    {
+      "nome": "listar-unidades",
+      "id": "listar_unidade",
+      "titulo": "Listar Unidades",
+      "descricao": "Mostra as unidades (apartamentos/casas) vinculadas ao cadastro de quem pergunta.",
+      "resumo": "Mostra as unidades ligadas ao cadastro do morador.",
+      "icone": "building-2",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.building-operation.get-company-by-document-controller-handle"
+      ]
+    },
+    {
+      "nome": "encomendas",
+      "id": "encomendas",
+      "titulo": "Minhas Encomendas",
+      "descricao": "Mostra as encomendas da unidade. Por padrão consulta as que aguardam retirada; também pode consultar entregues ou canceladas quando o morador pedir esse status.",
+      "resumo": "Mostra as encomendas da unidade.",
+      "icone": "package",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.building-operation.get-company-by-document-controller-handle",
+        "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
+      ]
+    },
+    {
+      "nome": "reserva-area-comum",
+      "id": "reserva_area_comum",
+      "titulo": "Reserva de Área Comum",
+      "descricao": "Reserva uma área comum do condomínio (churrasqueira, salão de festas, quadra) para uma data.",
+      "resumo": "Reserva churrasqueira, salão ou quadra para uma data.",
+      "icone": "calendar-check",
+      "escrita": true,
+      "tipo": "operador",
+      "recursos": [
+        "unidades.listar",
+        "areas.listar",
+        "areas.reservar"
+      ]
+    },
+    {
+      "nome": "faq",
+      "id": "",
+      "titulo": "faq",
+      "descricao": "dúvidas gerais e operacionais do condomínio — horários (portaria, piscina), endereço, contato da administradora, taxa e boleto — respondidas só com a base de perguntas frequentes",
+      "resumo": "Responde dúvidas gerais: horários, endereço, contato, boleto.",
+      "icone": "",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "faq.buscar"
+      ]
+    },
+    {
+      "nome": "regimento",
+      "id": "",
+      "titulo": "regimento",
+      "descricao": "especialista no regimento interno — responde o que é permitido ou proibido (obras, silêncio, pets, uso das áreas comuns) sempre citando o artigo",
+      "resumo": "Responde o que o regimento interno permite, citando o artigo.",
+      "icone": "",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": []
+    }
+  ],
+  "gruvi": {
+    "company_id": ""
+  },
+  "mapeamento": {
+    "administradoras": [
+      {
+        "id": "adm-a",
+        "nome": "A"
+      }
+    ],
+    "condominios": [
+      {
+        "id": "cond-a",
+        "nome": "Cond A",
+        "administradora_id": "adm-a",
+        "account": "",
+        "company_id": "",
+        "tenant": ""
+      }
+    ],
+    "habilitacoes": {},
+    "payloads": {},
+    "orientacoes": {},
+    "atualizado_em": "0001-01-01T00:00:00Z"
+  },
+  "papeis": [
+    "morador",
+    "proprietario",
+    "sindico",
+    "publico"
+  ],
+  "recursos": [
+    {
+      "name": "agente.redator",
+      "titulo": "Redator de comunicados",
+      "kind": "agent",
+      "visibility": "private",
+      "write": false,
+      "description": "Agente executor do Nexus: redige um comunicado formal (aviso de obra, pedido à administração) a partir do que o morador descreveu, no padrão da administradora. Devolve o texto para o concierge revisar com o morador.",
+      "params": [
+        {
+          "name": "pedido",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "description": "aviso | pedido | reclamacao"
+        }
+      ],
+      "output": "{texto}",
+      "amostra": {
+        "texto": "Prezada administração, comunico que realizarei obra de pintura na unidade entre os dias 20 e 24/10, no horário permitido. Atenciosamente, Vanderlei."
+      }
+    },
+    {
+      "name": "areas.listar",
+      "titulo": "Áreas reserváveis",
+      "kind": "api",
+      "visibility": "private",
+      "write": false,
+      "description": "Quais áreas comuns podem ser reservadas (churrasqueira, salão de festas, quadra). Use quando o morador quer saber o que pode reservar ou escolher uma área. Ex.: quais áreas posso reservar; o condomínio tem salão de festas.",
+      "params": [],
+      "output": "lista de {id, nome}",
+      "amostra": [
+        {
+          "id": "churrasqueira",
+          "nome": "Churrasqueira"
+        },
+        {
+          "id": "salao",
+          "nome": "Salão de festas"
+        },
+        {
+          "id": "quadra",
+          "nome": "Quadra poliesportiva"
+        }
+      ]
+    },
+    {
+      "name": "areas.reservar",
+      "titulo": "Reserva de área comum",
+      "kind": "api",
+      "visibility": "private",
+      "write": true,
+      "description": "Efetivar a reserva de uma área comum numa data. Ação de escrita: só pelo caso de uso Reserva de Área Comum, com confirmação.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "area_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "data",
+          "type": "date",
+          "required": true,
+          "description": "AAAA-MM-DD"
+        }
+      ],
+      "output": "{protocolo}",
+      "definicoes": [
+        {
+          "name": "antecedencia_min_dias",
+          "label": "Antecedência mínima da reserva (dias)",
+          "type": "number",
+          "default": 2,
+          "description": "Quantos dias antes o morador precisa reservar."
+        },
+        {
+          "name": "max_dias",
+          "label": "Prazo máximo para reservar (dias)",
+          "type": "number",
+          "default": 60,
+          "description": "Até quantos dias à frente aceita reserva."
+        },
+        {
+          "name": "horario_uso",
+          "label": "Horário de uso das áreas",
+          "type": "string",
+          "description": "Ex.: 10h às 22h. O concierge informa ao confirmar."
+        }
+      ]
+    },
+    {
+      "name": "atividade.vistoria",
+      "titulo": "Vistoria técnica",
+      "kind": "activity",
+      "visibility": "private",
+      "write": true,
+      "description": "Ação (atividade cadastrada no workspace da administradora): abre uma vistoria técnica na unidade (vazamento, infiltração, elétrica) e agenda a visita. Só por passo do caso de uso, com confirmação.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "motivo",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": "{protocolo, previsao}"
+    },
+    {
+      "name": "cadastro.atualizar",
+      "titulo": "Atualização cadastral",
+      "kind": "api",
+      "visibility": "private",
+      "write": true,
+      "description": "Gravar alterações no cadastro da unidade. Ação de escrita: só pelo caso de uso Atualização Cadastral, com confirmação.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "dados",
+          "type": "object",
+          "required": true
+        }
+      ],
+      "output": "{protocolo}"
+    },
+    {
+      "name": "cadastro.campos",
+      "titulo": "Campos do cadastro",
+      "kind": "api",
+      "visibility": "private",
+      "write": false,
+      "description": "Quais dados cadastrais da unidade podem ser atualizados (e-mail, placa do carro, pets). Use antes de montar uma atualização de cadastro.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": "lista de {name, label, type?, options?, value?}",
+      "amostra": [
+        {
+          "label": "E-mail",
+          "name": "email",
+          "type": "email",
+          "value": "vanderlei@exemplo.com"
+        },
+        {
+          "label": "Placa do veículo",
+          "name": "placa",
+          "type": "string",
+          "value": "ABC1D23"
+        },
+        {
+          "label": "Pets",
+          "name": "pets",
+          "type": "string",
+          "value": "1 cachorro (Thor)"
+        }
+      ]
+    },
+    {
+      "name": "encomendas.codigo",
+      "titulo": "Código de retirada",
+      "kind": "api",
+      "visibility": "private",
+      "write": false,
+      "description": "Código de retirada de uma encomenda que aguarda retirada na portaria.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "encomenda_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": "{codigo}",
+      "amostra": {
+        "codigo": "4831"
+      }
+    },
+    {
+      "name": "encomendas.listar",
+      "titulo": "Minhas encomendas",
+      "kind": "api",
+      "visibility": "private",
+      "write": false,
+      "description": "Encomendas da unidade que chegaram na portaria (padrão: aguardando retirada). Use quando o morador pergunta se chegou pacote, entrega ou correspondência.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "description": "waiting | delivered | canceled"
+        }
+      ],
+      "output": "lista de {id, label, status}",
+      "amostra": [
+        {
+          "id": "pk-1",
+          "label": "Pacote Amazon (17/10)",
+          "status": "waiting"
+        },
+        {
+          "id": "pk-2",
+          "label": "Envelope Correios (16/10)",
+          "status": "waiting"
+        }
+      ]
+    },
+    {
+      "name": "faq.buscar",
+      "titulo": "Perguntas frequentes",
+      "kind": "knowledge",
+      "visibility": "public",
+      "write": false,
+      "description": "Respostas oficiais para dúvidas gerais do condomínio: horários (portaria, piscina), endereço, contato da administradora, taxa condominial, mudanças, pets, barulho. Ex.: qual o horário da piscina; quando vence o boleto; pode ter cachorro.",
+      "params": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "escopo",
+          "type": "string",
+          "description": "publico | privado"
+        }
+      ],
+      "output": "lista de {titulo, texto, escopo}",
+      "amostra": [
+        {
+          "escopo": "publico",
+          "texto": "A piscina funciona das 8h às 22h, todos os dias.",
+          "titulo": "Horário da piscina"
+        },
+        {
+          "escopo": "privado",
+          "texto": "O boleto vence todo dia 10 e fica disponível no app da administradora.",
+          "titulo": "Boleto"
+        }
+      ],
+      "definicoes": [
+        {
+          "name": "escopo",
+          "label": "Quem vê as respostas",
+          "type": "select",
+          "options": [
+            "publico",
+            "privado"
+          ],
+          "description": "publico: qualquer contato; privado: só morador identificado."
+        }
+      ]
+    },
+    {
+      "name": "form.ouvidoria",
+      "titulo": "Ouvidoria",
+      "kind": "form",
+      "visibility": "public",
+      "write": false,
+      "description": "Form: procedimento externo da ouvidoria. Devolve o link público do formulário para o morador registrar elogio, sugestão ou reclamação; a chamada é pública e não grava nada pelo concierge.",
+      "params": [
+        {
+          "name": "assunto",
+          "type": "string"
+        }
+      ],
+      "output": "{url}",
+      "amostra": {
+        "url": "https://ouvidoria.exemplo.com.br/condominio/formulario"
+      }
+    },
+    {
+      "name": "memoria.preferencias",
+      "titulo": "Preferências do morador",
+      "kind": "memory",
+      "visibility": "private",
+      "write": false,
+      "description": "Preferências do morador guardadas pelo concierge (como prefere ser chamado, canal preferido). Use para personalizar a resposta, nunca como resposta principal.",
+      "params": [],
+      "output": "objeto de preferências",
+      "amostra": {
+        "canal": "whatsapp",
+        "nome_preferido": "Vanderlei"
+      }
+    },
+    {
+      "name": "mudancas.agendar",
+      "titulo": "Agendamento de mudança",
+      "kind": "api",
+      "visibility": "private",
+      "write": true,
+      "description": "Agendar a mudança (entrada ou saída de móveis) de uma unidade numa data e período, reservando o elevador de serviço. Ação de escrita: só por caso de uso, com confirmação. Ex.: quero agendar minha mudança; vou me mudar sábado de manhã; preciso do elevador para a mudança.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "data",
+          "type": "date",
+          "required": true,
+          "description": "AAAA-MM-DD"
+        },
+        {
+          "name": "periodo",
+          "type": "string",
+          "required": true,
+          "description": "manha | tarde"
+        }
+      ],
+      "output": "{protocolo}",
+      "definicoes": [
+        {
+          "name": "dias_permitidos",
+          "label": "Dias em que há mudança",
+          "type": "string",
+          "default": "segunda a sábado"
+        },
+        {
+          "name": "horarios",
+          "label": "Horários de mudança",
+          "type": "string",
+          "default": "8h às 12h e 13h às 17h"
+        }
+      ]
+    },
+    {
+      "name": "obras.comunicar",
+      "titulo": "Comunicação de obra",
+      "kind": "api",
+      "visibility": "private",
+      "write": true,
+      "description": "Comunicar à administração e à portaria uma obra, reforma ou reparo na unidade (pintura, elétrica, hidráulica...) e liberar os prestadores. Ação de escrita: só pelo caso de uso Comunicação de Obra, com confirmação. Ex.: vou fazer uma reforma; o pintor vem semana que vem; preciso avisar de uma obra.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "tipo",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "descricao",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "inicio",
+          "type": "date",
+          "required": true
+        },
+        {
+          "name": "dias",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "prestadores",
+          "type": "array",
+          "required": true
+        }
+      ],
+      "output": "{protocolo, liberacao_portaria, horario_permitido}",
+      "definicoes": [
+        {
+          "name": "horario_permitido",
+          "label": "Horário permitido para obras",
+          "type": "string",
+          "default": "8h às 17h, dias úteis"
+        },
+        {
+          "name": "antecedencia_dias",
+          "label": "Antecedência do aviso (dias)",
+          "type": "number",
+          "default": 2
+        }
+      ]
+    },
+    {
+      "name": "portaria.avisar",
+      "titulo": "Aviso à portaria",
+      "kind": "action",
+      "visibility": "private",
+      "write": true,
+      "description": "Ação: avisa a portaria por mensagem (interfone/painel) sobre algo da unidade — chegada de prestador, pacote a devolver, pedido urgente. Executa algo no mundo: só por passo do caso de uso, com confirmação.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "mensagem",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "output": "{protocolo}",
+      "definicoes": [
+        {
+          "name": "canal",
+          "label": "Canal da portaria",
+          "type": "select",
+          "options": [
+            "interfone",
+            "painel",
+            "whatsapp"
+          ],
+          "default": "painel"
+        }
+      ]
+    },
+    {
+      "name": "unidades.listar",
+      "titulo": "Unidades do morador",
+      "kind": "api",
+      "visibility": "private",
+      "write": false,
+      "description": "Quais unidades (apartamentos, casas, salas) estão no nome do morador. Use para descobrir ou confirmar a unidade antes de qualquer outra ação ligada a ela. Ex.: quais são minhas unidades; em qual apartamento estou cadastrado.",
+      "params": [],
+      "output": "lista de {id, label}",
+      "amostra": [
+        {
+          "id": "109",
+          "label": "Jataí - Unidade Operacao Predial"
+        }
+      ],
+      "definicoes": [
+        {
+          "name": "company_id",
+          "label": "Código da empresa no Gruvi",
+          "type": "string",
+          "description": "Identifica o condomínio no cadastro de moradores; o concierge passa sem perguntar."
+        }
+      ]
+    },
+    {
+      "name": "visitantes.liberar",
+      "titulo": "Liberação de visitante",
+      "kind": "api",
+      "visibility": "private",
+      "write": true,
+      "description": "Autorizar a entrada de um visitante na portaria (amigo, parente, prestador). É uma ação de escrita: só pelo caso de uso Liberação de Visitante, com confirmação.",
+      "params": [
+        {
+          "name": "unidade_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "nome",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "telefone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "motivo",
+          "type": "string"
+        }
+      ],
+      "output": "{protocolo}",
+      "definicoes": [
+        {
+          "name": "validade_horas",
+          "label": "Validade da liberação (horas)",
+          "type": "number",
+          "default": 24,
+          "description": "Por quanto tempo a portaria aceita a entrada."
+        }
+      ]
+    },
+    {
+      "name": "visitantes.motivos",
+      "titulo": "Motivos de visita",
+      "kind": "api",
+      "visibility": "private",
+      "write": false,
+      "description": "Motivos de visita do condomínio (Gruvi): tipo filtra Visitante ou Prestador. Use antes de liberar um prestador, para saber qual serviço.",
+      "params": [
+        {
+          "name": "tipo",
+          "type": "string",
+          "description": "visitante | prestador (vazio = todos)"
+        }
+      ],
+      "output": "lista de {id, label, tipo}",
+      "amostra": [
+        {
+          "id": "visita",
+          "label": "Visita",
+          "tipo": "visitante"
+        },
+        {
+          "id": "entrega",
+          "label": "Entrega",
+          "tipo": "prestador"
+        },
+        {
+          "id": "servico",
+          "label": "Prestação de serviço",
+          "tipo": "prestador"
+        }
+      ]
+    }
+  ]
+}

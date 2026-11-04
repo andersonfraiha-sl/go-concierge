@@ -1,10 +1,12 @@
 # Workflow — Minhas Encomendas
 
-Mostra as encomendas da unidade que chegaram na portaria e aguardam retirada.
+Mostra as encomendas da unidade. Por padrão consulta as que aguardam retirada; também pode consultar entregues ou canceladas quando o morador pedir esse status.
 
 A ordem do acontecimento (os passos de `caso.yaml`, que o harness executa de forma determinística):
 
-1. Chame `unidades.listar` (chamar_recurso) e guarde em `unidades`.
-2. Defina `unidade` a partir de `unidades` (mostre `label`): com UMA só opção, use-a sem perguntar; com várias, pergunte "De qual unidade?" oferecendo as opções. Se o morador já disse ou a memória/identidade já responde, use sem perguntar. Se vazio: "Sua unidade ainda não tem encomendas disponíveis por aqui."
-3. Chame `encomendas.listar` (chamar_recurso) com `unidade_id` = {{.unidade}} e guarde em `encomendas`.
-4. Responda no formato: {{if .encomendas}}Encomendas aguardando retirada ({{.unidade_label}}): {{range .encomendas}}• {{.label}} {{end}} Se quiser o código de retirada, é só pedir.{{else}}Não há encomendas aguardando retirada para {{.unidade_label}}.{{end}}
+1. Chame `gruvi.bff.building-operation.get-company-by-document-controller-handle` (chamar_recurso) e guarde em `condominio`.
+2. Se a conversa já tem `unidade`, pergunte "Deseja reutilizar a unidade {{.reuso_label}}?" (sim/não, guardado em `reutilizar_unidade`); com o sim, reaproveite sem perguntar de novo.
+3. Defina `unidade` a partir de `condominio` (mostre `unit`): com UMA só opção, use-a sem perguntar; com várias, pergunte "De qual unidade?" oferecendo as opções. Se vazio: "A consulta de encomendas não está disponível para as unidades retornadas."
+4. Colete, um a um e só o que ainda falta: `status`.
+5. Chame `gruvi.bff.building-operation.fetch-unit-packages-controller-handle` (chamar_recurso) com `unitId` = $unidade, `filter_status` = {{if .status}}{{.status}}{{else}}waiting{{end}} e guarde em `encomendas`.
+6. Responda no formato: {{if .encomendas}}Encomendas {{if eq .status "delivered"}}entregues{{else if eq .status "canceled"}}canceladas{{else}}aguardando retirada{{end}} ({{.unidade_label}}): {{range .encomendas}}• {{if .description}}{{.description}}{{else if .package_size}}{{.package_size}}{{else}}Encomenda{{end}}{{if .tracking_code}} ({{.tracking_code}}){{end}} {{end}}{{else}}Não há encomendas {{if eq .status "delivered"}}entregues{{else if eq .status "canceled"}}canceladas{{else}}aguardando retirada{{end}} para {{.unidade_label}}.{{end}}

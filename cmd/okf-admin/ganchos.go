@@ -104,8 +104,8 @@ func (s *servidor) responderGanchos(w http.ResponseWriter, r *http.Request, oper
 	}
 }
 
-// lerCorpo lê até limite bytes; acima disso, 413 com o código dado.
-func lerCorpo(w http.ResponseWriter, r *http.Request, limite int64, codigoGrande string) ([]byte, error) {
+// lerCorpoBruto lê até limite bytes; acima disso, 413 com o código dado.
+func lerCorpoBruto(w http.ResponseWriter, r *http.Request, limite int64, codigoGrande string) ([]byte, error) {
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limite))
 	if _, grande := errors.AsType[*http.MaxBytesError](err); grande {
 		return nil, recusa{status: http.StatusRequestEntityTooLarge, codigo: codigoGrande, mensagem: "corpo grande demais"}
@@ -342,7 +342,7 @@ func conferirAlteracao(regra regras.Regra, id string) error {
 // lerRegra decodifica o corpo (estrito: alterada_por e outros campos fora do esquema são
 // recusados) e devolve a definição a gravar.
 func lerRegra(w http.ResponseWriter, r *http.Request) (regras.Regra, json.RawMessage, error) {
-	raw, err := lerCorpo(w, r, limiteCorpoRegra, "CORPO_GRANDE_DEMAIS")
+	raw, err := lerCorpoBruto(w, r, limiteCorpoRegra, "CORPO_GRANDE_DEMAIS")
 	if err != nil {
 		return regras.Regra{}, nil, err
 	}

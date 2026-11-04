@@ -31,6 +31,8 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 	s.rotasAtende(mux)
 	s.rotasAdmin(mux)
 	s.rotasGanchos(mux)
+	s.rotasStudio(mux)
+	s.rotasCopiloto(mux)
 	if mcp != nil {
 		// por método: um "/mcp/" sem método conflitaria com o "GET /" da interface
 		protegido := s.protegida(acesso.StudioAvancado, alvoSuperlogica, mcp.ServeHTTP)

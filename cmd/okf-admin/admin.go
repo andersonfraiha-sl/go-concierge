@@ -20,53 +20,19 @@ import (
 	"go-concierge/internal/okf"
 )
 
-// Admin da administradora: a matriz condomínio × caso de uso (habilitação e papéis),
-// restrita aos condomínios dela (?administradora=<id> emula o login; RLS). O resto é da
-// Superlógica, no Backdoor: administradoras e seus condomínios, casos de uso, tools,
-// recursos e o payload de cada recurso por condomínio.
+// API do mapeamento administradoras → condomínios → skills (habilitação, papéis,
+// orientações, ajustes), restrita aos condomínios da administradora do pedido
+// (?administradora=<id>; RLS). O Studio é quem usa. Até o Studio cobrir tudo, ficam três
+// telas antigas: /admin (matriz skills × condomínios), /backdoor/administradoras
+// (renomear administradora) e /backdoor/payloads (definições livres por recurso).
 
 func (s *servidor) rotasAdmin(mux *http.ServeMux) {
-	mux.HandleFunc("GET /backdoor", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "backdoor.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/payloads", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "payloads.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/administradoras", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "administradoras.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/orquestracao", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "orquestracao.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.Handle("GET /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminOrquestracao))
+	mux.HandleFunc("GET /admin", s.telaAntiga("index.html"))
+	mux.HandleFunc("GET /backdoor", s.telaAntiga("backdoor.html"))
+	mux.HandleFunc("GET /backdoor/orquestracao", s.telaAntiga("orquestracao.html"))
+	mux.HandleFunc("GET /backdoor/payloads", s.telaAntiga("payloads.html"))
+	mux.HandleFunc("GET /backdoor/administradoras", s.telaAntiga("administradoras.html"))
+	mux.Handle("GET /api/admin/orquestracao", s.protegidaEmAlgum(acesso.StudioAvancado, s.adminOrquestracao))
 	mux.Handle("PUT /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminSalvarOrquestracao))
 	// a resposta já vem recortada às administradoras visíveis ao usuário
 	mux.Handle("GET /api/admin/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.adminEstado))
@@ -93,6 +59,8 @@ type casoDeUso struct {
 	ID        string   `json:"id"`   // id do caso.yaml, se houver
 	Titulo    string   `json:"titulo"`
 	Descricao string   `json:"descricao"`
+	Resumo    string   `json:"resumo"` // caso: deriva de summary/description; sem caso: agent.yaml resumo
+	Icone     string   `json:"icone"`  // caso.icon; sem caso, vazio
 	Escrita   bool     `json:"escrita"`
 	Tipo      string   `json:"tipo"`
 	Recursos  []string `json:"recursos"` // o que o caso usa (agent.yaml e caso.yaml)
@@ -123,6 +91,9 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 			continue
 		}
 		c := casoDeUso{Nome: sub.Nome, Titulo: sub.Nome, Descricao: sub.Descricao, Tipo: sub.Tipo, Recursos: []string{}}
+		if resumo, ok := sub.Config["resumo"].(string); ok {
+			c.Resumo = resumo
+		}
 		visto := map[string]bool{}
 		for _, r := range sub.Recursos {
 			if !visto[r] {
@@ -138,6 +109,8 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 			if d := strings.TrimSpace(sub.Caso.Description); d != "" {
 				c.Descricao = d // a descrição do caso fala com a administradora; a do agente é critério de rota
 			}
+			c.Resumo = okf.ResumoDe(sub.Caso.Summary, sub.Caso.Description)
+			c.Icone = sub.Caso.Icon
 			for _, r := range sub.Caso.Recursos {
 				if reg[r].Write {
 					c.Escrita = true
@@ -388,6 +361,20 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
 		return s.admin.SalvarAjustes(r.Context(), alvoDaEscrita(r, corpo.Condominio), corpo.Ajustes)
 	})
+}
+
+// telaAntiga serve uma página de web/okf que o Studio ainda não substituiu.
+func (s *servidor) telaAntiga(arquivo string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw, err := fs.ReadFile(s.web, arquivo)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(raw)
+	}
 }
 
 // codigoConflitoConcorrente é o código que o Admin recebe para repetir o pedido.
