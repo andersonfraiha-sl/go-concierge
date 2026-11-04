@@ -122,11 +122,11 @@ func (t Turno) AntesDeResponder(ctx context.Context, e AntesDeResponder) Resulta
 }
 
 // TransbordoOuEncerramento nunca bloqueia. Se o saneamento do motivo falhar, o motivo cru
-// não segue: sai MotivoOmitido.
+// não segue: sai MotivoTransbordoSolicitado.
 func (t Turno) TransbordoOuEncerramento(ctx context.Context, e TransbordoOuEncerramento) Resultado[TransbordoOuEncerramento] {
 	r := avaliarNoPonto(ctx, t, ponto[TransbordoOuEncerramento]{t.conjunto.fixos.TransbordoOuEncerramento, t.indice.TransbordoOuEncerramento}, e)
 	if saneamentoDoMotivoFalhou(r.Registros) {
-		r.Evento.Motivo = MotivoOmitido
+		r.Evento.Motivo = MotivoTransbordoSolicitado
 	}
 	return r
 }

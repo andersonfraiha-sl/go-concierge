@@ -14,6 +14,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/pii"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/pedidos"
 )
@@ -170,13 +172,16 @@ func corta(s string, n int) string {
 }
 
 // turnoComPedidos é a vez do robô com o registro de pedidos como espinha dorsal.
-func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string, historico []*schema.Message) (*harness.Resultado, []PedidoTurno, error) {
+// cofre é o do turno: os slots extraídos da mensagem mascarada voltam aos valores reais
+// antes de entrar no pedido.
+func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string, historico []*schema.Message, cofre *pii.Cofre) (*harness.Resultado, []PedidoTurno, error) {
 	contato := sess.contato()
 	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
 	rel := ag.Def.Rel
 	var rota []harness.Passo
 	var uso harness.Uso
+	var registros []ganchos.Registro
 	passo := func(tipo, det string) { rota = append(rota, harness.Passo{Agente: rel, Tipo: tipo, Detalhe: det}) }
 	casos, contratos := casosDisponiveis(ag)
 	cart, err := s.carregarCarteira(ctx, contato)
@@ -288,7 +293,8 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			continue
 		}
 		antes := len(p.Valores)
-		if rej := pedidos.Aplicar(cc.ct, p, pe.Valores, pedidos.OrigemMorador); len(rej) > 0 {
+		valores, _ := pii.DevolverEmValor(pe.Valores, cofre.Ler()).(map[string]any)
+		if rej := pedidos.Aplicar(cc.ct, p, valores, pedidos.OrigemMorador); len(rej) > 0 {
 			for k, v := range rej {
 				passo("pedido", p.Protocolo+" rejeitou "+k+": "+v)
 			}
@@ -391,6 +397,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 					}
 					rota = append(rota, r.Rota...)
 					uso.Soma(r.Uso)
+					registros = append(registros, r.Registros...)
 					if r.Transbordo != "" {
 						transbordo = r.Transbordo
 					}
@@ -430,6 +437,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		}
 		rota = append(rota, res.Rota...)
 		uso.Soma(res.Uso)
+		registros = append(registros, res.Registros...)
 		if strings.TrimSpace(res.Resposta) != "" && (res.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 			partes = append(partes, res.Resposta)
 		} else if res.Transbordo != "" && sess.Destino.Conector == "atende" {
@@ -590,7 +598,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	msgs := make([]*schema.Message, 0, len(historico)+2)
 	msgs = append(msgs, historico...)
 	msgs = append(msgs, schema.UserMessage(texto), schema.AssistantMessage(resposta, nil))
-	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo}, turnos, nil
+	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo, Registros: registros}, turnos, nil
 }
 
 func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, contato escopo.Contato, turnos []PedidoTurno, resposta string) error {

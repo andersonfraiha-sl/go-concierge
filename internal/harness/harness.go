@@ -103,6 +103,9 @@ type Config struct {
 	// Turno é o turno de quem chama, dono do cofre de PII; nil = o Build abre um com
 	// Ganchos, e toda a família do agente o compartilha.
 	Turno *ganchos.Turno
+	// AdministradoraID e CondominioID são o alvo dos ganchos nas ferramentas: sem eles só
+	// as regras globais valem.
+	AdministradoraID, CondominioID string
 }
 
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em

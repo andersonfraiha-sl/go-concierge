@@ -244,7 +244,7 @@ func TestSaneamentoOmiteMotivoQuandoOSaneadorDoTransbordoFalha(t *testing.T) {
 	r := ganchos.NovoConjunto(fixos, nil).Turno().TransbordoOuEncerramento(context.Background(), ganchos.TransbordoOuEncerramento{
 		Motivo: "morador " + cpfValido,
 	})
-	if r.Evento.Motivo != ganchos.MotivoOmitido {
+	if r.Evento.Motivo != ganchos.MotivoTransbordoSolicitado {
 		t.Fatalf("motivo = %q", r.Evento.Motivo)
 	}
 	if r.Decisao.Tipo == ganchos.Bloquear {

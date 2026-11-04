@@ -23,6 +23,8 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -363,6 +365,11 @@ type Servico struct {
 	// Pool envia os lotes do turno: a leitura a frio antes da resposta e as escritas depois
 	// dela, uma ida ao banco cada. nil (stores sem Postgres) = cada store lê e grava sozinho.
 	Pool *pgxpool.Pool
+	// Ganchos avaliam o turno inteiro (entrada, ferramentas, resposta, transbordo); nil =
+	// só os fixos, montados no primeiro uso.
+	Ganchos     *ganchos.Conjunto
+	fixosUmaVez sync.Once
+	soFixos     *ganchos.Conjunto
 }
 
 // aquecivelNoLote é o store com cache por contato que lê o contato frio dentro de um lote.
@@ -702,9 +709,27 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	if texto == "" {
 		return sess, fmt.Errorf("evento %s sem texto (tipo %s)", msg.ID, msg.Tipo)
 	}
+	sess.mu.Lock()
+	transbordado := sess.Transbordo != nil && (sess.Transbordo.Ativo || sess.Transbordo.Estado == "solicitado" || sess.Transbordo.Estado == "incerto")
+	identidadeVazia := sess.Identidade.Phone == ""
+	plano := sess.Plano
+	sess.mu.Unlock()
+	sess.comecarRegistros()
+	turnoGanchos := s.ganchos().Turno()
+	m, errMapeamento := s.lerMapeamento(ctx)
+	entradaGanchos := s.mensagemRecebida(ctx, sess, turnoGanchos, msg, texto, m)
+	if bloqueioPorFalha(entradaGanchos.Registros) {
+		// sem a checagem e a máscara a mensagem não segue, nem para o histórico
+		if !transbordado {
+			s.transbordar(ctx, sess, turnoGanchos, MotivoFalhaDeGancho, "concierge", "")
+		}
+		return sess, nil
+	}
+	texto = entradaGanchos.Evento.Texto
 	sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: msg.ID})
 	historico := sess.historicoSnapshot()
 	baseHistorico := len(historico)
+	troca := trocaDoTurno{texto: texto, historico: historico, base: baseHistorico}
 	historicoRegistrado := false
 	interrompido := func() bool {
 		sess.mu.Lock()
@@ -718,25 +743,33 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		}
 	}()
 	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
-	sess.mu.Lock()
-	transbordado := sess.Transbordo != nil && (sess.Transbordo.Ativo || sess.Transbordo.Estado == "solicitado" || sess.Transbordo.Estado == "incerto")
-	identidadeVazia := sess.Identidade.Phone == ""
-	plano := sess.Plano
-	sess.mu.Unlock()
 	if transbordado {
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		return sess, nil
 	}
-	m, condo, err := s.resolverCondominio(ctx, sess, msg)
-	if err != nil {
-		if !condominioNaoAtendido(err) {
-			s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
-			historicoRegistrado = true
-			return sess, err
-		}
-		s.avisar(ctx, "resolver_condominio", sess, err)
+	if errMapeamento != nil {
+		err := fmt.Errorf("resolver condomínio: %w", errMapeamento)
+		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
+		historicoRegistrado = true
+		return sess, err
+	}
+	decisao := entradaGanchos.Decisao
+	if decisao.Tipo == ganchos.Bloquear && decisao.Origem.Gancho == fixos.EscopoDaConversa {
+		// condomínio que este processo não atende: transborda, como sempre
+		s.avisar(ctx, "resolver_condominio", sess, decisao.Motivo)
 		sess.historicoAdicionar(schema.UserMessage(texto))
-		s.transbordar(sess, "condomínio não identificado", "concierge", "")
+		s.transbordar(ctx, sess, turnoGanchos, decisao.Motivo, "concierge", "")
+		return sess, nil
+	}
+	condo := entradaGanchos.Evento.Condominio
+	if err := fixarCondominio(sess, condo, msg.Contato.Phone); err != nil {
+		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
+		historicoRegistrado = true
+		return sess, err
+	}
+	if decisao.Tipo == ganchos.Bloquear {
+		s.responderAoMorador(ctx, sess, turnoGanchos, troca, decisao.Motivo, "")
+		historicoRegistrado = true
 		return sess, nil
 	}
 	contato := sess.contato()
@@ -752,7 +785,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			sess.mu.Unlock()
 			// o morador não fica sem resposta: a falha de vínculo (MCP, B2C) é dita
 			// de forma amigável, e o erro técnico fica no turno
-			s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+			s.responderFalha(ctx, sess, turnoGanchos, troca, err)
 			historicoRegistrado = true
 			return sess, err
 		}
@@ -766,9 +799,10 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 
 	revisaoMemoria := s.revisaoMemoria(contato)
 	cfg, mem, def, err := s.prepararTurno(ctx, sess, m, condo)
+	cfg.Turno = &turnoGanchos
 	if err != nil {
 		slog.ErrorContext(ctx, "atende: turno não montado", "operacao", "montar_turno", "sessao", sess.ID, "erro", err)
-		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
 		historicoRegistrado = true
 		return sess, err
 	}
@@ -782,14 +816,14 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		if errors.Is(err, context.Canceled) && interrompido() {
 			return sess, nil
 		}
-		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
 		historicoRegistrado = true
 		return sess, err
 	}
 	var res *harness.Resultado
 	var pedidosTurno []PedidoTurno
 	if s.Pedidos != nil {
-		res, pedidosTurno, err = s.turnoComPedidos(ctx, sess, ag, texto, historico)
+		res, pedidosTurno, err = s.turnoComPedidos(ctx, sess, ag, texto, historico, turnoGanchos.Cofre())
 	} else if plano != nil && plano.Pendente != "" {
 		// um item do plano perguntou algo ao morador: a resposta vai direto a ele
 		res, err = harness.Continuar(ctx, ag, plano, texto, historico)
@@ -800,9 +834,14 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		if errors.Is(err, context.Canceled) && interrompido() {
 			return sess, nil
 		}
-		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
 		historicoRegistrado = true
 		return sess, err
+	}
+	sess.anotarRegistros(res.Registros)
+	if res.Transbordo != "" {
+		// o motivo vai ao ATENDE, à sessão e ao log: sai daqui já sem PII
+		res.Transbordo = s.motivoDoTransbordo(ctx, sess, turnoGanchos, res.Transbordo, false)
 	}
 	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 		res.Resposta = "Não consigo transferir esta conversa para um atendente por este canal. Posso continuar ajudando por aqui."
@@ -843,7 +882,15 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		return sess, nil
 	}
 	var erroEntrega error
+	entregue := res.Resposta
 	if s.Sender != nil && res.Resposta != "" {
+		saida := s.antesDeResponder(ctx, sess, turnoGanchos, res.Resposta)
+		if saida.trocada {
+			res.Resposta = saida.texto
+			res.Mensagens = substituirUltimaResposta(res.Mensagens, saida.texto)
+		}
+		mascarada := res.Resposta
+		entregue = saida.texto
 		ctxCancelavel, cancelar := context.WithCancel(ctx)
 		sess.mu.Lock()
 		if sess.Encerrada || sess.AtendimentoHumano || sess.revisaoEstado != msg.Revisao {
@@ -858,11 +905,16 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			return !sess.Encerrada && !sess.AtendimentoHumano && sess.revisaoEstado == msg.Revisao
 		}
 		ctxEntrega := context.WithValue(ctxCancelavel, chaveControleEntrega{}, verificar)
-		erroEntrega = s.Sender.Enviar(ctxEntrega, sess.Destino, res.Resposta)
+		erroEntrega = s.Sender.Enviar(ctxEntrega, sess.Destino, entregue)
 		suprimida := errors.Is(erroEntrega, errEntregaSuprimida) || erroEntrega != nil && ctxCancelavel.Err() != nil && !verificar()
 		var parcial *entregaParcial
 		if errors.As(erroEntrega, &parcial) {
-			res.Resposta = strings.Join(parcial.partes, "\n")
+			entregue = strings.Join(parcial.partes, "\n")
+			res.Resposta = entregue
+			if saida.texto != mascarada {
+				// as partes saíram com os valores do cofre: o turno guarda a máscara
+				res.Resposta, _ = turnoGanchos.Cofre().Mascarar(entregue)
+			}
 			mensagens := append([]*schema.Message(nil), res.Mensagens...)
 			if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
 				mensagens[len(mensagens)-1] = schema.AssistantMessage(res.Resposta, nil)
@@ -927,7 +979,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	if s.Pedidos != nil {
 		ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		err := s.marcarConfirmacoesEntregues(ctxSalvar, contato, pedidosTurno, res.Resposta)
+		err := s.marcarConfirmacoesEntregues(ctxSalvar, contato, pedidosTurno, entregue)
 		cancelar()
 		if err != nil {
 			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
@@ -954,7 +1006,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	if res.Transbordo != "" {
 		if sess.Destino.Conector == "atende-emulado" {
 			if s.Transferidor == nil {
-				s.transbordar(sess, res.Transbordo, "concierge", "")
+				s.marcarTransbordo(sess, res.Transbordo, "concierge", "")
 			} else if err := s.Transferidor.Transferir(ctx, sess.Destino, res.Transbordo); err != nil {
 				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
 			} else {
@@ -1019,7 +1071,11 @@ func (s *Servico) RegistrarHumano(ctx context.Context, msg entrada.Mensagem) (bo
 
 // Encerrar: o canal fechou o protocolo. Devolve false quando a sessão não existe.
 func (s *Servico) Encerrar(ctx context.Context, msg entrada.Mensagem) (bool, error) {
-	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool { sess.encerrar(msg); return true })
+	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool {
+		s.motivoDoTransbordo(ctx, sess, s.ganchos().Turno(), "", true)
+		sess.encerrar(msg)
+		return true
+	})
 }
 
 // Sessao devolve a sessão pelo ID interno ou protocolo, só se ela for de uma
@@ -1142,14 +1198,28 @@ func FalhaTemporaria(err error) bool {
 // guarda o erro técnico, a troca entra no histórico (o próximo turno sabe o que houve)
 // e a frase sai pelo canal. O envio usa um contexto novo (o da requisição pode ter
 // sido justamente o que estourou), mas respeita a sessão: encerrada, não entrega.
-func (s *Servico) responderFalha(ctx context.Context, sess *Sessao, texto string, historico []*schema.Message, baseHistorico int, err error) {
+func (s *Servico) responderFalha(ctx context.Context, sess *Sessao, t ganchos.Turno, troca trocaDoTurno, err error) {
 	frase := FraseFalha
 	if FalhaTemporaria(err) {
 		frase = FraseInstabilidade
 	}
-	sess.registrar(Turno{Quem: "concierge", Texto: frase, Erro: err.Error()})
-	mensagens := append(append([]*schema.Message(nil), historico...), schema.UserMessage(texto), schema.AssistantMessage(frase, nil))
-	sess.historicoAtualizar(baseHistorico, mensagens)
+	s.responderAoMorador(ctx, sess, t, troca, frase, err.Error())
+}
+
+// trocaDoTurno é a mensagem do morador (já mascarada) e o histórico em que ela entra.
+type trocaDoTurno struct {
+	texto     string
+	historico []*schema.Message
+	base      int
+}
+
+// responderAoMorador responde a troca com uma frase pronta (falha do concierge ou
+// mensagem de uma regra), que passa por antes_de_responder. erro é o técnico, para o turno.
+func (s *Servico) responderAoMorador(ctx context.Context, sess *Sessao, t ganchos.Turno, troca trocaDoTurno, frase, erro string) {
+	frase = s.antesDeResponder(ctx, sess, t, frase).texto
+	sess.registrar(Turno{Quem: "concierge", Texto: frase, Erro: erro})
+	mensagens := append(append([]*schema.Message(nil), troca.historico...), schema.UserMessage(troca.texto), schema.AssistantMessage(frase, nil))
+	sess.historicoAtualizar(troca.base, mensagens)
 	if s.Sender == nil {
 		return
 	}
@@ -1184,6 +1254,8 @@ func (s *Servico) prepararTurno(ctx context.Context, sess *Sessao, m admin.Mapea
 func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
 	cfg = s.Config
 	cfg.Sessao = sess.ID
+	cfg.Ganchos = s.ganchos()
+	cfg.AdministradoraID, cfg.CondominioID = condo.Administradora, condo.ID
 	sess.mu.Lock()
 	identidade := sess.Identidade
 	sess.mu.Unlock()
@@ -1267,7 +1339,7 @@ func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato 
 		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s: %w", contato.CondominioID, sess.ID, admin.ErrCondominioDesconhecido)
 	}
 	if condo.Administradora != contato.AdministradoraID {
-		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s mudou de dona: %w", contato.CondominioID, sess.ID, errCondominioMudou)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s mudou de dona: %w", contato.CondominioID, sess.ID, fixos.ErrCondominioMudou)
 	}
 	return m, condo, nil
 }
@@ -1289,49 +1361,29 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 	return harness.Build(ctx, s.Cat, def, cfg)
 }
 
-// transbordar passa o protocolo ao atendente humano.
-// resolverCondominio fixa na sessão o condomínio da mensagem e o contato na
-// administradora dele. Sem mapeamento, nenhum condomínio é conhecido.
-// Devolve o mapeamento lido e o condomínio, que o turno usa sem reler.
-func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entrada.Mensagem) (admin.Mapeamento, admin.Condominio, error) {
-	if s.Mapeamento == nil {
-		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("resolver condomínio sem mapeamento: %w", admin.ErrCondominioDesconhecido)
-	}
-	m, err := s.Mapeamento.Ler(ctx)
+// fixarCondominio fixa na sessão o condomínio que o escopo_da_conversa resolveu e o
+// contato na administradora dele.
+func fixarCondominio(sess *Sessao, condo admin.Condominio, telefone string) error {
+	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, telefone)
 	if err != nil {
-		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("resolver condomínio: %w", err)
-	}
-	condo, err := admin.ResolverCondominio(m, s.Implantacao, msg.CompanyID, msg.Tenant)
-	if err != nil {
-		return admin.Mapeamento{}, admin.Condominio{}, err
-	}
-	if atual := sess.contato(); atual.CondominioID != "" && (atual.CondominioID != condo.ID || atual.AdministradoraID != condo.Administradora) {
-		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("conversa de %s/%s recebeu mensagem de %s/%s: %w", atual.AdministradoraID, atual.CondominioID, condo.Administradora, condo.ID, errCondominioMudou)
-	}
-	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
-	if err != nil {
-		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
+		return fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
 	}
 	sess.fixarContato(contato, condo.CompanyID)
-	return m, condo, nil
+	return nil
 }
 
-var errCondominioMudou = errors.New("condomínio da conversa mudou")
-
-// naoAtendidos: a mensagem é de um condomínio que este processo não atende; qualquer
-// outro erro da resolução é falha de infraestrutura.
-var naoAtendidos = []error{admin.ErrCondominioDesconhecido, admin.ErrForaDaImplantacao, admin.ErrCondominioAmbiguo, admin.ErrCondominioIncompleto, errCondominioMudou}
-
-func condominioNaoAtendido(err error) bool {
-	return slices.ContainsFunc(naoAtendidos, func(alvo error) bool { return errors.Is(err, alvo) })
-}
-
-func (s *Servico) avisar(ctx context.Context, operacao string, sess *Sessao, err error) {
+func (s *Servico) avisar(ctx context.Context, operacao string, sess *Sessao, motivo string) {
 	slog.WarnContext(ctx, "atende: condomínio não atendido; conversa transbordada",
-		"operacao", operacao, "sessao", sess.ID, "erro", err)
+		"operacao", operacao, "sessao", sess.ID, "motivo", motivo)
 }
 
-func (s *Servico) transbordar(sess *Sessao, motivo, pedidoPor, atendente string) {
+// transbordar passa o protocolo ao atendente humano, com o motivo saneado pelos ganchos.
+func (s *Servico) transbordar(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo, pedidoPor, atendente string) {
+	s.marcarTransbordo(sess, s.motivoDoTransbordo(ctx, sess, t, motivo, false), pedidoPor, atendente)
+}
+
+// marcarTransbordo registra o transbordo com um motivo que já passou pelos ganchos.
+func (s *Servico) marcarTransbordo(sess *Sessao, motivo, pedidoPor, atendente string) {
 	sess.mu.Lock()
 	if sess.Encerrada {
 		sess.mu.Unlock()
@@ -1515,7 +1567,7 @@ func (sess *Sessao) contextoEntregaManual(ctx context.Context) (context.Context,
 
 // Assumir: o atendente toma o protocolo (mesmo sem o concierge ter pedido).
 func (s *Servico) Assumir(ctx context.Context, protocolo, atendente, motivo string) (*Sessao, error) {
-	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.assumir(sess, atendente, motivo) })
+	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.assumir(ctx, sess, atendente, motivo) })
 }
 
 // ErrProtocoloDesconhecido: não há sessão do protocolo visível nesta implantação.
@@ -1537,7 +1589,7 @@ func (s *Servico) noProtocolo(ctx context.Context, protocolo string, op func(*Se
 	return res, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
 }
 
-func (s *Servico) assumir(sess *Sessao, atendente, motivo string) (*Sessao, error) {
+func (s *Servico) assumir(ctx context.Context, sess *Sessao, atendente, motivo string) (*Sessao, error) {
 	if sess.Destino.Conector != "atende-emulado" {
 		return sess, errors.New("transferência de atendimento indisponível neste canal")
 	}
@@ -1561,7 +1613,7 @@ func (s *Servico) assumir(sess *Sessao, atendente, motivo string) (*Sessao, erro
 	if motivo == "" {
 		motivo = "o atendente assumiu a conversa"
 	}
-	s.transbordar(sess, motivo, "atendente", atendente)
+	s.transbordar(ctx, sess, s.ganchos().Turno(), motivo, "atendente", atendente)
 	return sess, nil
 }
 
@@ -1659,7 +1711,7 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	}
 	var novos []memoria.Fato
 	agora := time.Now()
-	for _, f := range fatos {
+	for _, f := range fatosSemPII(fatos) {
 		f.Fonte = sess.Protocolo
 		f.CondominioID = contato.CondominioID
 		if f.Quando.IsZero() {
