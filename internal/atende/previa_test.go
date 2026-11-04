@@ -45,9 +45,9 @@ func TestPreviaCancelaAReservaAntesDaPrimeiraPergunta(t *testing.T) {
 	}
 }
 
-// A prévia que bloqueia não vira auditoria nem ida ao banco: o turno com o auditor vai ao
-// banco antes da resposta tantas vezes quanto o mesmo turno sem auditor.
-func TestPreviaQueBloqueiaNaoAuditaNemVaiAoBanco(t *testing.T) {
+// A prévia que cancela o pedido vira uma linha de auditoria, gravada depois da resposta: o
+// turno com o auditor vai ao banco antes da resposta tantas vezes quanto o turno sem auditor.
+func TestPreviaQueCancelaAuditaUmaLinhaDepoisDaResposta(t *testing.T) {
 	msg := mensagemDoMorador(eventoCom(t, "quero reservar uma área comum"), 1, 0)
 	base, _, contadorBase := servicoNoPostgres(t) // o conjunto é fixado no primeiro uso: um serviço por medida
 	base.Ganchos, base.Auditoria = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraDeReserva(t)), nil
@@ -67,8 +67,9 @@ func TestPreviaQueBloqueiaNaoAuditaNemVaiAoBanco(t *testing.T) {
 	if m.idas != semAuditor.idas {
 		t.Errorf("idas antes da resposta = %d, want %d (as do turno sem auditor)", m.idas, semAuditor.idas)
 	}
-	if linhas := linhasDaRegra(t, db, "r1"); len(linhas) != 0 {
-		t.Fatalf("a prévia foi auditada: %+v", linhas)
+	linhas := linhasDaRegra(t, db, "r1")
+	if len(linhas) != 1 || linhas[0].Decisao != string(ganchos.Bloquear) || linhas[0].CondominioID != "cond-001" {
+		t.Fatalf("o bloqueio que cancelou devia ter uma linha: %+v", linhas)
 	}
 }
 
@@ -129,5 +130,85 @@ func TestPreviaComGanchoQueFalhaNaoCancela(t *testing.T) {
 	r := ultimoConcierge(falar(t, svc, "previa-falha", "quero reservar uma área comum"))
 	if !strings.Contains(r.Texto, "Qual área você quer reservar?") {
 		t.Fatalf("falha na previsão não cancela o pedido: %q", r.Texto)
+	}
+}
+
+const regraQueConfirmaReserva = `{"nome":"Confirmar reserva à noite","evento":"antes_da_ferramenta",
+"alvo":{"administradora":"adm-a","condominios":["cond-001"]},
+"condicoes":[{"tipo":"ferramenta","nomes":["areas.reservar"]},
+{"tipo":"fora_do_horario","inicio":"06:00","fim":"22:00","fonte":{"tipo":"agora"}}],
+"decisao":{"tipo":"confirmar","pergunta":"Já é tarde, quer mesmo reservar assim?"},"ativa":true}`
+
+const perguntaDaRegraDeReserva = "Já é tarde, quer mesmo reservar assim?"
+
+func indiceDaRegraQueConfirma(t *testing.T) *ganchos.Indice {
+	t.Helper()
+	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: "rc", Versao: 2, Ativa: true, Definicao: []byte(regraQueConfirmaReserva)}})
+	if len(erros) > 0 {
+		t.Fatal(erros)
+	}
+	return indice
+}
+
+// conversaDaReserva fala com o serviço numa conversa só e devolve a resposta de cada fala.
+func conversaDaReserva(t *testing.T, svc *Servico) func(texto string) string {
+	t.Helper()
+	pedidos.Agora = func() time.Time { return time.Date(2026, 11, 4, 12, 0, 0, 0, time.Local) }
+	t.Cleanup(func() { pedidos.Agora = time.Now })
+	instante := time.Date(2026, 11, 5, 1, 30, 0, 0, time.UTC) // 22h30 em São Paulo
+	svc.Agora = func() time.Time { return instante }
+	i := 0
+	return func(texto string) string {
+		t.Helper()
+		i++
+		sess, err := svc.Processar(t.Context(), mensagemDoMorador(eventoCom(t, texto), 7, i))
+		if err != nil {
+			t.Fatalf("%q: %v", texto, err)
+		}
+		svc.Aguardar()
+		return ultimoConcierge(sess).Texto
+	}
+}
+
+func ateAConfirmacao(t *testing.T, fala func(string) string) {
+	t.Helper()
+	if r := fala("quero reservar uma área comum"); !strings.Contains(r, "Qual área") {
+		t.Fatalf("a pergunta da regra espera a confirmação do caso: %q", r)
+	}
+	if r := fala("salão"); !strings.Contains(r, "Para qual data?") {
+		t.Fatalf("depois da área, a data: %q", r)
+	}
+	r := fala("15/11")
+	if !strings.Contains(r, "Confirma a reserva de Salão de festas") || !strings.Contains(r, perguntaDaRegraDeReserva) {
+		t.Fatalf("a confirmação do caso e a pergunta da regra saem juntas: %q", r)
+	}
+}
+
+func TestPerguntaDaRegraVaiNaConfirmacaoEUmSimGrava(t *testing.T) {
+	svc, db, _ := servicoNoPostgres(t)
+	comAuditor(svc, db, indiceDaRegraQueConfirma(t))
+	fala := conversaDaReserva(t, svc)
+
+	ateAConfirmacao(t, fala)
+	linhas := linhasDaRegra(t, db, "rc")
+	if len(linhas) != 1 || linhas[0].Decisao != string(ganchos.Confirmar) || linhas[0].RegraVersao != 2 {
+		t.Fatalf("a pergunta que foi ao morador tem uma linha; as prévias anteriores, nenhuma: %+v", linhas)
+	}
+	if r := fala("sim"); !strings.Contains(r, "Reserva confirmada") {
+		t.Fatalf("um sim responde o caso e a regra: %q", r)
+	}
+	if n := len(linhasDaRegra(t, db, "rc")); n != 1 {
+		t.Fatalf("a gravação com o sim deixa passar sem linha nova: %d linhas", n)
+	}
+}
+
+func TestNaoAPerguntaDaRegraCancelaOPedido(t *testing.T) {
+	svc, _, _ := servicoComPedidos(t)
+	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraQueConfirma(t))
+	fala := conversaDaReserva(t, svc)
+
+	ateAConfirmacao(t, fala)
+	if r := fala("não"); !strings.Contains(r, "cancelado") || strings.Contains(r, "Reserva confirmada") {
+		t.Fatalf("o não cancela como o não da confirmação do caso: %q", r)
 	}
 }

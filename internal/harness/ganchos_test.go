@@ -12,6 +12,7 @@ import (
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/ganchos/ganchostest"
+	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/mcp"
 )
 
@@ -357,5 +358,35 @@ func TestChamadasParalelasNoMesmoTurno(t *testing.T) {
 	}
 	if len(cofre) == 0 || len(col.registros) != 2*chamadas {
 		t.Fatalf("cofre %d valores, %d registros; quer >0 e %d (contexto_b2c e pii_no_resultado por chamada)", len(cofre), len(col.registros), 2*chamadas)
+	}
+}
+
+// Caminho do modelo: a regra que pede confirmação devolve a pergunta como erro da ferramenta;
+// no turno seguinte, o sim do morador deixa a ferramenta rodar.
+func TestRegraQuePedeConfirmacaoPassaComOSimDoTurnoSeguinte(t *testing.T) {
+	definicao := `{"nome":"Confirmar consulta","evento":"antes_da_ferramenta","alvo":{},` +
+		`"condicoes":[{"tipo":"ferramenta","nomes":["` + ferramentaEmpresa + `"]}],` +
+		`"decisao":{"tipo":"confirmar","pergunta":"Quer mesmo ver as unidades?"},"ativa":true}`
+	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: "rc", Versao: 1, Ativa: true, Definicao: []byte(definicao)}})
+	if len(erros) > 0 {
+		t.Fatal(erros)
+	}
+	c := novoCenarioGanchos(t, ganchostest.Conjunto(fixos.Todos(), indice), &mcpFalso{})
+	reservas := c.ag.Subagentes["reserva-area-comum"]
+	chamar := func(mensagem string) saida {
+		t.Helper()
+		ctx := context.WithValue(context.Background(), chaveColetor{}, &coletor{mensagem: mensagem, transbordo: new(string)})
+		out, err := reservas.chamarRecurso(ctx, &argsRecurso{Nome: "unidades.listar"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	if out := chamar("quais são minhas unidades?"); erroDe(out) != "Quer mesmo ver as unidades?" || len(c.fake.chamadas) != 0 {
+		t.Fatalf("sem o sim, a pergunta da regra volta como erro e o MCP não roda: %q %v", erroDe(out), c.fake.chamadas)
+	}
+	if out := chamar("sim"); erroDe(out) != "" || len(c.fake.chamadas) != 1 {
+		t.Fatalf("com o sim, a ferramenta roda: %q %v", erroDe(out), c.fake.chamadas)
 	}
 }

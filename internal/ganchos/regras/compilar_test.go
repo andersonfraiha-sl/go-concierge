@@ -305,6 +305,37 @@ func TestCompilarConfirmaReservaForaDoHorarioDaRegra(t *testing.T) {
 	}
 }
 
+func TestCompilarConfirmarDeixaPassarQuandoOMoradorConfirma(t *testing.T) {
+	indice := compilarSemErro(t, gravadaDoArquivo(t, "r1", "confirmar-escrita-fora-do-horario.json"))
+	casos := []struct {
+		nome        string
+		confirmacao string
+		esperar     ganchos.TipoDecisao
+	}{
+		{"pergunta sem mensagem", "", ganchos.Confirmar},
+		{"pergunta quando a mensagem não é um sim", "quero o salão", ganchos.Confirmar},
+		{"pergunta quando o sim vem negado", "sim, mas não agora", ganchos.Confirmar},
+		{"deixa passar com o sim", "sim", ganchos.Deixar},
+		{"deixa passar com outra forma de sim", "pode reservar", ganchos.Deixar},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			ev := ganchos.AntesDaFerramenta{Ferramenta: "areas.reservar", Agora: momentoUTC("2026-11-05T01:30:00Z"), Confirmacao: c.confirmacao}
+			r := ganchos.Avaliar(context.Background(), indice.AntesDaFerramenta.Para("", ""), ev)
+			require.Equal(t, c.esperar, r.Decisao.Tipo)
+		})
+	}
+}
+
+func TestCompilarBloquearIgnoraOSimDoMorador(t *testing.T) {
+	indice := compilarSemErro(t, gravadaDoArquivo(t, "r1", "reserva-so-ate-22h.json"))
+	ev := ganchos.AntesDaFerramenta{
+		Ferramenta: "areas.reservar", Agora: momentoUTC("2026-11-05T01:30:00Z"), Confirmacao: "sim",
+		AdministradoraID: "adm-aurora", CondominioID: "cond-flores",
+	}
+	require.Equal(t, ganchos.Bloquear, decidirAntes(indice, ev).Tipo)
+}
+
 func TestCompilarFalhaDeRegraGuardaAOrigemDela(t *testing.T) {
 	g := gravadaDoArquivo(t, "r7", "codigo-de-retirada-so-cadastrado.json")
 	g.Versao = 3
