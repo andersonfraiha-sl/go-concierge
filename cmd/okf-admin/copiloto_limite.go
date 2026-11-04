@@ -7,21 +7,26 @@ import (
 )
 
 // Guarda de custo do Copiloto: cada chamada ao modelo é paga e pode levar quase um minuto.
-// ponytail: em memória e de uma réplica só (o semáforo e os baldes valem por processo, e o
-// mapa de baldes cresce com os usuários distintos). Quando a Fundação tiver várias réplicas,
-// mover os dois para Postgres ou Redis.
+// ponytail: os dois limites (4 chamadas simultâneas e 10 por minuto por usuário) vivem em
+// memória e valem por réplica; os baldes parados há 10 min saem do mapa. Quando a Fundação
+// tiver várias réplicas, mover os dois para Postgres ou Redis.
 
 const (
 	chamadasSimultaneasCopiloto = 4
 	chamadasPorMinutoCopiloto   = 10
 	esperaSemVagaCopiloto       = 5 * time.Second
+	// baldeParado: bem acima do minuto que o balde leva para encher, então o balde que sai
+	// está cheio, igual a um novo.
+	baldeParado        = 10 * time.Minute
+	intervaloDaVarrida = time.Minute
 )
 
 type limiteDoCopiloto struct {
-	vagas  chan struct{}
-	agora  func() time.Time
-	mu     sync.Mutex
-	baldes map[string]balde
+	vagas     chan struct{}
+	agora     func() time.Time
+	mu        sync.Mutex
+	baldes    map[string]balde
+	varridoEm time.Time
 }
 
 // balde de fichas: enche chamadasPorMinutoCopiloto por minuto, até esse teto.
@@ -51,6 +56,7 @@ func (l *limiteDoCopiloto) tirarFicha(usuario string) (espera time.Duration, ok 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	agora := l.agora()
+	l.varrerParados(agora)
 	b := encher(l.baldes[usuario], agora)
 	if b.fichas < 1 {
 		l.baldes[usuario] = b
@@ -59,6 +65,20 @@ func (l *limiteDoCopiloto) tirarFicha(usuario string) (espera time.Duration, ok 
 	b.fichas--
 	l.baldes[usuario] = b
 	return 0, true
+}
+
+// varrerParados tira os baldes sem uso há baldeParado, no máximo uma vez por
+// intervaloDaVarrida. Chamar com l.mu travado.
+func (l *limiteDoCopiloto) varrerParados(agora time.Time) {
+	if agora.Sub(l.varridoEm) < intervaloDaVarrida {
+		return
+	}
+	l.varridoEm = agora
+	for usuario, b := range l.baldes {
+		if agora.Sub(b.em) >= baldeParado {
+			delete(l.baldes, usuario)
+		}
+	}
 }
 
 func encher(b balde, agora time.Time) balde {

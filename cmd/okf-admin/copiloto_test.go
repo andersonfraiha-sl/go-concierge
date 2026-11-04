@@ -507,3 +507,52 @@ func TestCopilotoLimitaChamadasPorUsuario(t *testing.T) {
 		t.Fatalf("só uma ficha voltou: status = %d", w.Code)
 	}
 }
+
+func TestLimiteDoCopilotoTiraBaldesParados(t *testing.T) {
+	inicio := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	agora := inicio
+	l := novoLimiteDoCopiloto(func() time.Time { return agora })
+	tirar := func(usuario string) {
+		t.Helper()
+		if _, ok := l.tirarFicha(usuario); !ok {
+			t.Fatalf("%s sem ficha às %s", usuario, agora.Sub(inicio))
+		}
+	}
+
+	for range chamadasPorMinutoCopiloto {
+		tirar("ana")
+	}
+	tirar("bia")
+	agora = inicio.Add(5 * time.Minute)
+	tirar("caio")
+	if len(l.baldes) != 3 {
+		t.Fatalf("antes da janela: %d baldes, quer 3", len(l.baldes))
+	}
+	agora = inicio.Add(baldeParado)
+	tirar("caio")
+	if len(l.baldes) != 1 {
+		t.Fatalf("depois da janela: %d baldes, quer 1 (só caio)", len(l.baldes))
+	}
+	for range chamadasPorMinutoCopiloto {
+		tirar("ana") // o balde novo de ana está cheio, como estaria o antigo
+	}
+}
+
+func TestLimiteDoCopilotoVarreNoMaximoUmaVezPorMinuto(t *testing.T) {
+	inicio := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	agora := inicio
+	l := novoLimiteDoCopiloto(func() time.Time { return agora })
+	l.tirarFicha("ana")
+	agora = inicio.Add(baldeParado - 30*time.Second)
+	l.tirarFicha("bia") // varre aqui: ana ainda não está parada
+	agora = inicio.Add(baldeParado)
+	l.tirarFicha("bia") // 30 s depois da última varrida: não varre
+	if _, ok := l.baldes["ana"]; !ok {
+		t.Fatal("varreu antes de um minuto")
+	}
+	agora = inicio.Add(baldeParado + 30*time.Second)
+	l.tirarFicha("bia")
+	if _, ok := l.baldes["ana"]; ok {
+		t.Fatal("ana parada há mais de 10 min continuou no mapa")
+	}
+}
