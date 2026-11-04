@@ -245,7 +245,7 @@ func TestCasoRealVisitanteConfirmaEEscreveUmaVezPeloMotor(t *testing.T) {
 	if fake.tentativasVisita != 1 || fake.escritasVisita != 1 || !strings.Contains(ultimoConcierge(sess).Texto, "Prontinho") {
 		t.Fatalf("confirmação válida deve criar uma visita: resposta=%q chamadas=%+v", ultimoConcierge(sess).Texto, fake.chamadas)
 	}
-	sess = falar(t, svc, "mcp-visita-3", "sim")
+	falar(t, svc, "mcp-visita-3", "sim")
 	if fake.tentativasVisita != 1 || fake.escritasVisita != 1 {
 		t.Fatalf("a visita concluída não pode ser escrita novamente: chamadas=%+v", fake.chamadas)
 	}
@@ -293,7 +293,7 @@ func TestCasoVisitanteResultadoIncertoNaoRepeteEscrita(t *testing.T) {
 	if fake.tentativasVisita != 1 || !strings.Contains(ultimoConcierge(sess).Texto, "incerto após o envio") {
 		t.Fatalf("timeout deve ser tratado como resultado incerto sem retry: resposta=%q chamadas=%+v", ultimoConcierge(sess).Texto, fake.chamadas)
 	}
-	sess = falar(t, svc, "mcp-visita-incerta-3", "sim")
+	falar(t, svc, "mcp-visita-incerta-3", "sim")
 	if fake.tentativasVisita != 1 {
 		t.Fatalf("resultado incerto não pode repetir a escrita: chamadas=%+v", fake.chamadas)
 	}

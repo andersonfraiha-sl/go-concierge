@@ -152,15 +152,6 @@ func (p *Plano) item(id string) *Item {
 	return nil
 }
 
-func (p *Plano) abertos() bool {
-	for _, it := range p.Itens {
-		if it.Status == StatusPendente || it.Status == StatusAguardando {
-			return true
-		}
-	}
-	return false
-}
-
 // candidato é uma opção de vínculo: um caso de uso (subagente) ou um recurso de leitura.
 type candidato struct {
 	Nome   string
