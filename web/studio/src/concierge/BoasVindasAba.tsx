@@ -8,7 +8,7 @@ import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { DocumentoEditavel } from '@/skills/abas/DocumentoEditavel';
-import { chaveDosTextos, salvarTextos, useTextos } from '@/skills/contratos';
+import { chaveDosTextos, salvarTextos, type TextosLidos, useTextos } from '@/skills/contratos';
 
 const CAMINHO_BOAS_VINDAS = caminhoDeRegra('boas-vindas.md');
 const CAMINHO_TRANSBORDO = caminhoDeRegra('transbordo.md');
@@ -60,11 +60,7 @@ export function TransbordoAba({ assistente }: { assistente: string }): ReactNode
 }
 
 function QuemPodeConversar({ assistente }: { assistente: string }): ReactNode {
-  const editavel = usePodeEditar('skills.editar_textos');
   const textos = useTextos(assistente);
-  const cliente = useQueryClient();
-  const { mostrar } = useSnackbar();
-
   if (textos.isPending) return <Typography variant="caption">Carregando…</Typography>;
   if (textos.isError) {
     return (
@@ -74,19 +70,35 @@ function QuemPodeConversar({ assistente }: { assistente: string }): ReactNode {
       />
     );
   }
+  return <SeletorDeVisibilidade assistente={assistente} lidos={textos.data} />;
+}
 
-  const { versao, textos: lidos } = textos.data;
-  const visibilidadeAtual: Visibilidade = lidos.visibilidade === 'public' ? 'public' : 'private';
-
-  const escolher = async (visibilidade: Visibilidade): Promise<void> => {
+function useEscolherVisibilidade(
+  assistente: string,
+  { versao, textos }: TextosLidos,
+): (visibilidade: Visibilidade) => Promise<void> {
+  const cliente = useQueryClient();
+  const { mostrar } = useSnackbar();
+  return async (visibilidade) => {
     try {
-      await salvarTextos(assistente, { versao, textos: { ...lidos, visibilidade } });
+      await salvarTextos(assistente, { versao, textos: { ...textos, visibilidade } });
       await cliente.invalidateQueries({ queryKey: chaveDosTextos(assistente) });
     } catch (erro) {
       mostrar(mensagemDe(erro), 'error');
     }
   };
+}
 
+function SeletorDeVisibilidade({
+  assistente,
+  lidos,
+}: {
+  assistente: string;
+  lidos: TextosLidos;
+}): ReactNode {
+  const editavel = usePodeEditar('skills.editar_textos');
+  const escolher = useEscolherVisibilidade(assistente, lidos);
+  const atual: Visibilidade = lidos.textos.visibilidade === 'public' ? 'public' : 'private';
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -95,15 +107,27 @@ function QuemPodeConversar({ assistente }: { assistente: string }): ReactNode {
       <ToggleButtonGroup
         exclusive
         aria-label="Quem pode conversar"
-        value={visibilidadeAtual}
+        value={atual}
         onChange={(_, valor: Visibilidade | null) => valor !== null && void escolher(valor)}
       >
         {ORDEM_DE_VISIBILIDADE.map((valor) => (
-          <ToggleButton key={valor} value={valor} disabled={!editavel} sx={{ borderRadius: 9 }}>
-            {ROTULOS_DE_VISIBILIDADE[valor]}
-          </ToggleButton>
+          <BotaoDeVisibilidade key={valor} valor={valor} desabilitado={!editavel} />
         ))}
       </ToggleButtonGroup>
     </Box>
+  );
+}
+
+function BotaoDeVisibilidade({
+  valor,
+  desabilitado,
+}: {
+  valor: Visibilidade;
+  desabilitado: boolean;
+}): ReactNode {
+  return (
+    <ToggleButton value={valor} disabled={desabilitado} sx={{ borderRadius: 9 }}>
+      {ROTULOS_DE_VISIBILIDADE[valor]}
+    </ToggleButton>
   );
 }

@@ -17,6 +17,7 @@ type Props = {
   onCancelar: () => void;
 };
 
+// por que: só JSX declarativo, sem lógica; quebrar espalharia o markup sem ganho de leitura.
 export function ConfirmDialog({
   aberto,
   titulo,

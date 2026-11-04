@@ -22,7 +22,9 @@ type Props = {
   criaSeNaoExistir?: boolean;
 };
 
-const eArquivoAusente = (erro: unknown): boolean => erro instanceof ApiError && erro.status === 404;
+function eArquivoAusente(erro: unknown): boolean {
+  return erro instanceof ApiError && erro.status === 404;
+}
 
 export function DocumentoEditavel(props: Props): ReactNode {
   const { agente, caminho, titulo, criaSeNaoExistir = false } = props;
@@ -41,16 +43,27 @@ export function DocumentoEditavel(props: Props): ReactNode {
   return <Editor {...props} inicial={arquivo.data?.conteudo ?? ''} />;
 }
 
+type PropsDoEditor = Props & { inicial: string };
+
 /** Monta só depois da leitura: o texto nasce do conteúdo salvo e é o `valor` estável do autosave. */
-function Editor({
-  agente,
-  caminho,
-  titulo,
-  editavel,
-  onExcluir,
-  descartar = false,
-  inicial,
-}: Props & { inicial: string }): ReactNode {
+function Editor(props: PropsDoEditor): ReactNode {
+  const { titulo, editavel, onExcluir, descartar = false } = props;
+  const { control, estado, tentarDeNovo } = useGravacaoDoDocumento(props);
+  return (
+    <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="subtitle2" sx={{ flex: 1 }}>
+          {titulo}
+        </Typography>
+        {!descartar && <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />}
+        {editavel && onExcluir && <BotaoExcluir titulo={titulo} onExcluir={onExcluir} />}
+      </Box>
+      <CampoRico control={control} name="texto" rotulo={titulo} editavel={editavel} />
+    </Paper>
+  );
+}
+
+function useGravacaoDoDocumento({ agente, caminho, descartar = false, inicial }: PropsDoEditor) {
   const cliente = useQueryClient();
   const { control } = useForm({ defaultValues: { texto: inicial } });
   // Mantém o cache em dia: voltar à aba remonta o editor a partir do que foi salvo, não do que foi lido.
@@ -63,21 +76,13 @@ function Editor({
     salvar,
     bloqueio: descartar ? 'arquivo em exclusão' : null,
   });
+  return { control, estado, tentarDeNovo };
+}
 
+function BotaoExcluir({ titulo, onExcluir }: { titulo: string; onExcluir: () => void }) {
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="subtitle2" sx={{ flex: 1 }}>
-          {titulo}
-        </Typography>
-        {!descartar && <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />}
-        {editavel && onExcluir && (
-          <IconButton size="small" aria-label={`Excluir ${titulo}`} onClick={onExcluir}>
-            <DeleteOutlinedIcon fontSize="small" />
-          </IconButton>
-        )}
-      </Box>
-      <CampoRico control={control} name="texto" rotulo={titulo} editavel={editavel} />
-    </Paper>
+    <IconButton size="small" aria-label={`Excluir ${titulo}`} onClick={onExcluir}>
+      <DeleteOutlinedIcon fontSize="small" />
+    </IconButton>
   );
 }

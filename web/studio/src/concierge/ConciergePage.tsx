@@ -31,22 +31,22 @@ const CONTEUDO_DA_ABA: Record<Aba, (assistente: string) => ReactNode> = {
   transbordo: (assistente) => <TransbordoAba assistente={assistente} />,
 };
 
-export function ConciergePage(): ReactNode {
-  const skills = useSkills();
+function useAbaDaConsulta(): [Aba, (valor: Aba) => void] {
   const [params, setParams] = useSearchParams();
-  const aba = abaDaConsulta(params.get('aba'));
+  const trocar = (valor: Aba): void =>
+    setParams((atuais) => comAba(atuais, valor), { replace: true });
+  return [abaDaConsulta(params.get('aba')), trocar];
+}
+
+function comAba(atuais: URLSearchParams, valor: Aba): URLSearchParams {
+  const proximos = new URLSearchParams(atuais);
+  proximos.set('aba', valor);
+  return proximos;
+}
+
+export function ConciergePage(): ReactNode {
+  const [aba, trocarAba] = useAbaDaConsulta();
   useContextoDaTela({ tela: 'concierge' });
-
-  const trocarAba = (valor: Aba): void =>
-    setParams(
-      (atuais) => {
-        const proximos = new URLSearchParams(atuais);
-        proximos.set('aba', valor);
-        return proximos;
-      },
-      { replace: true },
-    );
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h5" component="h1">
@@ -61,9 +61,14 @@ export function ConciergePage(): ReactNode {
           <Tab key={valor} value={valor} label={rotulo} />
         ))}
       </Tabs>
-      {skills.isPending && <Typography color="text.secondary">Carregando…</Typography>}
-      {skills.isError && <Falha aoTentar={() => void skills.refetch()} />}
-      {skills.data && CONTEUDO_DA_ABA[aba](skills.data.assistente)}
+      <ConteudoDoConcierge aba={aba} />
     </Box>
   );
+}
+
+function ConteudoDoConcierge({ aba }: { aba: Aba }): ReactNode {
+  const skills = useSkills();
+  if (skills.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (skills.isError) return <Falha aoTentar={() => void skills.refetch()} />;
+  return CONTEUDO_DA_ABA[aba](skills.data.assistente);
 }

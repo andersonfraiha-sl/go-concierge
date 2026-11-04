@@ -8,7 +8,7 @@ import {
   Typography,
 } from '@mui/material';
 import type { ReactNode } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { type Control, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { paraIdentificador } from '@/skills/contratos';
@@ -57,19 +57,7 @@ export function NomeDialog({
     <Dialog open fullWidth maxWidth="xs" onClose={onCancelar}>
       <form onSubmit={(e) => void enviar(e)}>
         <DialogTitle>{titulo}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <CampoTexto
-            control={control}
-            name="nome"
-            autoFocus
-            fullWidth
-            margin="dense"
-            label="Nome"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Identificador: {identificador}
-          </Typography>
-        </DialogContent>
+        <CampoDoNome control={control} identificador={identificador} />
         <DialogActions>
           <Button onClick={onCancelar}>Cancelar</Button>
           <Button
@@ -82,5 +70,18 @@ export function NomeDialog({
         </DialogActions>
       </form>
     </Dialog>
+  );
+}
+
+type PropsDoCampoDoNome = { control: Control<{ nome: string }>; identificador: string };
+
+function CampoDoNome({ control, identificador }: PropsDoCampoDoNome): ReactNode {
+  return (
+    <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <CampoTexto control={control} name="nome" autoFocus fullWidth margin="dense" label="Nome" />
+      <Typography variant="caption" color="text.secondary">
+        Identificador: {identificador}
+      </Typography>
+    </DialogContent>
   );
 }

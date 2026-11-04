@@ -1,6 +1,6 @@
 import AddIcon from '@mui/icons-material/Add';
 import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ComponentProps, type ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { useArvore } from '@/avancado/contratos';
@@ -20,116 +20,148 @@ const FRASE_VAZIA =
 
 const SEM_PROBLEMAS: ReadonlyMap<string, Problemas> = new Map();
 
-export function SkillsPage(): ReactNode {
-  const skills = useSkills();
-  const navegar = useNavigate();
-  const [dialogo, setDialogo] = useState<Dialogo | null>(null);
-  const [busca, setBusca] = useState('');
-  useContextoDaTela({ tela: 'skills' });
+type AbrirDialogo = (dialogo: Dialogo) => void;
 
+export function SkillsPage(): ReactNode {
+  const [dialogo, setDialogo] = useState<Dialogo | null>(null);
+  useContextoDaTela({ tela: 'skills' });
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <CabecalhoDaPagina onNova={() => setDialogo({ tipo: 'nova' })} />
+      <EstadoDasSkills onDialogo={setDialogo} />
+      <DialogosDeSkills dialogo={dialogo} fechar={() => setDialogo(null)} />
+    </Box>
+  );
+}
+
+function CabecalhoDaPagina({ onNova }: { onNova: () => void }): ReactNode {
   const podeCriar = usePodeEditar('skills.criar');
-  const podeExcluir = usePodeEditar('skills.excluir');
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box sx={{ flex: 1 }}>
+        <Typography variant="h5" component="h1">
+          Skills
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          O que o concierge sabe fazer. Abra uma skill para ajustar o que ele fala e o passo a
+          passo.
+        </Typography>
+      </Box>
+      {podeCriar && (
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onNova}>
+          Nova skill
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+function useProblemasDasSkills() {
   const podeVerProblemas = usePodeEditar('skills.editar_fluxo');
   const arvore = useArvore({ enabled: podeVerProblemas });
-  const fechar = () => setDialogo(null);
-
-  const todasSkills = skills.data?.skills ?? [];
   const problemas = useMemo(
     () => (podeVerProblemas ? problemasPorCaminho(arvore.data ?? []) : SEM_PROBLEMAS),
     [podeVerProblemas, arvore.data],
   );
-  const escreventes = todasSkills.filter((skill) => skill.escrita);
-  const consultivas = todasSkills.filter((skill) => !skill.escrita);
+  return { podeVerProblemas, arvore, problemas };
+}
 
-  const escreventesFiltradas = filtrarPorBusca(escreventes, busca);
-  const consultivasFiltradas = filtrarPorBusca(consultivas, busca);
-  const semResultadoDeBusca =
-    todasSkills.length > 0 &&
-    escreventesFiltradas.length === 0 &&
-    consultivasFiltradas.length === 0;
+function EstadoDasSkills({ onDialogo }: { onDialogo: AbrirDialogo }): ReactNode {
+  const skills = useSkills();
+  const visaoDeProblemas = useProblemasDasSkills();
+  if (skills.isPending) {
+    return <CircularProgress aria-label="Carregando skills" sx={{ alignSelf: 'center' }} />;
+  }
+  if (skills.isError) {
+    return (
+      <ErroComRetry mensagem={skills.error.message} onTentarDeNovo={() => void skills.refetch()} />
+    );
+  }
+  if (skills.data.skills.length === 0) {
+    return <EmptyState frase={FRASE_VAZIA} acao={<PecaAoCopiloto />} />;
+  }
+  return (
+    <SkillsEncontradas skills={skills.data.skills} onDialogo={onDialogo} {...visaoDeProblemas} />
+  );
+}
 
-  const cartaoDaSkill = (skill: SkillResumo, variante: 'completo' | 'compacto') => (
-    <SkillCard
+type PropsDasEncontradas = Pick<
+  ComponentProps<typeof NumerosDasSkills>,
+  'skills' | 'problemas' | 'podeVerProblemas' | 'arvore'
+> & { onDialogo: AbrirDialogo };
+
+function SkillsEncontradas({ onDialogo, ...numeros }: PropsDasEncontradas): ReactNode {
+  const { skills, problemas } = numeros;
+  const [busca, setBusca] = useState('');
+  const escreventes = filtrarPorBusca(
+    skills.filter((skill) => skill.escrita),
+    busca,
+  );
+  const consultivas = filtrarPorBusca(
+    skills.filter((skill) => !skill.escrita),
+    busca,
+  );
+  const cartao = (variante: 'completo' | 'compacto') => (skill: SkillResumo) => (
+    <CartaoDaSkill
       key={skill.nome}
       skill={skill}
       variante={variante}
       problemas={problemas.get(skill.caminho)}
-      onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
-      {...(podeCriar && { onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }) })}
-      {...(podeExcluir && { onExcluir: () => setDialogo({ tipo: 'excluir', skill }) })}
+      onDialogo={onDialogo}
     />
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h5" component="h1">
-            Skills
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            O que o concierge sabe fazer. Abra uma skill para ajustar o que ele fala e o passo a
-            passo.
-          </Typography>
-        </Box>
-        {podeCriar && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setDialogo({ tipo: 'nova' })}
-          >
-            Nova skill
-          </Button>
-        )}
-      </Box>
+    <>
+      <NumerosDasSkills {...numeros} />
+      <TextField
+        label="Buscar skill"
+        slotProps={{ htmlInput: { 'aria-label': 'Buscar skill' } }}
+        size="small"
+        value={busca}
+        onChange={(evento) => setBusca(evento.target.value)}
+        sx={{ width: 300 }}
+      />
+      <GrupoDeSkills
+        titulo="Registram no sistema"
+        subtitulo="pedem confirmação do morador"
+        colunas={2}
+        skills={escreventes}
+        renderCartao={cartao('completo')}
+      />
+      <GrupoDeSkills
+        titulo="Consultas e dúvidas"
+        subtitulo="só leem, não gravam nada"
+        colunas={3}
+        skills={consultivas}
+        renderCartao={cartao('compacto')}
+      />
+      {escreventes.length === 0 && consultivas.length === 0 && (
+        <EmptyState frase="Nenhuma skill encontrada." />
+      )}
+    </>
+  );
+}
 
-      {skills.isPending && (
-        <CircularProgress aria-label="Carregando skills" sx={{ alignSelf: 'center' }} />
-      )}
-      {skills.isError && (
-        <ErroComRetry
-          mensagem={skills.error.message}
-          onTentarDeNovo={() => void skills.refetch()}
-        />
-      )}
-      {skills.isSuccess && todasSkills.length === 0 && (
-        <EmptyState frase={FRASE_VAZIA} acao={<PecaAoCopiloto />} />
-      )}
-      {skills.isSuccess && todasSkills.length > 0 && (
-        <>
-          <NumerosDasSkills
-            skills={todasSkills}
-            problemas={problemas}
-            podeVerProblemas={podeVerProblemas}
-            arvore={arvore}
-          />
-          <TextField
-            label="Buscar skill"
-            slotProps={{ htmlInput: { 'aria-label': 'Buscar skill' } }}
-            size="small"
-            value={busca}
-            onChange={(evento) => setBusca(evento.target.value)}
-            sx={{ width: 300 }}
-          />
-          <GrupoDeSkills
-            titulo="Registram no sistema"
-            subtitulo="pedem confirmação do morador"
-            colunas={2}
-            skills={escreventesFiltradas}
-            renderCartao={(skill) => cartaoDaSkill(skill, 'completo')}
-          />
-          <GrupoDeSkills
-            titulo="Consultas e dúvidas"
-            subtitulo="só leem, não gravam nada"
-            colunas={3}
-            skills={consultivasFiltradas}
-            renderCartao={(skill) => cartaoDaSkill(skill, 'compacto')}
-          />
-          {semResultadoDeBusca && <EmptyState frase="Nenhuma skill encontrada." />}
-        </>
-      )}
+type PropsDoCartao = {
+  skill: SkillResumo;
+  variante: 'completo' | 'compacto';
+  problemas: Problemas | undefined;
+  onDialogo: AbrirDialogo;
+};
 
-      <DialogosDeSkills dialogo={dialogo} fechar={fechar} />
-    </Box>
+function CartaoDaSkill({ skill, variante, problemas, onDialogo }: PropsDoCartao): ReactNode {
+  const navegar = useNavigate();
+  const podeCriar = usePodeEditar('skills.criar');
+  const podeExcluir = usePodeEditar('skills.excluir');
+  return (
+    <SkillCard
+      skill={skill}
+      variante={variante}
+      problemas={problemas}
+      onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
+      {...(podeCriar && { onDuplicar: () => onDialogo({ tipo: 'duplicar', origem: skill }) })}
+      {...(podeExcluir && { onExcluir: () => onDialogo({ tipo: 'excluir', skill }) })}
+    />
   );
 }

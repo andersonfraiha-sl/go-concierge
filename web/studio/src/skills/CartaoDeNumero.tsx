@@ -4,6 +4,7 @@ import { RAIOS, tokens } from '@/theme/tokens';
 import type { Estatistica } from './estatisticas';
 
 /** Cartão de número do topo da tela de skills: rótulo + valor, com tom de aviso quando `destaque`. */
+// por que: só JSX declarativo, sem lógica; quebrar espalharia o markup sem ganho de leitura.
 export function CartaoDeNumero({
   rotulo,
   valor,

@@ -11,24 +11,11 @@ type Props = {
 };
 
 /** Seção de skills com título, subtítulo e grade; some quando não há skills. */
-export function GrupoDeSkills({
-  titulo,
-  subtitulo,
-  colunas,
-  skills,
-  renderCartao,
-}: Props): ReactNode {
+export function GrupoDeSkills({ skills, colunas, renderCartao, ...cabecalho }: Props): ReactNode {
   if (skills.length === 0) return null;
   return (
     <Box component="section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-        <Typography component="h2" variant="overline" color="text.secondary">
-          {titulo}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {subtitulo}
-        </Typography>
-      </Box>
+      <CabecalhoDoGrupo {...cabecalho} />
       <Box
         sx={{
           display: 'grid',
@@ -38,6 +25,19 @@ export function GrupoDeSkills({
       >
         {skills.map(renderCartao)}
       </Box>
+    </Box>
+  );
+}
+
+function CabecalhoDoGrupo({ titulo, subtitulo }: Pick<Props, 'titulo' | 'subtitulo'>): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+      <Typography component="h2" variant="overline" color="text.secondary">
+        {titulo}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        {subtitulo}
+      </Typography>
     </Box>
   );
 }
