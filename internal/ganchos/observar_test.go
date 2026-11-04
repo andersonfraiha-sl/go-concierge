@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -72,10 +74,14 @@ func TestLogDaDecisao(t *testing.T) {
 			if linha["level"] != c.nivel {
 				t.Errorf("nível = %v, quer %s", linha["level"], c.nivel)
 			}
-			for _, k := range []string{"operacao", "gancho", "regra_id", "regra_versao", "decisao", "duracao_ms", "administradora_id", "condominio_id"} {
-				if _, ok := linha[k]; !ok {
-					t.Errorf("falta a chave %q em %v", k, linha)
-				}
+			esperadas := []string{"operacao", "gancho", "regra_id", "regra_versao", "decisao", "duracao_ms", "administradora_id", "condominio_id"}
+			if c.nivel != "INFO" {
+				esperadas = append(esperadas, "causa")
+			}
+			esperadas = append(esperadas, "time", "level", "msg")
+			chaves := slices.Sorted(maps.Keys(linha))
+			if !slices.Equal(chaves, slices.Sorted(slices.Values(esperadas))) {
+				t.Errorf("chaves = %v, quer %v", chaves, slices.Sorted(slices.Values(esperadas)))
 			}
 			if c.nivel == "INFO" && linha["msg"] != "gancho decidiu" {
 				t.Errorf("msg = %v", linha["msg"])
@@ -193,4 +199,70 @@ func TestContadores(t *testing.T) {
 	if total != 5 {
 		t.Errorf("regras ativas = %d, quer 5", total)
 	}
+}
+
+func TestBucketsDaDuracao(t *testing.T) {
+	leitor := sdkmetric.NewManualReader()
+	obs := observadorDeTeste(t, slog.New(slog.DiscardHandler), leitor)
+	obs(context.Background(), observacaoDeTeste())
+	h := coletar(t, leitor)["ganchos.duracao"].Data.(metricdata.Histogram[float64])
+	quer := []float64{0.1, 0.25, 0.5, 1, 2, 5, 10, 25}
+	if !slices.Equal(h.DataPoints[0].Bounds, quer) {
+		t.Errorf("bounds = %v, quer %v", h.DataPoints[0].Bounds, quer)
+	}
+}
+
+func TestNomeDeRegraNaoVazaParaLogNemSpan(t *testing.T) {
+	var buf bytes.Buffer
+	gravador := tracetest.NewSpanRecorder()
+	ctx, span := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(gravador)).Tracer("teste").Start(context.Background(), "turno")
+	obs := observadorDeTeste(t, slog.New(slog.NewJSONHandler(&buf, nil)), sdkmetric.NewManualReader())
+	obs(ctx, observacaoDeTeste(registroDe(Bloquear, Origem{Gancho: "Bloqueio CPF 123", RegraID: "r-1", RegraVersao: 2}, false, "")))
+	span.End()
+
+	if strings.Contains(buf.String(), "Bloqueio CPF 123") {
+		t.Errorf("nome da regra vazou no log: %s", buf.String())
+	}
+	for _, a := range gravador.Ended()[0].Events()[0].Attributes {
+		if strings.Contains(a.Value.Emit(), "Bloqueio CPF 123") {
+			t.Errorf("nome da regra vazou no span: %v", a)
+		}
+	}
+}
+
+func TestRotulosLimitados(t *testing.T) {
+	leitor := sdkmetric.NewManualReader()
+	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(leitor)).Meter("teste")
+	recarga, auditoriaFalhou, err := Contadores(meter, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recarga(RecargaParcial)
+	recarga("qualquer coisa")
+	auditoriaFalhou(OrigemConcierge)
+	auditoriaFalhou("id-do-usuario-9")
+	ms := coletar(t, leitor)
+	valores := func(nome, chave string) []string {
+		var vs []string
+		for _, p := range ms[nome].Data.(metricdata.Sum[int64]).DataPoints {
+			v, _ := p.Attributes.Value(attribute.Key(chave))
+			vs = append(vs, v.AsString())
+		}
+		slices.Sort(vs)
+		return vs
+	}
+	if got := valores("ganchos.cache.recargas", "resultado"); !slices.Equal(got, []string{RotuloOutro, RecargaParcial}) {
+		t.Errorf("resultado = %v", got)
+	}
+	if got := valores("ganchos.auditoria.falhas", "origem"); !slices.Equal(got, []string{OrigemConcierge, RotuloOutro}) {
+		t.Errorf("origem = %v", got)
+	}
+}
+
+func TestLoggerNilUsaPadrao(t *testing.T) {
+	if _, err := ComObservabilidade(nil, sdkmetric.NewMeterProvider().Meter("teste")); err != nil {
+		t.Fatal(err)
+	}
+	obs := observadorDeTeste(t, nil, sdkmetric.NewManualReader())
+	obs(context.Background(), observacaoDeTeste(registroDe(Bloquear, Origem{Gancho: "x"}, false, "")))
 }
