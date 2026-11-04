@@ -290,6 +290,7 @@ func TestTransferirClassificaFalhasDoGateway(t *testing.T) {
 	}{
 		{"timeout", `{"error":"upstream_timeout","details":"x","upstream_status":null}`, true},
 		{"inalcançável", `{"error":"upstream_unreachable","details":"x","upstream_status":null}`, true},
+		{"erro interno do gateway", `{"error":"internal_error","details":"x","upstream_status":null}`, true},
 		{"upstream 503", `{"error":"upstream_error","details":"x","upstream_status":503}`, true},
 		{"upstream sem status", `{"error":"upstream_error","details":"x","upstream_status":null}`, true},
 		{"upstream 404", `{"error":"upstream_error","details":"x","upstream_status":404}`, false},

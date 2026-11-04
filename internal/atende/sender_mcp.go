@@ -126,7 +126,8 @@ func (m *MCPSender) Encerrar(ctx context.Context, destino entrada.Destino, motiv
 }
 
 // recusaDefinitiva: o gateway garantiu que a operação não aconteceu. Timeout, upstream
-// inalcançável, 5xx do upstream e texto de erro ilegível deixam o resultado incerto.
+// inalcançável, erro interno do gateway (falhou no meio, não sabe se o upstream recebeu),
+// 5xx do upstream e texto de erro ilegível deixam o resultado incerto.
 func recusaDefinitiva(err error) bool {
 	var ferramenta *erroFerramenta
 	if errors.As(err, &ferramenta) {
@@ -145,7 +146,7 @@ func (e *erroFerramenta) incerto() bool {
 		return true
 	}
 	switch corpo.Erro {
-	case "upstream_timeout", "upstream_unreachable":
+	case "upstream_timeout", "upstream_unreachable", "internal_error":
 		return true
 	case "upstream_error":
 		return corpo.UpstreamStatus == nil || *corpo.UpstreamStatus >= 500
