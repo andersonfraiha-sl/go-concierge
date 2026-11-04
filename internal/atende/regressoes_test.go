@@ -3,8 +3,6 @@ package atende
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -74,23 +72,20 @@ func TestResponderVazioNaoBloqueiaSessao(t *testing.T) {
 func TestEntregaInterrompidaEntrePartesAposTransicaoHumana(t *testing.T) {
 	var mu sync.Mutex
 	permitido := true
-	chamadas := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	gw := novoGatewayFalso(t, func(string, map[string]any) (string, bool) {
 		mu.Lock()
-		chamadas++
+		defer mu.Unlock()
 		permitido = false
-		mu.Unlock()
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+		return `{}`, false
+	})
 	ctx := context.WithValue(context.Background(), chaveControleEntrega{}, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return permitido
 	})
-	err := (&ATENDESender{BaseURL: server.URL, APIKey: "teste"}).Enviar(ctx, entrada.Destino{Telefone: "5511999999999"}, strings.Repeat("x", 5000))
-	if !errors.Is(err, errEntregaSuprimida) || chamadas != 1 {
-		t.Fatalf("esperava apenas primeira parte e interrupção: chamadas=%d erro=%v", chamadas, err)
+	err := gw.sender().Enviar(ctx, entrada.Destino{Telefone: "5511999999999"}, strings.Repeat("x", 5000))
+	if !errors.Is(err, errEntregaSuprimida) || len(gw.chamadasDe("messages_send")) != 1 {
+		t.Fatalf("esperava apenas primeira parte e interrupção: chamadas=%d erro=%v", len(gw.chamadasDe("messages_send")), err)
 	}
 }
 

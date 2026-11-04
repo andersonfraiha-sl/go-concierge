@@ -122,7 +122,7 @@ func servidorWebhookRealTeste() *servidor {
 	return &servidor{
 		atende:       &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())},
 		atendeTenant: "tenant-1", atendeTelefoneCanal: "+55 (19) 4040-2710",
-		atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "nao-exibida",
+		atendeMCPURL: "https://nexus.invalid/mcp/atende",
 		atendeAPISecret: segredoTeste,
 	}
 }
@@ -198,7 +198,7 @@ func TestWebhookEmuladoAceitaSomenteTokenDoWebhook(t *testing.T) {
 }
 
 func TestWebhookIgnoraEventoDesconhecidoERecusaConexaoDivergente(t *testing.T) {
-	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key", atendeAPISecret: segredoTeste}
+	s := &servidor{atende: &atende.Servico{Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria())}, atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeMCPURL: "https://nexus.invalid/mcp/atende", atendeAPISecret: segredoTeste}
 	w := httptest.NewRecorder()
 	s.webhookAtende(w, requisicaoAssinadaTeste(corpoEventoTeste("com.echo.atende.evento.desconhecido", "outro", "1")))
 	if w.Code != 202 || len(listarSessoes(t, s.atende.Sessoes)) != 0 {
@@ -229,7 +229,7 @@ func TestWebhookMockTelefoneB2C(t *testing.T) {
 				TelefoneB2C: "5511900000000", Log: log.New(io.Discard, "", 0),
 			}
 			s := &servidor{atende: svc, log: log.New(io.Discard, "", 0), telefoneMockB2C: tt.mock,
-				atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeBaseURL: "https://atende.invalid/v2", atendeAPIKey: "key", atendeAPISecret: segredoTeste}
+				atendeTenant: "tenant-1", atendeTelefoneCanal: "551940402710", atendeMCPURL: "https://nexus.invalid/mcp/atende", atendeAPISecret: segredoTeste}
 			corpo := strings.Replace(corpoEventoTeste(atende.EventoProtocoloCriado, "tenant-1", "551940402710"), `"phone":""`, `"phone":"5519981621916"`, 1)
 			w := httptest.NewRecorder()
 			s.webhookAtende(w, requisicaoAssinadaTeste(corpo))

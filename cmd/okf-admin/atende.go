@@ -185,7 +185,7 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	if !emulado && (s.atendeTenant == "" || s.atendeTelefoneCanal == "" || s.atendeBaseURL == "" || s.atendeAPIKey == "") {
+	if !emulado && (s.atendeTenant == "" || s.atendeTelefoneCanal == "" || s.atendeMCPURL == "") {
 		writeErr(w, http.StatusServiceUnavailable, errors.New("configuração real do ATENDE incompleta"))
 		return
 	}
@@ -275,8 +275,8 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 		"gruvi":                   map[string]any{"configurado": s.gruviOK, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
 		"webhook_token":           s.webhookToken != "",
 		"hmac_verificacao_ativa":  true,
-		"atende_real_configurado": s.atendeTenant != "" && s.atendeTelefoneCanal != "" && s.atendeBaseURL != "" && s.atendeAPIKey != "",
-		"atende_api_base_url":     s.atendeBaseURL,
+		"atende_real_configurado": s.atendeTenant != "" && s.atendeTelefoneCanal != "" && s.atendeMCPURL != "",
+		"atende_mcp_url":          s.atendeMCPURL,
 		"webhook_real":            "/webhook/atende",
 		"webhook_emulado":         "/emulador/atende/webhook",
 		"reply_url":               s.replyURL,

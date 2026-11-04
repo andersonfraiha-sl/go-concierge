@@ -66,8 +66,7 @@ type servidor struct {
 	atendeAPISecret     string
 	replyURL            string
 	replyEmulada        bool
-	atendeBaseURL       string
-	atendeAPIKey        string
+	atendeMCPURL        string
 	atendeTenant        string
 	atendeTelefoneCanal string
 	telefoneMockB2C     string // só com AMBIENTE=dev: todo evento real vira este telefone (vazio = desligado)
@@ -172,8 +171,7 @@ func main() {
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
 	s.atendeAPISecret = os.Getenv("ATENDE_API_SECRET")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
-	s.atendeBaseURL = os.Getenv("ATENDE_API_BASE_URL")
-	s.atendeAPIKey = os.Getenv("ATENDE_API_KEY")
+	s.atendeMCPURL = strings.TrimSpace(os.Getenv("ATENDE_MCP_URL"))
 	s.atendeTenant = os.Getenv("ATENDE_TENANT_ID")
 	s.atendeTelefoneCanal = os.Getenv("ATENDE_TENANT_TELEFONE")
 	replyURLLegada := os.Getenv("ATENDE_REPLY_URL")
@@ -183,11 +181,17 @@ func main() {
 	s.replyURL = "http://" + *addr + "/emulador/atende/messages"
 	s.replyEmulada = true
 	s.outbox.Emulado = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
-	if s.atendeBaseURL != "" && s.atendeAPIKey != "" {
-		s.outbox.ATENDE = &atende.ATENDESender{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
-		transferidores.ATENDE = &atende.ATENDETransferidor{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
+	atendeMCP, err := atende.NovoMCPSender(os.Getenv)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if atendeMCP != nil {
+		s.outbox.ATENDE = atendeMCP
+		transferidores.ATENDE = atendeMCP
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
+	} else {
+		slog.Warn("ATENDE_MCP_URL vazio: o canal real do ATENDE fica desligado (o emulador segue)", "operacao", "atende_mcp_desligado")
 	}
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}

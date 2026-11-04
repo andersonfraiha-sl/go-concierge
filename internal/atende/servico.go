@@ -199,66 +199,6 @@ func (h *HTTPSender) Enviar(ctx context.Context, destino entrada.Destino, texto 
 	return nil
 }
 
-type ATENDESender struct {
-	BaseURL string
-	APIKey  string
-	HTTP    *http.Client
-}
-
-func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, texto string) error {
-	if strings.TrimSpace(a.BaseURL) == "" || strings.TrimSpace(a.APIKey) == "" {
-		return errors.New("ATENDE: configuração de envio incompleta")
-	}
-	client := a.HTTP
-	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	} else {
-		copia := *client
-		copia.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-		if copia.Timeout <= 0 {
-			copia.Timeout = 20 * time.Second
-		}
-		client = &copia
-	}
-	partes := DividirMensagem(texto, 4000)
-	var enviadas []string
-	falha := func(err error) error {
-		if len(enviadas) == 0 {
-			return err
-		}
-		return &entregaParcial{partes: append([]string(nil), enviadas...), erro: err}
-	}
-	for i, parte := range partes {
-		formatada := FormatarMensagem(parte)
-		corpo, err := json.Marshal(map[string]any{
-			"contact": map[string]string{"phone": destino.Telefone},
-			"message": map[string]string{"type": "text", "text": formatada},
-		})
-		if err != nil {
-			return falha(fmt.Errorf("ATENDE: preparar parte %d: %w", i+1, err))
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(a.BaseURL, "/")+"/integrations/messages", bytes.NewReader(corpo))
-		if err != nil {
-			return falha(fmt.Errorf("ATENDE: preparar parte %d: %w", i+1, err))
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("x-api-key", a.APIKey)
-		if !autorizarEntrega(ctx) {
-			return falha(fmt.Errorf("ATENDE: parte %d de %d: %w", i+1, len(partes), errEntregaSuprimida))
-		}
-		res, err := client.Do(req)
-		if err != nil {
-			return falha(fmt.Errorf("ATENDE: parte %d de %d falhou: %w", i+1, len(partes), err))
-		}
-		_ = res.Body.Close()
-		if res.StatusCode < 200 || res.StatusCode >= 300 {
-			return falha(fmt.Errorf("ATENDE: parte %d de %d respondeu HTTP %d", i+1, len(partes), res.StatusCode))
-		}
-		enviadas = append(enviadas, formatada)
-	}
-	return nil
-}
-
 var negritoWhatsApp = regexp.MustCompile(`(?s)\*\*(.+?)\*\*`)
 var marcadorWhatsApp = regexp.MustCompile(`(?m)^\* +`)
 var tituloWhatsApp = regexp.MustCompile(`(?m)^#{1,6} (.+)$`)
