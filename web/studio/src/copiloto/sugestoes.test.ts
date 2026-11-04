@@ -77,3 +77,107 @@ describe('sugestoesPara', () => {
     expect(sugestoesPara({ tela: 'skills' }, gestor)).toEqual(['Quais skills gravam no sistema?']);
   });
 });
+
+type Caso = {
+  readonly tela: (typeof TELAS)[number];
+  readonly texto: string;
+  readonly permissao: Eu['permissoes'][number];
+  readonly alcance: 'catalogo' | 'condominio';
+};
+
+// Espelho independente de `regras` em internal/copiloto/operacoes.go: não reaproveita a tabela
+// de sugestoes.ts, para que um erro de mapeamento ali não passe por aqui sem ser notado.
+const SUGESTOES_QUE_PROPOEM_OPERACAO: readonly Caso[] = [
+  {
+    tela: 'skills',
+    texto: 'Crie uma skill para reservar a quadra',
+    permissao: 'skills.criar',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'skills',
+    texto: 'Escreva o resumo das skills que estão sem',
+    permissao: 'skills.editar_textos',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'skill',
+    texto: 'Melhore o resumo desta skill',
+    permissao: 'skills.editar_textos',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'skill',
+    texto: 'Sugira frases de exemplo',
+    permissao: 'skills.editar_textos',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'fluxo',
+    texto: 'Adicione um Confirmar antes de gravar',
+    permissao: 'skills.editar_fluxo',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'fluxo',
+    texto: 'Pergunte o horário antes de reservar',
+    permissao: 'skills.editar_fluxo',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'condominios',
+    texto: 'Desligue a reserva de área comum onde não há área',
+    permissao: 'condominios.habilitar',
+    alcance: 'condominio',
+  },
+  {
+    tela: 'condominio',
+    texto: 'Escreva uma orientação sobre mudanças aos domingos',
+    permissao: 'condominios.habilitar',
+    alcance: 'condominio',
+  },
+  {
+    tela: 'condominio',
+    texto: 'Ajuste a antecedência da reserva para 3 dias',
+    permissao: 'condominios.habilitar',
+    alcance: 'condominio',
+  },
+  {
+    tela: 'concierge',
+    texto: 'Deixe a persona mais acolhedora',
+    permissao: 'skills.editar_textos',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'concierge',
+    texto: 'Revise a persona para respostas curtas',
+    permissao: 'skills.editar_textos',
+    alcance: 'catalogo',
+  },
+  {
+    tela: 'avancado',
+    texto: 'Revise este arquivo e proponha melhorias',
+    permissao: 'studio.avancado',
+    alcance: 'catalogo',
+  },
+];
+
+describe('gating mirrors internal/copiloto/operacoes.go', () => {
+  it.each(SUGESTOES_QUE_PROPOEM_OPERACAO)(
+    'showsOnlyWhenServerAccepts($tela: $texto)',
+    ({ tela, texto, permissao, alcance }) => {
+      const comPermissao: Eu = {
+        ...construtor,
+        permissoes: [permissao],
+        administradoraId: alcance === 'catalogo' ? null : 'adm-1',
+      };
+      const semPermissao: Eu = { ...comPermissao, permissoes: [] };
+
+      expect(sugestoesPara({ tela }, comPermissao)).toContain(texto);
+      expect(sugestoesPara({ tela }, semPermissao)).not.toContain(texto);
+    },
+  );
+
+  // ferramentas e as perguntas (sem operação) das demais telas nunca aparecem aqui: não propõem
+  // nada que o servidor valide, então não há regra de permissão para espelhar.
+});

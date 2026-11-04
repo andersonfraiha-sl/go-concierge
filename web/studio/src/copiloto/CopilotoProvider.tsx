@@ -39,7 +39,7 @@ type ValorDoCopiloto = {
   botaoDoCopiloto: RefObject<HTMLButtonElement | null>;
   status: Status;
   mensagens: Mensagem[];
-  /** Lido no momento do render; troca de tela sozinha não força o painel a redesenhar. */
+  /** Reativo: só muda (e só então redesenha quem o lê) quando a tela de fato troca. */
   contexto: ContextoDoCopiloto;
   enviar: (texto: string) => Promise<void>;
   aplicar: (proposta: Proposta) => Promise<void>;
@@ -77,8 +77,11 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   const [pensando, setPensando] = useState(false);
   const [alvosRealcados, realcar] = useAlvosRealcados();
   const botaoDoCopiloto = useRef<HTMLButtonElement>(null);
-  // Só leitura na hora de enviar, nunca no render: troca de tela não redesenha o painel.
-  const contexto = useRef(CONTEXTO_INICIAL);
+  // Ref para o pedido em curso (sempre a última tela, mesmo meio a um envio); state para quem
+  // lê no render (ex.: sugestões do estado vazio) — só muda, e só então redesenha, quando a
+  // tela de fato troca, nunca a cada chamada de definirContexto com o mesmo valor.
+  const contextoDoPedido = useRef(CONTEXTO_INICIAL);
+  const [contexto, setContexto] = useState<ContextoDoCopiloto>(CONTEXTO_INICIAL);
   const pedidoEmCurso = useRef<AbortController | null>(null);
   const estado = useEstadoDoCopiloto(aberto);
   const queryClient = useQueryClient();
@@ -113,7 +116,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     const pedido = {
       mensagem: texto,
       historico: historicoDe(mensagens.filter((mensagem) => mensagem.tom === 'normal')),
-      contexto: contexto.current,
+      contexto: contextoDoPedido.current,
     };
     acrescentar({ papel: 'pessoa', texto, propostas: [], tom: 'normal' });
     setPensando(true);
@@ -152,12 +155,13 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     botaoDoCopiloto,
     status: statusDe(estado.data?.disponivel, pensando),
     mensagens,
-    contexto: contexto.current,
+    contexto,
     enviar,
     aplicar: aindaNaoAplica,
     descartar,
     definirContexto: (proximo) => {
-      contexto.current = proximo;
+      contextoDoPedido.current = proximo;
+      setContexto((atual) => (contextosIguais(atual, proximo) ? atual : proximo));
     },
     alvosRealcados,
     realcar,
@@ -196,6 +200,16 @@ function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly string[]) =
   };
 
   return [alvosRealcados, realcar];
+}
+
+function contextosIguais(a: ContextoDoCopiloto, b: ContextoDoCopiloto): boolean {
+  return (
+    a.tela === b.tela &&
+    a.skill === b.skill &&
+    a.condominio === b.condominio &&
+    a.agente === b.agente &&
+    a.caminho === b.caminho
+  );
 }
 
 function textoDoErro(erro: unknown): string {

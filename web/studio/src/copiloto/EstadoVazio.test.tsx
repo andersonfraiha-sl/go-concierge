@@ -1,8 +1,10 @@
+import { Button } from '@mui/material';
 import { screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { falharSeHouveRotaAusente, json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { CopilotoProvider } from './CopilotoProvider';
+import { CopilotoProvider, useCopiloto } from './CopilotoProvider';
+import { EstadoVazio } from './EstadoVazio';
 import { PainelDoCopiloto } from './PainelDoCopiloto';
 
 const eu = {
@@ -38,6 +40,25 @@ afterEach(() => {
   falharSeHouveRotaAusente();
 });
 
+/** Troca de tela sem passar por nenhuma outra ação do Copiloto (enviar, abrir/fechar…). */
+function BotaoDeNavegacao() {
+  const { definirContexto } = useCopiloto();
+  return (
+    <Button onClick={() => definirContexto({ tela: 'condominio' })}>ir para condomínio</Button>
+  );
+}
+
+function montarComNavegacao() {
+  const fetchFalso = responderCom({ 'GET /api/eu': () => json(eu) });
+  const resultado = renderComProvedores(
+    <CopilotoProvider>
+      <BotaoDeNavegacao />
+      <EstadoVazio />
+    </CopilotoProvider>,
+  );
+  return { ...resultado, fetchFalso };
+}
+
 describe('EstadoVazio', () => {
   it('rendersTitleAndSuggestionsForScreen', async () => {
     montar();
@@ -62,5 +83,18 @@ describe('EstadoVazio', () => {
       historico: [],
       contexto: { tela: 'skills' },
     });
+  });
+
+  it('updatesSuggestionsAfterNavigatingScreens', async () => {
+    const { user } = montarComNavegacao();
+
+    expect(await screen.findByText('Quais skills gravam no sistema?')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'ir para condomínio' }));
+
+    expect(
+      await screen.findByText('O que muda deste condomínio para o Padrão?'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Quais skills gravam no sistema?')).not.toBeInTheDocument();
   });
 });
