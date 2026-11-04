@@ -340,7 +340,7 @@ describe('aplicarOperacao', () => {
   it.each([
     {
       bruta: { tipo: 'preencher_textos', skill: 's', textos: { resumo: 'R', quandoUsar: 'Q' } },
-      alvos: ['skill:s:resumo', 'skill:s:quandoUsar'],
+      alvos: ['skill:s', 'skill:s:resumo', 'skill:s:quandoUsar'],
       rotas: {
         'GET /api/skills/s': () => json(textosLidos),
         'PUT /api/skills/s/textos': () => json({ versao: 'v8' }),
@@ -348,7 +348,7 @@ describe('aplicarOperacao', () => {
     },
     {
       bruta: { tipo: 'trocar_fluxo', skill: 's', fluxo },
-      alvos: ['skill:s:fluxo'],
+      alvos: ['skill:s', 'skill:s:fluxo'],
       rotas: {
         'GET /api/skills/s/fluxo': () => json({ fluxo, versao: 'f1', problemas: [] }),
         'PUT /api/skills/s/fluxo': () => json({ versao: 'f2', problemas: [] }),
@@ -369,27 +369,27 @@ describe('aplicarOperacao', () => {
     },
     {
       bruta: { tipo: 'habilitar_skill', condominio: 'c', skill: 's', habilitado: false },
-      alvos: ['condominio:c:skill:s'],
+      alvos: ['condominio:c', 'condominio:c:skill:s'],
       rotas: { 'PUT /api/admin/habilitacao': () => json(mapeamento) },
     },
     {
       bruta: { tipo: 'orientar', condominio: 'c', skill: 's', texto: 'T' },
-      alvos: ['condominio:c:skill:s:orientacao'],
+      alvos: ['condominio:c', 'condominio:c:skill:s:orientacao'],
       rotas: { 'PUT /api/admin/orientacao': () => json(mapeamento) },
     },
     {
       bruta: { tipo: 'orientar', condominio: 'c', texto: 'T' },
-      alvos: ['condominio:c:orientacao'],
+      alvos: ['condominio:c', 'condominio:c:orientacao'],
       rotas: { 'PUT /api/admin/orientacao': () => json(mapeamento) },
     },
     {
       bruta: { tipo: 'ajustar', condominio: 'c', recurso: 'r', campos: { a: 1 } },
-      alvos: ['condominio:c:ajustes:r'],
+      alvos: ['condominio:c', 'condominio:c:ajustes:r'],
       rotas: { 'PUT /api/admin/ajustes': () => json(mapeamento) },
     },
     {
       bruta: { tipo: 'editar_persona', agente: 'a', texto: 'T' },
-      alvos: ['arquivo:a:persona.md'],
+      alvos: ['persona', 'arquivo:a:persona.md'],
       rotas: { 'PUT /api/arquivo': () => json({ salvo: 'persona.md' }) },
     },
     {
@@ -403,6 +403,37 @@ describe('aplicarOperacao', () => {
     const resultado = await aplicarOperacao(op(bruta), ambiente());
 
     expect(resultado).toMatchObject({ alvos });
+  });
+
+  it('highlightsOnlyTheFlowBlocksThatChanged', async () => {
+    const antes = {
+      blocos: [
+        { id: 'b1', tipo: 'responder', texto: 'Oi' },
+        { id: 'b2', tipo: 'responder', texto: 'Tchau' },
+      ],
+      informacoes: [],
+    };
+    const depois = {
+      blocos: [
+        { id: 'b1', tipo: 'responder', texto: 'Oi' },
+        { id: 'b2', tipo: 'responder', texto: 'Até logo' },
+        { id: 'b3', tipo: 'responder', texto: 'Novo' },
+      ],
+      informacoes: [],
+    };
+    responderCom({
+      'GET /api/skills/s/fluxo': () => json({ fluxo: antes, versao: 'f1', problemas: [] }),
+      'PUT /api/skills/s/fluxo': () => json({ versao: 'f2', problemas: [] }),
+    });
+
+    const resultado = await aplicarOperacao(
+      op({ tipo: 'trocar_fluxo', skill: 's', fluxo: depois }),
+      ambiente(),
+    );
+
+    expect(resultado).toMatchObject({
+      alvos: ['skill:s', 'skill:s:fluxo', 'skill:s:bloco:b2', 'skill:s:bloco:b3'],
+    });
   });
 });
 

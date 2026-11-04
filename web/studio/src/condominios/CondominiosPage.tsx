@@ -2,6 +2,7 @@ import { Box, Button, Link as LinkExterno, Tab, Tabs, Typography } from '@mui/ma
 import { type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditarCondominio } from '@/acesso/eu';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { AdministradorasAba } from './AdministradorasAba';
 import { ComEstado } from './ComEstado';
 import { useEstado } from './contratos';
@@ -44,6 +45,7 @@ export function CondominiosPage(): ReactNode {
   const podeVerAdministradoras = usePodeEditarCondominio('administradoras.editar');
   const [params, setParams] = useSearchParams();
   const [criando, setCriando] = useState(false);
+  useContextoDaTela({ tela: 'condominios' });
 
   const abaDaQuery = params.get('aba');
   const aba: Aba =

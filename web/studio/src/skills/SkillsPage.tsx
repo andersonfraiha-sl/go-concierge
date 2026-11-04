@@ -4,6 +4,8 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { useArvore } from '@/avancado/contratos';
+import { PecaAoCopiloto } from '@/copiloto/PecaAoCopiloto';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { type SkillResumo, useSkills } from './contratos';
@@ -23,6 +25,7 @@ export function SkillsPage(): ReactNode {
   const navegar = useNavigate();
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [busca, setBusca] = useState('');
+  useContextoDaTela({ tela: 'skills' });
 
   const podeCriar = usePodeEditar('skills.criar');
   const podeExcluir = usePodeEditar('skills.excluir');
@@ -89,7 +92,9 @@ export function SkillsPage(): ReactNode {
           onTentarDeNovo={() => void skills.refetch()}
         />
       )}
-      {skills.isSuccess && todasSkills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
+      {skills.isSuccess && todasSkills.length === 0 && (
+        <EmptyState frase={FRASE_VAZIA} acao={<PecaAoCopiloto />} />
+      )}
       {skills.isSuccess && todasSkills.length > 0 && (
         <>
           <NumerosDasSkills

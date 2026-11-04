@@ -1,6 +1,9 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { AvisoDoCopiloto } from '@/copiloto/AvisoDoCopiloto';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
@@ -23,24 +26,33 @@ const PLACEHOLDER =
 export function OrientacoesSecao({ estado, condominio, editavel }: Props): ReactNode {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
-  const { control } = useForm<{ geral: string }>({
-    defaultValues: { geral: estado.mapeamento.orientacoes[condominio]?.geral ?? '' },
+  const geralGravada = estado.mapeamento.orientacoes[condominio]?.geral ?? '';
+  const { control, reset } = useForm<{ geral: string }>({
+    defaultValues: { geral: geralGravada },
   });
+  const geral = useWatch({ control, name: 'geral' });
+  const realce = useRealceDoCopiloto(`condominio:${condominio}:orientacao`);
 
-  const { estado: salvamento, tentarDeNovo } = useAutosave({
-    valor: useWatch({ control, name: 'geral' }),
-    salvar: async (geral) => {
+  const sincronia = useEdicaoSobOServidor({
+    servidor: geralGravada,
+    local: geral,
+    resetar: (valor) => reset({ geral: valor }),
+    salvar: async (texto) => {
       aplicar(
         await salvarOrientacao(
           {
             condominio,
-            geral,
+            geral: texto,
             por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
           },
           escopo,
         ),
       );
     },
+  });
+  const { estado: salvamento, tentarDeNovo } = useAutosave({
+    valor: geral,
+    salvar: sincronia.salvar,
   });
 
   const orientacaoDoPadrao =
@@ -52,6 +64,7 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
       ajuda={AJUDA}
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
+      <AvisoDoCopiloto visivel={sincronia.mudouSobEdicao} onFechar={sincronia.dispensarAviso} />
       <CampoTexto
         control={control}
         name="geral"
@@ -60,6 +73,7 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
         minRows={4}
         placeholder={PLACEHOLDER}
         disabled={!editavel}
+        sx={{ '& .MuiInputBase-root': realce }}
       />
       {orientacaoDoPadrao !== '' && (
         <Box>

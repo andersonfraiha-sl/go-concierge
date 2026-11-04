@@ -299,15 +299,25 @@ describe('FluxoAba', () => {
   it('keepsSavedEditAfterSwitchingTabs', async () => {
     const corpos: { versao: string }[] = [];
     let versaoAtual = fixture.versao;
+    let fluxoAtual: unknown = fixture.fluxo;
     const putComVersao: Rota = async (req) => {
       const corpo = await req.json();
       corpos.push(corpo);
       if (corpo.versao !== versaoAtual)
         return json({ codigo: 'VERSAO_ANTIGA', mensagem: CONFLITO }, 409);
       versaoAtual = `v${corpos.length + 1}`;
+      fluxoAtual = corpo.fluxo;
       return json({ versao: versaoAtual, problemas: [] });
     };
-    responderCom(rotas(construtor, { 'PUT /api/skills/agendar-mudanca/fluxo': putComVersao }));
+    // O servidor devolve o que gravou: voltar à aba pode refazer a leitura.
+    const getGravado: Rota = () =>
+      json({ ...fixture, versao: versaoAtual, fluxo: fluxoAtual, problemas: [] });
+    responderCom(
+      rotas(construtor, {
+        'GET /api/skills/agendar-mudanca/fluxo': getGravado,
+        'PUT /api/skills/agendar-mudanca/fluxo': putComVersao,
+      }),
+    );
     const { user } = renderComProvedores(<ComTrocaDeAba />);
     await selecionar('Confirmar');
     await user.type(screen.getByRole('textbox', { name: 'Pergunta de confirmação' }), ' Primeira.');

@@ -1,6 +1,9 @@
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
+import { pode, useEu } from '@/acesso/eu';
 import { type Arquivo, lerModeloDeArquivo, salvarArquivo, useAgente } from '@/catalogo/contratos';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { TIPOS, tokens } from '@/theme/tokens';
 import {
@@ -25,6 +28,14 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   const [criando, setCriando] = useState(false);
   const { mostrar } = useSnackbar();
   const recarregar = useRecarregarAvancado();
+  const { data: eu } = useEu();
+  const podeVerArquivos = eu !== undefined && pode(eu, 'studio.avancado');
+  useContextoDaTela(
+    podeVerArquivos
+      ? { tela: 'avancado', agente: no.caminho, ...(aberto !== null && { caminho: aberto }) }
+      : null,
+  );
+  const realce = useRealceDoCopiloto(`arquivo:${no.caminho}:${aberto ?? ''}`);
 
   if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
   if (agente.isError) {
@@ -73,7 +84,7 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
             <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={setAberto} />
           ))}
         </Paper>
-        <Box sx={{ flex: 1, minWidth: 320 }}>
+        <Box sx={{ flex: 1, minWidth: 320, '& .MuiInputBase-root': realce }}>
           {aberto ? (
             <EditorDeArquivo
               key={aberto}

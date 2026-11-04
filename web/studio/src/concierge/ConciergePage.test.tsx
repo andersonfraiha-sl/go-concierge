@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { ConciergePage, ROTULOS_DE_TOM, TONS } from './ConciergePage';
+import { ConciergePage } from './ConciergePage';
+import { ROTULOS_DE_TOM, TONS } from './PersonaAba';
 
 const construtor: Eu = {
   id: 'u1',

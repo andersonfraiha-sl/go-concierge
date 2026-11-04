@@ -2,6 +2,7 @@ import { Box, Button, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { usePodeEditarCondominio } from '@/acesso/eu';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
 import { AjustesSecao } from './AjustesSecao';
@@ -16,6 +17,7 @@ const TITULO_DO_PADRAO = 'Padrão (todos)';
 export function CondominioPage(): ReactNode {
   const { id = PADRAO } = useParams();
   const consulta = useEstado();
+  useContextoDaTela({ tela: 'condominio', condominio: id });
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 880 }}>

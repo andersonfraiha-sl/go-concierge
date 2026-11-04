@@ -1,4 +1,3 @@
-import type { SxProps, Theme } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
@@ -55,6 +54,9 @@ const DURACAO_DO_REALCE_MS = 1500;
 const CONTEXTO_INICIAL: ContextoDoCopiloto = { tela: 'skills' };
 const MENSAGEM_DE_DEMORA = 'O Copiloto demorou demais.';
 
+/** Objeto simples (não `SxProps`) para entrar em lista de `sx` junto do estilo do campo. */
+export type EstiloDoRealce = { transition: string; bgcolor?: string };
+
 const CopilotoContext = createContext<ValorDoCopiloto | null>(null);
 
 export function useCopiloto(): ValorDoCopiloto {
@@ -64,7 +66,7 @@ export function useCopiloto(): ValorDoCopiloto {
 }
 
 /** Fundo de realce por 1500 ms no campo que uma proposta do Copiloto acabou de mudar. */
-export function useRealceDoCopiloto(alvo: string): SxProps<Theme> {
+export function useRealceDoCopiloto(alvo: string): EstiloDoRealce {
   const { alvosRealcados } = useCopiloto();
   const transicao = { transition: 'background-color 300ms ease-out' };
   if (!alvosRealcados.has(alvo)) return transicao;

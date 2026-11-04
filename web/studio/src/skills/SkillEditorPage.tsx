@@ -2,8 +2,10 @@ import { Box, CircularProgress, Tab, Tabs } from '@mui/material';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { type Control, Controller, useForm } from 'react-hook-form';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { z } from 'zod';
 import { usePodeEditar } from '@/acesso/eu';
+import { AvisoDoCopiloto } from '@/copiloto/AvisoDoCopiloto';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
+import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { useValoresDoFormulario } from '@/shared/autosave/useValoresDoFormulario';
@@ -15,6 +17,7 @@ import { FluxoAba } from './abas/FluxoAba';
 import { RegrasAba } from './abas/RegrasAba';
 import { salvarTextos, type Textos, useTextos } from './contratos';
 import { QuandoUsarAba } from './QuandoUsarAba';
+import { semVazios, type TextosPendentes, textosPendentesDaRota } from './textosDoEditor';
 
 const ABAS = [
   { id: 'quando-usar', rotulo: 'Quando usar' },
@@ -29,28 +32,6 @@ const ABA_PADRAO: AbaId = 'quando-usar';
 
 const abaDe = (valor: string | null): AbaId =>
   ABAS.find((aba) => aba.id === valor)?.id ?? ABA_PADRAO;
-
-const aparadasSemVazias = (itens: string[]): string[] =>
-  itens.map((i) => i.trim()).filter((i) => i !== '');
-
-/** Frase ou palavra em branco é rascunho na tela, não vai para o servidor. */
-const semVazios = (textos: Textos): Textos => ({
-  ...textos,
-  palavrasChave: aparadasSemVazias(textos.palavrasChave),
-  frasesDeExemplo: aparadasSemVazias(textos.frasesDeExemplo),
-});
-
-const TextosPendentesSchema = z.object({ resumo: z.string(), quandoUsar: z.string() });
-type TextosPendentes = z.infer<typeof TextosPendentesSchema>;
-const EstadoDaRotaSchema = z
-  .object({ textosPendentes: TextosPendentesSchema.optional() })
-  .nullish();
-
-/** Textos digitados ao criar a skill que não chegaram a salvar (diálogo "Nova skill" com PUT falho). */
-const textosPendentesDaRota = (estadoDaRota: unknown): TextosPendentes | undefined => {
-  const resultado = EstadoDaRotaSchema.safeParse(estadoDaRota);
-  return resultado.success ? resultado.data?.textosPendentes : undefined;
-};
 
 export function SkillEditorPage(): ReactNode {
   const { nome = '' } = useParams();
@@ -99,13 +80,14 @@ function Editor({
   textosPendentes,
   onTextosPendentesAplicados,
 }: EditorProps): ReactNode {
-  const { control, setValue } = useForm({ defaultValues: textosLidos });
+  const { control, setValue, reset } = useForm({ defaultValues: textosLidos });
   const textos = useValoresDoFormulario(control);
   const versao = useRef(versaoLida);
   const aplicouTextosPendentes = useRef(false);
   const editavel = usePodeEditar('skills.editar_textos');
   const [params, setParams] = useSearchParams();
   const aba = abaDe(params.get('aba'));
+  useContextoDaTela(aba === 'fluxo' ? null : { tela: 'skill', skill: nome });
 
   // Entram como alteração pendente (shouldDirty) sobre o que veio do servidor, não como base já salva:
   // o autosave só manda ao servidor o que ele vê como diferente do que carregou.
@@ -117,8 +99,14 @@ function Editor({
     onTextosPendentesAplicados();
   }, [textosPendentes, setValue, onTextosPendentesAplicados]);
 
-  const { estado, tentarDeNovo } = useAutosave({
-    valor: textos,
+  // Uma proposta do Copiloto aplicada traz textos e versão novos do servidor.
+  useEffect(() => {
+    versao.current = versaoLida;
+  }, [versaoLida]);
+  const sincronia = useEdicaoSobOServidor({
+    servidor: textosLidos,
+    local: textos,
+    resetar: reset,
     salvar: async (valor) => {
       const gravado = await salvarTextos(nome, {
         versao: versao.current,
@@ -127,6 +115,7 @@ function Editor({
       versao.current = gravado.versao;
     },
   });
+  const { estado, tentarDeNovo } = useAutosave({ valor: textos, salvar: sincronia.salvar });
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -145,6 +134,7 @@ function Editor({
         />
         <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
       </Box>
+      <AvisoDoCopiloto visivel={sincronia.mudouSobEdicao} onFechar={sincronia.dispensarAviso} />
       <Tabs
         value={aba}
         onChange={(_, proxima: AbaId) => setParams({ aba: proxima }, { replace: true })}
@@ -176,7 +166,7 @@ type ConteudoProps = {
 function ConteudoDaAba({ aba, nome, caminho, control, editavel }: ConteudoProps): ReactNode {
   switch (aba) {
     case 'quando-usar':
-      return <QuandoUsarAba control={control} editavel={editavel} />;
+      return <QuandoUsarAba nome={nome} control={control} editavel={editavel} />;
     case 'fluxo':
       return <FluxoAba nome={nome} caminho={caminho} />;
     case 'regras':

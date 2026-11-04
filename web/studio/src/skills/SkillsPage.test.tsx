@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
+import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
+import { PainelDoCopiloto } from '@/copiloto/PainelDoCopiloto';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
@@ -217,6 +219,52 @@ describe('SkillsPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('offersCopilotSuggestionsOnEmptyHub', async () => {
+    let enviado: unknown = null;
+    responderCom({
+      'GET /api/eu': () => json(construtor),
+      'GET /api/skills': () => lista([]),
+      'GET /api/copiloto/estado': () => json({ disponivel: true }),
+      'POST /api/copiloto': async (req) => {
+        enviado = await req.json();
+        return json({ mensagem: 'Vamos lá.', propostas: [], recusas: [] });
+      },
+    });
+    const { user } = renderComProvedores(
+      <>
+        <PainelDoCopiloto />
+        <SkillsPage />
+      </>,
+      { rota: '/skills' },
+    );
+    const sugestoes = await screen.findByRole('group', { name: 'Ou peça ao Copiloto' });
+    expect(
+      within(sugestoes)
+        .getAllByRole('button')
+        .map((chip) => chip.textContent),
+    ).toEqual([
+      'Crie uma skill de 2ª via de boleto',
+      'Crie uma skill de agendamento de mudança',
+      'Crie uma skill para reservar o salão',
+    ]);
+    expect(screen.queryByRole('complementary', { name: 'Copiloto' })).not.toBeInTheDocument();
+
+    await user.click(
+      within(sugestoes).getByRole('button', { name: 'Crie uma skill de 2ª via de boleto' }),
+    );
+
+    expect(await screen.findByRole('complementary', { name: 'Copiloto' })).toBeInTheDocument();
+    expect(await screen.findByText('Vamos lá.')).toBeInTheDocument();
+    expect(enviado).toMatchObject({ mensagem: 'Crie uma skill de 2ª via de boleto' });
+  });
+
+  it('hidesCopilotSuggestionsWithoutCreatePermission', async () => {
+    responderCom({ 'GET /api/eu': () => json(gestor), 'GET /api/skills': () => lista([]) });
+    montar();
+    await screen.findByText(/Uma skill é algo que o concierge sabe fazer/);
+    expect(screen.queryByRole('group', { name: 'Ou peça ao Copiloto' })).not.toBeInTheDocument();
+  });
+
   it('offersRetryWhenListFails', async () => {
     let falhas = 1;
     responderCom({
@@ -383,7 +431,9 @@ describe('SkillsPage', () => {
         <ThemeProvider theme={criarTema()}>
           <CssBaseline />
           <SnackbarProvider>
-            <RouterProvider router={rotas} />
+            <CopilotoProvider>
+              <RouterProvider router={rotas} />
+            </CopilotoProvider>
           </SnackbarProvider>
         </ThemeProvider>
       </QueryClientProvider>,

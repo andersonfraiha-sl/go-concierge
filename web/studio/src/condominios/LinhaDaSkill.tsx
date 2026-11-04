@@ -1,6 +1,7 @@
 import ChevronRightOutlined from '@mui/icons-material/ChevronRightOutlined';
 import { Box, ListItemButton, Switch, Tooltip, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { iconeDaSkill } from '@/skills/icones';
 import { RAIOS } from '@/theme/tokens';
 import { type LinhaDeSkill, rotuloDePapeis } from './listaDeSkills';
@@ -10,6 +11,8 @@ const RAIO_DE_PILULA = '999px';
 
 type Props = {
   linha: LinhaDeSkill;
+  /** Id de realce da linha: `condominio:<id>:skill:<nome>`. */
+  alvoDoRealce: string;
   ehPadrao: boolean;
   editavel: boolean;
   gravando: boolean;
@@ -20,6 +23,7 @@ type Props = {
 /** Linha densa de ~52 px: ícone, título, resumo, chips de exceção, atalho e switch. */
 export function LinhaDaSkill({
   linha,
+  alvoDoRealce,
   ehPadrao,
   editavel,
   gravando,
@@ -29,11 +33,15 @@ export function LinhaDaSkill({
   const Icone = iconeDaSkill(linha.caso.icone);
   const rotuloPapeis = rotuloDePapeis(linha.habilitacao.papeis);
   const mostraDecisaoPropria = linha.propria && !ehPadrao;
+  const realce = useRealceDoCopiloto(alvoDoRealce);
 
   return (
     <ListItemButton
       onClick={onAbrir}
-      sx={{ minHeight: 52, gap: 1.5, px: 2.5, borderTop: 1, borderColor: 'border.subtle' }}
+      sx={[
+        { minHeight: 52, gap: 1.5, px: 2.5, borderTop: 1, borderColor: 'border.subtle' },
+        realce,
+      ]}
     >
       <Box
         sx={{

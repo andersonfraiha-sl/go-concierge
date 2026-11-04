@@ -11,6 +11,7 @@ import {
   salvarHabilitacao,
   salvarOrientacao,
 } from '@/condominios/contratos';
+import type { Fluxo } from '@/fluxo/modelo/tipos';
 import { ApiError } from '@/shared/api/http';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { problemasDaRecusa } from '@/skills/abas/fluxoDaSkill';
@@ -53,6 +54,7 @@ type TextosParciais = OperacaoDo<'preencher_textos'>['textos'];
 const MENSAGEM_DE_VERSAO = 'Esta skill mudou desde a proposta. Peça de novo ao Copiloto.';
 const MENSAGEM_FORA_DA_REGRA = 'A proposta não segue as regras da skill.';
 const CHAVE_DAS_SKILLS: QueryKey = ['skills'];
+const ALVO_DA_PERSONA = 'persona';
 const CHAVE_DO_ESTADO: QueryKey = ['estado-condominios'];
 // Sem agente na proposta, o servidor usa o padrão; o front não sabe a chave dele, então refaz todas.
 const CHAVES_DE_ARQUIVO: QueryKey[] = [['agente'], ['arquivo']];
@@ -78,14 +80,21 @@ export const APLICADORES: { [T in TipoDeOperacao]: Aplicador<T> } = {
     const textos = conferirTextos(op.textos);
     await gravando(() => preencherTextosNovos(op.skill, textos));
     return {
-      alvos: camposPreenchidos(op.textos).map((campo) => `skill:${op.skill}:${campo}`),
+      alvos: [
+        `skill:${op.skill}`,
+        ...camposPreenchidos(op.textos).map((campo) => `skill:${op.skill}:${campo}`),
+      ],
       invalidar: [chaveDosTextos(op.skill), CHAVE_DAS_SKILLS],
     };
   },
   trocar_fluxo: async (op) => {
     const lido = await buscarFluxo(op.skill);
     await gravando(() => salvarFluxo(op.skill, { versao: lido.versao, fluxo: op.fluxo }));
-    return { alvos: [`skill:${op.skill}:fluxo`], invalidar: [chaveDoFluxo(op.skill)] };
+    const blocos = blocosMudados(lido.fluxo, op.fluxo).map((id) => `skill:${op.skill}:bloco:${id}`);
+    return {
+      alvos: [`skill:${op.skill}`, `skill:${op.skill}:fluxo`, ...blocos],
+      invalidar: [chaveDoFluxo(op.skill)],
+    };
   },
   criar_skill: async (op) => {
     const titulo = conferir(TituloDaSkillSchema, op.titulo);
@@ -118,7 +127,7 @@ export const APLICADORES: { [T in TipoDeOperacao]: Aplicador<T> } = {
       },
       ambiente.escopo,
     );
-    return doCondominio(`condominio:${op.condominio}:skill:${op.skill}`);
+    return doCondominio(op.condominio, `:skill:${op.skill}`);
   },
   orientar: async (op, ambiente) => {
     const { mapeamento } = await ambiente.lerEstado();
@@ -126,16 +135,19 @@ export const APLICADORES: { [T in TipoDeOperacao]: Aplicador<T> } = {
     const orientacao = orientacaoMesclada(atual, op.skill, op.texto);
     await salvarOrientacao({ condominio: op.condominio, ...orientacao }, ambiente.escopo);
     const onde = op.skill === undefined ? '' : `:skill:${op.skill}`;
-    return doCondominio(`condominio:${op.condominio}${onde}:orientacao`);
+    return doCondominio(op.condominio, `${onde}:orientacao`);
   },
   ajustar: async (op, ambiente) => {
     const { mapeamento } = await ambiente.lerEstado();
     const atuais = mapeamento.payloads[op.condominio] ?? {};
     const ajustes = { ...atuais, [op.recurso]: { ...atuais[op.recurso], ...op.campos } };
     await salvarAjustes({ condominio: op.condominio, ajustes }, ambiente.escopo);
-    return doCondominio(`condominio:${op.condominio}:ajustes:${op.recurso}`);
+    return doCondominio(op.condominio, `:ajustes:${op.recurso}`);
   },
-  editar_persona: (op) => gravarArquivo(op.agente, CAMINHO_PERSONA, op.texto),
+  editar_persona: async (op) => {
+    const gravado = await gravarArquivo(op.agente, CAMINHO_PERSONA, op.texto);
+    return { ...gravado, alvos: [ALVO_DA_PERSONA, ...gravado.alvos] };
+  },
   editar_arquivo: (op) => gravarArquivo(op.agente, op.caminho, op.conteudo),
 };
 
@@ -231,10 +243,19 @@ function orientacaoMesclada(
   return { geral: atual.geral, por_caso: porCaso };
 }
 
-const doCondominio = (alvo: string): Aplicacao => ({
-  alvos: [alvo],
+/** A linha do condomínio (lista) e o ponto exato dentro da ficha. */
+const doCondominio = (condominio: string, onde: string): Aplicacao => ({
+  alvos: [`condominio:${condominio}`, `condominio:${condominio}${onde}`],
   invalidar: [CHAVE_DO_ESTADO],
 });
+
+/** Ids dos blocos novos ou diferentes: o realce mostra o que o Copiloto mexeu no fluxo. */
+function blocosMudados(antes: Fluxo, depois: Fluxo): string[] {
+  const anteriores = new Map(antes.blocos.map((bloco) => [bloco.id, JSON.stringify(bloco)]));
+  return depois.blocos
+    .filter((bloco) => anteriores.get(bloco.id) !== JSON.stringify(bloco))
+    .map((bloco) => bloco.id);
+}
 
 async function gravarArquivo(
   agente: string | undefined,

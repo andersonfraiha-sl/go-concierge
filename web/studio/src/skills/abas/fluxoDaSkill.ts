@@ -49,3 +49,11 @@ export function useCatalogoDeFerramentas(): CatalogoDeFerramentas {
 
 export const corDoNivel = (nivel: ProblemaFluxo['nivel']): string =>
   nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
+
+/** Ids dos blocos desta skill que uma proposta do Copiloto acabou de mudar. */
+export function blocosRealcados(alvos: ReadonlySet<string>, nome: string): ReadonlySet<string> {
+  const prefixo = `skill:${nome}:bloco:`;
+  return new Set(
+    [...alvos].filter((alvo) => alvo.startsWith(prefixo)).map((alvo) => alvo.slice(prefixo.length)),
+  );
+}
