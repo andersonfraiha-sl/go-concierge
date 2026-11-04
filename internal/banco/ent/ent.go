@@ -10,6 +10,9 @@ import (
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/ganchosauditoria"
+	"go-concierge/internal/banco/ent/ganchosregra"
+	"go-concierge/internal/banco/ent/ganchosregraversao"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
@@ -87,21 +90,24 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			administradora.Table: administradora.ValidColumn,
-			atribuicao.Table:     atribuicao.ValidColumn,
-			concessao.Table:      concessao.ValidColumn,
-			condominio.Table:     condominio.ValidColumn,
-			habilitacao.Table:    habilitacao.ValidColumn,
-			memoriacontato.Table: memoriacontato.ValidColumn,
-			memoriafato.Table:    memoriafato.ValidColumn,
-			orientacao.Table:     orientacao.ValidColumn,
-			papel.Table:          papel.ValidColumn,
-			papelpermissao.Table: papelpermissao.ValidColumn,
-			payload.Table:        payload.ValidColumn,
-			pedido.Table:         pedido.ValidColumn,
-			pedidoevento.Table:   pedidoevento.ValidColumn,
-			sessao.Table:         sessao.ValidColumn,
-			usuario.Table:        usuario.ValidColumn,
+			administradora.Table:     administradora.ValidColumn,
+			atribuicao.Table:         atribuicao.ValidColumn,
+			concessao.Table:          concessao.ValidColumn,
+			condominio.Table:         condominio.ValidColumn,
+			ganchosauditoria.Table:   ganchosauditoria.ValidColumn,
+			ganchosregra.Table:       ganchosregra.ValidColumn,
+			ganchosregraversao.Table: ganchosregraversao.ValidColumn,
+			habilitacao.Table:        habilitacao.ValidColumn,
+			memoriacontato.Table:     memoriacontato.ValidColumn,
+			memoriafato.Table:        memoriafato.ValidColumn,
+			orientacao.Table:         orientacao.ValidColumn,
+			papel.Table:              papel.ValidColumn,
+			papelpermissao.Table:     papelpermissao.ValidColumn,
+			payload.Table:            payload.ValidColumn,
+			pedido.Table:             pedido.ValidColumn,
+			pedidoevento.Table:       pedidoevento.ValidColumn,
+			sessao.Table:             sessao.ValidColumn,
+			usuario.Table:            usuario.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)
