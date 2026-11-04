@@ -20,6 +20,7 @@ import {
   type Proposta,
   useEstadoDoCopiloto,
 } from './contratos';
+import { type AplicacaoDePropostas, useAplicarPropostas } from './useAplicarPropostas';
 
 export type Status = 'pronto' | 'pensando' | 'indisponivel';
 
@@ -31,7 +32,7 @@ export type Mensagem = {
   tom: 'normal' | 'erro';
 };
 
-type ValorDoCopiloto = {
+type ValorDoCopiloto = AplicacaoDePropostas & {
   aberto: boolean;
   alternar: () => void;
   /** Fecha pelo X do painel e devolve o foco ao botão do header, que continua na tela. */
@@ -42,7 +43,6 @@ type ValorDoCopiloto = {
   /** Reativo: só muda (e só então redesenha quem o lê) quando a tela de fato troca. */
   contexto: ContextoDoCopiloto;
   enviar: (texto: string) => Promise<void>;
-  aplicar: (proposta: Proposta) => Promise<void>;
   descartar: (idDaProposta: string) => void;
   definirContexto: (contexto: ContextoDoCopiloto) => void;
   alvosRealcados: ReadonlySet<string>;
@@ -76,6 +76,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [pensando, setPensando] = useState(false);
   const [alvosRealcados, realcar] = useAlvosRealcados();
+  const aplicacao = useAplicarPropostas(realcar);
   const botaoDoCopiloto = useRef<HTMLButtonElement>(null);
   // Ref para o pedido em curso (sempre a última tela, mesmo meio a um envio); state para quem
   // lê no render (ex.: sugestões do estado vazio) — só muda, e só então redesenha, quando a
@@ -157,7 +158,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     mensagens,
     contexto,
     enviar,
-    aplicar: aindaNaoAplica,
+    ...aplicacao,
     descartar,
     definirContexto: (proximo) => {
       contextoDoPedido.current = proximo;
@@ -215,11 +216,6 @@ function contextosIguais(a: ContextoDoCopiloto, b: ContextoDoCopiloto): boolean 
 function textoDoErro(erro: unknown): string {
   const estourouOPrazo = erro instanceof ApiError && erro.codigo === 'TEMPO_ESGOTADO';
   return estourouOPrazo ? MENSAGEM_DE_DEMORA : mensagemDe(erro);
-}
-
-// A Task 26 troca por aplicar de verdade, chamando `realcar` com os alvos mudados.
-function aindaNaoAplica(_proposta: Proposta): Promise<void> {
-  return Promise.reject(new Error('O Copiloto ainda não aplica propostas.'));
 }
 
 function statusDe(disponivel: boolean | undefined, pensando: boolean): Status {

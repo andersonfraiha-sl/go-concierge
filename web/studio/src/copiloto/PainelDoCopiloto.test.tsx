@@ -23,7 +23,7 @@ const eu = {
   id: 'u1',
   nome: 'Ana',
   papel: 'construtor',
-  permissoes: ['skills.ler'],
+  permissoes: ['skills.ler', 'skills.editar_textos', 'skills.excluir', 'condominios.habilitar'],
   administradoraId: null,
   dev: false,
 };
@@ -43,6 +43,35 @@ const respostaComProposta = {
     },
   ],
   recusas: [],
+};
+
+function respostaCom(resumo: string, operacao: unknown) {
+  return { mensagem: 'Confere:', propostas: [{ id: '0', resumo, operacao }], recusas: [] };
+}
+
+const PERSONA = 'Deixar o tom mais gentil';
+const respostaDePersona = respostaCom(PERSONA, {
+  tipo: 'editar_persona',
+  agente: 'agentes/concierge',
+  texto: 'Seja gentil.',
+});
+
+const EXCLUSAO = 'Excluir Agendar mudança';
+const respostaDeExclusao = respostaCom(EXCLUSAO, {
+  tipo: 'excluir_skill',
+  skill: 'agendar-mudanca',
+});
+
+const textosLidos = {
+  caminho: 'agentes/concierge/agentes/agendar-mudanca',
+  versao: 'v1',
+  textos: {
+    titulo: 'Agendar mudança',
+    quandoUsar: '',
+    frasesDeExemplo: [],
+    palavrasChave: [],
+    temFluxo: true,
+  },
 };
 
 type Rotas = Parameters<typeof responderCom>[0];
@@ -164,6 +193,71 @@ describe('PainelDoCopiloto', () => {
     });
     expect(within(cartao).getByRole('button', { name: 'Aplicar' })).toBeInTheDocument();
     expect(within(cartao).getByRole('button', { name: 'Descartar' })).toBeInTheDocument();
+  });
+
+  it('appliesProposalAndMarksCardApplied', async () => {
+    const { user } = montar({
+      'POST /api/copiloto': () => json(respostaDePersona),
+      'PUT /api/arquivo': () => json({ salvo: 'persona.md' }),
+    });
+    await user.type(caixa(), 'Mais gentil{Enter}');
+    const cartao = await screen.findByRole('group', { name: PERSONA });
+
+    await user.click(within(cartao).getByRole('button', { name: 'Aplicar' }));
+
+    expect(await within(cartao).findByText('Aplicada')).toBeInTheDocument();
+    expect(within(cartao).queryByRole('button', { name: 'Aplicar' })).not.toBeInTheDocument();
+  });
+
+  it('showsApplyErrorOnCardAndKeepsItPending', async () => {
+    const { user } = montar({
+      'POST /api/copiloto': () => json(respostaDePersona),
+      'PUT /api/arquivo': () => json({ codigo: 'X', mensagem: 'Sem permissão na Fundação.' }, 403),
+    });
+    await user.type(caixa(), 'Mais gentil{Enter}');
+    const cartao = await screen.findByRole('group', { name: PERSONA });
+
+    await user.click(within(cartao).getByRole('button', { name: 'Aplicar' }));
+
+    expect(await within(cartao).findByRole('alert')).toHaveTextContent(
+      'Sem permissão na Fundação.',
+    );
+    expect(within(cartao).getByRole('button', { name: 'Aplicar' })).toBeEnabled();
+    expect(within(cartao).queryByText('Aplicada')).not.toBeInTheDocument();
+  });
+
+  it('asksBeforeDeletingAndKeepsSkillWhenCancelled', async () => {
+    const { user, fetchFalso } = montar({
+      'POST /api/copiloto': () => json(respostaDeExclusao),
+      'GET /api/skills/agendar-mudanca': () => json(textosLidos),
+    });
+    await user.type(caixa(), 'Apaga a mudança{Enter}');
+    const cartao = await screen.findByRole('group', { name: EXCLUSAO });
+
+    await user.click(within(cartao).getByRole('button', { name: 'Aplicar' }));
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo).toHaveTextContent(
+      'Excluir "Agendar mudança"? O fluxo e as regras somem junto.',
+    );
+    await user.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() =>
+      expect(within(cartao).getByRole('button', { name: 'Aplicar' })).toBeEnabled(),
+    );
+    expect(fetchFalso.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+    expect(within(cartao).queryByText('Aplicada')).not.toBeInTheDocument();
+  });
+
+  it('hidesApplyWhenPersonCannotApply', async () => {
+    const { user } = montar({
+      'GET /api/eu': () => json({ ...eu, permissoes: ['skills.ler'] }),
+      'POST /api/copiloto': () => json(respostaDePersona),
+    });
+    await user.type(caixa(), 'Mais gentil{Enter}');
+    const cartao = await screen.findByRole('group', { name: PERSONA });
+
+    expect(await within(cartao).findByText('Você não pode aplicar esta.')).toBeInTheDocument();
+    expect(within(cartao).queryByRole('button', { name: 'Aplicar' })).not.toBeInTheDocument();
   });
 
   it('discardsOnlyTheChosenProposal', async () => {

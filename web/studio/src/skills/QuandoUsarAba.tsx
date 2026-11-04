@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { type Control, Controller, useWatch } from 'react-hook-form';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { LIMITE_DO_RESUMO, type Textos } from './contratos';
+import { LIMITE_DO_RESUMO, ResumoSchema, type Textos } from './contratos';
 import { ListaDeChips } from './ListaDeChips';
 
 type Props = {
@@ -13,6 +13,8 @@ type Props = {
 
 export function QuandoUsarAba({ control, editavel }: Props): ReactNode {
   const resumo = useWatch({ control, name: 'resumo' });
+  // Um resumo gravado fora da regra (texto antigo, outra ferramenta) avisa aqui em vez de passar calado.
+  const foraDaRegra = ResumoSchema.safeParse(resumo).error?.issues[0]?.message;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -25,7 +27,7 @@ export function QuandoUsarAba({ control, editavel }: Props): ReactNode {
           name="resumo"
           fullWidth
           disabled={!editavel}
-          helperText={`${resumo.length}/${LIMITE_DO_RESUMO}`}
+          helperText={foraDaRegra ?? `${resumo.length}/${LIMITE_DO_RESUMO}`}
           slotProps={{ htmlInput: { 'aria-label': 'Resumo', maxLength: LIMITE_DO_RESUMO } }}
         />
       </SectionCard>

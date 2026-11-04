@@ -14,7 +14,12 @@ import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
-import { LIMITE_DO_RESUMO, paraIdentificador } from './contratos';
+import {
+  LIMITE_DO_RESUMO,
+  paraIdentificador,
+  ResumoSchema,
+  TituloDaSkillSchema,
+} from './contratos';
 
 export type SkillNova = { nome: string; titulo: string; resumo: string; quandoUsar: string };
 type TextosDaNova = { resumo: string; quandoUsar: string };
@@ -33,10 +38,8 @@ type Props = {
 };
 
 const NovaSkillSchema = z.object({
-  titulo: z
-    .string()
-    .refine((titulo) => paraIdentificador(titulo) !== '', 'Use letras ou números no nome.'),
-  resumo: z.string().max(LIMITE_DO_RESUMO),
+  titulo: TituloDaSkillSchema,
+  resumo: ResumoSchema,
   quandoUsar: z.string(),
 });
 
