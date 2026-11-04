@@ -1,8 +1,8 @@
 import { Alert, Box, Button, CircularProgress } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
-import { AvisoDoCopiloto } from '@/copiloto/AvisoDoCopiloto';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useCopiloto } from '@/copiloto/CopilotoProvider';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
@@ -65,7 +65,6 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
   const [fluxo, setFluxo] = useState<Fluxo>(lido.fluxo);
   const [problemasDoServidor, setProblemasDoServidor] = useState(lido.problemas);
   const [selecionado, setSelecionado] = useState<string | null>(null);
-  const versao = useRef(lido.versao);
   const editavel = usePodeEditar('skills.editar_fluxo');
   const cliente = useQueryClient();
   const { alvosRealcados } = useCopiloto();
@@ -83,18 +82,15 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
     return (recurso: string): string => titulos.get(recurso) ?? recurso;
   }, [ferramentas]);
 
-  // Uma proposta do Copiloto aplicada traz fluxo e versão novos do servidor.
-  useEffect(() => {
-    versao.current = lido.versao;
-  }, [lido.versao]);
   const sincronia = useEdicaoSobOServidor({
     servidor: lido.fluxo,
+    alvos: [`skill:${nome}:fluxo`],
+    versao: lido.versao,
     local: fluxo,
     resetar: setFluxo,
-    salvar: async (valor) => {
+    salvar: async (valor, versao) => {
       try {
-        const gravado = await salvarFluxo(nome, { versao: versao.current, fluxo: valor });
-        versao.current = gravado.versao;
+        const gravado = await salvarFluxo(nome, { versao, fluxo: valor });
         setProblemasDoServidor(gravado.problemas);
         // A aba sai da tela ao trocar de aba; ao voltar, o cache precisa ter a versão e o fluxo gravados.
         cliente.setQueryData<FluxoLido>(chaveDoFluxo(nome), {
@@ -102,6 +98,7 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
           fluxo: valor,
           problemas: gravado.problemas,
         });
+        return gravado.versao;
       } catch (erro) {
         const recusados = problemasDaRecusa(erro);
         if (recusados !== null) setProblemasDoServidor(recusados);
@@ -111,7 +108,7 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
   });
   const { estado, tentarDeNovo } = useAutosave({
     valor: fluxo,
-    bloqueio: locais.length > 0 ? 'corrija o bloco marcado' : null,
+    bloqueio: sincronia.bloqueio ?? (locais.length > 0 ? 'corrija o bloco marcado' : null),
     salvar: sincronia.salvar,
   });
 
@@ -137,7 +134,11 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
         minHeight: ALTURA_MINIMA_DA_AREA,
       }}
     >
-      <AvisoDoCopiloto visivel={sincronia.mudouSobEdicao} onFechar={sincronia.dispensarAviso} />
+      <AvisoDeConflito
+        conflito={sincronia.conflito}
+        onManterOMeu={sincronia.manterOMeu}
+        onUsarONovo={sincronia.usarONovo}
+      />
       <BarraDoFluxo
         editavel={editavel}
         doFluxoTodo={problemas.filter((p) => p.blocoId === undefined)}

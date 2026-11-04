@@ -1,7 +1,7 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
-import { AvisoDoCopiloto } from '@/copiloto/AvisoDoCopiloto';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
@@ -33,26 +33,30 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
   const geral = useWatch({ control, name: 'geral' });
   const realce = useRealceDoCopiloto(`condominio:${condominio}:orientacao`);
 
+  // A hora da última gravação do mapa serve de versão: uma leitura mais velha não volta o campo.
   const sincronia = useEdicaoSobOServidor({
     servidor: geralGravada,
+    alvos: [`condominio:${condominio}:orientacao`],
+    versao: estado.mapeamento.atualizado_em ?? null,
     local: geral,
     resetar: (valor) => reset({ geral: valor }),
     salvar: async (texto) => {
-      aplicar(
-        await salvarOrientacao(
-          {
-            condominio,
-            geral: texto,
-            por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
-          },
-          escopo,
-        ),
+      const resposta = await salvarOrientacao(
+        {
+          condominio,
+          geral: texto,
+          por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
+        },
+        escopo,
       );
+      aplicar(resposta);
+      return resposta.mapeamento.atualizado_em ?? null;
     },
   });
   const { estado: salvamento, tentarDeNovo } = useAutosave({
     valor: geral,
     salvar: sincronia.salvar,
+    bloqueio: sincronia.bloqueio,
   });
 
   const orientacaoDoPadrao =
@@ -64,7 +68,11 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
       ajuda={AJUDA}
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
-      <AvisoDoCopiloto visivel={sincronia.mudouSobEdicao} onFechar={sincronia.dispensarAviso} />
+      <AvisoDeConflito
+        conflito={sincronia.conflito}
+        onManterOMeu={sincronia.manterOMeu}
+        onUsarONovo={sincronia.usarONovo}
+      />
       <CampoTexto
         control={control}
         name="geral"

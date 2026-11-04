@@ -1,16 +1,17 @@
 import { useEffect } from 'react';
-import { useCopiloto } from './CopilotoProvider';
+import { CONTEXTO_NEUTRO, useCopiloto } from './CopilotoProvider';
 import type { ContextoDoCopiloto } from './contratos';
 
 /**
- * Diz ao Copiloto o que a tela mostra. `null` quando uma tela de dentro fala por ela (ex.: a aba
- * de fluxo no editor da skill): os efeitos do filho rodam antes dos do pai e seriam sobrescritos.
+ * Diz ao Copiloto o que a tela mostra; `null` limpa (a tela não tem nada a dizer, ex.: Avançado
+ * sem permissão). Uma tela de dentro e a de fora que estejam montadas juntas dizem o mesmo
+ * contexto: os efeitos do filho rodam antes dos do pai, e o pai não pode desdizer o filho.
  */
 export function useContextoDaTela(contexto: ContextoDoCopiloto | null): void {
   const { definirContexto } = useCopiloto();
   // Sem lista de dependências de propósito: `definirContexto` ignora o mesmo contexto, então o
-  // efeito só muda algo quando o item aberto muda, e nunca guarda uma tela antiga.
+  // efeito só muda algo quando o que a tela mostra muda.
   useEffect(() => {
-    if (contexto) definirContexto(contexto);
+    definirContexto(contexto ?? CONTEXTO_NEUTRO);
   });
 }

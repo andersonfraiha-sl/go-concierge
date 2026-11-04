@@ -337,13 +337,15 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
     expect(screen.queryByText(/O Copiloto mudou/)).not.toBeInTheDocument();
   });
 
-  it('keepsUnsavedEditsAndWarnsWhenCopilotChangesTheField', async () => {
+  /** Edição da pessoa pendente (o salvamento automático falhou) quando o Copiloto aplica a orientação. */
+  async function conflitoNaOrientacao() {
     const comOrientacao = structuredClone(estadoFalso);
     comOrientacao.mapeamento.orientacoes = {
       'vila-verde': { geral: 'Piscina até 23h.', por_caso: {} },
     };
+    comOrientacao.mapeamento.atualizado_em = '2026-11-04T10:00:00Z';
     let estado: unknown = estadoFalso;
-    let gravacoes = 0;
+    const corpos: Array<{ geral: string }> = [];
     const resumo = 'Escrever a orientação da piscina';
     const operacao = { tipo: 'orientar', condominio: 'vila-verde', texto: 'Piscina até 23h.' };
     const { user } = montar({
@@ -355,9 +357,9 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
         'GET /api/admin/estado': () => json(estado),
         'POST /api/copiloto': () => json(respostaCom(resumo, operacao)),
         // A primeira é o salvamento automático da pessoa, que falha e deixa a edição pendente.
-        'PUT /api/admin/orientacao': () => {
-          gravacoes += 1;
-          if (gravacoes === 1) return json({ codigo: 'ERRO', mensagem: 'Caiu.' }, 500);
+        'PUT /api/admin/orientacao': async (req) => {
+          corpos.push(await req.json());
+          if (corpos.length === 1) return json({ codigo: 'ERRO', mensagem: 'Caiu.' }, 500);
           estado = comOrientacao;
           return json({ ...respostaMapeamento, mapeamento: comOrientacao.mapeamento });
         },
@@ -370,6 +372,30 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
     await aplicarProposta(user, resumo);
 
     expect(await screen.findByText(/O Copiloto mudou este campo/)).toBeInTheDocument();
+    expect(screen.getByText('Não salvo: escolha qual versão fica')).toBeInTheDocument();
+    expect(campo).toHaveValue('Sem mudança aos domingos.');
+    expect(corpos).toHaveLength(2);
+    return { user, campo, corpos };
+  }
+
+  it('holdsSaveAndUsesCopilotVersionWhenChosen', async () => {
+    const { user, campo, corpos } = await conflitoNaOrientacao();
+
+    await user.click(screen.getByRole('button', { name: 'Usar o do Copiloto' }));
+
+    expect(campo).toHaveValue('Piscina até 23h.');
+    expect(screen.queryByText(/O Copiloto mudou este campo/)).not.toBeInTheDocument();
+    expect(corpos).toHaveLength(2);
+  });
+
+  it('holdsSaveAndKeepsUserTextWhenChosen', async () => {
+    const { user, campo, corpos } = await conflitoNaOrientacao();
+
+    await user.click(screen.getByRole('button', { name: 'Manter o meu' }));
+    await user.click(screen.getByRole('button', { name: 'Tentar de novo' }));
+
+    await waitFor(() => expect(corpos).toHaveLength(3));
+    expect(corpos[2]).toMatchObject({ geral: 'Sem mudança aos domingos.' });
     expect(campo).toHaveValue('Sem mudança aos domingos.');
   });
 });

@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useRef } from 'react';
 import { type Control, Controller, useForm } from 'react-hook-form';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
-import { AvisoDoCopiloto } from '@/copiloto/AvisoDoCopiloto';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
@@ -82,12 +82,12 @@ function Editor({
 }: EditorProps): ReactNode {
   const { control, setValue, reset } = useForm({ defaultValues: textosLidos });
   const textos = useValoresDoFormulario(control);
-  const versao = useRef(versaoLida);
   const aplicouTextosPendentes = useRef(false);
   const editavel = usePodeEditar('skills.editar_textos');
   const [params, setParams] = useSearchParams();
   const aba = abaDe(params.get('aba'));
-  useContextoDaTela(aba === 'fluxo' ? null : { tela: 'skill', skill: nome });
+  // Na aba de fluxo, a FluxoAba diz o mesmo contexto: os dois nunca brigam.
+  useContextoDaTela({ tela: aba === 'fluxo' ? 'fluxo' : 'skill', skill: nome });
 
   // Entram como alteração pendente (shouldDirty) sobre o que veio do servidor, não como base já salva:
   // o autosave só manda ao servidor o que ele vê como diferente do que carregou.
@@ -99,23 +99,21 @@ function Editor({
     onTextosPendentesAplicados();
   }, [textosPendentes, setValue, onTextosPendentesAplicados]);
 
-  // Uma proposta do Copiloto aplicada traz textos e versão novos do servidor.
-  useEffect(() => {
-    versao.current = versaoLida;
-  }, [versaoLida]);
   const sincronia = useEdicaoSobOServidor({
     servidor: textosLidos,
+    alvos: [`skill:${nome}`],
+    versao: versaoLida,
     local: textos,
     resetar: reset,
-    salvar: async (valor) => {
-      const gravado = await salvarTextos(nome, {
-        versao: versao.current,
-        textos: semVazios(valor),
-      });
-      versao.current = gravado.versao;
-    },
+    normalizar: semVazios,
+    salvar: async (valor, versao) =>
+      (await salvarTextos(nome, { versao, textos: semVazios(valor) })).versao,
   });
-  const { estado, tentarDeNovo } = useAutosave({ valor: textos, salvar: sincronia.salvar });
+  const { estado, tentarDeNovo } = useAutosave({
+    valor: textos,
+    salvar: sincronia.salvar,
+    bloqueio: sincronia.bloqueio,
+  });
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -134,7 +132,11 @@ function Editor({
         />
         <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
       </Box>
-      <AvisoDoCopiloto visivel={sincronia.mudouSobEdicao} onFechar={sincronia.dispensarAviso} />
+      <AvisoDeConflito
+        conflito={sincronia.conflito}
+        onManterOMeu={sincronia.manterOMeu}
+        onUsarONovo={sincronia.usarONovo}
+      />
       <Tabs
         value={aba}
         onChange={(_, proxima: AbaId) => setParams({ aba: proxima }, { replace: true })}

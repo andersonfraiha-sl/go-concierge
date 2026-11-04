@@ -1,4 +1,5 @@
-import { screen, waitFor } from '@testing-library/react';
+import { focusManager } from '@tanstack/react-query';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import { json, responderCom } from '@/test/fetchFalso';
@@ -68,6 +69,87 @@ describe('SkillEditorPage', () => {
     expect(corpos).toEqual([
       { versao: 'v1', textos: { ...lidos().textos, resumo: 'Agenda a mudança.' } },
     ]);
+  });
+
+  /** A janela volta ao foco: a consulta refaz a leitura, como quando um colega editou. */
+  const voltarAoFoco = () =>
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+
+  /** Resumo digitado e, antes de salvar, um colega grava outro resumo (versão v2). */
+  async function conflitoComColega() {
+    const corpos: unknown[] = [];
+    let lido = lidos();
+    responderCom({
+      ...rotasDoEditor(construtor, corpos),
+      'GET /api/skills/agendar-mudanca': () => json(lido),
+    });
+    const { user } = montar();
+    const campo = await screen.findByRole('textbox', { name: 'Resumo' });
+    await waitFor(() => expect(campo).toBeEnabled());
+    fireEvent.change(campo, { target: { value: 'Meu resumo.' } });
+    lido = { ...lidos(), versao: 'v2', textos: { ...lidos().textos, resumo: 'Do colega.' } };
+    voltarAoFoco();
+
+    expect(await screen.findByText(/Este campo mudou em outro lugar/)).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(corpos).toEqual([]);
+    expect(campo).toHaveValue('Meu resumo.');
+    return { user, campo, corpos };
+  }
+
+  it('keepsUserTextOverColleagueEditWhenChosen', async () => {
+    const { user, corpos } = await conflitoComColega();
+
+    await user.click(screen.getByRole('button', { name: 'Manter o meu' }));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await waitFor(() => expect(corpos).toHaveLength(1));
+    expect(corpos).toEqual([
+      { versao: 'v2', textos: { ...lidos().textos, resumo: 'Meu resumo.' } },
+    ]);
+  });
+
+  it('usesColleagueVersionWhenChosen', async () => {
+    const { user, campo, corpos } = await conflitoComColega();
+
+    await user.click(screen.getByRole('button', { name: 'Usar a versão nova' }));
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(campo).toHaveValue('Do colega.');
+    expect(corpos).toEqual([]);
+    expect(screen.queryByText(/Este campo mudou/)).not.toBeInTheDocument();
+  });
+
+  it('ignoresAnOlderReadThatArrivesAfterSaving', async () => {
+    const corpos: unknown[] = [];
+    let soltarLeitura = (_: Response) => {};
+    let leituras = 0;
+    responderCom({
+      ...rotasDoEditor(construtor, corpos),
+      'GET /api/skills/agendar-mudanca': () => {
+        leituras += 1;
+        if (leituras === 1) return json(lidos());
+        return new Promise<Response>((resolver) => {
+          soltarLeitura = resolver;
+        });
+      },
+    });
+    montar();
+    const campo = await screen.findByRole('textbox', { name: 'Resumo' });
+    await waitFor(() => expect(campo).toBeEnabled());
+    fireEvent.change(campo, { target: { value: 'Novo.' } });
+    voltarAoFoco();
+    await waitFor(() => expect(leituras).toBe(2));
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
+
+    await act(async () => soltarLeitura(json(lidos())));
+
+    expect(campo).toHaveValue('Novo.');
+    expect(screen.queryByText(/Este campo mudou/)).not.toBeInTheDocument();
   });
 
   it('limitsSummaryTo90Characters', async () => {

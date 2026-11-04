@@ -47,6 +47,8 @@ const MapeamentoSchema = z.object({
   habilitacoes: mapaDoGo(mapaDoGo(HabilitacaoSchema)),
   payloads: mapaDoGo(mapaDoGo(mapaDoGo(ValorSchema))),
   orientacoes: mapaDoGo(OrientacaoSchema),
+  // Hora da última gravação; a ficha usa como versão para ignorar leitura mais velha.
+  atualizado_em: z.string().optional(),
 });
 export type Mapeamento = z.infer<typeof MapeamentoSchema>;
 

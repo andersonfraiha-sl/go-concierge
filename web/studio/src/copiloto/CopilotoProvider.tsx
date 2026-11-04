@@ -19,6 +19,8 @@ import {
   type Proposta,
   useEstadoDoCopiloto,
 } from './contratos';
+import { gravarAberto, lerAberto } from './preferenciaDoPainel';
+import { useAlvosRealcados } from './useAlvosRealcados';
 import { type AplicacaoDePropostas, useAplicarPropostas } from './useAplicarPropostas';
 
 export type Status = 'pronto' | 'pensando' | 'indisponivel';
@@ -48,10 +50,8 @@ type ValorDoCopiloto = AplicacaoDePropostas & {
   realcar: (alvos: readonly string[]) => void;
 };
 
-const CHAVE_ABERTO = 'studio.copilotoAberto';
-const NENHUM_ALVO: ReadonlySet<string> = new Set();
-const DURACAO_DO_REALCE_MS = 1500;
-const CONTEXTO_INICIAL: ContextoDoCopiloto = { tela: 'skills' };
+/** Contexto de quem não diz nada: o mesmo do Studio recém-aberto. */
+export const CONTEXTO_NEUTRO: ContextoDoCopiloto = { tela: 'skills' };
 const MENSAGEM_DE_DEMORA = 'O Copiloto demorou demais.';
 
 /** Objeto simples (não `SxProps`) para entrar em lista de `sx` junto do estilo do campo. */
@@ -83,8 +83,8 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   // Ref para o pedido em curso (sempre a última tela, mesmo meio a um envio); state para quem
   // lê no render (ex.: sugestões do estado vazio) — só muda, e só então redesenha, quando a
   // tela de fato troca, nunca a cada chamada de definirContexto com o mesmo valor.
-  const contextoDoPedido = useRef(CONTEXTO_INICIAL);
-  const [contexto, setContexto] = useState<ContextoDoCopiloto>(CONTEXTO_INICIAL);
+  const contextoDoPedido = useRef(CONTEXTO_NEUTRO);
+  const [contexto, setContexto] = useState<ContextoDoCopiloto>(CONTEXTO_NEUTRO);
   const pedidoEmCurso = useRef<AbortController | null>(null);
   const estado = useEstadoDoCopiloto(aberto);
   const queryClient = useQueryClient();
@@ -173,38 +173,6 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   return <CopilotoContext.Provider value={valor}>{children}</CopilotoContext.Provider>;
 }
 
-/** Um prazo por alvo: realçar de novo reinicia os 1500 ms daquele alvo; sair da tela limpa todos. */
-function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly string[]) => void] {
-  const [alvosRealcados, setAlvosRealcados] = useState<ReadonlySet<string>>(NENHUM_ALVO);
-  const prazos = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-
-  useEffect(() => {
-    const prazosAtivos = prazos.current;
-    return () => {
-      for (const prazo of prazosAtivos.values()) clearTimeout(prazo);
-      prazosAtivos.clear();
-    };
-  }, []);
-
-  const apagar = (alvo: string) => {
-    prazos.current.delete(alvo);
-    setAlvosRealcados((atuais) => new Set([...atuais].filter((atual) => atual !== alvo)));
-  };
-
-  const realcar = (alvos: readonly string[]) => {
-    setAlvosRealcados((atuais) => new Set([...atuais, ...alvos]));
-    for (const alvo of alvos) {
-      clearTimeout(prazos.current.get(alvo));
-      prazos.current.set(
-        alvo,
-        setTimeout(() => apagar(alvo), DURACAO_DO_REALCE_MS),
-      );
-    }
-  };
-
-  return [alvosRealcados, realcar];
-}
-
 function contextosIguais(a: ContextoDoCopiloto, b: ContextoDoCopiloto): boolean {
   return (
     a.tela === b.tela &&
@@ -223,21 +191,4 @@ function textoDoErro(erro: unknown): string {
 function statusDe(disponivel: boolean | undefined, pensando: boolean): Status {
   if (disponivel === false) return 'indisponivel';
   return pensando ? 'pensando' : 'pronto';
-}
-
-function lerAberto(): boolean {
-  try {
-    return localStorage.getItem(CHAVE_ABERTO) === 'true';
-  } catch (cause) {
-    console.warn('ler preferência do Copiloto:', cause);
-    return false;
-  }
-}
-
-function gravarAberto(aberto: boolean): void {
-  try {
-    localStorage.setItem(CHAVE_ABERTO, String(aberto));
-  } catch (cause) {
-    console.warn('gravar preferência do Copiloto:', cause);
-  }
 }

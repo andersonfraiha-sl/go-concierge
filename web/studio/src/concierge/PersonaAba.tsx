@@ -9,7 +9,7 @@ import {
   salvarArquivo,
   useAgente,
 } from '@/catalogo/contratos';
-import { AvisoDoCopiloto } from '@/copiloto/AvisoDoCopiloto';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
@@ -68,14 +68,21 @@ function PersonaEditor({
   const realce = useRealceDoCopiloto('persona');
   const sincronia = useEdicaoSobOServidor({
     servidor: personaGravada,
+    alvos: ['persona'],
+    versao: null,
     local: persona,
     resetar: (valor) => reset({ persona: valor }),
     salvar: async (conteudo) => {
       await salvarArquivo({ agente: assistente, caminho: CAMINHO_PERSONA, conteudo });
       await cliente.invalidateQueries({ queryKey: ['agente', assistente] });
+      return null;
     },
   });
-  const { estado, tentarDeNovo } = useAutosave({ valor: persona, salvar: sincronia.salvar });
+  const { estado, tentarDeNovo } = useAutosave({
+    valor: persona,
+    salvar: sincronia.salvar,
+    bloqueio: sincronia.bloqueio,
+  });
 
   const usarModelo = async (): Promise<void> => {
     try {
@@ -105,7 +112,11 @@ function PersonaEditor({
         </Box>
       }
     >
-      <AvisoDoCopiloto visivel={sincronia.mudouSobEdicao} onFechar={sincronia.dispensarAviso} />
+      <AvisoDeConflito
+        conflito={sincronia.conflito}
+        onManterOMeu={sincronia.manterOMeu}
+        onUsarONovo={sincronia.usarONovo}
+      />
       {persona.trim() === '' && (
         <Alert severity="warning">
           Sem persona, o concierge responde sem um jeito próprio de falar.

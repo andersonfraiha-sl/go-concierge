@@ -35,7 +35,10 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
       ? { tela: 'avancado', agente: no.caminho, ...(aberto !== null && { caminho: aberto }) }
       : null,
   );
-  const realce = useRealceDoCopiloto(`arquivo:${no.caminho}:${aberto ?? ''}`);
+  const realceDoAgente = useRealceDoCopiloto(`arquivo:${no.caminho}:${aberto ?? ''}`);
+  // Proposta sem agente vale para o agente desta tela: o servidor só aceita a do contexto.
+  const realceSemAgente = useRealceDoCopiloto(`arquivo::${aberto ?? ''}`);
+  const realce = realceSemAgente.bgcolor === undefined ? realceDoAgente : realceSemAgente;
 
   if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
   if (agente.isError) {
