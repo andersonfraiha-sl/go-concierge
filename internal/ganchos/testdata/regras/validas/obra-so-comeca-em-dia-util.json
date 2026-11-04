@@ -1,0 +1,30 @@
+{
+  "nome": "Obra só começa em dia útil",
+  "evento": "antes_da_ferramenta",
+  "alvo": {
+    "administradora": "adm-aurora"
+  },
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "obras.comunicar"
+      ]
+    },
+    {
+      "tipo": "dia_nao_util",
+      "fonte": {
+        "tipo": "parametro",
+        "nome": "inicio"
+      },
+      "feriados_extras": [
+        "2026-01-25"
+      ]
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Obra só pode começar em dia útil. Pode escolher outra data de início?"
+  },
+  "ativa": true
+}

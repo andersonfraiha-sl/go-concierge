@@ -1,0 +1,27 @@
+{
+  "nome": "Confirmar reserva à noite",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "areas.reservar"
+      ]
+    },
+    {
+      "tipo": "fora_do_horario",
+      "inicio": "22:00",
+      "fim": "06:00",
+      "fonte": {
+        "tipo": "agora"
+      }
+    }
+  ],
+  "decisao": {
+    "tipo": "confirmar",
+    "pergunta": "Já é tarde, quer mesmo reservar assim?"
+  },
+  "ativa": true,
+  "fuso": "America/Sao_Paulo"
+}

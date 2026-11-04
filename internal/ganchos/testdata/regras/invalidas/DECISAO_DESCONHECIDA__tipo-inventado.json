@@ -1,0 +1,17 @@
+{
+  "nome": "Regra de teste",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "areas.reservar"
+      ]
+    }
+  ],
+  "decisao": {
+    "tipo": "explodir"
+  },
+  "ativa": true
+}

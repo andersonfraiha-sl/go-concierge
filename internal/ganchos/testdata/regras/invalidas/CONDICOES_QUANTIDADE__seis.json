@@ -1,0 +1,36 @@
+{
+  "nome": "Regra de teste",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "contato_cadastrado",
+      "valor": true
+    },
+    {
+      "tipo": "contato_cadastrado",
+      "valor": true
+    },
+    {
+      "tipo": "contato_cadastrado",
+      "valor": true
+    },
+    {
+      "tipo": "contato_cadastrado",
+      "valor": true
+    },
+    {
+      "tipo": "contato_cadastrado",
+      "valor": true
+    },
+    {
+      "tipo": "contato_cadastrado",
+      "valor": true
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Não posso fazer isso agora."
+  },
+  "ativa": true
+}
