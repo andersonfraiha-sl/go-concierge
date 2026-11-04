@@ -452,12 +452,42 @@ func TestAvaliarContextoCancelado(t *testing.T) {
 	}
 }
 
+func TestFixoRodaComContextoCancelado(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	rodou := false
+	fixo := ganchos.Gancho[ganchos.AntesDeResponder]{
+		Nome: "mascara", Fixo: true,
+		Avaliar: func(e ganchos.AntesDeResponder) (ganchos.AntesDeResponder, ganchos.Decisao) {
+			rodou = true
+			return e, ganchos.Decisao{}
+		},
+	}
+	regra := ganchos.Gancho[ganchos.AntesDeResponder]{
+		Nome: "regra", Falha: ganchos.Aberta,
+		Avaliar: func(e ganchos.AntesDeResponder) (ganchos.AntesDeResponder, ganchos.Decisao) {
+			t.Error("regra rodou com o contexto cancelado")
+			return e, ganchos.Decisao{}
+		},
+	}
+
+	r := ganchos.Avaliar(ctx, []ganchos.Gancho[ganchos.AntesDeResponder]{regra, fixo}, ganchos.AntesDeResponder{})
+
+	if !rodou {
+		t.Error("fixo não rodou com o contexto cancelado")
+	}
+	if r.Decisao.Tipo != ganchos.Deixar || len(r.Registros) != 1 || r.Registros[0].Causa != ganchos.CausaCancelado {
+		t.Errorf("Resultado = %+v, want só a regra registrada como cancelada", r)
+	}
+}
+
 func TestTransbordoSempreSegue(t *testing.T) {
 	cancelado, cancel := context.WithCancel(context.Background())
 	cancel()
 	tests := []struct {
 		name      string
 		ctx       context.Context
+		regra     bool
 		avaliar   func(ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao)
 		wantCausa ganchos.Causa
 	}{
@@ -470,6 +500,14 @@ func TestTransbordoSempreSegue(t *testing.T) {
 			wantCausa: ganchos.CausaDecisaoInvalida,
 		},
 		{
+			name: "confirmar vira decisao invalida",
+			ctx:  context.Background(),
+			avaliar: func(e ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao) {
+				return e, ganchos.Decisao{Tipo: ganchos.Confirmar, Motivo: "posso transbordar?"}
+			},
+			wantCausa: ganchos.CausaDecisaoInvalida,
+		},
+		{
 			name: "panic em politica fechada",
 			ctx:  context.Background(),
 			avaliar: func(ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao) {
@@ -478,8 +516,9 @@ func TestTransbordoSempreSegue(t *testing.T) {
 			wantCausa: ganchos.CausaPanic,
 		},
 		{
-			name: "contexto cancelado",
-			ctx:  cancelado,
+			name:  "regra com contexto cancelado",
+			ctx:   cancelado,
+			regra: true,
 			avaliar: func(e ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao) {
 				return e, ganchos.Decisao{}
 			},
@@ -488,7 +527,7 @@ func TestTransbordoSempreSegue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := ganchos.Gancho[ganchos.TransbordoOuEncerramento]{Nome: "g", Fixo: true, Falha: ganchos.Fechada, Avaliar: tt.avaliar}
+			g := ganchos.Gancho[ganchos.TransbordoOuEncerramento]{Nome: "g", Fixo: !tt.regra, Falha: ganchos.Fechada, Avaliar: tt.avaliar}
 
 			r := ganchos.Avaliar(tt.ctx, []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{g}, ganchos.TransbordoOuEncerramento{})
 

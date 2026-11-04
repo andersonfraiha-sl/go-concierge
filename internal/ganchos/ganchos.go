@@ -100,8 +100,9 @@ type Resultado[E Ocorrencia] struct {
 
 // Avaliar roda os ganchos na ordem recebida. Bloquear encerra; ajustar (só fixo) passa o
 // evento ajustado ao seguinte; confirmar acumula o motivo em Perguntas. A decisão final
-// segue bloquear > confirmar > ajustar > deixar. Com o contexto cancelado, cada gancho
-// restante conta como falha (CausaCancelado) sob a própria política.
+// segue bloquear > confirmar > ajustar > deixar. Com o contexto cancelado, os fixos rodam
+// assim mesmo (são puros e a máscara nunca pode ser pulada) e cada regra restante conta
+// como falha (CausaCancelado) sob a própria política.
 func Avaliar[E Ocorrencia](ctx context.Context, gs []Gancho[E], ev E) Resultado[E] {
 	inicio := time.Now()
 	return seguir(ctx, comecar(ev), gs).resultado(time.Since(inicio))
@@ -135,7 +136,7 @@ func seguir[E Ocorrencia](ctx context.Context, a avaliacao[E], gs []Gancho[E]) a
 		if a.encerrada {
 			return a
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && !g.Fixo {
 			a = aplicarFalha(a, g, falha{causa: CausaCancelado})
 			continue
 		}
@@ -204,17 +205,16 @@ func aceita(d Decisao, fixo bool, ev Ocorrencia) bool {
 		return true
 	case Ajustar:
 		return fixo
-	case Confirmar:
-		return d.Motivo != ""
-	case Bloquear:
-		return d.Motivo != "" && podeBloquear(ev)
+	case Confirmar, Bloquear:
+		return d.Motivo != "" && podeSegurar(ev)
 	default:
 		return false
 	}
 }
 
-// podeBloquear: transbordo ou encerramento sempre segue (spec §4 e §11).
-func podeBloquear(ev Ocorrencia) bool { return ev.Nome() != EventoTransbordoOuEncerramento }
+// podeSegurar diz se o evento aceita parar ou perguntar: transbordo ou encerramento sempre
+// segue (spec §3, §4 e §11).
+func podeSegurar(ev Ocorrencia) bool { return ev.Nome() != EventoTransbordoOuEncerramento }
 
 // protegido recupera o panic do gancho: um gancho quebrado é uma falha, não um turno morto.
 // detalhe vazio = não houve panic.
@@ -311,7 +311,7 @@ func politicaDe[E Ocorrencia](g Gancho[E]) Politica {
 }
 
 func fechaNaFalha[E Ocorrencia](p Politica, a avaliacao[E]) bool {
-	if !podeBloquear(a.evento) {
+	if !podeSegurar(a.evento) {
 		return false
 	}
 	switch p {

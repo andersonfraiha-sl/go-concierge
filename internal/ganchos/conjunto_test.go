@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"go-concierge/internal/admin"
@@ -241,21 +242,64 @@ func TestRegraNaoDesfazOFixo(t *testing.T) {
 	}
 }
 
-func TestRegraNaoBloqueiaTransbordo(t *testing.T) {
-	regra := &ganchostest.Roteiro[ganchos.TransbordoOuEncerramento]{
-		Decisao: ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "fica aqui"},
+func TestRegraNaoSeguraTransbordo(t *testing.T) {
+	tests := []struct {
+		name    string
+		decisao ganchos.Decisao
+	}{
+		{"bloquear", ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "fica aqui"}},
+		{"confirmar", ganchos.Decisao{Tipo: ganchos.Confirmar, Motivo: "posso transbordar?"}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regra := &ganchostest.Roteiro[ganchos.TransbordoOuEncerramento]{Decisao: tt.decisao}
+			idx := &ganchos.Indice{TransbordoOuEncerramento: ganchos.Nivel[ganchos.TransbordoOuEncerramento]{
+				Globais: []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{ganchostest.Gancho("regra", regra)},
+			}}
+
+			r := ganchostest.Conjunto(ganchos.Fixos{}, idx).Turno().TransbordoOuEncerramento(context.Background(), ganchos.TransbordoOuEncerramento{})
+
+			if r.Decisao.Tipo != ganchos.Deixar || len(r.Perguntas) != 0 {
+				t.Errorf("Decisao = %+v, Perguntas = %v, want deixar sem pergunta", r.Decisao, r.Perguntas)
+			}
+			if len(r.Registros) != 1 || r.Registros[0].Causa != ganchos.CausaDecisaoInvalida {
+				t.Errorf("Registros = %+v, want a regra como decisão inválida", r.Registros)
+			}
+		})
+	}
+}
+
+func TestTransbordoCanceladoSaiMascarado(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	mascarar := ganchos.Gancho[ganchos.TransbordoOuEncerramento]{
+		Nome: "transbordo_sem_pii", Falha: ganchos.Aberta,
+		Avaliar: func(e ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao) {
+			e.Motivo = strings.ReplaceAll(e.Motivo, "123.456.789-09", "«cpf:1»")
+			return e, ganchos.Decisao{Tipo: ganchos.Ajustar, Quantidade: 1}
+		},
+	}
+	regra := &ganchostest.Roteiro[ganchos.TransbordoOuEncerramento]{}
+	f := ganchos.Fixos{TransbordoOuEncerramento: ganchos.Pontos[ganchos.TransbordoOuEncerramento]{
+		Saneamento: []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{mascarar},
+	}}
 	idx := &ganchos.Indice{TransbordoOuEncerramento: ganchos.Nivel[ganchos.TransbordoOuEncerramento]{
 		Globais: []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{ganchostest.Gancho("regra", regra)},
 	}}
 
-	r := ganchostest.Conjunto(ganchos.Fixos{}, idx).Turno().TransbordoOuEncerramento(context.Background(), ganchos.TransbordoOuEncerramento{})
+	r := ganchostest.Conjunto(f, idx).Turno().TransbordoOuEncerramento(ctx, ganchos.TransbordoOuEncerramento{Motivo: "morador 123.456.789-09 pediu"})
 
-	if r.Decisao.Tipo != ganchos.Deixar {
-		t.Errorf("Decisao = %+v, want deixar", r.Decisao)
+	if r.Evento.Motivo != "morador «cpf:1» pediu" {
+		t.Errorf("Motivo = %q, want mascarado mesmo com o contexto cancelado", r.Evento.Motivo)
 	}
-	if len(r.Registros) != 1 || r.Registros[0].Causa != ganchos.CausaDecisaoInvalida {
-		t.Errorf("Registros = %+v, want a regra como decisão inválida", r.Registros)
+	if r.Decisao.Tipo != ganchos.Ajustar {
+		t.Errorf("Decisao = %+v, want o ajuste da máscara: o transbordo segue", r.Decisao)
+	}
+	if len(regra.Eventos()) != 0 {
+		t.Error("regra rodou com o contexto cancelado")
+	}
+	if len(r.Registros) != 2 || r.Registros[0].Causa != ganchos.CausaCancelado || r.Registros[0].Decisao.Origem.Gancho != "regra" {
+		t.Errorf("Registros = %+v, want a regra cancelada e o ajuste da máscara", r.Registros)
 	}
 }
 
