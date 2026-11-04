@@ -9,6 +9,7 @@ type TextoProps = {
   onMudar: (valor: string) => void;
 };
 
+// por que: um TextField declarativo; separar só espalharia as props.
 export function Texto({ rotulo, valor, editavel, linhas, onMudar }: TextoProps): ReactNode {
   return (
     <TextField

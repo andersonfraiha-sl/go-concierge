@@ -9,6 +9,39 @@ type Props = {
   onFechar: () => void;
 };
 
+type ItemProps = { tipo: TipoBloco; onEscolher: (tipo: TipoBloco) => void };
+
+function ItemDeBloco({ tipo, onEscolher }: ItemProps): ReactNode {
+  const { rotulo, descricao, cor, Icone } = BLOCOS[tipo];
+  return (
+    <MenuItem onClick={() => onEscolher(tipo)} sx={{ alignItems: 'flex-start', py: 1 }}>
+      <ListItemIcon sx={{ mt: 0.5 }}>
+        <Box
+          sx={{
+            width: 28,
+            height: 28,
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: 1,
+            bgcolor: `${cor}1A`,
+            color: cor,
+          }}
+        >
+          <Icone sx={{ fontSize: 18 }} />
+        </Box>
+      </ListItemIcon>
+      <ListItemText
+        primary={rotulo}
+        secondary={descricao}
+        slotProps={{
+          primary: { sx: { fontWeight: 700 } },
+          secondary: { sx: { whiteSpace: 'normal' } },
+        }}
+      />
+    </MenuItem>
+  );
+}
+
 export function MenuDeBlocos({ ancora, onEscolher, onFechar }: Props): ReactNode {
   return (
     <Menu
@@ -17,40 +50,9 @@ export function MenuDeBlocos({ ancora, onEscolher, onFechar }: Props): ReactNode
       onClose={onFechar}
       slotProps={{ paper: { sx: { width: 320 } } }}
     >
-      {TIPOS_INSERIVEIS.map((tipo) => {
-        const { rotulo, descricao, cor, Icone } = BLOCOS[tipo];
-        return (
-          <MenuItem
-            key={tipo}
-            onClick={() => onEscolher(tipo)}
-            sx={{ alignItems: 'flex-start', py: 1 }}
-          >
-            <ListItemIcon sx={{ mt: 0.5 }}>
-              <Box
-                sx={{
-                  width: 28,
-                  height: 28,
-                  display: 'grid',
-                  placeItems: 'center',
-                  borderRadius: 1,
-                  bgcolor: `${cor}1A`,
-                  color: cor,
-                }}
-              >
-                <Icone sx={{ fontSize: 18 }} />
-              </Box>
-            </ListItemIcon>
-            <ListItemText
-              primary={rotulo}
-              secondary={descricao}
-              slotProps={{
-                primary: { sx: { fontWeight: 700 } },
-                secondary: { sx: { whiteSpace: 'normal' } },
-              }}
-            />
-          </MenuItem>
-        );
-      })}
+      {TIPOS_INSERIVEIS.map((tipo) => (
+        <ItemDeBloco key={tipo} tipo={tipo} onEscolher={onEscolher} />
+      ))}
     </Menu>
   );
 }

@@ -33,37 +33,29 @@ type Props = {
 
 const AVISO_FORA_DO_STUDIO = 'Esta ferramenta é mantida fora do Studio.';
 
-export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): ReactNode {
-  const clienteDeConsultas = useQueryClient();
-  const { mostrar } = useSnackbar();
-  const original = ferramenta?.name ?? '';
-  const inicial = ferramenta ?? ferramentaNova();
-  const [recusadaPeloServidor, setRecusadaPeloServidor] = useState(false);
-  const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
-  const [secoesAbertas, setSecoesAbertas] = useState<ReadonlySet<Secao>>(
-    () => new Set<Secao>(['Básico']),
-  );
-  const { control, handleSubmit, setError, formState } = useForm({
-    resolver: zodResolver(criarEsquemaDoFormulario(original)),
-    defaultValues: valoresIniciais(inicial, ferramenta),
-  });
-  const mensagemDeErro = formState.errors.root?.message;
+const estaForaDoStudio = (ferramenta: Ferramenta | null, recusadaPeloServidor: boolean): boolean =>
+  recusadaPeloServidor || (ferramenta !== null && mantidaFora(ferramenta));
 
-  const foraDoStudio = (ferramenta !== null && mantidaFora(ferramenta)) || recusadaPeloServidor;
-  const travado = !podeEditar || foraDoStudio;
-  const secoes = secoesDoFormulario(control, travado, inicial.kind);
-
-  const alternarSecao = (secao: Secao) => () =>
-    setSecoesAbertas((atuais) => {
+function useSecoesAbertas(): [ReadonlySet<Secao>, (secao: Secao) => () => void] {
+  const [abertas, setAbertas] = useState<ReadonlySet<Secao>>(() => new Set<Secao>(['Básico']));
+  const alternar = (secao: Secao) => () =>
+    setAbertas((atuais) => {
       const novas = new Set(atuais);
-      if (novas.has(secao)) {
-        novas.delete(secao);
-      } else {
-        novas.add(secao);
-      }
+      if (!novas.delete(secao)) novas.add(secao);
       return novas;
     });
+  return [abertas, alternar];
+}
 
+type Gravacao = {
+  onFechar: () => void;
+  onRecusada: () => void;
+  onErro: (mensagem: string) => void;
+};
+
+function useGravacoes({ onFechar, onRecusada, onErro }: Gravacao) {
+  const clienteDeConsultas = useQueryClient();
+  const { mostrar } = useSnackbar();
   const aoConcluir =
     (mensagem: string) => (catalogo: Awaited<ReturnType<typeof salvarFerramenta>>) => {
       clienteDeConsultas.setQueryData(['ferramentas'], catalogo);
@@ -71,10 +63,9 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
       onFechar();
     };
   const aoFalhar = (erro: Error) => {
-    if (erro instanceof ApiError && erro.status === 409) return setRecusadaPeloServidor(true);
-    setError('root', { message: erro.message });
+    if (erro instanceof ApiError && erro.status === 409) return onRecusada();
+    onErro(erro.message);
   };
-
   const salvar = useMutation({
     mutationFn: salvarFerramenta,
     onSuccess: aoConcluir('Ferramenta salva.'),
@@ -85,6 +76,53 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
     onSuccess: aoConcluir('Ferramenta removida.'),
     onError: aoFalhar,
   });
+  return { salvar, remover };
+}
+
+type RodapeProps = {
+  podeRemover: boolean;
+  travado: boolean;
+  salvando: boolean;
+  onRemover: () => void;
+  onFechar: () => void;
+};
+
+function RodapeDoDrawer({ podeRemover, travado, salvando, onRemover, onFechar }: RodapeProps) {
+  return (
+    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+      {podeRemover && (
+        <Button color="error" disabled={travado} onClick={onRemover} sx={{ mr: 'auto' }}>
+          Remover
+        </Button>
+      )}
+      <Button onClick={onFechar}>Fechar</Button>
+      <Button type="submit" variant="contained" disabled={travado || salvando}>
+        Salvar
+      </Button>
+    </Box>
+  );
+}
+
+export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): ReactNode {
+  const original = ferramenta?.name ?? '';
+  const inicial = ferramenta ?? ferramentaNova();
+  const [recusadaPeloServidor, setRecusadaPeloServidor] = useState(false);
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
+  const [secoesAbertas, alternarSecao] = useSecoesAbertas();
+  const { control, handleSubmit, setError, formState } = useForm({
+    resolver: zodResolver(criarEsquemaDoFormulario(original)),
+    defaultValues: valoresIniciais(inicial, ferramenta),
+  });
+  const { salvar, remover } = useGravacoes({
+    onFechar,
+    onRecusada: () => setRecusadaPeloServidor(true),
+    onErro: (message) => setError('root', { message }),
+  });
+
+  const foraDoStudio = estaForaDoStudio(ferramenta, recusadaPeloServidor);
+  const travado = !podeEditar || foraDoStudio;
+  const secoes = secoesDoFormulario(control, travado, inicial.kind);
+  const mensagemDeErro = formState.errors.root?.message;
 
   const enviar = handleSubmit(({ recurso, textoAmostra }) => {
     const amostra = lerAmostra(textoAmostra);
@@ -124,22 +162,13 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
           </SecaoDoDrawer>
         ))}
 
-        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-          {ferramenta && (
-            <Button
-              color="error"
-              disabled={travado}
-              onClick={() => setConfirmandoRemocao(true)}
-              sx={{ mr: 'auto' }}
-            >
-              Remover
-            </Button>
-          )}
-          <Button onClick={onFechar}>Fechar</Button>
-          <Button type="submit" variant="contained" disabled={travado || salvar.isPending}>
-            Salvar
-          </Button>
-        </Box>
+        <RodapeDoDrawer
+          podeRemover={ferramenta !== null}
+          travado={travado}
+          salvando={salvar.isPending}
+          onRemover={() => setConfirmandoRemocao(true)}
+          onFechar={onFechar}
+        />
       </Box>
 
       {ferramenta && (

@@ -9,6 +9,7 @@ type Props = {
   children: ReactNode;
 };
 
+// por que: JSX declarativo sem lógica; separar o Accordion só espalharia o markup.
 /** Seção recolhível do drawer; o Básico abre sozinho, as demais o usuário abre por conta própria. */
 export function SecaoDoDrawer({ titulo, aberta, onAlternar, children }: Props): ReactNode {
   return (
