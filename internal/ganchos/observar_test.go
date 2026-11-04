@@ -162,7 +162,7 @@ func TestEventoDoSpan(t *testing.T) {
 		t.Fatalf("eventos = %+v", eventos)
 	}
 	for _, a := range eventos[0].Attributes {
-		if strings.Contains(a.Value.Emit(), "r-1") {
+		if strings.Contains(a.Value.String(), "r-1") {
 			t.Errorf("id da regra vazou no span: %v", a)
 		}
 	}
@@ -224,7 +224,7 @@ func TestNomeDeRegraNaoVazaParaLogNemSpan(t *testing.T) {
 		t.Errorf("nome da regra vazou no log: %s", buf.String())
 	}
 	for _, a := range gravador.Ended()[0].Events()[0].Attributes {
-		if strings.Contains(a.Value.Emit(), "Bloqueio CPF 123") {
+		if strings.Contains(a.Value.String(), "Bloqueio CPF 123") {
 			t.Errorf("nome da regra vazou no span: %v", a)
 		}
 	}

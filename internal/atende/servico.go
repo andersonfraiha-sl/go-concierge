@@ -1900,17 +1900,3 @@ func contextoDeIdentidade(id gruvi.Identidade) string {
 	}
 	return fmt.Sprintf("# Morador identificado\n\n- Nome: %s\n- Papel: %s\n\nConsulte as unidades pela tool MCP antes de qualquer operação dependente delas.", nome, papel)
 }
-
-func rotulos(us []gruvi.Unidade) string {
-	if len(us) == 0 {
-		return "nenhuma"
-	}
-	s := ""
-	for i, u := range us {
-		if i > 0 {
-			s += ", "
-		}
-		s += u.Label
-	}
-	return s
-}

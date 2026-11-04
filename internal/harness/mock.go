@@ -181,7 +181,7 @@ func (m *Mock) indexarRotas(texto string) {
 		if !ok {
 			continue
 		}
-		criterio := junto[:strings.Index(junto, mm[0])]
+		criterio, _, _ := strings.Cut(junto, mm[0])
 		for _, p := range palavras(criterio) {
 			if p == rota {
 				continue

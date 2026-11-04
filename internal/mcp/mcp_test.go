@@ -197,7 +197,7 @@ func servidorDeRetry(t *testing.T, nome string, readOnly bool, responder func(ht
 func TestClienteSemTokenRecebeNaoAutorizado(t *testing.T) {
 	srv, _ := servidorFalso(t, "b2c-token")
 	c := New(srv.URL, nil)
-	if _, err := c.ListTools(context.Background()); err != ErrNaoAutorizado {
+	if _, err := c.ListTools(context.Background()); !errors.Is(err, ErrNaoAutorizado) {
 		t.Fatalf("esperava ErrNaoAutorizado, veio %v", err)
 	}
 }
@@ -315,7 +315,7 @@ func TestFromEnv(t *testing.T) {
 	if err != nil || modo != "bearer" || c.Token.(Static) != "abc" {
 		t.Fatalf("bearer: %v %s", err, modo)
 	}
-	c, modo, err = FromEnv(env(map[string]string{"MCP_URL": "http://mcp:3337/mcp", "MCP_KEYCLOAK_URL": "http://kc/token", "MCP_KEYCLOAK_CLIENT_ID": "x"}))
+	_, modo, err = FromEnv(env(map[string]string{"MCP_URL": "http://mcp:3337/mcp", "MCP_KEYCLOAK_URL": "http://kc/token", "MCP_KEYCLOAK_CLIENT_ID": "x"}))
 	if err != nil || modo != "keycloak" {
 		t.Fatalf("keycloak: %v %s", err, modo)
 	}

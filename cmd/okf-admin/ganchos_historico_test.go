@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -201,7 +202,8 @@ func TestIntervaloDoHistoricoAplicaPadraoETeto(t *testing.T) {
 		t.Run(tt.nome, func(t *testing.T) {
 			desde, _, err := intervaloDoHistorico(tt.desde, tt.ate, agora)
 			codigo := ""
-			if e, ok := err.(recusa); ok {
+			var e recusa
+			if errors.As(err, &e) {
 				codigo = e.codigo
 			}
 			if codigo != tt.querCodigo || !desde.Equal(tt.querDesde) {
