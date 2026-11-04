@@ -15,10 +15,15 @@ function ehUsuarioDev(valor: string): valor is UsuarioDev {
   return USUARIOS_DEV.some((usuario) => usuario.valor === valor);
 }
 
-export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
-  const cliente = useQueryClient();
+const OPCOES_DE_USUARIO = USUARIOS_DEV.map(({ valor, rotulo }) => (
+  <MenuItem key={valor} value={valor}>
+    {rotulo}
+  </MenuItem>
+));
 
-  const trocar = (novo: string) => {
+function useTrocarUsuarioDev(): (novo: string) => void {
+  const cliente = useQueryClient();
+  return (novo) => {
     if (!ehUsuarioDev(novo)) return;
     // Tudo no mesmo clique: o Eu muda de chave no próximo render, então ninguém lê o anterior.
     // O Eu antigo sai do cache em vez de ser rebuscado com o cabeçalho do usuário novo.
@@ -26,6 +31,11 @@ export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
     cliente.removeQueries({ queryKey: ['eu'] });
     void cliente.resetQueries();
   };
+}
+
+export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
+  const trocar = useTrocarUsuarioDev();
+  const valor = ehUsuarioDev(usuarioAtual) ? usuarioAtual : '';
 
   return (
     <FormControl size="small" sx={{ minWidth: 240 }}>
@@ -33,14 +43,10 @@ export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
       <Select
         labelId="ver-como-rotulo"
         label="Ver como"
-        value={ehUsuarioDev(usuarioAtual) ? usuarioAtual : ''}
+        value={valor}
         onChange={(evento) => trocar(evento.target.value)}
       >
-        {USUARIOS_DEV.map(({ valor, rotulo }) => (
-          <MenuItem key={valor} value={valor}>
-            {rotulo}
-          </MenuItem>
-        ))}
+        {OPCOES_DE_USUARIO}
       </Select>
     </FormControl>
   );

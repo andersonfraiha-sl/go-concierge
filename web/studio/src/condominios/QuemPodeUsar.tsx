@@ -9,39 +9,62 @@ type Props = {
   onMudar: (papeis: string[]) => void;
 };
 
-export function QuemPodeUsar({ papeis, escolhidos, travado, onMudar }: Props): ReactNode {
+function alternar(escolhidos: readonly string[], papel: string): string[] {
+  if (escolhidos.includes(papel)) return escolhidos.filter((p) => p !== papel);
+  return [...escolhidos, papel];
+}
+
+export function QuemPodeUsar(props: Props): ReactNode {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <Typography variant="subtitle2" component="h3">
         Quem pode usar
       </Typography>
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <ToggleButton
-          value="todos"
-          selected={escolhidos.length === 0}
-          disabled={travado}
-          sx={{ borderRadius: 9 }}
-          onClick={() => onMudar([])}
-        >
-          Todos
-        </ToggleButton>
-        {papeis.map((papel) => {
-          const marcado = escolhidos.includes(papel);
-          const proximos = marcado ? escolhidos.filter((p) => p !== papel) : [...escolhidos, papel];
-          return (
-            <ToggleButton
-              key={papel}
-              value={papel}
-              selected={marcado}
-              disabled={travado}
-              sx={{ borderRadius: 9 }}
-              onClick={() => onMudar(proximos)}
-            >
-              {rotuloDoPapel(papel)}
-            </ToggleButton>
-          );
-        })}
+        <OpcaoDePapel
+          valor="todos"
+          rotulo="Todos"
+          selecionada={props.escolhidos.length === 0}
+          travada={props.travado}
+          onEscolher={() => props.onMudar([])}
+        />
+        <OpcoesPorPapel {...props} />
       </Box>
     </Box>
+  );
+}
+
+function OpcoesPorPapel({ papeis, escolhidos, travado, onMudar }: Props): ReactNode {
+  return papeis.map((papel) => (
+    <OpcaoDePapel
+      key={papel}
+      valor={papel}
+      rotulo={rotuloDoPapel(papel)}
+      selecionada={escolhidos.includes(papel)}
+      travada={travado}
+      onEscolher={() => onMudar(alternar(escolhidos, papel))}
+    />
+  ));
+}
+
+type OpcaoProps = {
+  valor: string;
+  rotulo: string;
+  selecionada: boolean;
+  travada: boolean;
+  onEscolher: () => void;
+};
+
+function OpcaoDePapel({ valor, rotulo, selecionada, travada, onEscolher }: OpcaoProps): ReactNode {
+  return (
+    <ToggleButton
+      value={valor}
+      selected={selecionada}
+      disabled={travada}
+      sx={{ borderRadius: 9 }}
+      onClick={onEscolher}
+    >
+      {rotulo}
+    </ToggleButton>
   );
 }

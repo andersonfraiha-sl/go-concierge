@@ -19,39 +19,46 @@ type Props = {
   onMudarHabilitada: (ligado: boolean) => void;
 };
 
-export function Cabecalho({
-  caso,
-  titulo,
-  habilitada,
-  origem,
-  travado,
-  onMudarHabilitada,
-}: Props): ReactNode {
+export function Cabecalho(props: Props): ReactNode {
+  return (
+    <>
+      <LinhaDoTitulo {...props} />
+      <Typography variant="caption" color="text.secondary">
+        {FRASE_DE_ORIGEM[props.origem]}
+      </Typography>
+    </>
+  );
+}
+
+function LinhaDoTitulo(props: Props): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+      <TituloDaSkill caso={props.caso} titulo={props.titulo} />
+      <Switch
+        checked={props.habilitada}
+        disabled={props.travado}
+        slotProps={{ input: { 'aria-label': 'Ligada neste condomínio' } }}
+        onChange={(_, ligado) => props.onMudarHabilitada(ligado)}
+      />
+    </Box>
+  );
+}
+
+function TituloDaSkill({ caso, titulo }: Pick<Props, 'caso' | 'titulo'>): ReactNode {
   const Icone = iconeDaSkill(caso.icone);
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-        <Icone color="primary" />
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" component="h2">
-            {titulo}
+      <Icone color="primary" />
+      <Box sx={{ flex: 1 }}>
+        <Typography variant="h6" component="h2">
+          {titulo}
+        </Typography>
+        {caso.resumo !== '' && (
+          <Typography variant="body2" color="text.secondary">
+            {caso.resumo}
           </Typography>
-          {caso.resumo !== '' && (
-            <Typography variant="body2" color="text.secondary">
-              {caso.resumo}
-            </Typography>
-          )}
-        </Box>
-        <Switch
-          checked={habilitada}
-          disabled={travado}
-          slotProps={{ input: { 'aria-label': 'Ligada neste condomínio' } }}
-          onChange={(_, ligado) => onMudarHabilitada(ligado)}
-        />
+        )}
       </Box>
-      <Typography variant="caption" color="text.secondary">
-        {FRASE_DE_ORIGEM[origem]}
-      </Typography>
     </>
   );
 }

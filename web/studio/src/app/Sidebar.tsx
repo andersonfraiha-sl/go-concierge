@@ -15,6 +15,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  type SxProps,
+  type Theme,
   Tooltip,
 } from '@mui/material';
 import { NavLink, useLocation } from 'react-router';
@@ -67,39 +69,25 @@ const ITEM_ATENDENTE = {
 
 type Props = { recolhido: boolean; aoAlternar: () => void };
 
+const estiloDaSidebar = (largura: number): SxProps<Theme> => ({
+  width: largura,
+  flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  borderRight: 1,
+  borderColor: 'divider',
+  bgcolor: 'background.paper',
+  transition: (tema) =>
+    tema.transitions.create('width', { duration: tema.transitions.duration.shorter }),
+});
+
 export function Sidebar({ recolhido, aoAlternar }: Props) {
-  const { pathname } = useLocation();
-  const { data: eu, isError, refetch } = useEu();
-  const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
   const largura = recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth;
 
   return (
-    <Box
-      component="nav"
-      aria-label="Menu principal"
-      sx={{
-        width: largura,
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        borderRight: 1,
-        borderColor: 'divider',
-        bgcolor: 'background.paper',
-        transition: (tema) =>
-          tema.transitions.create('width', { duration: tema.transitions.duration.shorter }),
-      }}
-    >
+    <Box component="nav" aria-label="Menu principal" sx={estiloDaSidebar(largura)}>
       <List sx={{ p: 1, flex: 1 }}>
-        {itensVisiveis.map((item) => (
-          <ItemDoMenu
-            key={item.destino}
-            item={item}
-            recolhido={recolhido}
-            selecionado={pathname.startsWith(item.destino)}
-            aoNavegar={{ component: NavLink, to: item.destino }}
-          />
-        ))}
-        {isError && !recolhido && <ErroAcesso aoTentar={() => void refetch()} />}
+        <ItensDoSpa recolhido={recolhido} />
         <Divider sx={{ my: 1 }} />
         <ItemDoMenu
           item={ITEM_ATENDENTE}
@@ -108,15 +96,39 @@ export function Sidebar({ recolhido, aoAlternar }: Props) {
           aoNavegar={{ component: 'a', href: ITEM_ATENDENTE.destino }}
         />
       </List>
-      <Box sx={{ p: 1, display: 'flex', justifyContent: recolhido ? 'center' : 'flex-end' }}>
-        <IconButton
-          size="small"
-          onClick={aoAlternar}
-          aria-label={recolhido ? 'Expandir menu' : 'Recolher menu'}
-        >
-          {recolhido ? <ChevronRight /> : <ChevronLeft />}
-        </IconButton>
-      </Box>
+      <BotaoDeRecolher recolhido={recolhido} aoAlternar={aoAlternar} />
+    </Box>
+  );
+}
+
+function ItensDoSpa({ recolhido }: { recolhido: boolean }) {
+  const { pathname } = useLocation();
+  const { data: eu, isError, refetch } = useEu();
+  const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
+
+  return (
+    <>
+      {itensVisiveis.map((item) => (
+        <ItemDoMenu
+          key={item.destino}
+          item={item}
+          recolhido={recolhido}
+          selecionado={pathname.startsWith(item.destino)}
+          aoNavegar={{ component: NavLink, to: item.destino }}
+        />
+      ))}
+      {isError && !recolhido && <ErroAcesso aoTentar={() => void refetch()} />}
+    </>
+  );
+}
+
+function BotaoDeRecolher({ recolhido, aoAlternar }: Props) {
+  const rotulo = recolhido ? 'Expandir menu' : 'Recolher menu';
+  return (
+    <Box sx={{ p: 1, display: 'flex', justifyContent: recolhido ? 'center' : 'flex-end' }}>
+      <IconButton size="small" onClick={aoAlternar} aria-label={rotulo}>
+        {recolhido ? <ChevronRight /> : <ChevronLeft />}
+      </IconButton>
     </Box>
   );
 }
@@ -141,13 +153,14 @@ function ItemDoMenu({ item, recolhido, selecionado, aoNavegar }: ItemProps) {
         <ListItemIcon sx={{ minWidth: recolhido ? 0 : 40, color: 'inherit' }}>
           <Icone fontSize="small" />
         </ListItemIcon>
-        {!recolhido && (
-          <ListItemText
-            primary={rotulo}
-            slotProps={{ primary: { sx: { fontWeight: 'inherit' } } }}
-          />
-        )}
+        {!recolhido && <RotuloDoItem rotulo={rotulo} />}
       </ListItemButton>
     </Tooltip>
+  );
+}
+
+function RotuloDoItem({ rotulo }: { rotulo: string }) {
+  return (
+    <ListItemText primary={rotulo} slotProps={{ primary: { sx: { fontWeight: 'inherit' } } }} />
   );
 }

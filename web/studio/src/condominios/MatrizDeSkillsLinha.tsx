@@ -61,19 +61,28 @@ export function LinhaDaMatriz({
   );
 }
 
-function Celula({
-  contexto,
-  linha,
-  coluna,
-}: {
-  contexto: ContextoDaMatriz;
-  linha: LinhaDeSkill;
-  coluna: Coluna;
-}): ReactNode {
-  const { habilitacao, propria } = habilitacaoDe(contexto.mapeamento, coluna.id, linha.caso.nome);
-  const mostraPontoDeDecisao = propria && coluna.id !== PADRAO;
-  const editavel = contexto.editavelNaColuna(coluna);
+type CelulaProps = { contexto: ContextoDaMatriz; linha: LinhaDeSkill; coluna: Coluna };
 
+const ESTILO_DO_BOTAO_DA_CELULA = {
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  border: 0,
+  padding: 0,
+  background: 'none',
+  cursor: 'pointer',
+} as const;
+
+const ESTILO_DO_INTERRUPTOR = {
+  position: 'relative',
+  zIndex: 1,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 0.75,
+} as const;
+
+function Celula({ contexto, linha, coluna }: CelulaProps): ReactNode {
   return (
     <TableCell align="center" sx={{ position: 'relative' }}>
       <Box
@@ -81,37 +90,29 @@ function Celula({
         type="button"
         aria-label={`Ver papéis, orientação e ajustes de ${linha.titulo} em ${coluna.nome}`}
         onClick={() => contexto.onAbrirCelula({ caso: linha.caso, coluna })}
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          border: 0,
-          padding: 0,
-          background: 'none',
-          cursor: 'pointer',
-        }}
+        sx={ESTILO_DO_BOTAO_DA_CELULA}
       />
-      <Box
-        sx={{
-          position: 'relative',
-          zIndex: 1,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 0.75,
-        }}
-      >
-        <Switch
-          size="small"
-          checked={habilitacao.habilitado}
-          disabled={!editavel || contexto.gravando}
-          onChange={(_, ligado) =>
-            void contexto.onGravar(linha.caso, coluna, ligado, habilitacao.papeis)
-          }
-          slotProps={{ input: { 'aria-label': `${linha.titulo} em ${coluna.nome}` } }}
-        />
-        {mostraPontoDeDecisao && <PontoDeDecisao />}
-      </Box>
+      <InterruptorDaCelula contexto={contexto} linha={linha} coluna={coluna} />
     </TableCell>
+  );
+}
+
+function InterruptorDaCelula({ contexto, linha, coluna }: CelulaProps): ReactNode {
+  const { habilitacao, propria } = habilitacaoDe(contexto.mapeamento, coluna.id, linha.caso.nome);
+  const mostraPontoDeDecisao = propria && coluna.id !== PADRAO;
+
+  return (
+    <Box sx={ESTILO_DO_INTERRUPTOR}>
+      <Switch
+        size="small"
+        checked={habilitacao.habilitado}
+        disabled={!contexto.editavelNaColuna(coluna) || contexto.gravando}
+        onChange={(_, ligado) =>
+          void contexto.onGravar(linha.caso, coluna, ligado, habilitacao.papeis)
+        }
+        slotProps={{ input: { 'aria-label': `${linha.titulo} em ${coluna.nome}` } }}
+      />
+      {mostraPontoDeDecisao && <PontoDeDecisao />}
+    </Box>
   );
 }

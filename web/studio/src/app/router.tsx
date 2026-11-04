@@ -1,5 +1,5 @@
 import { lazy, type ReactNode, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, type RouteObject } from 'react-router';
 // Nome do arquivo difere de rotaInicial.ts por mais que o caso da letra:
 // Windows/macOS têm sistema de arquivos insensível a maiúsculas e os dois
 // nomes colidiriam, fazendo o TypeScript resolver o import errado.
@@ -31,26 +31,21 @@ const GuardaAvancado = lazy(() =>
 
 const tela = (pagina: ReactNode): ReactNode => <Suspense>{pagina}</Suspense>;
 
+const ROTAS_FILHAS: RouteObject[] = [
+  { index: true, element: <RotaInicial /> },
+  { path: 'skills', element: tela(<SkillsPage />) },
+  // A aba aberta fica em ?aba=
+  { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
+  { path: 'concierge', element: tela(<ConciergePage />) },
+  { path: 'ferramentas', element: tela(<FerramentasPage />) },
+  { path: 'condominios', element: tela(<CondominiosPage />) },
+  { path: 'condominios/:id', element: tela(<CondominioPage />) },
+  // A aba aberta fica em ?aba=
+  { path: 'avancado', element: tela(<GuardaAvancado />) },
+];
+
 export function criarRotas() {
-  return createBrowserRouter(
-    [
-      {
-        path: '/',
-        element: <StudioLayout />,
-        children: [
-          { index: true, element: <RotaInicial /> },
-          { path: 'skills', element: tela(<SkillsPage />) },
-          // A aba aberta fica em ?aba=
-          { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
-          { path: 'concierge', element: tela(<ConciergePage />) },
-          { path: 'ferramentas', element: tela(<FerramentasPage />) },
-          { path: 'condominios', element: tela(<CondominiosPage />) },
-          { path: 'condominios/:id', element: tela(<CondominioPage />) },
-          // A aba aberta fica em ?aba=
-          { path: 'avancado', element: tela(<GuardaAvancado />) },
-        ],
-      },
-    ],
-    { basename: '/studio' },
-  );
+  return createBrowserRouter([{ path: '/', element: <StudioLayout />, children: ROTAS_FILHAS }], {
+    basename: '/studio',
+  });
 }
