@@ -6,17 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/pii"
 	"go-concierge/internal/mcp"
+	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 )
 
@@ -38,59 +43,13 @@ var toolsMCPObrigatorias = map[string]bool{
 	"gruvi.bff.building-operation.create-visit-controller-handle":              true,
 }
 
-var toolsMCPComContextoB2C = map[string]bool{
-	"gruvi.bff.building-operation.get-company-by-document-controller-handle":   true,
-	"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":       true,
-	"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": true,
-	"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle":       true,
-	"gruvi.bff.building-operation.create-visit-controller-handle":              true,
-}
+const ferramentaCriarVisita = "gruvi.bff.building-operation.create-visit-controller-handle"
 
 func nomeToolMCP(nome string) (string, bool) {
 	if nome == "unidades.listar" {
 		return "gruvi.bff.building-operation.get-company-by-document-controller-handle", true
 	}
 	return nome, false
-}
-
-func fixarContextoB2C(nome string, params, contexto map[string]any) error {
-	if !toolsMCPComContextoB2C[nome] {
-		return nil
-	}
-	companyID, ok := contexto["companyId"]
-	if !ok || strings.TrimSpace(fmt.Sprint(companyID)) == "" {
-		return fmt.Errorf("companyId B2C ausente")
-	}
-	params["companyId"] = companyID
-	switch nome {
-	case "gruvi.bff.building-operation.get-company-by-document-controller-handle",
-		"gruvi.bff.building-operation.fetch-unit-packages-controller-handle",
-		"gruvi.bff.building-operation.get-package-delivery-code-controller-handle":
-		telefone, existe := contexto["filter_mobile_number"]
-		if !existe || strings.TrimSpace(fmt.Sprint(telefone)) == "" {
-			return fmt.Errorf("telefone B2C ausente")
-		}
-		params["filter_mobile_number"] = telefone
-		if filtro, ok := params["filter"].(map[string]any); ok {
-			filtro["mobile-number"] = telefone
-		}
-	case "gruvi.bff.building-operation.create-visit-controller-handle":
-		residentContext, ok := contexto["resident"].(map[string]any)
-		telefone, existe := residentContext["mobile_number"]
-		if !ok || !existe || strings.TrimSpace(fmt.Sprint(telefone)) == "" {
-			return fmt.Errorf("resident.mobile_number B2C ausente")
-		}
-		resident, ok := params["resident"].(map[string]any)
-		if !ok {
-			if _, existe := params["resident"]; existe {
-				return fmt.Errorf("resident deve ser objeto")
-			}
-			resident = map[string]any{}
-		}
-		resident["mobile_number"] = telefone
-		params["resident"] = resident
-	}
-	return nil
 }
 
 func (ag *Agente) recursoMCP(nome string) *okf.Recurso {
@@ -198,34 +157,6 @@ func paginar(caminho, texto string, pagina int) saida {
 		"tem_mais": pagina < paginas,
 		"conteudo": string(r[ini:fim]),
 	}
-}
-
-var palavrasDeSim = map[string]bool{"sim": true, "s": true, "ss": true, "ok": true, "okay": true, "pode": true, "confirmo": true, "confirma": true, "confirmado": true, "confirmar": true, "isso": true, "claro": true, "positivo": true, "beleza": true, "bora": true, "fechado": true, "vai": true, "vamos": true, "certo": true, "correto": true, "exato": true, "yes": true, "manda": true, "aceito": true}
-
-// Confirmado diz se a mensagem do morador é um sim explícito: começa com (ou é) uma
-// palavra de confirmação e não contém negação.
-func Confirmado(mensagem string) bool {
-	// tokens curtos contam aqui ("sim", "ok"): não usa palavras(), que exige 4 letras
-	ps := strings.FieldsFunc(normalizar(mensagem), func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
-	})
-	if len(ps) == 0 {
-		return false
-	}
-	for _, p := range ps {
-		if p == "nao" || p == "não" || p == "nunca" || p == "cancela" || p == "cancelar" || p == "espera" || p == "ainda" {
-			return false
-		}
-	}
-	if palavrasDeSim[ps[0]] {
-		return true
-	}
-	for _, p := range ps {
-		if p == "sim" || p == "confirmo" || p == "confirmado" {
-			return true
-		}
-	}
-	return false
 }
 
 // amostraDe: o retorno do mock. Leitura devolve a amostra do catálogo (ou lista vazia);
@@ -412,200 +343,296 @@ func (ag *Agente) ExecutarPassoCaso(ctx context.Context, nome string, params map
 	return ag.invocar(ctx, &argsRecurso{Nome: nome, Params: params}, confirmacao)
 }
 
+// chamada é um pedido de recurso resolvido: o nome que o modelo pediu, a tool MCP por
+// trás, a permissão desta identidade e os params já com o payload do condomínio.
+type chamada struct {
+	nome, nomeMCP            string
+	aliasMCP, obrigatoriaMCP bool
+	achado                   *Permissao
+	// pedidos são os params do chamador com os valores do cofre devolvidos; params
+	// somam o payload do condomínio e saem do antes_da_ferramenta.
+	pedidos, params map[string]any
+}
+
+// invocar é o ponto único de toda chamada a recurso: antes_da_ferramenta decide se roda
+// (permissão, confirmação, contexto B2C e regras), depois_da_ferramenta saneia o resultado.
 func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao string) (saida, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	c := ag.resolverChamada(in)
+	antes := ag.cfg.Turno.AntesDaFerramenta(ctx, ag.eventoAntes(ctx, c, confirmacao))
+	registrarGanchos(ctx, antes.Registros)
+	if recusa := recusaDeAntes(antes); recusa != "" {
+		return erro("%s", recusa), nil
+	}
+	c.params = antes.Evento.Params
+	out, err := ag.executar(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	if texto, falhou := out["error"].(string); falhou {
+		// o texto pode trazer o que o MCP ou a ferramenta devolveu: sai mascarado
+		out["error"], _ = ag.cfg.Turno.Cofre().Mascarar(texto)
+		return out, nil
+	}
+	return ag.depoisDe(ctx, c, out), nil
+}
+
+func (ag *Agente) resolverChamada(in *argsRecurso) chamada {
 	nome := strings.TrimSpace(in.Nome)
-	nomeMCP, aliasMCP := nomeToolMCP(nome)
-	chamarMCP := toolsMCPObrigatorias[nome]
+	nomeMCP, alias := nomeToolMCP(nome)
+	pedidos, _ := pii.DevolverEmValor(in.Params, ag.cfg.Turno.Cofre().Ler()).(map[string]any)
+	return chamada{
+		nome: nome, nomeMCP: nomeMCP, aliasMCP: alias, obrigatoriaMCP: toolsMCPObrigatorias[nome],
+		achado: ag.permissao(nome), pedidos: pedidos,
+		// sem alias, nomeMCP == nome: o payload é o mesmo e vale uma vez só
+		params: comPadroes(pedidos, ag.cfg.Payloads[nomeMCP], ag.cfg.Payloads[nome]),
+	}
+}
+
+// permissao é a declaração do recurso para esta identidade; com duas, vale a permitida.
+func (ag *Agente) permissao(nome string) *Permissao {
 	var achado *Permissao
 	for _, p := range ag.Permissoes() {
 		if p.Nome != nome {
 			continue
 		}
-		p := p
 		if achado == nil || (p.Permitido && !achado.Permitido) {
 			achado = &p
 		}
 	}
-	if achado == nil {
-		if _, eRota := ag.Subagentes[nome]; eRota {
-			return erro("%q é um subagente (rota), não um recurso: não execute o caso você mesmo; peça ao morador o pedido de forma direta para a rota levar ao especialista, ou responda só o que você sabe", nome), nil
-		}
-		perm := ag.recursosPermitidos()
-		if len(perm) == 0 {
-			return erro("recurso %q não está declarado por este agente e nenhum recurso está permitido agora", nome), nil
-		}
-		return erro("recurso %q não está declarado por este agente; permitidos: %s", nome, strings.Join(perm, ", ")), nil
-	}
-	if !achado.Permitido {
-		return erro("recurso %s recusado: %s", nome, achado.Motivo), nil
-	}
-	if chamarMCP && ag.cfg.MCP == nil {
-		return erro("tool MCP %s indisponível; o fluxo não pode usar dados simulados", nome), nil
-	}
-	// escrita: a guarda determinística — só com o "sim" do morador na mensagem atual
-	if achado.Recurso != nil && achado.Recurso.Write {
-		if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" && ctx.Value(chaveExecucaoCaso{}) != true {
-			return erro("%s só pode ser executada pelo motor determinístico do caso de liberação de visitante", nome), nil
-		}
-		if !Confirmado(confirmacao) {
-			return erro("%s é escrita e exige a confirmação explícita do morador: a mensagem atual (%q) não é um sim. Resuma o que vai registrar, pergunte \"confirma? (sim/não)\" e pare", nome, corta(confirmacao, 60)), nil
-		}
-	}
+	return achado
+}
 
-	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus
-	if !chamarMCP {
-		if local, ok := ag.cfg.Locais[nome]; ok && local != nil {
-			params := in.Params
-			if params == nil {
-				params = map[string]any{}
+// comPadroes copia params e completa as chaves ausentes com cada payload, na ordem.
+func comPadroes(params map[string]any, payloads ...map[string]any) map[string]any {
+	out := maps.Clone(params)
+	if out == nil {
+		out = map[string]any{}
+	}
+	for _, payload := range payloads {
+		for k, v := range payload {
+			if _, tem := out[k]; !tem {
+				out[k] = v
 			}
-			for k, v := range ag.cfg.Payloads[nome] {
-				if _, tem := params[k]; !tem {
-					params[k] = v
-				}
-			}
-			res, err := local(ctx, params)
-			if err != nil {
-				return erro("falha ao resolver %s: %v", nome, err), nil
-			}
-			return saida{"recurso": nome, "resultado": res, "origem": "identidade"}, nil
 		}
 	}
-	if chamarMCP || achado.Recurso != nil && achado.Recurso.Origem == okf.OrigemMCP {
-		if ag.cfg.MCP == nil {
-			return erro("catálogo MCP indisponível: não há como chamar %s agora; avise o morador", nome), nil
-		}
-		recurso := achado.Recurso
-		if chamarMCP && (aliasMCP || recurso == nil || recurso.Origem != okf.OrigemMCP) {
-			recurso = ag.recursoMCP(nomeMCP)
-		}
-		if recurso == nil || recurso.Origem != okf.OrigemMCP {
-			return erro("tool MCP %s ausente no catálogo; o fluxo não pode usar dados simulados", nomeMCP), nil
-		}
-		params := in.Params
-		if params == nil {
-			params = map[string]any{}
-		}
-		for k, v := range ag.cfg.Payloads[nomeMCP] {
-			if _, tem := params[k]; !tem {
-				params[k] = v
-			}
-		}
-		for k, v := range ag.cfg.Payloads[nome] {
-			if _, tem := params[k]; !tem {
-				params[k] = v
-			}
-		}
-		contextoMCP := map[string]any{}
-		for k, v := range ag.cfg.Payloads[nome] {
-			contextoMCP[k] = v
-		}
-		for k, v := range ag.cfg.Payloads[nomeMCP] {
-			contextoMCP[k] = v
-		}
-		if err := fixarContextoB2C(nomeMCP, params, contextoMCP); err != nil {
-			return erro("contexto B2C inválido para %s: %v", nome, err), nil
-		}
-		if faltam := faltamParams(recurso, params); len(faltam) > 0 {
-			return erro("faltam params obrigatórios de %s: %s", nome, strings.Join(faltam, ", ")), nil
-		}
-		if err := ajustarParamsSchema(recurso, params); err != nil {
-			return erro("params inválidos para %s: %v", nome, err), nil
-		}
-		if resultado, ok := ag.cfg.MCPResultados[nomeMCP]; ok {
-			return saida{"recurso": nome, "resultado": resultado, "origem": "mcp"}, nil
-		}
-		if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" {
-			normalizarTelefonesVisitantes(params)
-		}
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		res, err := ag.cfg.MCP.CallTool(ctx, nomeMCP, params)
-		if err != nil {
-			if nomeMCP == "gruvi.bff.building-operation.create-visit-controller-handle" {
-				return erro("resultado da escrita %s incerto após o envio; não repita automaticamente e verifique o estado antes de tentar de novo: %v", nome, err), nil
-			}
-			return erro("falha ao chamar %s: %v", nomeMCP, err), nil
-		}
-		if res != nil && res.IsError {
-			return erro("%s recusou: %s", nomeMCP, corta(res.Texto(), 400)), nil
-		}
-		resultado, err := valorMCP(nomeMCP, res)
-		if err != nil {
-			var incerto *resultadoMCPIncerto
-			if achado.Recurso != nil && achado.Recurso.Write && errors.As(err, &incerto) {
-				return erro("resultado da escrita %s incerto após o envio; não repita automaticamente e verifique o estado antes de tentar de novo: %v", nome, err), nil
-			}
-			return erro("falha funcional ao chamar %s: %v", nomeMCP, err), nil
-		}
-		return saida{"recurso": nome, "resultado": resultado, "origem": "mcp"}, nil
+	return out
+}
+
+func (ag *Agente) eventoAntes(ctx context.Context, c chamada, confirmacao string) ganchos.AntesDaFerramenta {
+	_, subagente := ag.Subagentes[c.nome]
+	e := ganchos.AntesDaFerramenta{
+		Agora: time.Now(), Ferramenta: c.nomeMCP, Pedida: c.nome, Caso: ag.casoID(),
+		Params: c.params, ContextoB2C: ag.contextoB2C(c),
+		Declarada: c.achado != nil, Subagente: subagente,
+		MCPObrigatoria: c.obrigatoriaMCP, MCPDisponivel: ag.cfg.MCP != nil,
+		PeloMotorDoCaso: ctx.Value(chaveExecucaoCaso{}) == true,
+		Confirmacao:     confirmacao, Identidade: ag.identidadeDosGanchos(),
+	}
+	if c.achado == nil {
+		e.Permitidas = ag.recursosPermitidos()
+		return e
+	}
+	e.Permitida, e.MotivoRecusa = c.achado.Permitido, c.achado.Motivo
+	e.Escrita = c.achado.Recurso != nil && c.achado.Recurso.Write
+	return e
+}
+
+// contextoB2C é o payload do pedido com o da tool MCP por cima: a empresa e o telefone
+// do morador vêm do canal, nunca do modelo.
+func (ag *Agente) contextoB2C(c chamada) map[string]any {
+	contexto := map[string]any{}
+	maps.Copy(contexto, ag.cfg.Payloads[c.nome])
+	maps.Copy(contexto, ag.cfg.Payloads[c.nomeMCP])
+	return contexto
+}
+
+func (ag *Agente) casoID() string {
+	if ag.Def.Caso == nil {
+		return ""
+	}
+	return ag.Def.Caso.ID
+}
+
+func (ag *Agente) identidadeDosGanchos() ganchos.Identidade {
+	id := ganchos.Identidade{Cadastrado: ag.cfg.Identidade.Authenticated}
+	if ag.cfg.Identidade.Role != "" {
+		id.Papeis = []string{ag.cfg.Identidade.Role}
+	}
+	return id
+}
+
+// recusaDeAntes é o texto que o agente lê quando antes_da_ferramenta não deixa rodar;
+// vazio = roda.
+func recusaDeAntes(r ganchos.Resultado[ganchos.AntesDaFerramenta]) string {
+	switch r.Decisao.Tipo {
+	case ganchos.Bloquear:
+		return r.Decisao.Motivo
+	case ganchos.Confirmar:
+		return strings.Join(r.Perguntas, "\n")
+	default:
+		return ""
+	}
+}
+
+func registrarGanchos(ctx context.Context, registros []ganchos.Registro) {
+	if col := coletorDe(ctx); col != nil && len(registros) > 0 {
+		col.registrar(registros)
+	}
+}
+
+// depoisDe passa o resultado por depois_da_ferramenta: sai saneado, ou não sai.
+func (ag *Agente) depoisDe(ctx context.Context, c chamada, out saida) saida {
+	depois := ag.cfg.Turno.DepoisDaFerramenta(ctx, ganchos.DepoisDaFerramenta{
+		Agora: time.Now(), Ferramenta: c.nomeMCP, Caso: ag.casoID(), Params: c.params,
+		Resultado: out["resultado"], Identidade: ag.identidadeDosGanchos(),
+	})
+	registrarGanchos(ctx, depois.Registros)
+	if depois.Decisao.Tipo == ganchos.Bloquear {
+		return erro("%s indisponível", c.nome)
+	}
+	out["resultado"] = depois.Evento.Resultado
+	return out
+}
+
+// executar roda o recurso que antes_da_ferramenta liberou, pela origem dele.
+func (ag *Agente) executar(ctx context.Context, c chamada) (saida, error) {
+	if c.achado == nil { // inalcançável: o Build exige ferramenta_permitida, que barra antes
+		return erro("recurso %q não está declarado por este agente", c.nome), nil
+	}
+	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus
+	if local := ag.cfg.Locais[c.nome]; local != nil && !c.obrigatoriaMCP {
+		return executarLocal(ctx, c, local), nil
+	}
+	if c.obrigatoriaMCP || c.achado.Recurso != nil && c.achado.Recurso.Origem == okf.OrigemMCP {
+		return ag.executarMCP(ctx, c)
 	}
 	cli := ag.cfg.Nexus
 	if cli == nil || cli.BaseURL == "" {
-		// sem Nexus no ar: o mock do concierge responde pela amostra do catálogo
-		if achado.Recurso == nil {
-			return erro("Nexus indisponível: não há como chamar %s agora; avise o morador", nome), nil
-		}
-		params := in.Params
-		if params == nil {
-			params = map[string]any{}
-		}
-		for k, v := range ag.cfg.Payloads[nome] {
-			if _, tem := params[k]; !tem {
-				params[k] = v
-			}
-		}
-		return saida{"recurso": nome, "resultado": amostraDe(*achado.Recurso, params, ag.cfg.sessao()), "origem": "mock"}, nil
+		return ag.executarMock(c), nil
 	}
-	if achado.Recurso != nil {
-		var faltam []string
-		for _, pm := range achado.Recurso.Params {
-			if pm.Required {
-				v, ok := in.Params[pm.Name]
-				if !ok || v == nil || fmt.Sprint(v) == "" {
-					if pv, okp := ag.cfg.Payloads[nome][pm.Name]; okp && pv != nil && fmt.Sprint(pv) != "" {
-						continue // o payload do condomínio preenche
-					}
-					faltam = append(faltam, pm.Name)
-				}
-			}
-		}
-		if len(faltam) > 0 {
-			return erro("faltam params obrigatórios de %s: %s", nome, strings.Join(faltam, ", ")), nil
-		}
+	return ag.executarNexus(ctx, c, cli)
+}
+
+func executarLocal(ctx context.Context, c chamada, local func(context.Context, map[string]any) (any, error)) saida {
+	res, err := local(ctx, c.params)
+	if err != nil {
+		return erro("falha ao resolver %s: %v", c.nome, err)
 	}
-	params := in.Params
-	if params == nil {
-		params = map[string]any{}
+	return saida{"recurso": c.nome, "resultado": res, "origem": "identidade"}
+}
+
+func (ag *Agente) executarMCP(ctx context.Context, c chamada) (saida, error) {
+	recurso, recusa := ag.recursoMCPDaChamada(c)
+	if recusa != nil {
+		return recusa, nil
 	}
-	// payload do condomínio (Admin): remontado na chamada como parâmetros padrão
-	for k, v := range ag.cfg.Payloads[nome] {
-		if _, ok := params[k]; !ok {
-			params[k] = v
+	if faltam := faltamParams(recurso, c.params); len(faltam) > 0 {
+		return erro("faltam params obrigatórios de %s: %s", c.nome, strings.Join(faltam, ", ")), nil
+	}
+	if err := ajustarParamsSchema(recurso, c.params); err != nil {
+		return erro("params inválidos para %s: %v", c.nome, err), nil
+	}
+	if resultado, ok := ag.cfg.MCPResultados[c.nomeMCP]; ok {
+		return saida{"recurso": c.nome, "resultado": resultado, "origem": "mcp"}, nil
+	}
+	if c.nomeMCP == ferramentaCriarVisita {
+		normalizarTelefonesVisitantes(c.params)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	res, err := ag.cfg.MCP.CallTool(ctx, c.nomeMCP, c.params)
+	return saidaMCP(c, res, err), nil
+}
+
+// recursoMCPDaChamada acha a tool MCP do catálogo; sem ela, a saida de erro vem preenchida.
+func (ag *Agente) recursoMCPDaChamada(c chamada) (*okf.Recurso, saida) {
+	if ag.cfg.MCP == nil {
+		return nil, erro("catálogo MCP indisponível: não há como chamar %s agora; avise o morador", c.nome)
+	}
+	recurso := c.achado.Recurso
+	if c.obrigatoriaMCP && (c.aliasMCP || recurso == nil || recurso.Origem != okf.OrigemMCP) {
+		recurso = ag.recursoMCP(c.nomeMCP)
+	}
+	if recurso == nil || recurso.Origem != okf.OrigemMCP {
+		return nil, erro("tool MCP %s ausente no catálogo; o fluxo não pode usar dados simulados", c.nomeMCP)
+	}
+	return recurso, nil
+}
+
+func saidaMCP(c chamada, res *mcp.CallResult, err error) saida {
+	if err != nil {
+		if c.nomeMCP == ferramentaCriarVisita {
+			return erro("resultado da escrita %s incerto após o envio; não repita automaticamente e verifique o estado antes de tentar de novo: %v", c.nome, err)
 		}
+		return erro("falha ao chamar %s: %v", c.nomeMCP, err)
+	}
+	if res != nil && res.IsError {
+		return erro("%s recusou: %s", c.nomeMCP, corta(res.Texto(), 400))
+	}
+	resultado, err := valorMCP(c.nomeMCP, res)
+	if err != nil {
+		var incerto *resultadoMCPIncerto
+		if c.achado.Recurso != nil && c.achado.Recurso.Write && errors.As(err, &incerto) {
+			return erro("resultado da escrita %s incerto após o envio; não repita automaticamente e verifique o estado antes de tentar de novo: %v", c.nome, err)
+		}
+		return erro("falha funcional ao chamar %s: %v", c.nomeMCP, err)
+	}
+	return saida{"recurso": c.nome, "resultado": resultado, "origem": "mcp"}
+}
+
+// executarMock: sem Nexus no ar, o mock do concierge responde pela amostra do catálogo.
+func (ag *Agente) executarMock(c chamada) saida {
+	if c.achado.Recurso == nil {
+		return erro("Nexus indisponível: não há como chamar %s agora; avise o morador", c.nome)
+	}
+	return saida{"recurso": c.nome, "resultado": amostraDe(*c.achado.Recurso, c.params, ag.cfg.sessao()), "origem": "mock"}
+}
+
+func (ag *Agente) executarNexus(ctx context.Context, c chamada, cli *nexus.Client) (saida, error) {
+	if faltam := ag.faltamNoNexus(c); len(faltam) > 0 {
+		return erro("faltam params obrigatórios de %s: %s", c.nome, strings.Join(faltam, ", ")), nil
 	}
 	n := 1
 	if col := coletorDe(ctx); col != nil {
 		n = col.proximaInvocacao()
 	}
-	idem := fmt.Sprintf("%s:%s:%s:%d", ag.cfg.sessao(), ag.Def.Nome, nome, n)
+	idem := fmt.Sprintf("%s:%s:%s:%d", ag.cfg.sessao(), ag.Def.Nome, c.nome, n)
 	account := ag.cfg.Identidade.AccountID
 	if account == "" {
-		return erro("sem account do condomínio: não há como chamar %s agora; avise o morador", nome), nil
+		return erro("sem account do condomínio: não há como chamar %s agora; avise o morador", c.nome), nil
 	}
-	raw, err := cli.Invoke(ctx, nome, account, params, idem)
+	raw, err := cli.Invoke(ctx, c.nome, account, c.params, idem)
 	if err != nil {
-		return erro("falha ao chamar %s: %v", nome, err), nil
+		return erro("falha ao chamar %s: %v", c.nome, err), nil
 	}
 	var resultado any
 	if json.Unmarshal(raw, &resultado) != nil {
 		resultado = string(raw)
 	}
-	return saida{"recurso": nome, "resultado": resultado}, nil
+	return saida{"recurso": c.nome, "resultado": resultado}, nil
+}
+
+// faltamNoNexus lista os obrigatórios vazios no pedido que o payload do condomínio não preenche.
+func (ag *Agente) faltamNoNexus(c chamada) []string {
+	if c.achado.Recurso == nil {
+		return nil
+	}
+	var faltam []string
+	for _, pm := range c.achado.Recurso.Params {
+		if pm.Required && vazio(c.pedidos, pm.Name) && vazio(ag.cfg.Payloads[c.nome], pm.Name) {
+			faltam = append(faltam, pm.Name)
+		}
+	}
+	return faltam
+}
+
+func vazio(params map[string]any, nome string) bool {
+	v, ok := params[nome]
+	return !ok || v == nil || fmt.Sprint(v) == ""
 }
 
 func faltamParams(r *okf.Recurso, params map[string]any) []string {
@@ -730,7 +757,7 @@ func valorMCP(nome string, res *mcp.CallResult) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if nome == "gruvi.bff.building-operation.create-visit-controller-handle" {
+	if nome == ferramentaCriarVisita {
 		m, ok := value.(map[string]any)
 		if !ok {
 			return nil, &resultadoMCPIncerto{motivo: "a resposta não contém a visita criada"}
