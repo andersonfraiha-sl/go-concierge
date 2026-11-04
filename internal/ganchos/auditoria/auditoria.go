@@ -9,12 +9,7 @@ import (
 	"go-concierge/internal/ganchos"
 )
 
-const (
-	OrigemConcierge = "concierge"
-	OrigemCopiloto  = "copiloto"
-
-	decisaoFalhou = "falhou"
-)
+const decisaoFalhou = "falhou"
 
 // Linha é uma linha de ganchos_auditoria. Base traz origem, ids e sessão; LinhasDe preenche o resto.
 type Linha struct {
@@ -32,7 +27,7 @@ type Linha struct {
 func LinhasDe(regs []ganchos.Registro, base Linha) []Linha {
 	linhas := make([]Linha, 0, len(regs))
 	for _, r := range regs {
-		if r.Decisao.Tipo == ganchos.Deixar && !r.Falhou {
+		if semRastro(r) {
 			continue
 		}
 		linhas = append(linhas, linhaDe(r, base))
@@ -53,4 +48,11 @@ func linhaDe(r ganchos.Registro, base Linha) Linha {
 	l.Motivo = r.Decisao.Motivo
 	l.Quantidade = r.Decisao.Quantidade
 	return l
+}
+
+func semRastro(r ganchos.Registro) bool {
+	if r.Falhou {
+		return false
+	}
+	return r.Decisao.Tipo == ganchos.Deixar || (r.Decisao.Tipo == ganchos.Ajustar && r.Decisao.Quantidade == 0)
 }

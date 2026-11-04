@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -14,7 +15,9 @@ import (
 
 // NoLote põe as linhas no lote, num comando só. Sem linhas, não enfileira nada.
 // O ctx do sqlc não chega ao banco aqui: quem envia é Lote.Enviar, com o ctx dele.
+// Linhas com CriadoEm zero são puladas com log ERROR: a retenção as apagaria em silêncio.
 func NoLote(lote *banco.Lote, linhas []Linha) {
+	linhas = comData(linhas)
 	if len(linhas) == 0 {
 		return
 	}
@@ -33,9 +36,15 @@ func Gravar(ctx context.Context, b banco.Banco, linhas []Linha, aoFalhar func(or
 	if len(linhas) == 0 {
 		return nil
 	}
-	if enviar(ctx, b, linhas) == nil {
+	if i := slices.IndexFunc(linhas, semData); i >= 0 {
+		return fmt.Errorf("gravar auditoria: linha %d (gancho %q) sem criado_em", i, linhas[i].Gancho)
+	}
+	errLote := enviar(ctx, b, linhas)
+	if errLote == nil {
 		return nil
 	}
+	slog.WarnContext(ctx, "auditoria em lote falhou; gravando linha a linha", "operacao", "gravar_auditoria",
+		"linhas", len(linhas), "erro", errLote)
 	var perdidas []error
 	for _, l := range linhas {
 		err := enviar(ctx, b, []Linha{l})
@@ -55,6 +64,21 @@ func Gravar(ctx context.Context, b banco.Banco, linhas []Linha, aoFalhar func(or
 		return fmt.Errorf("gravar auditoria: %w", err)
 	}
 	return nil
+}
+
+func semData(l Linha) bool { return l.CriadoEm.IsZero() }
+
+func comData(linhas []Linha) []Linha {
+	validas := make([]Linha, 0, len(linhas))
+	for _, l := range linhas {
+		if semData(l) {
+			slog.Error("auditoria sem criado_em descartada", "operacao", "gravar_auditoria", "origem", l.Origem,
+				"evento", l.Evento, "gancho", l.Gancho, "regra_id", l.RegraID, "decisao", l.Decisao)
+			continue
+		}
+		validas = append(validas, l)
+	}
+	return validas
 }
 
 func enviar(ctx context.Context, b banco.Banco, linhas []Linha) error {

@@ -20,6 +20,9 @@ func TestLinhasDeUsaOMotivoDoGanchoESoRegistraOQueMexeu(t *testing.T) {
 	regs := []ganchos.Registro{
 		{Evento: ganchos.EventoAntesDeResponder, Decisao: ganchos.Decisao{Tipo: ganchos.Deixar}},
 		{Evento: ganchos.EventoMensagemRecebida, Decisao: ganchos.Decisao{
+			Tipo: ganchos.Ajustar, Origem: ganchos.Origem{Gancho: "escopo_da_conversa", Fixo: true},
+		}},
+		{Evento: ganchos.EventoMensagemRecebida, Decisao: ganchos.Decisao{
 			Tipo: ganchos.Ajustar, Motivo: "dados mascarados", Quantidade: 2,
 			Origem: ganchos.Origem{Gancho: "pii", Fixo: true},
 		}},
@@ -28,7 +31,7 @@ func TestLinhasDeUsaOMotivoDoGanchoESoRegistraOQueMexeu(t *testing.T) {
 			Origem: ganchos.Origem{Gancho: "regra", RegraID: "r-1", RegraVersao: 3},
 		}},
 	}
-	base := auditoria.Linha{Origem: auditoria.OrigemConcierge, AdministradoraID: "adm-a", SessaoID: "s-1"}
+	base := auditoria.Linha{Origem: ganchos.OrigemConcierge, AdministradoraID: "adm-a", SessaoID: "s-1"}
 
 	got := auditoria.LinhasDe(regs, base)
 
@@ -46,7 +49,7 @@ func TestLinhasDeUsaOMotivoDoGanchoESoRegistraOQueMexeu(t *testing.T) {
 
 func linha(gancho string, quando time.Time) auditoria.Linha {
 	return auditoria.Linha{
-		CriadoEm: quando, Origem: auditoria.OrigemConcierge, Evento: "mensagem_recebida", Gancho: gancho,
+		CriadoEm: quando, Origem: ganchos.OrigemConcierge, Evento: "mensagem_recebida", Gancho: gancho,
 		Decisao: "bloquear", Motivo: "motivo", AdministradoraID: "adm-a", Quantidade: 1,
 	}
 }
@@ -93,7 +96,7 @@ func TestGravarComLinhaInvalidaGravaAsOutrasELogaErro(t *testing.T) {
 
 	err := auditoria.Gravar(context.Background(), b, []auditoria.Linha{linha("a", agora), ruim, linha("c", agora)},
 		func(origem string) {
-			if origem == auditoria.OrigemConcierge {
+			if origem == ganchos.OrigemConcierge {
 				falhas.Add(1)
 			}
 		})
@@ -132,6 +135,40 @@ func TestApagarRemoveSoOQuePassouDe12Meses(t *testing.T) {
 	}
 }
 
+func TestNoLotePulaLinhaSemDataELogaErro(t *testing.T) {
+	b := bancotest.Novo(t)
+	var saida bytes.Buffer
+	antes := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&saida, nil)))
+	t.Cleanup(func() { slog.SetDefault(antes) })
+
+	lote := banco.NovoLote()
+	auditoria.NoLote(lote, []auditoria.Linha{linha("boa", time.Now()), linha("sem-data", time.Time{})})
+	if err := lote.Enviar(t.Context(), b.Pool); err != nil {
+		t.Fatalf("enviar: %v", err)
+	}
+
+	if n := contar(t, b); n != 1 {
+		t.Errorf("gravadas = %d, quer 1", n)
+	}
+	if log := saida.String(); !strings.Contains(log, "level=ERROR") || !strings.Contains(log, "gancho=sem-data") {
+		t.Errorf("log sem ERROR da linha sem data: %s", log)
+	}
+}
+
+func TestGravarRecusaLinhaSemDataEGravaNada(t *testing.T) {
+	b := bancotest.Novo(t)
+
+	err := auditoria.Gravar(t.Context(), b, []auditoria.Linha{linha("boa", time.Now()), linha("sem-data", time.Time{})}, nil)
+
+	if err == nil {
+		t.Error("Gravar aceitou linha sem criado_em")
+	}
+	if n := contar(t, b); n != 0 {
+		t.Errorf("gravadas = %d, quer 0", n)
+	}
+}
+
 func TestReterParaComOContexto(t *testing.T) {
 	b := bancotest.Novo(t)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -144,5 +181,25 @@ func TestReterParaComOContexto(t *testing.T) {
 	case <-feito:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Reter não parou com o ctx cancelado")
+	}
+}
+
+func TestApagarEmVariosLotesRemoveTudoQueVenceu(t *testing.T) {
+	b := bancotest.Novo(t)
+	agora := time.Now()
+	velha := agora.Add(-auditoria.Retencao - time.Hour)
+	linhas := []auditoria.Linha{linha("1", velha), linha("2", velha), linha("3", velha), linha("4", velha),
+		linha("5", velha), linha("nova", agora)}
+	if err := auditoria.Gravar(t.Context(), b, linhas, nil); err != nil {
+		t.Fatalf("gravar: %v", err)
+	}
+
+	n, err := auditoria.ApagarEmLotes(t.Context(), b.Ent, agora, 2)
+
+	if err != nil || n != 5 {
+		t.Fatalf("apagadas = %d, err %v; quer 5", n, err)
+	}
+	if restam := contar(t, b); restam != 1 {
+		t.Errorf("restam %d, quer 1", restam)
 	}
 }

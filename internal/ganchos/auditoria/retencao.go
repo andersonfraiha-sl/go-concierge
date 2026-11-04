@@ -16,14 +16,32 @@ const (
 	timeoutDaRodada = 30 * time.Second
 )
 
-// Apagar remove as linhas com mais de Retencao e devolve quantas saíram.
+const lotePadrao = 10_000
+
+// Apagar remove as linhas com mais de Retencao, em lotes de 10 mil ids por comando, até não
+// sobrar nada ou o ctx acabar. Devolve quantas saíram (também quando para no meio).
 func Apagar(ctx context.Context, cli *ent.Client, agora time.Time) (int, error) {
-	n, err := cli.GanchosAuditoria.Delete().
-		Where(ganchosauditoria.CriadoEmLT(agora.Add(-Retencao))).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("apagar auditoria vencida: %w", err)
+	return apagarEmLotes(ctx, cli, agora, lotePadrao)
+}
+
+func apagarEmLotes(ctx context.Context, cli *ent.Client, agora time.Time, tamanho int) (int, error) {
+	corte := ganchosauditoria.CriadoEmLT(agora.Add(-Retencao))
+	total := 0
+	for ctx.Err() == nil {
+		ids, err := cli.GanchosAuditoria.Query().Where(corte).Limit(tamanho).IDs(ctx)
+		if err != nil {
+			return total, fmt.Errorf("listar auditoria vencida: %w", err)
+		}
+		if len(ids) == 0 {
+			return total, nil
+		}
+		n, err := cli.GanchosAuditoria.Delete().Where(ganchosauditoria.IDIn(ids...)).Exec(ctx)
+		total += n
+		if err != nil {
+			return total, fmt.Errorf("apagar auditoria vencida: %w", err)
+		}
 	}
-	return n, nil
+	return total, fmt.Errorf("apagar auditoria vencida: %w", ctx.Err())
 }
 
 // Reter apaga o vencido agora e a cada 24 h, até ctx acabar. Falha de uma rodada vira ERROR e
@@ -43,6 +61,9 @@ func Reter(ctx context.Context, cli *ent.Client, relogio func() time.Time) {
 }
 
 func rodar(ctx context.Context, cli *ent.Client, relogio func() time.Time) {
+	if ctx.Err() != nil {
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutDaRodada)
 	defer cancel()
 	n, err := Apagar(ctx, cli, relogio())
