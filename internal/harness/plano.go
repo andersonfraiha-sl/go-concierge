@@ -813,7 +813,7 @@ func (ag *Agente) resultadoFinal(col *coletor, p *Plano, resposta string, histor
 	transbordo := guardaTransbordo(col, ag.Def.Rel, resposta)
 	col.mu.Lock()
 	defer col.mu.Unlock()
-	return &Resultado{Resposta: resposta, Agente: ag.Def.Rel, Rota: col.passos, Uso: col.uso, Mensagens: msgs, Transbordo: transbordo, Plano: p}
+	return &Resultado{Resposta: resposta, Agente: ag.Def.Rel, Rota: col.passos, Uso: col.uso, Mensagens: msgs, Transbordo: transbordo, Plano: p, Registros: col.registros}
 }
 
 // ---- util --------------------------------------------------------------------------

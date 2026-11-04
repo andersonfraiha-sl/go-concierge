@@ -30,6 +30,8 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
@@ -93,6 +95,11 @@ type Config struct {
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
 	ChatModel model.ToolCallingChatModel
+	// Ganchos avaliam toda chamada a recurso; nil = só os fixos, montados no Build.
+	Ganchos *ganchos.Conjunto
+	// Turno é o turno de quem chama, dono do cofre de PII; nil = o Build abre um com
+	// Ganchos, e toda a família do agente o compartilha.
+	Turno *ganchos.Turno
 }
 
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em
@@ -145,6 +152,9 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	}
 	if cfg.MaxIteracoes <= 0 {
 		cfg.MaxIteracoes = maxIteracoesPadrao
+	}
+	if cfg.Turno == nil {
+		cfg.Turno = abrirTurno(cfg.Ganchos)
 	}
 	instrucao := cat.Projecao(a)
 	if c := strings.TrimSpace(cfg.Contexto); c != "" {
@@ -211,6 +221,16 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	}
 	ag.runner = adk.NewRunner(ctx, adk.RunnerConfig{Agent: cma})
 	return ag, nil
+}
+
+// abrirTurno abre o turno do conjunto; sem conjunto, um só com os fixos, que nenhuma
+// configuração tira.
+func abrirTurno(conjunto *ganchos.Conjunto) *ganchos.Turno {
+	if conjunto == nil {
+		conjunto = ganchos.NovoConjunto(fixos.Todos(), nil)
+	}
+	t := conjunto.Turno()
+	return &t
 }
 
 // semTemplate põe a projeção como system message SEM formatação: ela tem JSON e
@@ -350,6 +370,9 @@ type Resultado struct {
 	// Plano é o estado da orquestração nos modos planning e react (nil no router). A
 	// sessão o guarda enquanto Pendente != "" e retoma com Continuar.
 	Plano *Plano `json:"plano,omitempty"`
+	// Registros são os ganchos que não deixaram passar ou falharam nas chamadas a
+	// recurso. Fora do JSON: o motivo pode citar a mensagem do morador.
+	Registros []ganchos.Registro `json:"-"`
 }
 
 // coletor acompanha uma execução (e as aninhadas via invocar_agente) pelo contexto.
@@ -363,6 +386,13 @@ type coletor struct {
 	passos     []Passo
 	uso        Uso
 	invocacoes int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
+	registros  []ganchos.Registro
+}
+
+func (c *coletor) registrar(rs []ganchos.Registro) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.registros = append(c.registros, rs...)
 }
 
 func (c *coletor) proximaInvocacao() int {
@@ -384,6 +414,7 @@ func (c *coletor) absorve(r *Resultado) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.passos = append(c.passos, r.Rota...)
+	c.registros = append(c.registros, r.Registros...)
 	c.uso.soma(r.Uso)
 }
 
@@ -464,6 +495,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 				}
 				r.Transbordo = guardaTransbordo(col, rel, r.Resposta)
 				r.Rota = append(col.passos, r.Rota...)
+				r.Registros = append(col.registros, r.Registros...)
 				r.Uso.soma(col.uso)
 				return r, nil
 			}
@@ -532,6 +564,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 		Uso:        col.uso,
 		Mensagens:  msgs,
 		Transbordo: transbordo,
+		Registros:  col.registros,
 	}, nil
 }
 
