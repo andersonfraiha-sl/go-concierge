@@ -29,6 +29,20 @@ export const RAIOS = {
 
 export const SOMBRA_DO_BLOCO_EM_EDICAO = '0 8px 21px rgba(16,52,242,.12)';
 
+/** Interruptor no estilo iOS: trilho em pílula, pino branco que desliza. */
+export const INTERRUPTOR = {
+  trilhoDesligado: '#C3CAD4',
+  sombraDoPino: '0 1px 3px rgba(7,25,80,.22), 0 1px 1px rgba(7,25,80,.08)',
+  duracaoMs: 200,
+} as const;
+
+/** Caixa de texto: fundo suave, raio de 10 px, anel de 2 px no foco. */
+export const CAMPO = {
+  raio: 10,
+  bordaEmRepouso: '#D5DAE1',
+  bordaNoHover: '#B7BFCB',
+} as const;
+
 const titulo = { fontFamily: FONTE_DE_TITULO, fontWeight: 700 } as const;
 
 export const tokens = {

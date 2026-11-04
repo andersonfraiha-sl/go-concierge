@@ -76,12 +76,12 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
       <CampoTexto
         control={control}
         name="geral"
-        label={TITULO}
         multiline
         minRows={4}
         placeholder={PLACEHOLDER}
         disabled={!editavel}
         sx={{ '& .MuiInputBase-root': realce }}
+        slotProps={{ htmlInput: { 'aria-label': TITULO } }}
       />
       {orientacaoDoPadrao !== '' && (
         <Box>

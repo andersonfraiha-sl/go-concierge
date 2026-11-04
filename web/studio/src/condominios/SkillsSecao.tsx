@@ -89,8 +89,9 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
       <Box
         sx={{
           border: 1,
-          borderColor: 'border.subtle',
+          borderColor: 'border.default',
           borderRadius: `${RAIOS.cartao}px`,
+          bgcolor: 'background.paper',
           overflow: 'hidden',
         }}
       >
@@ -106,8 +107,8 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
               sx={{
                 display: 'block',
                 px: 2.5,
-                py: 1.25,
-                bgcolor: 'background.subtle',
+                pt: 2,
+                pb: 1,
                 color: 'text.tertiary',
                 fontWeight: 600,
               }}
