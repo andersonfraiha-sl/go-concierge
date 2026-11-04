@@ -489,7 +489,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		perguntas = append(perguntas, texto)
 		precisaRedigir = true
 		anota(p, "lembrete")
-		passo("pedido", p.Protocolo+" lembrete ("+fmt.Sprint(vezes)+"x): "+corta(lembrete, 100))
+		passo("pedido", p.Protocolo+" lembrete ("+fmt.Sprint(vezes)+"x): "+corta(mascarado(cofre, lembrete), 100))
 	}
 
 	// atendente: pendências viram resumo para o humano
