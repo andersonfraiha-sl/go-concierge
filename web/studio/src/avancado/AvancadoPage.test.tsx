@@ -36,6 +36,8 @@ const agente = {
     nome: 'concierge',
     descricao: '',
     persona: 'Voz.',
+    tipo: 'orquestrador',
+    tipo_declarado: true,
     arquivos: { rules: [{ caminho: 'rules/politicas.md', bytes: 12 }] },
     herdados: {},
     problemas: [{ nivel: 'erro', onde: 'rules/politicas.md', texto: 'Está vazio.' }],

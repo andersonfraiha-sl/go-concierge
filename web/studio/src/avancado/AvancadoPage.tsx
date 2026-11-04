@@ -7,6 +7,7 @@ import { useSkills } from '@/skills/contratos';
 import { tokens } from '@/theme/tokens';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, type NoDaArvore, useArvore } from './contratos';
+import { IdentidadeAba } from './IdentidadeAba';
 import { ImportarExportarAba } from './ImportarExportarAba';
 import { OrquestracaoAba } from './OrquestracaoAba';
 import { ProjecaoAba } from './ProjecaoAba';
@@ -27,6 +28,12 @@ const ABAS: readonly Aba[] = [
     rotulo: 'Arquivos',
     porItem: true,
     desenhar: (c) => c && <ArquivosAba key={c.no.caminho} {...c} />,
+  },
+  {
+    id: 'identidade',
+    rotulo: 'Identidade',
+    porItem: true,
+    desenhar: (c) => c && <IdentidadeAba key={c.no.caminho} {...c} />,
   },
   {
     id: 'projecao',

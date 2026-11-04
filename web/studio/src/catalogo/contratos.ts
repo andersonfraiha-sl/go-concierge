@@ -100,6 +100,9 @@ export const AgenteSchema = z.object({
     nome: z.string(),
     descricao: z.string(),
     persona: z.string(),
+    tipo: z.string(),
+    tipo_declarado: z.boolean(),
+    modelo: z.string().default(''),
     arquivos: mapaDoGo(ArquivoSchema),
     herdados: mapaDoGo(ArquivoSchema),
     problemas: listaDoGo(ProblemaSchema),
@@ -157,6 +160,13 @@ export async function excluirArquivo(agente: string, caminho: string): Promise<v
 export async function lerModeloDeArquivo(caminho: string): Promise<string> {
   const modelo = await apiGet(`/api/arquivo/modelo?${consulta({ caminho })}`, ConteudoSchema);
   return modelo.conteudo;
+}
+
+export async function salvarConfigDoAgente(c: {
+  agente: string;
+  campos: { tipo: string; modelo: string };
+}): Promise<void> {
+  await apiEnviar('PUT', '/api/agente/config', c, z.object({ salvo: z.string() }));
 }
 
 export async function vincularFerramenta(c: {

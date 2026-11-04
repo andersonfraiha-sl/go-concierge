@@ -66,10 +66,11 @@ export function buscarTextos(nome: string): Promise<TextosLidos> {
   return apiGet(caminhoDaSkill(nome), TextosLidosSchema);
 }
 
-export function useTextos(nome: string) {
+export function useTextos(nome: string, opcoes: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: chaveDosTextos(nome),
     queryFn: () => buscarTextos(nome),
+    enabled: opcoes.enabled ?? true,
   });
 }
 

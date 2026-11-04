@@ -19,6 +19,7 @@ const agente = {
     descricao: 'Agenda mudança',
     persona: '',
     tipo: 'subagente',
+    tipo_declarado: true,
     arquivos: {
       rules: [{ caminho: 'rules/horario.md', bytes: 120, resumo: 'Horário' }],
     },
