@@ -56,7 +56,7 @@ func (o observador) observar(ctx context.Context, obs Observacao) {
 			o.falhas.Add(ctx, 1, metric.WithAttributes(evento, attribute.String("gancho", nomeMetrica(r)),
 				attribute.String("causa", string(r.Causa))))
 		}
-		if r.Falhou || r.Decisao.Tipo != Deixar {
+		if decidiuAlgo(r) {
 			o.registrar(ctx, obs, r)
 			span.AddEvent("gancho", trace.WithAttributes(evento,
 				attribute.String("gancho", nomeMetrica(r)),
@@ -149,4 +149,13 @@ func observarAtivas(o metric.Int64Observer, indice func() *Indice) error {
 		o.Observe(int64(n), metric.WithAttributes(attribute.String("evento", string(evento))))
 	}
 	return nil
+}
+
+// decidiuAlgo deixa de fora Deixar e o Ajustar sem efeito dos fixos de contexto, que
+// ajustam toda mensagem: logar isso seria ruído, como na auditoria.
+func decidiuAlgo(r Registro) bool {
+	if r.Falhou {
+		return true
+	}
+	return r.Decisao.Tipo != Deixar && !(r.Decisao.Tipo == Ajustar && r.Decisao.Quantidade == 0)
 }

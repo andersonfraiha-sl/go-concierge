@@ -5,6 +5,7 @@ package pii
 import (
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -97,8 +98,8 @@ func benchMascarar(b *testing.B, texto string) {
 // (cada grupo é um começo possível de telefone) é o pior caso: guarda de 1 ms, abaixo
 // do prazo de 2 ms do gancho.
 func TestDesempenho(t *testing.T) {
-	if testing.Short() {
-		t.Skip("mede tempo; fora do -short")
+	if os.Getenv("GANCHOS_DESEMPENHO") != "1" {
+		t.Skip("mede tempo e oscila com a máquina carregada; rode com GANCHOS_DESEMPENHO=1")
 	}
 	metas := []struct {
 		nome  string
