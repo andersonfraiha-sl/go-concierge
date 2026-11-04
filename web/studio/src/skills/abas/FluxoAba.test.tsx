@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import fixture from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { json, responderCom } from '@/test/fetchFalso';
@@ -107,7 +107,8 @@ const selecionar = async (rotulo: string): Promise<void> => {
   fireEvent.click(await bloco(rotulo));
 };
 
-const esperarUmSegundoESobra = () => new Promise((resolve) => setTimeout(resolve, 1300));
+/** Avança o relógio falso além do atraso de 1s do autosave, sem depender do relógio real. */
+const esperarUmSegundoESobra = () => vi.advanceTimersByTimeAsync(1300);
 
 /** O React Flow só mede os nós no callback do ResizeObserver; sem medida, nem nós visíveis nem arestas. */
 function medirNoJsdom(): void {
@@ -150,6 +151,15 @@ function medirNoJsdom(): void {
 
 describe('FluxoAba', () => {
   beforeAll(medirNoJsdom);
+  // shouldAdvanceTime mantém o relógio falso andando junto do real: interações do
+  // userEvent e o ResizeObserver mockado continuam funcionando sem mudar de sentido;
+  // só o autosave vira previsível com avanços explícitos abaixo.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('rendersOneBlockPerStepInOrder', async () => {
     responderCom(rotas(construtor));
@@ -219,7 +229,8 @@ describe('FluxoAba', () => {
     const campo = screen.getByRole('textbox', { name: 'Pergunta de confirmação' });
     await user.clear(campo);
     await user.type(campo, 'Posso agendar?');
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos[0]).toMatchObject({
       versao: fixture.versao,
       fluxo: {
@@ -255,7 +266,8 @@ describe('FluxoAba', () => {
     const { user, unmount } = montar();
     await selecionar('Confirmar');
     await user.type(screen.getByRole('textbox', { name: 'Pergunta de confirmação' }), '!');
-    expect(await screen.findByText('Falha ao salvar', {}, { timeout: 3000 })).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await screen.findByText('Falha ao salvar')).toBeInTheDocument();
     expect(
       within(await bloco('Gravar no sistema')).getByLabelText(
         'Erro: A ferramenta recusou os dados.',
@@ -275,7 +287,8 @@ describe('FluxoAba', () => {
     const campo = screen.getByRole('textbox', { name: 'Pergunta de confirmação' });
     await user.clear(campo);
     await user.type(campo, 'Posso agendar?');
-    expect(await screen.findByText('Falha ao salvar', {}, { timeout: 3000 })).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await screen.findByText('Falha ao salvar')).toBeInTheDocument();
     expect(screen.getByLabelText(CONFLITO)).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveValue(
       'Posso agendar?',
@@ -298,7 +311,8 @@ describe('FluxoAba', () => {
     const { user } = renderComProvedores(<ComTrocaDeAba />);
     await selecionar('Confirmar');
     await user.type(screen.getByRole('textbox', { name: 'Pergunta de confirmação' }), ' Primeira.');
-    expect(await screen.findByText(/Salvo às/, {}, { timeout: 3000 })).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await screen.findByText(/Salvo às/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Trocar de aba' }));
     await user.click(screen.getByRole('button', { name: 'Trocar de aba' }));
@@ -306,11 +320,12 @@ describe('FluxoAba', () => {
     const campo = screen.getByRole('textbox', { name: 'Pergunta de confirmação' });
     expect(campo).toHaveValue(`${fixture.fluxo.blocos[3]?.texto ?? ''} Primeira.`);
     await user.type(campo, ' Segunda.');
-    await waitFor(() => expect(corpos).toHaveLength(2), { timeout: 3000 });
-    expect(await screen.findByText(/Salvo às/, {}, { timeout: 3000 })).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(2));
+    expect(await screen.findByText(/Salvo às/)).toBeInTheDocument();
     expect(screen.queryByText('Falha ao salvar')).not.toBeInTheDocument();
     expect(corpos.map((c) => c.versao)).toEqual([fixture.versao, 'v2']);
-  }, 10_000);
+  });
 
   it('keepsStructuredValueReadOnly', async () => {
     const visitantes = { campo: 'visitantes', valor: ['Ana', 'Bia'] };
