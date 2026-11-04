@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/okf"
 )
 
@@ -24,14 +25,14 @@ var errCorpoInvalido = errors.New("corpo inválido")
 
 func (s *servidor) rotasStudio(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/eu", s.studioEu)
-	mux.HandleFunc("GET /api/skills", s.studioListar)
-	mux.HandleFunc("POST /api/skills", s.studioCriar)
-	mux.HandleFunc("GET /api/skills/{nome}", s.studioLerTextos)
-	mux.HandleFunc("PUT /api/skills/{nome}/textos", s.studioSalvarTextos)
-	mux.HandleFunc("POST /api/skills/{nome}/duplicar", s.studioDuplicar)
-	mux.HandleFunc("DELETE /api/skills/{nome}", s.studioExcluir)
-	mux.HandleFunc("GET /api/skills/{nome}/fluxo", s.studioLerFluxo)
-	mux.HandleFunc("PUT /api/skills/{nome}/fluxo", s.studioSalvarFluxo)
+	mux.Handle("GET /api/skills", s.protegidaEmAlgum(acesso.SkillsLer, s.studioListar))
+	mux.Handle("POST /api/skills", s.protegida(acesso.SkillsCriar, alvoSuperlogica, s.studioCriar))
+	mux.Handle("GET /api/skills/{nome}", s.protegidaEmAlgum(acesso.SkillsLer, s.studioLerTextos))
+	mux.Handle("PUT /api/skills/{nome}/textos", s.protegida(acesso.SkillsEditarTextos, alvoSuperlogica, s.studioSalvarTextos))
+	mux.Handle("POST /api/skills/{nome}/duplicar", s.protegida(acesso.SkillsCriar, alvoSuperlogica, s.studioDuplicar))
+	mux.Handle("DELETE /api/skills/{nome}", s.protegida(acesso.SkillsExcluir, alvoSuperlogica, s.studioExcluir))
+	mux.Handle("GET /api/skills/{nome}/fluxo", s.protegidaEmAlgum(acesso.SkillsLer, s.studioLerFluxo))
+	mux.Handle("PUT /api/skills/{nome}/fluxo", s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, s.studioSalvarFluxo))
 	mux.Handle("GET /studio/", studioEstatico(s.studio))
 	mux.Handle("GET /studio", http.RedirectHandler("/studio/", http.StatusMovedPermanently))
 }

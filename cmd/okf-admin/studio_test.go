@@ -512,7 +512,8 @@ func servidorDeTeste(t *testing.T, ajustar func(raiz string)) *servidor {
 		t.Fatal(err)
 	}
 	cat.Recursos = func() []okf.Recurso { return recursos }
-	return &servidor{cat: cat, atende: &atende.Servico{Agente: "agentes/concierge"}, log: log.New(io.Discard, "", 0)}
+	return &servidor{cat: cat, atende: &atende.Servico{Agente: "agentes/concierge"}, log: log.New(io.Discard, "", 0),
+		acessos: acessosFake{atribuicoes: usuariosTeste(), mapeamento: mapeamentoTeste(t)}, autenticador: autenticadorDev{padrao: "admin"}}
 }
 
 func chamar(t *testing.T, h http.Handler, p pedido) *httptest.ResponseRecorder {
