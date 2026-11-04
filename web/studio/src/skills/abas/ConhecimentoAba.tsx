@@ -1,13 +1,7 @@
-import AddIcon from '@mui/icons-material/Add';
-import { Box, Button, Chip, Paper, Typography } from '@mui/material';
-import { type ReactNode, useState } from 'react';
-import { usePodeEditar } from '@/acesso/eu';
-import { type Arquivo, useAgente } from '@/catalogo/contratos';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { EmptyState } from '@/shared/ui/EmptyState';
-import { ErroComRetry } from '@/shared/ui/ErroComRetry';
-import { NomeDialog } from '@/shared/ui/NomeDialog';
-import { SectionCard } from '@/shared/ui/SectionCard';
+import { Chip, Paper, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
+import type { Arquivo } from '@/catalogo/contratos';
+import { ArquivosDaSkillSecao, type ContextoDoArquivo } from './ArquivosDaSkillSecao';
 import {
   documentosDe,
   documentosHerdadosDe,
@@ -15,87 +9,49 @@ import {
   formatarTamanho,
   nomeParaExibir,
   tituloDoDocumento,
-  useGestaoDeArquivos,
 } from './arquivosDaSkill';
 import { DocumentoEditavel } from './DocumentoEditavel';
 
 type Props = { nome?: string; caminho: string; titulo?: string };
 
 export function ConhecimentoAba({ caminho, titulo = 'Base de conhecimento' }: Props): ReactNode {
-  const agente = useAgente(caminho);
-  const editavel = usePodeEditar('skills.editar_textos');
-  const proprios = agente.data ? documentosDe(agente.data.agente) : [];
-  const herdados = agente.data ? documentosHerdadosDe(agente.data.agente) : [];
-  const { criar, excluir, emExclusao } = useGestaoDeArquivos(caminho, 'documento', proprios);
-  const [criando, setCriando] = useState(false);
-  const [excluindo, setExcluindo] = useState<string | null>(null);
-
-  const botaoNovo = editavel && (
-    <Button size="small" startIcon={<AddIcon />} onClick={() => setCriando(true)}>
-      Novo documento
-    </Button>
-  );
-
   return (
-    <SectionCard
+    <ArquivosDaSkillSecao
+      caminho={caminho}
       titulo={titulo}
       ajuda="Documentos que a skill consulta para responder."
-      acao={botaoNovo}
-    >
-      {agente.isPending && <Typography variant="caption">Carregando…</Typography>}
-      {agente.isError && (
-        <ErroComRetry
-          mensagem="Não foi possível carregar os documentos."
-          onTentarDeNovo={() => void agente.refetch()}
-        />
-      )}
-      {agente.isSuccess && proprios.length + herdados.length === 0 && (
-        <EmptyState frase="Esta skill ainda não tem documentos." />
-      )}
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {proprios.map((documento) =>
-          ehTexto(documento) ? (
-            <DocumentoEditavel
-              key={documento.caminho}
-              agente={caminho}
-              caminho={documento.caminho}
-              titulo={tituloDoDocumento(documento.caminho)}
-              editavel={editavel}
-              onExcluir={() => setExcluindo(documento.caminho)}
-              descartar={emExclusao === documento.caminho}
-            />
-          ) : (
-            <LinhaDeArquivo key={documento.caminho} arquivo={documento} />
-          ),
-        )}
-        {herdados.map((documento) => (
-          <LinhaDeArquivo key={documento.caminho} arquivo={documento} selo="Vem do Concierge" />
-        ))}
-      </Box>
-      {criando && (
-        <NomeDialog
-          titulo="Novo documento"
-          tituloInicial=""
-          confirmar="Criar"
-          onEnviar={async ({ nome }) => {
-            await criar(nome);
-            setCriando(false);
-          }}
-          onCancelar={() => setCriando(false)}
-        />
-      )}
-      <ConfirmDialog
-        aberto={excluindo !== null}
-        titulo="Excluir documento"
-        texto={`Excluir "${excluindo === null ? '' : tituloDoDocumento(excluindo)}"? A skill deixa de consultá-lo.`}
-        confirmar="Excluir"
-        onCancelar={() => setExcluindo(null)}
-        onConfirmar={() => {
-          if (excluindo !== null) void excluir(excluindo);
-          setExcluindo(null);
-        }}
-      />
-    </SectionCard>
+      rotuloNovo="Novo documento"
+      mensagemDeErro="Não foi possível carregar os documentos."
+      fraseVazia="Esta skill ainda não tem documentos."
+      tituloDaExclusao="Excluir documento"
+      textoDaExclusao={(c) =>
+        `Excluir "${c === '' ? '' : tituloDoDocumento(c)}"? A skill deixa de consultá-lo.`
+      }
+      tipo="documento"
+      selecionar={(agente) => ({
+        proprios: documentosDe(agente),
+        herdados: documentosHerdadosDe(agente),
+      })}
+      renderArquivo={renderDocumento}
+    />
+  );
+}
+
+function renderDocumento(documento: Arquivo, ctx: ContextoDoArquivo): ReactNode {
+  if (ctx.herdado) {
+    return <LinhaDeArquivo key={documento.caminho} arquivo={documento} selo="Vem do Concierge" />;
+  }
+  if (!ehTexto(documento)) return <LinhaDeArquivo key={documento.caminho} arquivo={documento} />;
+  return (
+    <DocumentoEditavel
+      key={documento.caminho}
+      agente={ctx.caminhoDoAgente}
+      caminho={documento.caminho}
+      titulo={tituloDoDocumento(documento.caminho)}
+      editavel={ctx.editavel}
+      onExcluir={ctx.onExcluir}
+      descartar={ctx.descartar}
+    />
   );
 }
 
