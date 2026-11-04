@@ -11,8 +11,8 @@
     },
     {
       "tipo": "fora_do_horario",
-      "inicio": "22:00",
-      "fim": "06:00",
+      "inicio": "06:00",
+      "fim": "22:00",
       "fonte": {
         "tipo": "agora"
       }

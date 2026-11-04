@@ -90,16 +90,17 @@ func incluir(ix *ganchos.Indice, fusos fusosCarregados, g RegraGravada, r Regra)
 	if err != nil {
 		return err
 	}
-	decide := decisorDe(g, r.Decisao, conds)
+	decide := decisorDe(r.Decisao, conds)
+	origem := ganchos.Origem{RegraID: g.ID, RegraVersao: g.Versao}
 	switch r.Evento {
 	case ganchos.EventoMensagemRecebida:
-		colocar(&ix.MensagemRecebida, r.Alvo, gancho(decide, ganchos.Aberta, lerMensagem))
+		colocar(&ix.MensagemRecebida, r.Alvo, gancho(decide, origem, ganchos.Aberta, lerMensagem))
 	case ganchos.EventoAntesDaFerramenta:
-		colocar(&ix.AntesDaFerramenta, r.Alvo, gancho(decide, ganchos.FechadaSeGrava, lerAntesDaFerramenta))
+		colocar(&ix.AntesDaFerramenta, r.Alvo, gancho(decide, origem, ganchos.FechadaSeGrava, lerAntesDaFerramenta))
 	case ganchos.EventoDepoisDaFerramenta:
-		colocar(&ix.DepoisDaFerramenta, r.Alvo, gancho(decide, ganchos.Aberta, lerDepoisDaFerramenta))
+		colocar(&ix.DepoisDaFerramenta, r.Alvo, gancho(decide, origem, ganchos.Aberta, lerDepoisDaFerramenta))
 	case ganchos.EventoAntesDeResponder:
-		colocar(&ix.AntesDeResponder, r.Alvo, gancho(decide, ganchos.Aberta, lerResposta))
+		colocar(&ix.AntesDeResponder, r.Alvo, gancho(decide, origem, ganchos.Aberta, lerResposta))
 	default:
 		return errors.New("evento sem índice de regras: " + string(r.Evento))
 	}
@@ -108,8 +109,8 @@ func incluir(ix *ganchos.Indice, fusos fusosCarregados, g RegraGravada, r Regra)
 
 // decisorDe devolve a decisão da regra para uma leitura: Deixar se alguma condição não vale
 // ou depende, a decisão gravada se todas valem.
-func decisorDe(g RegraGravada, d DecisaoDaRegra, conds []condicaoCompilada) func(leitura) ganchos.Decisao {
-	decisao := decisaoDe(g, d)
+func decisorDe(d DecisaoDaRegra, conds []condicaoCompilada) func(leitura) ganchos.Decisao {
+	decisao := decisaoDe(d)
 	return func(l leitura) ganchos.Decisao {
 		if todas(conds, l) != sim {
 			return ganchos.Decisao{}
@@ -119,17 +120,16 @@ func decisorDe(g RegraGravada, d DecisaoDaRegra, conds []condicaoCompilada) func
 }
 
 // decisaoDe: regra só bloqueia ou pede confirmação; o texto é fixo, escrito na gravação.
-func decisaoDe(g RegraGravada, d DecisaoDaRegra) ganchos.Decisao {
-	origem := ganchos.Origem{RegraID: g.ID, RegraVersao: g.Versao}
+func decisaoDe(d DecisaoDaRegra) ganchos.Decisao {
 	if d.Tipo == ganchos.Confirmar {
-		return ganchos.Decisao{Tipo: ganchos.Confirmar, Motivo: d.Pergunta, Origem: origem}
+		return ganchos.Decisao{Tipo: ganchos.Confirmar, Motivo: d.Pergunta}
 	}
-	return ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: d.Mensagem, Origem: origem}
+	return ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: d.Mensagem}
 }
 
-func gancho[E ganchos.Ocorrencia](decide func(leitura) ganchos.Decisao, falha ganchos.Politica, ler func(E) leitura) ganchos.Gancho[E] {
+func gancho[E ganchos.Ocorrencia](decide func(leitura) ganchos.Decisao, origem ganchos.Origem, falha ganchos.Politica, ler func(E) leitura) ganchos.Gancho[E] {
 	return ganchos.Gancho[E]{
-		Nome: nomeDoGanchoDeRegra, Prazo: ganchos.PrazoPadrao, Falha: falha,
+		Nome: nomeDoGanchoDeRegra, Origem: origem, Prazo: ganchos.PrazoPadrao, Falha: falha,
 		Avaliar: func(e E) (E, ganchos.Decisao) { return e, decide(ler(e)) },
 	}
 }

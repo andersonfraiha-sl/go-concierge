@@ -92,20 +92,21 @@ func TestCompilarReservaSoAte22h(t *testing.T) {
 
 // Review Focus 4: horário que cruza a meia-noite, com o servidor em UTC.
 func TestCompilarHorarioQueCruzaMeiaNoiteUsaOFusoDaRegra(t *testing.T) {
-	horario := `{"tipo":"fora_do_horario","inicio":"22:00","fim":"06:00","fonte":{"tipo":"agora"}}`
-	regra := gravadaInline("r1", "mensagem_recebida", horario, `{"tipo":"bloquear","mensagem":"Fora do plantão da noite."}`)
+	horario := `{"tipo":"fora_do_horario","inicio":"18:00","fim":"02:00","fonte":{"tipo":"agora"}}`
+	regra := gravadaInline("r1", "mensagem_recebida", horario, `{"tipo":"bloquear","mensagem":"Fora do plantão."}`)
 	indice := compilarSemErro(t, regra)
 	casos := []struct {
 		nome    string
 		agoraSP string
 		esperar ganchos.TipoDecisao
 	}{
+		{"deixa as 18h00, primeiro minuto do horario", "2026-11-04T18:00:00-03:00", ganchos.Deixar},
 		{"deixa as 23h, dentro do horario", "2026-11-04T23:00:00-03:00", ganchos.Deixar},
 		{"deixa a meia-noite", "2026-11-05T00:00:00-03:00", ganchos.Deixar},
-		{"deixa as 05h59, ultimo minuto do horario", "2026-11-05T05:59:00-03:00", ganchos.Deixar},
-		{"bloqueia as 06h00, fora do horario", "2026-11-05T06:00:00-03:00", ganchos.Bloquear},
-		{"bloqueia as 21h59, fora do horario", "2026-11-04T21:59:00-03:00", ganchos.Bloquear},
-		{"deixa as 22h00, primeiro minuto do horario", "2026-11-04T22:00:00-03:00", ganchos.Deixar},
+		{"deixa as 01h59, ultimo minuto do horario", "2026-11-05T01:59:00-03:00", ganchos.Deixar},
+		{"bloqueia as 02h00, fora do horario", "2026-11-05T02:00:00-03:00", ganchos.Bloquear},
+		{"bloqueia as 10h00, fora do horario", "2026-11-05T10:00:00-03:00", ganchos.Bloquear},
+		{"bloqueia as 17h59, fora do horario", "2026-11-04T17:59:00-03:00", ganchos.Bloquear},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -170,14 +171,6 @@ func TestCompilarCodigoDeRetiradaSoParaCadastrado(t *testing.T) {
 			require.Equal(t, c.esperar, decidirAntes(indice, ev).Tipo)
 		})
 	}
-}
-
-func TestCompilarConfirmaReservaNoHorarioDaRegra(t *testing.T) {
-	indice := compilarSemErro(t, gravadaDoArquivo(t, "r1", "confirmar-escrita-fora-do-horario.json"))
-	ev := ganchos.AntesDaFerramenta{Ferramenta: "areas.reservar", Agora: momentoUTC("2026-11-04T15:00:00Z")}
-	r := ganchos.Avaliar(context.Background(), indice.AntesDaFerramenta.Para("", ""), ev)
-	require.Equal(t, ganchos.Confirmar, r.Decisao.Tipo)
-	require.Equal(t, []string{"Já é tarde, quer mesmo reservar assim?"}, r.Perguntas)
 }
 
 func TestCompilarTextoContemIgnoraCaixaEAcento(t *testing.T) {
@@ -290,4 +283,39 @@ func TestCompilarCondominiosDoAlvoGanhamUmaEntradaCada(t *testing.T) {
 	require.Len(t, indice.AntesDaFerramenta.PorCondominio["cond-flores"], 1)
 	require.Len(t, indice.AntesDaFerramenta.PorCondominio["cond-rios"], 1)
 	require.Equal(t, 1, indice.Ativas[ganchos.EventoAntesDaFerramenta])
+}
+
+func TestCompilarConfirmaReservaForaDoHorarioDaRegra(t *testing.T) {
+	indice := compilarSemErro(t, gravadaDoArquivo(t, "r1", "confirmar-escrita-fora-do-horario.json"))
+	casos := []struct {
+		nome    string
+		agora   string
+		esperar ganchos.TipoDecisao
+	}{
+		{"confirma as 22h30 de Sao Paulo", "2026-11-05T01:30:00Z", ganchos.Confirmar},
+		{"confirma de madrugada", "2026-11-04T07:00:00Z", ganchos.Confirmar},
+		{"deixa ao meio-dia", "2026-11-04T15:00:00Z", ganchos.Deixar},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			ev := ganchos.AntesDaFerramenta{Ferramenta: "areas.reservar", Agora: momentoUTC(c.agora)}
+			r := ganchos.Avaliar(context.Background(), indice.AntesDaFerramenta.Para("", ""), ev)
+			require.Equal(t, c.esperar, r.Decisao.Tipo)
+		})
+	}
+}
+
+func TestCompilarFalhaDeRegraGuardaAOrigemDela(t *testing.T) {
+	g := gravadaDoArquivo(t, "r7", "codigo-de-retirada-so-cadastrado.json")
+	g.Versao = 3
+	rega := compilarSemErro(t, g).AntesDaFerramenta.Globais[0]
+	rega.Avaliar = func(ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) { panic("quebrou") }
+
+	r := ganchos.Avaliar(context.Background(), []ganchos.Gancho[ganchos.AntesDaFerramenta]{rega}, ganchos.AntesDaFerramenta{Escrita: true})
+
+	require.Len(t, r.Registros, 1)
+	require.True(t, r.Registros[0].Falhou)
+	require.Equal(t, ganchos.CausaPanic, r.Registros[0].Causa)
+	require.Equal(t, ganchos.Origem{Gancho: "regra", RegraID: "r7", RegraVersao: 3}, r.Registros[0].Decisao.Origem)
+	require.Equal(t, ganchos.Bloquear, r.Decisao.Tipo)
 }

@@ -75,7 +75,9 @@ const (
 // os mapas recebidos. Prazo zero vale PrazoPadrao; Falha vazia vale Fechada. Só um
 // gancho Fixo pode Ajustar; no Conjunto, Fixo é carimbado pela fase.
 type Gancho[E Ocorrencia] struct {
-	Nome    string
+	Nome string
+	// Origem leva o id e a versão da regra; vai em toda decisão do gancho, falha inclusive.
+	Origem  Origem
 	Fixo    bool
 	Prazo   time.Duration
 	Falha   Politica
@@ -306,6 +308,7 @@ func aplicarFalha[E Ocorrencia](a avaliacao[E], g Gancho[E], f falha) avaliacao[
 }
 
 func comOrigem[E Ocorrencia](d Decisao, g Gancho[E]) Decisao {
+	d.Origem = g.Origem
 	d.Origem.Gancho, d.Origem.Fixo = g.Nome, g.Fixo
 	return d
 }
