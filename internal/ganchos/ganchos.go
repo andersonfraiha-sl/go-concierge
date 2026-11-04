@@ -292,7 +292,7 @@ func aplicarFalha[E Ocorrencia](a avaliacao[E], g Gancho[E], f falha) avaliacao[
 	d := comOrigem(Decisao{Tipo: Deixar}, g)
 	if fechaNaFalha(politicaDe(g), a) {
 		d.Tipo, d.Motivo = Bloquear, MotivoDeFalha
-		a.decisao = d
+		a.decisao = maisForte(a.decisao, d) // vale o motivo do primeiro que bloqueou
 		a.encerrada = true
 	}
 	a.registros = append(a.registros, Registro{

@@ -399,3 +399,32 @@ func TestNomesDosFixos(t *testing.T) {
 		t.Errorf("NomesDosFixos = %v, want %v", got, want)
 	}
 }
+
+func TestSaneamentoDepoisDoBloqueioMantemOPrimeiroMotivo(t *testing.T) {
+	bloqueio := ganchos.Gancho[ganchos.AntesDaFerramenta]{
+		Nome: "escopo", Falha: ganchos.Fechada,
+		Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
+			return e, ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "fora do escopo"}
+		},
+	}
+	saneamentos := map[string]ganchos.Gancho[ganchos.AntesDaFerramenta]{
+		"falha": {Nome: "mascara", Falha: ganchos.Fechada,
+			Avaliar: func(ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) { panic("quebrou") }},
+		"ajusta": {Nome: "mascara", Falha: ganchos.Fechada,
+			Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
+				return e, ganchos.Decisao{Tipo: ganchos.Ajustar, Quantidade: 1}
+			}},
+	}
+	for nome, saneamento := range saneamentos {
+		t.Run(nome, func(t *testing.T) {
+			f := ganchos.Fixos{AntesDaFerramenta: ganchos.Pontos[ganchos.AntesDaFerramenta]{
+				Checagem:   []ganchos.Gancho[ganchos.AntesDaFerramenta]{bloqueio},
+				Saneamento: []ganchos.Gancho[ganchos.AntesDaFerramenta]{saneamento},
+			}}
+			r := ganchostest.Conjunto(f, &ganchos.Indice{}).Turno().AntesDaFerramenta(context.Background(), ganchos.AntesDaFerramenta{Ferramenta: "reservar"})
+			if r.Decisao.Tipo != ganchos.Bloquear || r.Decisao.Motivo != "fora do escopo" || r.Decisao.Origem.Gancho != "escopo" {
+				t.Errorf("Decisao = %+v, want o bloqueio do escopo", r.Decisao)
+			}
+		})
+	}
+}
