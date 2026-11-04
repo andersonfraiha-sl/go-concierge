@@ -30,12 +30,16 @@ func NovoAuditor(b banco.Banco, aoFalhar func(origem string), agora func() time.
 // Observador é a opção que liga o auditor ao Conjunto.
 func (a *Auditor) Observador() ganchos.Opcao { return ganchos.ComObservador(a.observar) }
 
-// Gravar grava as linhas agora, com o fallback linha a linha de Gravar.
-func (a *Auditor) Gravar(ctx context.Context, linhas []Linha) error {
-	return Gravar(ctx, a.banco, linhas, a.aoFalhar)
+// Gravar grava as linhas agora, com o fallback linha a linha de Gravar. Linha perdida não é
+// erro de quem chamou: Gravar já a loga em ERROR e a conta em aoFalhar.
+func (a *Auditor) Gravar(ctx context.Context, linhas []Linha) {
+	_ = Gravar(ctx, a.banco, linhas, a.aoFalhar)
 }
 
 func (a *Auditor) observar(ctx context.Context, obs ganchos.Observacao) {
+	if obs.Previa {
+		return
+	}
 	linhas := LinhasDe(obs.Registros, a.base(ctx, obs))
 	if len(linhas) == 0 {
 		return
@@ -45,8 +49,7 @@ func (a *Auditor) observar(ctx context.Context, obs ganchos.Observacao) {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), prazoGravacao)
 	defer cancel()
-	// Gravar já loga em ERROR e conta em aoFalhar cada linha perdida
-	_ = a.Gravar(ctx, linhas)
+	a.Gravar(ctx, linhas)
 }
 
 // base é a do ctx, com a hora da decisão e o alvo que a checagem resolveu.

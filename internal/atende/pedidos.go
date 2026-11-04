@@ -57,19 +57,19 @@ type previaDeEscrita struct {
 }
 
 // Prever implementa pedidos.Previsor. Só bloqueio cancela: pedir confirmação fica para a
-// escrita real. O turno é descartável (cofre e registros próprios, nada auditado; o
-// observador do conjunto ainda loga) e qualquer falha em montá-lo deixa a escrita seguir.
+// escrita real. O turno é de prévia (cofre próprio; log e métrica sim, auditoria nunca) e
+// qualquer falha em montá-lo deixa a escrita seguir.
 func (a *ambienteHarness) Prever(ctx context.Context, agente, recurso string, params map[string]any) (string, bool) {
 	sub, ok := a.ag.Subagentes[agente]
 	if !ok || a.previa == nil {
 		return "", false
 	}
-	t, err := a.previa.s.abrirTurno(a.previa.sess)
+	conjunto, err := a.previa.s.ganchos()
 	if err != nil {
 		slog.WarnContext(ctx, "atende: previsão da escrita sem ganchos", "operacao", "prever_escrita", "sessao", a.previa.sess.ID, "erro", err)
 		return "", false
 	}
-	r := t.AntesDaFerramenta(ctx, a.previa.evento(sub, recurso, params))
+	r := conjunto.TurnoDePrevia().AntesDaFerramenta(ctx, a.previa.evento(sub, recurso, params))
 	if slices.ContainsFunc(r.Registros, func(g ganchos.Registro) bool { return g.Falhou }) {
 		return "", false // gancho que falhou na previsão não cancela: a escrita real decide
 	}
@@ -840,8 +840,9 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	if !ok {
 		return nil, nil, pedidos.Saida{}, fmt.Errorf("%w: %s não está aberto neste servidor", ErrProtocoloDesconhecido, protocoloAtende)
 	}
-	res, p, saida, err := s.preencherPedido(comAuditoria(ctx, sess, atendente), sess, protocoloPedido, atendente, valores, confirmar)
-	return res, p, saida, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
+	ctx, coletor := s.coletarAuditoria(comAuditoria(ctx, sess, atendente))
+	res, p, saida, err := s.preencherPedido(ctx, sess, protocoloPedido, atendente, valores, confirmar)
+	return res, p, saida, errors.Join(err, s.persistirComAuditoria(context.WithoutCancel(ctx), sess, coletor.Fechar()))
 }
 
 func (s *Servico) preencherPedido(ctx context.Context, sess *Sessao, protocoloPedido, atendente string, valores map[string]any, confirmar bool) (*Sessao, *pedidos.Pedido, pedidos.Saida, error) {

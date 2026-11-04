@@ -27,9 +27,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -202,8 +204,15 @@ func main() {
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
-	// o servidor vive até o processo sair: a retenção da auditoria roda com ele
-	ctxServidor := context.Background()
+	// o sinal de desligamento cancela o ctx do servidor (a retenção da auditoria para com ele)
+	// e encerra o processo, como antes de o sinal ser capturado
+	ctxServidor, pararSinais := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctxServidor.Done()
+		pararSinais()
+		log.Print("okf-admin: desligando")
+		os.Exit(0)
+	}()
 	conjunto, auditor, err := s.montarGanchos(ctxServidor, noop.NewMeterProvider().Meter("ganchos"))
 	if err != nil {
 		log.Fatal(err)

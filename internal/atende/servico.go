@@ -491,17 +491,20 @@ func (s *Servico) gravarDepoisDaResposta(ctx context.Context, sess *Sessao, linh
 	return errors.Join(s.gravarCarteiraDepoisDaResposta(ctx, sess, contato, cart), s.persistirComAuditoria(ctx, sess, linhas))
 }
 
-// persistirComAuditoria grava a sessão e, em seguida, a auditoria do turno.
+// persistirComAuditoria grava a sessão e, em seguida, a auditoria do turno. Linha de
+// auditoria perdida não é erro do turno: sai em ERROR e na métrica.
 func (s *Servico) persistirComAuditoria(ctx context.Context, sess *Sessao, linhas []auditoria.Linha) error {
-	return errors.Join(s.Sessoes.Persistir(ctx, sess), s.gravarAuditoria(ctx, linhas))
+	err := s.Sessoes.Persistir(ctx, sess)
+	s.gravarAuditoria(ctx, linhas)
+	return err
 }
 
 // gravarAuditoria grava as linhas que o turno coletou; só há linhas com auditor.
-func (s *Servico) gravarAuditoria(ctx context.Context, linhas []auditoria.Linha) error {
+func (s *Servico) gravarAuditoria(ctx context.Context, linhas []auditoria.Linha) {
 	if len(linhas) == 0 || s.Auditoria == nil {
-		return nil
+		return
 	}
-	return s.Auditoria.Gravar(ctx, linhas)
+	s.Auditoria.Gravar(ctx, linhas)
 }
 
 func (s *Servico) gravarCarteiraDepoisDaResposta(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {

@@ -50,6 +50,9 @@ type Observacao struct {
 	Duracao                        time.Duration
 	Lentos                         int
 	Registros                      []Registro
+	// Previa marca a avaliação de um turno de prévia: entra em log e métrica, nunca na
+	// auditoria, porque nada aconteceu ainda.
+	Previa bool
 }
 
 type Opcao func(*Conjunto)
@@ -102,6 +105,7 @@ type Turno struct {
 	conjunto *Conjunto
 	indice   Indice
 	cofre    *pii.Cofre
+	previa   bool
 }
 
 // Turno abre a visão de um turno, com o cofre de PII que só ele possui.
@@ -110,6 +114,14 @@ func (c *Conjunto) Turno() Turno { return c.TurnoAPartirDe(1) }
 // TurnoAPartirDe abre o turno com o cofre numerando os marcadores a partir de proximo.
 func (c *Conjunto) TurnoAPartirDe(proximo int) Turno {
 	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofreAPartirDe(proximo)}
+}
+
+// TurnoDePrevia abre um turno descartável, com cofre próprio, para prever uma decisão antes
+// da hora: as observações dele saem com Previa, e a auditoria as ignora.
+func (c *Conjunto) TurnoDePrevia() Turno {
+	t := c.Turno()
+	t.previa = true
+	return t
 }
 
 // Cofre é o cofre de PII do turno: o mesmo que os eventos recebem.
@@ -194,7 +206,7 @@ func avaliarNoPonto[E comAlvo](ctx context.Context, t Turno, p ponto[E], ev E) R
 	if t.conjunto.observar != nil {
 		t.conjunto.observar(ctx, Observacao{
 			Evento: ev.Nome(), CondominioID: condominioID, AdministradoraID: administradoraID,
-			Duracao: r.Duracao, Lentos: r.Lentos, Registros: r.Registros,
+			Duracao: r.Duracao, Lentos: r.Lentos, Registros: r.Registros, Previa: t.previa,
 		})
 	}
 	return r

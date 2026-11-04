@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go-concierge/internal/banco"
+	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
 	"go-concierge/internal/entrada"
@@ -145,8 +146,8 @@ func TestAuditoriaNoLotePosResposta(t *testing.T) {
 
 			err := svc.gravarDepoisDaResposta(context.Background(), sess, tt.linhas)
 
-			if (err != nil) != (tt.perdidas > 0) {
-				t.Fatalf("err = %v, want erro só com linha perdida", err)
+			if err != nil {
+				t.Fatalf("err = %v, want nil: linha de auditoria perdida não é falha do turno", err)
 			}
 			if idas, _ := contador.ate(); tt.idas > 0 && idas != tt.idas {
 				t.Errorf("idas = %d, want %d", idas, tt.idas)
@@ -191,5 +192,80 @@ func exigirCarteiraGravada(t *testing.T, db banco.Banco, contato escopo.Contato,
 	p := gravada.Por(cart.Pedidos[0].Protocolo)
 	if p == nil || p.Valores["observacao"] != "mudança depois da resposta" {
 		t.Fatalf("carteira adiada não gravada: %+v", gravada.Pedidos)
+	}
+}
+
+// servicoDoFluxoAuditado é o fluxo MCP de liberação de visitante com o auditor gravando
+// num Postgres próprio e um Sender que conta as linhas já gravadas no envio.
+func servicoDoFluxoAuditado(t *testing.T, idx *ganchos.Indice) (*Servico, banco.Banco, *envioQueConta) {
+	t.Helper()
+	fixarAgoraDoFluxo(t)
+	svc, _ := servicoComMCPFluxo(t)
+	db := bancotest.Novo(t)
+	envio := &envioQueConta{db: db}
+	svc.Sender, svc.ExtratorPedidos = envio, extratorVisitaMCP()
+	comAuditor(svc, db, idx)
+	return svc, db, envio
+}
+
+func exigirAuditadaDepoisDoEnvio(t *testing.T, db banco.Banco, envio *envioQueConta, regraID string, evento ganchos.NomeDoEvento) {
+	t.Helper()
+	if !envio.enviou.Load() || envio.linhasNoEnvio.Load() != 0 {
+		t.Fatalf("enviou=%v com %d linhas já gravadas, want envio antes da auditoria", envio.enviou.Load(), envio.linhasNoEnvio.Load())
+	}
+	linhas := linhasDaRegra(t, db, regraID)
+	if len(linhas) == 0 {
+		t.Fatalf("decisão de %s não auditada", regraID)
+	}
+	for _, l := range linhas {
+		if l.Evento != string(evento) {
+			t.Errorf("linha de %s no evento %s, want %s", regraID, l.Evento, evento)
+		}
+	}
+}
+
+// O gancho de ferramenta roda dentro do harness: a decisão dele vai para o coletor do turno,
+// não para uma gravação antes da resposta.
+func TestAuditoriaDoGanchoDeFerramentaVaiNoLote(t *testing.T) {
+	bloqueiaNaChamada := ganchos.Gancho[ganchos.AntesDaFerramenta]{
+		Nome: "regra", Origem: ganchos.Origem{RegraID: "r-ferramenta", RegraVersao: 1},
+		Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
+			if e.Previa {
+				return e, ganchos.Decisao{}
+			}
+			return e, ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "ferramenta fechada"}
+		},
+	}
+	idx := &ganchos.Indice{AntesDaFerramenta: ganchos.Nivel[ganchos.AntesDaFerramenta]{Globais: []ganchos.Gancho[ganchos.AntesDaFerramenta]{bloqueiaNaChamada}}}
+	svc, db, envio := servicoDoFluxoAuditado(t, idx)
+
+	falar(t, svc, "auditoria-ferramenta", "quero liberar Ana Souza hoje")
+
+	exigirAuditadaDepoisDoEnvio(t, db, envio, "r-ferramenta", ganchos.EventoAntesDaFerramenta)
+}
+
+// O atendente preenche o pedido e a resposta ao morador sai antes da auditoria dela.
+func TestAuditoriaDoPreencherPedidoVaiDepoisDoEnvio(t *testing.T) {
+	regra := &ganchostest.Roteiro[ganchos.AntesDeResponder]{}
+	g := ganchostest.Gancho("regra", regra)
+	g.Origem = ganchos.Origem{RegraID: "r-manual", RegraVersao: 1}
+	svc, db, envio := servicoDoFluxoAuditado(t, &ganchos.Indice{
+		AntesDeResponder: ganchos.Nivel[ganchos.AntesDeResponder]{Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{g}},
+	})
+	sess := falar(t, svc, "auditoria-manual", "quero liberar Ana Souza hoje")
+	// a regra só bloqueia depois do turno: o que se mede é o envio do atendente
+	regra.Decisao = ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "Resposta trocada pela regra."}
+	cart, _, err := svc.Carteira(context.Background(), sess.contato())
+	if err != nil || len(cart.Abertos()) != 1 {
+		t.Fatalf("pedido aberto: %v %+v", err, cart)
+	}
+
+	if _, _, _, err := svc.PreencherPedido(context.Background(), sess.Protocolo, cart.Abertos()[0].Protocolo, "ana", nil, true); err != nil {
+		t.Fatal(err)
+	}
+
+	exigirAuditadaDepoisDoEnvio(t, db, envio, "r-manual", ganchos.EventoAntesDeResponder)
+	if l := linhasDaRegra(t, db, "r-manual"); len(l) != 1 || l[0].UsuarioID != "ana" || l[0].SessaoID != sess.ID {
+		t.Errorf("linhas do pedido manual = %+v, want uma, do atendente ana na sessão", l)
 	}
 }

@@ -17,14 +17,19 @@ const regraQueBloqueiaReserva = `{"nome":"Reserva fechada","evento":"antes_da_fe
 "condicoes":[{"tipo":"ferramenta","nomes":["areas.reservar"]}],
 "decisao":{"tipo":"bloquear","mensagem":"Reservas fechadas por aqui."},"ativa":true}`
 
-func servicoComRegraDeReserva(t *testing.T) *Servico {
+func indiceDaRegraDeReserva(t *testing.T) *ganchos.Indice {
 	t.Helper()
 	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: "r1", Versao: 1, Ativa: true, Definicao: []byte(regraQueBloqueiaReserva)}})
 	if len(erros) > 0 {
 		t.Fatal(erros)
 	}
+	return indice
+}
+
+func servicoComRegraDeReserva(t *testing.T) *Servico {
+	t.Helper()
 	svc, _, _ := servicoComPedidos(t)
-	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indice)
+	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraDeReserva(t))
 	return svc
 }
 
@@ -40,13 +45,30 @@ func TestPreviaCancelaAReservaAntesDaPrimeiraPergunta(t *testing.T) {
 	}
 }
 
-func TestPreviaNaoEntraNaAuditoriaDoTurno(t *testing.T) {
-	svc := servicoComRegraDeReserva(t)
-	sess := falar(t, svc, "previa-2", "quero reservar uma área comum")
-	for _, reg := range sess.registrosDoTurno() {
-		if reg.Evento == ganchos.EventoAntesDaFerramenta && reg.Decisao.Tipo == ganchos.Bloquear {
-			t.Fatalf("o bloqueio da previsão não pode ser auditado: %+v", reg)
-		}
+// A prévia que bloqueia não vira auditoria nem ida ao banco: o turno com o auditor vai ao
+// banco antes da resposta tantas vezes quanto o mesmo turno sem auditor.
+func TestPreviaQueBloqueiaNaoAuditaNemVaiAoBanco(t *testing.T) {
+	msg := mensagemDoMorador(eventoCom(t, "quero reservar uma área comum"), 1, 0)
+	base, _, contadorBase := servicoNoPostgres(t) // o conjunto é fixado no primeiro uso: um serviço por medida
+	base.Ganchos, base.Auditoria = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraDeReserva(t)), nil
+	semAuditor := medir(t, base, contadorBase, msg)
+	svc, db, contador := servicoNoPostgres(t)
+	comAuditor(svc, db, indiceDaRegraDeReserva(t))
+
+	m := medir(t, svc, contador, msg)
+
+	sess, ok, err := svc.Sessao(t.Context(), msg.ConversaID)
+	if err != nil || !ok {
+		t.Fatalf("sessão do turno: %v", err)
+	}
+	if r := ultimoConcierge(sess); !strings.Contains(r.Texto, "Reservas fechadas por aqui.") {
+		t.Fatalf("a prévia devia ter bloqueado: %q", r.Texto)
+	}
+	if m.idas != semAuditor.idas {
+		t.Errorf("idas antes da resposta = %d, want %d (as do turno sem auditor)", m.idas, semAuditor.idas)
+	}
+	if linhas := linhasDaRegra(t, db, "r1"); len(linhas) != 0 {
+		t.Fatalf("a prévia foi auditada: %+v", linhas)
 	}
 }
 
