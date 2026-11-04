@@ -9,9 +9,11 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { Estado } from '@/condominios/contratos';
 import { ApiError } from '@/shared/api/http';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { tokens } from '@/theme/tokens';
+import { type Ambiente, aplicarOperacao, DESISTIU } from './aplicar';
 import {
   CHAVE_DO_ESTADO,
   type ContextoDoCopiloto,
@@ -40,12 +42,17 @@ type ValorDoCopiloto = {
   status: Status;
   mensagens: Mensagem[];
   enviar: (texto: string) => Promise<void>;
-  aplicar: (proposta: Proposta) => Promise<void>;
+  /** Grava pelas mesmas rotas das telas; falha rejeita e não muda nada aqui. */
+  aplicar: (proposta: Proposta, pedido: PedidoDeAplicacao) => Promise<void>;
+  aplicadas: ReadonlySet<string>;
   descartar: (idDaProposta: string) => void;
   definirContexto: (contexto: ContextoDoCopiloto) => void;
   alvosRealcados: ReadonlySet<string>;
   realcar: (alvos: readonly string[]) => void;
 };
+
+/** O que só o cartão sabe: quem aplica (escopo) e como perguntar antes de excluir. */
+export type PedidoDeAplicacao = Pick<Ambiente, 'escopo' | 'confirmar'>;
 
 const CHAVE_ABERTO = 'studio.copilotoAberto';
 const NENHUM_ALVO: ReadonlySet<string> = new Set();
@@ -73,6 +80,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
   const [aberto, setAberto] = useState(lerAberto);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [pensando, setPensando] = useState(false);
+  const [aplicadas, setAplicadas] = useState<ReadonlySet<string>>(() => new Set());
   const [alvosRealcados, realcar] = useAlvosRealcados();
   const botaoDoCopiloto = useRef<HTMLButtonElement>(null);
   // Só leitura na hora de enviar, nunca no render: troca de tela não redesenha o painel.
@@ -135,6 +143,17 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const aplicar = async (proposta: Proposta, { escopo, confirmar }: PedidoDeAplicacao) => {
+    const lerEstado = () => queryClient.getQueryData<Estado>(['estado-condominios', escopo]);
+    const resultado = await aplicarOperacao(proposta.operacao, { escopo, confirmar, lerEstado });
+    if (resultado === DESISTIU) return;
+    await Promise.all(
+      resultado.invalidar.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+    );
+    realcar(resultado.alvos);
+    setAplicadas((atuais) => new Set([...atuais, proposta.id]));
+  };
+
   const descartar = (idDaProposta: string) =>
     setMensagens((atuais) =>
       atuais.map((mensagem) => ({
@@ -151,7 +170,8 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     status: statusDe(estado.data?.disponivel, pensando),
     mensagens,
     enviar,
-    aplicar: aindaNaoAplica,
+    aplicar,
+    aplicadas,
     descartar,
     definirContexto: (proximo) => {
       contexto.current = proximo;
@@ -198,11 +218,6 @@ function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly string[]) =
 function textoDoErro(erro: unknown): string {
   const estourouOPrazo = erro instanceof ApiError && erro.codigo === 'TEMPO_ESGOTADO';
   return estourouOPrazo ? MENSAGEM_DE_DEMORA : mensagemDe(erro);
-}
-
-// A Task 26 troca por aplicar de verdade, chamando `realcar` com os alvos mudados.
-function aindaNaoAplica(_proposta: Proposta): Promise<void> {
-  return Promise.reject(new Error('O Copiloto ainda não aplica propostas.'));
 }
 
 function statusDe(disponivel: boolean | undefined, pensando: boolean): Status {
