@@ -38,6 +38,9 @@ type Decisao struct {
 	Motivo     string
 	Origem     Origem
 	Quantidade int
+	// MotivoAuditoria substitui Motivo na auditoria quando o Motivo carrega texto do
+	// morador ou de payload (o modelo precisa dele, a auditoria não pode guardá-lo).
+	MotivoAuditoria string
 }
 
 // Politica diz o que vale quando o gancho falha.

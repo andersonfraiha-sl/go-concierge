@@ -46,6 +46,9 @@ func linhaDe(r ganchos.Registro, base Linha) Linha {
 		l.Decisao = decisaoFalhou
 	}
 	l.Motivo = r.Decisao.Motivo
+	if r.Decisao.MotivoAuditoria != "" {
+		l.Motivo = r.Decisao.MotivoAuditoria
+	}
 	l.Quantidade = r.Decisao.Quantidade
 	return l
 }

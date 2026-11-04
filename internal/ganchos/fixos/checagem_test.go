@@ -275,3 +275,14 @@ func TestConfirmado(t *testing.T) {
 		}
 	}
 }
+
+func TestEscritaRecusadaNaoLevaAMensagemParaAAuditoria(t *testing.T) {
+	g := ganchoDeFerramenta(t, EscritaConfirmada)
+	_, d := g.Avaliar(ganchos.AntesDaFerramenta{Pedida: "reservar", Escrita: true, Confirmacao: "meu cpf 123.456.789-09"})
+	if d.Tipo != ganchos.Bloquear || !strings.Contains(d.Motivo, "123.456.789-09") {
+		t.Fatalf("Decisao = %+v, want bloqueio citando a mensagem para o modelo", d)
+	}
+	if d.MotivoAuditoria != MotivoAuditoriaEscrita {
+		t.Errorf("MotivoAuditoria = %q, want %q", d.MotivoAuditoria, MotivoAuditoriaEscrita)
+	}
+}

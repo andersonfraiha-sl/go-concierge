@@ -203,3 +203,14 @@ func TestApagarEmVariosLotesRemoveTudoQueVenceu(t *testing.T) {
 		t.Errorf("restam %d, quer 1", restam)
 	}
 }
+
+func TestLinhasDeUsaOMotivoDeAuditoria(t *testing.T) {
+	regs := []ganchos.Registro{{Decisao: ganchos.Decisao{
+		Tipo: ganchos.Bloquear, Motivo: `a mensagem atual ("meu cpf 123.456.789-09") não é um sim`,
+		MotivoAuditoria: "escrita sem confirmação explícita do morador",
+	}}}
+	linhas := auditoria.LinhasDe(regs, auditoria.Linha{CriadoEm: time.Now()})
+	if len(linhas) != 1 || linhas[0].Motivo != "escrita sem confirmação explícita do morador" {
+		t.Fatalf("linhas = %+v, want o motivo de auditoria, sem o texto do morador", linhas)
+	}
+}

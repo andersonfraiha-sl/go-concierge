@@ -25,6 +25,10 @@ const (
 // ErrCondominioMudou: a mensagem veio de um condomínio diferente do que a conversa já tinha.
 var ErrCondominioMudou = errors.New("condomínio da conversa mudou")
 
+// MotivoAuditoriaEscrita é o que a auditoria guarda de uma escrita recusada: o motivo
+// completo cita a mensagem do morador.
+const MotivoAuditoriaEscrita = "escrita sem confirmação explícita do morador"
+
 // MotivoCondominioNaoIdentificado bloqueia a mensagem de um condomínio que este processo
 // não atende, seja qual for o motivo.
 const MotivoCondominioNaoIdentificado = "condomínio não identificado"
@@ -130,7 +134,9 @@ func contextoB2C() ganchos.Gancho[ganchos.AntesDaFerramenta] {
 			}
 			params := copiaDosParams(e.Params)
 			if err := fixarContextoB2C(e.Ferramenta, params, e.ContextoB2C); err != nil {
-				return e, bloquear(fmt.Sprintf("contexto B2C inválido para %s: %v", e.Pedida, err))
+				d := bloquear(fmt.Sprintf("contexto B2C inválido para %s: %v", e.Pedida, err))
+				d.MotivoAuditoria = "contexto B2C inválido para " + e.Pedida
+				return e, d
 			}
 			e.Params = params
 			return e, ganchos.Decisao{Tipo: ganchos.Ajustar}
@@ -208,7 +214,9 @@ func escritaConfirmada() ganchos.Gancho[ganchos.AntesDaFerramenta] {
 		Falha: ganchos.Fechada,
 		Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
 			if motivo := motivoDeEscritaRecusada(e); motivo != "" {
-				return e, bloquear(motivo)
+				d := bloquear(motivo)
+				d.MotivoAuditoria = MotivoAuditoriaEscrita
+				return e, d
 			}
 			return e, ganchos.Decisao{Tipo: ganchos.Deixar}
 		},
