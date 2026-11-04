@@ -3,7 +3,9 @@ package regras
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"slices"
 	"testing"
 
 	"go-concierge/internal/banco/bancotest"
@@ -109,7 +111,7 @@ func TestAtivasNaoTrazDesativada(t *testing.T) {
 	if len(ativas) != 1 || ativas[0].ID != ativa.ID {
 		t.Fatalf("Ativas = %+v, quer só %q", ativas, ativa.ID)
 	}
-	todas, err := p.Listar(t.Context())
+	todas, err := p.Listar(t.Context(), "", limiteMaximo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,6 +131,12 @@ func TestLeituraDeRegraInexistenteDevolveErrRegraDesconhecida(t *testing.T) {
 		{"id que não é uuid", func() error { _, err := p.Ler(t.Context(), "abc"); return err }},
 		{"versão que não existe", func() error { _, err := p.LerVersao(t.Context(), existente.ID, 9); return err }},
 		{"alterar id que não é uuid", func() error { _, err := p.Salvar(t.Context(), novaRegra("x", true), 1); return err }},
+		{"alterar id sem regra", func() error {
+			r := novaRegra("x", true)
+			r.ID = "6f1c2a3b-0000-4000-8000-000000000000"
+			_, err := p.Salvar(t.Context(), r, 1)
+			return err
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,6 +145,48 @@ func TestLeituraDeRegraInexistenteDevolveErrRegraDesconhecida(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListarPaginaPorId(t *testing.T) {
+	p := NovoPostgres(bancotest.Novo(t).Ent)
+	for i := range 3 {
+		salvar(t, p, novaRegra(fmt.Sprintf("regra %d", i), i%2 == 0), 0)
+	}
+	todas, err := p.Listar(t.Context(), "", limiteMaximo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		depois string
+		limite int
+		quer   []RegraGravada
+	}{
+		{"primeira página", "", 2, todas[:2]},
+		{"página seguinte", todas[1].ID, 2, todas[2:]},
+		{"depois da última", todas[2].ID, 2, nil},
+		{"limite abaixo de 1 vira 1", "", 0, todas[:1]},
+		{"limite acima de 200 vira 200", "", 500, todas},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pagina, err := p.Listar(t.Context(), tt.depois, tt.limite)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(ids(pagina), ids(tt.quer)) {
+				t.Fatalf("página = %v, quer %v", ids(pagina), ids(tt.quer))
+			}
+		})
+	}
+}
+
+func ids(rs []RegraGravada) []string {
+	out := make([]string, len(rs))
+	for i, r := range rs {
+		out[i] = r.ID
+	}
+	return out
 }
 
 func jsonIgual(t *testing.T, a, b json.RawMessage) bool {

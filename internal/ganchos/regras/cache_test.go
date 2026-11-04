@@ -8,8 +8,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"go-concierge/internal/banco/bancotest"
+	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/ganchos"
 )
 
@@ -39,6 +41,53 @@ func TestAquecerComBancoForaDevolveErro(t *testing.T) {
 	}
 	if c.Indice() != nil {
 		t.Fatal("erro de leitura publicou um índice")
+	}
+}
+
+func aquecido(t *testing.T, p *Postgres, compilar Compilador, regras []RegraGravada) *Cache {
+	t.Helper()
+	c := NovoCache(p, compilar, nil)
+	c.lerAtivas = func(context.Context) ([]RegraGravada, error) { return regras, nil }
+	if err := c.Aquecer(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// O prazo que chega à query do boot é o de Aquecer (5 s), não o teto de 3 s das rotas.
+func TestAquecerDaAQueryOPrazoDeCincoSegundos(t *testing.T) {
+	cli := bancotest.Novo(t).Ent
+	var sobra time.Duration
+	cli.GanchosRegra.Intercept(ent.TraverseFunc(func(ctx context.Context, _ ent.Query) error {
+		if prazo, ok := ctx.Deadline(); ok {
+			sobra = time.Until(prazo)
+		}
+		return nil
+	}))
+	c := NovoCache(NovoPostgres(cli), compilarContando, nil)
+	if err := c.Aquecer(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if sobra <= timeoutConsulta || sobra > prazoAquecer {
+		t.Fatalf("prazo na query = %v, quer entre %v e %v", sobra, timeoutConsulta, prazoAquecer)
+	}
+}
+
+func TestAvisoAntesDeAquecerNaoPublicaIndiceParcial(t *testing.T) {
+	p := &Postgres{}
+	c := NovoCache(p, compilarContando, nil)
+	p.aoAlterar(RegraGravada{ID: "salva-no-boot", Versao: 1, Ativa: true})
+	if c.Indice() != nil {
+		t.Fatal("aviso antes de Aquecer publicou um índice")
+	}
+	c.lerAtivas = func(context.Context) ([]RegraGravada, error) {
+		return []RegraGravada{{ID: "lida-no-boot", Versao: 1, Ativa: true}}, nil
+	}
+	if err := c.Aquecer(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if n := ativasNoIndice(t, c); n != 2 {
+		t.Fatalf("ativas depois de Aquecer = %d, quer 2 (a lida e a avisada antes)", n)
 	}
 }
 
@@ -77,7 +126,7 @@ func TestCacheIgnoraVersaoMenorOuIgualAGuardada(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Postgres{}
-			c := NovoCache(p, compilarContando, nil)
+			c := aquecido(t, p, compilarContando, nil)
 			for _, r := range tt.avisos {
 				p.aoAlterar(r)
 			}
@@ -113,20 +162,22 @@ func TestRecargaAvisaOResultado(t *testing.T) {
 	}
 }
 
-// Review Focus 5: com 10 regras salvas no meio de turnos, cada leitura vê um índice inteiro de
-// uma das gravações (0 a 10 ativas, as duas chaves iguais), e nunca volta para um mais velho.
+// Review Focus 5: com 10 regras salvas no meio de turnos, cada leitura vê uma das gravações (0
+// a 10 ativas) e nunca volta para um índice mais velho. As duas chaves iguais pegam um índice
+// publicado que alguém mexeu no lugar; o -race pega a mesma coisa pelo outro lado.
 func TestTurnoVeIndiceInteiroEnquantoRegrasSaoSalvas(t *testing.T) {
-	const escritores, leitores = 10, 50
+	const escritores, leitores, leiturasMinimas = 10, 50, 1000
 	p := NovoPostgres(bancotest.Novo(t).Ent)
 	c := NovoCache(p, compilarContando, nil)
 	if err := c.Aquecer(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	var terminou atomic.Bool
+	var leituras atomic.Int64
 	falhas := make(chan string, leitores)
 	var lendo sync.WaitGroup
 	for range leitores {
-		lendo.Go(func() { falhas <- lerAteTerminar(c, &terminou, escritores) })
+		lendo.Go(func() { falhas <- lerAteTerminar(c, &terminou, &leituras, escritores) })
 	}
 	var salvando sync.WaitGroup
 	for i := range escritores {
@@ -148,10 +199,13 @@ func TestTurnoVeIndiceInteiroEnquantoRegrasSaoSalvas(t *testing.T) {
 	if n := ativasNoIndice(t, c); n != escritores {
 		t.Fatalf("ativas no fim = %d, quer %d", n, escritores)
 	}
+	if n := leituras.Load(); n < leiturasMinimas {
+		t.Fatalf("só %d leituras durante as gravações, quer ao menos %d", n, leiturasMinimas)
+	}
 }
 
 // lerAteTerminar lê o índice em laço e devolve a primeira inconsistência ("" se nenhuma).
-func lerAteTerminar(c *Cache, terminou *atomic.Bool, maximo int) string {
+func lerAteTerminar(c *Cache, terminou *atomic.Bool, leituras *atomic.Int64, maximo int) string {
 	ultimo := 0
 	for !terminou.Load() {
 		idx := c.Indice()
@@ -160,6 +214,7 @@ func lerAteTerminar(c *Cache, terminou *atomic.Bool, maximo int) string {
 			return fmt.Sprintf("índice pela metade ou velho: %d e %d ativas, última leitura %d", n, espelho, ultimo)
 		}
 		ultimo = n
+		leituras.Add(1)
 		runtime.Gosched() // 50 laços apertados não podem tomar a CPU das gravações
 	}
 	return ""

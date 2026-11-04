@@ -23,7 +23,10 @@ const prazoAquecer = 5 * time.Second
 // novo, nunca metade. Escrita de outro processo só aparece depois de reiniciar (uma réplica).
 //
 // Ordem: a versão de cada regra cresce no banco; um aviso com versão menor ou igual à já
-// guardada daquela regra é ignorado, inclusive a de uma regra que já foi desativada.
+// guardada daquela regra é ignorado, inclusive a de uma regra que já foi desativada. Aviso
+// que chega antes de Aquecer terminar é guardado mas não publica índice: um índice só com
+// ele seria parcial. Um commit que dá erro na volta mas gravou deixa o cache velho até
+// reiniciar.
 type Cache struct {
 	lerAtivas    func(context.Context) ([]RegraGravada, error)
 	compilar     Compilador
@@ -32,6 +35,7 @@ type Cache struct {
 	mu      sync.Mutex // uma recompilação por vez, na ordem em que os avisos são aplicados
 	ativas  map[string]RegraGravada
 	versoes map[string]int // última versão vista por regra, ativa ou não
+	quente  bool           // Aquecer publicou o primeiro índice
 	indice  atomic.Pointer[ganchos.Indice]
 }
 
@@ -42,7 +46,7 @@ func NovoCache(p *Postgres, compilar Compilador, aoRecarregar func(resultado str
 		aoRecarregar = func(string) {}
 	}
 	c := &Cache{
-		lerAtivas:    p.Ativas,
+		lerAtivas:    p.ativas,
 		compilar:     compilar,
 		aoRecarregar: aoRecarregar,
 		ativas:       map[string]RegraGravada{},
@@ -66,6 +70,7 @@ func (c *Cache) Aquecer(ctx context.Context) error {
 		c.aplicar(r)
 	}
 	c.recompilar()
+	c.quente = true
 	return nil
 }
 
@@ -75,7 +80,7 @@ func (c *Cache) Indice() *ganchos.Indice { return c.indice.Load() }
 func (c *Cache) guardar(r RegraGravada) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.aplicar(r) {
+	if !c.aplicar(r) || !c.quente {
 		return
 	}
 	c.recompilar()

@@ -11,7 +11,6 @@ import (
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/ent/ganchosregra"
 	"go-concierge/internal/banco/ent/ganchosregraversao"
-	"go-concierge/internal/banco/ent/predicate"
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/ganchos"
 )
@@ -89,10 +88,17 @@ func gravarRegra(ctx context.Context, tx *ent.Tx, r RegraGravada, versaoLida int
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("atualizar regra: %w", err)
 	}
-	if alteradas == 0 {
-		return uuid.Nil, ErrVersaoVelha
+	if alteradas > 0 {
+		return id, nil
 	}
-	return id, nil
+	existe, err := tx.GanchosRegra.Query().Where(ganchosregra.IDEQ(id)).Exist(ctx)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("conferir regra: %w", err)
+	}
+	if !existe {
+		return uuid.Nil, ErrRegraDesconhecida
+	}
+	return uuid.Nil, ErrVersaoVelha
 }
 
 // criarRegra usa o id de r quando vem preenchido (importação) e gera um quando vem vazio.
@@ -131,22 +137,43 @@ func (p *Postgres) Ler(ctx context.Context, id string) (RegraGravada, error) {
 	return deLinha(linha), nil
 }
 
-// Listar devolve todas as regras, ativas ou não, para a tela.
-func (p *Postgres) Listar(ctx context.Context) ([]RegraGravada, error) {
-	return p.listar(ctx, "listar regras")
+// Limites da página de Listar.
+const (
+	limiteMinimo = 1
+	limiteMaximo = 200
+)
+
+// Listar devolve uma página das regras, ativas ou não, em ordem de id, começando depois do id
+// depois ("" = primeira página). limite fica entre 1 e 200.
+func (p *Postgres) Listar(ctx context.Context, depois string, limite int) ([]RegraGravada, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
+	defer cancel()
+	consulta := p.cli.GanchosRegra.Query().Limit(min(max(limite, limiteMinimo), limiteMaximo))
+	if depois != "" {
+		cursor, err := uuid.Parse(depois)
+		if err != nil {
+			return nil, fmt.Errorf("listar regras depois de %q: %w", depois, err)
+		}
+		consulta.Where(ganchosregra.IDGT(cursor))
+	}
+	return lerRegras(ctx, consulta, "listar regras")
 }
 
 // Ativas devolve só as regras ativas, para o cache.
 func (p *Postgres) Ativas(ctx context.Context) ([]RegraGravada, error) {
-	return p.listar(ctx, "ler regras ativas", ganchosregra.AtivaEQ(true))
-}
-
-// ponytail: sem LIMIT; o teto de 10 mil ativas (spec §7) segura o tamanho. Paginar quando a
-// tela precisar.
-func (p *Postgres) listar(ctx context.Context, operacao string, filtros ...predicate.GanchosRegra) ([]RegraGravada, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	linhas, err := p.cli.GanchosRegra.Query().Where(filtros...).Order(ent.Asc(ganchosregra.FieldID)).All(ctx)
+	return p.ativas(ctx)
+}
+
+// ativas lê no prazo de quem chama, sem o teto de 3 s das rotas (o boot tem 5 s).
+// ponytail: sem LIMIT; o teto de 10 mil ativas (spec §7) segura o tamanho.
+func (p *Postgres) ativas(ctx context.Context) ([]RegraGravada, error) {
+	return lerRegras(ctx, p.cli.GanchosRegra.Query().Where(ganchosregra.AtivaEQ(true)), "ler regras ativas")
+}
+
+func lerRegras(ctx context.Context, consulta *ent.GanchosRegraQuery, operacao string) ([]RegraGravada, error) {
+	linhas, err := consulta.Order(ent.Asc(ganchosregra.FieldID)).All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", operacao, err)
 	}
@@ -157,24 +184,27 @@ func (p *Postgres) listar(ctx context.Context, operacao string, filtros ...predi
 	return regras, nil
 }
 
-// LerVersao devolve a regra como era na versão pedida: definição, autor e data dessa versão,
-// com nome, evento e alvo atuais (a tabela de versões só guarda o que a auditoria mostra).
-func (p *Postgres) LerVersao(ctx context.Context, id string, versao int) (RegraGravada, error) {
+// LerVersao devolve uma versão gravada da regra, só com o que a tabela de versões guarda.
+func (p *Postgres) LerVersao(ctx context.Context, id string, versao int) (VersaoGravada, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	linha, err := lerLinha(ctx, p.cli, id)
+	uid, err := uuid.Parse(id)
 	if err != nil {
-		return RegraGravada{}, fmt.Errorf("ler regra %q versão %d: %w", id, versao, err)
+		return VersaoGravada{}, fmt.Errorf("ler regra %q versão %d: %w", id, versao, ErrRegraDesconhecida)
 	}
 	gravada, err := p.cli.GanchosRegraVersao.Query().
-		Where(ganchosregraversao.RegraIDEQ(linha.ID), ganchosregraversao.VersaoEQ(versao)).
+		Where(ganchosregraversao.RegraIDEQ(uid), ganchosregraversao.VersaoEQ(versao)).
 		Only(ctx)
 	if err != nil {
-		return RegraGravada{}, fmt.Errorf("ler regra %q versão %d: %w", id, versao, traduzir(err))
+		return VersaoGravada{}, fmt.Errorf("ler regra %q versão %d: %w", id, versao, traduzir(err))
 	}
-	r := deLinha(linha)
-	r.Versao, r.Definicao, r.AlteradaPor, r.AlteradaEm = gravada.Versao, gravada.Definicao, gravada.AlteradaPor, gravada.AlteradaEm
-	return r, nil
+	return VersaoGravada{
+		RegraID:     id,
+		Versao:      gravada.Versao,
+		Definicao:   gravada.Definicao,
+		AlteradaPor: gravada.AlteradaPor,
+		AlteradaEm:  gravada.AlteradaEm,
+	}, nil
 }
 
 func lerLinha(ctx context.Context, cli *ent.Client, id string) (*ent.GanchosRegra, error) {
