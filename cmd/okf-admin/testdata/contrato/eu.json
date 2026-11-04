@@ -1,0 +1,18 @@
+{
+  "id": "gestor-a",
+  "nome": "Nome de gestor-a",
+  "papel": "gestor_administradora",
+  "permissoes": [
+    "skills.ler",
+    "skills.editar_textos",
+    "condominios.habilitar",
+    "conversas.ver",
+    "conversas.atender",
+    "pedidos.ver",
+    "pedidos.editar",
+    "memoria.ver",
+    "memoria.esquecer"
+  ],
+  "administradoraId": "adm-a",
+  "dev": true
+}

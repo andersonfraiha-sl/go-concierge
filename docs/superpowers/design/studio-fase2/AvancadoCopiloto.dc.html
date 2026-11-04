@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Studio · Avançado com Copiloto</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1034F2}a:hover{color:#0A24B8}
+</style>
+</helmet>
+<div style="min-height: 980px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #22252B; display: flex; flex-direction: column; position: relative">
+  <header style="height: 58px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC; display: flex; align-items: center; gap: 13px; padding: 0 34px">
+    <a href="Main.dc.html" aria-label="Voltar para Skills" style="width: 34px; height: 34px; border-radius: 9px; border: 1px solid #E4E7EC; display: flex; align-items: center; justify-content: center; color: #536379"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></a>
+    <div style="display: flex; flex-direction: column; line-height: 1.25">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px; color: #071950">Avançado</span>
+      <span style="font-size: 12px; color: #637792">Arquivos e configurações internas · só para quem constrói skills</span>
+    </div>
+    <div style="flex: 1"></div>
+    <span style="font-size: 12px; padding: 4px 10px; border-radius: 99px; background: #FFF6DF; color: #8A5A00; font-weight: 500">Mudanças aqui afetam todos os condomínios</span>
+    <a href="Avancado.dc.html" aria-pressed="true" style="height: 36px; padding: 0 14px; border-radius: 9px; background: #071950; color: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-decoration: none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg>Copiloto</a>
+  </header>
+  <nav aria-label="Abas do Avançado" style="background: #FFFFFF; border-bottom: 1px solid #E4E7EC; padding: 0 34px; display: flex; gap: 26px">
+    <a href="Avancado.dc.html" aria-current="page" style="padding: 13px 0; font-size: 14px; color: #1034F2; font-weight: 600; text-decoration: none; border-bottom: 2px solid #1034F2">Arquivos</a>
+    <a href="#" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Identidade</a>
+    <a href="#" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Prompt montado</a>
+    <a href="#" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Orquestração</a>
+    <a href="#" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Ajustes por condomínio (técnico)</a>
+    <a href="#" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Importar e exportar</a>
+  </nav>
+  <div style="display: flex; flex: 1">
+    <aside aria-label="Copiloto" style="flex: 0 0 380px; background: #FFFFFF; border-right: 1px solid #E4E7EC; display: flex; flex-direction: column; box-sizing: border-box">
+      <div style="height: 50px; padding: 0 21px; border-bottom: 1px solid #EDEFF2; display: flex; align-items: center; gap: 10px">
+        <div style="width: 26px; height: 26px; border-radius: 8px; background: #071950; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path></svg></div>
+        <span style="font-weight: 600; font-size: 14px; color: #071950">Copiloto</span>
+        <span style="font-size: 12px; color: #1B7A33; display: flex; align-items: center; gap: 5px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #1B993B"></span>Pronto</span>
+        <div style="flex: 1"></div>
+        <a href="Avancado.dc.html" aria-label="Fechar copiloto" style="width: 28px; height: 28px; border-radius: 7px; background: #F1F3F6; color: #536379; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+      </div>
+      <div style="flex: 1; padding: 21px; display: flex; flex-direction: column; gap: 13px; background: #FBFCFD">
+        <div style="align-self: flex-end; max-width: 85%; background: #E8EEFF; border-radius: 12px 12px 4px 12px; padding: 10px 13px; font-size: 13px; line-height: 1.55">O que esse arquivo faz?</div>
+        <div style="align-self: flex-start; max-width: 92%; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 12px 12px 12px 4px; padding: 10px 13px; font-size: 13px; line-height: 1.55">É a ficha do Concierge: nome, o modelo que responde e as ferramentas que ele chama direto. As skills herdam o conhecimento dele. Mudar aqui vale para todos os condomínios.</div>
+        <div style="align-self: flex-end; max-width: 85%; background: #E8EEFF; border-radius: 12px 12px 4px 12px; padding: 10px 13px; font-size: 13px; line-height: 1.55">Troca para o modelo mais rápido e tira encomendas.listar, que agora fica só na skill.</div>
+        <div style="align-self: stretch; background: #FFFFFF; border: 1px solid #DBDFE5; border-radius: 12px; overflow: hidden">
+          <div style="padding: 10px 13px; background: #F8F9FB; border-bottom: 1px solid #EDEFF2; font-size: 12px; font-weight: 600; color: #536379">agent.yaml · Concierge</div>
+          <div style="padding: 13px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.5">
+            <div style="display: flex; gap: 8px; align-items: flex-start"><span style="width: 22px; font-size: 11px; color: #7789A3; font-family: 'JetBrains Mono', ui-monospace, monospace">4</span><span style="flex: 1; display: flex; flex-direction: column; gap: 4px"><span style="flex: 1; padding: 4px 8px; border-radius: 6px; background: #FDECEC; color: #B3191A; text-decoration: line-through; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px">modelo: gemini-2.5-flash</span><span style="flex: 1; padding: 4px 8px; border-radius: 6px; background: #E8F5EC; color: #1B5E2A; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px">modelo: gemini-2.5-flash-lite</span></span></div>
+            <div style="display: flex; gap: 8px; align-items: flex-start"><span style="width: 22px; font-size: 11px; color: #7789A3; font-family: 'JetBrains Mono', ui-monospace, monospace">7</span><span style="flex: 1; padding: 4px 8px; border-radius: 6px; background: #FDECEC; color: #B3191A; text-decoration: line-through; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px">  - encomendas.listar</span></div>
+          </div>
+          <div style="padding: 0 13px 10px; font-size: 11px; color: #7789A3">A skill Minhas encomendas continua com a ferramenta.</div>
+          <div style="padding: 10px 13px; border-top: 1px solid #EDEFF2; display: flex; gap: 8px">
+            <button type="button" style="flex: 1; height: 34px; border: 0; border-radius: 8px; background: #1034F2; color: #FFFFFF; font: 600 13px Inter, sans-serif; cursor: pointer">Aplicar</button>
+            <button type="button" style="flex: 1; height: 34px; border: 1px solid #E4E7EC; border-radius: 8px; background: #FFFFFF; color: #536379; font: 500 13px Inter, sans-serif; cursor: pointer">Descartar</button>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="font-size: 11px; font-weight: 600; color: #7789A3; text-transform: uppercase; letter-spacing: 0.06em">Sugestões</span>
+          <button type="button" style="text-align: left; padding: 9px 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #FFFFFF; font: 13px Inter, sans-serif; color: #323B49; cursor: pointer">Revise este arquivo e proponha melhorias</button>
+        </div>
+      </div>
+      <div style="padding: 13px 21px 21px; border-top: 1px solid #EDEFF2">
+        <div style="display: flex; align-items: flex-end; gap: 8px; border: 1px solid #DBDFE5; border-radius: 12px; padding: 8px 8px 8px 13px; background: #FFFFFF">
+          <textarea aria-label="Mensagem para o copiloto" placeholder="Peça uma mudança, uma explicação ou uma skill nova…" style="flex: 1; min-height: 42px; border: 0; outline: 0; resize: none; font: 13px/1.5 Inter, sans-serif; color: #22252B"></textarea>
+          <button type="button" aria-label="Enviar" style="width: 34px; height: 34px; border: 0; border-radius: 9px; background: #1034F2; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </div>
+        <div style="font-size: 11px; color: #7789A3; margin-top: 8px">Enter envia · Shift+Enter quebra linha · nada muda sem você aplicar</div>
+      </div>
+    </aside>
+    <div style="flex: 1 1 auto; min-width: 0; display: flex; gap: 21px; padding: 21px 34px; box-sizing: border-box">
+      <aside aria-label="Arquivos" style="flex: 0 0 240px; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 13px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="padding: 13px; border-bottom: 1px solid #EDEFF2; display: flex; flex-direction: column; gap: 8px">
+          <label for="item" style="font-size: 11px; font-weight: 600; color: #637792; text-transform: uppercase; letter-spacing: 0.06em">Concierge ou skill</label>
+          <select id="item" style="height: 36px; padding: 0 10px; border: 1px solid #DBDFE5; border-radius: 9px; font: 14px Inter, sans-serif; color: #22252B; background: #FFFFFF"><option>Concierge</option><option>Agendamento de mudança</option></select>
+        </div>
+        <div style="padding: 8px; display: flex; flex-direction: column; gap: 2px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12.5px"><div style="padding: 13px 10px 4px; font-family: Inter, sans-serif; font-size: 11px; font-weight: 600; color: #7789A3; text-transform: uppercase; letter-spacing: 0.06em">Raiz</div><button type="button" style="text-align: left; padding: 7px 10px; border: 0; border-radius: 7px; background: #EEF1FE; color: #1034F2; font: inherit; cursor: pointer">agent.yaml</button><button type="button" style="text-align: left; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #323B49; font: inherit; cursor: pointer">persona.md</button><div style="padding: 13px 10px 4px; font-family: Inter, sans-serif; font-size: 11px; font-weight: 600; color: #7789A3; text-transform: uppercase; letter-spacing: 0.06em">Conhecimento</div><button type="button" style="text-align: left; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #323B49; font: inherit; cursor: pointer">domain/condominio.md</button><button type="button" style="text-align: left; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #323B49; font: inherit; cursor: pointer">glossary.yaml</button><div style="padding: 13px 10px 4px; font-family: Inter, sans-serif; font-size: 11px; font-weight: 600; color: #7789A3; text-transform: uppercase; letter-spacing: 0.06em">Rotas</div><button type="button" style="text-align: left; padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: #323B49; font: inherit; cursor: pointer">rotas.md</button></div>
+      </aside>
+      <section aria-label="Editor do arquivo" style="flex: 1 1 auto; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 13px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="height: 50px; padding: 0 21px; border-bottom: 1px solid #EDEFF2; display: flex; align-items: center; gap: 13px">
+          <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; color: #323B49">agent.yaml</span>
+          <span style="font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; background: #FFF6DF; color: #8A5A00; white-space: nowrap">proposta do Copiloto</span>
+          <div style="flex: 1"></div>
+          <button type="button" style="height: 34px; padding: 0 14px; border-radius: 9px; border: 0; background: #1034F2; color: #FFFFFF; font: 600 13px Inter, sans-serif; display: inline-flex; align-items: center; gap: 6px; cursor: pointer">Salvar</button>
+        </div>
+        <div style="flex: 1; padding: 16px 0; background: #FBFCFD; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; line-height: 1.75; color: #22252B"><div style="display: flex; background: transparent"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">1</span><span style="width: 16px; color: #1B7A33; flex: none"></span><span style="white-space: pre"><span style="color: #7B1FA2">nome</span>: concierge</span></div><div style="display: flex; background: transparent"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">2</span><span style="width: 16px; color: #1B7A33; flex: none"></span><span style="white-space: pre"><span style="color: #7B1FA2">tipo</span>: orquestrador</span></div><div style="display: flex; background: transparent"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">3</span><span style="width: 16px; color: #1B7A33; flex: none"></span><span style="white-space: pre"><span style="color: #7B1FA2">descricao</span>: concierge do condomínio no WhatsApp</span></div><div style="display: flex; background: #FDECEC"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">4</span><span style="width: 16px; color: #B3191A; flex: none">-</span><span style="white-space: pre; text-decoration: line-through; color: #B3191A"><span style="color: #7B1FA2">modelo</span>: <span style="color: #1B7A33">gemini-2.5-flash</span></span></div><div style="display: flex; background: #E8F5EC"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none"></span><span style="width: 16px; color: #1B7A33; flex: none">+</span><span style="white-space: pre"><span style="color: #7B1FA2">modelo</span>: <span style="color: #1B7A33">gemini-2.5-flash-lite</span></span></div><div style="display: flex; background: transparent"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">5</span><span style="width: 16px; color: #1B7A33; flex: none"></span><span style="white-space: pre"><span style="color: #7B1FA2">recursos</span>:</span></div><div style="display: flex; background: transparent"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">6</span><span style="width: 16px; color: #1B7A33; flex: none"></span><span style="white-space: pre">  - unidades.listar</span></div><div style="display: flex; background: #FDECEC"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">7</span><span style="width: 16px; color: #B3191A; flex: none">-</span><span style="white-space: pre; text-decoration: line-through; color: #B3191A">  - encomendas.listar</span></div><div style="display: flex; background: transparent"><span style="width: 44px; padding-right: 13px; text-align: right; color: #A7B1C2; flex: none">8</span><span style="width: 16px; color: #1B7A33; flex: none"></span><span style="white-space: pre"><span style="color: #7789A3"># herda conhecimento para os filhos</span></span></div></div>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

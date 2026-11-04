@@ -9,6 +9,7 @@ import (
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/banco/ent"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/escopo"
 )
 
@@ -100,6 +101,49 @@ func TestUsuarioDevSemeadoEAdminDaSuperlogica(t *testing.T) {
 	}
 	if !acesso.Permitido(a, acesso.AdministradorasEditar, acesso.Escopo{Tipo: acesso.TipoSuperlogica}) {
 		t.Fatalf("usuário de dev sem admin na Superlógica: %+v", a.Atribuicoes)
+	}
+}
+
+func TestUsuariosDevDoStudioSemeados(t *testing.T) {
+	b := bancotest.Novo(t)
+	casos := map[string]string{
+		"construtor-superlogica": "construtor_superlogica",
+		"gestor-exemplo":         "gestor_administradora",
+		"gestor-avancado":        "gestor_administradora",
+	}
+	for id, papel := range casos {
+		a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), id, escopo.Implantacao{})
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		if len(a.Atribuicoes) != 1 || a.Atribuicoes[0].PapelID != papel {
+			t.Fatalf("%s: atribuições %+v, quer o papel %s", id, a.Atribuicoes, papel)
+		}
+	}
+}
+
+func TestConcederEIdempotente(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	pg := acesso.NovoPostgres(b.Ent)
+	c := acesso.Concessao{AdministradoraID: "B", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}
+	for range 2 {
+		if err := pg.Conceder(t.Context(), c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := b.Ent.Concessao.Query().Where(concessao.AdministradoraID("B")).CountX(t.Context()); n != 1 {
+		t.Fatalf("%d linhas em concessoes, quer 1", n)
+	}
+	b.Ent.Usuario.Create().SetID("u2").SetNome("Bia").SaveX(t.Context())
+	b.Ent.Atribuicao.Create().SetUsuarioID("u2").SetPapelID("gestor_administradora").
+		SetEscopoTipo("administradora").SetEscopoID("B").SaveX(t.Context())
+	a, err := pg.Carregar(t.Context(), "u2", escopo.Implantacao{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(acesso.PermissoesEmAlgum(a), acesso.StudioAvancado) {
+		t.Fatalf("permissões %v sem %s", acesso.PermissoesEmAlgum(a), acesso.StudioAvancado)
 	}
 }
 
@@ -205,5 +249,17 @@ func TestCarregarFalhaFechadoComCicloDeHeranca(t *testing.T) {
 	_, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
 	if !errors.Is(err, acesso.ErrCicloHeranca) {
 		t.Fatalf("Carregar = %v, want ErrCicloHeranca", err)
+	}
+}
+
+func TestCarregarTrazNome(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	if err != nil {
+		t.Fatalf("Carregar: %v", err)
+	}
+	if a.Nome != "Ana" {
+		t.Fatalf("Nome = %q, quer Ana", a.Nome)
 	}
 }

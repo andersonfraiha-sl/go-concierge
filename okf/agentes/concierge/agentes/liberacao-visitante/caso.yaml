@@ -2,7 +2,9 @@
 # os passos; a escrita só acontece depois do confirm.
 id: liberacao_visitante
 name: Liberação de Visitante
+summary: Autoriza a entrada de um visitante para hoje ou amanhã.
 visibility: private
+icon: user-check
 description: >
   Usado para o dono ou morador da unidade autorizar a entrada de um visitante
   na portaria (amigo, parente, prestador de serviço, entregador). Liberações para

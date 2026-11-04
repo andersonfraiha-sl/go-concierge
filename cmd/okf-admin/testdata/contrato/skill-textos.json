@@ -1,0 +1,25 @@
+{
+  "caminho": "agentes/concierge/agentes/agendar-mudanca",
+  "textos": {
+    "titulo": "Agendamento de Mudança",
+    "quandoUsar": "Usado para o morador agendar uma data e período para sua mudança,\ngarantindo a reserva do elevador de serviço.\n",
+    "frasesDeExemplo": [
+      "quero agendar minha mudança",
+      "preciso marcar a data da minha mudança",
+      "agendar mudança para o dia 15",
+      "vou me mudar sábado de manhã"
+    ],
+    "palavrasChave": [
+      "mudança",
+      "agendar",
+      "agendamento",
+      "elevador",
+      "serviço",
+      "mudança de apartamento"
+    ],
+    "resumo": "Agenda o dia e o período da mudança, com o elevador de serviço.",
+    "visibilidade": "private",
+    "temFluxo": true
+  },
+  "versao": "cbcd7a4a5283d89e"
+}

@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -120,6 +121,8 @@ type Catalogo struct {
 	// Recursos devolve os recursos do Nexus da account (tools, conteúdos, memórias).
 	// nil = Nexus indisponível: as declarações não são conferidas.
 	Recursos func() []Recurso
+	// ponytail: trava do processo; com 2 réplicas o catálogo precisa sair do disco
+	mu sync.Mutex
 }
 
 // NewCatalogo abre (sem criar) a raiz. A pasta agentes/ é criada se faltar.
