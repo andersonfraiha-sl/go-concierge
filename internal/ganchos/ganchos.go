@@ -209,6 +209,10 @@ func rodar[E Ocorrencia](g Gancho[E], ev E) execucao[E] {
 
 // aceita diz se o desfecho vale para este gancho neste evento. Regra (não fixo) nunca
 // ajusta: é o que impede uma regra de desfazer o que um fixo de checagem fixou.
+//
+// Custo conhecido: passar ev (struct grande) como Ocorrencia aloca a cada gancho, a maior
+// parte das ~26 alocações de um turno com 20 regras. Só vale otimizar se a medição do
+// turno (Task 18) passar a falhar.
 func aceita(d Decisao, fixo bool, ev Ocorrencia) bool {
 	switch d.Tipo {
 	case Deixar:

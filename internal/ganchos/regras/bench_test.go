@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/fixos"
 )
 
 const (
@@ -105,3 +106,74 @@ func BenchmarkGanchos(b *testing.B) {
 // relogioMedeMicros diz se o relógio mede microssegundos: no Windows ele anda em
 // passos de 500 µs e o p99 não significa nada, então lá o benchmark só reporta.
 func relogioMedeMicros() bool { return runtime.GOOS != "windows" }
+
+// resultadoGrande é um resultado de ferramenta de ~16 KB: uma lista de unidades com texto
+// corrido. Com pii, cada 8ª unidade traz um CPF válido e um telefone.
+func resultadoGrande(pii bool) map[string]any {
+	itens := make([]any, 0, 128)
+	for i := 0; len(fmt.Sprint(itens)) < 16<<10; i++ {
+		obs := "Unidade ocupada, sem pendências no mês, reserva do salão confirmada para o fim de semana."
+		if pii && i%8 == 0 {
+			obs += " Responsável CPF 529.982.247-25, telefone (19) 98162-1916."
+		}
+		itens = append(itens, map[string]any{"unidade": fmt.Sprintf("Bloco A apto %d", i), "observacoes": obs, "ativa": true})
+	}
+	return map[string]any{"unidades": itens}
+}
+
+// BenchmarkDepoisDaFerramentaResultadoGrande mede o caminho completo de depois_da_ferramenta
+// (fixos de saneamento + 20 regras ativas no condomínio, nenhuma casa) sobre um resultado de
+// 16 KB, contra o prazo de 2 ms de cada gancho. Reporta a duração do evento inteiro (todos os
+// ganchos) no p99 e no máximo, em µs, e as alocações com -benchmem. "lentos" são fixos que
+// passaram do prazo na primeira execução (e rodaram de novo); "falhas" são os que passaram nas
+// duas. Com o coletor ligado, pausas de GC contam como lentos; GOGC=off mostra o custo puro.
+func BenchmarkDepoisDaFerramentaResultadoGrande(b *testing.B) {
+	for _, comPII := range []bool{false, true} {
+		b.Run(fmt.Sprintf("pii=%t", comPII), func(b *testing.B) {
+			rs := regrasDeCarga(20, 1)
+			for i := range rs {
+				rs[i].Definicao = json.RawMessage(fmt.Sprintf(`{
+					"nome":"regra depois %02d","evento":"depois_da_ferramenta",
+					"alvo":{"administradora":"adm-0","condominios":["cond-0"]},
+					"condicoes":[{"tipo":"ferramenta","nomes":["outra.ferramenta"]}],
+					"decisao":{"tipo":"bloquear","mensagem":"Não vale."},"ativa":true}`, i))
+			}
+			indice, erros := Compilar(rs)
+			require.Empty(b, erros)
+			require.Equal(b, 20, indice.Ativas[ganchos.EventoDepoisDaFerramenta])
+			var duracoes []time.Duration
+			lentos, falhas := 0, 0
+			observar := ganchos.ComObservador(func(_ context.Context, o ganchos.Observacao) {
+				duracoes = append(duracoes, o.Duracao)
+				lentos += o.Lentos
+				for _, r := range o.Registros {
+					if r.Falhou {
+						falhas++
+					}
+				}
+			})
+			conjunto := ganchos.NovoConjunto(fixos.Todos(), func() *ganchos.Indice { return indice }, observar)
+			resultado := resultadoGrande(comPII)
+			ev := ganchos.DepoisDaFerramenta{
+				Agora: time.Now(), Ferramenta: "unidades.listar", Resultado: resultado,
+				AdministradoraID: "adm-0", CondominioID: "cond-0",
+			}
+			ctx := context.Background()
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				turno := conjunto.Turno()
+				ev.Cofre = turno.Cofre()
+				turno.DepoisDaFerramenta(ctx, ev)
+			}
+			b.StopTimer()
+
+			slices.Sort(duracoes)
+			b.ReportMetric(float64(duracoes[len(duracoes)*99/100].Microseconds()), "p99-µs")
+			b.ReportMetric(float64(duracoes[len(duracoes)-1].Microseconds()), "max-µs")
+			b.ReportMetric(float64(lentos), "lentos")
+			b.ReportMetric(float64(falhas), "falhas")
+		})
+	}
+}
