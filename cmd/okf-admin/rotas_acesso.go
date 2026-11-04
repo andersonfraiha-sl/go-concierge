@@ -40,7 +40,7 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 			mux.Handle(m+" /mcp/", protegido)
 		}
 	}
-	return s.registrar(mux)
+	return s.registrar(comCabecalhosDeSeguranca(mux))
 }
 
 // alvoDe resolve o escopo sobre o qual a requisição age.
