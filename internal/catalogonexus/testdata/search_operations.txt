@@ -1,0 +1,5 @@
+10 operação(ões) para "listar encomendas da unidade" (limite 10). Para chamar, use get_operation(serviceId, operationId).
+- GET /v2/units/{unitId}/packages · FetchUnitPackages · Listar encomendas da unidade
+  serviço: Catálogo de Exemplo (condominios/catalogo-exemplo) · serviceId: 11111111-1111-4111-8111-111111111111 · score 0.64
+- POST /v2/units/{unitId}/packages · CreateUnitPackage · Registrar encomenda da unidade
+  serviço: Catálogo de Exemplo (condominios/catalogo-exemplo) · serviceId: 11111111-1111-4111-8111-111111111111 · score 0.53

@@ -299,6 +299,12 @@ ou configure modelos disponíveis no gateway. Um modelo definido no `agent.yaml`
 passado por `-modelo` continua tendo precedência no agente principal. Em `luna`, a
 chave ausente é erro; para executar sem rede, use `LLM_MODE=mock`.
 
+No Backdoor, **Catálogo Nexus Recursos** permite pesquisar operações no MCP do
+catálogo de serviços, revisar seus detalhes e cadastrar recursos em
+`okf/catalogo-nexus/<account>.yaml`. A consulta usa `LLM_LUNA_GATEWAY_TOKEN`; a
+URL pode ser alterada por `CATALOGO_NEXUS_MCP_URL`. Esses registros ficam separados
+dos recursos atuais e a execução das APIs descobertas ainda não está implementada.
+
 ## Pedidos: o registro de trabalho por contato
 
 Cada pedido do morador vira um **Pedido** com protocolo próprio (`P-7K3Q9`), ligado a um
