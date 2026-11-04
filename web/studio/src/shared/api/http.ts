@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const CHAVE_PAPEL_DEV = 'studio.papelDev';
+export const CHAVE_USUARIO_DEV = 'studio.usuarioDev';
 
 const TIMEOUT_MS = 15_000;
 const MENSAGEM_ERRO_PADRAO = 'Não deu para falar com o servidor.';
@@ -45,7 +45,7 @@ export function apiEnviar<S extends z.ZodType>(
   return requisitar(metodo, caminho, corpoJson, schema, envio);
 }
 
-/** Corpo binário (ex.: zip): mesmo tratamento de erro, papel e timeout do cliente JSON. */
+/** Corpo binário (ex.: zip): mesmo tratamento de erro, usuário de dev e timeout do cliente JSON. */
 export function apiEnviarBinario<S extends z.ZodType>(
   metodo: 'POST' | 'PUT',
   caminho: string,
@@ -116,16 +116,16 @@ function erroDeRede(cause: unknown): ApiError {
 function montarCabecalhos(tipoDoCorpo: string | null): Headers {
   const cabecalhos = new Headers({ Accept: 'application/json' });
   if (tipoDoCorpo) cabecalhos.set('Content-Type', tipoDoCorpo);
-  const papel = lerPapelDev();
-  if (papel) cabecalhos.set('X-Studio-Papel', papel);
+  const usuario = lerUsuarioDev();
+  if (usuario) cabecalhos.set('X-Dev-Usuario', usuario);
   return cabecalhos;
 }
 
-function lerPapelDev(): string | null {
+function lerUsuarioDev(): string | null {
   try {
-    return localStorage.getItem(CHAVE_PAPEL_DEV);
+    return localStorage.getItem(CHAVE_USUARIO_DEV);
   } catch (cause) {
-    console.warn('ler papel de desenvolvimento:', cause);
+    console.warn('ler usuário de desenvolvimento:', cause);
     return null;
   }
 }

@@ -1,15 +1,15 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { StudioLayout } from '@/app/StudioLayout';
-import { CHAVE_PAPEL_DEV } from '@/shared/api/http';
+import { CHAVE_USUARIO_DEV } from '@/shared/api/http';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import type { Eu } from './eu';
 
 const base: Eu = {
-  id: 'u1',
+  id: 'admin-superlogica',
   nome: 'Ana',
-  papel: 'construtor',
+  papel: 'admin_superlogica',
   permissoes: ['skills.ler', 'condominios.editar', 'studio.avancado'],
   administradoraId: null,
   dev: true,
@@ -19,7 +19,7 @@ describe('acesso na barra lateral e no topo', () => {
   it('hidesAdvancedForGestor', async () => {
     const gestor: Eu = {
       ...base,
-      papel: 'gestor',
+      papel: 'gestor_administradora',
       permissoes: ['skills.ler'],
       administradoraId: 'adm-1',
     };
@@ -42,7 +42,7 @@ describe('acesso na barra lateral e no topo', () => {
     expect(screen.getByText('Ana')).toBeInTheDocument();
   });
 
-  it('switchesRoleAndRefetches', async () => {
+  it('switchesDevUserAndSendsHeader', async () => {
     const falso = responderCom({ 'GET /api/eu': () => json(base) });
     const { user } = renderComProvedores(<StudioLayout />);
     await screen.findByRole('combobox', { name: 'Ver como' });
@@ -51,16 +51,16 @@ describe('acesso na barra lateral e no topo', () => {
     await user.click(screen.getByRole('combobox', { name: 'Ver como' }));
     await user.click(within(screen.getByRole('listbox')).getByText('Administradora (gestor)'));
 
-    expect(localStorage.getItem(CHAVE_PAPEL_DEV)).toBe('gestor');
-    await screen.findByRole('combobox', { name: 'Ver como' });
+    expect(localStorage.getItem(CHAVE_USUARIO_DEV)).toBe('gestor-exemplo');
     await vi.waitFor(() => expect(falso.mock.calls.length).toBeGreaterThan(antes));
-    const ultima = falso.mock.calls.at(-1);
-    expect(new Headers(ultima?.[1]?.headers).get('X-Studio-Papel')).toBe('gestor');
+    const ultima = new Headers(falso.mock.calls.at(-1)?.[1]?.headers);
+    expect(ultima.get('X-Dev-Usuario')).toBe('gestor-exemplo');
+    expect(ultima.get('X-Studio-Papel')).toBeNull();
   });
 
   it('showsRoleFromServerNotFromStorage', async () => {
-    localStorage.setItem(CHAVE_PAPEL_DEV, 'construtor');
-    responderCom({ 'GET /api/eu': () => json({ ...base, papel: 'gestor_avancado' }) });
+    localStorage.setItem(CHAVE_USUARIO_DEV, 'admin-superlogica');
+    responderCom({ 'GET /api/eu': () => json({ ...base, id: 'gestor-avancado' }) });
 
     renderComProvedores(<StudioLayout />);
 

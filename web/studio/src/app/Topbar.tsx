@@ -31,7 +31,7 @@ export function Topbar() {
         Studio
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {eu?.dev && <DevRoleSwitch papelAtual={eu.papel} />}
+        {eu?.dev && <DevRoleSwitch usuarioAtual={eu.id} />}
         {eu && <Typography variant="body2">{eu.nome}</Typography>}
         <BotaoDoCopiloto />
       </Box>

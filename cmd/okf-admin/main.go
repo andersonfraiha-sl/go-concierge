@@ -230,6 +230,11 @@ func main() {
 	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
 		log.Fatal(err)
 	}
+	if ehDesenvolvimento(cfg.Ambiente) && cfg.AuthMode == authModeDev {
+		if err := semearAcessoDev(context.Background(), adminPG, acesso.NovoPostgres(db.Ent).Conceder); err != nil {
+			log.Fatal(err)
+		}
+	}
 	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
 	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
 	mapeamento := admin.NovoCache(adminPG)

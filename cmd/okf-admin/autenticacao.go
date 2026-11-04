@@ -17,10 +17,18 @@ type Autenticador interface {
 
 const (
 	cabecalhoUsuarioDev = "X-Dev-Usuario"
-	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento:
-	// fora de AUTH_MODE=dev ninguém entra com ele, venha de que autenticador vier.
+	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento,
+	// o padrão de AUTH_DEV_USUARIO.
 	usuarioSemeadoDev = "admin-superlogica"
 )
+
+// usuariosSemeadosDev são os usuários que as migrations semeiam para desenvolvimento: fora de
+// AUTH_MODE=dev ninguém entra com eles, venha de que autenticador vier. Só lido, nunca escrito.
+var usuariosSemeadosDev = map[string]bool{
+	usuarioSemeadoDev: true, "construtor-superlogica": true, "gestor-exemplo": true, "gestor-avancado": true,
+}
+
+func semeadoDev(id string) bool { return usuariosSemeadosDev[id] }
 
 var (
 	errSemUsuario      = errors.New("requisição sem usuário")
@@ -71,7 +79,7 @@ func acessoDe(ctx context.Context) (acesso.Acesso, bool) {
 func (s *servidor) autenticado(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		usuarioID, err := s.autenticador.Autenticar(r)
-		if err != nil || (usuarioID == usuarioSemeadoDev && s.authMode != authModeDev) {
+		if err != nil || (semeadoDev(usuarioID) && s.authMode != authModeDev) {
 			responderNaoAutenticado(w)
 			return
 		}
