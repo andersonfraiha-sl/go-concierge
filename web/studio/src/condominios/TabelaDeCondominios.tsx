@@ -16,7 +16,14 @@ import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { contemBusca } from '@/shared/busca';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { tokens } from '@/theme/tokens';
-import { type Condominio, type Estado, faltamIds, PADRAO, useEscopo } from './contratos';
+import {
+  type Administradora,
+  type Condominio,
+  type Estado,
+  faltamIds,
+  PADRAO,
+  useEscopo,
+} from './contratos';
 import { contarLigadas, linhasDeSkills } from './listaDeSkills';
 
 type Situacao = 'base' | 'pronto' | 'faltam-ids' | 'sem-administradora';
@@ -59,92 +66,147 @@ function SituacaoBadge({ situacao }: { situacao: Situacao }): ReactNode {
   );
 }
 
-export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
+const nomeDaAdministradora = (estado: Estado, condominio: Condominio): string =>
+  estado.administradoras.find((a) => a.id === condominio.administradora_id)?.nome ?? '';
+
+function sem(atual: URLSearchParams, chave: string): URLSearchParams {
+  const proximos = new URLSearchParams(atual);
+  proximos.delete(chave);
+  return proximos;
+}
+
+function useCondominiosVisiveis(estado: Estado, busca: string) {
   const [params, setParams] = useSearchParams();
-  const escopo = useEscopo();
-  const [busca, setBusca] = useState('');
-  const mostraAdministradora = escopo === null;
   const idDaAdministradora = params.get('administradora');
-  const administradoraFiltro = estado.administradoras.find((a) => a.id === idDaAdministradora);
-  const titulos = new Map(estado.casos.map((caso) => [caso.nome, caso.titulo]));
-
-  const donaDe = (condominio: Condominio): string =>
-    estado.administradoras.find((a) => a.id === condominio.administradora_id)?.nome ?? '';
-
-  const { condominios } = estado.mapeamento;
-  const visiveis = condominios
+  const visiveis = estado.mapeamento.condominios
     .filter((c) => idDaAdministradora === null || c.administradora_id === idDaAdministradora)
-    .filter((c) => contemBusca([c.nome, donaDe(c)], busca));
+    .filter((c) => contemBusca([c.nome, nomeDaAdministradora(estado, c)], busca));
 
-  const limparFiltroDaAdministradora = (): void =>
-    setParams(
-      (atual) => {
-        const proximos = new URLSearchParams(atual);
-        proximos.delete('administradora');
-        return proximos;
-      },
-      { replace: true },
-    );
+  return {
+    visiveis,
+    administradoraFiltro: estado.administradoras.find((a) => a.id === idDaAdministradora),
+    limparFiltro: () => setParams((atual) => sem(atual, 'administradora'), { replace: true }),
+  };
+}
+
+export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
+  const [busca, setBusca] = useState('');
+  const { visiveis, administradoraFiltro, limparFiltro } = useCondominiosVisiveis(estado, busca);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <TextField
-          label="Buscar condomínio"
-          size="small"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          sx={{ width: 300 }}
+      <FiltrosDaTabela
+        busca={busca}
+        onBuscar={setBusca}
+        administradoraFiltro={administradoraFiltro}
+        onLimpar={limparFiltro}
+      />
+      <GradeDeCondominios estado={estado} visiveis={visiveis} />
+      <VaziosDaTabela total={estado.mapeamento.condominios.length} visiveis={visiveis.length} />
+    </Box>
+  );
+}
+
+type CorpoProps = { estado: Estado; visiveis: Condominio[]; mostraAdministradora: boolean };
+
+function GradeDeCondominios({ estado, visiveis }: Omit<CorpoProps, 'mostraAdministradora'>) {
+  const mostraAdministradora = useEscopo() === null;
+  return (
+    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+      <Table size="small">
+        <CabecalhoDaTabela mostraAdministradora={mostraAdministradora} />
+        <CorpoDaTabela
+          estado={estado}
+          visiveis={visiveis}
+          mostraAdministradora={mostraAdministradora}
         />
-        {administradoraFiltro && (
-          <Chip
-            label={`Administradora: ${administradoraFiltro.nome}`}
-            onDelete={limparFiltroDaAdministradora}
-          />
-        )}
-      </Box>
+      </Table>
+    </Paper>
+  );
+}
 
-      <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell scope="col">Condomínio</TableCell>
-              {mostraAdministradora && <TableCell scope="col">Administradora</TableCell>}
-              <TableCell scope="col">Skills ativas</TableCell>
-              <TableCell scope="col">Situação</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            <LinhaDeCondominio
-              id={PADRAO}
-              nome="Padrão (todos)"
-              legenda="Vale para todo condomínio que não tem decisão própria."
-              administradora=""
-              situacao="base"
-              mostraAdministradora={mostraAdministradora}
-              skills={contarLigadas(linhasDeSkills(estado, PADRAO, titulos))}
-            />
-            {visiveis.map((condominio) => (
-              <LinhaDeCondominio
-                key={condominio.id}
-                id={condominio.id}
-                nome={condominio.nome}
-                administradora={donaDe(condominio)}
-                situacao={situacaoDoCondominio(condominio)}
-                mostraAdministradora={mostraAdministradora}
-                skills={contarLigadas(linhasDeSkills(estado, condominio.id, titulos))}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </Paper>
+type FiltrosProps = {
+  busca: string;
+  onBuscar: (busca: string) => void;
+  administradoraFiltro: Administradora | undefined;
+  onLimpar: () => void;
+};
 
-      {condominios.length === 0 && <EmptyState frase="Nenhum condomínio ainda." />}
-      {condominios.length > 0 && visiveis.length === 0 && (
-        <EmptyState frase="Nenhum condomínio encontrado." />
+function FiltrosDaTabela({ busca, onBuscar, administradoraFiltro, onLimpar }: FiltrosProps) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <TextField
+        label="Buscar condomínio"
+        size="small"
+        value={busca}
+        onChange={(e) => onBuscar(e.target.value)}
+        sx={{ width: 300 }}
+      />
+      {administradoraFiltro && (
+        <Chip label={`Administradora: ${administradoraFiltro.nome}`} onDelete={onLimpar} />
       )}
     </Box>
   );
+}
+
+function CabecalhoDaTabela({ mostraAdministradora }: { mostraAdministradora: boolean }) {
+  return (
+    <TableHead>
+      <TableRow>
+        <TableCell scope="col">Condomínio</TableCell>
+        {mostraAdministradora && <TableCell scope="col">Administradora</TableCell>}
+        <TableCell scope="col">Skills ativas</TableCell>
+        <TableCell scope="col">Situação</TableCell>
+      </TableRow>
+    </TableHead>
+  );
+}
+
+const LINHA_DO_PADRAO = {
+  id: PADRAO,
+  nome: 'Padrão (todos)',
+  legenda: 'Vale para todo condomínio que não tem decisão própria.',
+  administradora: '',
+  situacao: 'base',
+} as const;
+
+function CorpoDaTabela({ estado, visiveis, mostraAdministradora }: CorpoProps): ReactNode {
+  const skillsDe = contagemDeSkills(estado);
+
+  return (
+    <TableBody>
+      <LinhaDeCondominio
+        {...LINHA_DO_PADRAO}
+        mostraAdministradora={mostraAdministradora}
+        skills={skillsDe(PADRAO)}
+      />
+      {visiveis.map((condominio) => (
+        <LinhaDeCondominio
+          key={condominio.id}
+          {...dadosDaLinha(estado, condominio)}
+          mostraAdministradora={mostraAdministradora}
+          skills={skillsDe(condominio.id)}
+        />
+      ))}
+    </TableBody>
+  );
+}
+
+function contagemDeSkills(estado: Estado): (id: string) => { ligadas: number; total: number } {
+  const titulos = new Map(estado.casos.map((caso) => [caso.nome, caso.titulo]));
+  return (id) => contarLigadas(linhasDeSkills(estado, id, titulos));
+}
+
+function dadosDaLinha(estado: Estado, condominio: Condominio) {
+  const { id, nome } = condominio;
+  const administradora = nomeDaAdministradora(estado, condominio);
+  return { id, nome, administradora, situacao: situacaoDoCondominio(condominio) };
+}
+
+function VaziosDaTabela({ total, visiveis }: { total: number; visiveis: number }): ReactNode {
+  if (total === 0) return <EmptyState frase="Nenhum condomínio ainda." />;
+  if (visiveis === 0) return <EmptyState frase="Nenhum condomínio encontrado." />;
+  return null;
 }
 
 type LinhaProps = {
@@ -157,42 +219,51 @@ type LinhaProps = {
   skills: { ligadas: number; total: number };
 };
 
-function LinhaDeCondominio({
-  id,
-  nome,
-  administradora,
-  legenda,
-  situacao,
-  mostraAdministradora,
-  skills,
-}: LinhaProps): ReactNode {
+function LinhaDeCondominio(props: LinhaProps): ReactNode {
+  const { id, skills, situacao } = props;
   const navegar = useNavigate();
   const destino = `/condominios/${encodeURIComponent(id)}`;
   const realce = useRealceDoCopiloto(`condominio:${id}`);
 
   return (
     <TableRow hover onClick={() => navegar(destino)} sx={[{ cursor: 'pointer' }, realce]}>
-      <TableCell>
-        <Link to={destino} style={{ fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>
-          {nome}
-        </Link>
-        {legenda && (
-          <Typography variant="caption" color="text.secondary" component="div">
-            {legenda}
-          </Typography>
-        )}
-      </TableCell>
-      {mostraAdministradora && (
-        <TableCell>
-          <Typography variant="body2" color={administradora === '' ? 'text.disabled' : undefined}>
-            {administradora === '' ? '—' : administradora}
-          </Typography>
-        </TableCell>
-      )}
+      <CelulaDoNome destino={destino} nome={props.nome} legenda={props.legenda} />
+      {props.mostraAdministradora && <CelulaDaAdministradora nome={props.administradora} />}
       <TableCell>{`${skills.ligadas} de ${skills.total}`}</TableCell>
       <TableCell>
         <SituacaoBadge situacao={situacao} />
       </TableCell>
     </TableRow>
+  );
+}
+
+type NomeProps = { destino: string; nome: string; legenda: string | undefined };
+
+function CelulaDoNome({ destino, nome, legenda }: NomeProps): ReactNode {
+  return (
+    <TableCell>
+      <Link to={destino} style={{ fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>
+        {nome}
+      </Link>
+      {legenda && <Legenda texto={legenda} />}
+    </TableCell>
+  );
+}
+
+function Legenda({ texto }: { texto: string }): ReactNode {
+  return (
+    <Typography variant="caption" color="text.secondary" component="div">
+      {texto}
+    </Typography>
+  );
+}
+
+function CelulaDaAdministradora({ nome }: { nome: string }): ReactNode {
+  return (
+    <TableCell>
+      <Typography variant="body2" color={nome === '' ? 'text.disabled' : undefined}>
+        {nome === '' ? '—' : nome}
+      </Typography>
+    </TableCell>
   );
 }

@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { type Control, type UseFormReset, useForm, useWatch } from 'react-hook-form';
 import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
@@ -23,44 +23,58 @@ const AJUDA = 'Vale para todas as conversas daqui. Escreva como falaria com um p
 const PLACEHOLDER =
   'Ex.: A piscina fecha às 22h. O síndico é o sr. Paulo (não passe o telefone dele). Não aceitamos mudança aos domingos. Entregadores só até as 21h.';
 
-export function OrientacoesSecao({ estado, condominio, editavel }: Props): ReactNode {
+type Sincronia = ReturnType<typeof useEdicaoSobOServidor<string, string | null>>;
+
+function useGravarGeral(
+  estado: Estado,
+  condominio: string,
+): (texto: string) => Promise<string | null> {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
-  const geralGravada = estado.mapeamento.orientacoes[condominio]?.geral ?? '';
-  const { control, reset } = useForm<{ geral: string }>({
-    defaultValues: { geral: geralGravada },
-  });
-  const geral = useWatch({ control, name: 'geral' });
-  const realce = useRealceDoCopiloto(`condominio:${condominio}:orientacao`);
+  return async (texto) => {
+    const porCaso = estado.mapeamento.orientacoes[condominio]?.por_caso ?? {};
+    const resposta = await salvarOrientacao(
+      { condominio, geral: texto, por_caso: porCaso },
+      escopo,
+    );
+    aplicar(resposta);
+    return resposta.mapeamento.atualizado_em ?? null;
+  };
+}
 
+type EntradaDaSincronia = {
+  estado: Estado;
+  condominio: string;
+  geral: string;
+  reset: UseFormReset<{ geral: string }>;
+};
+
+function useSincroniaDoGeral({ estado, condominio, geral, reset }: EntradaDaSincronia): Sincronia {
+  const gravar = useGravarGeral(estado, condominio);
   // A hora da última gravação do mapa serve de versão: uma leitura mais velha não volta o campo.
-  const sincronia = useEdicaoSobOServidor({
-    servidor: geralGravada,
+  return useEdicaoSobOServidor({
+    servidor: estado.mapeamento.orientacoes[condominio]?.geral ?? '',
     alvos: [`condominio:${condominio}:orientacao`],
     versao: estado.mapeamento.atualizado_em ?? null,
     local: geral,
     resetar: (valor) => reset({ geral: valor }),
-    salvar: async (texto) => {
-      const resposta = await salvarOrientacao(
-        {
-          condominio,
-          geral: texto,
-          por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
-        },
-        escopo,
-      );
-      aplicar(resposta);
-      return resposta.mapeamento.atualizado_em ?? null;
-    },
+    salvar: gravar,
   });
-  const { estado: salvamento, tentarDeNovo } = useAutosave({
-    valor: geral,
-    salvar: sincronia.salvar,
-    bloqueio: sincronia.bloqueio,
-  });
+}
 
-  const orientacaoDoPadrao =
-    condominio === PADRAO ? '' : (estado.mapeamento.orientacoes[PADRAO]?.geral ?? '').trim();
+function useOrientacaoGeral(estado: Estado, condominio: string) {
+  const { control, reset } = useForm<{ geral: string }>({
+    defaultValues: { geral: estado.mapeamento.orientacoes[condominio]?.geral ?? '' },
+  });
+  const geral = useWatch({ control, name: 'geral' });
+  const sincronia = useSincroniaDoGeral({ estado, condominio, geral, reset });
+  const { salvar, bloqueio } = sincronia;
+  const { estado: salvamento, tentarDeNovo } = useAutosave({ valor: geral, salvar, bloqueio });
+  return { control, sincronia, salvamento, tentarDeNovo };
+}
+
+export function OrientacoesSecao({ estado, condominio, editavel }: Props): ReactNode {
+  const { control, sincronia, salvamento, tentarDeNovo } = useOrientacaoGeral(estado, condominio);
 
   return (
     <SectionCard
@@ -68,6 +82,28 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
       ajuda={AJUDA}
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
+      <EditorDaOrientacao
+        control={control}
+        sincronia={sincronia}
+        editavel={editavel}
+        condominio={condominio}
+      />
+      <OrientacaoDoPadrao estado={estado} condominio={condominio} />
+    </SectionCard>
+  );
+}
+
+type EditorProps = {
+  control: Control<{ geral: string }>;
+  sincronia: Sincronia;
+  editavel: boolean;
+  condominio: string;
+};
+
+function EditorDaOrientacao({ control, sincronia, editavel, condominio }: EditorProps): ReactNode {
+  const realce = useRealceDoCopiloto(`condominio:${condominio}:orientacao`);
+  return (
+    <>
       <AvisoDeConflito
         conflito={sincronia.conflito}
         onManterOMeu={sincronia.manterOMeu}
@@ -81,16 +117,22 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
         placeholder={PLACEHOLDER}
         realce={realce}
       />
-      {orientacaoDoPadrao !== '' && (
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Também vale o do Padrão:
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {orientacaoDoPadrao}
-          </Typography>
-        </Box>
-      )}
-    </SectionCard>
+    </>
+  );
+}
+
+function OrientacaoDoPadrao({ estado, condominio }: Omit<Props, 'editavel'>): ReactNode {
+  const doPadrao = (estado.mapeamento.orientacoes[PADRAO]?.geral ?? '').trim();
+  if (condominio === PADRAO || doPadrao === '') return null;
+
+  return (
+    <Box>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        Também vale o do Padrão:
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {doPadrao}
+      </Typography>
+    </Box>
   );
 }

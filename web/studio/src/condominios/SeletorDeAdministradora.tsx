@@ -25,11 +25,17 @@ export function SeletorDeAdministradora({
       slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
     >
       <option value="">Sem administradora</option>
-      {administradoras.map((a) => (
-        <option key={a.id} value={a.id}>
-          {a.nome}
-        </option>
-      ))}
+      <OpcoesDeAdministradora administradoras={administradoras} />
     </TextField>
   );
+}
+
+export function OpcoesDeAdministradora({
+  administradoras,
+}: Pick<SeletorProps, 'administradoras'>): ReactNode {
+  return administradoras.map((a) => (
+    <option key={a.id} value={a.id}>
+      {a.nome}
+    </option>
+  ));
 }

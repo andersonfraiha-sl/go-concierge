@@ -31,35 +31,46 @@ export function CondominioPage(): ReactNode {
   );
 }
 
-function Ficha({ estado, id }: { estado: Estado; id: string }): ReactNode {
-  const { data: skills } = useSkills();
+function usePermissoesDaFicha(ehPadrao: boolean): { padraoTravado: boolean; editavel: boolean } {
   const escopo = useEscopo();
   const podeHabilitar = usePodeEditarCondominio('condominios.habilitar');
-  const podeIdentificar = usePodeEditarCondominio('condominios.editar');
-  const condominio = estado.mapeamento.condominios.find((c) => c.id === id);
-  const ehPadrao = id === PADRAO;
   // O padrão vale para todas as administradoras: só a Superlógica (sem escopo) o altera.
   const padraoTravado = ehPadrao && escopo !== null;
-  const editavel = podeHabilitar && !padraoTravado;
+  return { padraoTravado, editavel: podeHabilitar && !padraoTravado };
+}
 
-  if (!ehPadrao && !condominio) return <EmptyState frase="Não encontramos este condomínio." />;
+function Ficha({ estado, id }: { estado: Estado; id: string }): ReactNode {
+  const { data: skills } = useSkills();
+  const { padraoTravado, editavel } = usePermissoesDaFicha(id === PADRAO);
+  const podeIdentificar = usePodeEditarCondominio('condominios.editar');
+  const condominio = estado.mapeamento.condominios.find((c) => c.id === id);
+
+  if (id !== PADRAO && !condominio) return <EmptyState frase="Não encontramos este condomínio." />;
 
   const titulos = new Map((skills?.skills ?? []).map((skill) => [skill.nome, skill.titulo]));
   return (
     <>
-      <Typography variant="h5" component="h1">
-        {condominio?.nome ?? TITULO_DO_PADRAO}
-      </Typography>
-      {padraoTravado && (
-        <Typography variant="body2" color="text.secondary">
-          Vale para todas as administradoras; só a Superlógica muda.
-        </Typography>
-      )}
+      <TituloDaFicha nome={condominio?.nome ?? TITULO_DO_PADRAO} padraoTravado={padraoTravado} />
       <SkillsSecao estado={estado} condominio={id} titulos={titulos} editavel={editavel} />
       <OrientacoesSecao estado={estado} condominio={id} editavel={editavel} />
       <AjustesSecao estado={estado} condominio={id} editavel={editavel} />
       {condominio && podeIdentificar && (
         <IdentificacaoSecao condominio={condominio} administradoras={estado.administradoras} />
+      )}
+    </>
+  );
+}
+
+function TituloDaFicha({ nome, padraoTravado }: { nome: string; padraoTravado: boolean }) {
+  return (
+    <>
+      <Typography variant="h5" component="h1">
+        {nome}
+      </Typography>
+      {padraoTravado && (
+        <Typography variant="body2" color="text.secondary">
+          Vale para todas as administradoras; só a Superlógica muda.
+        </Typography>
       )}
     </>
   );
