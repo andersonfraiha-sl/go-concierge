@@ -29,7 +29,8 @@ func (n Nivel[E]) Para(condominioID, administradoraID string) []Gancho[E] {
 	return slices.Concat(n.PorCondominio[condominioID], n.PorAdministradora[administradoraID], n.Globais)
 }
 
-// Indice é o retrato das regras ativas que o cache entrega a cada turno.
+// Indice é o retrato das regras ativas que o cache entrega. Quem publica um índice novo
+// cria outro; nunca mexe no que já entregou.
 type Indice struct {
 	MensagemRecebida         Nivel[MensagemRecebida]
 	AntesDaFerramenta        Nivel[AntesDaFerramenta]
@@ -39,48 +40,79 @@ type Indice struct {
 	Ativas                   map[NomeDoEvento]int
 }
 
+// Observacao é o resumo de uma avaliação para log, métrica e auditoria. Sem texto, params
+// nem resultado: nada de PII.
+type Observacao struct {
+	Evento                         NomeDoEvento
+	CondominioID, AdministradoraID string
+	Duracao                        time.Duration
+	Lentos                         int
+	Registros                      []Registro
+}
+
 type Opcao func(*Conjunto)
 
-// ComObservador recebe os registros de cada avaliação (log, métrica, auditoria).
-func ComObservador(observar func(context.Context, []Registro)) Opcao {
+// ComObservador recebe a observação de cada avaliação.
+func ComObservador(observar func(context.Context, Observacao)) Opcao {
 	return func(c *Conjunto) { c.observar = observar }
 }
 
-// Conjunto junta os fixos e o índice de regras, com um método por evento. Os fixos não
-// têm setter: só NovoConjunto os define.
+// Conjunto junta os fixos e a fonte do índice de regras. Os fixos não têm setter: só
+// NovoConjunto os define, numa cópia própria.
 type Conjunto struct {
 	fixos    Fixos
 	regras   func() *Indice
-	observar func(context.Context, []Registro)
+	observar func(context.Context, Observacao)
 }
 
 // NovoConjunto monta o conjunto. regras nil (ou devolvendo nil) = sem regras.
 func NovoConjunto(f Fixos, regras func() *Indice, opcoes ...Opcao) *Conjunto {
-	c := &Conjunto{fixos: f, regras: regras}
+	c := &Conjunto{
+		fixos: Fixos{
+			MensagemRecebida:         fixar(f.MensagemRecebida),
+			AntesDaFerramenta:        fixar(f.AntesDaFerramenta),
+			DepoisDaFerramenta:       fixar(f.DepoisDaFerramenta),
+			AntesDeResponder:         fixar(f.AntesDeResponder),
+			TransbordoOuEncerramento: fixar(f.TransbordoOuEncerramento),
+		},
+		regras: regras,
+	}
 	for _, o := range opcoes {
 		o(c)
 	}
 	return c
 }
 
-func (c *Conjunto) MensagemRecebida(ctx context.Context, e MensagemRecebida) Resultado[MensagemRecebida] {
-	return avaliarNoPonto(ctx, c, c.fixos.MensagemRecebida, func(i Indice) Nivel[MensagemRecebida] { return i.MensagemRecebida }, e)
+// Turno é a visão do conjunto para um turno: o índice de regras é lido uma vez, na
+// abertura, e vale para todos os eventos do turno. Regra salva no meio só vale no próximo.
+type Turno struct {
+	conjunto *Conjunto
+	indice   Indice
 }
 
-func (c *Conjunto) AntesDaFerramenta(ctx context.Context, e AntesDaFerramenta) Resultado[AntesDaFerramenta] {
-	return avaliarNoPonto(ctx, c, c.fixos.AntesDaFerramenta, func(i Indice) Nivel[AntesDaFerramenta] { return i.AntesDaFerramenta }, e)
+// Turno abre a visão de um turno.
+func (c *Conjunto) Turno() Turno {
+	return Turno{conjunto: c, indice: c.indice()}
 }
 
-func (c *Conjunto) DepoisDaFerramenta(ctx context.Context, e DepoisDaFerramenta) Resultado[DepoisDaFerramenta] {
-	return avaliarNoPonto(ctx, c, c.fixos.DepoisDaFerramenta, func(i Indice) Nivel[DepoisDaFerramenta] { return i.DepoisDaFerramenta }, e)
+func (t Turno) MensagemRecebida(ctx context.Context, e MensagemRecebida) Resultado[MensagemRecebida] {
+	return avaliarNoPonto(ctx, t, ponto[MensagemRecebida]{t.conjunto.fixos.MensagemRecebida, t.indice.MensagemRecebida}, e)
 }
 
-func (c *Conjunto) AntesDeResponder(ctx context.Context, e AntesDeResponder) Resultado[AntesDeResponder] {
-	return avaliarNoPonto(ctx, c, c.fixos.AntesDeResponder, func(i Indice) Nivel[AntesDeResponder] { return i.AntesDeResponder }, e)
+func (t Turno) AntesDaFerramenta(ctx context.Context, e AntesDaFerramenta) Resultado[AntesDaFerramenta] {
+	return avaliarNoPonto(ctx, t, ponto[AntesDaFerramenta]{t.conjunto.fixos.AntesDaFerramenta, t.indice.AntesDaFerramenta}, e)
 }
 
-func (c *Conjunto) TransbordoOuEncerramento(ctx context.Context, e TransbordoOuEncerramento) Resultado[TransbordoOuEncerramento] {
-	return avaliarNoPonto(ctx, c, c.fixos.TransbordoOuEncerramento, func(i Indice) Nivel[TransbordoOuEncerramento] { return i.TransbordoOuEncerramento }, e)
+func (t Turno) DepoisDaFerramenta(ctx context.Context, e DepoisDaFerramenta) Resultado[DepoisDaFerramenta] {
+	return avaliarNoPonto(ctx, t, ponto[DepoisDaFerramenta]{t.conjunto.fixos.DepoisDaFerramenta, t.indice.DepoisDaFerramenta}, e)
+}
+
+func (t Turno) AntesDeResponder(ctx context.Context, e AntesDeResponder) Resultado[AntesDeResponder] {
+	return avaliarNoPonto(ctx, t, ponto[AntesDeResponder]{t.conjunto.fixos.AntesDeResponder, t.indice.AntesDeResponder}, e)
+}
+
+func (t Turno) TransbordoOuEncerramento(ctx context.Context, e TransbordoOuEncerramento) Resultado[TransbordoOuEncerramento] {
+	return avaliarNoPonto(ctx, t, ponto[TransbordoOuEncerramento]{t.conjunto.fixos.TransbordoOuEncerramento, t.indice.TransbordoOuEncerramento}, e)
 }
 
 // NomesDosFixos lista, por evento, os fixos de checagem e depois os de saneamento.
@@ -100,15 +132,26 @@ type comAlvo interface {
 	alvo() (condominioID, administradoraID string)
 }
 
+// ponto junta os fixos e as regras de um evento no turno.
+type ponto[E Ocorrencia] struct {
+	fixos  Pontos[E]
+	regras Nivel[E]
+}
+
 // avaliarNoPonto roda checagem, regras do alvo e saneamento como uma avaliação só. O alvo
-// é lido depois da checagem, que pode tê-lo preenchido (escopo da conversa).
-func avaliarNoPonto[E comAlvo](ctx context.Context, c *Conjunto, p Pontos[E], nivel func(Indice) Nivel[E], ev E) Resultado[E] {
+// e o Grava() da política saem do evento como ele deixou a checagem: só fixo mexe neles.
+func avaliarNoPonto[E comAlvo](ctx context.Context, t Turno, p ponto[E], ev E) Resultado[E] {
 	inicio := time.Now()
-	a := seguir(ctx, comecar(ev), p.Checagem)
-	regras := nivel(c.indice()).Para(a.evento.alvo())
-	r := seguir(ctx, a, slices.Concat(regras, p.Saneamento)).resultado(time.Since(inicio))
-	if c.observar != nil {
-		c.observar(ctx, r.Registros)
+	a := seguir(ctx, comecar(ev), p.fixos.Checagem)
+	a.grava = gravaDe(a.evento)
+	condominioID, administradoraID := a.evento.alvo()
+	a = seguir(ctx, a, carimbar(p.regras.Para(condominioID, administradoraID), false))
+	r := seguir(ctx, a, p.fixos.Saneamento).resultado(time.Since(inicio))
+	if t.conjunto.observar != nil {
+		t.conjunto.observar(ctx, Observacao{
+			Evento: ev.Nome(), CondominioID: condominioID, AdministradoraID: administradoraID,
+			Duracao: r.Duracao, Lentos: r.Lentos, Registros: r.Registros,
+		})
 	}
 	return r
 }
@@ -121,6 +164,19 @@ func (c *Conjunto) indice() Indice {
 		return *i
 	}
 	return Indice{}
+}
+
+func fixar[E Ocorrencia](p Pontos[E]) Pontos[E] {
+	return Pontos[E]{Checagem: carimbar(p.Checagem, true), Saneamento: carimbar(p.Saneamento, true)}
+}
+
+// carimbar copia os ganchos marcando Fixo pela fase: quem monta o gancho não decide isso.
+func carimbar[E Ocorrencia](gs []Gancho[E], fixo bool) []Gancho[E] {
+	copia := slices.Clone(gs)
+	for i := range copia {
+		copia[i].Fixo = fixo
+	}
+	return copia
 }
 
 func nomes[E Ocorrencia](p Pontos[E]) []string {

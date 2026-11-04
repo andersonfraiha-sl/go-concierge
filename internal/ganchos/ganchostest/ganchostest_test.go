@@ -31,8 +31,8 @@ func TestGancho(t *testing.T) {
 			if res.Decisao.Tipo != tt.wantTipo {
 				t.Errorf("Decisao.Tipo = %q, want %q", res.Decisao.Tipo, tt.wantTipo)
 			}
-			if len(r.Recebidos) != 1 || r.Recebidos[0].Texto != "oi" {
-				t.Errorf("Recebidos = %+v, want o evento uma vez", r.Recebidos)
+			if len(r.Eventos()) != 1 || r.Eventos()[0].Texto != "oi" {
+				t.Errorf("Recebidos = %+v, want o evento uma vez", r.Eventos())
 			}
 		})
 	}
@@ -44,9 +44,9 @@ func TestConjunto(t *testing.T) {
 		Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{ganchostest.Gancho("regra", regra)},
 	}}
 
-	res := ganchostest.Conjunto(ganchos.Fixos{}, idx).AntesDeResponder(context.Background(), ganchos.AntesDeResponder{})
+	res := ganchostest.Conjunto(ganchos.Fixos{}, idx).Turno().AntesDeResponder(context.Background(), ganchos.AntesDeResponder{})
 
-	if res.Decisao.Tipo != ganchos.Bloquear || len(regra.Recebidos) != 1 {
-		t.Errorf("Decisao = %+v, regra recebeu %d, want bloquear e 1", res.Decisao, len(regra.Recebidos))
+	if res.Decisao.Tipo != ganchos.Bloquear || len(regra.Eventos()) != 1 {
+		t.Errorf("Decisao = %+v, regra recebeu %d, want bloquear e 1", res.Decisao, len(regra.Eventos()))
 	}
 }

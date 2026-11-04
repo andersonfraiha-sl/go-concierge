@@ -5,6 +5,11 @@ package ganchos
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 )
 
@@ -26,7 +31,8 @@ type Origem struct {
 }
 
 // Decisao de um gancho. A zero value vale Deixar. Motivo é PT-BR simples, para o morador
-// ou para o Studio.
+// ou para o Studio, e é obrigatório em Bloquear e Confirmar. Quantidade conta o que o
+// gancho mexeu (por exemplo, quantos dados mascarou).
 type Decisao struct {
 	Tipo       TipoDecisao
 	Motivo     string
@@ -34,7 +40,7 @@ type Decisao struct {
 	Quantidade int
 }
 
-// Politica diz o que vale quando o gancho falha (panic ou prazo estourado).
+// Politica diz o que vale quando o gancho falha.
 type Politica string
 
 const (
@@ -43,13 +49,24 @@ const (
 	FechadaSeGrava Politica = "fechada_se_grava"
 )
 
+// Causa de uma falha de gancho.
+type Causa string
+
+const (
+	CausaPanic           Causa = "panic"
+	CausaPrazo           Causa = "timeout"
+	CausaDecisaoInvalida Causa = "decisao_invalida"
+	CausaCancelado       Causa = "cancelado"
+)
+
 const (
 	PrazoPadrao   = 2 * time.Millisecond
 	MotivoDeFalha = "gancho falhou"
 )
 
 // Gancho avalia um evento. Avaliar é pura: sem I/O, sem relógio, sem estado, sem mudar
-// os mapas recebidos. Prazo zero vale PrazoPadrao; Falha vazia vale Fechada.
+// os mapas recebidos. Prazo zero vale PrazoPadrao; Falha vazia vale Fechada. Só um
+// gancho Fixo pode Ajustar; no Conjunto, Fixo é carimbado pela fase.
 type Gancho[E Ocorrencia] struct {
 	Nome    string
 	Fixo    bool
@@ -59,49 +76,58 @@ type Gancho[E Ocorrencia] struct {
 }
 
 // Registro de um gancho que não deixou passar ou que falhou: vira log, métrica e auditoria.
+// Causa e Detalhe só vêm em falha; Detalhe nunca leva dado do evento.
 type Registro struct {
 	Evento   NomeDoEvento
 	Decisao  Decisao
 	Falhou   bool
+	Causa    Causa
+	Detalhe  string
 	Politica Politica
 	Duracao  time.Duration
 }
 
 // Resultado da avaliação: o evento ajustado, a decisão final e o que cada gancho decidiu.
+// Lentos conta os fixos que passaram do prazo na primeira execução.
 type Resultado[E Ocorrencia] struct {
 	Evento    E
 	Decisao   Decisao
 	Perguntas []string
 	Registros []Registro
 	Duracao   time.Duration
+	Lentos    int
 }
 
-// Avaliar roda os ganchos na ordem recebida. Bloquear encerra; ajustar passa o evento
-// ajustado ao seguinte; confirmar acumula o motivo em Perguntas. A decisão final segue
-// bloquear > confirmar > ajustar > deixar. Contexto cancelado para antes do próximo
-// gancho e bloqueia: avaliação interrompida não deixa passar.
+// Avaliar roda os ganchos na ordem recebida. Bloquear encerra; ajustar (só fixo) passa o
+// evento ajustado ao seguinte; confirmar acumula o motivo em Perguntas. A decisão final
+// segue bloquear > confirmar > ajustar > deixar. Com o contexto cancelado, cada gancho
+// restante conta como falha (CausaCancelado) sob a própria política.
 func Avaliar[E Ocorrencia](ctx context.Context, gs []Gancho[E], ev E) Resultado[E] {
 	inicio := time.Now()
 	return seguir(ctx, comecar(ev), gs).resultado(time.Since(inicio))
 }
 
-// avaliacao é o acumulador da dobra sobre os ganchos.
+// avaliacao é o acumulador da dobra sobre os ganchos. grava é o Grava() que a política
+// FechadaSeGrava lê: o do evento de entrada, ou o da saída da checagem no Conjunto.
 type avaliacao[E Ocorrencia] struct {
 	evento    E
 	decisao   Decisao
 	perguntas []string
 	registros []Registro
+	grava     bool
+	lentos    int
 	encerrada bool
+}
+
+func comecar[E Ocorrencia](ev E) avaliacao[E] {
+	return avaliacao[E]{evento: ev, decisao: Decisao{Tipo: Deixar}, grava: gravaDe(ev)}
 }
 
 func (a avaliacao[E]) resultado(duracao time.Duration) Resultado[E] {
 	return Resultado[E]{
-		Evento: a.evento, Decisao: a.decisao, Perguntas: a.perguntas, Registros: a.registros, Duracao: duracao,
+		Evento: a.evento, Decisao: a.decisao, Perguntas: a.perguntas, Registros: a.registros,
+		Duracao: duracao, Lentos: a.lentos,
 	}
-}
-
-func comecar[E Ocorrencia](ev E) avaliacao[E] {
-	return avaliacao[E]{evento: ev, decisao: Decisao{Tipo: Deixar}}
 }
 
 func seguir[E Ocorrencia](ctx context.Context, a avaliacao[E], gs []Gancho[E]) avaliacao[E] {
@@ -110,48 +136,122 @@ func seguir[E Ocorrencia](ctx context.Context, a avaliacao[E], gs []Gancho[E]) a
 			return a
 		}
 		if ctx.Err() != nil {
-			return interromper(a)
+			a = aplicarFalha(a, g, falha{causa: CausaCancelado})
+			continue
 		}
-		a = aplicar(a, g, executar(g, a.evento))
+		x := executar(g, a.evento)
+		if x.lento {
+			a.lentos++
+		}
+		a = aplicar(a, g, x)
 	}
 	return a
 }
 
-func interromper[E Ocorrencia](a avaliacao[E]) avaliacao[E] {
-	a.decisao = Decisao{Tipo: Bloquear, Motivo: MotivoDeFalha}
-	a.encerrada = true
-	return a
-}
-
-// execucao é o que um gancho devolveu, já com a falha apurada.
-type execucao[E Ocorrencia] struct {
-	evento  E
-	decisao Decisao
-	falhou  bool
+// falha é a causa apurada de um gancho que não valeu.
+type falha struct {
+	causa   Causa
+	detalhe string
 	duracao time.Duration
 }
 
+// execucao é o que um gancho devolveu; falhou.causa vazia = valeu.
+type execucao[E Ocorrencia] struct {
+	evento  E
+	decisao Decisao
+	falhou  falha
+	duracao time.Duration
+	lento   bool
+}
+
+// executar roda o gancho. Fixo que passa do prazo roda de novo uma vez (é puro): pausa de
+// GC ou de scheduler não deve fechar um turno. Só falha se passar do prazo de novo.
 func executar[E Ocorrencia](g Gancho[E], ev E) execucao[E] {
+	x := rodar(g, ev)
+	if x.falhou.causa != CausaPrazo || !g.Fixo {
+		return x
+	}
+	x = rodar(g, ev)
+	x.lento = true
+	return x
+}
+
+func rodar[E Ocorrencia](g Gancho[E], ev E) execucao[E] {
 	inicio := time.Now()
-	ajustado, d, ok := protegido(g.Avaliar, ev)
+	ajustado, d, detalhe := protegido(g.Avaliar, ev)
 	duracao := time.Since(inicio)
 	if d.Tipo == "" {
 		d.Tipo = Deixar
 	}
-	_, conhecida := prioridade(d.Tipo)
-	falhou := !ok || !conhecida || duracao > prazoDe(g)
-	return execucao[E]{evento: ajustado, decisao: d, falhou: falhou, duracao: duracao}
+	x := execucao[E]{evento: ajustado, decisao: d, duracao: duracao}
+	switch {
+	case detalhe != "":
+		x.falhou = falha{causa: CausaPanic, detalhe: detalhe}
+	case duracao > prazoDe(g):
+		x.falhou = falha{causa: CausaPrazo}
+	case !aceita(d, g.Fixo, ev):
+		x.falhou = falha{causa: CausaDecisaoInvalida, detalhe: string(d.Tipo)}
+	}
+	x.falhou.duracao = duracao
+	return x
 }
 
+// aceita diz se o desfecho vale para este gancho neste evento. Regra (não fixo) nunca
+// ajusta: é o que impede uma regra de desfazer o que um fixo de checagem fixou.
+func aceita(d Decisao, fixo bool, ev Ocorrencia) bool {
+	switch d.Tipo {
+	case Deixar:
+		return true
+	case Ajustar:
+		return fixo
+	case Confirmar:
+		return d.Motivo != ""
+	case Bloquear:
+		return d.Motivo != "" && podeBloquear(ev)
+	default:
+		return false
+	}
+}
+
+// podeBloquear: transbordo ou encerramento sempre segue (spec §4 e §11).
+func podeBloquear(ev Ocorrencia) bool { return ev.Nome() != EventoTransbordoOuEncerramento }
+
 // protegido recupera o panic do gancho: um gancho quebrado é uma falha, não um turno morto.
-func protegido[E Ocorrencia](f func(E) (E, Decisao), ev E) (ajustado E, d Decisao, ok bool) {
+// detalhe vazio = não houve panic.
+func protegido[E Ocorrencia](f func(E) (E, Decisao), ev E) (ajustado E, d Decisao, detalhe string) {
 	defer func() {
-		if recover() != nil {
-			ok = false
+		if v := recover(); v != nil {
+			detalhe = detalheDoPanic(v)
 		}
 	}()
 	ajustado, d = f(ev)
-	return ajustado, d, true
+	return ajustado, d, ""
+}
+
+// detalheDoPanic descreve o panic sem o valor dele (que pode trazer dado do morador): a
+// mensagem do runtime quando é runtime.Error, senão só o tipo; mais onde panicou.
+func detalheDoPanic(v any) string {
+	descricao := fmt.Sprintf("%T", v)
+	var re runtime.Error
+	if err, ok := v.(error); ok && errors.As(err, &re) {
+		descricao = re.Error()
+	}
+	return descricao + " em " + localDoPanic()
+}
+
+// localDoPanic é o primeiro quadro fora do runtime acima do recover: quem panicou.
+func localDoPanic() string {
+	pcs := make([]uintptr, 32)
+	quadros := runtime.CallersFrames(pcs[:runtime.Callers(4, pcs)])
+	for {
+		q, mais := quadros.Next()
+		if !strings.HasPrefix(q.Function, "runtime.") {
+			return fmt.Sprintf("%s (%s:%d)", q.Function, filepath.Base(q.File), q.Line)
+		}
+		if !mais {
+			return "local desconhecido"
+		}
+	}
 }
 
 func prazoDe[E Ocorrencia](g Gancho[E]) time.Duration {
@@ -162,8 +262,8 @@ func prazoDe[E Ocorrencia](g Gancho[E]) time.Duration {
 }
 
 func aplicar[E Ocorrencia](a avaliacao[E], g Gancho[E], x execucao[E]) avaliacao[E] {
-	if x.falhou {
-		return aplicarFalha(a, g, x.duracao)
+	if x.falhou.causa != "" {
+		return aplicarFalha(a, g, x.falhou)
 	}
 	d := comOrigem(x.decisao, g)
 	switch d.Tipo {
@@ -184,15 +284,16 @@ func aplicar[E Ocorrencia](a avaliacao[E], g Gancho[E], x execucao[E]) avaliacao
 }
 
 // aplicarFalha descarta o que o gancho devolveu e aplica a política dele.
-func aplicarFalha[E Ocorrencia](a avaliacao[E], g Gancho[E], duracao time.Duration) avaliacao[E] {
+func aplicarFalha[E Ocorrencia](a avaliacao[E], g Gancho[E], f falha) avaliacao[E] {
 	d := comOrigem(Decisao{Tipo: Deixar}, g)
-	if fechaNaFalha(politicaDe(g), a.evento) {
+	if fechaNaFalha(politicaDe(g), a) {
 		d.Tipo, d.Motivo = Bloquear, MotivoDeFalha
 		a.decisao = d
 		a.encerrada = true
 	}
 	a.registros = append(a.registros, Registro{
-		Evento: a.evento.Nome(), Decisao: d, Falhou: true, Politica: politicaDe(g), Duracao: duracao,
+		Evento: a.evento.Nome(), Decisao: d, Falhou: true, Causa: f.causa, Detalhe: f.detalhe,
+		Politica: politicaDe(g), Duracao: f.duracao,
 	})
 	return a
 }
@@ -209,39 +310,43 @@ func politicaDe[E Ocorrencia](g Gancho[E]) Politica {
 	return g.Falha
 }
 
-func fechaNaFalha(p Politica, ev Ocorrencia) bool {
+func fechaNaFalha[E Ocorrencia](p Politica, a avaliacao[E]) bool {
+	if !podeBloquear(a.evento) {
+		return false
+	}
 	switch p {
 	case Aberta:
 		return false
 	case FechadaSeGrava:
-		gravavel, ok := ev.(interface{ Grava() bool })
-		return ok && gravavel.Grava()
+		return a.grava
 	default:
 		return true
 	}
 }
 
+func gravaDe(ev Ocorrencia) bool {
+	gravavel, ok := ev.(interface{ Grava() bool })
+	return ok && gravavel.Grava()
+}
+
 // maisForte fica com a decisão de maior prioridade; no empate, com a primeira.
 func maisForte(atual, nova Decisao) Decisao {
-	pa, _ := prioridade(atual.Tipo)
-	pn, _ := prioridade(nova.Tipo)
-	if pn > pa {
+	if prioridade(nova.Tipo) > prioridade(atual.Tipo) {
 		return nova
 	}
 	return atual
 }
 
-func prioridade(t TipoDecisao) (int, bool) {
+// prioridade só recebe tipos que passaram por aceita.
+func prioridade(t TipoDecisao) int {
 	switch t {
-	case Deixar:
-		return 0, true
 	case Ajustar:
-		return 1, true
+		return 1
 	case Confirmar:
-		return 2, true
+		return 2
 	case Bloquear:
-		return 3, true
+		return 3
 	default:
-		return 0, false
+		return 0
 	}
 }
