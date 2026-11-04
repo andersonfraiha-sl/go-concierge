@@ -5,6 +5,15 @@ export const CHAVE_USUARIO_DEV = 'studio.usuarioDev';
 const TIMEOUT_MS = 15_000;
 const MENSAGEM_ERRO_PADRAO = 'Não deu para falar com o servidor.';
 
+const STATUS_NAO_AUTENTICADO = 401;
+const MAX_FALHAS = 3;
+
+/** Sessão inválida não melhora com nova tentativa; o resto tenta até MAX_FALHAS. */
+export function deveTentarDeNovo(falhas: number, erro: unknown): boolean {
+  if (erro instanceof ApiError && erro.status === STATUS_NAO_AUTENTICADO) return false;
+  return falhas < MAX_FALHAS;
+}
+
 type Metodo = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 export class ApiError extends Error {

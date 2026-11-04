@@ -29,7 +29,7 @@ export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
   const trocar = (novo: string) => {
     if (!ehUsuarioDev(novo)) return;
     gravarUsuario(novo);
-    void cliente.invalidateQueries();
+    void cliente.resetQueries();
   };
 
   return (

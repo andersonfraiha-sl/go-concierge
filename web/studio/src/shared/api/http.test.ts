@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { json, responderCom } from '@/test/fetchFalso';
-import { ApiError, apiEnviar, apiEnviarBinario, apiGet, CHAVE_USUARIO_DEV } from './http';
+import {
+  ApiError,
+  apiEnviar,
+  apiEnviarBinario,
+  apiGet,
+  CHAVE_USUARIO_DEV,
+  deveTentarDeNovo,
+} from './http';
 
 const Item = z.object({ nome: z.string() });
 
@@ -203,5 +210,16 @@ describe('apiEnviarBinario', () => {
       'ZIP_INVALIDO',
       'Zip corrompido.',
     ]);
+  });
+});
+
+describe('deveTentarDeNovo', () => {
+  it.each([
+    { falhas: 0, erro: new ApiError(401, 'NAO_AUTENTICADO', 'x', null), quer: false },
+    { falhas: 0, erro: new ApiError(500, 'ERRO_INTERNO', 'x', null), quer: true },
+    { falhas: 3, erro: new ApiError(500, 'ERRO_INTERNO', 'x', null), quer: false },
+    { falhas: 0, erro: new Error('rede'), quer: true },
+  ])('doesNotRetryOnUnauthenticated $falhas $erro.message', ({ falhas, erro, quer }) => {
+    expect(deveTentarDeNovo(falhas, erro)).toBe(quer);
   });
 });

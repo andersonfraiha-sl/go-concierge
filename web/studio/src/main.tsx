@@ -12,15 +12,18 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 import { criarRotas } from '@/app/router';
+import { deveTentarDeNovo } from '@/shared/api/http';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
 import { criarTema } from '@/theme/theme';
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: deveTentarDeNovo } } });
 
 const raiz = document.getElementById('root');
 if (!raiz) throw new Error('elemento #root ausente no index.html');
 
 createRoot(raiz).render(
   <StrictMode>
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={criarTema()}>
         <CssBaseline />
         <SnackbarProvider>
