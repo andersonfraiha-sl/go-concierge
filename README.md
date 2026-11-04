@@ -198,6 +198,11 @@ As migrations rodam no boot com `AMBIENTE` vazio ou `dev` (do ambiente ou do `.e
 `-migrar=false` desliga. Os testes de `internal/banco` sobem um Postgres por
 testcontainers, então precisam do Docker de pé.
 
+Antes de abrir PR, rode localmente o mesmo que o CI roda: `gofmt -l .` (sem saída), `go vet ./...`,
+`go test -p 1 -race ./...` e o lint (`golangci-lint run`, v2, config em `.golangci.yml`; sem instalar:
+`docker run --rm -v "$PWD:/src" -w /src golangci/golangci-lint:v2.15.0 golangci-lint run ./...`).
+No Studio: `pnpm run lint`, `pnpm run typecheck`, `pnpm test` e `pnpm run build`.
+
 Tudo o que o concierge guarda mora no Postgres: o mapeamento das administradoras, a
 memória por contato, os pedidos e as sessões do ATENDE. Não há mais persistência em
 arquivo (`MEMORIAS_DIR`, `PEDIDOS_DIR` e `ADMIN_DIR` saíram); sem `DATABASE_URL` o boot
@@ -378,6 +383,12 @@ força o modo por cima da guia (ela avisa). Teste no Console: a aba Rota mostra 
 No Console, a aba **Rota** mostra o modo, o plano (itens com status, alvo e resultado) e
 os passos `plano`/`item`; o `Turno` carrega `plano` e a sessão guarda `plano` enquanto
 houver item esperando o morador. Código: `internal/harness/plano.go`.
+
+## CI
+
+O GitHub Actions (`.github/workflows/ci.yml`) roda em todo PR e em push na `main`: Go (`gofmt`, `go vet`,
+`go test -p 1 -race`, golangci-lint), Studio (Biome, `tsc`, vitest, `vite build`) e gitleaks. O Dependabot
+(`.github/dependabot.yml`) abre PRs semanais agrupados de gomod, npm, actions e docker.
 
 ## Estrutura
 
