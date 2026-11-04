@@ -196,6 +196,9 @@ func TestRotasExigemPermissao(t *testing.T) {
 		// estado: skills.ler em qualquer escopo
 		{nome: "estado", metodo: "GET", url: "/api/admin/estado?administradora=adm-a", sem: "sem-papel", com: "operador-a", quer: 200},
 		// skills do Studio
+		// copiloto: skills.ler em qualquer escopo (sem modelo ligado, 503 prova que passou do acesso)
+		{nome: "estado do copiloto", metodo: "GET", url: "/api/copiloto/estado", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "perguntar ao copiloto", metodo: "POST", url: "/api/copiloto", corpo: `{}`, sem: "sem-papel", com: "operador-a", quer: 503},
 		{nome: "listar skills", metodo: "GET", url: "/api/skills", sem: "sem-papel", com: "operador-a", quer: 200},
 		{nome: "textos da skill", metodo: "GET", url: "/api/skills/agendar-mudanca", sem: "sem-papel", com: "operador-a", quer: 200},
 		{nome: "fluxo da skill", metodo: "GET", url: "/api/skills/agendar-mudanca/fluxo", sem: "sem-papel", com: "operador-a", quer: 200},

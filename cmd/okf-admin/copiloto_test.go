@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -12,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/copiloto"
 	"go-concierge/internal/harness"
@@ -59,19 +62,37 @@ func servidorDoCopiloto(t *testing.T, falso *copilotoFalso) *servidor {
 		s.copiloto = falso.responder
 	}
 	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
+	s.acessos = acessosFake{atribuicoes: usuariosDoCopiloto(), mapeamento: s.admin}
+	s.autenticador = autenticadorDev{padrao: "construtor"} // pedido sem X-Dev-Usuario é do construtor
+	s.authMode = authModeDev
 	return s
 }
 
-func handlerDoCopiloto(s *servidor) http.Handler {
-	mux := http.NewServeMux()
-	s.rotasCopiloto(mux)
-	return mux
+// usuariosDoCopiloto: o construtor na Superlógica e o gestor da adm-exemplo (a do Vila Verde).
+func usuariosDoCopiloto() map[string][]acesso.Atribuicao {
+	return map[string][]acesso.Atribuicao{
+		"construtor": {{PapelID: "construtor_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor":     naAdministradora("gestor_administradora", "adm-exemplo"),
+	}
 }
 
-func perguntar(t *testing.T, h http.Handler, papel string, ctx copiloto.Contexto) (int, respostaDoCopiloto) {
+func acessoDoCopiloto(t *testing.T, s *servidor, usuario string) acesso.Acesso {
+	t.Helper()
+	a, err := s.acessos.Carregar(t.Context(), usuario, s.implantacao)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func handlerDoCopiloto(s *servidor) http.Handler {
+	return s.rotear(nil)
+}
+
+func perguntar(t *testing.T, h http.Handler, usuario string, ctx copiloto.Contexto) (int, respostaDoCopiloto) {
 	t.Helper()
 	corpo := corpoJSON(t, map[string]any{"mensagem": "Faça isso", "historico": []any{}, "contexto": ctx})
-	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Studio-Papel": papel}})
+	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Dev-Usuario": usuario}})
 	var resp respostaDoCopiloto
 	if w.Code == http.StatusOK {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -315,25 +336,75 @@ func TestCopilotoDemorou(t *testing.T) {
 }
 
 func TestQuemDoCopiloto(t *testing.T) {
-	vazia := ""
-	adm := "adm-exemplo"
+	s := servidorDoCopiloto(t, nil)
 	casos := []struct {
-		nome    string
-		id      *string
-		quer    string
-		querErr bool
+		nome, usuario, recorte string
+		querAdm                string
+		querFluxo              bool
 	}{
-		{"superlogica sem administradora", nil, "", false},
-		{"administradora", &adm, "adm-exemplo", false},
-		{"administradora vazia nunca vira superlogica", &vazia, "", true},
+		{"construtor sem recorte", "construtor", "", "", true},
+		{"superlogica nao vira gestor no recorte", "construtor", "adm-exemplo", "", true},
+		{"gestor preso ao recorte", "gestor", "adm-exemplo", "adm-exemplo", false},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			quem, err := quemDoCopiloto(eu{AdministradoraID: c.id})
-			if (err != nil) != c.querErr || quem.Administradora != c.quer {
-				t.Fatalf("= %+v, %v", quem, err)
+			quem := quemDoCopiloto(acessoDoCopiloto(t, s, c.usuario), c.recorte)
+			temFluxo := slices.Contains(quem.Permissoes, string(acesso.SkillsEditarFluxo))
+			if quem.Administradora != c.querAdm || temFluxo != c.querFluxo {
+				t.Fatalf("quem = %+v", quem)
 			}
 		})
+	}
+}
+
+func TestCopilotoIgnoraCabecalhoDePapel(t *testing.T) {
+	falso := &copilotoFalso{}
+	s := servidorDoCopiloto(t, falso)
+	var registro bytes.Buffer
+	s.log = log.New(&registro, "", 0)
+	h := handlerDoCopiloto(s)
+	corpo := corpoJSON(t, map[string]any{"mensagem": "Resuma", "historico": []any{}, "contexto": copiloto.Contexto{Tela: copiloto.TelaCondominios}})
+	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo),
+		cabecalhos: map[string]string{"X-Dev-Usuario": "gestor", "X-Studio-Papel": "construtor"}})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(falso.recebeu.Contexto, "Vila Verde") || strings.Contains(falso.recebeu.Contexto, "Solar") {
+		t.Fatalf("contexto fora do recorte do gestor: %q", falso.recebeu.Contexto)
+	}
+	doGestor := operacoesPermitidas(copiloto.TelaCondominios, quemDoCopiloto(acessoDoCopiloto(t, s, "gestor"), "adm-exemplo"))
+	for _, op := range falso.recebeu.Operacoes {
+		if !slices.Contains(doGestor, op) {
+			t.Fatalf("o modelo recebeu %s, que o gestor não faz", op)
+		}
+	}
+	if !strings.Contains(registro.String(), `"usuario_id":"gestor"`) || strings.Contains(registro.String(), "construtor") {
+		t.Fatalf("log = %s", registro.String())
+	}
+}
+
+func TestCopilotoLimitaPorUsuarioDoAcesso(t *testing.T) {
+	s := servidorDoCopiloto(t, &copilotoFalso{})
+	agora := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	s.limiteCopiloto = novoLimiteDoCopiloto(func() time.Time { return agora })
+	h := handlerDoCopiloto(s)
+	pedir := func(usuario string) int {
+		corpo := corpoJSON(t, map[string]any{"mensagem": "oi", "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}})
+		return chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo),
+			cabecalhos: map[string]string{"X-Dev-Usuario": usuario, "X-Studio-Papel": "construtor"}}).Code
+	}
+
+	for i := range chamadasPorMinutoCopiloto {
+		if code := pedir("gestor"); code != http.StatusOK {
+			t.Fatalf("chamada %d do gestor: status = %d", i+1, code)
+		}
+	}
+	if code := pedir("gestor"); code != http.StatusTooManyRequests {
+		t.Fatalf("gestor sem ficha: status = %d", code)
+	}
+	if code := pedir("construtor"); code != http.StatusOK {
+		t.Fatalf("o balde é do usuário, não do papel do cabeçalho: status = %d", code)
 	}
 }
 
@@ -399,8 +470,8 @@ func TestCopilotoTruncaArquivoDoAvancado(t *testing.T) {
 	}
 	h := handlerDoCopiloto(s)
 	casos := []struct {
-		nome, papel, caminho string
-		querTem, querSem     []string
+		nome, usuario, caminho string
+		querTem, querSem       []string
 	}{
 		{"corta o arquivo grande", "construtor", "knowledge/grande.md", []string{"arquivo truncado"}, []string{"FIM"}},
 		{"manda o arquivo pequeno inteiro", "construtor", "knowledge/pequeno.md", []string{"curto"}, []string{"arquivo truncado"}},
@@ -408,7 +479,7 @@ func TestCopilotoTruncaArquivoDoAvancado(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			status, _ := perguntar(t, h, c.papel, copiloto.Contexto{Tela: copiloto.TelaAvancado, Agente: "agentes/concierge", Caminho: c.caminho})
+			status, _ := perguntar(t, h, c.usuario, copiloto.Contexto{Tela: copiloto.TelaAvancado, Agente: "agentes/concierge", Caminho: c.caminho})
 			if status != http.StatusOK {
 				t.Fatalf("status = %d", status)
 			}
@@ -445,10 +516,10 @@ func (p *copilotoPreso) responder(ctx context.Context, _ harness.PedidoAoCopilot
 	return harness.RespostaDoModelo{Mensagem: "Pronto."}, nil
 }
 
-func pedirAoCopiloto(t *testing.T, h http.Handler, papel string) *httptest.ResponseRecorder {
+func pedirAoCopiloto(t *testing.T, h http.Handler, usuario string) *httptest.ResponseRecorder {
 	t.Helper()
 	corpo := corpoJSON(t, map[string]any{"mensagem": "oi", "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}})
-	return chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Studio-Papel": papel}})
+	return chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Dev-Usuario": usuario}})
 }
 
 func TestCopilotoLimitaChamadasSimultaneas(t *testing.T) {
