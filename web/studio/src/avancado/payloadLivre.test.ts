@@ -84,3 +84,17 @@ describe('errosDosPares', () => {
     ]);
   });
 });
+
+describe('fidelidade do que já está gravado', () => {
+  it('keepsStoredKeyWithSpacesOnSave', () => {
+    expect(paresEmPayload(payloadEmPares({ ' a': 1 }))).toEqual({ ' a': 1 });
+  });
+
+  it.each(['01310', '0x1F', '1e3', ''])('infersTextFor %s', (texto) => {
+    expect(tipoInferido(texto)).toBe('texto');
+  });
+
+  it.each(['10', '-2.5', '0'])('infersNumberFor %s', (texto) => {
+    expect(tipoInferido(texto)).toBe('número');
+  });
+});
