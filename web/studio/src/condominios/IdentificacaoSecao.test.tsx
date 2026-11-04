@@ -9,7 +9,7 @@ describe('IdentificacaoSecao', () => {
     responderCom(rotasBase(gestor));
     abrirCondominio();
 
-    await screen.findByText('Skills neste condomínio');
+    await screen.findByText('O que o concierge faz aqui');
     expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remover condomínio' })).not.toBeInTheDocument();
   });
