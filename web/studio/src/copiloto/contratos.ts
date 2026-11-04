@@ -7,8 +7,8 @@ import { listaDoGo } from '@/shared/api/listaDoGo';
 // Espelho de internal/copiloto (Go). Os limites batem com a validação de POST /api/copiloto.
 export const LIMITE_DA_MENSAGEM = 4000;
 export const TAMANHO_DO_HISTORICO = 20;
-// Cinco segundos acima dos 90 s do modelo no servidor: o 504 dele chega antes do nosso prazo.
-export const PRAZO_DO_COPILOTO_MS = 95_000;
+// Cinco segundos acima dos 55 s do modelo no servidor: o 504 dele chega antes do nosso prazo.
+export const PRAZO_DO_COPILOTO_MS = 60_000;
 
 export const TELAS = [
   'skills',

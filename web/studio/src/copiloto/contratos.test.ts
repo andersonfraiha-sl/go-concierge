@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   historicoDe,
   OperacaoSchema,
+  PRAZO_DO_COPILOTO_MS,
   RespostaDoCopilotoSchema,
   TAMANHO_DO_HISTORICO,
   TipoDeOperacaoSchema,
@@ -20,6 +21,10 @@ const UMA_DE_CADA_TIPO = [
 ] as const;
 
 describe('contratos do Copiloto', () => {
+  it('givesSixtySecondsAboveTheServerTimeout', () => {
+    expect(PRAZO_DO_COPILOTO_MS).toBe(60_000);
+  });
+
   it('parsesEveryOperationType', () => {
     const tipos = UMA_DE_CADA_TIPO.map((operacao) => OperacaoSchema.parse(operacao).tipo);
 
