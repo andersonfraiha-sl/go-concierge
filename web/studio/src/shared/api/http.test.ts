@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { json, responderCom } from '@/test/fetchFalso';
-import { ApiError, apiEnviar, apiEnviarBinario, apiGet, CHAVE_PAPEL_DEV } from './http';
+import { ApiError, apiEnviar, apiEnviarBinario, apiGet, CHAVE_USUARIO_DEV } from './http';
 
 const Item = z.object({ nome: z.string() });
 
@@ -75,20 +75,38 @@ describe('apiGet', () => {
     expect(erroNoConsole).toHaveBeenCalled();
   });
 
-  it('enviaPapelDeDesenvolvimentoQuandoGravado', async () => {
-    localStorage.setItem(CHAVE_PAPEL_DEV, 'gestor');
-    let papel: string | null = null;
+  it('sendsDevUserHeaderOnEveryCall', async () => {
+    localStorage.setItem(CHAVE_USUARIO_DEV, 'gestor-exemplo');
+    const recebidos: (string | null)[] = [];
+    const registrar = (req: Request) => {
+      recebidos.push(req.headers.get('X-Dev-Usuario'));
+      return json({ nome: 'a' });
+    };
+    responderCom({
+      'GET /api/item': registrar,
+      'PUT /api/item': registrar,
+      'DELETE /api/item': registrar,
+    });
+    await apiGet('/api/item', Item);
+    await apiEnviar('PUT', '/api/item', { nome: 'a' }, Item);
+    await apiEnviar('DELETE', '/api/item', undefined, Item);
+    expect(recebidos).toEqual(['gestor-exemplo', 'gestor-exemplo', 'gestor-exemplo']);
+  });
+
+  it('omitsDevUserHeaderWhenNotStored', async () => {
+    let usuario: string | null = 'sentinela';
     responderCom({
       'GET /api/item': (req) => {
-        papel = req.headers.get('X-Studio-Papel');
+        usuario = req.headers.get('X-Dev-Usuario');
         return json({ nome: 'a' });
       },
     });
     await apiGet('/api/item', Item);
-    expect(papel).toBe('gestor');
+    expect(usuario).toBeNull();
   });
 
-  it('omitePapelQuandoNaoGravado', async () => {
+  it('stopsSendingStudioRoleHeader', async () => {
+    localStorage.setItem('studio.papelDev', 'construtor');
     let papel: string | null = 'sentinela';
     responderCom({
       'GET /api/item': (req) => {
@@ -154,15 +172,15 @@ describe('apiEnviar com cancelamento', () => {
 describe('apiEnviarBinario', () => {
   const zip = new Blob(['zip']);
 
-  it('enviaCorpoComTipoEPapelDev', async () => {
-    localStorage.setItem(CHAVE_PAPEL_DEV, 'construtor');
+  it('enviaCorpoComTipoEUsuarioDev', async () => {
+    localStorage.setItem(CHAVE_USUARIO_DEV, 'construtor-superlogica');
     const falso = responderCom({ 'POST /api/zip': () => json({ nome: 'a' }) });
     await expect(
       apiEnviarBinario('POST', '/api/zip', zip, 'application/zip', Item),
     ).resolves.toEqual({ nome: 'a' });
     const req = new Request('http://localhost/api/zip', falso.mock.calls[0]?.[1]);
     expect(req.headers.get('Content-Type')).toBe('application/zip');
-    expect(req.headers.get('X-Studio-Papel')).toBe('construtor');
+    expect(req.headers.get('X-Dev-Usuario')).toBe('construtor-superlogica');
   });
 
   it('traduzFalhaDeRedeEmSemConexao', async () => {

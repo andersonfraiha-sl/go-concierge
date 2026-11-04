@@ -93,10 +93,14 @@ resposta é 401; com usuário sem a permissão no alvo, 403.
   `AMBIENTE` diferente de vazio ou `dev`.
 - `AUTH_DEV_USUARIO`: o usuário padrão do modo dev. A migration semeia
   `admin-superlogica`, que só entra com `AUTH_MODE=dev`.
-- Usuários semeados pela migration: por enquanto só `admin-superlogica`
-  (`admin_superlogica` no escopo Superlógica). Em dev, `AUTH_MODE=dev` e
+- Usuários semeados pelas migrations (todos só valem com `AUTH_MODE=dev`):
+  `admin-superlogica` (`admin_superlogica`, Superlógica), `construtor-superlogica`
+  (`construtor_superlogica`, Superlógica), `gestor-exemplo` (`gestor_administradora` em
+  `adm-exemplo`) e `gestor-avancado` (`gestor_administradora` em `adm-avancado`). A
+  administradora `adm-avancado` e a concessão do `studio.avancado` a ela nascem no boot, só
+  em dev com `AUTH_MODE=dev`, nunca por migration. Em dev, `AUTH_MODE=dev` e
   `AUTH_DEV_USUARIO=admin-superlogica` no `.env` abrem tudo; outro usuário vai no
-  cabeçalho, `curl -H 'X-Dev-Usuario: <id>' ...`.
+  cabeçalho, `curl -H 'X-Dev-Usuario: <id>' ...`; o Studio troca pelo seletor "Ver como".
 - `ADMINISTRADORA_ID`: fixa a implantação numa administradora. Vazio atende todas; com
   ele, pedidos de outra administradora e do escopo Superlógica são recusados. As rotas de
   memória e pedidos pedem `administradora` na query (400 `ADMINISTRADORA_OBRIGATORIA`);

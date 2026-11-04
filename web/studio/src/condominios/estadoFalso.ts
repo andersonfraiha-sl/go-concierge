@@ -3,18 +3,18 @@ import { json } from '@/test/fetchFalso';
 
 // Fixtures montadas pelos structs de internal/admin e cmd/okf-admin (slices nil viram null).
 export const construtor: Eu = {
-  id: 'u1',
+  id: 'admin-superlogica',
   nome: 'Ana',
-  papel: 'construtor',
+  papel: 'admin_superlogica',
   permissoes: ['condominios.habilitar', 'condominios.editar', 'administradoras.editar'],
   administradoraId: null,
   dev: true,
 };
 
 export const gestor: Eu = {
-  id: 'u2',
+  id: 'gestor-exemplo',
   nome: 'Bia',
-  papel: 'gestor',
+  papel: 'gestor_administradora',
   permissoes: ['condominios.habilitar'],
   administradoraId: 'adm-exemplo',
   dev: false,

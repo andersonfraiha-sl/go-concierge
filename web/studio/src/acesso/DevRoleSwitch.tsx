@@ -1,33 +1,34 @@
 import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { CHAVE_PAPEL_DEV } from '@/shared/api/http';
+import { CHAVE_USUARIO_DEV } from '@/shared/api/http';
 
-const PAPEIS_DEV = [
-  { valor: 'construtor', rotulo: 'Superlógica (construtor)' },
-  { valor: 'gestor', rotulo: 'Administradora (gestor)' },
-  { valor: 'gestor_avancado', rotulo: 'Administradora com Avançado' },
+const USUARIOS_DEV = [
+  { valor: 'admin-superlogica', rotulo: 'Superlógica (admin)' },
+  { valor: 'construtor-superlogica', rotulo: 'Superlógica (construtor)' },
+  { valor: 'gestor-exemplo', rotulo: 'Administradora (gestor)' },
+  { valor: 'gestor-avancado', rotulo: 'Administradora com Avançado' },
 ] as const;
 
-type PapelDev = (typeof PAPEIS_DEV)[number]['valor'];
+type UsuarioDev = (typeof USUARIOS_DEV)[number]['valor'];
 
-function ehPapelDev(valor: string): valor is PapelDev {
-  return PAPEIS_DEV.some((papel) => papel.valor === valor);
+function ehUsuarioDev(valor: string): valor is UsuarioDev {
+  return USUARIOS_DEV.some((usuario) => usuario.valor === valor);
 }
 
-function gravarPapel(papel: PapelDev): void {
+function gravarUsuario(usuario: UsuarioDev): void {
   try {
-    localStorage.setItem(CHAVE_PAPEL_DEV, papel);
+    localStorage.setItem(CHAVE_USUARIO_DEV, usuario);
   } catch (cause) {
-    console.warn('gravar papel de desenvolvimento:', cause);
+    console.warn('gravar usuário de desenvolvimento:', cause);
   }
 }
 
-export function DevRoleSwitch({ papelAtual }: { papelAtual: string }) {
+export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
   const cliente = useQueryClient();
 
   const trocar = (novo: string) => {
-    if (!ehPapelDev(novo)) return;
-    gravarPapel(novo);
+    if (!ehUsuarioDev(novo)) return;
+    gravarUsuario(novo);
     void cliente.invalidateQueries();
   };
 
@@ -37,10 +38,10 @@ export function DevRoleSwitch({ papelAtual }: { papelAtual: string }) {
       <Select
         labelId="ver-como-rotulo"
         label="Ver como"
-        value={ehPapelDev(papelAtual) ? papelAtual : ''}
+        value={ehUsuarioDev(usuarioAtual) ? usuarioAtual : ''}
         onChange={(evento) => trocar(evento.target.value)}
       >
-        {PAPEIS_DEV.map(({ valor, rotulo }) => (
+        {USUARIOS_DEV.map(({ valor, rotulo }) => (
           <MenuItem key={valor} value={valor}>
             {rotulo}
           </MenuItem>

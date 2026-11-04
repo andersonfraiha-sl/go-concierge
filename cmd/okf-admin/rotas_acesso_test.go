@@ -63,15 +63,18 @@ func naAdministradora(papel, adm string) []acesso.Atribuicao {
 // construtor só em adm-a (tem as permissões, não o escopo da Superlógica); e um sem papel.
 func usuariosTeste() map[string][]acesso.Atribuicao {
 	return map[string][]acesso.Atribuicao{
-		"admin":           {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
-		"gestor-a":        naAdministradora("gestor_administradora", "adm-a"),
-		"gestor-b":        naAdministradora("gestor_administradora", "adm-b"),
-		"operador-a":      naAdministradora("operador_administradora", "adm-a"),
-		"construtor-a":    naAdministradora("construtor_superlogica", "adm-a"),
-		"sem-papel":       {},
-		"gestor-av":       naAdministradora("gestor_administradora", "adm-av"),
-		"gestor-ab":       append(naAdministradora("gestor_administradora", "adm-a"), naAdministradora("gestor_administradora", "adm-b")...),
-		usuarioSemeadoDev: {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"admin":                  {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor-a":               naAdministradora("gestor_administradora", "adm-a"),
+		"gestor-b":               naAdministradora("gestor_administradora", "adm-b"),
+		"operador-a":             naAdministradora("operador_administradora", "adm-a"),
+		"construtor-a":           naAdministradora("construtor_superlogica", "adm-a"),
+		"sem-papel":              {},
+		"gestor-av":              naAdministradora("gestor_administradora", "adm-av"),
+		"gestor-ab":              append(naAdministradora("gestor_administradora", "adm-a"), naAdministradora("gestor_administradora", "adm-b")...),
+		usuarioSemeadoDev:        {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"construtor-superlogica": {{PapelID: "construtor_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor-exemplo":         naAdministradora("gestor_administradora", "adm-exemplo"),
+		"gestor-avancado":        naAdministradora("gestor_administradora", "adm-avancado"),
 	}
 }
 
@@ -439,7 +442,7 @@ type autenticadorFixo string
 func (a autenticadorFixo) Autenticar(*http.Request) (string, error) { return string(a), nil }
 
 func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
-	casos := []struct {
+	modos := []struct {
 		nome     string
 		authMode string
 		quer     int
@@ -447,14 +450,16 @@ func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
 		{nome: "modo dev aceita", authMode: authModeDev, quer: http.StatusOK},
 		{nome: "fora de dev recusa", authMode: "", quer: http.StatusUnauthorized},
 	}
-	for _, c := range casos {
-		t.Run(c.nome, func(t *testing.T) {
-			amb := novoAmbienteRotas(t)
-			amb.s.autenticador, amb.s.authMode = autenticadorFixo(usuarioSemeadoDev), c.authMode
-			if w := amb.pedir(t, "", "GET", "/api/agentes", ""); w.Code != c.quer {
-				t.Fatalf("status %d: %s", w.Code, w.Body.String())
-			}
-		})
+	for id := range usuariosSemeadosDev {
+		for _, m := range modos {
+			t.Run(id+"/"+m.nome, func(t *testing.T) {
+				amb := novoAmbienteRotas(t)
+				amb.s.autenticador, amb.s.authMode = autenticadorFixo(id), m.authMode
+				if w := amb.pedir(t, "", "GET", "/api/agentes", ""); w.Code != m.quer {
+					t.Fatalf("status %d: %s", w.Code, w.Body.String())
+				}
+			})
+		}
 	}
 }
 

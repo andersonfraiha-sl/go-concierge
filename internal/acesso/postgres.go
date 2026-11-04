@@ -2,6 +2,7 @@ package acesso
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"maps"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"go-concierge/internal/banco/ent"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/usuario"
 	"go-concierge/internal/escopo"
 )
@@ -113,4 +115,20 @@ func administradorasPorCondominio(rows []*ent.Condominio) map[string]string {
 		}
 	}
 	return out
+}
+
+// Conceder libera a permissão ao papel dentro da administradora (que já existe). Repetir a
+// mesma concessão não faz nada.
+func (p *Postgres) Conceder(ctx context.Context, c Concessao) error {
+	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
+	defer cancel()
+	err := p.cli.Concessao.Create().
+		SetAdministradoraID(c.AdministradoraID).SetPapelID(c.PapelID).SetPermissao(string(c.Permissao)).
+		OnConflictColumns(concessao.FieldAdministradoraID, concessao.FieldPapelID, concessao.FieldPermissao).
+		DoNothing().Exec(ctx)
+	// o ent devolve sql.ErrNoRows quando o DoNothing não insere nada
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("conceder %s a %s em %s: %w", c.Permissao, c.PapelID, c.AdministradoraID, err)
+	}
+	return nil
 }
