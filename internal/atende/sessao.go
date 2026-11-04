@@ -474,12 +474,20 @@ func (sess *Sessao) tomarPerguntasConfirmadas(mensagem string) []string {
 }
 
 // guardarPerguntasDeRegra guarda as perguntas que os ganchos fizeram no turno, para a
-// próxima mensagem poder respondê-las.
+// próxima mensagem poder respondê-las. Só depois de a resposta do turno sair: pergunta que
+// não chegou ao morador não pode ser respondida.
 func (sess *Sessao) guardarPerguntasDeRegra(t ganchos.Turno) {
 	perguntas := t.PerguntasFeitas()
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	sess.PerguntasDeRegra = perguntas
+}
+
+// respostaEnviada diz se o turno entregou a resposta inteira ao morador, sem transbordar: só
+// então as perguntas dele valem para o próximo sim. Não exige o texto exato, porque o
+// modelo pode reescrever a pergunta, e exigir prenderia a regra num laço.
+func respostaEnviada(sender Sender, res *harness.Resultado, erroEntrega error) bool {
+	return sender != nil && res.Resposta != "" && res.Transbordo == "" && erroEntrega == nil
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.

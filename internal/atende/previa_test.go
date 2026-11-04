@@ -1,10 +1,14 @@
 package atende
 
 import (
+	"context"
+	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/ganchos/ganchostest"
@@ -175,6 +179,16 @@ func conversaDaReserva(t *testing.T, svc *Servico) func(texto string) string {
 // não teve a pergunta dela feita, segura a escrita e pergunta.
 func ateAPerguntaDaRegra(t *testing.T, fala func(string) string) {
 	t.Helper()
+	ateAConfirmacaoDoCaso(t, fala)
+	r := fala("sim")
+	if !strings.Contains(r, perguntaDaRegraDeReserva) || strings.Contains(r, "Não consegui concluir") || strings.Contains(r, "Reserva confirmada") {
+		t.Fatalf("o sim do caso leva à pergunta da regra, sem falha: %q", r)
+	}
+}
+
+// ateAConfirmacaoDoCaso leva a reserva até a confirmação do caso, sem a pergunta da regra.
+func ateAConfirmacaoDoCaso(t *testing.T, fala func(string) string) {
+	t.Helper()
 	if r := fala("quero reservar uma área comum"); !strings.Contains(r, "Qual área") {
 		t.Fatalf("a regra não pergunta antes da escrita: %q", r)
 	}
@@ -183,10 +197,6 @@ func ateAPerguntaDaRegra(t *testing.T, fala func(string) string) {
 	}
 	if r := fala("15/11"); !strings.Contains(r, "Confirma a reserva de Salão de festas") || strings.Contains(r, perguntaDaRegraDeReserva) {
 		t.Fatalf("primeiro só a confirmação do caso: %q", r)
-	}
-	r := fala("sim")
-	if !strings.Contains(r, perguntaDaRegraDeReserva) || strings.Contains(r, "Não consegui concluir") || strings.Contains(r, "Reserva confirmada") {
-		t.Fatalf("o sim do caso leva à pergunta da regra, sem falha: %q", r)
 	}
 }
 
@@ -230,5 +240,103 @@ func TestSimQueNaoVemDepoisDaPerguntaNaoRespondeARegra(t *testing.T) {
 	}
 	if got := sess.tomarPerguntasConfirmadas("sim"); len(got) != 0 {
 		t.Fatalf("um segundo sim já não tem pergunta a responder: %v", got)
+	}
+}
+
+// sessaoDaReserva é a sessão da conversa de conversaDaReserva.
+func sessaoDaReserva(t *testing.T, svc *Servico) *Sessao {
+	t.Helper()
+	sess, ok, err := svc.Sessao(t.Context(), mensagemDoMorador(eventoCom(t, "x"), 7, 0).ConversaID)
+	if err != nil || !ok {
+		t.Fatalf("sessão da conversa: %v", err)
+	}
+	return sess
+}
+
+func perguntasGuardadas(sess *Sessao) []string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return slices.Clone(sess.PerguntasDeRegra)
+}
+
+func TestPerguntaDaRegraFicaGuardadaDepoisDaRespostaEnviada(t *testing.T) {
+	svc, _, _ := servicoComPedidos(t)
+	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraQueConfirma(t))
+	ateAPerguntaDaRegra(t, conversaDaReserva(t, svc))
+	if got := perguntasGuardadas(sessaoDaReserva(t, svc)); !slices.Equal(got, []string{perguntaDaRegraDeReserva}) {
+		t.Fatalf("a pergunta que saiu fica para o próximo sim: %v", got)
+	}
+}
+
+// envioQueFalha devolve o erro dado em todo envio.
+type envioQueFalha struct{ err error }
+
+func (e envioQueFalha) Enviar(context.Context, entrada.Destino, string) error { return e.err }
+
+func TestTurnoSemRespostaEnviadaNaoGuardaAPergunta(t *testing.T) {
+	casos := []struct {
+		nome string
+		err  error
+	}{
+		{"envio que falha", errors.New("canal fora do ar")},
+		{"turno cancelado na entrega", context.Canceled},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			svc, _, _ := servicoComPedidos(t)
+			svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraQueConfirma(t))
+			fala := conversaDaReserva(t, svc)
+			ateAConfirmacaoDoCaso(t, fala)
+			svc.Sender = envioQueFalha{err: c.err}
+
+			_, _ = svc.Processar(t.Context(), mensagemDoMorador(eventoCom(t, "sim"), 7, 99))
+			svc.Aguardar()
+
+			if got := perguntasGuardadas(sessaoDaReserva(t, svc)); len(got) != 0 {
+				t.Fatalf("pergunta que não chegou ao morador não pode ser respondida: %v", got)
+			}
+		})
+	}
+}
+
+func TestPerguntasDeRegraSomemQuandoAConversaMuda(t *testing.T) {
+	casos := []struct {
+		nome  string
+		mudar func(svc *Servico, sess *Sessao)
+	}{
+		{"atendente fala", func(_ *Servico, sess *Sessao) {
+			sess.registrarHumano(entrada.Mensagem{ID: "evt-atendente", Autor: "atendente", Texto: "sigo com a reserva?"})
+		}},
+		{"protocolo encerra", func(_ *Servico, sess *Sessao) { sess.encerrar(entrada.Mensagem{ID: "evt-fim"}) }},
+		{"transbordo", func(svc *Servico, sess *Sessao) { svc.marcarTransbordo(sess, "pediu atendente", "morador", "") }},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			svc, _, _ := servicoComPedidos(t)
+			sess := &Sessao{PerguntasDeRegra: []string{perguntaDaRegraDeReserva}}
+			c.mudar(svc, sess)
+			if got := perguntasGuardadas(sess); len(got) != 0 {
+				t.Fatalf("a pergunta não pode valer para o sim que vem depois: %v", got)
+			}
+		})
+	}
+}
+
+func TestPerguntasDeRegraSobrevivemAGravacaoDaSessao(t *testing.T) {
+	sess, err := NewSessoes(NovaSessaoEmMemoria()).Abrir(t.Context(), entrada.Mensagem{ConversaID: "P-10", Tenant: "t", Contato: entrada.Contato{Phone: "5511999"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.PerguntasDeRegra = []string{perguntaDaRegraDeReserva}
+	r, err := sess.Registro()
+	if err != nil {
+		t.Fatal(err)
+	}
+	restaurada, err := RestaurarSessao(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restaurada.tomarPerguntasConfirmadas("sim"); !slices.Equal(got, []string{perguntaDaRegraDeReserva}) {
+		t.Fatalf("o sim depois de um restart responde a pergunta gravada: %v", got)
 	}
 }
