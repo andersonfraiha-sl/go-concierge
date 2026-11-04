@@ -1,6 +1,9 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
@@ -23,24 +26,37 @@ const PLACEHOLDER =
 export function OrientacoesSecao({ estado, condominio, editavel }: Props): ReactNode {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
-  const { control } = useForm<{ geral: string }>({
-    defaultValues: { geral: estado.mapeamento.orientacoes[condominio]?.geral ?? '' },
+  const geralGravada = estado.mapeamento.orientacoes[condominio]?.geral ?? '';
+  const { control, reset } = useForm<{ geral: string }>({
+    defaultValues: { geral: geralGravada },
   });
+  const geral = useWatch({ control, name: 'geral' });
+  const realce = useRealceDoCopiloto(`condominio:${condominio}:orientacao`);
 
-  const { estado: salvamento, tentarDeNovo } = useAutosave({
-    valor: useWatch({ control, name: 'geral' }),
-    salvar: async (geral) => {
-      aplicar(
-        await salvarOrientacao(
-          {
-            condominio,
-            geral,
-            por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
-          },
-          escopo,
-        ),
+  // A hora da última gravação do mapa serve de versão: uma leitura mais velha não volta o campo.
+  const sincronia = useEdicaoSobOServidor({
+    servidor: geralGravada,
+    alvos: [`condominio:${condominio}:orientacao`],
+    versao: estado.mapeamento.atualizado_em ?? null,
+    local: geral,
+    resetar: (valor) => reset({ geral: valor }),
+    salvar: async (texto) => {
+      const resposta = await salvarOrientacao(
+        {
+          condominio,
+          geral: texto,
+          por_caso: estado.mapeamento.orientacoes[condominio]?.por_caso ?? {},
+        },
+        escopo,
       );
+      aplicar(resposta);
+      return resposta.mapeamento.atualizado_em ?? null;
     },
+  });
+  const { estado: salvamento, tentarDeNovo } = useAutosave({
+    valor: geral,
+    salvar: sincronia.salvar,
+    bloqueio: sincronia.bloqueio,
   });
 
   const orientacaoDoPadrao =
@@ -52,6 +68,11 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
       ajuda={AJUDA}
       acao={<SaveIndicator estado={salvamento} onTentarDeNovo={() => void tentarDeNovo()} />}
     >
+      <AvisoDeConflito
+        conflito={sincronia.conflito}
+        onManterOMeu={sincronia.manterOMeu}
+        onUsarONovo={sincronia.usarONovo}
+      />
       <CampoTexto
         control={control}
         name="geral"
@@ -60,6 +81,7 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
         minRows={4}
         placeholder={PLACEHOLDER}
         disabled={!editavel}
+        sx={{ '& .MuiInputBase-root': realce }}
       />
       {orientacaoDoPadrao !== '' && (
         <Box>

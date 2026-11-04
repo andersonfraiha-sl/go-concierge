@@ -15,13 +15,15 @@ export type DadosDoBloco = {
   resumo: string;
   problemas: ProblemaFluxo[];
   selecionado: boolean;
+  /** Mudado por uma proposta do Copiloto há pouco. */
+  realcado: boolean;
 };
 export type BlocoNodeTipo = Node<DadosDoBloco, 'bloco'>;
 
 const ALCA_INVISIVEL = { opacity: 0, pointerEvents: 'none' } as const;
 
 export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
-  const { bloco, indice, resumo, problemas, selecionado } = data;
+  const { bloco, indice, resumo, problemas, selecionado, realcado } = data;
   const { rotulo, cor, Icone } = BLOCOS[bloco.tipo];
   return (
     <Box
@@ -36,7 +38,7 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
         gap: 1.5,
         pl: 1.5,
         pr: 2,
-        bgcolor: tokens.color.studio.nodeBg,
+        bgcolor: realcado ? tokens.color.realceDoCopiloto : tokens.color.studio.nodeBg,
         border: selecionado ? 2 : 1,
         borderStyle: 'solid',
         borderColor: selecionado
@@ -45,7 +47,7 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
         borderLeftWidth: 4,
         borderRadius: `${RAIOS.cartao}px`,
         cursor: 'pointer',
-        transition: 'border-color 120ms ease',
+        transition: 'border-color 120ms ease, background-color 300ms ease-out',
       }}
       style={{
         borderLeftColor: cor,

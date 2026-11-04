@@ -118,6 +118,7 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
               <LinhaDaSkill
                 key={linha.caso.nome}
                 linha={linha}
+                alvoDoRealce={`condominio:${condominio}:skill:${linha.caso.nome}`}
                 ehPadrao={ehPadrao}
                 editavel={editavel}
                 gravando={gravando}

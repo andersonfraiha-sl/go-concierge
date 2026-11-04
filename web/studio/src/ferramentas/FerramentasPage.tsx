@@ -14,6 +14,7 @@ import {
 import { type ReactNode, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
 import { type Ferramenta, useFerramentas } from '@/catalogo/contratos';
+import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { CLASSES, type Classe, classeDe, GRUPOS, tituloDe } from './contratos';
 import { FerramentaDrawer } from './FerramentaDrawer';
@@ -38,6 +39,7 @@ export function FerramentasPage(): ReactNode {
   const podeEditar = usePodeEditar('ferramentas.editar');
   const [filtro, setFiltro] = useState('');
   const [aberta, setAberta] = useState<Aberta>(undefined);
+  useContextoDaTela({ tela: 'ferramentas' });
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

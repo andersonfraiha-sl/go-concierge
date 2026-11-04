@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { contemBusca } from '@/shared/busca';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { tokens } from '@/theme/tokens';
@@ -167,9 +168,10 @@ function LinhaDeCondominio({
 }: LinhaProps): ReactNode {
   const navegar = useNavigate();
   const destino = `/condominios/${encodeURIComponent(id)}`;
+  const realce = useRealceDoCopiloto(`condominio:${id}`);
 
   return (
-    <TableRow hover onClick={() => navegar(destino)} sx={{ cursor: 'pointer' }}>
+    <TableRow hover onClick={() => navegar(destino)} sx={[{ cursor: 'pointer' }, realce]}>
       <TableCell>
         <Link to={destino} style={{ fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>
           {nome}

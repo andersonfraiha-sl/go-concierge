@@ -1,0 +1,65 @@
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
+import { Box, Chip, Typography } from '@mui/material';
+import { type ReactNode, useId } from 'react';
+import { useEu } from '@/acesso/eu';
+import { RAIOS, TIPOS, tokens } from '@/theme/tokens';
+import { useCopiloto } from './CopilotoProvider';
+import { sugestoesDoHubVazio } from './sugestoes';
+
+const ROTULO = 'Ou peça ao Copiloto';
+
+/** Atalhos do hub vazio: abrem o painel e já enviam o pedido, sem a pessoa digitar de novo. */
+export function PecaAoCopiloto(): ReactNode {
+  const { aberto, alternar, enviar } = useCopiloto();
+  const { data: eu } = useEu();
+  const idDoRotulo = useId();
+  const sugestoes = eu ? sugestoesDoHubVazio(eu) : [];
+  if (sugestoes.length === 0) return null;
+
+  const pedir = (texto: string): void => {
+    if (!aberto) alternar();
+    void enviar(texto);
+  };
+
+  return (
+    <Box
+      role="group"
+      aria-labelledby={idDoRotulo}
+      sx={{ mt: 2.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.25 }}
+    >
+      <Typography
+        id={idDoRotulo}
+        sx={{
+          fontSize: TIPOS.overline,
+          fontWeight: 600,
+          color: tokens.color.text.muted,
+          textTransform: 'uppercase',
+          letterSpacing: '.06em',
+        }}
+      >
+        {ROTULO}
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {sugestoes.map((texto) => (
+          <Chip
+            key={texto}
+            label={texto}
+            variant="outlined"
+            icon={<AutoAwesomeOutlined />}
+            onClick={() => pedir(texto)}
+            sx={{
+              height: 'auto',
+              borderRadius: `${RAIOS.menu}px`,
+              borderColor: tokens.color.border.default,
+              bgcolor: tokens.color.background.paper,
+              color: tokens.color.text.strong,
+              fontSize: TIPOS.body2,
+              '& .MuiChip-icon': { color: tokens.color.navy, fontSize: 14, ml: 1.5 },
+              '& .MuiChip-label': { py: 1, pr: 1.5 },
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+}

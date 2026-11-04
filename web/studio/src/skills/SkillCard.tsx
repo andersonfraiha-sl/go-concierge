@@ -2,6 +2,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { tokens } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
 import type { Problemas } from './estatisticas';
@@ -37,13 +38,14 @@ export function SkillCard({
   const completo = variante === 'completo';
   const Icone = iconeDaSkill(skill.icone);
   const tamanhoDoIcone = completo ? 42 : 30;
+  const realce = useRealceDoCopiloto(`skill:${skill.nome}`);
 
   return (
     <Card
       component="article"
       aria-label={skill.titulo}
       variant="outlined"
-      sx={{ display: 'flex', flexDirection: 'column' }}
+      sx={[{ display: 'flex', flexDirection: 'column' }, realce]}
     >
       <CardContent sx={{ flex: 1, pb: 0, display: 'flex', gap: completo ? 2 : 1.5 }}>
         <Box

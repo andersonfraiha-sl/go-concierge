@@ -83,3 +83,15 @@ export function sugestoesPara(contexto: ContextoDoCopiloto, eu: Eu): string[] {
     .slice(0, LIMITE_DE_SUGESTOES)
     .map((sugestao) => sugestao.texto);
 }
+
+// Textos do estado vazio do hub (SkillsVazio.dc.html): pedidos de criar, nunca perguntas.
+const SUGESTOES_DO_HUB_VAZIO = [
+  'Crie uma skill de 2ª via de boleto',
+  'Crie uma skill de agendamento de mudança',
+  'Crie uma skill para reservar o salão',
+] as const;
+
+/** Hub sem skills: só quem pode criar skill recebe as sugestões. */
+export function sugestoesDoHubVazio(eu: Eu): readonly string[] {
+  return podeAplicar(eu, 'criar_skill') ? SUGESTOES_DO_HUB_VAZIO : [];
+}

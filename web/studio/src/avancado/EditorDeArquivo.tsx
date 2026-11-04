@@ -2,6 +2,8 @@ import { Box, Button, Typography } from '@mui/material';
 import { forwardRef, type ReactNode, type UIEvent, useRef, useState } from 'react';
 import { type Control, useForm, useWatch } from 'react-hook-form';
 import { excluirArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
+import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
+import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
@@ -25,7 +27,7 @@ export function EditorDeArquivo(props: EditorProps): ReactNode {
       </Box>
     );
   }
-  return <EditorCarregado {...props} conteudoInicial={arquivo.data.conteudo} />;
+  return <EditorCarregado {...props} conteudoGravado={arquivo.data.conteudo} />;
 }
 
 function EditorCarregado({
@@ -33,12 +35,24 @@ function EditorCarregado({
   caminho,
   editar,
   onExcluido,
-  conteudoInicial,
-}: EditorProps & { conteudoInicial: string }): ReactNode {
+  conteudoGravado,
+}: EditorProps & { conteudoGravado: string }): ReactNode {
   const { mostrar } = useSnackbar();
   const recarregar = useRecarregarAvancado();
   const [excluindo, setExcluindo] = useState(false);
-  const { control, handleSubmit } = useForm({ defaultValues: { texto: conteudoInicial } });
+  const { control, handleSubmit, reset } = useForm({ defaultValues: { texto: conteudoGravado } });
+  const sincronia = useEdicaoSobOServidor({
+    servidor: conteudoGravado,
+    alvos: [`arquivo:${agente}:${caminho}`, `arquivo::${caminho}`],
+    versao: null,
+    local: useWatch({ control, name: 'texto' }),
+    resetar: (texto) => reset({ texto }),
+    salvar: async (conteudo) => {
+      await salvarArquivo({ agente, caminho, conteudo });
+      await recarregar();
+      return null;
+    },
+  });
   const numerosRef = useRef<HTMLPreElement>(null);
 
   const sincronizarScroll = (evento: UIEvent<HTMLTextAreaElement>): void => {
@@ -47,8 +61,7 @@ function EditorCarregado({
 
   const salvar = handleSubmit(async ({ texto }) => {
     try {
-      await salvarArquivo({ agente, caminho, conteudo: texto });
-      await recarregar();
+      await sincronia.salvar(texto);
       mostrar(`Arquivo ${caminho} salvo`);
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
@@ -77,13 +90,22 @@ function EditorCarregado({
             <Button color="error" onClick={() => setExcluindo(true)}>
               Excluir
             </Button>
-            <Button variant="contained" onClick={() => void salvar()}>
+            <Button
+              variant="contained"
+              disabled={sincronia.conflito !== null}
+              onClick={() => void salvar()}
+            >
               Salvar
             </Button>
           </Box>
         )
       }
     >
+      <AvisoDeConflito
+        conflito={sincronia.conflito}
+        onManterOMeu={sincronia.manterOMeu}
+        onUsarONovo={sincronia.usarONovo}
+      />
       <Box sx={{ display: 'flex' }}>
         <NumerosDeLinha ref={numerosRef} control={control} />
         <CampoTexto

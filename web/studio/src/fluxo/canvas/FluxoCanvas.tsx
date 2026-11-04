@@ -25,6 +25,7 @@ import { MenuDeBlocos } from './MenuDeBlocos';
 
 const TIPOS_DE_NO = { bloco: BlocoNode };
 const TIPOS_DE_ARESTA = { comMais: ArestaComMais };
+const NENHUM_REALCE: ReadonlySet<string> = new Set();
 
 type Props = {
   fluxo: Fluxo;
@@ -33,6 +34,8 @@ type Props = {
   editavel: boolean;
   /** Título que o resumo do bloco mostra para uma ferramenta; precisa ser estável entre renders. */
   tituloDaFerramenta: (nome: string) => string;
+  /** Blocos que o Copiloto acabou de mudar; precisa ser estável entre renders. */
+  realcados?: ReadonlySet<string>;
   onSelecionar: (id: string | null) => void;
   onInserir: (indice: number, tipo: TipoBloco) => void;
   onMover: (de: number, para: number) => void;
@@ -65,6 +68,7 @@ export function FluxoCanvas({
   selecionado,
   editavel,
   tituloDaFerramenta,
+  realcados = NENHUM_REALCE,
   onSelecionar,
   onInserir,
   onMover,
@@ -83,9 +87,10 @@ export function FluxoCanvas({
         resumo: resumoDoBloco(bloco, tituloDaFerramenta),
         problemas: porBloco.get(bloco.id) ?? [],
         selecionado: bloco.id === selecionado,
+        realcado: realcados.has(bloco.id),
       },
     }));
-  }, [fluxo.blocos, problemas, selecionado, editavel, tituloDaFerramenta]);
+  }, [fluxo.blocos, problemas, selecionado, editavel, tituloDaFerramenta, realcados]);
 
   const arestas = useMemo<ArestaComMaisTipo[]>(
     () =>
