@@ -2,10 +2,12 @@ package pii
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"math/rand/v2"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -46,7 +48,32 @@ func TestMascarar(t *testing.T) {
 			"«cpf:1» de novo «cpf:1»",
 			map[string]string{"«cpf:1»": "12345678909"},
 		},
+		// Formatos do dia a dia (review I1). O texto em volta não muda.
+		{"celular com o 9 separado", "whats: 19 9 8162-1916", 1, "whats: «tel:1»", map[string]string{"«tel:1»": "19 9 8162-1916"}},
+		{"celular com parênteses e o 9 separado", "(19) 9 8162-1916.", 1, "«tel:1».", map[string]string{"«tel:1»": "(19) 9 8162-1916"}},
+		{"DDD com zero e parênteses", "(019) 98162-1916", 1, "«tel:1»", map[string]string{"«tel:1»": "(019) 98162-1916"}},
+		{"DDD com zero", "019 98162-1916", 1, "«tel:1»", map[string]string{"«tel:1»": "019 98162-1916"}},
+		{"telefone com ponto", "19.98162.1916", 1, "«tel:1»", map[string]string{"«tel:1»": "19.98162.1916"}},
+		{"celular com DDD sem o 9", "19 8162-1916", 1, "«tel:1»", map[string]string{"«tel:1»": "19 8162-1916"}},
+		{"telefone colado nos parênteses", "(19)98162-1916", 1, "«tel:1»", map[string]string{"«tel:1»": "(19)98162-1916"}},
+		{"telefone com NBSP", "tel 19\u00A098162-1916 ok", 1, "tel «tel:1» ok", map[string]string{"«tel:1»": "19\u00A098162-1916"}},
+		{"telefone com espaço estreito", "+55\u202F19\u202F98162-1916", 1, "«tel:1»", map[string]string{"«tel:1»": "+55\u202F19\u202F98162-1916"}},
+		{"telefone com hífen não separável", "19 98162\u20111916", 1, "«tel:1»", map[string]string{"«tel:1»": "19 98162\u20111916"}},
+		{"telefone com travessão", "19 98162\u20141916", 1, "«tel:1»", map[string]string{"«tel:1»": "19 98162\u20141916"}},
+		{"cpf com espaço antes do DV", "123456789 09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123456789 09"}},
+		{"cpf com espaços", "cpf 123 456 789 09!", 1, "cpf «cpf:1»!", map[string]string{"«cpf:1»": "123 456 789 09"}},
+		{"cpf só com pontos", "123.456.789.09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123.456.789.09"}},
+		{"cpf só com hífens", "123-456-789-09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123-456-789-09"}},
+		{"cpf com barra", "123.456.789/09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123.456.789/09"}},
+		{"cpf com largura zero", "x 123.456.789\u200B-09 y", 1, "x «cpf:1» y", map[string]string{"«cpf:1»": "123.456.789\u200B-09"}},
+		{"cpf entremeado de largura zero", "123\u200B456\u2060789\uFEFF09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123\u200B456\u2060789\uFEFF09"}},
+		{"cpf fullwidth", "cpf １２３４５６７８９０９ ok", 1, "cpf «cpf:1» ok", map[string]string{"«cpf:1»": "１２３４５６７８９０９"}},
+		{"telefone fullwidth", "（１９）９８１６２－１９１６", 1, "«tel:1»", map[string]string{"«tel:1»": "（１９）９８１６２－１９１６"}},
 		// Review Focus 2: o que parece CPF ou telefone mas não é continua intacto.
+		{"dinheiro com pontos", "R$ 12.345.678,90 e R$ 1.234.567.890,00", 1, "R$ 12.345.678,90 e R$ 1.234.567.890,00", nil},
+		{"protocolo agrupado", "protocolo 2026 1103 0001", 1, "protocolo 2026 1103 0001", nil},
+		{"código de barras", "34191.79001 01043.510047 91020.150008 1 96610000012345", 1, "34191.79001 01043.510047 91020.150008 1 96610000012345", nil},
+		{"número longo seguido de telefone", "pedido 123456789012345678 tel (19) 98162-1916", 1, "pedido 123456789012345678 tel «tel:1»", map[string]string{"«tel:1»": "(19) 98162-1916"}},
 		{"cpf com DV inválido", "código 12345678900", 1, "código 12345678900", nil},
 		{"cpf de dígitos repetidos", "11111111111", 1, "11111111111", nil},
 		{"protocolo de 14 dígitos", "protocolo 20261103000123", 1, "protocolo 20261103000123", nil},
@@ -61,12 +88,12 @@ func TestMascarar(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, achados := Mascarar(tt.texto, tt.proximo)
+			got, achados := mascarar(tt.texto, tt.proximo)
 			if got != tt.want {
-				t.Errorf("Mascarar(%q) = %q, want %q", tt.texto, got, tt.want)
+				t.Errorf("mascarar(%q) = %q, want %q", tt.texto, got, tt.want)
 			}
 			if len(achados) != len(tt.achados) || (len(tt.achados) > 0 && !maps.Equal(achados, tt.achados)) {
-				t.Errorf("Mascarar(%q) achados = %v, want %v", tt.texto, achados, tt.achados)
+				t.Errorf("mascarar(%q) achados = %v, want %v", tt.texto, achados, tt.achados)
 			}
 		})
 	}
@@ -74,9 +101,10 @@ func TestMascarar(t *testing.T) {
 
 func TestNeutralizar(t *testing.T) {
 	tests := []struct{ texto, want string }{
-		{"«cpf:1»", "cpf:1"},
-		{"meu tel é «tel:2», ok", "meu tel é tel:2, ok"},
-		{"««cpf:1»»", "cpf:1"},
+		{"«cpf:1»", `"cpf:1"`},
+		{"meu tel é «tel:2», ok", `meu tel é "tel:2", ok`},
+		{"««cpf:1»»", `""cpf:1""`},
+		{"o «Regimento»", `o "Regimento"`},
 		{"sem marcador", "sem marcador"},
 	}
 	for _, tt := range tests {
@@ -88,12 +116,12 @@ func TestNeutralizar(t *testing.T) {
 
 // Review Focus 1: o morador digita um marcador para pegar o valor de outro achado.
 func TestMarcadorForjadoNaoCasaComOCofre(t *testing.T) {
-	mascarado, achados := Mascarar("«cpf:1» meu cpf é 123.456.789-09 «tel:2»", 1)
-	if mascarado != "cpf:1 meu cpf é «cpf:1» tel:2" {
+	mascarado, achados := mascarar("«cpf:1» meu cpf é 123.456.789-09 «tel:2»", 1)
+	if mascarado != `"cpf:1" meu cpf é «cpf:1» "tel:2"` {
 		t.Fatalf("mascarado = %q", mascarado)
 	}
 	got := Devolver(mascarado, achados)
-	if want := "cpf:1 meu cpf é 123.456.789-09 tel:2"; got != want {
+	if want := `"cpf:1" meu cpf é 123.456.789-09 "tel:2"`; got != want {
 		t.Errorf("Devolver = %q, want %q", got, want)
 	}
 }
@@ -146,7 +174,7 @@ func TestValorNaoAlteraOriginal(t *testing.T) {
 	}
 	copia := clonarFundo(original)
 
-	mascarado, achados := MascararEmValor(original, 1)
+	mascarado, achados := mascararEmValor(original, 1)
 	if !reflect.DeepEqual(original, copia) {
 		t.Fatalf("MascararEmValor mudou o original: %v", original)
 	}
@@ -169,7 +197,7 @@ func TestValorNaoAlteraOriginal(t *testing.T) {
 
 func TestMascararEmValorNumeraNaOrdemDasChaves(t *testing.T) {
 	v := map[string]any{"b": "12345678909", "a": "(19) 94040-2710"}
-	got, achados := MascararEmValor(v, 1)
+	got, achados := mascararEmValor(v, 1)
 	want := map[string]any{"a": "«tel:1»", "b": "«cpf:2»"}
 	if !reflect.DeepEqual(got, want) || len(achados) != 2 {
 		t.Errorf("MascararEmValor = %v (%v), want %v", got, achados, want)
@@ -199,15 +227,15 @@ func clonarFundo(v any) any {
 // (sem marcador digitado), e nenhum CPF válido nem telefone sobra no mascarado.
 func TestIdaEVolta(t *testing.T) {
 	r := rand.New(rand.NewPCG(2026, 11))
-	for i := range 5000 {
+	for i := range 20000 {
 		texto := textoAleatorio(r)
 		proximo := 1 + r.IntN(5)
-		mascarado, achados := Mascarar(texto, proximo)
+		mascarado, achados := mascarar(texto, proximo)
 		if trechos := achar(mascarado); len(trechos) > 0 {
 			t.Fatalf("caso %d: %q sobrou em %q", i, mascarado[trechos[0].ini:trechos[0].fim], mascarado)
 		}
 		if got, want := Devolver(mascarado, achados), Neutralizar(texto); got != want {
-			t.Fatalf("caso %d: Devolver(Mascarar(%q)) = %q, want %q", i, texto, got, want)
+			t.Fatalf("caso %d: Devolver(mascarar(%q)) = %q, want %q", i, texto, got, want)
 		}
 	}
 }
@@ -223,6 +251,11 @@ func textoAleatorio(r *rand.Rand) string {
 		func(*rand.Rand) string { return "«cpf:1»" },
 		func(r *rand.Rand) string { return fmt.Sprint(r.IntN(1_000_000)) },
 		func(*rand.Rand) string { return "olá, " },
+		func(r *rand.Rand) string { return disfarcar(r, cpfAleatorio(r)) },
+		func(r *rand.Rand) string { return disfarcar(r, telefoneAleatorio(r)) },
+		func(*rand.Rand) string { return "(19) 9 8162-1916" },
+		func(*rand.Rand) string { return "R$ 12.345.678,90" },
+		func(*rand.Rand) string { return "34191.79001 01043.510047" },
 	}
 	var b strings.Builder
 	for range 1 + r.IntN(8) {
@@ -230,6 +263,24 @@ func textoAleatorio(r *rand.Rand) string {
 		b.WriteString([]string{" ", ", ", "\n", ""}[r.IntN(4)])
 	}
 	return b.String()
+}
+
+// disfarcar troca separadores por variantes Unicode, põe largura zero entre os
+// dígitos ou passa os dígitos para largura cheia: o que o modelo lê como o mesmo número.
+func disfarcar(r *rand.Rand, numero string) string {
+	switch r.IntN(3) {
+	case 0:
+		return strings.NewReplacer(" ", "\u00A0", "-", "\u2011").Replace(numero)
+	case 1:
+		return strings.Join(strings.Split(numero, ""), "\u200B")
+	default:
+		return strings.Map(func(c rune) rune {
+			if c >= '0' && c <= '9' {
+				return c - '0' + '０'
+			}
+			return c
+		}, numero)
+	}
 }
 
 func cpfAleatorio(r *rand.Rand) string {
@@ -267,42 +318,107 @@ func FuzzMascarar(f *testing.F) {
 	for _, s := range []string{
 		"123.456.789-09", "12345678909", "+55 (19) 94040-2710", "«cpf:1» 12345678909",
 		"12345678900", "20261103000123", "(11) 3333-4444 e 529.982.247-25", "««tel:1»»",
+		"19\u00A098162\u20111916", "１２３４５６７８９０９", "123\u200B456\u200B789-09", "(019) 9 8162-1916",
 	} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, texto string) {
-		mascarado, achados := Mascarar(texto, 1)
+		mascarado, achados := mascarar(texto, 1)
 		if trechos := achar(mascarado); len(trechos) > 0 {
 			t.Fatalf("%q sobrou em %q", mascarado[trechos[0].ini:trechos[0].fim], mascarado)
 		}
 		if got, want := Devolver(mascarado, achados), Neutralizar(texto); got != want {
-			t.Fatalf("Devolver(Mascarar(%q)) = %q, want %q", texto, got, want)
+			t.Fatalf("Devolver(mascarar(%q)) = %q, want %q", texto, got, want)
 		}
-		// Marcador forjado nunca devolve valor: sem cofre, nada vira valor.
-		if forjado := Devolver(texto, nil); strings.Contains(forjado, "123.456.789-09") && !strings.Contains(texto, "123.456.789-09") {
-			t.Fatalf("Devolver sem cofre inventou valor: %q", forjado)
+		// Sem cofre, nenhum marcador vira valor e nenhum CPF sai: os marcadores ficam
+		// byte a byte e o que sobra de CPF já estava no texto mascarado.
+		semCofre := Devolver(texto, nil)
+		if got, want := reMarcador.FindAllString(semCofre, -1), reMarcador.FindAllString(texto, -1); !slices.Equal(got, want) {
+			t.Fatalf("Devolver sem cofre mudou marcadores: %q -> %q", texto, semCofre)
+		}
+		if cpfs := slices.DeleteFunc(achar(semCofre), func(t trecho) bool { return t.tipo != tipoCPF }); len(cpfs) > 0 {
+			t.Fatalf("Devolver sem cofre deixou CPF em %q", semCofre)
 		}
 	})
 }
 
+// C1: resultados de ferramenta mascarados em paralelo nunca dividem um marcador, e
+// cada marcador volta ao valor do próprio resultado.
 func TestCofreConcorrente(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2))
+	cpfs := make([]string, 64)
+	for i := range cpfs {
+		cpfs[i] = cpfAleatorio(r)
+	}
 	c := NovoCofre()
+	mascarados := make([]any, len(cpfs))
 	var wg sync.WaitGroup
-	for i := range 50 {
+	for i, cpf := range cpfs {
 		wg.Go(func() {
-			c.Guardar(map[string]string{fmt.Sprintf("«cpf:%d»", i+1): "123.456.789-09"})
-			_ = c.Ler()
+			mascarados[i] = c.MascararEmValor(map[string]any{"morador": map[string]any{"cpf": cpf}})
 		})
 	}
 	wg.Wait()
-	if got := len(c.Ler()); got != 50 {
-		t.Errorf("len(Ler()) = %d, want 50", got)
+
+	cofre := c.Ler()
+	vistos := map[string]bool{}
+	for i, m := range mascarados {
+		marcador := m.(map[string]any)["morador"].(map[string]any)["cpf"].(string)
+		if vistos[marcador] {
+			t.Fatalf("marcador %s repetido", marcador)
+		}
+		vistos[marcador] = true
+		if got := Devolver(marcador, cofre); got != cpfs[i] {
+			t.Errorf("Devolver(%s) = %q, want %q", marcador, got, cpfs[i])
+		}
+	}
+	if len(cofre) != len(cpfs) {
+		t.Errorf("len(cofre) = %d, want %d", len(cofre), len(cpfs))
+	}
+}
+
+func TestCofreMascararNumeraEmSequencia(t *testing.T) {
+	c := NovoCofre()
+	if got := c.Mascarar("cpf 123.456.789-09"); got != "cpf «cpf:1»" {
+		t.Fatalf("1º Mascarar = %q", got)
+	}
+	if got := c.Mascarar("tel (19) 98162-1916 e cpf 529.982.247-25"); got != "tel «tel:2» e cpf «cpf:3»" {
+		t.Fatalf("2º Mascarar = %q", got)
+	}
+	if got := Devolver("«cpf:1» «tel:2» «cpf:3»", c.Ler()); got != "123.456.789-09 (19) 98162-1916 529.982.247-25" {
+		t.Errorf("Devolver = %q", got)
+	}
+}
+
+func TestCofreGuardar(t *testing.T) {
+	c := NovoCofre()
+	if err := c.Guardar(map[string]string{"«cpf:1»": "123.456.789-09"}); err != nil {
+		t.Fatalf("Guardar: %v", err)
+	}
+	if err := c.Guardar(map[string]string{"«cpf:1»": "123.456.789-09"}); err != nil {
+		t.Errorf("Guardar do mesmo valor: %v", err)
+	}
+	if err := c.Guardar(map[string]string{"«cpf:1»": "529.982.247-25"}); !errors.Is(err, ErrMarcadorOcupado) {
+		t.Errorf("Guardar de outro valor: err = %v, want ErrMarcadorOcupado", err)
+	}
+	if err := c.Guardar(map[string]string{"cpf:2": "529.982.247-25"}); !errors.Is(err, ErrMarcadorInvalido) {
+		t.Errorf("Guardar fora do formato: err = %v, want ErrMarcadorInvalido", err)
+	}
+	if got := c.Ler()["«cpf:1»"]; got != "123.456.789-09" {
+		t.Errorf("valor sobrescrito: %q", got)
+	}
+	// Numeração continua depois do maior marcador guardado.
+	if err := c.Guardar(map[string]string{"«tel:7»": "(19) 98162-1916"}); err != nil {
+		t.Fatalf("Guardar: %v", err)
+	}
+	if got := c.Mascarar("529.982.247-25"); got != "«cpf:8»" {
+		t.Errorf("Mascarar depois de Guardar = %q, want «cpf:8»", got)
 	}
 }
 
 func TestCofreLerDevolveCopia(t *testing.T) {
 	c := NovoCofre()
-	c.Guardar(map[string]string{"«cpf:1»": "123.456.789-09"})
+	c.Mascarar("123.456.789-09")
 	lido := c.Ler()
 	lido["«cpf:1»"] = "outro"
 	if c.Ler()["«cpf:1»"] != "123.456.789-09" {
@@ -312,7 +428,7 @@ func TestCofreLerDevolveCopia(t *testing.T) {
 
 func TestCofreNuncaSerializaNemLoga(t *testing.T) {
 	c := NovoCofre()
-	c.Guardar(map[string]string{"«cpf:1»": "123.456.789-09", "«tel:2»": "(19) 94040-2710"})
+	c.Mascarar("123.456.789-09 (19) 94040-2710")
 
 	var log strings.Builder
 	slogJSON(&log).Info("turno", "cofre", c)

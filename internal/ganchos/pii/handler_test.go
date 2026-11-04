@@ -25,6 +25,16 @@ func TestHandlerMascara(t *testing.T) {
 		{"With", func(l *slog.Logger) { l.With("doc", "12345678909").Info("ok") }, `"doc":"«cpf»"`},
 		{"erro", func(l *slog.Logger) { l.Error("ok", "erro", errors.New("cpf 12345678909 inválido")) }, `"erro":"cpf «cpf» inválido"`},
 		{"mensagem", func(l *slog.Logger) { l.Info("cpf 12345678909") }, `"msg":"cpf «cpf»"`},
+		{"map", func(l *slog.Logger) {
+			l.Info("ok", "params", map[string]any{"cpf": "12345678909", "unidade": 1203})
+		}, `"params":{"cpf":"«cpf»","unidade":1203}`},
+		{"slice", func(l *slog.Logger) { l.Info("ok", "lista", []any{"19 98162-1916", "apto 12"}) }, `"lista":["«tel»","apto 12"]`},
+		{"slice tipado", func(l *slog.Logger) { l.Info("ok", "lista", []string{"19 98162-1916"}) }, `"lista":"[«tel»]"`},
+		{"struct", func(l *slog.Logger) { l.Info("ok", "st", struct{ Doc string }{"12345678909"}) }, `"st":"{«cpf»}"`},
+		{"map com valor tipado", func(l *slog.Logger) {
+			l.Info("ok", "params", map[string]any{"tels": []string{"19 98162-1916"}})
+		}, `"params":"map[tels:[«tel»]]"`},
+		{"nil", func(l *slog.Logger) { l.Info("ok", "nada", nil) }, `"nada":null`},
 		{"número que não é cpf fica", func(l *slog.Logger) { l.Info("ok", "protocolo", "20261103000123") }, `"protocolo":"20261103000123"`},
 	}
 	for _, tt := range tests {
@@ -34,7 +44,7 @@ func TestHandlerMascara(t *testing.T) {
 			if !strings.Contains(saida.String(), tt.want) {
 				t.Errorf("log = %s, want conter %s", saida.String(), tt.want)
 			}
-			if strings.Contains(saida.String(), "789-09") || strings.Contains(saida.String(), "2710") {
+			if s := saida.String(); strings.Contains(s, "789-09") || strings.Contains(s, "2710") || strings.Contains(s, "12345678909") || strings.Contains(s, "1916") {
 				t.Errorf("log vazou PII: %s", saida.String())
 			}
 		})

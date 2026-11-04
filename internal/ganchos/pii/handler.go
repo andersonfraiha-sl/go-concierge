@@ -2,6 +2,7 @@ package pii
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 )
 
@@ -49,9 +50,26 @@ func mascararAttr(a slog.Attr) slog.Attr {
 		}
 		return slog.Attr{Key: a.Key, Value: slog.GroupValue(limpos...)}
 	case slog.KindAny:
-		if err, ok := v.Any().(error); ok {
-			return slog.String(a.Key, mascararAnonimo(err.Error()))
-		}
+		return mascararQualquer(a.Key, v.Any())
 	}
 	return slog.Attr{Key: a.Key, Value: v}
+}
+
+// mascararQualquer: erro pela mensagem, map[string]any e []any pelo conteúdo, e o
+// resto (struct, slice tipado, Stringer) pelo texto renderizado, perdendo a forma.
+func mascararQualquer(chave string, v any) slog.Attr {
+	switch x := v.(type) {
+	case nil:
+		return slog.Any(chave, nil)
+	case error:
+		return slog.String(chave, mascararAnonimo(x.Error()))
+	case map[string]any, []any:
+		limpo := mapearStrings(x, mascararAnonimo)
+		// Valor tipado lá dentro ([]string, struct) não passa por mapearStrings.
+		if texto := fmt.Sprint(limpo); len(achar(texto)) > 0 {
+			return slog.String(chave, mascararAnonimo(texto))
+		}
+		return slog.Any(chave, limpo)
+	}
+	return slog.String(chave, mascararAnonimo(fmt.Sprint(v)))
 }
