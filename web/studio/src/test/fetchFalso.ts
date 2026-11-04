@@ -11,17 +11,19 @@ export function json(corpo: unknown, status = 200): Response {
   });
 }
 
+function rotaDe(rotas: Record<string, Rota>, req: Request): Rota {
+  const chave = `${req.method} ${new URL(req.url).pathname}`;
+  const rota = rotas[chave];
+  if (rota) return rota;
+  rotasAusentes.push(chave);
+  throw new Error(`fetch sem rota falsa: ${chave}`);
+}
+
 /** Chave "METODO /caminho", sem query. Rota ausente rejeita o fetch e reprova o teste no afterEach. */
 export function responderCom(rotas: Record<string, Rota>): Mock<typeof fetch> {
   const falso = vi.fn<typeof fetch>(async (entrada, init) => {
     const req = new Request(new URL(String(entrada), 'http://localhost'), init);
-    const chave = `${req.method} ${new URL(req.url).pathname}`;
-    const rota = rotas[chave];
-    if (!rota) {
-      rotasAusentes.push(chave);
-      throw new Error(`fetch sem rota falsa: ${chave}`);
-    }
-    return rota(req);
+    return rotaDe(rotas, req)(req);
   });
   vi.stubGlobal('fetch', falso);
   return falso;

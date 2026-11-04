@@ -58,9 +58,64 @@ const comMedidas = (
   novos: BlocoNodeTipo[],
 ): BlocoNodeTipo[] =>
   novos.map((no) => {
-    const medido = anteriores.find((a) => a.id === no.id)?.measured;
+    const medido = anteriores.find((anterior) => anterior.id === no.id)?.measured;
     return medido ? { ...no, measured: medido } : no;
   });
+
+type OpcoesDosNos = Pick<Props, 'problemas' | 'selecionado' | 'editavel' | 'tituloDaFerramenta'> & {
+  blocos: Fluxo['blocos'];
+  realcados: ReadonlySet<string>;
+};
+
+function nosDoFluxo(opcoes: OpcoesDosNos): BlocoNodeTipo[] {
+  const { blocos, problemas, selecionado, editavel, tituloDaFerramenta, realcados } = opcoes;
+  const porBloco = problemasPorBloco(problemas);
+  return blocos.map((bloco, indice) => ({
+    id: bloco.id,
+    type: 'bloco',
+    position: { x: 0, y: indice * (ALTURA_BLOCO + ESPACO) },
+    draggable: editavel && bloco.tipo !== 'responder',
+    selected: bloco.id === selecionado,
+    data: {
+      bloco,
+      indice,
+      resumo: resumoDoBloco(bloco, tituloDaFerramenta),
+      problemas: porBloco.get(bloco.id) ?? [],
+      selecionado: bloco.id === selecionado,
+      realcado: realcados.has(bloco.id),
+    },
+  }));
+}
+
+function arestasDoFluxo(blocos: Fluxo['blocos']): ArestaComMaisTipo[] {
+  return blocos.slice(1).map((bloco, posicao) => ({
+    id: `${blocos[posicao]?.id ?? ''}->${bloco.id}`,
+    source: blocos[posicao]?.id ?? '',
+    target: bloco.id,
+    type: 'comMais',
+    data: { indice: posicao + 1 },
+  }));
+}
+
+/** Os nós ficam em estado local só para o arrasto andar na tela; a ordem verdadeira é o `fluxo`. */
+function useNosArrastaveis(derivados: BlocoNodeTipo[]) {
+  const [nos, setNos] = useState(derivados);
+  const [origem, setOrigem] = useState(derivados);
+  if (origem !== derivados) {
+    setOrigem(derivados);
+    setNos((anteriores) => comMedidas(anteriores, derivados));
+  }
+
+  const aoMudarNos = (mudancas: NodeChange<BlocoNodeTipo>[]) => {
+    const aplicaveis = mudancas.filter(
+      (mudanca) => mudanca.type !== 'select' && mudanca.type !== 'remove',
+    );
+    setNos((atuais) => applyNodeChanges(aplicaveis, atuais));
+  };
+  const remedir = () => setNos((atuais) => comMedidas(atuais, derivados));
+
+  return { nos, aoMudarNos, remedir };
+}
 
 export function FluxoCanvas({
   fluxo,
@@ -73,44 +128,20 @@ export function FluxoCanvas({
   onInserir,
   onMover,
 }: Props): ReactNode {
-  const derivados = useMemo<BlocoNodeTipo[]>(() => {
-    const porBloco = problemasPorBloco(problemas);
-    return fluxo.blocos.map((bloco, indice) => ({
-      id: bloco.id,
-      type: 'bloco',
-      position: { x: 0, y: indice * (ALTURA_BLOCO + ESPACO) },
-      draggable: editavel && bloco.tipo !== 'responder',
-      selected: bloco.id === selecionado,
-      data: {
-        bloco,
-        indice,
-        resumo: resumoDoBloco(bloco, tituloDaFerramenta),
-        problemas: porBloco.get(bloco.id) ?? [],
-        selecionado: bloco.id === selecionado,
-        realcado: realcados.has(bloco.id),
-      },
-    }));
-  }, [fluxo.blocos, problemas, selecionado, editavel, tituloDaFerramenta, realcados]);
-
-  const arestas = useMemo<ArestaComMaisTipo[]>(
+  const derivados = useMemo(
     () =>
-      fluxo.blocos.slice(1).map((bloco, i) => ({
-        id: `${fluxo.blocos[i]?.id ?? ''}->${bloco.id}`,
-        source: fluxo.blocos[i]?.id ?? '',
-        target: bloco.id,
-        type: 'comMais',
-        data: { indice: i + 1 },
-      })),
-    [fluxo.blocos],
+      nosDoFluxo({
+        blocos: fluxo.blocos,
+        problemas,
+        selecionado,
+        editavel,
+        tituloDaFerramenta,
+        realcados,
+      }),
+    [fluxo.blocos, problemas, selecionado, editavel, tituloDaFerramenta, realcados],
   );
-
-  // Os nós ficam em estado local só para o arrasto andar na tela; a ordem verdadeira é o `fluxo`.
-  const [nos, setNos] = useState(derivados);
-  const [origem, setOrigem] = useState(derivados);
-  if (origem !== derivados) {
-    setOrigem(derivados);
-    setNos((anteriores) => comMedidas(anteriores, derivados));
-  }
+  const arestas = useMemo(() => arestasDoFluxo(fluxo.blocos), [fluxo.blocos]);
+  const { nos, aoMudarNos, remedir } = useNosArrastaveis(derivados);
 
   const [pedido, setPedido] = useState<PedidoDeInsercao | null>(null);
   const pedirInsercao = useMemo<PedirInsercao | null>(
@@ -118,19 +149,11 @@ export function FluxoCanvas({
     [editavel],
   );
 
-  const aoMudarNos = (mudancas: NodeChange<BlocoNodeTipo>[]) =>
-    setNos((atuais) =>
-      applyNodeChanges(
-        mudancas.filter((m) => m.type !== 'select' && m.type !== 'remove'),
-        atuais,
-      ),
-    );
-
   const aoSoltar: OnNodeDrag<BlocoNodeTipo> = (_, no) => {
-    const de = fluxo.blocos.findIndex((b) => b.id === no.id);
-    const para = indiceAoSoltar(no.position.y, fluxo.blocos.length);
-    if (de !== para) return onMover(de, para);
-    setNos((atuais) => comMedidas(atuais, derivados));
+    const indiceAtual = fluxo.blocos.findIndex((bloco) => bloco.id === no.id);
+    const indiceNovo = indiceAoSoltar(no.position.y, fluxo.blocos.length);
+    if (indiceAtual !== indiceNovo) return onMover(indiceAtual, indiceNovo);
+    remedir();
   };
 
   const escolher = (tipo: TipoBloco) => {
@@ -138,6 +161,7 @@ export function FluxoCanvas({
     setPedido(null);
   };
 
+  // por que: JSX declarativo do ReactFlow; fatiar só espalharia as props.
   return (
     <PedirInsercaoContext value={pedirInsercao}>
       <Box

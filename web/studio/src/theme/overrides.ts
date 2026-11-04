@@ -121,6 +121,47 @@ const CLASSES_DO_INTERRUPTOR = {
   trilho: '& .MuiSwitch-track',
 } as const;
 
+function estiloDaBaseDoInterruptor(theme: Theme, transicao: string) {
+  return {
+    padding: 2,
+    transition: `transform ${transicao}`,
+    '&:hover': { backgroundColor: 'transparent' },
+    '&.Mui-checked': { transform: 'translateX(20px)' },
+    '&.Mui-checked + .MuiSwitch-track': {
+      backgroundColor: theme.palette.primary.main,
+      opacity: 1,
+    },
+    '&.Mui-disabled + .MuiSwitch-track': { opacity: 0.45 },
+  };
+}
+
+const estiloDoPinoDoInterruptor = (theme: Theme) => ({
+  width: 20,
+  height: 20,
+  border: 0,
+  backgroundColor: theme.palette.background.paper,
+  boxShadow: INTERRUPTOR.sombraDoPino,
+});
+
+const estiloDoTrilhoDoInterruptor = (transicao: string) => ({
+  borderRadius: 12,
+  backgroundColor: INTERRUPTOR.trilhoDesligado,
+  opacity: 1,
+  transition: `background-color ${transicao}, opacity ${transicao}`,
+});
+
+const ESTILO_DO_INTERRUPTOR_PEQUENO = {
+  width: 36,
+  height: 20,
+  [CLASSES_DO_INTERRUPTOR.base]: {
+    padding: 2,
+    '&.Mui-checked': { transform: 'translateX(16px)' },
+  },
+  [CLASSES_DO_INTERRUPTOR.pino]: { width: 16, height: 16 },
+  [CLASSES_DO_INTERRUPTOR.trilho]: { borderRadius: 10 },
+  borderRadius: 10,
+};
+
 // O MUI desenha o Switch com 12 px de respiro em volta do trilho e o pino com 9 px de
 // padding. Zerar só o respiro da raiz (o override antigo) deixava o pino deslocado e
 // cortado no canto: aqui pino, trilho e deslocamento são medidos juntos.
@@ -136,40 +177,9 @@ function estiloDoInterruptor(theme: Theme) {
       outline: `2px solid ${theme.palette.primary.main}`,
       outlineOffset: 2,
     },
-    [CLASSES_DO_INTERRUPTOR.base]: {
-      padding: 2,
-      transition: `transform ${transicao}`,
-      '&:hover': { backgroundColor: 'transparent' },
-      '&.Mui-checked': { transform: 'translateX(20px)' },
-      '&.Mui-checked + .MuiSwitch-track': {
-        backgroundColor: theme.palette.primary.main,
-        opacity: 1,
-      },
-      '&.Mui-disabled + .MuiSwitch-track': { opacity: 0.45 },
-    },
-    [CLASSES_DO_INTERRUPTOR.pino]: {
-      width: 20,
-      height: 20,
-      border: 0,
-      backgroundColor: theme.palette.background.paper,
-      boxShadow: INTERRUPTOR.sombraDoPino,
-    },
-    [CLASSES_DO_INTERRUPTOR.trilho]: {
-      borderRadius: 12,
-      backgroundColor: INTERRUPTOR.trilhoDesligado,
-      opacity: 1,
-      transition: `background-color ${transicao}, opacity ${transicao}`,
-    },
-    '&.MuiSwitch-sizeSmall': {
-      width: 36,
-      height: 20,
-      [CLASSES_DO_INTERRUPTOR.base]: {
-        padding: 2,
-        '&.Mui-checked': { transform: 'translateX(16px)' },
-      },
-      [CLASSES_DO_INTERRUPTOR.pino]: { width: 16, height: 16 },
-      [CLASSES_DO_INTERRUPTOR.trilho]: { borderRadius: 10 },
-      borderRadius: 10,
-    },
+    [CLASSES_DO_INTERRUPTOR.base]: estiloDaBaseDoInterruptor(theme, transicao),
+    [CLASSES_DO_INTERRUPTOR.pino]: estiloDoPinoDoInterruptor(theme),
+    [CLASSES_DO_INTERRUPTOR.trilho]: estiloDoTrilhoDoInterruptor(transicao),
+    '&.MuiSwitch-sizeSmall': ESTILO_DO_INTERRUPTOR_PEQUENO,
   };
 }

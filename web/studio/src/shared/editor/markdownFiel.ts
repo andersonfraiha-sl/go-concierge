@@ -82,6 +82,17 @@ const voltaIgual = (no: JSONContent): boolean => {
 
 type Token = { type: string; raw: string };
 
+type BlocoLido = { bloco: Bloco; no: JSONContent };
+
+/** Um bloco do arquivo, ou `null` se o editor não o representa sem perda. */
+function lerBloco(token: Token): BlocoLido | null {
+  if (!BLOCOS_DO_EDITOR.has(token.type)) return null;
+  const texto = token.raw.replace(/\n+$/, '');
+  const [no, ...sobra] = blocosDe(texto);
+  if (no === undefined || sobra.length > 0 || !voltaIgual(no)) return null;
+  return { bloco: { texto, depois: token.raw.slice(texto.length), chave: chaveDe(no) }, no };
+}
+
 /** Separa o arquivo em blocos que o editor representa sem perda; `null` se algum não couber. */
 function lerBlocos(
   tokens: readonly Token[],
@@ -91,16 +102,15 @@ function lerBlocos(
   let antes = '';
   for (const token of tokens) {
     const anterior = blocos.at(-1);
-    if (token.type === 'space' && anterior === undefined) antes += token.raw;
-    else if (token.type === 'space' && anterior !== undefined) anterior.depois += token.raw;
-    else {
-      if (!BLOCOS_DO_EDITOR.has(token.type)) return null;
-      const texto = token.raw.replace(/\n+$/, '');
-      const [no, ...sobra] = blocosDe(texto);
-      if (no === undefined || sobra.length > 0 || !voltaIgual(no)) return null;
-      blocos.push({ texto, depois: token.raw.slice(texto.length), chave: chaveDe(no) });
-      nos.push(no);
+    if (token.type === 'space') {
+      if (anterior === undefined) antes += token.raw;
+      else anterior.depois += token.raw;
+      continue;
     }
+    const lido = lerBloco(token);
+    if (lido === null) return null;
+    blocos.push(lido.bloco);
+    nos.push(lido.no);
   }
   return { blocos, nos, antes };
 }

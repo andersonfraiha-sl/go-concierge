@@ -8,37 +8,79 @@ const erro = (codigo: string, mensagem: string, blocoId?: string): ProblemaFluxo
     ? { codigo, nivel: 'erro', mensagem }
     : { blocoId, codigo, nivel: 'erro', mensagem };
 
-const temTexto = (valor: string): boolean => valor !== '';
+function temTexto(valor: string): boolean {
+  return valor !== '';
+}
+
+type BlocoDe<T extends TipoBloco> = Extract<Bloco, { tipo: T }>;
+
+const exigir = (preenchido: boolean, rotulo: string): string | null => (preenchido ? null : rotulo);
+
+const ROTULO_DO_TEXTO = {
+  confirmar: 'a pergunta de confirmação',
+  montar_texto: 'a instrução',
+  responder: 'a resposta',
+} as const;
 
 /** Rótulo do primeiro campo sem o qual o bloco não funciona, ou null se estão preenchidos. */
 function campoVazio(bloco: Bloco): string | null {
   switch (bloco.tipo) {
     case 'buscar_dados':
     case 'gravar_no_sistema':
-      return temTexto(bloco.recurso) ? null : 'a ferramenta';
+      return exigir(temTexto(bloco.recurso), 'a ferramenta');
     case 'pedir_escolha':
-      return temTexto(bloco.param) ? null : 'onde guardar a escolha';
+      return exigir(temTexto(bloco.param), 'onde guardar a escolha');
     case 'perguntar':
-      return bloco.campos.length > 0 ? null : 'as informações perguntadas';
+      return exigir(bloco.campos.length > 0, 'as informações perguntadas');
     case 'formulario':
-      return temTexto(bloco.de) ? null : 'de onde vêm os campos';
-    case 'confirmar':
-      return temTexto(bloco.texto) ? null : 'a pergunta de confirmação';
-    case 'montar_texto':
-      return temTexto(bloco.texto) ? null : 'a instrução';
+      return exigir(temTexto(bloco.de), 'de onde vêm os campos');
     case 'reaproveitar':
-      if (bloco.campos.length === 0) return 'as informações reaproveitadas';
-      return temTexto(bloco.confirmacao) ? null : 'onde guardar a resposta';
+      return campoVazioDoReaproveitar(bloco);
+    case 'confirmar':
+    case 'montar_texto':
     case 'responder':
-      return temTexto(bloco.texto) ? null : 'a resposta';
+      return exigir(temTexto(bloco.texto), ROTULO_DO_TEXTO[bloco.tipo]);
   }
 }
 
-const chaveSe = (chave: string, preenchido: boolean): string[] => (preenchido ? [chave] : []);
+function campoVazioDoReaproveitar(bloco: BlocoDe<'reaproveitar'>): string | null {
+  if (bloco.campos.length === 0) return 'as informações reaproveitadas';
+  return exigir(temTexto(bloco.confirmacao), 'onde guardar a resposta');
+}
+
+/** Chaves cujo valor está preenchido, na ordem em que a gravação as escreve. */
+const chavesPreenchidas = (pares: readonly (readonly [string, string])[]): string[] =>
+  pares.filter(([, valor]) => temTexto(valor)).map(([chave]) => chave);
 
 function chavesDeSlots(campos: readonly string[]): string[] {
   if (campos.length === 0) return [];
   return [campos.length === 1 ? 'slot' : 'slots'];
+}
+
+function chavesDoPedirEscolha(bloco: BlocoDe<'pedir_escolha'>): string[] {
+  return chavesPreenchidas([
+    ['param', bloco.param],
+    ['title', bloco.titulo],
+    ['from', bloco.de],
+    ['label', bloco.rotulo],
+    ['value', bloco.valor],
+    ['ask', bloco.pergunta],
+    ['empty', bloco.seVazio],
+    ['reuse', bloco.reaproveitar],
+  ]);
+}
+
+function chavesDoReaproveitar(bloco: BlocoDe<'reaproveitar'>): string[] {
+  return [
+    ...chavesDeSlots(bloco.campos),
+    ...chavesPreenchidas([
+      ['confirm', bloco.confirmacao],
+      ['from', bloco.de],
+      ['label', bloco.rotulo],
+      ['value', bloco.valor],
+      ['ask', bloco.pergunta],
+    ]),
+  ];
 }
 
 /** Chaves que a gravação escreve para o bloco (sem o Extra); só estas repetiriam uma do Extra. */
@@ -48,34 +90,18 @@ function chavesEmitidas(bloco: Bloco): string[] {
     case 'gravar_no_sistema':
       return [
         'resource',
-        ...chaveSe('with', bloco.com.length > 0),
-        ...chaveSe('save_as', temTexto(bloco.guardarEm)),
+        ...(bloco.com.length > 0 ? ['with'] : []),
+        ...chavesPreenchidas([['save_as', bloco.guardarEm]]),
       ];
     case 'pedir_escolha':
-      return [
-        ...chaveSe('param', temTexto(bloco.param)),
-        ...chaveSe('title', temTexto(bloco.titulo)),
-        ...chaveSe('from', temTexto(bloco.de)),
-        ...chaveSe('label', temTexto(bloco.rotulo)),
-        ...chaveSe('value', temTexto(bloco.valor)),
-        ...chaveSe('ask', temTexto(bloco.pergunta)),
-        ...chaveSe('empty', temTexto(bloco.seVazio)),
-        ...chaveSe('reuse', temTexto(bloco.reaproveitar)),
-      ];
+      return chavesDoPedirEscolha(bloco);
     case 'formulario':
-      return [
-        ...chaveSe('fields_from', temTexto(bloco.de)),
-        ...chaveSe('save_as', temTexto(bloco.guardarEm)),
-      ];
+      return chavesPreenchidas([
+        ['fields_from', bloco.de],
+        ['save_as', bloco.guardarEm],
+      ]);
     case 'reaproveitar':
-      return [
-        ...chavesDeSlots(bloco.campos),
-        ...chaveSe('confirm', temTexto(bloco.confirmacao)),
-        ...chaveSe('from', temTexto(bloco.de)),
-        ...chaveSe('label', temTexto(bloco.rotulo)),
-        ...chaveSe('value', temTexto(bloco.valor)),
-        ...chaveSe('ask', temTexto(bloco.pergunta)),
-      ];
+      return chavesDoReaproveitar(bloco);
     case 'perguntar':
     case 'confirmar':
     case 'montar_texto':
@@ -87,10 +113,12 @@ function chavesEmitidas(bloco: Bloco): string[] {
 function chavesDaInformacao(info: Informacao): string[] {
   return [
     'name',
-    ...chaveSe('title', temTexto(info.titulo)),
-    ...chaveSe('ask', temTexto(info.pergunta)),
-    ...chaveSe('type', temTexto(info.tipo)),
-    ...chaveSe('options', info.opcoes.length > 0),
+    ...chavesPreenchidas([
+      ['title', info.titulo],
+      ['ask', info.pergunta],
+      ['type', info.tipo],
+    ]),
+    ...(info.opcoes.length > 0 ? ['options'] : []),
   ];
 }
 
@@ -150,6 +178,13 @@ function problemasDoResponder(blocos: readonly Bloco[]): ProblemaFluxo[] {
   return foraDoFim;
 }
 
+function opcaoComRotuloPerdido(info: Informacao): ProblemaFluxo[] {
+  const perde = info.opcoesSimples && info.opcoes.some((opcao) => opcao.rotulo !== opcao.valor);
+  if (!perde) return [];
+  const mensagem = `A informação ${info.nome} tem opções simples com rótulo diferente do valor; o rótulo se perderia.`;
+  return [erro('OPCAO_ROTULO_PERDIDO', mensagem)];
+}
+
 /** A gravação de opções simples só guarda o valor: um rótulo diferente se perderia. */
 function problemasDeInformacoes(informacoes: readonly Informacao[]): ProblemaFluxo[] {
   return informacoes.flatMap((info) => [
@@ -159,14 +194,7 @@ function problemasDeInformacoes(informacoes: readonly Informacao[]): ProblemaFlu
       info.extra,
       `A informação ${info.nome}`,
     ),
-    ...(info.opcoesSimples && info.opcoes.some((o) => o.rotulo !== o.valor)
-      ? [
-          erro(
-            'OPCAO_ROTULO_PERDIDO',
-            `A informação ${info.nome} tem opções simples com rótulo diferente do valor; o rótulo se perderia.`,
-          ),
-        ]
-      : []),
+    ...opcaoComRotuloPerdido(info),
   ]);
 }
 

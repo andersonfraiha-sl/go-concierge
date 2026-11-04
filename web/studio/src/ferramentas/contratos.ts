@@ -150,48 +150,56 @@ export function textoDaAmostra(ferramenta: Ferramenta): string {
     : JSON.stringify(ferramenta.amostra, null, 2);
 }
 
-const aparado = (texto: string | undefined): string | undefined => texto?.trim() || undefined;
+function aparado(texto: string | undefined): string | undefined {
+  return texto?.trim() || undefined;
+}
+
+type Conexao = NonNullable<Ferramenta['conexao']>;
+
+function conexaoPreenchida(conexao: Conexao | undefined): boolean {
+  if (conexao === undefined) return false;
+  const temCabecalho = Object.keys(conexao.headers ?? {}).length > 0;
+  return Boolean(
+    aparado(conexao.metodo) || aparado(conexao.url) || aparado(conexao.corpo) || temCabecalho,
+  );
+}
+
+const comNomeAparado = <T extends { name: string }>(itens: readonly T[]): T[] =>
+  itens
+    .filter((item) => item.name.trim() !== '')
+    .map((item) => ({ ...item, name: item.name.trim() }));
+
+type Definicao = Ferramenta['definicoes'][number];
+
+function definicaoParaGravar(definicao: Definicao): Definicao {
+  const opcoes =
+    definicao.type === 'select'
+      ? definicao.options.map((opcao) => opcao.trim()).filter((opcao) => opcao !== '')
+      : [];
+  return { ...definicao, options: opcoes };
+}
 
 /** Tira linhas sem nome e espaços das pontas; o que o servidor recebe é só o que tem conteúdo. */
 export function paraGravar(rascunho: Ferramenta, amostra: Amostra & { ok: true }): Ferramenta {
-  const conexao = rascunho.conexao;
-  const temConexao =
-    conexao !== undefined &&
-    Boolean(
-      aparado(conexao.metodo) ||
-        aparado(conexao.url) ||
-        aparado(conexao.corpo) ||
-        Object.keys(conexao.headers ?? {}).length,
-    );
   return {
     ...rascunho,
     name: rascunho.name.trim(),
     titulo: aparado(rascunho.titulo),
     description: rascunho.description.trim(),
     output: aparado(rascunho.output),
-    params: rascunho.params
-      .filter((p) => p.name.trim() !== '')
-      .map((p) => ({ ...p, name: p.name.trim() })),
-    saida: rascunho.saida
-      .filter((s) => s.name.trim() !== '')
-      .map((s) => ({ ...s, name: s.name.trim() })),
-    definicoes: rascunho.definicoes
-      .filter((d) => d.name.trim() !== '')
-      .map((d) => ({
-        ...d,
-        name: d.name.trim(),
-        options: d.type === 'select' ? d.options.map((o) => o.trim()).filter((o) => o !== '') : [],
-      })),
-    conexao: temConexao ? conexao : undefined,
+    params: comNomeAparado(rascunho.params),
+    saida: comNomeAparado(rascunho.saida),
+    definicoes: comNomeAparado(rascunho.definicoes).map(definicaoParaGravar),
+    conexao: conexaoPreenchida(rascunho.conexao) ? rascunho.conexao : undefined,
     amostra: amostra.valor,
   };
 }
 
-export function salvarFerramenta(c: {
+export function salvarFerramenta(pedido: {
   original: string;
   recurso: Ferramenta;
 }): Promise<Ferramentas> {
-  return apiEnviar('PUT', '/api/nexus/recurso', c, FerramentasSchema);
+  return apiEnviar('PUT', '/api/nexus/recurso', pedido, FerramentasSchema);
 }
 
 export function removerFerramenta(nome: string): Promise<Ferramentas> {

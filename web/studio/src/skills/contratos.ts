@@ -152,22 +152,21 @@ function useMutationDeSkills<V, R>(enviar: (variaveis: V) => Promise<R>) {
   });
 }
 
-export const criarSkill = (c: { nome: string; titulo: string }): Promise<{ nome: string }> =>
-  apiEnviar('POST', '/api/skills', c, NomeSchema);
+export const criarSkill = (nova: { nome: string; titulo: string }): Promise<{ nome: string }> =>
+  apiEnviar('POST', '/api/skills', nova, NomeSchema);
 
 export function useCriarSkill() {
   return useMutationDeSkills(criarSkill);
 }
 
+type PedidoDeCopia = { origem: string; nome: string; titulo: string };
+
+function duplicarSkill({ origem, nome, titulo }: PedidoDeCopia): Promise<{ nome: string }> {
+  return apiEnviar('POST', `${caminhoDaSkill(origem)}/duplicar`, { nome, titulo }, NomeSchema);
+}
+
 export function useDuplicarSkill() {
-  return useMutationDeSkills((c: { origem: string; nome: string; titulo: string }) =>
-    apiEnviar(
-      'POST',
-      `${caminhoDaSkill(c.origem)}/duplicar`,
-      { nome: c.nome, titulo: c.titulo },
-      NomeSchema,
-    ),
-  );
+  return useMutationDeSkills(duplicarSkill);
 }
 
 export const excluirSkill = (nome: string): Promise<null> =>

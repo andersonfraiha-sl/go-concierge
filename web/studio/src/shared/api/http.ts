@@ -91,15 +91,19 @@ async function buscar(
   envio: Envio,
 ): Promise<Response> {
   try {
-    return await fetch(caminho, {
-      method: metodo,
-      headers: montarCabecalhos(corpo === undefined ? null : envio.tipo),
-      body: corpo ?? null,
-      signal: sinalDe(envio),
-    });
+    return await fetch(caminho, opcoesDoPedido(metodo, corpo, envio));
   } catch (cause) {
     throw erroDeRede(cause);
   }
+}
+
+function opcoesDoPedido(metodo: Metodo, corpo: BodyInit | undefined, envio: Envio): RequestInit {
+  return {
+    method: metodo,
+    headers: montarCabecalhos(corpo === undefined ? null : envio.tipo),
+    body: corpo ?? null,
+    signal: sinalDe(envio),
+  };
 }
 
 function sinalDe({ sinal, timeoutMs }: Envio): AbortSignal {

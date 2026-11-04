@@ -1,8 +1,10 @@
 import type { Condominio } from './contratos';
 
-export type CampoDeIdentificacao = 'nome' | 'account' | 'company_id' | 'tenant';
+export const CAMPOS_DE_IDENTIFICACAO = ['nome', 'account', 'company_id', 'tenant'] as const;
+export type CampoDeIdentificacao = (typeof CAMPOS_DE_IDENTIFICACAO)[number];
 
-type CampoDeFormato = 'account' | 'company_id' | 'tenant';
+const CAMPOS_COM_FORMATO = ['account', 'company_id', 'tenant'] as const;
+type CampoDeFormato = (typeof CAMPOS_COM_FORMATO)[number];
 
 const FORMATOS: Record<CampoDeFormato, { regex: RegExp; mensagem: string }> = {
   account: {
@@ -26,7 +28,7 @@ export function validarIdentificacao(
   const erros: Partial<Record<CampoDeIdentificacao, string>> = {};
   if (condominio.nome.trim() === '') erros.nome = 'Informe o nome.';
 
-  for (const campo of Object.keys(FORMATOS) as CampoDeFormato[]) {
+  for (const campo of CAMPOS_COM_FORMATO) {
     const valor = condominio[campo];
     const { regex, mensagem } = FORMATOS[campo];
     if (valor !== '' && !regex.test(valor)) erros[campo] = mensagem;
@@ -41,8 +43,10 @@ export function validarIdentificacao(
  * na tela (quem chama continua mostrando `atual`, só o envio usa este resultado).
  */
 export function payloadSeguro(atual: Condominio, ultimoSalvo: Condominio): Condominio {
-  const camposInvalidos = Object.keys(validarIdentificacao(atual)) as CampoDeIdentificacao[];
+  const erros = validarIdentificacao(atual);
   const seguro = { ...atual };
-  for (const campo of camposInvalidos) seguro[campo] = ultimoSalvo[campo];
+  for (const campo of CAMPOS_DE_IDENTIFICACAO) {
+    if (erros[campo] !== undefined) seguro[campo] = ultimoSalvo[campo];
+  }
   return seguro;
 }

@@ -29,7 +29,9 @@ const titulo = (nivel: 2 | 3): Acao => ({
   executar: (editor) => editor.chain().focus().toggleHeading({ level: nivel }).run(),
 });
 
-const marca = (nome: string, rotulo: string, atalho: string, icone: ReactNode): Acao => ({
+type DadosDaMarca = { nome: string; rotulo: string; atalho: string; icone: ReactNode };
+
+const marca = ({ nome, rotulo, atalho, icone }: DadosDaMarca): Acao => ({
   rotulo,
   atalho,
   icone,
@@ -40,9 +42,24 @@ const marca = (nome: string, rotulo: string, atalho: string, icone: ReactNode): 
 const GRUPOS: readonly (readonly Acao[])[] = [
   [titulo(2), titulo(3)],
   [
-    marca('bold', 'Negrito', 'Ctrl+B', <FormatBoldIcon fontSize="small" />),
-    marca('italic', 'Itálico', 'Ctrl+I', <FormatItalicIcon fontSize="small" />),
-    marca('underline', 'Sublinhado', 'Ctrl+U', <FormatUnderlinedIcon fontSize="small" />),
+    marca({
+      nome: 'bold',
+      rotulo: 'Negrito',
+      atalho: 'Ctrl+B',
+      icone: <FormatBoldIcon fontSize="small" />,
+    }),
+    marca({
+      nome: 'italic',
+      rotulo: 'Itálico',
+      atalho: 'Ctrl+I',
+      icone: <FormatItalicIcon fontSize="small" />,
+    }),
+    marca({
+      nome: 'underline',
+      rotulo: 'Sublinhado',
+      atalho: 'Ctrl+U',
+      icone: <FormatUnderlinedIcon fontSize="small" />,
+    }),
   ],
   [
     {
@@ -60,7 +77,14 @@ const GRUPOS: readonly (readonly Acao[])[] = [
       executar: (editor) => editor.chain().focus().toggleOrderedList().run(),
     },
   ],
-  [marca('code', 'Código', 'Ctrl+E', <CodeIcon fontSize="small" />)],
+  [
+    marca({
+      nome: 'code',
+      rotulo: 'Código',
+      atalho: 'Ctrl+E',
+      icone: <CodeIcon fontSize="small" />,
+    }),
+  ],
   [
     {
       rotulo: 'Desfazer',
@@ -81,13 +105,13 @@ const GRUPOS: readonly (readonly Acao[])[] = [
 
 type EstadoDoBotao = { ativa: boolean; disponivel: boolean };
 
+const estadoDoBotao = (acao: Acao, editor: Editor): EstadoDoBotao => ({
+  ativa: acao.ativa?.(editor) ?? false,
+  disponivel: acao.disponivel?.(editor) ?? true,
+});
+
 const estadoDosBotoes = (editor: Editor): Record<string, EstadoDoBotao> =>
-  Object.fromEntries(
-    GRUPOS.flat().map((acao) => [
-      acao.rotulo,
-      { ativa: acao.ativa?.(editor) ?? false, disponivel: acao.disponivel?.(editor) ?? true },
-    ]),
-  );
+  Object.fromEntries(GRUPOS.flat().map((acao) => [acao.rotulo, estadoDoBotao(acao, editor)]));
 
 const SEM_ESTADO: EstadoDoBotao = { ativa: false, disponivel: true };
 
@@ -101,38 +125,57 @@ export function BarraDeFormatacao({ editor, rotulo }: Props): ReactNode {
   });
 
   return (
-    <Box
-      role="toolbar"
-      aria-label={`Formatação de ${rotulo}`}
-      sx={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: 0.25,
-        px: 0.75,
-        py: 0.5,
-        borderBottom: 1,
-        borderColor: 'divider',
-      }}
-    >
+    <Box role="toolbar" aria-label={`Formatação de ${rotulo}`} sx={ESTILO_DA_BARRA}>
       {GRUPOS.map((grupo, indice) => (
-        <Fragment key={grupo[0]?.rotulo}>
-          {indice > 0 && <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.5 }} />}
-          {grupo.map((acao) => (
+        <GrupoDeBotoes key={grupo[0]?.rotulo} grupo={grupo} separar={indice > 0}>
+          {(acao) => (
             <Botao
               key={acao.rotulo}
               acao={acao}
               estado={estados[acao.rotulo] ?? SEM_ESTADO}
               onClick={() => acao.executar(editor)}
             />
-          ))}
-        </Fragment>
+          )}
+        </GrupoDeBotoes>
       ))}
     </Box>
   );
 }
 
+const ESTILO_DA_BARRA = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 0.25,
+  px: 0.75,
+  py: 0.5,
+  borderBottom: 1,
+  borderColor: 'divider',
+} as const;
+
+type PropsDoGrupo = {
+  grupo: readonly Acao[];
+  separar: boolean;
+  children: (acao: Acao) => ReactNode;
+};
+
+function GrupoDeBotoes({ grupo, separar, children }: PropsDoGrupo): ReactNode {
+  return (
+    <Fragment>
+      {separar && <Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.5 }} />}
+      {grupo.map(children)}
+    </Fragment>
+  );
+}
+
 type PropsDoBotao = { acao: Acao; estado: EstadoDoBotao; onClick: () => void };
+
+const estiloDoBotao = (ativa: boolean) => ({
+  borderRadius: 1,
+  width: 30,
+  height: 30,
+  ...(ativa && { color: 'primary.main', bgcolor: tokens.color.background.tint }),
+});
 
 function Botao({ acao, estado, onClick }: PropsDoBotao): ReactNode {
   return (
@@ -145,12 +188,7 @@ function Botao({ acao, estado, onClick }: PropsDoBotao): ReactNode {
           aria-pressed={acao.ativa === undefined ? undefined : estado.ativa}
           disabled={!estado.disponivel}
           onClick={onClick}
-          sx={{
-            borderRadius: 1,
-            width: 30,
-            height: 30,
-            ...(estado.ativa && { color: 'primary.main', bgcolor: tokens.color.background.tint }),
-          }}
+          sx={estiloDoBotao(estado.ativa)}
         >
           {acao.icone}
         </IconButton>

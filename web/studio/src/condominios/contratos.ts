@@ -189,14 +189,15 @@ export function useAplicarMapeamento(): (resposta: RespostaMapeamento) => void {
   return (resposta) =>
     cliente.setQueriesData<Estado>(
       { queryKey: ['estado-condominios'] },
-      (estado) =>
-        estado && {
-          ...estado,
-          mapeamento: resposta.mapeamento,
-          administradoras: resposta.administradoras,
-        },
+      (estado) => estado && comMapeamento(estado, resposta),
     );
 }
+
+const comMapeamento = (estado: Estado, resposta: RespostaMapeamento): Estado => ({
+  ...estado,
+  mapeamento: resposta.mapeamento,
+  administradoras: resposta.administradoras,
+});
 
 /** Decisão do condomínio; sem ela vale o padrão; sem o padrão, a skill está ligada para todos os papéis. */
 export function habilitacaoDe(
