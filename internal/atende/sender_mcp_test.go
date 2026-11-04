@@ -257,6 +257,10 @@ func TestNovoMCPSenderConfiguracao(t *testing.T) {
 	}{
 		{"sem URL desliga o canal", map[string]string{}, false},
 		{"URL sem credencial", map[string]string{"ATENDE_MCP_URL": "https://nexus.example/mcp/atende"}, true},
+		{"URL sem segredo", map[string]string{
+			"ATENDE_MCP_URL": "https://nexus.example/mcp/atende", "ATENDE_MCP_TOKEN_URL": "https://nexus.example/api/mcp/token",
+			"ATENDE_MCP_CLIENT_ID": "concierge", "ATENDE_MCP_CLIENT_SECRET": " ",
+		}, true},
 		{"URL inválida", map[string]string{"ATENDE_MCP_URL": "nexus"}, true},
 	}
 	for _, c := range casos {

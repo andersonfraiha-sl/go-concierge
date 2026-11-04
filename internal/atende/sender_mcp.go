@@ -25,8 +25,8 @@ type MCPSender struct {
 }
 
 // NovoMCPSender monta o sender a partir de ATENDE_MCP_URL, ATENDE_MCP_TOKEN_URL,
-// ATENDE_MCP_CLIENT_ID e ATENDE_MCP_CLIENT_SECRET. Sem ATENDE_MCP_URL devolve nil: o canal
-// real fica desligado.
+// ATENDE_MCP_CLIENT_ID e ATENDE_MCP_CLIENT_SECRET (obrigatórias com a URL: falha na subida).
+// Sem ATENDE_MCP_URL devolve nil: o canal real fica desligado.
 func NovoMCPSender(get func(string) string) (*MCPSender, error) {
 	endpoint := strings.TrimSpace(get("ATENDE_MCP_URL"))
 	if endpoint == "" {
@@ -37,10 +37,11 @@ func NovoMCPSender(get func(string) string) (*MCPSender, error) {
 		return nil, fmt.Errorf("ATENDE_MCP_URL inválida: %q", endpoint)
 	}
 	tokenURL, clientID := strings.TrimSpace(get("ATENDE_MCP_TOKEN_URL")), strings.TrimSpace(get("ATENDE_MCP_CLIENT_ID"))
-	if tokenURL == "" || clientID == "" {
-		return nil, errors.New("ATENDE_MCP_URL exige ATENDE_MCP_TOKEN_URL e ATENDE_MCP_CLIENT_ID")
+	secret := strings.TrimSpace(get("ATENDE_MCP_CLIENT_SECRET"))
+	if tokenURL == "" || clientID == "" || secret == "" {
+		return nil, errors.New("ATENDE_MCP_URL exige ATENDE_MCP_TOKEN_URL, ATENDE_MCP_CLIENT_ID e ATENDE_MCP_CLIENT_SECRET")
 	}
-	cli := mcp.New(endpoint, &mcp.Keycloak{TokenURL: tokenURL, ClientID: clientID, ClientSecret: strings.TrimSpace(get("ATENDE_MCP_CLIENT_SECRET"))})
+	cli := mcp.New(endpoint, &mcp.Keycloak{TokenURL: tokenURL, ClientID: clientID, ClientSecret: secret})
 	// o gateway é um serviço comum: o Host é o da URL, não o 127.0.0.1 do servidor Gruvi
 	cli.HostHeader = u.Host
 	cli.HTTP.Timeout = 20 * time.Second

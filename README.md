@@ -80,7 +80,7 @@ passam pelo servidor MCP `atende` do gateway Nexus, que guarda a chave do ATENDE
 |---|---|
 | `ATENDE_MCP_URL` | endpoint direto do servidor, `<gateway>/mcp/atende`. Vazio: canal real desligado, com aviso na subida (o emulador segue) |
 | `ATENDE_MCP_TOKEN_URL` | `<gateway>/api/mcp/token` (client credentials) |
-| `ATENDE_MCP_CLIENT_ID`, `ATENDE_MCP_CLIENT_SECRET` | credencial de serviço do concierge no gateway |
+| `ATENDE_MCP_CLIENT_ID`, `ATENDE_MCP_CLIENT_SECRET` | credencial de serviço do concierge no gateway. Com `ATENDE_MCP_URL` definido, token URL, client id e secret são obrigatórios: faltando um, a subida falha |
 
 Tools usadas: `messages_send` (resposta, em partes de 4000 caracteres com a formatação do
 WhatsApp) e `protocols_transfer` (transbordo pelo protocolo da sessão). Encerrar protocolo
