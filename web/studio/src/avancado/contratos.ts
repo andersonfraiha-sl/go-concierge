@@ -34,11 +34,12 @@ const NoSchema: z.ZodType<NoDaArvore> = z.lazy(() =>
 
 const ArvoreSchema = z.object({ agentes: listaDoGo(NoSchema) });
 
-export function useArvore() {
+export function useArvore(opcoes?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['avancado', 'arvore'],
     queryFn: () => apiGet('/api/agentes', ArvoreSchema),
     select: (arvore) => achatar(arvore.agentes),
+    enabled: opcoes?.enabled ?? true,
   });
 }
 

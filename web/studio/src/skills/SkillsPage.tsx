@@ -1,13 +1,15 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Box, Button, CircularProgress, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
+import { useArvore } from '@/avancado/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
+import { CartaoDeNumero } from './CartaoDeNumero';
 import {
   preencherTextosNovos,
   type SkillResumo,
@@ -16,6 +18,7 @@ import {
   useExcluirSkill,
   useSkills,
 } from './contratos';
+import { filtrarPorBusca, problemasPorCaminho, quartaEstatistica } from './estatisticas';
 import { NovaSkillDialog } from './NovaSkillDialog';
 import { SkillCard } from './SkillCard';
 
@@ -37,9 +40,12 @@ export function SkillsPage(): ReactNode {
   const duplicar = useDuplicarSkill();
   const excluir = useExcluirSkill();
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
+  const [busca, setBusca] = useState('');
 
   const podeCriar = usePodeEditar('skills.criar');
   const podeExcluir = usePodeEditar('skills.excluir');
+  const podeVerProblemas = usePodeEditar('skills.editar_fluxo');
+  const arvore = useArvore({ enabled: podeVerProblemas });
   const fechar = () => setDialogo(null);
 
   const criarSkill = async (nova: { nome: string; titulo: string }) => {
@@ -75,6 +81,32 @@ export function SkillsPage(): ReactNode {
     }
   };
 
+  const todasSkills = skills.data?.skills ?? [];
+  const problemas = podeVerProblemas
+    ? problemasPorCaminho(arvore.data ?? [])
+    : new Map<string, { erros: number; avisos: number }>();
+  const escreventes = todasSkills.filter((skill) => skill.escrita);
+  const consultivas = todasSkills.filter((skill) => !skill.escrita);
+
+  const escreventesFiltradas = filtrarPorBusca(escreventes, busca);
+  const consultivasFiltradas = filtrarPorBusca(consultivas, busca);
+  const semResultadoDeBusca =
+    todasSkills.length > 0 &&
+    escreventesFiltradas.length === 0 &&
+    consultivasFiltradas.length === 0;
+
+  const cartaoDaSkill = (skill: SkillResumo, variante: 'completo' | 'compacto') => (
+    <SkillCard
+      key={skill.nome}
+      skill={skill}
+      variante={variante}
+      problemas={problemas.get(skill.caminho)}
+      onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
+      {...(podeCriar && { onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }) })}
+      {...(podeExcluir && { onExcluir: () => setDialogo({ tipo: 'excluir', skill }) })}
+    />
+  );
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -101,27 +133,48 @@ export function SkillsPage(): ReactNode {
           onTentarDeNovo={() => void skills.refetch()}
         />
       )}
-      {skills.isSuccess && skills.data.skills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
-      {skills.isSuccess && skills.data.skills.length > 0 && (
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 2,
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          }}
-        >
-          {skills.data.skills.map((skill) => (
-            <SkillCard
-              key={skill.nome}
-              skill={skill}
-              onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
-              {...(podeCriar && {
-                onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }),
-              })}
-              {...(podeExcluir && { onExcluir: () => setDialogo({ tipo: 'excluir', skill }) })}
-            />
-          ))}
-        </Box>
+      {skills.isSuccess && todasSkills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
+      {skills.isSuccess && todasSkills.length > 0 && (
+        <>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 2 }}>
+            <CartaoDeNumero rotulo="Skills" valor={todasSkills.length} />
+            <CartaoDeNumero rotulo="Registram no sistema" valor={escreventes.length} />
+            <CartaoDeNumero rotulo="Consultas e dúvidas" valor={consultivas.length} />
+            <CartaoDeNumero {...quartaEstatistica(todasSkills, problemas, podeVerProblemas)} />
+          </Box>
+          <TextField
+            label="Buscar skill"
+            size="small"
+            value={busca}
+            onChange={(evento) => setBusca(evento.target.value)}
+            sx={{ width: 300 }}
+          />
+          {escreventesFiltradas.length > 0 && (
+            <Box component="section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Typography component="h2" variant="overline" color="text.secondary">
+                Registram no sistema
+              </Typography>
+              <Box
+                sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.5 }}
+              >
+                {escreventesFiltradas.map((skill) => cartaoDaSkill(skill, 'completo'))}
+              </Box>
+            </Box>
+          )}
+          {consultivasFiltradas.length > 0 && (
+            <Box component="section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Typography component="h2" variant="overline" color="text.secondary">
+                Consultas e dúvidas
+              </Typography>
+              <Box
+                sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1.5 }}
+              >
+                {consultivasFiltradas.map((skill) => cartaoDaSkill(skill, 'compacto'))}
+              </Box>
+            </Box>
+          )}
+          {semResultadoDeBusca && <EmptyState frase="Nenhuma skill encontrada." />}
+        </>
       )}
 
       {dialogo?.tipo === 'nova' && (
