@@ -90,10 +90,8 @@ describe('SkillsPage', () => {
     montar();
     const cartao = await screen.findByRole('article', { name: 'Agendar mudança' });
     expect(within(cartao).getByText('Reserva o elevador para a mudança.')).toBeInTheDocument();
-    expect(within(cartao).getByText('Grava no sistema')).toBeInTheDocument();
     const outro = screen.getByRole('article', { name: 'Perguntas frequentes' });
     expect(within(outro).getByText('Tira dúvidas comuns dos moradores.')).toBeInTheDocument();
-    expect(within(outro).queryByText('Grava no sistema')).not.toBeInTheDocument();
   });
 
   it('showsFourStatCards', async () => {
@@ -172,7 +170,7 @@ describe('SkillsPage', () => {
   });
 
   it('hidesProblemCountForGestor', async () => {
-    responderCom({
+    const fetchFalso = responderCom({
       'GET /api/eu': () => json(gestor),
       'GET /api/skills': () => lista([mudanca, faq]),
     });
@@ -181,6 +179,32 @@ describe('SkillsPage', () => {
     expect(screen.getByRole('group', { name: 'Ferramentas' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Com problema' })).not.toBeInTheDocument();
     expect(screen.queryByText('1 erro')).not.toBeInTheDocument();
+    const chamadas = fetchFalso.mock.calls.map(([entrada]) => String(entrada));
+    expect(chamadas.some((url) => url.includes('/api/agentes'))).toBe(false);
+  });
+
+  it('showsLoadingInsteadOfZeroWhileTreeLoads', async () => {
+    responderCom({
+      'GET /api/eu': () => json(construtorComFluxo),
+      'GET /api/skills': () => lista([mudanca, faq]),
+      'GET /api/agentes': () => new Promise<Response>(() => {}),
+    });
+    montar();
+    await screen.findByRole('article', { name: 'Agendar mudança' });
+    const cartao = screen.getByRole('group', { name: 'Com problema' });
+    expect(within(cartao).getByLabelText('Carregando problemas')).toBeInTheDocument();
+    expect(within(cartao).queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('offersRetryWhenTreeFails', async () => {
+    responderCom({
+      'GET /api/eu': () => json(construtorComFluxo),
+      'GET /api/skills': () => lista([mudanca, faq]),
+      'GET /api/agentes': () => json({ erro: 'falhou' }, 500),
+    });
+    montar();
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Com problema' })).not.toBeInTheDocument();
   });
 
   it('showsEmptyState', async () => {
@@ -188,7 +212,7 @@ describe('SkillsPage', () => {
     montar();
     expect(
       await screen.findByText(
-        'Nenhuma skill ainda. Uma skill é algo que o concierge sabe fazer pelo morador, como reservar uma área comum.',
+        'Uma skill é algo que o concierge sabe fazer pelo morador, como reservar o salão ou mandar a 2ª via do boleto.',
       ),
     ).toBeInTheDocument();
   });

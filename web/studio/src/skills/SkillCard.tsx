@@ -4,9 +4,8 @@ import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from '@
 import type { ReactNode } from 'react';
 import { tokens } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
+import type { Problemas } from './estatisticas';
 import { iconeDaSkill } from './icones';
-
-type Problemas = { erros: number; avisos: number };
 
 type Props = {
   skill: SkillResumo;
@@ -81,9 +80,6 @@ export function SkillCard({
           )}
           {completo && (
             <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-              {skill.escrita && (
-                <Chip size="small" color="warning" variant="outlined" label="Grava no sistema" />
-              )}
               {problemas !== undefined && problemas.erros > 0 && (
                 <Chip size="small" color="error" label={rotuloDeErros(problemas.erros)} />
               )}

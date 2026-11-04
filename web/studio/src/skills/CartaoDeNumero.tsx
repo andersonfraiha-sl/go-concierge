@@ -4,7 +4,11 @@ import { RAIOS, tokens } from '@/theme/tokens';
 import type { Estatistica } from './estatisticas';
 
 /** Cartão de número do topo da tela de skills: rótulo + valor, com tom de aviso quando `destaque`. */
-export function CartaoDeNumero({ rotulo, valor, destaque }: Estatistica): ReactNode {
+export function CartaoDeNumero({
+  rotulo,
+  valor,
+  destaque,
+}: Omit<Estatistica, 'valor'> & { valor: ReactNode }): ReactNode {
   return (
     <Box
       role="group"
