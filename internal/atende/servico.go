@@ -24,6 +24,7 @@ import (
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/auditoria"
 	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
@@ -367,7 +368,10 @@ type Servico struct {
 	Pool *pgxpool.Pool
 	// Ganchos avaliam o turno inteiro (entrada, ferramentas, resposta, transbordo); nil =
 	// Config.Ganchos, senão só os fixos. Validado no primeiro uso: sem algum fixo, recusado.
-	Ganchos       *ganchos.Conjunto
+	Ganchos *ganchos.Conjunto
+	// Auditoria liga a auditoria dos ganchos no lote pós resposta: o mesmo auditor que
+	// observa o Conjunto. nil = o turno não coleta; o que o observador vir grava na hora.
+	Auditoria     *auditoria.Auditor
 	ganchosUmaVez sync.Once
 	conjunto      *ganchos.Conjunto
 	errGanchos    error
@@ -456,22 +460,23 @@ func (s *Servico) carteiraAdiada(c escopo.Contato) (pedidos.Carteira, bool) {
 	return cart, adiada
 }
 
-// gravarDepoisDaResposta grava a sessão e a carteira que o turno adiou numa ida ao banco.
-// Sem lote, ou com o lote recusado (protocolo de outro contato, banco fora), grava uma por
-// uma pelo caminho de sempre, que redesenha o protocolo e guarda a carteira como pendente se
-// falhar. Os erros saem logados com a operação e voltam juntos.
-func (s *Servico) gravarDepoisDaResposta(ctx context.Context, sess *Sessao) error {
+// gravarDepoisDaResposta grava a sessão, a carteira que o turno adiou e a auditoria dos
+// ganchos numa ida ao banco. Sem lote, ou com o lote recusado (protocolo de outro contato,
+// banco fora), grava uma por uma pelo caminho de sempre, que redesenha o protocolo e guarda
+// a carteira como pendente se falhar; a auditoria vai depois da sessão, linha a linha se o
+// lote dela falhar. Os erros saem logados com a operação e voltam juntos.
+func (s *Servico) gravarDepoisDaResposta(ctx context.Context, sess *Sessao, linhas []auditoria.Linha) error {
 	contato := sess.contato()
 	if s.Pedidos == nil || contato.Telefone == "" {
-		return s.Sessoes.Persistir(ctx, sess)
+		return s.persistirComAuditoria(ctx, sess, linhas)
 	}
 	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
 	cart, adiada := s.carteiraAdiada(contato)
 	if !adiada {
-		return s.Sessoes.Persistir(ctx, sess)
+		return s.persistirComAuditoria(ctx, sess, linhas)
 	}
-	errLote := s.gravarEmLote(ctx, sess, contato, cart)
+	errLote := s.gravarEmLote(ctx, sess, contato, cart, linhas)
 	if errLote == nil {
 		s.pedidoMu.Lock()
 		delete(s.pedidosPendentes, contato.Chave())
@@ -481,7 +486,20 @@ func (s *Servico) gravarDepoisDaResposta(ctx context.Context, sess *Sessao) erro
 	if !errors.Is(errLote, errSemLote) {
 		slog.WarnContext(ctx, "atende: gravação em lote recusada; gravando uma por uma", "operacao", "gravar_pos_resposta", "sessao", sess.ID, "erro", errLote)
 	}
-	return errors.Join(s.gravarCarteiraDepoisDaResposta(ctx, sess, contato, cart), s.Sessoes.Persistir(ctx, sess))
+	return errors.Join(s.gravarCarteiraDepoisDaResposta(ctx, sess, contato, cart), s.persistirComAuditoria(ctx, sess, linhas))
+}
+
+// persistirComAuditoria grava a sessão e, em seguida, a auditoria do turno.
+func (s *Servico) persistirComAuditoria(ctx context.Context, sess *Sessao, linhas []auditoria.Linha) error {
+	return errors.Join(s.Sessoes.Persistir(ctx, sess), s.gravarAuditoria(ctx, linhas))
+}
+
+// gravarAuditoria grava as linhas que o turno coletou; só há linhas com auditor.
+func (s *Servico) gravarAuditoria(ctx context.Context, linhas []auditoria.Linha) error {
+	if len(linhas) == 0 || s.Auditoria == nil {
+		return nil
+	}
+	return s.Auditoria.Gravar(ctx, linhas)
 }
 
 func (s *Servico) gravarCarteiraDepoisDaResposta(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {
@@ -500,7 +518,7 @@ func (s *Servico) gravarCarteiraDepoisDaResposta(ctx context.Context, sess *Sess
 
 var errSemLote = errors.New("stores sem gravação em lote")
 
-func (s *Servico) gravarEmLote(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {
+func (s *Servico) gravarEmLote(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira, linhas []auditoria.Linha) error {
 	pg, pedidosOK := s.Pedidos.(pedidosEmLote)
 	st, sessoesOK := s.Sessoes.store.(sessaoEmLote)
 	if s.Pool == nil || !pedidosOK || !sessoesOK {
@@ -520,6 +538,7 @@ func (s *Servico) gravarEmLote(ctx context.Context, sess *Sessao, contato escopo
 		return err
 	}
 	st.SalvarNoLote(ctx, lote, r)
+	auditoria.NoLote(lote, linhas)
 	if err := lote.Enviar(ctx, s.Pool); err != nil {
 		return err
 	}
@@ -655,12 +674,22 @@ func (s *Servico) PrepararMensagem(ctx context.Context, msg entrada.Mensagem) (e
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
 // sessão), roda o concierge com o histórico, envia a resposta e persiste a sessão.
 func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
+	ctx, coletor := s.coletarAuditoria(ctx)
 	sess, err := s.processar(ctx, msg)
 	if sess == nil {
 		return nil, err
 	}
 	// a sessão é gravada mesmo com o turno cancelado: o que já aconteceu nele fica
-	return sess, errors.Join(err, s.gravarDepoisDaResposta(context.WithoutCancel(ctx), sess))
+	return sess, errors.Join(err, s.gravarDepoisDaResposta(context.WithoutCancel(ctx), sess, coletor.Fechar()))
+}
+
+// coletarAuditoria abre o coletor do turno: a auditoria dos ganchos espera a resposta sair
+// e vai ao banco junto com a sessão. Sem auditor, nada a coletar.
+func (s *Servico) coletarAuditoria(ctx context.Context) (context.Context, *auditoria.Coletor) {
+	if s.Auditoria == nil {
+		return ctx, nil
+	}
+	return auditoria.ComColetor(ctx)
 }
 
 func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
@@ -680,7 +709,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()
-	sess.comecarRegistros()
+	ctx = comAuditoria(ctx, sess, "")
 	sess.mu.Lock()
 	if sess.Encerrada {
 		sess.mu.Unlock()
@@ -838,7 +867,6 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		historicoRegistrado = true
 		return sess, err
 	}
-	sess.anotarRegistros(res.Registros)
 	if res.Transbordo != "" {
 		// o motivo vai ao ATENDE, à sessão e ao log: sai daqui já sem PII
 		res.Transbordo = s.motivoDoTransbordo(ctx, sess, turnoGanchos, res.Transbordo)
@@ -1646,8 +1674,7 @@ func (s *Servico) assumir(ctx context.Context, sess *Sessao, atendente, motivo s
 		return sess, err
 	}
 	defer sess.fecharTurno(t)
-	sess.comecarRegistros()
-	s.transbordar(ctx, sess, t, motivo, "atendente", atendente)
+	s.transbordar(comAuditoria(ctx, sess, atendente), sess, t, motivo, "atendente", atendente)
 	return sess, nil
 }
 

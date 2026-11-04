@@ -91,7 +91,8 @@ func (m *marcaEnvio) Enviar(context.Context, entrada.Destino, string) error {
 }
 
 // servicoNoPostgres monta o serviço como em produção: sessões, pedidos, memória e mapeamento
-// no Postgres, com os caches e os lotes do turno, e um contador de idas ao banco.
+// no Postgres, com os caches e os lotes do turno, a auditoria dos ganchos e um contador de
+// idas ao banco.
 func servicoNoPostgres(tb testing.TB) (*Servico, banco.Banco, *idas) {
 	tb.Helper()
 	contador := &idas{inicio: map[*pgx.Conn]time.Time{}}
@@ -112,6 +113,7 @@ func servicoNoPostgres(tb testing.TB) (*Servico, banco.Banco, *idas) {
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pool: db.Pool,
 	}
+	comAuditor(svc, db, nil)
 	esfriar(svc, db)
 	return svc, db, contador
 }

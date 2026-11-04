@@ -61,12 +61,9 @@ type Sessao struct {
 	revisaoEstado   uint64
 	cancelarEntrega context.CancelFunc
 	cancelarTurno   context.CancelFunc
-	// registros dos ganchos no turno em curso (borda e harness); não se serializam: o
-	// motivo pode citar o texto do morador
-	registros []ganchos.Registro
-	mu        sync.Mutex
-	workMu    sync.Mutex
-	persistMu sync.Mutex // ordena as gravações: a última a gravar leva a foto mais nova
+	mu              sync.Mutex
+	workMu          sync.Mutex
+	persistMu       sync.Mutex // ordena as gravações: a última a gravar leva a foto mais nova
 }
 
 // Transbordo é a passagem do protocolo a um humano, como o ATENDE faria ao sair do
@@ -457,29 +454,6 @@ func (sess *Sessao) fecharTurno(t ganchos.Turno) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	sess.ProximoMarcador = max(sess.ProximoMarcador, proximo)
-}
-
-// comecarRegistros zera os registros dos ganchos: um turno novo começou.
-func (sess *Sessao) comecarRegistros() {
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
-	sess.registros = nil
-}
-
-func (sess *Sessao) anotarRegistros(rs []ganchos.Registro) {
-	if len(rs) == 0 {
-		return
-	}
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
-	sess.registros = append(sess.registros, rs...)
-}
-
-// registrosDoTurno junta o que os ganchos da borda e do harness registraram no turno.
-func (sess *Sessao) registrosDoTurno() []ganchos.Registro {
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
-	return slices.Clone(sess.registros)
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.

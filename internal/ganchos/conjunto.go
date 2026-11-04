@@ -54,9 +54,20 @@ type Observacao struct {
 
 type Opcao func(*Conjunto)
 
-// ComObservador recebe a observação de cada avaliação.
+// ComObservador recebe a observação de cada avaliação. Com mais de um, todos recebem, na
+// ordem das opções (log e métrica, depois a auditoria).
 func ComObservador(observar func(context.Context, Observacao)) Opcao {
-	return func(c *Conjunto) { c.observar = observar }
+	return func(c *Conjunto) {
+		anterior := c.observar
+		if anterior == nil {
+			c.observar = observar
+			return
+		}
+		c.observar = func(ctx context.Context, o Observacao) {
+			anterior(ctx, o)
+			observar(ctx, o)
+		}
+	}
 }
 
 // Conjunto junta os fixos e a fonte do índice de regras. Os fixos não têm setter: só

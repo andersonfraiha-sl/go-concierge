@@ -730,7 +730,7 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	if !ok {
 		return nil, nil, pedidos.Saida{}, fmt.Errorf("%w: %s não está aberto neste servidor", ErrProtocoloDesconhecido, protocoloAtende)
 	}
-	res, p, saida, err := s.preencherPedido(ctx, sess, protocoloPedido, atendente, valores, confirmar)
+	res, p, saida, err := s.preencherPedido(comAuditoria(ctx, sess, atendente), sess, protocoloPedido, atendente, valores, confirmar)
 	return res, p, saida, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
 }
 
@@ -830,7 +830,6 @@ func (s *Servico) preencherPedido(ctx context.Context, sess *Sessao, protocoloPe
 			return sess, p, saida, err
 		}
 		defer sess.fecharTurno(t)
-		sess.comecarRegistros()
 		enviar, guardar := s.respostaPronta(ctx, sess, t, texto)
 		var errEnvio error
 		if s.Sender != nil {

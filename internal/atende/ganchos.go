@@ -13,6 +13,7 @@ import (
 	"go-concierge/internal/admin"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/auditoria"
 	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/ganchos/pii"
 	"go-concierge/internal/memoria"
@@ -105,7 +106,6 @@ func (s *Servico) mensagemRecebida(ctx context.Context, sess *Sessao, t ganchos.
 		Mapeamento: m, Implantacao: s.Implantacao, ContatoDaSessao: sess.contato(),
 		Identidade: sess.identidadeDosGanchos(),
 	})
-	sess.anotarRegistros(r.Registros)
 	return r
 }
 
@@ -124,7 +124,6 @@ func (s *Servico) antesDeResponder(ctx context.Context, sess *Sessao, t ganchos.
 		Agora: time.Now(), Texto: texto, AdministradoraID: alvo.AdministradoraID,
 		CondominioID: alvo.CondominioID, Identidade: sess.identidadeDosGanchos(),
 	})
-	sess.anotarRegistros(r.Registros)
 	switch {
 	case bloqueioPorFalha(r.Registros):
 		return resposta{texto: FraseFalha, trocada: true}
@@ -147,7 +146,7 @@ func (s *Servico) respostaPronta(ctx context.Context, sess *Sessao, t ganchos.Tu
 }
 
 // transbordoOuEncerramento passa o transbordo ou o encerramento pelos ganchos, que nunca o
-// impedem; o motivo do resultado sai sem PII. Quem chama decide onde vão os registros.
+// impedem; o motivo do resultado sai sem PII.
 func (s *Servico) transbordoOuEncerramento(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo string, encerramento bool) ganchos.Resultado[ganchos.TransbordoOuEncerramento] {
 	alvo := sess.contato()
 	return t.TransbordoOuEncerramento(ctx, ganchos.TransbordoOuEncerramento{
@@ -157,23 +156,31 @@ func (s *Servico) transbordoOuEncerramento(ctx context.Context, sess *Sessao, t 
 	})
 }
 
-// motivoDoTransbordo saneia o motivo de um transbordo do turno e anota os registros nele.
+// motivoDoTransbordo saneia o motivo de um transbordo do turno.
 func (s *Servico) motivoDoTransbordo(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo string) string {
 	r := s.transbordoOuEncerramento(ctx, sess, t, motivo, false)
-	sess.anotarRegistros(r.Registros)
 	return r.Evento.Motivo
 }
 
 // encerramento passa o encerramento pelos ganchos. Roda fora do turno (o canal fecha o
-// protocolo enquanto um turno pode estar em curso): os registros ficam só com o observador
-// do conjunto, sem misturar com os do turno.
+// protocolo enquanto um turno pode estar em curso): sem o coletor do turno no ctx, a
+// auditoria grava na hora, sem misturar com a do turno.
 func (s *Servico) encerramento(ctx context.Context, sess *Sessao) {
+	ctx = comAuditoria(ctx, sess, "")
 	t, err := s.abrirTurno(sess)
 	if err != nil {
 		slog.ErrorContext(ctx, "atende: encerramento sem ganchos", "operacao", "encerrar", "sessao", sess.ID, "erro", err)
 		return
 	}
 	s.transbordoOuEncerramento(ctx, sess, t, "", true)
+}
+
+// comAuditoria põe no ctx a sessão e o usuário que a auditoria dos ganchos grava; o alvo e a
+// hora vêm de cada avaliação. usuario é o atendente (vazio quando quem fala é o morador).
+func comAuditoria(ctx context.Context, sess *Sessao, usuario string) context.Context {
+	return auditoria.ComBase(ctx, auditoria.Linha{
+		Origem: ganchos.OrigemConcierge, SessaoID: sess.ID, Protocolo: sess.Protocolo, UsuarioID: usuario,
+	})
 }
 
 // bloqueioPorFalha diz se um gancho falhou e a política fechou: o evento não pode seguir
