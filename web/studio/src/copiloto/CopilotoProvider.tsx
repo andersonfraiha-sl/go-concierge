@@ -39,6 +39,8 @@ type ValorDoCopiloto = {
   botaoDoCopiloto: RefObject<HTMLButtonElement | null>;
   status: Status;
   mensagens: Mensagem[];
+  /** Lido no momento do render; troca de tela sozinha não força o painel a redesenhar. */
+  contexto: ContextoDoCopiloto;
   enviar: (texto: string) => Promise<void>;
   aplicar: (proposta: Proposta) => Promise<void>;
   descartar: (idDaProposta: string) => void;
@@ -150,6 +152,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     botaoDoCopiloto,
     status: statusDe(estado.data?.disponivel, pensando),
     mensagens,
+    contexto: contexto.current,
     enviar,
     aplicar: aindaNaoAplica,
     descartar,
