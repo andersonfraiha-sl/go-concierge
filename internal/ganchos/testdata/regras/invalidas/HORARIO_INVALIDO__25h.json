@@ -1,0 +1,20 @@
+{
+  "nome": "Regra de teste",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "fora_do_horario",
+      "inicio": "25:00",
+      "fim": "22:00",
+      "fonte": {
+        "tipo": "agora"
+      }
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Não posso fazer isso agora."
+  },
+  "ativa": true
+}
