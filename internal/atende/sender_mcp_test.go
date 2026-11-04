@@ -154,20 +154,6 @@ func TestTransferirDistingueIncertaDeRecusa(t *testing.T) {
 	}
 }
 
-func TestEncerramentoChamaProtocolsClose(t *testing.T) {
-	gw := gatewayOK(t)
-	if err := gw.sender().Encerrar(context.Background(), entrada.Destino{Protocolo: "P-9"}, "resolvido pelo concierge"); err != nil {
-		t.Fatal(err)
-	}
-	fechamentos := gw.chamadasDe("protocols_close")
-	if len(fechamentos) != 1 || fechamentos[0].args["protocolNumber"] != "P-9" || corpoDe(t, fechamentos[0])["reason"] != "resolvido pelo concierge" {
-		t.Fatalf("fechamento inesperado: %+v", fechamentos)
-	}
-	if err := gw.sender().Encerrar(context.Background(), entrada.Destino{}, ""); err == nil {
-		t.Fatal("protocolo vazio deve falhar sem chamar o gateway")
-	}
-}
-
 // servicoNoCanalReal: o serviço de teste com o canal "atende" entregue pelo sender MCP.
 func servicoNoCanalReal(t *testing.T, sender *MCPSender, texto string) (*Servico, *Outbox, entrada.Mensagem) {
 	t.Helper()

@@ -528,15 +528,16 @@ em `docker compose` (serviços `mcp` e `concierge`).
 
 - Problema: o concierge guardava a chave do ATENDE (`ATENDE_API_KEY`) e falava direto com a
   API; o transbordo e o encerramento não tinham caminho único e auditável.
-- Decisão: envio, transbordo e encerramento passam pelo servidor MCP `atende` do gateway
-  Nexus (`messages_send`, `protocols_transfer`, `protocols_close`), com token de serviço
+- Decisão: envio e transbordo passam pelo servidor MCP `atende` do gateway
+  Nexus (`messages_send`, `protocols_transfer`), com token de serviço
   por client credentials (`ATENDE_MCP_*`, modo `keycloak` do `internal/mcp`). A chave do
   ATENDE vive só no gateway. O emulador segue com `HTTPSender`.
 - `MCPSender` (`atende/sender_mcp.go`) substitui `ATENDESender` e `ATENDETransferidor`.
   Recusa do gateway (`isError`) é definitiva; falha de transporte no transbordo é
   resultado incerto (`TransferenciaIncerta`). Escritas nunca são repetidas.
-- O encerramento pelo gateway existe (`MCPSender.Encerrar`, `protocols_close`), mas ainda
-  não tem chamador: nenhum fluxo encerra a sessão por decisão do concierge.
+- Encerramento pelo gateway (`protocols_close`) removido até um fluxo precisar: nenhum fluxo
+  encerra a sessão por decisão do concierge e o cliente não tem a concessão
+  `mcp:atende.protocols_close`.
 - Transferência incerta: `upstream_timeout`, `upstream_unreachable`, `internal_error`,
   `upstream_error` com status 5xx (ou ausente) e texto de erro ilegível; 4xx e demais
   códigos são definitivos.

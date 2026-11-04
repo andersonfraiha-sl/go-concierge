@@ -17,7 +17,7 @@ import (
 const limiteMensagemATENDE = 4000
 
 // MCPSender fala com o ATENDE pelo servidor `atende` do gateway Nexus: envia a resposta
-// (messages_send), transfere (protocols_transfer) e encerra (protocols_close) o protocolo.
+// (messages_send) e transfere o protocolo (protocols_transfer).
 // A credencial do ATENDE fica no gateway; aqui só existe o token de serviço do cliente.
 // Satisfaz Sender e Transferidor.
 type MCPSender struct {
@@ -106,21 +106,6 @@ func (m *MCPSender) Transferir(ctx context.Context, destino entrada.Destino, _ s
 	}
 	if err != nil {
 		return fmt.Errorf("transfer atende protocol: %w", err)
-	}
-	return nil
-}
-
-// Encerrar fecha o protocolo no ATENDE por decisão do concierge.
-func (m *MCPSender) Encerrar(ctx context.Context, destino entrada.Destino, motivo string) error {
-	if strings.TrimSpace(destino.Protocolo) == "" {
-		return errors.New("ATENDE: protocolo vazio para encerramento")
-	}
-	corpo := map[string]any{}
-	if motivo != "" {
-		corpo["reason"] = motivo
-	}
-	if err := m.chamar(ctx, "protocols_close", map[string]any{"protocolNumber": destino.Protocolo, "body": corpo}); err != nil {
-		return fmt.Errorf("close atende protocol: %w", err)
 	}
 	return nil
 }

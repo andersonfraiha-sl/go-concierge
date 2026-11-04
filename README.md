@@ -83,8 +83,9 @@ passam pelo servidor MCP `atende` do gateway Nexus, que guarda a chave do ATENDE
 | `ATENDE_MCP_CLIENT_ID`, `ATENDE_MCP_CLIENT_SECRET` | credencial de serviço do concierge no gateway |
 
 Tools usadas: `messages_send` (resposta, em partes de 4000 caracteres com a formatação do
-WhatsApp), `protocols_transfer` (transbordo pelo protocolo da sessão) e `protocols_close`
-(`MCPSender.Encerrar`; existe, mas ainda não tem chamador: nenhum fluxo encerra a sessão por decisão do concierge). `ATENDE_API_SECRET` continua: o webhook de entrada é evento, não tool.
+WhatsApp) e `protocols_transfer` (transbordo pelo protocolo da sessão). Encerrar protocolo
+pelo gateway (`protocols_close`) saiu até um fluxo precisar: o cliente do concierge nem tem
+essa concessão. `ATENDE_API_SECRET` continua: o webhook de entrada é evento, não tool.
 As tools do ATENDE não entram no catálogo de recursos do agente: quem decide transferir e
 encerrar é o código.
 
