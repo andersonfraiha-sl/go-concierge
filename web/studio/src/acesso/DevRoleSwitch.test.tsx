@@ -88,4 +88,36 @@ describe('acesso na barra lateral e no topo', () => {
     expect(await screen.findByText('Ana')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Ver como' })).not.toBeInTheDocument();
   });
+
+  it('dropsPreviousUserDataOnSwitch', async () => {
+    let chamadas = 0;
+    let soltar: () => void = () => {};
+    const presa = new Promise<void>((resolve) => {
+      soltar = resolve;
+    });
+    responderCom({
+      'GET /api/eu': async () => {
+        chamadas += 1;
+        if (chamadas === 1) return json(base);
+        await presa;
+        return json({
+          ...base,
+          id: 'gestor-exemplo',
+          nome: 'Bia',
+          papel: 'gestor_administradora',
+          permissoes: ['skills.ler'],
+          administradoraId: 'adm-1',
+        });
+      },
+    });
+    const { user } = renderComProvedores(<StudioLayout />);
+    await screen.findByText('Ana');
+
+    await user.click(screen.getByRole('combobox', { name: 'Ver como' }));
+    await user.click(within(screen.getByRole('listbox')).getByText('Administradora (gestor)'));
+
+    expect(screen.queryByText('Ana')).not.toBeInTheDocument();
+    soltar();
+    expect(await screen.findByText('Bia')).toBeInTheDocument();
+  });
 });

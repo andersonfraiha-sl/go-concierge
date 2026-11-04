@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { StudioLayout } from '@/app/StudioLayout';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { type Eu, pode, podeNoCatalogo, useEu, usePodeEditar } from './eu';
@@ -65,5 +66,13 @@ describe('usePodeEditar', () => {
     simularTela(false);
     renderComProvedores(<Probe />);
     expect(await screen.findByText('Ana: edita')).toBeInTheDocument();
+  });
+});
+
+describe('useEu sem sessão', () => {
+  it('showsUnauthenticatedScreenInLayout', async () => {
+    responderCom({ 'GET /api/eu': () => json({ codigo: 'NAO_AUTENTICADO', error: 'x' }, 401) });
+    renderComProvedores(<StudioLayout />);
+    expect(await screen.findByText('Não reconhecemos seu usuário.')).toBeInTheDocument();
   });
 });
