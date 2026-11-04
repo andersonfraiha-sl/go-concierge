@@ -13,6 +13,7 @@ const decisaoFalhou = "falhou"
 
 // Linha é uma linha de ganchos_auditoria. Base traz origem, ids e sessão; LinhasDe preenche o resto.
 type Linha struct {
+	ID                                                                               string // preenchido na leitura (Listar)
 	CriadoEm                                                                         time.Time
 	Origem                                                                           string // "concierge" | "copiloto"
 	Evento, Gancho, RegraID                                                          string
