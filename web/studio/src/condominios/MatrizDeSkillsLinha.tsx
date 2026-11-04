@@ -1,0 +1,98 @@
+import { Box, Switch, TableCell, TableRow, Tooltip } from '@mui/material';
+import type { ReactNode } from 'react';
+import { type Caso, habilitacaoDe, type Mapeamento, PADRAO } from './contratos';
+import type { LinhaDeSkill } from './listaDeSkills';
+
+export type Coluna = { id: string; nome: string };
+export type CelulaAberta = { caso: Caso; coluna: Coluna };
+export type Gravar = (
+  caso: Caso,
+  coluna: Coluna,
+  habilitado: boolean,
+  papeis: string[],
+) => Promise<boolean>;
+
+/** Agrupa o que toda célula da matriz precisa, para manter cada componente com poucos parâmetros. */
+export type ContextoDaMatriz = {
+  mapeamento: Mapeamento;
+  colunas: Coluna[];
+  editavelNaColuna: (coluna: Coluna) => boolean;
+  gravando: boolean;
+  onGravar: Gravar;
+  onAbrirCelula: (aberta: CelulaAberta) => void;
+};
+
+export const ESTILO_COLUNA_FIXA = {
+  position: 'sticky' as const,
+  left: 0,
+  bgcolor: 'background.paper',
+  zIndex: 1,
+  whiteSpace: 'nowrap' as const,
+};
+
+export function PontoDeDecisao(): ReactNode {
+  return (
+    <Tooltip title="Decisão deste condomínio">
+      <Box
+        role="img"
+        aria-label="Decisão deste condomínio"
+        sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main', flex: 'none' }}
+      />
+    </Tooltip>
+  );
+}
+
+export function LinhaDaMatriz({
+  contexto,
+  linha,
+}: {
+  contexto: ContextoDaMatriz;
+  linha: LinhaDeSkill;
+}): ReactNode {
+  return (
+    <TableRow>
+      <TableCell component="th" scope="row" sx={ESTILO_COLUNA_FIXA}>
+        {linha.titulo}
+      </TableCell>
+      {contexto.colunas.map((coluna) => (
+        <Celula key={coluna.id} contexto={contexto} linha={linha} coluna={coluna} />
+      ))}
+    </TableRow>
+  );
+}
+
+function Celula({
+  contexto,
+  linha,
+  coluna,
+}: {
+  contexto: ContextoDaMatriz;
+  linha: LinhaDeSkill;
+  coluna: Coluna;
+}): ReactNode {
+  const { habilitacao, propria } = habilitacaoDe(contexto.mapeamento, coluna.id, linha.caso.nome);
+  const mostraPontoDeDecisao = propria && coluna.id !== PADRAO;
+  const editavel = contexto.editavelNaColuna(coluna);
+
+  return (
+    <TableCell
+      align="center"
+      sx={{ cursor: 'pointer' }}
+      onClick={() => contexto.onAbrirCelula({ caso: linha.caso, coluna })}
+    >
+      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+        <Switch
+          size="small"
+          checked={habilitacao.habilitado}
+          disabled={!editavel || contexto.gravando}
+          onClick={(evento) => evento.stopPropagation()}
+          onChange={(_, ligado) =>
+            void contexto.onGravar(linha.caso, coluna, ligado, habilitacao.papeis)
+          }
+          slotProps={{ input: { 'aria-label': `${linha.titulo} em ${coluna.nome}` } }}
+        />
+        {mostraPontoDeDecisao && <PontoDeDecisao />}
+      </Box>
+    </TableCell>
+  );
+}
