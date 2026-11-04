@@ -4,7 +4,6 @@ import { type Bloco, type ProblemaFluxo, ProblemaFluxoSchema } from '@/fluxo/mod
 import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { ApiError } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
-import { tokens } from '@/theme/tokens';
 
 const RecusaSchema = z.object({ problemas: listaDoGo(ProblemaFluxoSchema) });
 
@@ -48,7 +47,7 @@ export function useCatalogoDeFerramentas(): CatalogoDeFerramentas {
 }
 
 export const corDoNivel = (nivel: ProblemaFluxo['nivel']): string =>
-  nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
+  nivel === 'erro' ? 'error.main' : 'warning.main';
 
 /** Ids dos blocos desta skill que uma proposta do Copiloto acabou de mudar. */
 export function blocosRealcados(alvos: ReadonlySet<string>, nome: string): ReadonlySet<string> {

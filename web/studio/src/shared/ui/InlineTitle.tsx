@@ -1,6 +1,7 @@
 import { ButtonBase, InputBase, Typography } from '@mui/material';
 import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
 
 type Props = {
   valor: string;
@@ -11,7 +12,7 @@ type Props = {
   component?: 'h1' | 'span';
 };
 
-const estiloTitulo = { fontSize: 18, fontWeight: 600 } as const;
+const estiloTitulo = { fontSize: TIPOS.tituloEditavel, fontWeight: PESOS.semi } as const;
 
 export function InlineTitle({
   valor,
@@ -34,7 +35,7 @@ export function InlineTitle({
       <ButtonBase
         aria-label={`Editar ${rotulo}`}
         onClick={() => setEditando(true)}
-        sx={{ ...estiloTitulo, justifyContent: 'flex-start', borderRadius: 1, px: 0.5 }}
+        sx={{ ...estiloTitulo, justifyContent: 'flex-start', borderRadius: RAIO.campo, px: 0.5 }}
       >
         {valor}
       </ButtonBase>

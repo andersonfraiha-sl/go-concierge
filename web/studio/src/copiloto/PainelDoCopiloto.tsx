@@ -2,7 +2,7 @@ import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import { Alert, Box, IconButton, Typography } from '@mui/material';
 import { Component, type ReactNode } from 'react';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { ICONES, PESOS, RAIOS, TIPOS, tokens } from '@/theme/tokens';
 import { BolhaDeMensagem } from './BolhaDeMensagem';
 import { CartaoDeProposta } from './CartaoDeProposta';
 import { Compositor } from './Compositor';
@@ -15,18 +15,18 @@ const AVISO_DE_FALHA = 'O Copiloto teve um problema. Feche e abra de novo.';
 const ROTULO_DO_STATUS: Record<Status, { texto: string; cor: string; corDoPonto: string }> = {
   pronto: {
     texto: 'Pronto',
-    cor: tokens.color.success.text,
-    corDoPonto: tokens.color.success.main,
+    cor: 'success.onSoft',
+    corDoPonto: 'success.main',
   },
   pensando: {
     texto: 'Pensando…',
-    cor: tokens.color.text.muted,
-    corDoPonto: tokens.color.text.muted,
+    cor: 'text.muted',
+    corDoPonto: 'text.muted',
   },
   indisponivel: {
     texto: 'Indisponível',
-    cor: tokens.color.warning.text,
-    corDoPonto: tokens.color.warning.text,
+    cor: 'warning.onSoft',
+    corDoPonto: 'warning.onSoft',
   },
 };
 
@@ -41,7 +41,7 @@ const ESTILO_DO_PAINEL = {
   flexDirection: 'column',
   bgcolor: 'background.paper',
   borderRight: 1,
-  borderColor: tokens.color.border.default,
+  borderColor: 'border.default',
 } as const;
 
 /** Painel à esquerda do conteúdo; um erro dentro dele nunca derruba o resto do Studio. */
@@ -83,7 +83,7 @@ function ListaDeMensagens({ mensagens }: { mensagens: Mensagem[] }) {
         overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column-reverse',
-        bgcolor: tokens.color.background.subtle,
+        bgcolor: 'background.subtle',
       }}
     >
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -114,14 +114,15 @@ const ESTILO_DO_CABECALHO = {
   display: 'flex',
   alignItems: 'center',
   gap: 1.25,
-  borderBottom: `1px solid ${tokens.color.border.subtle}`,
+  borderBottom: 1,
+  borderColor: 'border.subtle',
 } as const;
 
 function Cabecalho({ status }: { status: Status }) {
   return (
     <Box sx={ESTILO_DO_CABECALHO}>
       <IconeDoCopiloto />
-      <Typography sx={{ fontWeight: 600, fontSize: 14, color: tokens.color.navy }}>
+      <Typography sx={{ fontWeight: PESOS.semi, fontSize: TIPOS.body1, color: 'secondary.main' }}>
         Copiloto
       </Typography>
       <IndicadorDeStatus status={status} />
@@ -137,13 +138,13 @@ function IconeDoCopiloto() {
         width: 26,
         height: 26,
         borderRadius: `${RAIOS.campo}px`,
-        bgcolor: tokens.color.navy,
+        bgcolor: 'secondary.main',
         color: 'primary.contrastText',
         display: 'grid',
         placeItems: 'center',
       }}
     >
-      <AutoAwesomeOutlined sx={{ fontSize: 14 }} />
+      <AutoAwesomeOutlined sx={{ fontSize: ICONES.pequeno }} />
     </Box>
   );
 }
@@ -153,7 +154,13 @@ function IndicadorDeStatus({ status }: { status: Status }) {
   return (
     <Box
       role="status"
-      sx={{ display: 'flex', alignItems: 'center', gap: 0.625, fontSize: 12, color: rotulo.cor }}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.625,
+        fontSize: TIPOS.caption,
+        color: rotulo.cor,
+      }}
     >
       <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: rotulo.corDoPonto }} />
       {rotulo.texto}
@@ -172,11 +179,11 @@ function BotaoFechar() {
         width: 28,
         height: 28,
         borderRadius: `${RAIOS.campo - 1}px`,
-        bgcolor: tokens.color.background.neutralFill,
+        bgcolor: 'background.neutralFill',
         color: 'text.secondary',
       }}
     >
-      <CloseRounded sx={{ fontSize: 13 }} />
+      <CloseRounded sx={{ fontSize: ICONES.minimo }} />
     </IconButton>
   );
 }
@@ -198,7 +205,7 @@ class LimiteDeErro extends Component<{ children: ReactNode }, EstadoDoLimite> {
   render(): ReactNode {
     if (!this.state.quebrou) return this.props.children;
     return (
-      <Typography variant="body2" sx={{ p: 3, color: tokens.color.danger.main }}>
+      <Typography variant="body2" sx={{ p: 3, color: 'error.main' }}>
         {AVISO_DE_FALHA}
       </Typography>
     );

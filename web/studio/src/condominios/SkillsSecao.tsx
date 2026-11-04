@@ -1,7 +1,7 @@
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import { Box, InputAdornment, Switch, TextField, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { RAIOS } from '@/theme/tokens';
+import { LARGURA_MINIMA_DO_CARTAO, PESOS, RAIOS } from '@/theme/tokens';
 import { type Estado, PADRAO, salvarHabilitacao } from './contratos';
 import { LinhaDaSkill } from './LinhaDaSkill';
 import {
@@ -81,7 +81,7 @@ function BarraDaSecao({ linhas, ehPadrao, filtro, onFiltrar }: BarraProps): Reac
 
 function TituloEContagem({ ligadas, total }: { ligadas: number; total: number }): ReactNode {
   return (
-    <Box sx={{ flex: '1 1 260px' }}>
+    <Box sx={{ flex: `1 1 ${LARGURA_MINIMA_DO_CARTAO}px` }}>
       <Typography variant="h5" component="h2">
         O que o concierge faz aqui
       </Typography>
@@ -189,7 +189,7 @@ const ESTILO_DO_TITULO_DE_GRUPO = {
   pt: 2,
   pb: 1,
   color: 'text.tertiary',
-  fontWeight: 600,
+  fontWeight: PESOS.semi,
 } as const;
 
 function GrupoDeSkills({ grupo, contexto }: { grupo: Grupo; contexto: ContextoDaLista }) {

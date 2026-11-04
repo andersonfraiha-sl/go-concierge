@@ -8,6 +8,7 @@ import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { CampoRico } from '@/shared/editor/CampoRico';
 import { SectionCard } from '@/shared/ui/SectionCard';
+import { PESOS } from '@/theme/tokens';
 import {
   type Estado,
   PADRAO,
@@ -127,7 +128,7 @@ function OrientacaoDoPadrao({ estado, condominio }: Omit<Props, 'editavel'>): Re
 
   return (
     <Box>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+      <Typography variant="body2" sx={{ fontWeight: PESOS.semi }}>
         Também vale o do Padrão:
       </Typography>
       <Typography variant="body2" color="text.secondary">

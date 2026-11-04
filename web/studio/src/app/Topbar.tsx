@@ -3,7 +3,7 @@ import { Box, Button, type SxProps, type Theme, Typography } from '@mui/material
 import { DevRoleSwitch } from '@/acesso/DevRoleSwitch';
 import { useEu } from '@/acesso/eu';
 import { useCopiloto } from '@/copiloto/CopilotoProvider';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { PESOS, RAIOS, TIPOS, tokens } from '@/theme/tokens';
 
 const ESTILO_DA_BARRA: SxProps<Theme> = {
   height: tokens.layout.navbarHeight,
@@ -47,13 +47,13 @@ const estiloDoBotao = (aberto: boolean): SxProps<Theme> => ({
   height: 34,
   px: 2,
   borderRadius: `${RAIOS.chip}px`,
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: TIPOS.body2,
+  fontWeight: PESOS.semi,
   border: 1,
-  borderColor: aberto ? tokens.color.navy : tokens.color.border.strong,
-  bgcolor: aberto ? tokens.color.navy : 'background.paper',
-  color: aberto ? 'primary.contrastText' : tokens.color.navy,
-  '&:hover': { bgcolor: aberto ? tokens.color.navy : tokens.color.background.subtle },
+  borderColor: aberto ? 'secondary.main' : 'border.strong',
+  bgcolor: aberto ? 'secondary.main' : 'background.paper',
+  color: aberto ? 'primary.contrastText' : 'secondary.main',
+  '&:hover': { bgcolor: aberto ? 'secondary.main' : 'background.subtle' },
 });
 
 function BotaoDoCopiloto() {

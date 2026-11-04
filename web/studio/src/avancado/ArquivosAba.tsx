@@ -5,7 +5,7 @@ import { type Arquivo, lerModeloDeArquivo, salvarArquivo, useAgente } from '@/ca
 import { type EstiloDoRealce, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { TIPOS, tokens } from '@/theme/tokens';
+import { PESOS, TIPOS } from '@/theme/tokens';
 import {
   ARQUIVO_DE_CASO,
   ARQUIVO_DE_IDENTIDADE,
@@ -169,8 +169,8 @@ type ListaProps = {
 
 const ESTILO_DO_TITULO_DO_GRUPO = {
   fontSize: TIPOS.overline,
-  fontWeight: 600,
-  color: tokens.color.text.muted,
+  fontWeight: PESOS.semi,
+  color: 'text.muted',
   textTransform: 'uppercase',
   letterSpacing: '.06em',
 } as const;

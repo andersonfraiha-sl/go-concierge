@@ -2,6 +2,8 @@ import { Box, ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
 import type { ReactNode } from 'react';
 import { BLOCOS, TIPOS_INSERIVEIS } from '@/fluxo/modelo/catalogo';
 import type { TipoBloco } from '@/fluxo/modelo/tipos';
+import { useCorDoBloco } from '@/fluxo/modelo/useCorDoBloco';
+import { ICONES, PESOS, RAIO } from '@/theme/tokens';
 
 type Props = {
   ancora: HTMLElement | null;
@@ -12,7 +14,8 @@ type Props = {
 type ItemProps = { tipo: TipoBloco; onEscolher: (tipo: TipoBloco) => void };
 
 function ItemDeBloco({ tipo, onEscolher }: ItemProps): ReactNode {
-  const { rotulo, descricao, cor, Icone } = BLOCOS[tipo];
+  const { rotulo, descricao, Icone } = BLOCOS[tipo];
+  const cor = useCorDoBloco(tipo);
   return (
     <MenuItem onClick={() => onEscolher(tipo)} sx={{ alignItems: 'flex-start', py: 1 }}>
       <ListItemIcon sx={{ mt: 0.5 }}>
@@ -22,19 +25,19 @@ function ItemDeBloco({ tipo, onEscolher }: ItemProps): ReactNode {
             height: 28,
             display: 'grid',
             placeItems: 'center',
-            borderRadius: 1,
+            borderRadius: RAIO.campo,
             bgcolor: `${cor}1A`,
             color: cor,
           }}
         >
-          <Icone sx={{ fontSize: 18 }} />
+          <Icone sx={{ fontSize: ICONES.grande }} />
         </Box>
       </ListItemIcon>
       <ListItemText
         primary={rotulo}
         secondary={descricao}
         slotProps={{
-          primary: { sx: { fontWeight: 700 } },
+          primary: { sx: { fontWeight: PESOS.negrito } },
           secondary: { sx: { whiteSpace: 'normal' } },
         }}
       />

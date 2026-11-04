@@ -15,7 +15,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { contemBusca } from '@/shared/busca';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { tokens } from '@/theme/tokens';
+import { PESOS } from '@/theme/tokens';
 import {
   type Administradora,
   type Condominio,
@@ -30,21 +30,21 @@ type Situacao = 'base' | 'pronto' | 'faltam-ids' | 'sem-administradora';
 
 /** Cores do badge de Situação: tons do desenho aprovado, vindos de tokens.ts. */
 const BADGE_DA_SITUACAO: Record<Situacao, { rotulo: string; fundo: string; cor: string }> = {
-  base: { rotulo: 'Base', fundo: tokens.color.background.tint, cor: tokens.color.primary.main },
+  base: { rotulo: 'Base', fundo: 'background.tint', cor: 'primary.main' },
   pronto: {
     rotulo: 'Pronto',
-    fundo: tokens.color.success.background,
-    cor: tokens.color.success.main,
+    fundo: 'success.soft',
+    cor: 'success.main',
   },
   'faltam-ids': {
     rotulo: 'Faltam ids',
-    fundo: tokens.color.warning.background,
-    cor: tokens.color.warning.text,
+    fundo: 'warning.soft',
+    cor: 'warning.onSoft',
   },
   'sem-administradora': {
     rotulo: 'Sem administradora',
-    fundo: tokens.color.warning.background,
-    cor: tokens.color.warning.text,
+    fundo: 'warning.soft',
+    cor: 'warning.onSoft',
   },
 };
 
@@ -61,7 +61,7 @@ function SituacaoBadge({ situacao }: { situacao: Situacao }): ReactNode {
     <Chip
       size="small"
       label={badge.rotulo}
-      sx={{ bgcolor: badge.fundo, color: badge.cor, fontWeight: 500 }}
+      sx={{ bgcolor: badge.fundo, color: badge.cor, fontWeight: PESOS.medio }}
     />
   );
 }
@@ -242,7 +242,7 @@ type NomeProps = { destino: string; nome: string; legenda: string | undefined };
 function CelulaDoNome({ destino, nome, legenda }: NomeProps): ReactNode {
   return (
     <TableCell>
-      <Link to={destino} style={{ fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>
+      <Link to={destino} style={{ fontWeight: PESOS.semi }} onClick={(e) => e.stopPropagation()}>
         {nome}
       </Link>
       {legenda && <Legenda texto={legenda} />}

@@ -8,6 +8,7 @@ import type { Valor } from '@/condominios/contratos';
 import { tituloDe } from '@/ferramentas/contratos';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { GAVETA } from '@/theme/tokens';
 import { CampoDoPar } from './CampoDoPar';
 import { errosDosPares, type ParDoPayload, parNovo, payloadEmPares, TIPOS } from './payloadLivre';
 
@@ -66,7 +67,7 @@ export function PayloadDoCondominioDrawer({
       onClose={onFechar}
       slotProps={{
         paper: {
-          sx: { width: 'min(420px, 100vw)' },
+          sx: { width: GAVETA.padrao },
           role: 'dialog',
           'aria-label': `${titulo} · ${nomeDoCondominio}`,
         },

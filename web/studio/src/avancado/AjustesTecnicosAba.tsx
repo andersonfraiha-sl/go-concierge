@@ -17,6 +17,7 @@ import { ComEstado } from '@/condominios/ComEstado';
 import { type Estado, PADRAO, salvarPayload, useEstado } from '@/condominios/contratos';
 import { useExecutar } from '@/condominios/useExecutar';
 import { tituloDe } from '@/ferramentas/contratos';
+import { PESOS } from '@/theme/tokens';
 import { PayloadDoCondominioDrawer } from './PayloadDoCondominioDrawer';
 import { type ParDoPayload, paresEmPayload } from './payloadLivre';
 
@@ -143,7 +144,7 @@ function LinhaDeFerramenta({ recurso, origem, onAbrir }: LinhaProps): ReactNode 
       <TableCell component="th" scope="row">
         <Button
           onClick={() => onAbrir(recurso)}
-          sx={{ textTransform: 'none', color: 'text.primary', fontWeight: 400 }}
+          sx={{ textTransform: 'none', color: 'text.primary', fontWeight: PESOS.regular }}
         >
           {tituloDe(recurso)}
           {origem && <Chip size="small" label={origem} sx={{ ml: 1 }} />}

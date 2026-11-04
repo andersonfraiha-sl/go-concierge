@@ -10,7 +10,6 @@ import {
 } from 'react';
 import { ApiError } from '@/shared/api/http';
 import { mensagemDe } from '@/shared/api/mensagemDe';
-import { tokens } from '@/theme/tokens';
 import {
   CHAVE_DO_ESTADO,
   type ContextoDoCopiloto,
@@ -70,7 +69,7 @@ export function useRealceDoCopiloto(alvo: string): EstiloDoRealce {
   const { alvosRealcados } = useCopiloto();
   const transicao = { transition: 'background-color 300ms ease-out' };
   if (!alvosRealcados.has(alvo)) return transicao;
-  return { ...transicao, bgcolor: tokens.color.realceDoCopiloto };
+  return { ...transicao, bgcolor: 'studio.realceDoCopiloto' };
 }
 
 type PedidoEmCurso = RefObject<AbortController | null>;

@@ -8,9 +8,9 @@ import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { tokens } from '@/theme/tokens';
+import { PADDING_TOPO_DO_EDITOR } from '@/theme/tokens';
 import { mensagemDeErro, useRecarregarAvancado } from './contratos';
-import { ESTILO_DO_EDITOR, PADDING_TOPO_DO_EDITOR } from './estilo';
+import { ESTILO_DO_EDITOR } from './estilo';
 import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
 
 type EditorProps = { agente: string; caminho: string; editar: boolean; onExcluido: () => void };
@@ -200,8 +200,9 @@ const NumerosDeLinha = forwardRef<HTMLPreElement, NumerosProps>(function Numeros
         pt: PADDING_TOPO_DO_EDITOR,
         px: 1.5,
         textAlign: 'right',
-        color: tokens.color.text.muted,
-        borderRight: `1px solid ${tokens.color.border.subtle}`,
+        color: 'text.muted',
+        borderRight: 1,
+        borderColor: 'border.subtle',
         overflowY: 'hidden',
         userSelect: 'none',
       }}

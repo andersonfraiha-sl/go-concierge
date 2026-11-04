@@ -2,7 +2,7 @@ import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import { Box, Chip, Typography } from '@mui/material';
 import { type ReactNode, useId } from 'react';
 import { useEu } from '@/acesso/eu';
-import { RAIOS, TIPOS, tokens } from '@/theme/tokens';
+import { ICONES, PESOS, RAIOS, TIPOS } from '@/theme/tokens';
 import { useCopiloto } from './CopilotoProvider';
 import { sugestoesDoHubVazio } from './sugestoes';
 
@@ -10,8 +10,8 @@ const ROTULO = 'Ou peça ao Copiloto';
 
 const ESTILO_DO_ROTULO = {
   fontSize: TIPOS.overline,
-  fontWeight: 600,
-  color: tokens.color.text.muted,
+  fontWeight: PESOS.semi,
+  color: 'text.muted',
   textTransform: 'uppercase',
   letterSpacing: '.06em',
 } as const;
@@ -58,11 +58,11 @@ function ChipsDePedido({ sugestoes, onPedir }: ChipsProps): ReactNode {
           sx={{
             height: 'auto',
             borderRadius: `${RAIOS.menu}px`,
-            borderColor: tokens.color.border.default,
-            bgcolor: tokens.color.background.paper,
-            color: tokens.color.text.strong,
+            borderColor: 'border.default',
+            bgcolor: 'background.paper',
+            color: 'text.strong',
             fontSize: TIPOS.body2,
-            '& .MuiChip-icon': { color: tokens.color.navy, fontSize: 14, ml: 1.5 },
+            '& .MuiChip-icon': { color: 'secondary.main', fontSize: ICONES.pequeno, ml: 1.5 },
             '& .MuiChip-label': { py: 1, pr: 1.5 },
           }}
         />

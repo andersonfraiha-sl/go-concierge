@@ -8,66 +8,70 @@ import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
 import ReplayOutlined from '@mui/icons-material/ReplayOutlined';
 import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined';
-import { tokens } from '@/theme/tokens';
 import { type Bloco, BlocoSchema, TIPOS_BLOCO, type TipoBloco } from './tipos';
 
-const categoria = tokens.color.studio.category;
+type CategoriaDeBloco = 'start' | 'send' | 'ask' | 'logic' | 'integrate' | 'ai' | 'end';
 
-type DescricaoDoBloco = { rotulo: string; descricao: string; cor: string; Icone: SvgIconComponent };
+type DescricaoDoBloco = {
+  rotulo: string;
+  descricao: string;
+  categoria: CategoriaDeBloco;
+  Icone: SvgIconComponent;
+};
 
 export const BLOCOS: Record<TipoBloco, DescricaoDoBloco> = {
   buscar_dados: {
     rotulo: 'Buscar dados',
     descricao: 'Consulta um sistema e guarda o resultado.',
-    cor: categoria.integrate,
+    categoria: 'integrate',
     Icone: CloudDownloadOutlined,
   },
   gravar_no_sistema: {
     rotulo: 'Gravar no sistema',
     descricao: 'Registra algo num sistema. Precisa de um Confirmar antes.',
-    cor: categoria.logic,
+    categoria: 'logic',
     Icone: SaveOutlined,
   },
   pedir_escolha: {
     rotulo: 'Pedir escolha',
     descricao: 'Mostra opções e guarda a escolhida.',
-    cor: categoria.ask,
+    categoria: 'ask',
     Icone: ListAltOutlined,
   },
   perguntar: {
     rotulo: 'Perguntar',
     descricao: 'Pergunta ao morador o que falta.',
-    cor: categoria.ask,
+    categoria: 'ask',
     Icone: HelpOutlineOutlined,
   },
   formulario: {
     rotulo: 'Formulário',
     descricao: 'Pede vários campos de uma vez.',
-    cor: categoria.ask,
+    categoria: 'ask',
     Icone: DescriptionOutlined,
   },
   confirmar: {
     rotulo: 'Confirmar',
     descricao: 'Pede um sim antes de seguir.',
-    cor: categoria.send,
+    categoria: 'send',
     Icone: TaskAltOutlined,
   },
   montar_texto: {
     rotulo: 'Montar texto',
     descricao: 'Escreve um texto com a IA.',
-    cor: categoria.ai,
+    categoria: 'ai',
     Icone: AutoAwesomeOutlined,
   },
   reaproveitar: {
     rotulo: 'Reaproveitar resposta',
     descricao: 'Oferece usar a resposta dada antes na conversa.',
-    cor: categoria.ask,
+    categoria: 'ask',
     Icone: ReplayOutlined,
   },
   responder: {
     rotulo: 'Responder',
     descricao: 'A resposta final ao morador.',
-    cor: categoria.end,
+    categoria: 'end',
     Icone: ChatBubbleOutlineOutlined,
   },
 };

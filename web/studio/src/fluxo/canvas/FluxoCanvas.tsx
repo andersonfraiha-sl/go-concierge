@@ -1,5 +1,5 @@
 import '@xyflow/react/dist/style.css';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import {
   applyNodeChanges,
   Background,
@@ -13,7 +13,6 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { resumoDoBloco } from '@/fluxo/modelo/catalogo';
 import { ALTURA_BLOCO, ESPACO, indiceAoSoltar } from '@/fluxo/modelo/edicao';
 import type { Fluxo, ProblemaFluxo, TipoBloco } from '@/fluxo/modelo/tipos';
-import { tokens } from '@/theme/tokens';
 import {
   ArestaComMais,
   type ArestaComMaisTipo,
@@ -144,6 +143,7 @@ export function FluxoCanvas({
   const { nos, aoMudarNos, remedir } = useNosArrastaveis(derivados);
 
   const [pedido, setPedido] = useState<PedidoDeInsercao | null>(null);
+  const { canvasDot } = useTheme().palette.studio;
   const pedirInsercao = useMemo<PedirInsercao | null>(
     () => (editavel ? (indice, ancora) => setPedido({ indice, ancora }) : null),
     [editavel],
@@ -167,7 +167,7 @@ export function FluxoCanvas({
       <Box
         component="section"
         aria-label="Fluxo"
-        sx={{ height: '100%', width: '100%', bgcolor: tokens.color.studio.canvasBg }}
+        sx={{ height: '100%', width: '100%', bgcolor: 'studio.canvasBg' }}
       >
         <ReactFlow<BlocoNodeTipo, ArestaComMaisTipo>
           nodes={nos}
@@ -188,12 +188,7 @@ export function FluxoCanvas({
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
         >
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={20}
-            size={1.5}
-            color={tokens.color.studio.canvasDot}
-          />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color={canvasDot} />
           <Controls showInteractive={false} />
         </ReactFlow>
         <MenuDeBlocos

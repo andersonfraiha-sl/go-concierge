@@ -3,7 +3,7 @@ import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
-import { tokens } from '@/theme/tokens';
+import { PESOS, RAIO } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
 import type { Problemas } from './estatisticas';
 import { iconeDaSkill } from './icones';
@@ -58,9 +58,9 @@ function IconeDoCartao({ icone, completo }: { icone: string; completo: boolean }
         width: tamanho,
         height: tamanho,
         flex: 'none',
-        borderRadius: completo ? '12px' : '9px',
-        bgcolor: tokens.color.background.tint,
-        color: tokens.color.primary.main,
+        borderRadius: completo ? RAIO.painel : RAIO.chip,
+        bgcolor: 'background.tint',
+        color: 'primary.main',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -77,7 +77,7 @@ function TextosDoCartao({ skill, completo }: { skill: SkillResumo; completo: boo
       <Typography
         variant={completo ? 'subtitle1' : 'body1'}
         component="h3"
-        sx={completo ? undefined : { fontWeight: 600 }}
+        sx={completo ? undefined : { fontWeight: PESOS.semi }}
       >
         {skill.titulo}
       </Typography>
@@ -104,7 +104,7 @@ function ChipsDeProblemas({ problemas }: { problemas: Problemas | undefined }): 
         <Chip
           size="small"
           label={rotuloDeAvisos(avisos)}
-          sx={{ color: tokens.color.warning.text, bgcolor: tokens.color.warning.background }}
+          sx={{ color: 'warning.onSoft', bgcolor: 'warning.soft' }}
         />
       )}
     </Box>

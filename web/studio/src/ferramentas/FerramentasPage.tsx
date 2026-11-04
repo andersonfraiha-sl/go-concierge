@@ -16,6 +16,7 @@ import { usePodeEditar } from '@/acesso/eu';
 import { type Ferramenta, useFerramentas } from '@/catalogo/contratos';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
+import { LARGURA_MINIMA_DO_CARTAO } from '@/theme/tokens';
 import { CLASSES, type Classe, classeDe, GRUPOS, tituloDe } from './contratos';
 import { FerramentaDrawer } from './FerramentaDrawer';
 
@@ -170,7 +171,7 @@ function GrupoDeFerramentas({ classe, grupo, podeEditar, onAbrir }: GrupoProps):
         sx={{
           display: 'grid',
           gap: 2,
-          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+          gridTemplateColumns: `repeat(auto-fill, minmax(${LARGURA_MINIMA_DO_CARTAO}px, 1fr))`,
         }}
       >
         {grupo.map((ferramenta) => (
