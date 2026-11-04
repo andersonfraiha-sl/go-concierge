@@ -3,7 +3,7 @@ import { Box, ListItemButton, Switch, Tooltip, Typography } from '@mui/material'
 import type { ReactNode } from 'react';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { iconeDaSkill } from '@/skills/icones';
-import { RAIOS } from '@/theme/tokens';
+import { RAIOS, tokens } from '@/theme/tokens';
 import { type LinhaDeSkill, rotuloDePapeis } from './listaDeSkills';
 
 /** Raio de pílula bem acima de qualquer altura real do chip: sempre fica totalmente arredondado. */
@@ -39,7 +39,15 @@ export function LinhaDaSkill({
     <ListItemButton
       onClick={onAbrir}
       sx={[
-        { minHeight: 52, gap: 1.5, px: 2.5, borderTop: 1, borderColor: 'border.subtle' },
+        {
+          minHeight: 52,
+          gap: 1.5,
+          px: 2.5,
+          borderRadius: 0,
+          borderTop: 1,
+          borderColor: 'border.subtle',
+          '&:hover': { bgcolor: 'background.subtle', color: 'inherit', fontWeight: 'inherit' },
+        },
         realce,
       ]}
     >
@@ -98,8 +106,8 @@ export function LinhaDaSkill({
               px: 1,
               py: 0.25,
               borderRadius: RAIO_DE_PILULA,
-              bgcolor: 'warning.background',
-              color: 'warning.text',
+              bgcolor: tokens.color.warning.background,
+              color: tokens.color.warning.text,
               whiteSpace: 'nowrap',
             }}
           >

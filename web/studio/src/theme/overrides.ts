@@ -1,5 +1,5 @@
 import type { Components, Theme } from '@mui/material/styles';
-import { RAIOS, tokens } from './tokens';
+import { CAMPO, INTERRUPTOR, RAIOS, tokens } from './tokens';
 
 export const componentOverrides: Components<Theme> = {
   MuiCssBaseline: {
@@ -38,8 +38,56 @@ export const componentOverrides: Components<Theme> = {
     },
   },
   MuiSwitch: {
+    defaultProps: { disableRipple: true },
+    styleOverrides: { root: ({ theme }) => estiloDoInterruptor(theme) },
+  },
+  MuiTextField: {
+    defaultProps: { slotProps: { inputLabel: { shrink: true } }, maxRows: 14 },
     styleOverrides: {
-      root: { width: 40, height: 22, padding: 0 },
+      // Rótulo acima da caixa, nunca flutuando dentro dela: sem o recorte na borda.
+      root: ({ theme }) => ({
+        '& .MuiInputLabel-shrink': {
+          position: 'relative',
+          transform: 'none',
+          maxWidth: '100%',
+          marginBottom: theme.spacing(0.75),
+          fontSize: theme.typography.body2.fontSize,
+          fontWeight: 600,
+          color: tokens.color.text.strong,
+          '&.Mui-focused': { color: theme.palette.primary.main },
+          '&.Mui-error': { color: theme.palette.error.main },
+        },
+        '& .MuiOutlinedInput-notchedOutline': { top: 0, '& legend': { display: 'none' } },
+      }),
+    },
+  },
+  MuiOutlinedInput: {
+    styleOverrides: {
+      root: ({ theme }) => ({
+        borderRadius: CAMPO.raio,
+        backgroundColor: tokens.color.background.subtle,
+        transition: theme.transitions.create(['background-color', 'border-color']),
+        '& .MuiOutlinedInput-notchedOutline': { borderColor: CAMPO.bordaEmRepouso },
+        '&:hover:not(.Mui-disabled):not(.Mui-focused):not(.Mui-error) .MuiOutlinedInput-notchedOutline':
+          { borderColor: CAMPO.bordaNoHover },
+        '&.Mui-focused': { backgroundColor: theme.palette.background.paper },
+        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+          borderColor: theme.palette.primary.main,
+          borderWidth: 2,
+        },
+        '&.Mui-error .MuiOutlinedInput-notchedOutline': { borderColor: theme.palette.error.main },
+        '&.Mui-disabled': { backgroundColor: tokens.color.background.neutralFill },
+        // Padding pela raiz: assim tamanho, adorno e multilinha seguem valendo sobre ele.
+        '& .MuiOutlinedInput-input': { padding: '12px 14px' },
+        '&.MuiInputBase-sizeSmall .MuiOutlinedInput-input': { padding: '8px 12px' },
+        '&.MuiInputBase-adornedStart .MuiOutlinedInput-input': { paddingLeft: 0 },
+        '&.MuiInputBase-adornedEnd .MuiOutlinedInput-input': { paddingRight: 0 },
+        '&.MuiInputBase-multiline': { padding: '12px 14px', lineHeight: 1.6 },
+        '&.MuiInputBase-multiline .MuiOutlinedInput-input': { padding: 0 },
+      }),
+      input: ({ theme }) => ({
+        '&::placeholder': { color: theme.palette.text.secondary, opacity: 1 },
+      }),
     },
   },
   MuiChip: {
@@ -66,3 +114,62 @@ export const componentOverrides: Components<Theme> = {
     },
   },
 };
+
+const CLASSES_DO_INTERRUPTOR = {
+  base: '& .MuiSwitch-switchBase',
+  pino: '& .MuiSwitch-thumb',
+  trilho: '& .MuiSwitch-track',
+} as const;
+
+// O MUI desenha o Switch com 12 px de respiro em volta do trilho e o pino com 9 px de
+// padding. Zerar só o respiro da raiz (o override antigo) deixava o pino deslocado e
+// cortado no canto: aqui pino, trilho e deslocamento são medidos juntos.
+function estiloDoInterruptor(theme: Theme) {
+  const transicao = `${INTERRUPTOR.duracaoMs}ms ${theme.transitions.easing.easeInOut}`;
+  return {
+    width: 44,
+    height: 24,
+    padding: 0,
+    borderRadius: 12,
+    // O anel fica na raiz: o overflow dela corta a área clicável do input, não o outline.
+    '&:has(.Mui-focusVisible)': {
+      outline: `2px solid ${theme.palette.primary.main}`,
+      outlineOffset: 2,
+    },
+    [CLASSES_DO_INTERRUPTOR.base]: {
+      padding: 2,
+      transition: `transform ${transicao}`,
+      '&:hover': { backgroundColor: 'transparent' },
+      '&.Mui-checked': { transform: 'translateX(20px)' },
+      '&.Mui-checked + .MuiSwitch-track': {
+        backgroundColor: theme.palette.primary.main,
+        opacity: 1,
+      },
+      '&.Mui-disabled + .MuiSwitch-track': { opacity: 0.45 },
+    },
+    [CLASSES_DO_INTERRUPTOR.pino]: {
+      width: 20,
+      height: 20,
+      border: 0,
+      backgroundColor: theme.palette.background.paper,
+      boxShadow: INTERRUPTOR.sombraDoPino,
+    },
+    [CLASSES_DO_INTERRUPTOR.trilho]: {
+      borderRadius: 12,
+      backgroundColor: INTERRUPTOR.trilhoDesligado,
+      opacity: 1,
+      transition: `background-color ${transicao}, opacity ${transicao}`,
+    },
+    '&.MuiSwitch-sizeSmall': {
+      width: 36,
+      height: 20,
+      [CLASSES_DO_INTERRUPTOR.base]: {
+        padding: 2,
+        '&.Mui-checked': { transform: 'translateX(16px)' },
+      },
+      [CLASSES_DO_INTERRUPTOR.pino]: { width: 16, height: 16 },
+      [CLASSES_DO_INTERRUPTOR.trilho]: { borderRadius: 10 },
+      borderRadius: 10,
+    },
+  };
+}
