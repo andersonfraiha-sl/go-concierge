@@ -29,7 +29,8 @@ type PedidoTurno struct {
 	Protocolo          string `json:"protocolo"`
 	Caso               string `json:"caso"`
 	Estado             string `json:"estado"`
-	Evento             string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | atendente
+	Evento             string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | transbordo_pendente
+	Resumo             string `json:"resumo,omitempty"`
 	confirmacaoTexto   string
 	confirmacaoValores json.RawMessage
 }
@@ -227,6 +228,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		turnos = append(turnos, turno)
 	}
 	tocados := map[string]*pedidos.Pedido{}
+	trechos := map[string]string{} // o que o morador disse sobre cada pedido, neste turno
 	var cancelados []string
 
 	for _, c := range extracao.Confirmacoes {
@@ -296,13 +298,20 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			consumida = true
 		}
 		tocados[p.Protocolo] = p
+		if t := strings.TrimSpace(pe.Trecho); t != "" {
+			trechos[p.Protocolo] = t
+		}
 	}
 	// a mensagem inteira foi a resposta a um pedido ("sim", "salão"): não há restante
 	if consumida && normalizar(extracao.Restante) == normalizar(texto) {
 		extracao.Restante = ""
 	}
 
-	// avança os tocados e os abertos sem pergunta pendente (prontos para seguir)
+	// FILA: um pedido por vez. O ativo é o mais antigo em aberto (fora os que estão com
+	// o atendente); só ele avança, pergunta e lembra. Os outros ficam na fila: recebem os
+	// valores que o morador der, mas não perguntam nada. Quando o ativo termina
+	// (concluído, cancelado, falhou), o próximo da fila é puxado no mesmo turno, para o
+	// morador já receber a pergunta dele.
 	var partes, perguntas []string
 	precisaRedigir := false
 	transbordo := ""
@@ -310,17 +319,28 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		partes = append(partes, cancelados...)
 		precisaRedigir = true
 	}
+	var fila []*pedidos.Pedido
 	for _, p := range cart.Abertos() {
-		if p.Estado == pedidos.ComAtendente {
-			continue
+		if p.Estado != pedidos.ComAtendente {
+			if _, ok := contratos[p.Caso]; ok {
+				fila = append(fila, p)
+			}
 		}
+	}
+	var ativo *pedidos.Pedido
+	novosNaFila := false
+	for _, p := range fila {
+		if _, ok := tocados[p.Protocolo]; ok && p.Pendencia == nil && len(p.Historico) <= 1 {
+			novosNaFila = true
+		}
+	}
+	for len(fila) > 0 {
+		p := fila[0]
+		ativo = p
 		if _, ok := tocados[p.Protocolo]; !ok && p.Pendencia != nil {
-			continue
+			break // a pergunta em aberto volta pelo lembrete, abaixo
 		}
-		cc, ok := contratos[p.Caso]
-		if !ok {
-			continue
-		}
+		cc := contratos[p.Caso]
 		saida := pedidos.Avancar(ctx, cc.ct, p, &cart, amb)
 		if amb.escritaIniciada {
 			ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -350,14 +370,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			partes = append(partes, "Não consegui concluir "+strings.ToLower(p.CasoNome)+": "+saida.Texto+".")
 			precisaRedigir = true
 		case "formulario":
-			// o caso tem formulário dinâmico: segue pelo subagente conversacional
+			// o caso tem formulário dinâmico: segue pelo subagente conversacional, que
+			// recebe só a parte da mensagem que é dele (numa mensagem com dois pedidos, o
+			// subagente não deve ver, nem responder por, o outro)
+			fala := trechos[p.Protocolo]
+			if fala == "" || len(extracao.Pedidos) <= 1 {
+				fala = texto
+			}
 			if sub, ok := ag.Subagentes[p.Agente]; ok {
-				r, err := harness.Run(ctx, sub, texto, historico)
+				r, err := harness.Run(ctx, sub, fala, historico)
 				if err != nil {
 					partes = append(partes, "Não consegui seguir com "+strings.ToLower(p.CasoNome)+".")
 				} else {
-					if r.Transbordo == "" || sess.Destino.Conector == "atende-emulado" {
+					if strings.TrimSpace(r.Resposta) != "" && (r.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 						partes = append(partes, r.Resposta)
+					} else if r.Transbordo != "" && sess.Destino.Conector == "atende" {
+						if resposta := removerPromessasTransbordo(r.Resposta); strings.TrimSpace(resposta) != "" {
+							partes = append(partes, resposta)
+						}
 					}
 					rota = append(rota, r.Rota...)
 					uso.Soma(r.Uso)
@@ -367,6 +397,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				}
 			}
 		}
+		if p.Aberto() && p.Estado != pedidos.ComAtendente {
+			break // o ativo ainda está em andamento: os outros esperam
+		}
+		fila = fila[1:] // terminou: o próximo da fila é puxado neste mesmo turno
+		ativo = nil
+		if len(fila) > 0 {
+			tocados[fila[0].Protocolo] = fila[0]
+			passo("pedido", fila[0].Protocolo+" sai da fila: próximo da vez")
+		}
+	}
+	// o morador sabe a ordem: quando pedidos novos entraram na fila atrás do ativo
+	if ativo != nil && len(fila) > 1 && novosNaFila {
+		var nomes []string
+		for _, p := range fila[1:] {
+			nomes = append(nomes, strings.ToLower(p.CasoNome)+" ("+p.Protocolo+")")
+		}
+		perguntas = append(perguntas, "Vou cuidar de um pedido por vez: agora "+strings.ToLower(ativo.CasoNome)+" ("+ativo.Protocolo+"); depois "+strings.Join(nomes, ", ")+".")
+		precisaRedigir = true
 	}
 
 	// o que não é pedido vai ao orquestrador (dúvidas, conversa), em modo router. O
@@ -384,6 +432,10 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		uso.Soma(res.Uso)
 		if strings.TrimSpace(res.Resposta) != "" && (res.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 			partes = append(partes, res.Resposta)
+		} else if res.Transbordo != "" && sess.Destino.Conector == "atende" {
+			if resposta := removerPromessasTransbordo(res.Resposta); strings.TrimSpace(resposta) != "" {
+				partes = append(partes, resposta)
+			}
 		}
 		if res.Transbordo != "" {
 			transbordo = res.Transbordo
@@ -397,6 +449,9 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	for _, p := range cart.Abertos() {
 		if _, ok := tocados[p.Protocolo]; ok || p.Estado == pedidos.ComAtendente {
 			continue
+		}
+		if ativo != nil && p.Protocolo != ativo.Protocolo {
+			continue // na fila: espera a vez, sem lembrete
 		}
 		lembrete, vezes := p.Lembrete()
 		if lembrete == "" {
@@ -421,7 +476,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 
 	// atendente: pendências viram resumo para o humano
 	if extracao.Atendente || transbordo != "" {
-		if sess.Destino.Conector != "atende-emulado" {
+		if sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 			seguras := partes[:0]
 			for _, parte := range partes {
 				if !harness.AnunciaTransferencia(parte) {
@@ -444,8 +499,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 					continue
 				}
 				resumo := pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6))
-				pedidos.AoAtendente(p, resumo)
-				anota(p, "atendente")
+				turnos = append(turnos, PedidoTurno{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: "transbordo_pendente", Resumo: resumo})
 				faltam := p.Faltando(cc.ct)
 				var nomes []string
 				for _, f := range faltam {
@@ -464,11 +518,11 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				transbordo += "; pedidos pendentes: " + strings.Join(pend, "; ")
 				passo("pedido", "ao atendente: "+strings.Join(pend, "; "))
 			}
-			if len(partes) == 0 {
+			if len(partes) == 0 && sess.Destino.Conector != "atende" {
 				if extracao.Atendente {
-					partes = append(partes, "Certo, vou passar você para um atendente da administração. Ele já recebe o que conversamos até aqui.")
+					partes = append(partes, "Vou solicitar o atendimento de uma pessoa da administração. Ainda não tenho confirmação de que ela assumiu a conversa.")
 				} else {
-					partes = append(partes, "Vou passar o que ficou pendente para um atendente da administração, que segue com você por aqui.")
+					partes = append(partes, "Vou solicitar que uma pessoa da administração continue com você. Ainda não tenho confirmação de que ela assumiu a conversa.")
 				}
 				precisaRedigir = true
 			}
@@ -498,10 +552,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 
 	conteudo := strings.TrimSpace(strings.Join(append(partes, perguntas...), "\n\n"))
 	if conteudo == "" {
-		conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
-		precisaRedigir = true
+		if transbordo == "" || sess.Destino.Conector != "atende" {
+			conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
+			precisaRedigir = true
+		}
 	}
 	resposta := conteudo
+	if transbordo != "" && sess.Destino.Conector == "atende" {
+		resposta = conteudo
+		aviso := "Não consegui solicitar um atendente por este canal agora. Posso continuar ajudando por aqui."
+		if s.transferidorDisponivel(sess.Destino) {
+			aviso = "Vou solicitar que uma pessoa da administração assuma este protocolo. Ainda não tenho confirmação de que ela assumiu a conversa."
+		}
+		if strings.TrimSpace(resposta) != "" {
+			resposta += "\n\n"
+		}
+		resposta += aviso
+		precisaRedigir = false
+	}
 	if precisaRedigir {
 		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(historico) > 0)
 		switch {
@@ -559,6 +627,36 @@ func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, contato escop
 		s.adiarCarteira(contato, cart)
 	}
 	return nil
+}
+
+// marcarPedidosAoAtendente passa ao atendente os pedidos que o turno deixou pendentes,
+// depois que a transferência foi confirmada. É mudança de estado: grava já, sem esperar o
+// lote depois da resposta.
+func (s *Servico) marcarPedidosAoAtendente(ctx context.Context, contato escopo.Contato, turnos []PedidoTurno) error {
+	pendentes := map[string]string{}
+	for _, turno := range turnos {
+		if turno.Evento == "transbordo_pendente" {
+			pendentes[turno.Protocolo] = turno.Resumo
+		}
+	}
+	if len(pendentes) == 0 || s.Pedidos == nil {
+		return nil
+	}
+	desbloquear := s.bloquearPedidos(contato)
+	defer desbloquear()
+	cart, err := s.carteiraDoTurno(ctx, contato)
+	if err != nil {
+		return err
+	}
+	for protocolo, resumo := range pendentes {
+		if p := cart.Por(protocolo); p != nil {
+			switch p.Estado {
+			case pedidos.Coletando, pedidos.Pronto, pedidos.Confirmando:
+				pedidos.AoAtendente(p, resumo)
+			}
+		}
+	}
+	return s.salvarCarteira(ctx, contato, cart)
 }
 
 // ---- ações do atendente ------------------------------------------------------------------

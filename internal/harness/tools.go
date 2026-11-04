@@ -140,7 +140,7 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 		}
 	}
 	if err := add(utils.InferTool("transferir_atendente",
-		"Transfere este protocolo a um atendente HUMANO, que assume a conversa daqui em diante. Use quando não há como resolver: pedido fora do que você e seus subagentes fazem, dado que nenhum recurso traz, erro repetido, morador pedindo gente, reclamação séria. Depois de chamar, responda em uma frase dizendo que um atendente vai assumir e pare.",
+		"Registra a intenção de solicitar um atendente HUMANO para este protocolo. Use quando não há como resolver: pedido fora do que você e seus subagentes fazem, dado que nenhum recurso traz, erro repetido, morador pedindo gente, reclamação séria. Esta ferramenta não confirma a transferência; aguarde a confirmação do sistema antes de afirmar que um atendente assumiu.",
 		ag.transferirAtendente)); err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (ag *Agente) transferirAtendente(ctx context.Context, in *argsTransbordo) (
 		*col.transbordo = motivo
 		col.passo(ag.Def.Rel, "transbordo", motivo)
 	}
-	return saida{"transferido": true, "motivo": motivo, "instrucao": "avise o morador em uma frase que um atendente humano vai assumir este protocolo e pare"}, nil
+	return saida{"intencao_registrada": true, "motivo": motivo, "instrucao": "a solicitação foi registrada; não afirme que a transferência ocorreu ou que um atendente assumiu"}, nil
 }
 
 // ---- abrir_workflow -------------------------------------------------------

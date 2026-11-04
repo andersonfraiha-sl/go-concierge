@@ -368,3 +368,14 @@ func TestResumoParaAtendente(t *testing.T) {
 		}
 	}
 }
+
+func TestExtracaoComTrecho(t *testing.T) {
+	var ex Extracao
+	raw := `{"pedidos":[{"caso":"reserva_area_comum","valores":{"area":"churrasqueira"},"trecho":"alugar a churrasqueira"},{"caso":"x","valores":{}}],"atendente":false}`
+	if err := json.Unmarshal([]byte(raw), &ex); err != nil {
+		t.Fatal(err)
+	}
+	if len(ex.Pedidos) != 2 || ex.Pedidos[0].Trecho != "alugar a churrasqueira" || ex.Pedidos[1].Trecho != "" {
+		t.Fatalf("%+v", ex.Pedidos)
+	}
+}

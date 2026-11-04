@@ -1,10 +1,10 @@
 nome: concierge
 tipo: orquestrador
-descricao: concierge do condomínio no WhatsApp — recebe a conversa espontânea do condômino e delega ao especialista certo (observador da sessão, regimento, dúvidas gerais, liberação de visitante) ou transfere ao atendente
+descricao: concierge do condomínio no WhatsApp — recebe a conversa espontânea do condômino e delega ao especialista certo (observador da sessão, regimento, dúvidas gerais, liberação de visitante) ou transfere ao atendente. Vários pedidos são permitidos.
 recursos:
     - faq.buscar
 orquestracao:
-    bind_confidence: 0.8
-    max_itens: 5
-    max_iteracoes: 6
+    bind_confidence: 0.5
+    max_itens: 10
+    max_iteracoes: 15
     modo: planning

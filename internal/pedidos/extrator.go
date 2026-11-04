@@ -34,6 +34,9 @@ type PedidoExtraido struct {
 	Protocolo string         `json:"protocolo,omitempty"`
 	Caso      string         `json:"caso"`
 	Valores   map[string]any `json:"valores"`
+	// Trecho: as palavras do morador sobre ESTE pedido (numa mensagem com vários, só a
+	// parte dele). É o que um subagente conversacional recebe, no lugar da mensagem toda.
+	Trecho string `json:"trecho,omitempty"`
 }
 
 type Extracao struct {

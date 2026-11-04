@@ -281,3 +281,53 @@ func TestReCancelarAceitaProtocolosNovosEAntigos(t *testing.T) {
 		}
 	}
 }
+
+// extratorFila: no primeiro turno abre dois pedidos de uma vez; depois, Regras.
+type extratorFila struct{ vez int }
+
+func (e *extratorFila) Extrair(ctx context.Context, in pedidos.Entrada) (pedidos.Extracao, error) {
+	e.vez++
+	if e.vez == 1 {
+		return pedidos.Extracao{Pedidos: []pedidos.PedidoExtraido{
+			{Caso: "reserva_area_comum", Valores: map[string]any{}, Trecho: "reservar a churrasqueira"},
+			{Caso: "agendar_mudanca", Valores: map[string]any{}, Trecho: "agendar minha mudança"},
+		}}, nil
+	}
+	return pedidos.Regras{}.Extrair(ctx, in)
+}
+
+// Fila: dois pedidos na mesma mensagem → só o primeiro pergunta; o segundo espera (sem
+// lembrete) e é puxado quando o primeiro termina.
+func TestPedidosUmPorVez(t *testing.T) {
+	pedidos.Agora = func() time.Time { return time.Date(2026, 11, 3, 12, 0, 0, 0, time.Local) }
+	defer func() { pedidos.Agora = time.Now }()
+	svc, _, st := servicoComPedidos(t)
+	svc.ExtratorPedidos = &extratorFila{}
+	ctx := context.Background()
+
+	sess := falar(t, svc, "f1", "quero reservar a churrasqueira e agendar minha mudança")
+	r := ultimoConcierge(sess)
+	if !strings.Contains(r.Texto, "Qual área você quer reservar?") || strings.Contains(r.Texto, "data você gostaria de agendar a mudança") {
+		t.Fatalf("só o primeiro pedido pergunta: %q", r.Texto)
+	}
+	if !strings.Contains(r.Texto, "um pedido por vez") || !strings.Contains(r.Texto, "agendamento de mudança") {
+		t.Fatalf("o morador sabe a ordem: %q", r.Texto)
+	}
+	cart, _ := st.Ler(ctx, contatoDeTeste(t, "adm-a"))
+	if len(cart.Abertos()) != 2 {
+		t.Fatalf("dois pedidos abertos: %+v", cart.Abertos())
+	}
+	// turno sobre outra coisa: só o ativo lembra; o da fila fica quieto
+	sess = falar(t, svc, "f2", "posso fazer barulho depois das 22h?")
+	r = ultimoConcierge(sess)
+	if !strings.Contains(r.Texto, "Qual área você quer reservar?") || strings.Contains(r.Texto, "mudança") {
+		t.Fatalf("lembrete só do ativo: %q", r.Texto)
+	}
+	// cancela o ativo: o próximo é puxado no mesmo turno
+	prot := cart.Abertos()[0].Protocolo
+	sess = falar(t, svc, "f3", "cancelar "+prot)
+	r = ultimoConcierge(sess)
+	if !strings.Contains(r.Texto, "cancelado") || !strings.Contains(r.Texto, "data você gostaria de agendar a mudança") {
+		t.Fatalf("o próximo da fila é puxado quando o ativo termina: %q", r.Texto)
+	}
+}
