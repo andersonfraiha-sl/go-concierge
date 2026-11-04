@@ -32,6 +32,16 @@ export type Eu = z.infer<typeof EuSchema>;
 // Somente leitura abaixo desta largura, para qualquer papel.
 const TELA_ESTREITA = '(max-width:899.95px)';
 
+const STATUS_NAO_AUTENTICADO = 401;
+const CorpoNaoAutenticado = z.object({ dev: z.boolean().catch(false) });
+
+/** O 401 de /api/eu não traz o Eu; o modo dev vem no próprio corpo do erro. */
+export function naoReconhecido(erro: ApiError | null): { dev: boolean } | null {
+  if (erro?.status !== STATUS_NAO_AUTENTICADO) return null;
+  const corpo = CorpoNaoAutenticado.safeParse(erro.corpo);
+  return { dev: corpo.success && corpo.data.dev };
+}
+
 export function useEu(): UseQueryResult<Eu, ApiError> {
   return useQuery({ queryKey: ['eu'], queryFn: () => apiGet('/api/eu', EuSchema) });
 }

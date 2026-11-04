@@ -69,7 +69,7 @@ type Props = { recolhido: boolean; aoAlternar: () => void };
 
 export function Sidebar({ recolhido, aoAlternar }: Props) {
   const { pathname } = useLocation();
-  const { data: eu, isError, error, refetch } = useEu();
+  const { data: eu, isError, refetch } = useEu();
   const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
   const largura = recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth;
 
@@ -99,7 +99,7 @@ export function Sidebar({ recolhido, aoAlternar }: Props) {
             aoNavegar={{ component: NavLink, to: item.destino }}
           />
         ))}
-        {isError && !recolhido && <ErroAcesso erro={error} aoTentar={() => void refetch()} />}
+        {isError && !recolhido && <ErroAcesso aoTentar={() => void refetch()} />}
         <Divider sx={{ my: 1 }} />
         <ItemDoMenu
           item={ITEM_ATENDENTE}
