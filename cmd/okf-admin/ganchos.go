@@ -239,7 +239,7 @@ func (s *servidor) ganchosVersao(w http.ResponseWriter, r *http.Request) {
 		s.responderGanchos(w, r, "ler versão da regra", err)
 		return
 	}
-	if !podeVerAlvo(r, regra.Alvo) {
+	if !podeVerAlvo(r, s.escoposDoAlvo(regra.Alvo)) {
 		responderSemPermissao(w)
 		return
 	}
@@ -265,15 +265,17 @@ func (s *servidor) lerVersao(r *http.Request) (regras.VersaoGravada, regras.Regr
 	return v, regra, nil
 }
 
-// podeVerAlvo exige a permissão em cada condomínio do alvo, ou na administradora, ou na
-// Superlógica quando o alvo é de todos.
-func podeVerAlvo(r *http.Request, alvo regras.Alvo) bool {
-	return !slices.ContainsFunc(escoposDoAlvo(alvo), func(e acesso.Escopo) bool {
+// podeVerAlvo exige ganchos.editar ou ganchos.historico em cada escopo do alvo.
+func podeVerAlvo(r *http.Request, escopos []acesso.Escopo) bool {
+	return !slices.ContainsFunc(escopos, func(e acesso.Escopo) bool {
 		return !permitidoAqui(r, acesso.GanchosEditar, e) && !permitidoAqui(r, acesso.GanchosHistorico, e)
 	})
 }
 
-func escoposDoAlvo(alvo regras.Alvo) []acesso.Escopo {
+// escoposDoAlvo: cada condomínio do alvo, ou a administradora, ou, no alvo de todos, a
+// Superlógica. Numa implantação dedicada o alvo de todos só alcança a administradora fixa
+// (a importação aceita regra global ali), então vale o escopo dela.
+func (s *servidor) escoposDoAlvo(alvo regras.Alvo) []acesso.Escopo {
 	if len(alvo.Condominios) > 0 {
 		escopos := make([]acesso.Escopo, len(alvo.Condominios))
 		for i, c := range alvo.Condominios {
@@ -283,6 +285,9 @@ func escoposDoAlvo(alvo regras.Alvo) []acesso.Escopo {
 	}
 	if alvo.Administradora != "" {
 		return []acesso.Escopo{escopoAdministradora(alvo.Administradora)}
+	}
+	if fixa := s.implantacao.AdministradoraFixa; fixa != "" {
+		return []acesso.Escopo{escopoAdministradora(fixa)}
 	}
 	return []acesso.Escopo{escopoSuperlogica}
 }

@@ -45,8 +45,10 @@ func novoAmbienteGanchos(t *testing.T, fixa, segredo string) ambienteGanchos {
 	amb.s.implantacao = escopo.Implantacao{AdministradoraFixa: fixa}
 	usuarios := usuariosTeste()
 	usuarios["gestor-a-avancado"] = naAdministradora("gestor_administradora", "adm-a")
+	usuarios["gestor-b-avancado"] = naAdministradora("gestor_administradora", "adm-b")
 	amb.s.acessos = acessosFake{atribuicoes: usuarios, mapeamento: amb.repo, concessoes: map[string][]acesso.Concessao{
 		"gestor-a-avancado": {{AdministradoraID: "adm-a", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}},
+		"gestor-b-avancado": {{AdministradoraID: "adm-b", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}},
 	}}
 	amb.handler = amb.s.rotear(nil)
 	return ambienteGanchos{amb, b}
@@ -253,9 +255,9 @@ func TestGanchosVersaoUsaOAlvoDaDefinicaoGravada(t *testing.T) {
 	}
 }
 
-func (a ambienteGanchos) exportar(t *testing.T) arquivoDeRegras {
+func (a ambienteGanchos) exportar(t *testing.T, consulta string) arquivoDeRegras {
 	t.Helper()
-	w := a.pedir(t, "admin", "GET", "/api/ganchos/regras/exportar", "")
+	w := a.pedir(t, "admin", "GET", "/api/ganchos/regras/exportar"+consulta, "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("exportar = %d %s", w.Code, w.Body)
 	}
@@ -279,7 +281,7 @@ func TestGanchosExportarEImportarNumaImplantacaoDedicada(t *testing.T) {
 	origem := novoAmbienteGanchos(t, "", segredoGanchos)
 	origem.criar(t, regraJSON("Reserva até 22h", "adm-a", ""))
 	origem.criar(t, regraJSON("Regra de todos", "", `,"fuso":"America/Manaus"`))
-	arquivo := origem.exportar(t)
+	arquivo := origem.exportar(t, "")
 	destino := novoAmbienteGanchos(t, "adm-a", segredoGanchos)
 
 	for rodada := 1; rodada <= 2; rodada++ {
@@ -385,4 +387,77 @@ func jsonIgual(t *testing.T, a, b json.RawMessage) bool {
 	ja, _ := json.Marshal(x)
 	jb, _ := json.Marshal(y)
 	return string(ja) == string(jb)
+}
+
+// Fluxo real da instalação dedicada: a Superlógica tem regras de A, de B e globais; o arquivo
+// de A leva as de A e as globais, e a implantação de A importa sem trazer nada de B.
+func TestGanchosExportarPorAdministradoraParaAImplantacaoDedicada(t *testing.T) {
+	origem := novoAmbienteGanchos(t, "", segredoGanchos)
+	daA := origem.criar(t, regraJSON("Reserva até 22h", "adm-a", ""))
+	origem.criar(t, regraJSON("Regra da B", "adm-b", ""))
+	global := origem.criar(t, regraJSON("Regra de todos", "", ""))
+	if n := len(origem.exportar(t, "").Regras); n != 3 {
+		t.Fatalf("exportar sem administradora = %d regras, quer 3", n)
+	}
+	arquivo := origem.exportar(t, "?administradora=adm-a")
+	destino := novoAmbienteGanchos(t, "adm-a", segredoGanchos)
+
+	if w := destino.importar(t, "construtor-a", arquivo); w.Code != http.StatusOK {
+		t.Fatalf("importar = %d %s", w.Code, w.Body)
+	}
+
+	got := idsDe(destino.gravadas(t))
+	quer := []string{daA.ID, global.ID}
+	slices.Sort(quer)
+	if !slices.Equal(got, quer) {
+		t.Fatalf("importadas = %v, quer só a de A e a global %v", got, quer)
+	}
+}
+
+// Numa implantação dedicada a exportação é sempre da administradora fixa.
+func TestGanchosExportacaoNaImplantacaoDedicadaUsaAFixa(t *testing.T) {
+	s := &servidor{implantacao: escopo.Implantacao{AdministradoraFixa: "adm-a"}}
+	r := httptest.NewRequest("GET", "/api/ganchos/regras/exportar?administradora=adm-b", nil)
+	if adm, err := s.administradoraDaExportacao(r); err != nil || adm != "adm-a" {
+		t.Fatalf("administradora = %q, %v; quer adm-a", adm, err)
+	}
+}
+
+// O admin da Superlógica entra: o modelo de acesso o permite na administradora fixa
+// (acesso_test: "admin superlogica permitido em A com fixa A"), e ele ainda precisa do
+// arquivo assinado.
+func TestGanchosImportarNaImplantacaoDedicadaExigeStudioAvancadoNaFixa(t *testing.T) {
+	destino := novoAmbienteGanchos(t, "adm-a", segredoGanchos)
+	arquivo := assinado(t, segredoGanchos, regraJSON("Reserva até 22h", "adm-a", ""))
+	tests := []struct {
+		usuario string
+		quer    int
+	}{
+		{"gestor-a", 403},
+		{"gestor-b-avancado", 403},
+		{"gestor-a-avancado", 200},
+		{"admin", 200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.usuario, func(t *testing.T) {
+			if w := destino.importar(t, tt.usuario, arquivo); w.Code != tt.quer {
+				t.Fatalf("status = %d, quer %d: %s", w.Code, tt.quer, w.Body)
+			}
+		})
+	}
+}
+
+// A implantação dedicada aceita regra global na importação, então o histórico dela é visível
+// lá para quem tem ganchos.historico na administradora fixa.
+func TestGanchosVersaoDeRegraGlobalNaImplantacaoDedicada(t *testing.T) {
+	destino := novoAmbienteGanchos(t, "adm-a", segredoGanchos)
+	if w := destino.importar(t, "construtor-a", assinado(t, segredoGanchos, regraJSON("Regra de todos", "", ""))); w.Code != http.StatusOK {
+		t.Fatalf("importar = %d %s", w.Code, w.Body)
+	}
+	url := "/api/ganchos/regras/" + destino.gravadas(t)[0].ID + "/versoes/1"
+	for usuario, quer := range map[string]int{"gestor-a": 200, "gestor-b": 403} {
+		if w := destino.pedir(t, usuario, "GET", url, ""); w.Code != quer {
+			t.Errorf("%s = %d, quer %d: %s", usuario, w.Code, quer, w.Body)
+		}
+	}
 }

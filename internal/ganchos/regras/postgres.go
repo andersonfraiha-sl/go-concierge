@@ -182,6 +182,10 @@ func criarRegra(ctx context.Context, tx *ent.Tx, r RegraGravada) (uuid.UUID, err
 		criar.SetID(id)
 	}
 	criada, err := criar.Save(ctx)
+	if ent.IsConstraintError(err) {
+		// o id do arquivo já foi criado por outra gravação depois da versão lida (0)
+		return uuid.Nil, ErrVersaoVelha
+	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("criar regra: %w", err)
 	}

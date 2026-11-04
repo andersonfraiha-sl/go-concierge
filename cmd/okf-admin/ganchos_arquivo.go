@@ -10,9 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos/regras"
 )
 
@@ -71,7 +74,12 @@ func (s *servidor) exigirSegredo() error {
 // ---- exportar ----------------------------------------------------------------
 
 func (s *servidor) ganchosExportar(w http.ResponseWriter, r *http.Request) {
-	arquivo, err := s.exportarRegras(r.Context())
+	adm, err := s.administradoraDaExportacao(r)
+	if err != nil {
+		s.responderGanchos(w, r, "exportar regras", err)
+		return
+	}
+	arquivo, err := s.exportarRegras(r.Context(), adm)
 	if err != nil {
 		s.responderGanchos(w, r, "exportar regras", err)
 		return
@@ -80,7 +88,21 @@ func (s *servidor) ganchosExportar(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, arquivo)
 }
 
-func (s *servidor) exportarRegras(ctx context.Context) (arquivoDeRegras, error) {
+// administradoraDaExportacao: a fixa da implantação, sempre; senão a de ?administradora=
+// (vazia = todas as regras).
+func (s *servidor) administradoraDaExportacao(r *http.Request) (string, error) {
+	if fixa := s.implantacao.AdministradoraFixa; fixa != "" {
+		return fixa, nil
+	}
+	adm := strings.TrimSpace(r.URL.Query().Get("administradora"))
+	if adm != "" && !escopo.AdministradoraValida(adm) {
+		return "", recusa{status: http.StatusBadRequest, codigo: "ADMINISTRADORA_INVALIDA", mensagem: "administradora com formato inválido"}
+	}
+	return adm, nil
+}
+
+// exportarRegras assina as regras da administradora adm e as globais; adm vazia exporta todas.
+func (s *servidor) exportarRegras(ctx context.Context, adm string) (arquivoDeRegras, error) {
 	if err := s.exigirSegredo(); err != nil {
 		return arquivoDeRegras{}, err
 	}
@@ -88,6 +110,16 @@ func (s *servidor) exportarRegras(ctx context.Context) (arquivoDeRegras, error) 
 	if err != nil {
 		return arquivoDeRegras{}, err
 	}
+	if adm != "" {
+		todas = slices.DeleteFunc(todas, func(g regras.RegraGravada) bool {
+			return g.AdministradoraID != "" && g.AdministradoraID != adm
+		})
+	}
+	return s.assinarRegras(todas)
+}
+
+func (s *servidor) assinarRegras(todas []regras.RegraGravada) (arquivoDeRegras, error) {
+	var err error
 	itens := make([]json.RawMessage, len(todas))
 	for i, g := range todas {
 		if itens[i], err = comID(g.Definicao, g.ID); err != nil {

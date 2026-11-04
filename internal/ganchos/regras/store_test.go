@@ -247,3 +247,18 @@ func TestSalvarVariasComUmaVersaoVelhaNaoGravaNenhuma(t *testing.T) {
 		t.Fatalf("regras no banco = %d e avisos = %d, quer 1 e 0 (nada da transação)", len(todas), avisos)
 	}
 }
+
+// Duas importações do mesmo arquivo: a segunda cria com versão lida 0 um id que a primeira
+// já criou. A violação de unicidade é versão velha (409), não erro interno.
+func TestCriarComIDQueJaExisteDevolveErrVersaoVelha(t *testing.T) {
+	p := NovoPostgres(bancotest.Novo(t).Ent)
+	importada := novaRegra("importada", true)
+	importada.ID = "7d3c3f9e-0f5b-4c7a-9a43-2f1c1d0e5b11"
+	if _, err := p.SalvarVarias(t.Context(), []RegraGravada{importada}, []int{0}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := p.SalvarVarias(t.Context(), []RegraGravada{importada}, []int{0})
+	if !errors.Is(err, ErrVersaoVelha) {
+		t.Fatalf("segunda criação = %v, quer ErrVersaoVelha", err)
+	}
+}
