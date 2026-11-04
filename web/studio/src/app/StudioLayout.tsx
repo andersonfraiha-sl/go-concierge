@@ -1,4 +1,4 @@
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { useState } from 'react';
 import { Outlet } from 'react-router';
 import { naoReconhecido, useEu } from '@/acesso/eu';
@@ -12,7 +12,8 @@ const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
 
 export function StudioLayout() {
   const [recolhido, setRecolhido] = useState(lerMenuRecolhido);
-  const recusado = naoReconhecido(useEu().error);
+  const eu = useEu();
+  const recusado = naoReconhecido(eu.error);
 
   const alternarMenu = () => {
     const proximo = !recolhido;
@@ -30,7 +31,12 @@ export function StudioLayout() {
           <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />
           <PainelDoCopiloto />
           <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
-            <Outlet />
+            {/* Sem o Eu, nenhuma tela: na troca de usuário a anterior some no mesmo clique. */}
+            {eu.isPending ? (
+              <Typography color="text.secondary">Carregando…</Typography>
+            ) : (
+              <Outlet />
+            )}
           </Box>
         </Box>
       </Box>

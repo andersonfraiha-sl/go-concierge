@@ -2,6 +2,7 @@ import { useMediaQuery } from '@mui/material';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { type ApiError, apiGet } from '@/shared/api/http';
+import { useUsuarioDev } from './usuarioDev';
 
 export const PERMISSOES = [
   'skills.ler',
@@ -43,7 +44,8 @@ export function naoReconhecido(erro: ApiError | null): { dev: boolean } | null {
 }
 
 export function useEu(): UseQueryResult<Eu, ApiError> {
-  return useQuery({ queryKey: ['eu'], queryFn: () => apiGet('/api/eu', EuSchema) });
+  const usuarioDev = useUsuarioDev();
+  return useQuery({ queryKey: ['eu', usuarioDev], queryFn: () => apiGet('/api/eu', EuSchema) });
 }
 
 export function pode(eu: Eu, permissao: Permissao): boolean {

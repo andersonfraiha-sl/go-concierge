@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { StudioLayout } from '@/app/StudioLayout';
 import { CHAVE_USUARIO_DEV } from '@/shared/api/http';
@@ -122,16 +122,14 @@ describe('acesso na barra lateral e no topo', () => {
     expect(screen.queryByRole('combobox', { name: 'Ver como' })).not.toBeInTheDocument();
   });
 
-  it('dropsPreviousUserDataOnSwitch', async () => {
-    let chamadas = 0;
+  it('neverShowsPreviousUserDataAfterSwitchClick', async () => {
     let soltar: () => void = () => {};
     const presa = new Promise<void>((resolve) => {
       soltar = resolve;
     });
     responderCom({
-      'GET /api/eu': async () => {
-        chamadas += 1;
-        if (chamadas === 1) return json(base);
+      'GET /api/eu': async (req) => {
+        if (req.headers.get('X-Dev-Usuario') !== 'gestor-exemplo') return json(base);
         await presa;
         return json({
           ...base,
@@ -145,12 +143,24 @@ describe('acesso na barra lateral e no topo', () => {
     });
     const { user } = renderComProvedores(<StudioLayout />);
     await screen.findByText('Ana');
-
     await user.click(screen.getByRole('combobox', { name: 'Ver como' }));
-    await user.click(within(screen.getByRole('listbox')).getByText('Administradora (gestor)'));
+    const opcao = within(screen.getByRole('listbox')).getByText('Administradora (gestor)');
+    const dadoDoAnteriorNaTela = () =>
+      screen.queryByText('Ana') !== null ||
+      screen.queryByRole('link', { name: 'Avançado' }) !== null;
+    let vazou = false;
+    const observador = new MutationObserver(() => {
+      vazou ||= dadoDoAnteriorNaTela();
+    });
 
-    expect(screen.queryByText('Ana')).not.toBeInTheDocument();
+    // fireEvent, e não user.click: síncrono, sem dar tempo a timers antes da checagem.
+    fireEvent.click(opcao);
+    expect(dadoDoAnteriorNaTela()).toBe(false);
+    observador.observe(document.body, { childList: true, subtree: true, characterData: true });
     soltar();
+
     expect(await screen.findByText('Bia')).toBeInTheDocument();
+    observador.disconnect();
+    expect(vazou).toBe(false);
   });
 });

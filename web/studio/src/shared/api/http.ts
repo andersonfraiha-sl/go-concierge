@@ -130,7 +130,7 @@ function montarCabecalhos(tipoDoCorpo: string | null): Headers {
   return cabecalhos;
 }
 
-function lerUsuarioDev(): string | null {
+export function lerUsuarioDev(): string | null {
   try {
     return localStorage.getItem(CHAVE_USUARIO_DEV);
   } catch (cause) {
