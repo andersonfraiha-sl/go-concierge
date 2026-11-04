@@ -467,8 +467,8 @@ func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
 }
 
 // mover: a árvore do Backdoor ainda tem o drag-and-drop de mover/clonar agente, mas o
-// catálogo não tem mais Mover (retirado nesta mesma fase, antes desta task, junto da
-// limpeza que manteve o Admin no ar). A rota continua registrada para o Backdoor não
+// catálogo não tem mais Mover (retirado na fase 1 do Studio, junto da limpeza que
+// manteve o Admin no ar). A rota continua registrada para o Backdoor não
 // quebrar ao carregar; o retorno é um erro claro em vez de fingir que moveu algo.
 func (s *servidor) mover(w http.ResponseWriter, _ *http.Request) {
 	writeErr(w, http.StatusGone, errors.New("mover agente: recurso retirado do catálogo nesta fase"))

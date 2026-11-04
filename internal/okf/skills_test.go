@@ -251,6 +251,9 @@ func TestSalvarTextosAtualizaCasoAgenteERota(t *testing.T) {
 	if !strings.Contains(rotas, "(o segundo fica para a próxima mensagem).\n"+wantRota+"\n") {
 		t.Errorf("rota não trocada no lugar, com as palavras-chave:\n%s", rotas)
 	}
+	if n := strings.Count(rotas, "`agendar-mudanca`"); n != 1 {
+		t.Errorf("rota agendar-mudanca aparece %d vezes, want 1 (a antiga ficou duplicada?)", n)
+	}
 	if got := lerArquivoDaSkill(t, c, relMudanca, "workflows/principal.md"); got != principalEsperado(t, c, relMudanca) {
 		t.Errorf("principal.md não regerado:\n%s", got)
 	}

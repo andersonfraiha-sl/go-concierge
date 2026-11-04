@@ -246,17 +246,19 @@ Assistente (aba Persona), as Ferramentas, os Condomínios (habilitação, papéi
 orientações, ajustes, identificação, administradoras) e a área Avançado (arquivos de cada
 pasta, prompt montado e roteador, orquestração, importar e exportar zip).
 
-As telas antigas continuam no ar: `/admin` (o Admin antigo, com a matriz skills ×
-condomínios), `/backdoor/administradoras` (renomear uma administradora) e
-`/backdoor/payloads` (definições livres de um recurso por condomínio, inclusive de
-recursos que não declaram ajustes). O Studio e o Console têm link para elas.
+O Studio e o Console têm link para as telas antigas. `/backdoor/payloads` aceita
+definições livres de um recurso por condomínio, inclusive de recursos que não declaram ajustes.
 
 ### API
 
 | método | rota | o que faz |
 |---|---|---|
 | GET | `/api/agentes` | árvore resumida (tipo, descrição, erros, avisos) |
+| POST | `/api/agentes` | cria a pasta a partir do formulário (`NovoAgente`) e registra a rota no pai |
 | GET | `/api/agente?agente=` | ficha completa: arquivos por caixinha (próprios e herdados), vínculos, conhecimento, dados, problemas |
+| PUT | `/api/agente/config` | atualiza `agent.yaml` (nome, tipo, descricao, modelo, fontes, apis, segredos) |
+| DELETE | `/api/agente?agente=` | exclui a pasta e tira a rota do pai |
+| POST | `/api/agentes/mover` | retirado: responde 410; a rota fica para o Backdoor carregar |
 | POST | `/api/agentes/importar?caminho=` | zip no corpo |
 | GET | `/api/agentes/exportar?agente=` | zip da pasta |
 | GET/PUT/DELETE | `/api/arquivo` | um arquivo dentro de uma caixinha |
