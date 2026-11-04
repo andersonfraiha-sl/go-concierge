@@ -5,6 +5,7 @@ import { usePodeEditar } from '@/acesso/eu';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
 import { tokens } from '@/theme/tokens';
+import { AjustesTecnicosAba } from './AjustesTecnicosAba';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, type NoDaArvore, useArvore } from './contratos';
 import { IdentidadeAba } from './IdentidadeAba';
@@ -46,6 +47,12 @@ const ABAS: readonly Aba[] = [
     rotulo: 'Orquestração',
     porItem: false,
     desenhar: (_, editar) => <OrquestracaoAba editar={editar} />,
+  },
+  {
+    id: 'ajustes',
+    rotulo: 'Ajustes por condomínio (técnico)',
+    porItem: false,
+    desenhar: (_, editar) => <AjustesTecnicosAba editar={editar} />,
   },
   {
     id: 'importar',
