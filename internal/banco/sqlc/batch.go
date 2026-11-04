@@ -202,6 +202,95 @@ func (b *GravarPedidosBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const inserirAuditoria = `-- name: InserirAuditoria :batchexec
+INSERT INTO ganchos_auditoria (
+    id, criado_em, origem, evento, gancho, regra_id, regra_versao, decisao, motivo,
+    administradora_id, condominio_id, sessao_id, protocolo, usuario_id, tela, ferramenta, quantidade
+)
+SELECT gen_random_uuid(),
+       unnest($1::timestamptz[]), unnest($2::text[]), unnest($3::text[]),
+       unnest($4::text[]), unnest($5::text[]), unnest($6::bigint[]),
+       unnest($7::text[]), unnest($8::text[]), unnest($9::text[]),
+       unnest($10::text[]), unnest($11::text[]), unnest($12::text[]),
+       unnest($13::text[]), unnest($14::text[]), unnest($15::text[]),
+       unnest($16::bigint[])
+`
+
+type InserirAuditoriaBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type InserirAuditoriaParams struct {
+	CriadoEm         []pgtype.Timestamptz
+	Origem           []string
+	Evento           []string
+	Gancho           []string
+	RegraID          []string
+	RegraVersao      []int64
+	Decisao          []string
+	Motivo           []string
+	AdministradoraID []string
+	CondominioID     []string
+	SessaoID         []string
+	Protocolo        []string
+	UsuarioID        []string
+	Tela             []string
+	Ferramenta       []string
+	Quantidade       []int64
+}
+
+// por que não ent: N linhas num comando só, dentro do lote pós resposta; o ent faria uma ida por linha
+// várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
+func (q *Queries) InserirAuditoria(ctx context.Context, arg []InserirAuditoriaParams) *InserirAuditoriaBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.CriadoEm,
+			a.Origem,
+			a.Evento,
+			a.Gancho,
+			a.RegraID,
+			a.RegraVersao,
+			a.Decisao,
+			a.Motivo,
+			a.AdministradoraID,
+			a.CondominioID,
+			a.SessaoID,
+			a.Protocolo,
+			a.UsuarioID,
+			a.Tela,
+			a.Ferramenta,
+			a.Quantidade,
+		}
+		batch.Queue(inserirAuditoria, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &InserirAuditoriaBatchResults{br, len(arg), false}
+}
+
+func (b *InserirAuditoriaBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *InserirAuditoriaBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const lerMemoria = `-- name: LerMemoria :batchmany
 SELECT c.nome, c.atualizada_em, f.chave, f.texto, f.fonte, f.condominio_id, f.quando, f.confianca
 FROM memoria_contatos c
