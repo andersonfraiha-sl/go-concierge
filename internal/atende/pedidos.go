@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -41,6 +43,105 @@ type PedidoTurno struct {
 type ambienteHarness struct {
 	ag              *harness.Agente
 	escritaIniciada bool
+	// previa avalia a escrita antes da hora; nil = o ambiente não prevê.
+	previa *previaDeEscrita
+}
+
+// previaDeEscrita é o que o ambiente precisa para rodar antes_da_ferramenta num turno
+// descartável: o cofre do turno real só serve para devolver os valores aos params.
+type previaDeEscrita struct {
+	s        *Servico
+	sess     *Sessao
+	cofre    *pii.Cofre
+	payloads map[string]map[string]any
+}
+
+// Prever implementa pedidos.Previsor. Só bloqueio cancela: pedir confirmação fica para a
+// escrita real. O turno é descartável (cofre e registros próprios, nada auditado; o
+// observador do conjunto ainda loga) e qualquer falha em montá-lo deixa a escrita seguir.
+func (a *ambienteHarness) Prever(ctx context.Context, agente, recurso string, params map[string]any) (string, bool) {
+	sub, ok := a.ag.Subagentes[agente]
+	if !ok || a.previa == nil {
+		return "", false
+	}
+	t, err := a.previa.s.abrirTurno(a.previa.sess)
+	if err != nil {
+		slog.WarnContext(ctx, "atende: previsão da escrita sem ganchos", "operacao", "prever_escrita", "sessao", a.previa.sess.ID, "erro", err)
+		return "", false
+	}
+	r := t.AntesDaFerramenta(ctx, a.previa.evento(sub, recurso, params))
+	if slices.ContainsFunc(r.Registros, func(g ganchos.Registro) bool { return g.Falhou }) {
+		return "", false // gancho que falhou na previsão não cancela: a escrita real decide
+	}
+	return r.Decisao.Motivo, r.Decisao.Tipo == ganchos.Bloquear
+}
+
+func (p *previaDeEscrita) evento(sub *harness.Agente, recurso string, params map[string]any) ganchos.AntesDaFerramenta {
+	alvo := p.sess.contato()
+	valores, _ := pii.DevolverEmValor(params, p.cofre.Ler()).(map[string]any)
+	valores = comPadroes(valores, p.payloads[recurso])
+	e := ganchos.AntesDaFerramenta{
+		Agora: p.s.agora(), Ferramenta: recurso, Pedida: recurso, Params: valores,
+		ContextoB2C: p.payloads[recurso], Previa: true, PeloMotorDoCaso: true,
+		Identidade: p.sess.identidadeDosGanchos(), AdministradoraID: alvo.AdministradoraID, CondominioID: alvo.CondominioID,
+	}
+	if sub.Def.Caso != nil {
+		e.Caso = sub.Def.Caso.ID
+	}
+	// A previsão é só das regras: declaração e permissão já valem para a escrita real.
+	e.Declarada, e.Permitida = true, true
+	e.Escrita = slices.ContainsFunc(sub.Permissoes(), func(pe harness.Permissao) bool {
+		return pe.Nome == recurso && pe.Recurso != nil && pe.Recurso.Write
+	})
+	return e
+}
+
+// comPadroes copia params e completa as chaves ausentes com o payload do condomínio, como
+// o harness faz na chamada real.
+func comPadroes(params, payload map[string]any) map[string]any {
+	out := maps.Clone(params)
+	if out == nil {
+		out = map[string]any{}
+	}
+	for k, v := range payload {
+		if _, tem := out[k]; !tem {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// agora é o relógio dos eventos: o do serviço, o da Config, ou o de verdade.
+func (s *Servico) agora() time.Time {
+	switch {
+	case s.Agora != nil:
+		return s.Agora()
+	case s.Config.Agora != nil:
+		return s.Config.Agora()
+	}
+	return time.Now()
+}
+
+// ambienteDaSessao monta o ambiente dos pedidos da sessão, com a previsão ligada. cofre é
+// o do turno real (nil = nenhum valor guardado a devolver).
+func (s *Servico) ambienteDaSessao(ctx context.Context, sess *Sessao, ag *harness.Agente, cofre *pii.Cofre) *ambienteHarness {
+	if cofre == nil {
+		cofre = pii.NovoCofre()
+	}
+	return &ambienteHarness{ag: ag, previa: &previaDeEscrita{s: s, sess: sess, cofre: cofre, payloads: s.payloadsDaSessao(ctx, sess)}}
+}
+
+// payloadsDaSessao são os payloads que o harness da sessão leva (os do condomínio mais o
+// contexto B2C do canal): sem eles o contexto_b2c bloquearia a previsão por engano. Sem
+// condomínio resolvido volta nil, e a previsão deixa a escrita real decidir.
+func (s *Servico) payloadsDaSessao(ctx context.Context, sess *Sessao) map[string]map[string]any {
+	m, condo, err := s.condominioDaSessao(ctx, sess, sess.contato())
+	if err != nil {
+		return nil
+	}
+	cfg := harness.Config{Payloads: m.PayloadsDe(condo.ID)}
+	s.injetarParametrosMCP(&cfg, sess)
+	return cfg.Payloads
 }
 
 func (a *ambienteHarness) Chamar(ctx context.Context, agente, recurso string, params map[string]any, confirmacao string) (any, error) {
@@ -65,6 +166,15 @@ func (a *ambienteHarness) Chamar(ctx context.Context, agente, recurso string, pa
 		return nil, errors.New(e)
 	}
 	return out["resultado"], nil
+}
+
+// textoDoCancelamento: cancelado por uma regra leva o motivo dela; a pedido do morador, só o aviso.
+func textoDoCancelamento(p *pedidos.Pedido, saida pedidos.Saida) string {
+	aviso := "Pedido " + p.Protocolo + " (" + p.CasoNome + ") cancelado."
+	if saida.Texto == pedidos.CanceladoAPedido {
+		return aviso
+	}
+	return aviso + " " + saida.Texto
 }
 
 // guardarNoCofre põe no cofre do turno os valores dos pedidos abertos: um CPF coletado num
@@ -231,7 +341,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		extracao.Cancelar = append(extracao.Cancelar, m[1])
 	}
 
-	amb := &ambienteHarness{ag: ag}
+	amb := s.ambienteDaSessao(ctx, sess, ag, cofre)
 	var turnos []PedidoTurno
 	consumida := false // a mensagem foi usada como resposta a um pedido (confirmação/valor)
 	anota := func(p *pedidos.Pedido, evento string) {
@@ -380,7 +490,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			partes = append(partes, saida.Texto)
 			precisaRedigir = true
 		case "cancelado":
-			partes = append(partes, "Pedido "+p.Protocolo+" ("+p.CasoNome+") cancelado.")
+			partes = append(partes, textoDoCancelamento(p, saida))
 			precisaRedigir = true
 		case "erro":
 			partes = append(partes, "Não consegui concluir "+strings.ToLower(p.CasoNome)+": "+saida.Texto+".")
@@ -798,7 +908,7 @@ func (s *Servico) preencherPedido(ctx context.Context, sess *Sessao, protocoloPe
 	if encerrada {
 		return sess, p, pedidos.Saida{}, errors.New("o protocolo está encerrado")
 	}
-	amb := &ambienteHarness{ag: ag}
+	amb := s.ambienteDaSessao(ctx, sess, ag, nil)
 	saida := pedidos.Avancar(ctx, cc.ct, p, &cart, amb)
 	if amb.escritaIniciada {
 		ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

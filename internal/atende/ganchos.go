@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/otel/metric/noop"
 
@@ -102,7 +101,7 @@ func (s *Servico) lerMapeamento(ctx context.Context) (admin.Mapeamento, error) {
 // texto sai mascarado, com os valores no cofre do turno.
 func (s *Servico) mensagemRecebida(ctx context.Context, sess *Sessao, t ganchos.Turno, msg entrada.Mensagem, texto string, m admin.Mapeamento) ganchos.Resultado[ganchos.MensagemRecebida] {
 	r := t.MensagemRecebida(ctx, ganchos.MensagemRecebida{
-		Agora: time.Now(), Texto: texto, CompanyID: msg.CompanyID, Tenant: msg.Tenant,
+		Agora: s.agora(), Texto: texto, CompanyID: msg.CompanyID, Tenant: msg.Tenant,
 		Mapeamento: m, Implantacao: s.Implantacao, ContatoDaSessao: sess.contato(),
 		Identidade: sess.identidadeDosGanchos(),
 	})
@@ -121,7 +120,7 @@ type resposta struct {
 func (s *Servico) antesDeResponder(ctx context.Context, sess *Sessao, t ganchos.Turno, texto string) resposta {
 	alvo := sess.contato()
 	r := t.AntesDeResponder(ctx, ganchos.AntesDeResponder{
-		Agora: time.Now(), Texto: texto, AdministradoraID: alvo.AdministradoraID,
+		Agora: s.agora(), Texto: texto, AdministradoraID: alvo.AdministradoraID,
 		CondominioID: alvo.CondominioID, Identidade: sess.identidadeDosGanchos(),
 	})
 	switch {
@@ -150,7 +149,7 @@ func (s *Servico) respostaPronta(ctx context.Context, sess *Sessao, t ganchos.Tu
 func (s *Servico) transbordoOuEncerramento(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo string, encerramento bool) ganchos.Resultado[ganchos.TransbordoOuEncerramento] {
 	alvo := sess.contato()
 	return t.TransbordoOuEncerramento(ctx, ganchos.TransbordoOuEncerramento{
-		Agora: time.Now(), Motivo: motivo, Encerramento: encerramento,
+		Agora: s.agora(), Motivo: motivo, Encerramento: encerramento,
 		AdministradoraID: alvo.AdministradoraID, CondominioID: alvo.CondominioID,
 		Identidade: sess.identidadeDosGanchos(),
 	})
