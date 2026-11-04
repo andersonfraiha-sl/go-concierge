@@ -299,7 +299,8 @@ func main() {
 			abrirNavegador("http://" + *addr)
 		}()
 	}
-	log.Fatal(http.ListenAndServe(*addr, handler))
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	log.Fatal(srv.ListenAndServe())
 }
 
 // novoRegistro é o log do processo: JSON, com CPF e telefone mascarados em toda mensagem e

@@ -43,7 +43,11 @@ func importarJSON(args []string, saida, erro io.Writer) int {
 		fmt.Fprintf(erro, "%s: %v\n", subcomandoImportarJSON, err)
 		return 1
 	}
-	defer db.Fechar()
+	defer func() {
+		if err := db.Fechar(); err != nil {
+			fmt.Fprintf(erro, "%s: fechar banco: %v\n", subcomandoImportarJSON, err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutImportacao)
 	defer cancel()
