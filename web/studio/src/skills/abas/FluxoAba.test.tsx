@@ -351,7 +351,8 @@ describe('FluxoAba', () => {
     ).toBeInTheDocument();
 
     await user.type(screen.getByRole('textbox', { name: 'Guardar resultado em' }), '_novo');
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     const enviado = corpos[0]?.fluxo.blocos.find((b) => b.id === 'b5');
     expect(enviado?.com).toContainEqual({ campo: 'visitantes', valor: ['Ana', 'Bia'] });
   });

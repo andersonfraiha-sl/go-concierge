@@ -77,7 +77,7 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
   return (
     <Box
       component="article"
-      aria-label={info.titulo || info.nome}
+      aria-label={info.titulo || (editavel ? info.nome : 'Informação sem nome')}
       sx={{
         display: 'flex',
         flexDirection: 'column',
