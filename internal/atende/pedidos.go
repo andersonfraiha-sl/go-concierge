@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -64,17 +66,22 @@ func (a *ambienteHarness) Prever(ctx context.Context, agente, recurso string, pa
 	}
 	t, err := a.previa.s.abrirTurno(a.previa.sess)
 	if err != nil {
+		slog.WarnContext(ctx, "atende: previsão da escrita sem ganchos", "operacao", "prever_escrita", "sessao", a.previa.sess.ID, "erro", err)
 		return "", false
 	}
 	r := t.AntesDaFerramenta(ctx, a.previa.evento(sub, recurso, params))
+	if slices.ContainsFunc(r.Registros, func(g ganchos.Registro) bool { return g.Falhou }) {
+		return "", false // gancho que falhou na previsão não cancela: a escrita real decide
+	}
 	return r.Decisao.Motivo, r.Decisao.Tipo == ganchos.Bloquear
 }
 
 func (p *previaDeEscrita) evento(sub *harness.Agente, recurso string, params map[string]any) ganchos.AntesDaFerramenta {
 	alvo := p.sess.contato()
 	valores, _ := pii.DevolverEmValor(params, p.cofre.Ler()).(map[string]any)
+	valores = comPadroes(valores, p.payloads[recurso])
 	e := ganchos.AntesDaFerramenta{
-		Agora: time.Now(), Ferramenta: recurso, Pedida: recurso, Params: valores,
+		Agora: p.s.agora(), Ferramenta: recurso, Pedida: recurso, Params: valores,
 		ContextoB2C: p.payloads[recurso], Previa: true, PeloMotorDoCaso: true,
 		Identidade: p.sess.identidadeDosGanchos(), AdministradoraID: alvo.AdministradoraID, CondominioID: alvo.CondominioID,
 	}
@@ -87,6 +94,32 @@ func (p *previaDeEscrita) evento(sub *harness.Agente, recurso string, params map
 		return pe.Nome == recurso && pe.Recurso != nil && pe.Recurso.Write
 	})
 	return e
+}
+
+// comPadroes copia params e completa as chaves ausentes com o payload do condomínio, como
+// o harness faz na chamada real.
+func comPadroes(params, payload map[string]any) map[string]any {
+	out := maps.Clone(params)
+	if out == nil {
+		out = map[string]any{}
+	}
+	for k, v := range payload {
+		if _, tem := out[k]; !tem {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// agora é o relógio dos eventos: o do serviço, o da Config, ou o de verdade.
+func (s *Servico) agora() time.Time {
+	switch {
+	case s.Agora != nil:
+		return s.Agora()
+	case s.Config.Agora != nil:
+		return s.Config.Agora()
+	}
+	return time.Now()
 }
 
 // ambienteDaSessao monta o ambiente dos pedidos da sessão, com a previsão ligada. cofre é

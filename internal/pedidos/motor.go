@@ -278,11 +278,14 @@ func preverEscrita(ctx context.Context, ct *Contrato, p *Pedido, amb Ambiente) (
 	return prev.Prever(ctx, p.Agente, passo.Recurso, params)
 }
 
-// escritaPendente é o primeiro passo de recurso com `with` que ainda não rodou: as
+// escritaPendente é o primeiro passo de recurso com `with` que o laço de Avancar ainda rodaria (sem SkipIf, sem execução prévia): as
 // listagens não têm `with`.
 func escritaPendente(ct *Contrato, p *Pedido) (Passo, bool) {
 	for _, passo := range ct.Passos {
 		if passo.Tipo != "recurso" || passo.With == nil {
+			continue
+		}
+		if passo.SkipIf != "" && p.Dados[passo.SkipIf] == true {
 			continue
 		}
 		if _, feito := p.Dados[passo.SaveAs]; passo.SaveAs != "" && feito {

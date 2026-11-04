@@ -104,3 +104,22 @@ func TestAmbienteSemPreviaSegueIgual(t *testing.T) {
 		t.Fatalf("sem Prever o motor pergunta a área: %+v", s)
 	}
 }
+
+func TestPreviaIgnoraEscritaComSkipIf(t *testing.T) {
+	ct, p, cart := novoPedidoDaReserva(t)
+	pulando := *ct
+	pulando.Passos = append([]Passo(nil), ct.Passos...)
+	for i, passo := range pulando.Passos {
+		if passo.Recurso == "areas.reservar" {
+			pulando.Passos[i].SkipIf = "ja_reservado"
+		}
+	}
+	p.Dados = map[string]any{"ja_reservado": true}
+	amb := &ambienteComPrevia{
+		ambienteFalso: &ambienteFalso{unidades: []any{map[string]any{"id": "109", "label": "Jataí - 101"}}},
+		bloqueiaSe:    func(map[string]any) bool { return true },
+	}
+	if s := Avancar(context.Background(), &pulando, p, cart, amb); s.Tipo != "pergunta" || len(amb.previas) != 0 {
+		t.Fatalf("escrita pulada não se prevê nem cancela: %+v previsões=%d", s, len(amb.previas))
+	}
+}

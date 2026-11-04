@@ -336,6 +336,8 @@ type Servico struct {
 	Cat    *okf.Catalogo
 	Agente string // caminho relativo do agente de primeiro nível (agentes/concierge)
 	Config harness.Config
+	// Agora é o relógio dos eventos dos ganchos; nil = Config.Agora, senão time.Now.
+	Agora func() time.Time
 	// Implantacao restringe o processo a uma administradora (vazia = todas).
 	Implantacao  escopo.Implantacao
 	Gruvi        *gruvi.Client
