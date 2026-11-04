@@ -320,6 +320,7 @@ Avaliada assim que o morador informa `inicio`; até lá dá "depende".
 
 - `ganchos.editar`: só nos papéis da Superlógica (`construtor_superlogica` e herdeiros). Checada com `acesso.Permitido(a, GanchosEditar, Escopo{superlogica})`: atribuição de administradora nunca contém esse alvo, então nem concessão de `studio.avancado` nem de `ganchos.editar` abre a edição para administradora. A gravação de concessão recusa `ganchos.editar`.
 - `ganchos.historico`: `gestor_administradora` e herdeiros, checada no escopo do alvo (condomínio ou administradora) de cada linha.
+- **Implantação dedicada** (`ADMINISTRADORA_ID` e Postgres próprios): ninguém edita regra lá, nem a Superlógica. As regras chegam pelo Importar e exportar do Avançado: a Superlógica exporta o arquivo de regras na implantação dela, e a implantação dedicada importa. Nenhuma exceção abre acesso da Superlógica nessa implantação; o isolamento continua total.
 
 ## 8. Auditoria
 
@@ -481,9 +482,12 @@ Regra entra como `gancho="regra"`, nunca pelo id: cardinalidade limitada. O id f
 - **Feriados nacionais em código**, os demais na própria regra.
 - **Métricas pelo OTel**, já presente como dependência indireta. Nomes de chave de log seguem o projeto (`duracao_ms`, não `durationMs`).
 - **O caso do código de encomenda ficou como regra declarativa global**, como pedido. Se a Superlógica quiser que ninguém consiga desativar, vira fixo com o mesmo teste.
-- **Retenção da auditoria de 12 meses.**
+- **Retenção da auditoria de 12 meses**, aprovada pelo Felipe. O Atende já retém tudo.
+- **Implantação dedicada recebe regras pelo Importar e exportar do Avançado.** Nenhuma exceção abre acesso da Superlógica lá; o isolamento fica total.
 
 ## 16. Em aberto
 
-1. **Implantação com `ADMINISTRADORA_ID` fixo**: `acesso.Permitido` nega o alvo `superlogica` nesse modo, então ninguém edita regra numa implantação dedicada com Postgres próprio. Opções: regras chegam pelo Importar e exportar do Avançado, ou a implantação dedicada aceita usuários da Superlógica só para `ganchos.editar`.
-2. **Retenção da auditoria**: 12 meses foi decisão minha; precisa do aval do Felipe (e do jurídico, por LGPD).
+Nada. As duas perguntas foram respondidas pelo Felipe em 2026-11-03:
+
+1. **Implantação com `ADMINISTRADORA_ID` fixo**: regras chegam pelo Importar e exportar do Avançado. Nenhuma exceção abre acesso da Superlógica lá (seção 7, Acesso).
+2. **Retenção da auditoria**: 12 meses, aprovada. O Atende já retém tudo (seção 8).
