@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
+import { digitarNoFim } from '@/test/editorRico';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { ConciergePage } from './ConciergePage';
@@ -48,13 +49,20 @@ function rotas(
   };
 }
 
+/** A caixa da persona, depois que ela mostra `texto`. */
+async function personaCom(texto: string): Promise<HTMLElement> {
+  const caixa = await screen.findByRole('textbox', { name: 'Texto da persona' });
+  await waitFor(() => expect(caixa).toHaveTextContent(texto));
+  return caixa;
+}
+
 describe('ConciergePage', () => {
   it('savesPersonaOneSecondAfterTyping', async () => {
     const corpos: unknown[] = [];
     responderCom(rotas(construtor, 'Você é gentil.', (c) => corpos.push(c)));
     const { user } = renderComProvedores(<ConciergePage />);
-    const campo = await screen.findByDisplayValue('Você é gentil.');
-    await user.type(campo, ' Sempre.');
+    const campo = await personaCom('Você é gentil.');
+    await digitarNoFim(user, campo, ' Sempre.');
     expect(corpos).toHaveLength(0);
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos[0]).toEqual({
@@ -67,7 +75,7 @@ describe('ConciergePage', () => {
   it('gestorReadsPersona', async () => {
     responderCom(rotas(gestor));
     renderComProvedores(<ConciergePage />);
-    expect(await screen.findByDisplayValue('Você é gentil.')).toHaveAttribute('readonly');
+    expect(await personaCom('Você é gentil.')).toHaveAttribute('aria-readonly', 'true');
     expect(
       screen.getByText('A voz do concierge em todas as respostas ao morador.'),
     ).toBeInTheDocument();
@@ -91,7 +99,7 @@ describe('ConciergePage', () => {
     );
     const { user } = renderComProvedores(<ConciergePage />);
     await user.click(await screen.findByRole('button', { name: 'Usar o modelo' }));
-    await screen.findByDisplayValue(modelo);
+    await personaCom(modelo);
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos[0]).toEqual({ agente: 'concierge', caminho: 'persona.md', conteudo: modelo });
   });
@@ -111,12 +119,12 @@ describe('ConciergePage', () => {
       const corpos: unknown[] = [];
       responderCom(rotas(construtor, personaInicial, (c) => corpos.push(c)));
       const { user } = renderComProvedores(<ConciergePage />);
-      await screen.findByDisplayValue(personaInicial);
+      await personaCom(personaInicial);
 
       await user.click(await screen.findByRole('button', { name: ROTULOS_DE_TOM[tom] }));
 
       const esperado = `Saudação gentil ao morador. ${frase} Encerre desejando um bom dia.`;
-      await screen.findByDisplayValue(esperado);
+      await personaCom(esperado);
       await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
       expect(corpos[0]).toEqual({
         agente: 'concierge',
@@ -129,7 +137,7 @@ describe('ConciergePage', () => {
   it('gestorSeesNoToneButtons', async () => {
     responderCom(rotas(gestor));
     renderComProvedores(<ConciergePage />);
-    await screen.findByDisplayValue('Você é gentil.');
+    await personaCom('Você é gentil.');
     for (const rotulo of Object.values(ROTULOS_DE_TOM)) {
       expect(screen.queryByRole('button', { name: rotulo })).not.toBeInTheDocument();
     }
@@ -138,7 +146,7 @@ describe('ConciergePage', () => {
   it('showsAllFiveConciergeTabs', async () => {
     responderCom(rotas(construtor));
     renderComProvedores(<ConciergePage />);
-    await screen.findByDisplayValue('Você é gentil.');
+    await personaCom('Você é gentil.');
     for (const rotulo of [
       'Persona',
       'Boas-vindas',

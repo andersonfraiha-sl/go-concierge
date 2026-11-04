@@ -6,7 +6,7 @@ import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
+import { CampoRico } from '@/shared/editor/CampoRico';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import {
   type Estado,
@@ -73,15 +73,13 @@ export function OrientacoesSecao({ estado, condominio, editavel }: Props): React
         onManterOMeu={sincronia.manterOMeu}
         onUsarONovo={sincronia.usarONovo}
       />
-      <CampoTexto
+      <CampoRico
         control={control}
         name="geral"
-        multiline
-        minRows={4}
+        rotulo={TITULO}
+        editavel={editavel}
         placeholder={PLACEHOLDER}
-        disabled={!editavel}
-        sx={{ '& .MuiInputBase-root': realce }}
-        slotProps={{ htmlInput: { 'aria-label': TITULO } }}
+        realce={realce}
       />
       {orientacaoDoPadrao !== '' && (
         <Box>

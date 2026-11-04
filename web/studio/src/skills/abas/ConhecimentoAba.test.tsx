@@ -25,7 +25,7 @@ describe('ConhecimentoAba', () => {
     });
     renderComProvedores(<ConhecimentoAba nome="agendar-mudanca" caminho={AGENTE} />);
 
-    expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveValue('Perguntas.');
+    expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveTextContent('Perguntas.');
     expect(screen.getByText('Regras gerais')).toBeInTheDocument();
     expect(screen.getByText('Vem do Concierge')).toBeInTheDocument();
     expect(screen.getByText('tabela.pdf')).toBeInTheDocument();
@@ -97,7 +97,10 @@ describe('ConhecimentoAba', () => {
   it('gestorReadsOnly', async () => {
     responderCom({ ...rotasBase(), 'GET /api/eu': () => json(gestor) });
     montar();
-    expect(await screen.findByRole('textbox', { name: 'Faq' })).toBeDisabled();
+    expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveAttribute(
+      'aria-readonly',
+      'true',
+    );
     expect(screen.queryByRole('button', { name: 'Novo documento' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Excluir Faq' })).not.toBeInTheDocument();
   });
@@ -109,6 +112,6 @@ describe('ConhecimentoAba', () => {
       await screen.findByRole('heading', { name: 'Base de conhecimento comum' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Base de conhecimento' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveValue('Perguntas.');
+    expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveTextContent('Perguntas.');
   });
 });

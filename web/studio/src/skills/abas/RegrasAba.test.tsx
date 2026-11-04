@@ -1,7 +1,8 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { caminhoDeRegra } from '@/catalogo/contratos';
+import { digitarNoFim } from '@/test/editorRico';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { AGENTE, agenteLido, arquivo, construtor, gestor } from './fixturesDeAbas';
@@ -42,7 +43,9 @@ describe('RegrasAba', () => {
   it('listsRulesWithReadableTitles', async () => {
     responderCom(rotasBase());
     montar();
-    expect(await screen.findByRole('textbox', { name: 'Politicas' })).toHaveValue('Seja gentil.');
+    expect(await screen.findByRole('textbox', { name: 'Politicas' })).toHaveTextContent(
+      'Seja gentil.',
+    );
     expect(screen.getByRole('textbox', { name: 'Formato da resposta' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Tom de voz' })).toBeInTheDocument();
   });
@@ -58,13 +61,31 @@ describe('RegrasAba', () => {
     });
     const { user } = montar();
     const campo = await screen.findByRole('textbox', { name: 'Politicas' });
-    await waitFor(() => expect(campo).toBeEnabled());
-    await user.type(campo, ' Sempre.');
+    await waitFor(() => expect(campo).toHaveAttribute('aria-readonly', 'false'));
+    await digitarNoFim(user, campo, ' Sempre.');
     expect(corpos).toEqual([]);
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos).toEqual([
       { agente: AGENTE, caminho: politicas, conteudo: 'Seja gentil. Sempre.' },
     ]);
+  });
+
+  it('savesToolbarFormattingAsMarkdown', async () => {
+    const corpos: unknown[] = [];
+    responderCom({
+      ...rotasBase(),
+      'PUT /api/arquivo': async (req: Request) => {
+        corpos.push(await req.json());
+        return json({ salvo: politicas });
+      },
+    });
+    const { user } = montar();
+    const campo = await screen.findByRole('textbox', { name: 'Politicas' });
+    await waitFor(() => expect(campo).toHaveAttribute('aria-readonly', 'false'));
+    const barra = screen.getByRole('toolbar', { name: 'Formatação de Politicas' });
+    await user.click(within(barra).getByRole('button', { name: 'Lista com marcadores' }));
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    expect(corpos).toEqual([{ agente: AGENTE, caminho: politicas, conteudo: '- Seja gentil.' }]);
   });
 
   it('createsRule', async () => {
@@ -120,16 +141,16 @@ describe('RegrasAba', () => {
     });
     const { user } = renderComProvedores(<Alternavel />);
     const primeiro = await screen.findByRole('textbox', { name: 'Politicas' });
-    await waitFor(() => expect(primeiro).toBeEnabled());
-    await user.type(primeiro, ' A');
+    await waitFor(() => expect(primeiro).toHaveAttribute('aria-readonly', 'false'));
+    await digitarNoFim(user, primeiro, ' A');
     expect(await screen.findByText(/Salvo às/, undefined, { timeout: 3000 })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Alternar' }));
     await user.click(screen.getByRole('button', { name: 'Alternar' }));
     const segundo = await screen.findByRole('textbox', { name: 'Politicas' });
-    await waitFor(() => expect(segundo).toBeEnabled());
-    expect(segundo).toHaveValue('Seja gentil. A');
-    await user.type(segundo, ' B');
+    await waitFor(() => expect(segundo).toHaveAttribute('aria-readonly', 'false'));
+    expect(segundo).toHaveTextContent('Seja gentil. A');
+    await digitarNoFim(user, segundo, ' B');
     await waitFor(() => expect(corpos).toHaveLength(2), { timeout: 3000 });
     expect(corpos[1]?.conteudo).toBe('Seja gentil. A B');
   });
@@ -152,8 +173,8 @@ describe('RegrasAba', () => {
     });
     const { user } = montar();
     const campo = await screen.findByRole('textbox', { name: 'Politicas' });
-    await waitFor(() => expect(campo).toBeEnabled());
-    await user.type(campo, ' pendente');
+    await waitFor(() => expect(campo).toHaveAttribute('aria-readonly', 'false'));
+    await digitarNoFim(user, campo, ' pendente');
     await user.click(screen.getByRole('button', { name: 'Excluir Politicas' }));
     await user.click(screen.getByRole('button', { name: 'Excluir' }));
     await waitFor(() =>
@@ -183,7 +204,7 @@ describe('RegrasAba', () => {
     responderCom({ ...rotasBase(), 'GET /api/eu': () => json(gestor) });
     montar();
     const campo = await screen.findByRole('textbox', { name: 'Politicas' });
-    expect(campo).toBeDisabled();
+    expect(campo).toHaveAttribute('aria-readonly', 'true');
     expect(screen.queryByRole('button', { name: 'Nova regra' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Excluir Politicas' })).not.toBeInTheDocument();
   });
@@ -193,6 +214,8 @@ describe('RegrasAba', () => {
     renderComProvedores(<RegrasAba caminho={AGENTE} titulo="Regras gerais" />);
     expect(await screen.findByRole('heading', { name: 'Regras gerais' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Regras' })).not.toBeInTheDocument();
-    expect(await screen.findByRole('textbox', { name: 'Politicas' })).toHaveValue('Seja gentil.');
+    expect(await screen.findByRole('textbox', { name: 'Politicas' })).toHaveTextContent(
+      'Seja gentil.',
+    );
   });
 });

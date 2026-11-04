@@ -14,8 +14,8 @@ import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
+import { CampoRico } from '@/shared/editor/CampoRico';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 
 export const TONS = {
@@ -131,14 +131,13 @@ function PersonaEditor({
           ))}
         </Box>
       )}
-      <CampoTexto
+      <CampoRico
         control={control}
         name="persona"
-        multiline
-        minRows={12}
-        fullWidth
-        sx={{ '& .MuiInputBase-root': realce }}
-        slotProps={{ htmlInput: { readOnly: !editavel, 'aria-label': 'Texto da persona' } }}
+        rotulo="Texto da persona"
+        editavel={editavel}
+        minLinhas={12}
+        realce={realce}
       />
     </SectionCard>
   );

@@ -7,7 +7,7 @@ import { chaveDoArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos'
 import { ApiError } from '@/shared/api/http';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
+import { CampoRico } from '@/shared/editor/CampoRico';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 
 type Props = {
@@ -77,15 +77,7 @@ function Editor({
           </IconButton>
         )}
       </Box>
-      <CampoTexto
-        control={control}
-        name="texto"
-        multiline
-        minRows={4}
-        fullWidth
-        disabled={!editavel}
-        slotProps={{ htmlInput: { 'aria-label': titulo } }}
-      />
+      <CampoRico control={control} name="texto" rotulo={titulo} editavel={editavel} />
     </Paper>
   );
 }

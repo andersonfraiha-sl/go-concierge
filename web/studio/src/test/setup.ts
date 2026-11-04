@@ -41,6 +41,16 @@ Object.defineProperty(window, 'matchMedia', {
   configurable: true,
   writable: true,
 });
+// O editor rico (ProseMirror) mede a seleção ao digitar; o jsdom não tem layout para medir.
+Object.defineProperty(document, 'elementFromPoint', { value: () => null, configurable: true });
+Object.defineProperty(Range.prototype, 'getClientRects', {
+  value: () => [],
+  configurable: true,
+});
+Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+  value: () => new DOMRect(),
+  configurable: true,
+});
 
 afterEach(() => {
   cleanup();

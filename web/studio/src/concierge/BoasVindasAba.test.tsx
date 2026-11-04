@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import { caminhoDeRegra } from '@/catalogo/contratos';
+import { digitarNoFim } from '@/test/editorRico';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { BoasVindasAba } from './BoasVindasAba';
@@ -52,8 +53,8 @@ describe('BoasVindasAba', () => {
     });
     const { user } = montar();
     const campo = await screen.findByRole('textbox', { name: 'Mensagem de boas-vindas' });
-    await waitFor(() => expect(campo).toBeEnabled());
-    await user.type(campo, ' Tudo bem?');
+    await waitFor(() => expect(campo).toHaveAttribute('aria-readonly', 'false'));
+    await digitarNoFim(user, campo, ' Tudo bem?');
     expect(corpos).toEqual([]);
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos).toEqual([
@@ -73,8 +74,8 @@ describe('BoasVindasAba', () => {
     });
     const { user } = montar();
     const campo = await screen.findByRole('textbox', { name: 'Mensagem de boas-vindas' });
-    expect(campo).toHaveValue('');
-    await user.type(campo, 'Oi!');
+    expect(campo.textContent).toBe('');
+    await digitarNoFim(user, campo, 'Oi!');
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos).toEqual([{ agente: ASSISTENTE, caminho: CAMINHO_BOAS_VINDAS, conteudo: 'Oi!' }]);
   });
@@ -103,7 +104,7 @@ describe('BoasVindasAba', () => {
     responderCom({ ...rotasBase(), 'GET /api/eu': () => json(gestor) });
     montar();
     const campo = await screen.findByRole('textbox', { name: 'Mensagem de boas-vindas' });
-    expect(campo).toBeDisabled();
+    expect(campo).toHaveAttribute('aria-readonly', 'true');
     expect(await screen.findByRole('button', { name: 'Qualquer contato' })).toBeDisabled();
   });
 });

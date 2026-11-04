@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { digitarNoFim } from '@/test/editorRico';
 import { json, responderCom } from '@/test/fetchFalso';
 import { estadoFalso, gestor, rotasBase } from './estadoFalso';
 import { abrirCondominio, gravador } from './paginaDeTeste';
@@ -18,7 +19,8 @@ describe('OrientacoesSecao', () => {
     });
     const { user } = abrirCondominio();
 
-    await user.type(
+    await digitarNoFim(
+      user,
       await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
       'Fale com o zelador',
     );
@@ -36,11 +38,8 @@ describe('OrientacoesSecao', () => {
     responderCom(rotasBase(gestor));
     abrirCondominio();
 
-    const campo = await screen.findByRole('textbox', { name: 'Orientações para este condomínio' });
-    expect(campo).toHaveAttribute(
-      'placeholder',
-      expect.stringMatching(/^Ex\.: A piscina fecha às 22h\./),
-    );
+    await screen.findByRole('textbox', { name: 'Orientações para este condomínio' });
+    expect(screen.getByText(/^Ex\.: A piscina fecha às 22h\./)).toBeInTheDocument();
     expect(
       screen.getByText(
         'Vale para todas as conversas daqui. Escreva como falaria com um porteiro novo.',
