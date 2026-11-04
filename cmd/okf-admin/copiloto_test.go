@@ -63,7 +63,7 @@ func servidorDoCopiloto(t *testing.T, falso *copilotoFalso) *servidor {
 	}
 	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
 	s.acessos = acessosFake{atribuicoes: usuariosDoCopiloto(), mapeamento: s.admin}
-	s.autenticador = autenticadorDev{padrao: "construtor"} // pedido sem X-Dev-Usuario é do construtor
+	s.autenticador = autenticadorDev{} // sem padrão: teste que esquece X-Dev-Usuario leva 401
 	s.authMode = authModeDev
 	return s
 }
@@ -104,16 +104,25 @@ func perguntar(t *testing.T, h http.Handler, usuario string, ctx copiloto.Contex
 
 func ligado() *bool { v := true; return &v }
 
+func estadoPara(t *testing.T, h http.Handler, usuario string) estadoDoCopiloto {
+	t.Helper()
+	w := chamar(t, h, pedido{metodo: "GET", caminho: "/api/copiloto/estado", cabecalhos: map[string]string{"X-Dev-Usuario": usuario}})
+	var estado estadoDoCopiloto
+	if err := json.Unmarshal(w.Body.Bytes(), &estado); err != nil {
+		t.Fatalf("%d %s: %v", w.Code, w.Body.String(), err)
+	}
+	return estado
+}
+
 func TestCopilotoIndisponivel(t *testing.T) {
 	h := handlerDoCopiloto(servidorDoCopiloto(t, nil))
 
-	var estado estadoDoCopiloto
-	lerJSON(t, h, "/api/copiloto/estado", &estado)
+	estado := estadoPara(t, h, "construtor")
 	if estado.Disponivel {
 		t.Fatal("sem provedor o Copiloto não está disponível")
 	}
 	corpo := corpoJSON(t, map[string]any{"mensagem": "Oi", "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}})
-	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo)})
+	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Dev-Usuario": "construtor"}})
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d", w.Code)
 	}
@@ -126,8 +135,7 @@ func TestCopilotoIndisponivel(t *testing.T) {
 
 func TestCopilotoDisponivel(t *testing.T) {
 	h := handlerDoCopiloto(servidorDoCopiloto(t, &copilotoFalso{}))
-	var estado estadoDoCopiloto
-	lerJSON(t, h, "/api/copiloto/estado", &estado)
+	estado := estadoPara(t, h, "construtor")
 	if !estado.Disponivel {
 		t.Fatal("com provedor o Copiloto está disponível")
 	}
@@ -313,7 +321,7 @@ func TestCopilotoRecusaMensagemVazia(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpoJSON(t, c.corpo))})
+			w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpoJSON(t, c.corpo)), cabecalhos: map[string]string{"X-Dev-Usuario": "construtor"}})
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d %s", w.Code, w.Body.String())
 			}
@@ -384,6 +392,44 @@ func TestCopilotoIgnoraCabecalhoDePapel(t *testing.T) {
 	}
 }
 
+// a TelaFluxo aceita TrocarFluxo, que só o construtor tem: o cabeçalho forjado não o dá ao gestor.
+func TestCopilotoNaoDaOperacaoDeConstrutorAoPapelForjado(t *testing.T) {
+	falso := &copilotoFalso{ops: []copiloto.Operacao{{Tipo: copiloto.TrocarFluxo, Skill: "agendar-mudanca", Fluxo: &okf.Fluxo{}}}}
+	h := handlerDoCopiloto(servidorDoCopiloto(t, falso))
+	corpo := corpoJSON(t, map[string]any{"mensagem": "Mude o fluxo", "contexto": copiloto.Contexto{Tela: copiloto.TelaFluxo, Skill: "agendar-mudanca"}})
+	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo),
+		cabecalhos: map[string]string{"X-Dev-Usuario": "gestor", "X-Studio-Papel": "construtor"}})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", w.Code, w.Body.String())
+	}
+	if slices.Contains(falso.recebeu.Operacoes, copiloto.TrocarFluxo) {
+		t.Fatalf("o modelo recebeu TrocarFluxo: %v", falso.recebeu.Operacoes)
+	}
+	var resp respostaDoCopiloto
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Propostas) != 0 || len(resp.Recusas) != 1 || resp.Recusas[0].Motivo != "Você não tem permissão para isso." {
+		t.Fatalf("resposta = %+v", resp)
+	}
+}
+
+func TestCopilotoRecusaAdministradoraDeOutro(t *testing.T) {
+	falso := &copilotoFalso{}
+	h := handlerDoCopiloto(servidorDoCopiloto(t, falso))
+	corpo := corpoJSON(t, map[string]any{"mensagem": "Resuma", "contexto": copiloto.Contexto{Tela: copiloto.TelaCondominios}})
+	w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto?administradora=adm-outra", corpo: texto(corpo),
+		cabecalhos: map[string]string{"X-Dev-Usuario": "gestor"}})
+
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "SEM_PERMISSAO") {
+		t.Fatalf("status = %d %s", w.Code, w.Body.String())
+	}
+	if falso.recebeu.Contexto != "" {
+		t.Fatal("o modelo foi chamado com a administradora de outro")
+	}
+}
+
 func TestCopilotoLimitaPorUsuarioDoAcesso(t *testing.T) {
 	s := servidorDoCopiloto(t, &copilotoFalso{})
 	agora := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
@@ -450,7 +496,7 @@ func TestCopilotoCortaHistoricoAntesDoModelo(t *testing.T) {
 		historico[i] = harness.MensagemDoCopiloto{Papel: "pessoa", Texto: strings.Repeat("a", 4000)}
 	}
 	corpo := corpoJSON(t, map[string]any{"mensagem": "oi", "historico": historico, "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}})
-	if w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo)}); w.Code != http.StatusOK {
+	if w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Dev-Usuario": "construtor"}}); w.Code != http.StatusOK {
 		t.Fatalf("status = %d", w.Code)
 	}
 	if len(falso.recebeu.Historico) != 5 {

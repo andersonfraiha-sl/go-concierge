@@ -105,13 +105,7 @@ func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request, 
 		return conversaRegistrada{tela: corpo.Contexto.Tela, err: err}
 	}
 	reg := conversaRegistrada{tela: corpo.Contexto.Tela}
-	ret, err := s.retratoParaCopiloto(r, corpo.Contexto, a)
-	if err != nil {
-		reg.err = err
-		s.responderErroDoRetrato(w, r, err)
-		return reg
-	}
-	quem := ret.quem
+	// o limite vem antes do retrato: quem já foi barrado não custa leitura no Postgres
 	liberar, ok := s.limiteCopiloto.ocuparVaga()
 	if !ok {
 		responderOcupado(w, esperaSemVagaCopiloto, "O Copiloto está atendendo muita gente agora. Tente de novo em alguns segundos.")
@@ -122,6 +116,13 @@ func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request, 
 		responderOcupado(w, espera, "Você mandou muitos pedidos seguidos. Espere um pouco e tente de novo.")
 		return reg
 	}
+	ret, err := s.retratoParaCopiloto(r, corpo.Contexto, a)
+	if err != nil {
+		reg.err = err
+		s.responderErroDoRetrato(w, r, err)
+		return reg
+	}
+	quem := ret.quem
 	ctx, cancel := context.WithTimeout(r.Context(), prazoCopiloto)
 	defer cancel()
 	resp, err := s.copiloto(ctx, harness.PedidoAoCopiloto{
