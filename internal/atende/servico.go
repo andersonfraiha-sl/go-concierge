@@ -7,17 +7,22 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"go-concierge/internal/admin"
+	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -79,6 +84,12 @@ type Outbox struct {
 	Emulado Sender
 }
 
+func (o *Outbox) PodeEntregarTransbordo() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.ATENDE != nil
+}
+
 func (o *Outbox) Enviar(ctx context.Context, destino entrada.Destino, texto string) error {
 	if !autorizarEntrega(ctx) {
 		return errEntregaSuprimida
@@ -117,12 +128,15 @@ func (o *Outbox) Enviar(ctx context.Context, destino entrada.Destino, texto stri
 }
 
 // Itens devolve as saídas de um protocolo ("" = todas).
-// Transbordar registra o pedido de atendente humano ao ATENDE. No ATENDE real isso vira
-// a chamada que tira o protocolo do bot (isHumanAttendance); aqui fica na caixa.
+// Transbordar registra o pedido de atendente humano no emulador.
 func (o *Outbox) Transbordar(destino entrada.Destino, motivo string) {
+	o.RegistrarTransbordo(destino, motivo, destino.Conector == "atende-emulado", "")
+}
+
+func (o *Outbox) RegistrarTransbordo(destino entrada.Destino, motivo string, enviada bool, erro string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.itens = append(o.itens, Saida{SessaoID: destino.SessaoID, Protocolo: destino.Protocolo, Tipo: "transbordo", Texto: motivo, Quando: time.Now(), Enviada: destino.Conector == "atende-emulado"})
+	o.itens = append(o.itens, Saida{SessaoID: destino.SessaoID, Protocolo: destino.Protocolo, Tipo: "transbordo", Texto: motivo, Quando: time.Now(), Enviada: enviada, Erro: erro})
 }
 
 func (o *Outbox) Itens(protocolo string) []Saida {
@@ -217,8 +231,7 @@ func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, text
 	for i, parte := range partes {
 		formatada := FormatarMensagem(parte)
 		corpo, err := json.Marshal(map[string]any{
-			"contact": map[string]string{"phone": "5519981621916"},
-			// "contact": map[string]string{"phone": destino.Telefone},
+			"contact": map[string]string{"phone": destino.Telefone},
 			"message": map[string]string{"type": "text", "text": formatada},
 		})
 		if err != nil {
@@ -318,23 +331,25 @@ func DividirMensagem(texto string, maxUTF16 int) []string {
 var extracoes sync.WaitGroup
 
 type Servico struct {
-	Cat         *okf.Catalogo
-	Agente      string // caminho relativo do agente de primeiro nível (agentes/concierge)
-	Config      harness.Config
-	Account     string // account do Nexus para os recursos (DEFAULT_ACCOUNT_ID)
-	Gruvi       *gruvi.Client
-	TelefoneB2C string
-	Sender      Sender
-	Sessoes     *Sessoes
-	Timeout     time.Duration
-	Log         *log.Logger
+	Cat    *okf.Catalogo
+	Agente string // caminho relativo do agente de primeiro nível (agentes/concierge)
+	Config harness.Config
+	// Implantacao restringe o processo a uma administradora (vazia = todas).
+	Implantacao  escopo.Implantacao
+	Gruvi        *gruvi.Client
+	TelefoneB2C  string
+	Sender       Sender
+	Transferidor Transferidor
+	Sessoes      *Sessoes
+	Timeout      time.Duration
+	Log          *log.Logger
 	// Memorias é a memória relacional por contato (nil = desligada); Extrator captura
 	// fatos novos a cada troca (nil = memoria.Regras).
 	Memorias memoria.Store
 	Extrator memoria.Extrator
-	// Mapeamento é o Admin da administradora (nil = tudo habilitado, sem payloads):
-	// resolve o condomínio da conversa, filtra os casos de uso e injeta os payloads.
-	Mapeamento *admin.Store
+	// Mapeamento é o Admin das administradoras: resolve o condomínio de cada mensagem
+	// (sem ele nenhuma é atendida), filtra os casos de uso e injeta os payloads.
+	Mapeamento admin.Repositorio
 	// Pedidos é o registro de pedidos por contato (nil = desligado: a conversa segue só
 	// pelo orquestrador). ExtratorPedidos detecta os pedidos na mensagem (nil = Regras).
 	Pedidos          pedidos.Store
@@ -345,6 +360,173 @@ type Servico struct {
 	memoriaMu        sync.Mutex
 	memoriaLocks     map[string]*sync.Mutex
 	memoriaRevisoes  map[string]uint64
+	// Pool envia os lotes do turno: a leitura a frio antes da resposta e as escritas depois
+	// dela, uma ida ao banco cada. nil (stores sem Postgres) = cada store lê e grava sozinho.
+	Pool *pgxpool.Pool
+}
+
+// aquecivelNoLote é o store com cache por contato que lê o contato frio dentro de um lote.
+type aquecivelNoLote interface {
+	AquecerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato)
+}
+
+// pedidosEmLote é o store de pedidos que grava dentro de um lote.
+type pedidosEmLote interface {
+	GravarNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, cart pedidos.Carteira) (confirmar func(), err error)
+}
+
+// aquecer carrega numa ida ao banco o que o turno vai ler e este processo ainda não tem: a
+// sessão do protocolo e a memória e os pedidos do contato. A falha aqui não para o turno:
+// cada store lê sozinho depois, e o erro aparece lá.
+func (s *Servico) aquecer(ctx context.Context, msg entrada.Mensagem) {
+	if s.Pool == nil {
+		return
+	}
+	lote := banco.NovoLote()
+	roteada := normalizarRoteamento(msg)
+	s.Sessoes.aquecerNoLote(ctx, lote, idSessao(roteada.Origem, roteada.ConversaID))
+	if contato, ok := s.contatoDaMensagem(ctx, msg); ok {
+		for _, st := range []any{s.Memorias, s.Pedidos} {
+			if a, ok := st.(aquecivelNoLote); ok {
+				a.AquecerNoLote(ctx, lote, contato)
+			}
+		}
+	}
+	if lote.Vazio() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
+	defer cancel()
+	if err := lote.Enviar(ctx, s.Pool); err != nil {
+		slog.WarnContext(ctx, "atende: leitura em lote falhou; cada store lê sozinho", "operacao", "aquecer_turno", "erro", err)
+	}
+}
+
+// contatoDaMensagem resolve o contato pelo mapeamento, sem mexer na sessão; o turno resolve
+// de novo (resolverCondominio) e é lá que um erro vira resposta.
+func (s *Servico) contatoDaMensagem(ctx context.Context, msg entrada.Mensagem) (escopo.Contato, bool) {
+	if s.Mapeamento == nil {
+		return escopo.Contato{}, false
+	}
+	m, err := s.Mapeamento.Ler(ctx)
+	if err != nil {
+		return escopo.Contato{}, false
+	}
+	condo, err := admin.ResolverCondominio(m, s.Implantacao, msg.CompanyID, msg.Tenant)
+	if err != nil {
+		return escopo.Contato{}, false
+	}
+	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
+	return contato, err == nil
+}
+
+// adiarCarteira deixa a carteira do turno para gravar depois da resposta
+// (gravarDepoisDaResposta). Até lá ela é o estado pendente do contato: quem carregar a
+// carteira antes grava a pendente primeiro. Quem chama segura o lock de pedidos do contato.
+func (s *Servico) adiarCarteira(c escopo.Contato, cart pedidos.Carteira) {
+	s.pedidoMu.Lock()
+	defer s.pedidoMu.Unlock()
+	if s.pedidosPendentes == nil {
+		s.pedidosPendentes = map[string]pedidos.Carteira{}
+	}
+	s.pedidosPendentes[c.Chave()] = cart
+}
+
+// carteiraDoTurno é a carteira adiada pelo turno, se houver, ou a carregada. Quem chama
+// segura o lock de pedidos do contato.
+func (s *Servico) carteiraDoTurno(ctx context.Context, c escopo.Contato) (pedidos.Carteira, error) {
+	if cart, adiada := s.carteiraAdiada(c); adiada {
+		return cart, nil
+	}
+	return s.carregarCarteira(ctx, c)
+}
+
+func (s *Servico) carteiraAdiada(c escopo.Contato) (pedidos.Carteira, bool) {
+	s.pedidoMu.Lock()
+	defer s.pedidoMu.Unlock()
+	cart, adiada := s.pedidosPendentes[c.Chave()]
+	return cart, adiada
+}
+
+// gravarDepoisDaResposta grava a sessão e a carteira que o turno adiou numa ida ao banco.
+// Sem lote, ou com o lote recusado (protocolo de outro contato, banco fora), grava uma por
+// uma pelo caminho de sempre, que redesenha o protocolo e guarda a carteira como pendente se
+// falhar. Os erros saem logados com a operação e voltam juntos.
+func (s *Servico) gravarDepoisDaResposta(ctx context.Context, sess *Sessao) error {
+	contato := sess.contato()
+	if s.Pedidos == nil || contato.Telefone == "" {
+		return s.Sessoes.Persistir(ctx, sess)
+	}
+	desbloquear := s.bloquearPedidos(contato)
+	defer desbloquear()
+	cart, adiada := s.carteiraAdiada(contato)
+	if !adiada {
+		return s.Sessoes.Persistir(ctx, sess)
+	}
+	errLote := s.gravarEmLote(ctx, sess, contato, cart)
+	if errLote == nil {
+		s.pedidoMu.Lock()
+		delete(s.pedidosPendentes, contato.Chave())
+		s.pedidoMu.Unlock()
+		return nil
+	}
+	if !errors.Is(errLote, errSemLote) {
+		slog.WarnContext(ctx, "atende: gravação em lote recusada; gravando uma por uma", "operacao", "gravar_pos_resposta", "sessao", sess.ID, "erro", errLote)
+	}
+	return errors.Join(s.gravarCarteiraDepoisDaResposta(ctx, sess, contato, cart), s.Sessoes.Persistir(ctx, sess))
+}
+
+func (s *Servico) gravarCarteiraDepoisDaResposta(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {
+	antes := protocolosDe(cart)
+	if err := s.salvarCarteira(ctx, contato, cart); err != nil {
+		slog.ErrorContext(ctx, "atende: pedidos não gravados depois da resposta", "operacao", "gravar_pedidos_pos_resposta", "sessao", sess.ID, "erro", err)
+		return err
+	}
+	if depois := protocolosDe(cart); !slices.Equal(antes, depois) {
+		// a resposta saiu com um protocolo que já era de outro contato; o pedido foi gravado
+		// com outro, e o morador só o verá na próxima vez que a carteira aparecer
+		slog.ErrorContext(ctx, "atende: protocolo de pedido mudou depois da resposta", "operacao", "gravar_pedidos_pos_resposta", "sessao", sess.ID, "antes", antes, "depois", depois)
+	}
+	return nil
+}
+
+var errSemLote = errors.New("stores sem gravação em lote")
+
+func (s *Servico) gravarEmLote(ctx context.Context, sess *Sessao, contato escopo.Contato, cart pedidos.Carteira) error {
+	pg, pedidosOK := s.Pedidos.(pedidosEmLote)
+	st, sessoesOK := s.Sessoes.store.(sessaoEmLote)
+	if s.Pool == nil || !pedidosOK || !sessoesOK {
+		return errSemLote
+	}
+	sess.persistMu.Lock()
+	defer sess.persistMu.Unlock()
+	r, err := sess.Registro()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
+	defer cancel()
+	lote := banco.NovoLote()
+	confirmar, err := pg.GravarNoLote(ctx, lote, contato, cart)
+	if err != nil {
+		return err
+	}
+	st.SalvarNoLote(ctx, lote, r)
+	if err := lote.Enviar(ctx, s.Pool); err != nil {
+		return err
+	}
+	if confirmar != nil {
+		confirmar()
+	}
+	return nil
+}
+
+func protocolosDe(cart pedidos.Carteira) []string {
+	out := make([]string, 0, len(cart.Pedidos))
+	for _, p := range cart.Pedidos {
+		out = append(out, p.Protocolo)
+	}
+	return out
 }
 
 func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, chave string) func() {
@@ -362,29 +544,29 @@ func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, 
 	return lock.Unlock
 }
 
-func (s *Servico) bloquearPedidos(phone string) func() {
-	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, s.Account+":"+pedidos.NormalizarTelefone(phone))
+func (s *Servico) bloquearPedidos(c escopo.Contato) func() {
+	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, c.Chave())
 }
 
-func (s *Servico) carregarCarteira(ctx context.Context, phone string) (pedidos.Carteira, error) {
-	chave := s.Account + ":" + pedidos.NormalizarTelefone(phone)
+func (s *Servico) carregarCarteira(ctx context.Context, c escopo.Contato) (pedidos.Carteira, error) {
+	chave := c.Chave()
 	s.pedidoMu.Lock()
 	pendente, existe := s.pedidosPendentes[chave]
 	s.pedidoMu.Unlock()
 	if existe {
-		if err := s.Pedidos.Gravar(ctx, pendente); err != nil {
+		if err := s.Pedidos.Gravar(ctx, c, pendente); err != nil {
 			return pedidos.Carteira{}, fmt.Errorf("pedidos: estado pendente ainda não pôde ser salvo: %w", err)
 		}
 		s.pedidoMu.Lock()
 		delete(s.pedidosPendentes, chave)
 		s.pedidoMu.Unlock()
 	}
-	return s.Pedidos.Ler(ctx, s.Account, phone)
+	return s.Pedidos.Ler(ctx, c)
 }
 
-func (s *Servico) salvarCarteira(ctx context.Context, cart pedidos.Carteira) error {
-	chave := s.Account + ":" + pedidos.NormalizarTelefone(cart.Telefone)
-	if err := s.Pedidos.Gravar(ctx, cart); err != nil {
+func (s *Servico) salvarCarteira(ctx context.Context, c escopo.Contato, cart pedidos.Carteira) error {
+	chave := c.Chave()
+	if err := s.Pedidos.Gravar(ctx, c, cart); err != nil {
 		s.pedidoMu.Lock()
 		if s.pedidosPendentes == nil {
 			s.pedidosPendentes = map[string]pedidos.Carteira{}
@@ -399,47 +581,59 @@ func (s *Servico) salvarCarteira(ctx context.Context, cart pedidos.Carteira) err
 	return nil
 }
 
-func (s *Servico) bloquearMemoria(phone string) func() {
-	return s.lockPorChave(&s.memoriaMu, &s.memoriaLocks, s.Account+":"+memoria.NormalizarTelefone(phone))
+func (s *Servico) bloquearMemoria(c escopo.Contato) func() {
+	return s.lockPorChave(&s.memoriaMu, &s.memoriaLocks, c.Chave())
 }
 
-func (s *Servico) revisaoMemoria(phone string) uint64 {
+func (s *Servico) revisaoMemoria(c escopo.Contato) uint64 {
 	s.memoriaMu.Lock()
 	defer s.memoriaMu.Unlock()
-	return s.memoriaRevisoes[s.Account+":"+memoria.NormalizarTelefone(phone)]
+	return s.memoriaRevisoes[c.Chave()]
 }
 
 var ErrFatoNaoEncontrado = errors.New("fato não encontrado")
 
-func (s *Servico) EsquecerMemoria(ctx context.Context, phone, chave string) (memoria.Memoria, error) {
-	desbloquear := s.bloquearMemoria(phone)
+func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave string) (memoria.Memoria, error) {
+	desbloquear := s.bloquearMemoria(c)
 	defer desbloquear()
-	m, err := s.Memorias.Ler(ctx, s.Account, phone)
+	m, err := s.Memorias.Ler(ctx, c)
 	if err != nil {
 		return m, err
 	}
-	if chave == "" {
-		m.Fatos = []memoria.Fato{}
-	} else if !m.Esquecer(chave) {
-		return m, fmt.Errorf("%w: %s", ErrFatoNaoEncontrado, chave)
+	m, err = esquecerFatos(m, chave)
+	if err != nil {
+		return m, err
 	}
-	if m.Fatos == nil {
-		m.Fatos = []memoria.Fato{}
-	}
-	if err := s.Memorias.Gravar(ctx, m); err != nil {
+	if err := s.Memorias.Gravar(ctx, c, m); err != nil {
 		return m, err
 	}
 	s.memoriaMu.Lock()
 	if s.memoriaRevisoes == nil {
 		s.memoriaRevisoes = map[string]uint64{}
 	}
-	s.memoriaRevisoes[s.Account+":"+memoria.NormalizarTelefone(phone)]++
+	s.memoriaRevisoes[c.Chave()]++
 	s.memoriaMu.Unlock()
 	return m, nil
 }
 
-func (s *Servico) PrepararMensagem(msg entrada.Mensagem) (entrada.Mensagem, *Sessao) {
-	sess := s.Sessoes.Abrir(msg)
+// esquecerFatos tira da memória o fato da chave; a chave vazia esquece todos.
+func esquecerFatos(m memoria.Memoria, chave string) (memoria.Memoria, error) {
+	if chave == "" {
+		m.Fatos = []memoria.Fato{}
+		return m, nil
+	}
+	semFato, esqueceu := m.Esquecer(chave)
+	if !esqueceu {
+		return m, fmt.Errorf("%w: %s", ErrFatoNaoEncontrado, chave)
+	}
+	return semFato, nil
+}
+
+func (s *Servico) PrepararMensagem(ctx context.Context, msg entrada.Mensagem) (entrada.Mensagem, *Sessao, error) {
+	sess, err := s.Sessoes.Abrir(ctx, msg)
+	if err != nil {
+		return msg, nil, fmt.Errorf("abrir sessão do protocolo %s: %w", msg.ConversaID, err)
+	}
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	if !sess.Encerrada && sess.AtendimentoHumano {
@@ -447,20 +641,34 @@ func (s *Servico) PrepararMensagem(msg entrada.Mensagem) (entrada.Mensagem, *Ses
 		sess.revisaoEstado++
 	}
 	msg.Revisao = sess.revisaoEstado
-	return msg, sess
+	return msg, sess, nil
 }
 
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
-// sessão), roda o concierge com o histórico e envia a resposta.
+// sessão), roda o concierge com o histórico, envia a resposta e persiste a sessão.
 func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
+	sess, err := s.processar(ctx, msg)
+	if sess == nil {
+		return nil, err
+	}
+	// a sessão é gravada mesmo com o turno cancelado: o que já aconteceu nele fica
+	return sess, errors.Join(err, s.gravarDepoisDaResposta(context.WithoutCancel(ctx), sess))
+}
+
+func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
 	if !s.PermiteTelefone(msg.Contato.Phone) {
 		return nil, fmt.Errorf("telefone diferente do morador configurado para o token B2C")
 	}
+	s.aquecer(ctx, msg)
 	var sess *Sessao
+	var err error
 	if msg.Revisao == 0 {
-		msg, sess = s.PrepararMensagem(msg)
+		msg, sess, err = s.PrepararMensagem(ctx, msg)
 	} else {
-		sess = s.Sessoes.Abrir(msg)
+		sess, err = s.Sessoes.Abrir(ctx, msg)
+	}
+	if err != nil {
+		return nil, err
 	}
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()
@@ -511,7 +719,7 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}()
 	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
 	sess.mu.Lock()
-	transbordado := sess.Transbordo != nil && sess.Transbordo.Ativo
+	transbordado := sess.Transbordo != nil && (sess.Transbordo.Ativo || sess.Transbordo.Estado == "solicitado" || sess.Transbordo.Estado == "incerto")
 	identidadeVazia := sess.Identidade.Phone == ""
 	plano := sess.Plano
 	sess.mu.Unlock()
@@ -519,9 +727,22 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		return sess, nil
 	}
+	m, condo, err := s.resolverCondominio(ctx, sess, msg)
+	if err != nil {
+		if !condominioNaoAtendido(err) {
+			s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+			historicoRegistrado = true
+			return sess, err
+		}
+		s.avisar(ctx, "resolver_condominio", sess, err)
+		sess.historicoAdicionar(schema.UserMessage(texto))
+		s.transbordar(sess, "condomínio não identificado", "concierge", "")
+		return sess, nil
+	}
+	contato := sess.contato()
 
 	if identidadeVazia {
-		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone)
+		id, resultadoVinculo, err := s.identidade(ctx, msg.Contato.Phone, sess.companyDoCondominio())
 		if err != nil {
 			if errors.Is(err, context.Canceled) && interrompido() {
 				return sess, nil
@@ -543,13 +764,12 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		}
 	}
 
-	revisaoMemoria := s.revisaoMemoria(sess.Contato.Phone)
-	cfg, mem, dir, err := s.montar(ctx, sess)
+	revisaoMemoria := s.revisaoMemoria(contato)
+	cfg, mem, def, err := s.prepararTurno(ctx, sess, m, condo)
 	if err != nil {
-		return sess, err
-	}
-	def, err := s.Cat.Load(dir)
-	if err != nil {
+		slog.ErrorContext(ctx, "atende: turno não montado", "operacao", "montar_turno", "sessao", sess.ID, "erro", err)
+		s.responderFalha(ctx, sess, texto, historico, baseHistorico, err)
+		historicoRegistrado = true
 		return sess, err
 	}
 	if s.Timeout > 0 {
@@ -584,13 +804,43 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		historicoRegistrado = true
 		return sess, err
 	}
-	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" {
+	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 		res.Resposta = "Não consigo transferir esta conversa para um atendente por este canal. Posso continuar ajudando por aqui."
 		mensagens := append([]*schema.Message(nil), res.Mensagens...)
 		if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
 			mensagens[len(mensagens)-1] = schema.AssistantMessage(res.Resposta, nil)
 		}
 		res.Mensagens = mensagens
+	}
+	transferivel := s.transferidorDisponivel(sess.Destino)
+	bloqueioAvisoTransbordo := ""
+	if res.Transbordo != "" && sess.Destino.Conector == "atende" {
+		if s.Sender == nil {
+			bloqueioAvisoTransbordo = "aviso de transbordo não enviado: sender não configurado"
+		} else if ob, ok := s.Sender.(*Outbox); ok && !ob.PodeEntregarTransbordo() {
+			bloqueioAvisoTransbordo = "aviso de transbordo não enviado: sender ATENDE não configurado"
+		}
+		if bloqueioAvisoTransbordo != "" {
+			mensagens := append([]*schema.Message(nil), res.Mensagens...)
+			if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
+				mensagens = mensagens[:len(mensagens)-1]
+			}
+			res.Resposta = ""
+			res.Mensagens = mensagens
+		} else if s.Pedidos == nil {
+			aviso := "Não consegui solicitar um atendente por este canal agora. Posso continuar ajudando por aqui."
+			if transferivel {
+				aviso = "Vou solicitar que uma pessoa da administração assuma este protocolo. Ainda não tenho confirmação de que ela assumiu a conversa."
+			}
+			res.Resposta = anotarAvisoTransbordo(res.Resposta, aviso)
+			res.Mensagens = substituirUltimaResposta(res.Mensagens, res.Resposta)
+		}
+	}
+	if bloqueioAvisoTransbordo != "" {
+		sess.historicoAtualizar(baseHistorico, res.Mensagens)
+		historicoRegistrado = true
+		s.registrarAvisoTransbordoFalho(sess, res.Transbordo, errors.New(bloqueioAvisoTransbordo))
+		return sess, nil
 	}
 	var erroEntrega error
 	if s.Sender != nil && res.Resposta != "" {
@@ -635,6 +885,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 				sess.registrar(Turno{Quem: "concierge", Texto: res.Resposta, Agente: res.Agente, Rota: res.Rota, Uso: &uso, Modelo: ag.NomeModelo, Plano: res.Plano, Pedidos: pedidosTurno})
 			}
 			sess.registrar(Turno{Quem: "sistema", Texto: "Resposta automática não entregue integralmente após mudança de atendimento."})
+			if res.Transbordo != "" {
+				s.registrarAvisoTransbordoFalho(sess, res.Transbordo, errEntregaSuprimida)
+			}
 			return sess, nil
 		}
 	}
@@ -648,6 +901,9 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			sess.historicoAtualizar(baseHistorico, mensagens)
 			historicoRegistrado = true
 			sess.registrar(Turno{Quem: "erro", Texto: erroEntrega.Error()})
+			if res.Transbordo != "" {
+				s.registrarAvisoTransbordoFalho(sess, res.Transbordo, erroEntrega)
+			}
 			return sess, erroEntrega
 		}
 	}
@@ -664,11 +920,14 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	idx := sess.registrar(turno)
 	if erroEntrega != nil {
 		sess.registrar(Turno{Quem: "erro", Texto: erroEntrega.Error()})
+		if res.Transbordo != "" {
+			s.registrarAvisoTransbordoFalho(sess, res.Transbordo, erroEntrega)
+		}
 		return sess, erroEntrega
 	}
 	if s.Pedidos != nil {
 		ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		err := s.marcarConfirmacoesEntregues(ctxSalvar, sess.Contato.Phone, pedidosTurno, res.Resposta)
+		err := s.marcarConfirmacoesEntregues(ctxSalvar, contato, pedidosTurno, res.Resposta)
 		cancelar()
 		if err != nil {
 			sess.registrar(Turno{Quem: "erro", Texto: err.Error()})
@@ -686,11 +945,65 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			defer cancel()
 			fatos := s.lembrar(ctxMem, &memCopia, sess, texto, res.Resposta, revisaoMemoria)
 			sess.anotarMemorias(idx, fatos)
+			if len(fatos) > 0 {
+				// a falha já sai logada como ERROR por Persistir; não há a quem devolver
+				_ = s.Sessoes.Persistir(ctxMem, sess)
+			}
 		}()
 	}
 	if res.Transbordo != "" {
 		if sess.Destino.Conector == "atende-emulado" {
-			s.transbordar(sess, res.Transbordo, "concierge", "")
+			if s.Transferidor == nil {
+				s.transbordar(sess, res.Transbordo, "concierge", "")
+			} else if err := s.Transferidor.Transferir(ctx, sess.Destino, res.Transbordo); err != nil {
+				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
+			} else {
+				s.registrarSucessoTransbordo(sess, res.Transbordo)
+			}
+			sess.mu.Lock()
+			transferido := sess.Transbordo != nil && sess.Transbordo.Estado == "transferido"
+			sess.mu.Unlock()
+			if transferido {
+				s.marcarPedidosTransbordados(sess, pedidosTurno)
+			}
+		} else if sess.Destino.Conector == "atende" {
+			if !transferivel {
+				err := errors.New("ATENDE: transferência não configurada para este canal")
+				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
+				if ob, ok := s.Sender.(*Outbox); ok {
+					ob.RegistrarTransbordo(sess.Destino, res.Transbordo, false, err.Error())
+				}
+				return sess, nil
+			}
+			if !s.iniciarTransbordo(sess, msg.Revisao, res.Transbordo) {
+				sess.registrar(Turno{Quem: "sistema", Texto: "Transbordo não solicitado porque o protocolo mudou para atendimento humano ou foi encerrado durante o aviso."})
+				return sess, nil
+			}
+			err := s.Transferidor.Transferir(ctx, sess.Destino, res.Transbordo)
+			if err != nil {
+				s.registrarFalhaTransbordo(sess, res.Transbordo, err)
+				if ob, ok := s.Sender.(*Outbox); ok {
+					ob.RegistrarTransbordo(sess.Destino, res.Transbordo, false, err.Error())
+				}
+				if s.Log != nil {
+					s.Log.Printf("atende: transbordo do protocolo %s: %v", sess.Protocolo, err)
+				}
+				return sess, nil
+			}
+			s.registrarSucessoTransbordo(sess, res.Transbordo)
+			if ob, ok := s.Sender.(*Outbox); ok {
+				ob.RegistrarTransbordo(sess.Destino, res.Transbordo, true, "")
+			}
+			ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			err = s.marcarPedidosAoAtendente(ctxSalvar, contato, pedidosTurno)
+			cancelar()
+			if err != nil {
+				sess.registrar(Turno{Quem: "erro", Texto: "transbordo confirmado, mas não foi possível atualizar os pedidos: " + err.Error()})
+				if s.Log != nil {
+					s.Log.Printf("atende: atualizar pedidos após transbordo do protocolo %s: %v", sess.Protocolo, err)
+				}
+				return sess, nil
+			}
 		} else {
 			sess.registrar(Turno{Quem: "sistema", Texto: "Solicitação de atendimento humano não encaminhada pelo canal ATENDE."})
 		}
@@ -698,13 +1011,65 @@ func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	return sess, nil
 }
 
-func (s *Servico) RegistrarHumano(msg entrada.Mensagem) bool {
-	sess, ok := s.Sessoes.Existente(msg)
-	if !ok {
-		return false
+// RegistrarHumano: um humano falou no protocolo; o concierge para de responder.
+// Devolve false quando a sessão não existe ou já foi encerrada.
+func (s *Servico) RegistrarHumano(ctx context.Context, msg entrada.Mensagem) (bool, error) {
+	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool { return sess.registrarHumano(msg) })
+}
+
+// Encerrar: o canal fechou o protocolo. Devolve false quando a sessão não existe.
+func (s *Servico) Encerrar(ctx context.Context, msg entrada.Mensagem) (bool, error) {
+	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool { sess.encerrar(msg); return true })
+}
+
+// Sessao devolve a sessão pelo ID interno ou protocolo, só se ela for de uma
+// administradora desta implantação: o store é compartilhado, e uma sessão alheia é
+// tratada como inexistente (não se revela que existe).
+func (s *Servico) Sessao(ctx context.Context, id string) (*Sessao, bool, error) {
+	sess, ok, err := s.Sessoes.Get(ctx, id)
+	if err != nil || !ok {
+		return nil, false, err
 	}
+	if !s.Implantacao.Permite(sess.administradora()) {
+		return nil, false, nil
+	}
+	return sess, true, nil
+}
+
+// mudarExistente aplica mudar à sessão do evento, se existir, e persiste o que mudou.
+func (s *Servico) mudarExistente(ctx context.Context, msg entrada.Mensagem, mudar func(*Sessao) bool) (bool, error) {
+	sess, ok, err := s.Sessoes.Existente(ctx, msg)
+	if err != nil {
+		return false, fmt.Errorf("sessão do protocolo %s: %w", msg.ConversaID, err)
+	}
+	if !ok || !mudar(sess) {
+		return false, nil
+	}
+	return true, s.Sessoes.Persistir(ctx, sess)
+}
+
+// jaRegistrado: o evento já virou um turno de quem (o canal reenviou o webhook). Chame
+// com sess.mu.
+func (sess *Sessao) jaRegistrado(eventoID, quem string) bool {
+	return eventoID != "" && slices.ContainsFunc(sess.Turnos, func(t Turno) bool { return t.EventoID == eventoID && t.Quem == quem })
+}
+
+// autorHumano: quem fala no turno de um evento humano.
+func autorHumano(msg entrada.Mensagem) string {
+	if msg.Autor == "atendente" {
+		return "atendente"
+	}
+	return "morador"
+}
+
+// registrarHumano devolve true quando há o que persistir: o evento novo aplicado, ou um
+// reenvio (nada muda, só a gravação é refeita).
+func (sess *Sessao) registrarHumano(msg entrada.Mensagem) bool {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.jaRegistrado(msg.ID, autorHumano(msg)) {
+		return true
+	}
 	if sess.Encerrada {
 		return false
 	}
@@ -718,10 +1083,9 @@ func (s *Servico) RegistrarHumano(msg entrada.Mensagem) bool {
 	}
 	texto := strings.TrimSpace(msg.Texto)
 	if texto != "" {
-		quem := "morador"
+		quem := autorHumano(msg)
 		fala := schema.UserMessage(texto)
-		if msg.Autor == "atendente" {
-			quem = "atendente"
+		if quem == "atendente" {
 			fala = schema.AssistantMessage("[atendente humano] "+texto, nil)
 		}
 		turno := Turno{Quem: quem, Texto: texto, EventoID: msg.ID, Quando: time.Now()}
@@ -732,14 +1096,16 @@ func (s *Servico) RegistrarHumano(msg entrada.Mensagem) bool {
 	return true
 }
 
-func (s *Servico) Encerrar(msg entrada.Mensagem) bool {
-	sess, ok := s.Sessoes.Existente(msg)
-	if !ok {
-		return false
-	}
+func (sess *Sessao) encerrar(msg entrada.Mensagem) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.jaRegistrado(msg.ID, "sistema") {
+		return
+	}
 	sess.Encerrada = true
+	if sess.Transbordo != nil {
+		sess.Transbordo.Ativo = false
+	}
 	sess.revisaoEstado++
 	if sess.cancelarTurno != nil {
 		sess.cancelarTurno()
@@ -750,7 +1116,6 @@ func (s *Servico) Encerrar(msg entrada.Mensagem) bool {
 	turno := Turno{Quem: "sistema", Texto: "Protocolo encerrado pelo canal ATENDE.", EventoID: msg.ID, Quando: time.Now()}
 	sess.Turnos = append(sess.Turnos, turno)
 	sess.AtualizadaEm = turno.Quando
-	return true
 }
 
 func (s *Servico) PermiteTelefone(phone string) bool {
@@ -800,46 +1165,45 @@ func (s *Servico) responderFalha(ctx context.Context, sess *Sessao, texto string
 	}
 }
 
+// prepararTurno monta a Config e carrega o agente de primeiro nível.
+func (s *Servico) prepararTurno(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (harness.Config, memoria.Memoria, *okf.Agent, error) {
+	cfg, mem, dir, err := s.montar(ctx, sess, m, condo)
+	if err != nil {
+		return cfg, mem, nil, err
+	}
+	def, err := s.Cat.Load(dir)
+	if err != nil {
+		return cfg, mem, nil, fmt.Errorf("carregar agente %s: %w", dir, err)
+	}
+	return cfg, mem, def, nil
+}
+
 // montar prepara a Config do harness para a sessão (identidade, Admin do condomínio,
-// data e hora, unidades, memória) e devolve a memória lida e a pasta do agente.
-func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
+// data e hora, unidades, memória) e devolve a memória lida e a pasta do agente. m e
+// condo vêm de quem resolveu o condomínio: o turno não relê o mapeamento.
+func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
 	cfg = s.Config
 	cfg.Sessao = sess.ID
 	sess.mu.Lock()
 	identidade := sess.Identidade
 	sess.mu.Unlock()
-	cfg.Identidade = harness.Identidade{Authenticated: identidade.Authenticated, AccountID: s.Account, Role: identidade.Role}
+	cfg.Identidade = harness.Identidade{Authenticated: identidade.Authenticated, Role: identidade.Role}
+	contato := sess.contato()
 	cfg.MCPResultados = sess.resultadosMCP()
 
-	// Admin da administradora: qual condomínio é este, quais casos ele pode usar e
-	// quais definições (payloads) valem para os recursos
+	// Admin da administradora: quais casos o condomínio pode usar e quais definições
+	// (payloads) valem para os recursos
+	cfg.Identidade.AccountID = condo.Account
+	papel := identidade.Role
+	cfg.Casos = func(nome, casoID string) bool {
+		return m.Habilitado(condo.ID, nome, papel) && (casoID == "" || m.Habilitado(condo.ID, casoID, papel))
+	}
+	cfg.Payloads = m.PayloadsDe(condo.ID)
+	orient := m.OrientacaoDe(condo.ID)
+	cfg.Orientacoes = orient.PorCaso
 	var contexto []string
-	if s.Mapeamento != nil {
-		if m, err := s.Mapeamento.Ler(); err == nil {
-			condo, ok := m.Resolver(identidade.CompanyID, sess.Tenant, s.Account)
-			condoID := admin.Padrao
-			if ok {
-				condoID = condo.ID
-				if condo.Account != "" {
-					cfg.Identidade.AccountID = condo.Account
-				}
-			}
-			sess.mu.Lock()
-			sess.Condominio = condoID
-			sess.mu.Unlock()
-			papel := identidade.Role
-			cfg.Casos = func(nome, casoID string) bool {
-				return m.Habilitado(condoID, nome, papel) && (casoID == "" || m.Habilitado(condoID, casoID, papel))
-			}
-			cfg.Payloads = m.PayloadsDe(condoID)
-			orient := m.OrientacaoDe(condoID)
-			cfg.Orientacoes = orient.PorCaso
-			if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" && (ok || len(cfg.Payloads) > 0 || orient.Geral != "") {
-				contexto = append(contexto, c)
-			}
-		} else if s.Log != nil {
-			s.Log.Printf("atende: mapeamento: %v", err)
-		}
+	if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" {
+		contexto = append(contexto, c)
 	}
 	s.injetarParametrosMCP(&cfg, sess)
 
@@ -853,11 +1217,11 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 
 	// memória relacional: o que já se sabe deste telefone entra no prompt da família
 	if s.Memorias != nil {
-		desbloquear := s.bloquearMemoria(sess.Contato.Phone)
-		m, err := s.Memorias.Ler(ctx, s.Account, sess.Contato.Phone)
+		desbloquear := s.bloquearMemoria(contato)
+		m, err := s.Memorias.Ler(ctx, contato)
 		desbloquear()
-		if err != nil && s.Log != nil {
-			s.Log.Printf("atende: memória de %s: %v", sess.Contato.Phone, err)
+		if err != nil {
+			slog.WarnContext(ctx, "atende: memória não lida; turno segue sem ela", "operacao", "ler_memoria", "contato", contato.Mascarado(), "erro", err)
 		}
 		mem = m
 		if c := harness.ContextoDeMemoria(mem); c != "" {
@@ -886,9 +1250,35 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao) (cfg harness.Config,
 	return cfg, mem, dir, nil
 }
 
+// condominioDaSessao lê o mapeamento e o condomínio resolvido para a sessão. Falha
+// fechada: sem mapeamento ou sem o condomínio, nada é montado.
+func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato escopo.Contato) (admin.Mapeamento, admin.Condominio, error) {
+	if s.Mapeamento == nil {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("montar sessão %s sem mapeamento: %w", sess.ID, admin.ErrCondominioDesconhecido)
+	}
+	m, err := s.Mapeamento.Ler(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "atende: mapeamento indisponível; sessão não montada",
+			"operacao", "ler_mapeamento", "sessao", sess.ID, "erro", err)
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("ler mapeamento: %w", err)
+	}
+	condo, ok := m.Condominio(contato.CondominioID)
+	if !ok {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s: %w", contato.CondominioID, sess.ID, admin.ErrCondominioDesconhecido)
+	}
+	if condo.Administradora != contato.AdministradoraID {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("condomínio %q da sessão %s mudou de dona: %w", contato.CondominioID, sess.ID, errCondominioMudou)
+	}
+	return m, condo, nil
+}
+
 // agenteDaSessao constrói a família de agentes para a sessão (ações do atendente).
 func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Agente, error) {
-	cfg, _, dir, err := s.montar(ctx, sess)
+	m, condo, err := s.condominioDaSessao(ctx, sess, sess.contato())
+	if err != nil {
+		return nil, err
+	}
+	cfg, _, dir, err := s.montar(ctx, sess, m, condo)
 	if err != nil {
 		return nil, err
 	}
@@ -900,13 +1290,204 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 }
 
 // transbordar passa o protocolo ao atendente humano.
+// resolverCondominio fixa na sessão o condomínio da mensagem e o contato na
+// administradora dele. Sem mapeamento, nenhum condomínio é conhecido.
+// Devolve o mapeamento lido e o condomínio, que o turno usa sem reler.
+func (s *Servico) resolverCondominio(ctx context.Context, sess *Sessao, msg entrada.Mensagem) (admin.Mapeamento, admin.Condominio, error) {
+	if s.Mapeamento == nil {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("resolver condomínio sem mapeamento: %w", admin.ErrCondominioDesconhecido)
+	}
+	m, err := s.Mapeamento.Ler(ctx)
+	if err != nil {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("resolver condomínio: %w", err)
+	}
+	condo, err := admin.ResolverCondominio(m, s.Implantacao, msg.CompanyID, msg.Tenant)
+	if err != nil {
+		return admin.Mapeamento{}, admin.Condominio{}, err
+	}
+	if atual := sess.contato(); atual.CondominioID != "" && (atual.CondominioID != condo.ID || atual.AdministradoraID != condo.Administradora) {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("conversa de %s/%s recebeu mensagem de %s/%s: %w", atual.AdministradoraID, atual.CondominioID, condo.Administradora, condo.ID, errCondominioMudou)
+	}
+	contato, err := escopo.NovoContato(condo.Administradora, condo.ID, msg.Contato.Phone)
+	if err != nil {
+		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("contato no condomínio %s: %w", condo.ID, err)
+	}
+	sess.fixarContato(contato, condo.CompanyID)
+	return m, condo, nil
+}
+
+var errCondominioMudou = errors.New("condomínio da conversa mudou")
+
+// naoAtendidos: a mensagem é de um condomínio que este processo não atende; qualquer
+// outro erro da resolução é falha de infraestrutura.
+var naoAtendidos = []error{admin.ErrCondominioDesconhecido, admin.ErrForaDaImplantacao, admin.ErrCondominioAmbiguo, admin.ErrCondominioIncompleto, errCondominioMudou}
+
+func condominioNaoAtendido(err error) bool {
+	return slices.ContainsFunc(naoAtendidos, func(alvo error) bool { return errors.Is(err, alvo) })
+}
+
+func (s *Servico) avisar(ctx context.Context, operacao string, sess *Sessao, err error) {
+	slog.WarnContext(ctx, "atende: condomínio não atendido; conversa transbordada",
+		"operacao", operacao, "sessao", sess.ID, "erro", err)
+}
+
 func (s *Servico) transbordar(sess *Sessao, motivo, pedidoPor, atendente string) {
 	sess.mu.Lock()
-	sess.Transbordo = &Transbordo{Ativo: true, Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
+	if sess.Encerrada {
+		sess.mu.Unlock()
+		sess.registrar(Turno{Quem: "sistema", Texto: "Transbordo não registrado porque o protocolo está encerrado."})
+		return
+	}
+	sess.Transbordo = &Transbordo{Ativo: true, Estado: "transferido", Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
 	sess.mu.Unlock()
 	sess.registrar(Turno{Quem: "sistema", Texto: "Transferido ao atendente humano: " + motivo})
 	if ob, ok := s.Sender.(*Outbox); ok && ob != nil {
 		ob.Transbordar(sess.Destino, motivo)
+	}
+}
+
+func substituirUltimaResposta(mensagens []*schema.Message, resposta string) []*schema.Message {
+	mensagens = append([]*schema.Message(nil), mensagens...)
+	if len(mensagens) > 0 && mensagens[len(mensagens)-1].Role == schema.Assistant {
+		mensagens[len(mensagens)-1] = schema.AssistantMessage(resposta, nil)
+	}
+	return mensagens
+}
+
+func prometeTransbordo(texto string) bool {
+	t := strings.ToLower(texto)
+	if harness.AnunciaTransferencia(t) {
+		return true
+	}
+	if !strings.Contains(t, "atendente") && !strings.Contains(t, "humano") && !strings.Contains(t, "administra") && !strings.Contains(t, "equipe") && !strings.Contains(t, "pessoa") {
+		return false
+	}
+	for _, termo := range []string{"assum", "encaminh", "transfer", "passar", "repass", "continu", "entrar", "receber", "vai assumir", "irá assumir", "já foi"} {
+		if strings.Contains(t, termo) {
+			return true
+		}
+	}
+	return false
+}
+
+func removerPromessasTransbordo(texto string) string {
+	var partes []string
+	inicio := 0
+	for i, r := range texto {
+		if r == '.' || r == '!' || r == '?' || r == ';' || r == '\n' {
+			fim := i + 1
+			if !prometeTransbordo(strings.TrimSpace(texto[inicio:fim])) {
+				partes = append(partes, texto[inicio:fim])
+			}
+			inicio = fim
+		}
+	}
+	if inicio < len(texto) && !prometeTransbordo(strings.TrimSpace(texto[inicio:])) {
+		partes = append(partes, texto[inicio:])
+	}
+	return strings.Join(partes, "")
+}
+
+func anotarAvisoTransbordo(texto, aviso string) string {
+	conteudo := removerPromessasTransbordo(texto)
+	if strings.TrimSpace(conteudo) == "" {
+		return aviso
+	}
+	return conteudo + "\n\n" + aviso
+}
+
+func (s *Servico) transferidorDisponivel(destino entrada.Destino) bool {
+	if s.Transferidor == nil {
+		return destino.Conector == "atende-emulado"
+	}
+	if disponibilidade, ok := s.Transferidor.(interface{ Disponivel(entrada.Destino) bool }); ok {
+		return disponibilidade.Disponivel(destino)
+	}
+	return true
+}
+
+func (s *Servico) iniciarTransbordo(sess *Sessao, revisao uint64, motivo string) bool {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.Encerrada || sess.AtendimentoHumano || sess.revisaoEstado != revisao || sess.Transbordo != nil && sess.Transbordo.Ativo {
+		return false
+	}
+	sess.Transbordo = &Transbordo{Estado: "solicitado", Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	return true
+}
+
+func (s *Servico) registrarSucessoTransbordo(sess *Sessao, motivo string) {
+	sess.mu.Lock()
+	if sess.Transbordo == nil {
+		sess.Transbordo = &Transbordo{Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	}
+	sess.Transbordo.Estado = "transferido"
+	sess.Transbordo.Ativo = !sess.Encerrada
+	if sess.Transbordo.Motivo == "" {
+		sess.Transbordo.Motivo = motivo
+	}
+	sess.mu.Unlock()
+	texto := "O ATENDE confirmou a transferência deste protocolo ao atendimento humano."
+	if sess.Destino.Conector == "atende-emulado" {
+		texto = "O emulador registrou o transbordo deste protocolo."
+	}
+	sess.registrar(Turno{Quem: "sistema", Texto: texto})
+}
+
+func (s *Servico) registrarFalhaTransbordo(sess *Sessao, motivo string, err error) {
+	var incerta *TransferenciaIncerta
+	estado := "falhou"
+	if errors.As(err, &incerta) {
+		estado = "incerto"
+	}
+	sess.mu.Lock()
+	if sess.Transbordo == nil {
+		sess.Transbordo = &Transbordo{Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	}
+	sess.Transbordo.Estado = estado
+	sess.Transbordo.Erro = err.Error()
+	if !sess.AtendimentoHumano && !sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	if sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	sess.mu.Unlock()
+	texto := "A transferência ao atendimento humano falhou: " + err.Error()
+	if estado == "incerto" {
+		texto = "O resultado da transferência ao atendimento humano é incerto. O protocolo ficará bloqueado para evitar respostas duplicadas. Erro: " + err.Error()
+	}
+	sess.registrar(Turno{Quem: "erro", Texto: texto})
+}
+
+func (s *Servico) registrarAvisoTransbordoFalho(sess *Sessao, motivo string, err error) {
+	sess.mu.Lock()
+	if sess.Transbordo == nil {
+		sess.Transbordo = &Transbordo{Motivo: motivo, PedidoPor: "concierge", Quando: time.Now()}
+	}
+	sess.Transbordo.Estado = "falhou"
+	sess.Transbordo.Erro = err.Error()
+	if !sess.AtendimentoHumano && !sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	if sess.Encerrada {
+		sess.Transbordo.Ativo = false
+	}
+	sess.mu.Unlock()
+	sess.registrar(Turno{Quem: "sistema", Texto: "Transbordo não solicitado porque o aviso ao morador não foi entregue integralmente: " + err.Error()})
+	if ob, ok := s.Sender.(*Outbox); ok {
+		ob.RegistrarTransbordo(sess.Destino, motivo, false, err.Error())
+	}
+}
+
+func (s *Servico) marcarPedidosTransbordados(sess *Sessao, turnos []PedidoTurno) {
+	ctx, cancelar := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelar()
+	if err := s.marcarPedidosAoAtendente(ctx, sess.contato(), turnos); err != nil {
+		sess.registrar(Turno{Quem: "erro", Texto: "transbordo confirmado, mas não foi possível atualizar os pedidos: " + err.Error()})
+		if s.Log != nil {
+			s.Log.Printf("atende: atualizar pedidos após transbordo emulado do protocolo %s: %v", sess.Protocolo, err)
+		}
 	}
 }
 
@@ -933,15 +1514,38 @@ func (sess *Sessao) contextoEntregaManual(ctx context.Context) (context.Context,
 }
 
 // Assumir: o atendente toma o protocolo (mesmo sem o concierge ter pedido).
-func (s *Servico) Assumir(protocolo, atendente, motivo string) (*Sessao, error) {
-	sess, ok := s.Sessoes.Get(protocolo)
+func (s *Servico) Assumir(ctx context.Context, protocolo, atendente, motivo string) (*Sessao, error) {
+	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.assumir(sess, atendente, motivo) })
+}
+
+// ErrProtocoloDesconhecido: não há sessão do protocolo visível nesta implantação.
+var ErrProtocoloDesconhecido = errors.New("protocolo desconhecido")
+
+// noProtocolo roda op na sessão do protocolo, com o trabalho dela travado, e persiste
+// a sessão em seguida (mesmo que op falhe: o que já mudou fica gravado).
+func (s *Servico) noProtocolo(ctx context.Context, protocolo string, op func(*Sessao) (*Sessao, error)) (*Sessao, error) {
+	sess, ok, err := s.Sessao(ctx, protocolo)
+	if err != nil {
+		return nil, fmt.Errorf("sessão do protocolo %s: %w", protocolo, err)
+	}
 	if !ok {
-		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
+		return nil, fmt.Errorf("%w: %s", ErrProtocoloDesconhecido, protocolo)
 	}
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()
+	res, err := op(sess)
+	return res, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
+}
+
+func (s *Servico) assumir(sess *Sessao, atendente, motivo string) (*Sessao, error) {
 	if sess.Destino.Conector != "atende-emulado" {
 		return sess, errors.New("transferência de atendimento indisponível neste canal")
+	}
+	sess.mu.Lock()
+	encerrada := sess.Encerrada
+	sess.mu.Unlock()
+	if encerrada {
+		return sess, errors.New("o protocolo está encerrado")
 	}
 	if atendente == "" {
 		atendente = "atendente"
@@ -963,12 +1567,10 @@ func (s *Servico) Assumir(protocolo, atendente, motivo string) (*Sessao, error) 
 
 // Responder: o atendente humano fala com o morador pelo mesmo canal do concierge.
 func (s *Servico) Responder(ctx context.Context, protocolo, atendente, texto string) (*Sessao, error) {
-	sess, ok := s.Sessoes.Get(protocolo)
-	if !ok {
-		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
-	}
-	sess.workMu.Lock()
-	defer sess.workMu.Unlock()
+	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.responder(ctx, sess, atendente, texto) })
+}
+
+func (s *Servico) responder(ctx context.Context, sess *Sessao, atendente, texto string) (*Sessao, error) {
 	sess.mu.Lock()
 	if sess.Encerrada {
 		sess.mu.Unlock()
@@ -1006,13 +1608,11 @@ func (s *Servico) Responder(ctx context.Context, protocolo, atendente, texto str
 }
 
 // Devolver: o atendente devolve o protocolo ao concierge, que volta a responder.
-func (s *Servico) Devolver(protocolo string) (*Sessao, error) {
-	sess, ok := s.Sessoes.Get(protocolo)
-	if !ok {
-		return nil, fmt.Errorf("protocolo desconhecido: %s", protocolo)
-	}
-	sess.workMu.Lock()
-	defer sess.workMu.Unlock()
+func (s *Servico) Devolver(ctx context.Context, protocolo string) (*Sessao, error) {
+	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return devolver(sess) })
+}
+
+func devolver(sess *Sessao) (*Sessao, error) {
 	sess.mu.Lock()
 	if sess.Transbordo == nil || !sess.Transbordo.Ativo {
 		sess.mu.Unlock()
@@ -1039,49 +1639,46 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	}
 	fatos, err := ex.Extrair(ctx, mensagem, resposta, *mem)
 	if err != nil {
-		if s.Log != nil {
-			s.Log.Printf("atende: extrator de memória: %v", err)
-		}
+		slog.WarnContext(ctx, "atende: extrator de memória falhou", "operacao", "extrair_memoria", "sessao", sess.ID, "erro", err)
 		return nil
 	}
-	desbloquear := s.bloquearMemoria(sess.Contato.Phone)
+	contato := sess.contato()
+	desbloquear := s.bloquearMemoria(contato)
 	defer desbloquear()
-	if s.revisaoMemoria(sess.Contato.Phone) != revisao {
+	if s.revisaoMemoria(contato) != revisao {
 		return nil
 	}
-	memAtual, err := s.Memorias.Ler(ctx, s.Account, sess.Contato.Phone)
+	memAtual, err := s.Memorias.Ler(ctx, contato)
 	if err != nil {
-		if s.Log != nil {
-			s.Log.Printf("atende: leitura da memória para mesclagem: %v", err)
-		}
+		slog.WarnContext(ctx, "atende: memória não lida para mesclagem", "operacao", "mesclar_memoria", "contato", contato.Mascarado(), "erro", err)
 		return nil
 	}
 	*mem = memAtual
-	if mem.Account == "" {
-		mem.Account = s.Account
-	}
-	if mem.Telefone == "" {
-		mem.Telefone = sess.Contato.Phone
-	}
 	if mem.Nome == "" {
 		mem.Nome = sess.Identidade.Name
 	}
 	var novos []memoria.Fato
+	agora := time.Now()
 	for _, f := range fatos {
 		f.Fonte = sess.Protocolo
-		if mem.Upsert(f) {
+		f.CondominioID = contato.CondominioID
+		if f.Quando.IsZero() {
+			f.Quando = agora
+		}
+		if atualizada, mudou := mem.Upsert(f); mudou {
+			*mem = atualizada
 			novos = append(novos, f)
 		}
 	}
 	if len(novos) > 0 {
-		if err := s.Memorias.Gravar(ctx, *mem); err != nil && s.Log != nil {
-			s.Log.Printf("atende: gravar memória: %v", err)
+		if err := s.Memorias.Gravar(ctx, contato, *mem); err != nil {
+			slog.ErrorContext(ctx, "atende: memória não gravada", "operacao", "gravar_memoria", "contato", contato.Mascarado(), "erro", err)
 		}
 	}
 	return novos
 }
 
-func (s *Servico) identidade(ctx context.Context, phone string) (gruvi.Identidade, any, error) {
+func (s *Servico) identidade(ctx context.Context, phone, companyID string) (gruvi.Identidade, any, error) {
 	id := gruvi.Identidade{Phone: phone, Units: []gruvi.Unidade{}}
 	if s.TelefoneB2C == "" {
 		return id, nil, nil
@@ -1096,11 +1693,9 @@ func (s *Servico) identidade(ctx context.Context, phone string) (gruvi.Identidad
 	if err := validar.ValidarToken(ctx); err != nil {
 		return id, nil, fmt.Errorf("atende: autenticação B2C: %w", err)
 	}
-	if s.Gruvi != nil {
-		id.CompanyID = s.Gruvi.CompanyID
-	}
+	id.CompanyID = companyID
 	if id.CompanyID == "" {
-		return id, nil, errors.New("atende: GRUVI_COMPANY_ID não configurado")
+		return id, nil, errors.New("atende: condomínio sem company do Gruvi")
 	}
 	const ferramenta = "gruvi.bff.building-operation.get-company-by-document-controller-handle"
 	resultado, err := s.Config.MCP.CallTool(ctx, ferramenta, map[string]any{
@@ -1122,10 +1717,7 @@ func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
 	if cfg.Payloads == nil {
 		cfg.Payloads = map[string]map[string]any{}
 	}
-	companyID := strings.TrimSpace(sess.Identidade.CompanyID)
-	if companyID == "" && s.Gruvi != nil {
-		companyID = strings.TrimSpace(s.Gruvi.CompanyID)
-	}
+	companyID := sess.companyDoCondominio()
 	telefone := gruvi.NormalizarTelefone(sess.Contato.Phone)
 	company := "gruvi.bff.building-operation.get-company-by-document-controller-handle"
 	packages := "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"

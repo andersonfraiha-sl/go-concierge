@@ -118,7 +118,8 @@
     e.preventDefault();
     const f = e.target;
     try {
-      const r = await api(url('/api/admin/administradora'), { method: 'PUT', body: JSON.stringify({ nome: f.nome.value.trim(), id: f.id.value.trim() }) });
+      // id travado = edição (PUT); id livre = criação (POST, 409 se o id já existe)
+      const r = await api(url('/api/admin/administradora'), { method: f.id.readOnly ? 'PUT' : 'POST', body: JSON.stringify({ nome: f.nome.value.trim(), id: f.id.value.trim() }) });
       $('#drawerAdm').hidden = true;
       toast('administradora salva');
       aplicar(r.mapeamento, r.administradoras);
@@ -159,7 +160,7 @@
     // no Admin o condomínio é sempre da administradora logada; no Backdoor, do select
     const administradora_id = f.administradora_id ? f.administradora_id.value : estado.adm;
     try {
-      const r = await api(url('/api/admin/condominio'), { method: 'PUT', body: JSON.stringify({ nome: f.nome.value.trim(), id: f.id.value.trim(), administradora_id, account: f.account.value.trim(), company_id: f.company_id.value.trim(), tenant: f.tenant.value.trim() }) });
+      const r = await api(url('/api/admin/condominio'), { method: f.id.readOnly ? 'PUT' : 'POST', body: JSON.stringify({ nome: f.nome.value.trim(), id: f.id.value.trim(), administradora_id, account: f.account.value.trim(), company_id: f.company_id.value.trim(), tenant: f.tenant.value.trim() }) });
       $('#drawerCondo').hidden = true;
       toast('condomínio salvo');
       aplicar(r.mapeamento, r.administradoras);

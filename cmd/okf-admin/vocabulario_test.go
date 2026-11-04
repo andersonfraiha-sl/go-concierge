@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -21,7 +20,10 @@ var termoTecnico = regexp.MustCompile(`(?i)\bnexus\b|\bmcp\b|\byaml\b|caso de us
 func handlerComAdminDeTeste(t *testing.T) http.Handler {
 	t.Helper()
 	s := servidorDeTeste(t, func(string) {})
-	s.admin = admin.NewStore(filepath.Join(t.TempDir(), "mapeamento.json"))
+	s.admin = admin.NovaEmMemoria()
+	// o estado do Admin é protegido: o usuário padrão do modo dev é o admin da Superlógica
+	s.autenticador = autenticadorDev{padrao: "admin"}
+	s.acessos = acessosFake{atribuicoes: usuariosTeste(), mapeamento: s.admin}
 	mux := http.NewServeMux()
 	s.rotasAdmin(mux)
 	s.rotasStudio(mux)

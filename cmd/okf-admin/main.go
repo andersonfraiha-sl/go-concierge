@@ -3,13 +3,16 @@
 // (emulador do ATENDE) e o webhook do ATENDE.
 //
 //	okf-admin -root ./okf -addr 127.0.0.1:8090
+//	okf-admin importar-json -dir okf/var   (leva os JSON antigos para o Postgres)
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
-// sem Nexus, do instantâneo okf/nexus/<account>.yaml. A account é DEFAULT_ACCOUNT_ID.
+// sem Nexus, do instantâneo okf/nexus/<account>.yaml. DEFAULT_ACCOUNT_ID é a account desse
+// catálogo e do condomínio de exemplo de dev; o turno usa a account do condomínio resolvido.
 // A identidade do morador vem do Gruvi com o token B2C configurado para o MCP.
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +21,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -28,9 +32,12 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
+	"go-concierge/internal/banco"
 	"go-concierge/internal/env"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
@@ -57,19 +64,34 @@ type servidor struct {
 	gruviBFF            string
 	gruviCompany        string
 	webhookToken        string
+	atendeAPISecret     string
 	replyURL            string
 	replyEmulada        bool
 	atendeBaseURL       string
 	atendeAPIKey        string
 	atendeTenant        string
 	atendeTelefoneCanal string
+	telefoneMockB2C     string // só com AMBIENTE=dev: todo evento real vira este telefone (vazio = desligado)
 	emulador            *atende.Emulador
 	provedor            string
 	memorias            memoria.Store
-	admin               *admin.Store
+	admin               admin.Repositorio
+	implantacao         escopo.Implantacao // ADMINISTRADORA_ID: o processo atende só essa (vazia = todas)
+	banco               banco.Banco
 	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
 	limiteCopiloto      *limiteDoCopiloto
+
+	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
+	autenticador Autenticador
+	acessos      carregadorAcesso
+	registro     *slog.Logger
+	authMode     string // AUTH_MODE normalizado: o usuário semeado de dev só vale com "dev"
 }
+
+const (
+	timeoutBoot    = 30 * time.Second
+	timeoutHealthz = time.Second
+)
 
 var (
 	errUnauthorized  = errors.New("não autorizado")
@@ -78,13 +100,32 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarJSON {
+		os.Exit(importarJSON(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
 	dotenv := flag.String("env", ".env", "arquivo NOME=valor (LLM_MODE e chaves, NEXUS_*, DEFAULT_ACCOUNT_ID, GRUVI_*, ATENDE_*)")
+	migrar := flag.Bool("migrar", false, "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev, lido também do -env)")
 	flag.Parse()
 	env.Carregar(*dotenv)
+	registro := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
+	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET")})
+	if err := validarConfig(cfg); err != nil {
+		log.Fatal(err)
+	}
+	deveMigrar := migrarPorPadrao(cfg.Ambiente)
+	if flagInformada("migrar") {
+		deveMigrar = *migrar
+	}
+
+	db, err := abrirBanco(os.Getenv("DATABASE_URL"), deveMigrar)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	cat, err := okf.NewCatalogo(*root)
 	if err != nil {
@@ -100,7 +141,13 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", log: log.Default()}
+	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
+		implantacao:  escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
+		autenticador: novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
+		authMode:     cfg.AuthMode,
+		acessos:      acesso.NovoPostgres(db.Ent),
+		registro:     registro,
+	}
 	var origens []string
 	if mcpCli != nil {
 		origens = append(origens, "MCP "+mcpCli.URL+" ("+mcpModo+")")
@@ -126,6 +173,7 @@ func main() {
 	s.gruvi = gruvi.New(os.Getenv("GRUVI_BFF_URL"), os.Getenv("GRUVI_COMPANY_ID"), os.Getenv("MCP_B2C_MOBILE"), tokenGruvi)
 	s.gruviOK, s.gruviBFF, s.gruviCompany = s.gruvi.Configurado(), s.gruvi.BFFURL, s.gruvi.CompanyID
 	s.webhookToken = os.Getenv("ATENDE_WEBHOOK_TOKEN")
+	s.atendeAPISecret = os.Getenv("ATENDE_API_SECRET")
 	s.replyURL = os.Getenv("ATENDE_REPLY_URL")
 	s.atendeBaseURL = os.Getenv("ATENDE_API_BASE_URL")
 	s.atendeAPIKey = os.Getenv("ATENDE_API_KEY")
@@ -134,11 +182,13 @@ func main() {
 	replyURLLegada := os.Getenv("ATENDE_REPLY_URL")
 	s.outbox = &atende.Outbox{}
 	s.emulador = atende.NewEmulador()
+	transferidores := atende.TransferidoresPorConector{Emulado: &atende.TransferidorEmulado{Outbox: s.outbox}}
 	s.replyURL = "http://" + *addr + "/emulador/atende/messages"
 	s.replyEmulada = true
 	s.outbox.Emulado = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	if s.atendeBaseURL != "" && s.atendeAPIKey != "" {
 		s.outbox.ATENDE = &atende.ATENDESender{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
+		transferidores.ATENDE = &atende.ATENDETransferidor{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
@@ -147,66 +197,65 @@ func main() {
 	if mcpCli != nil {
 		cfgHarness.MCP = mcpCli
 	}
-	s.memorias = memoria.NewArquivos(env.Ou("MEMORIAS_DIR", filepath.Join(cat.Root, "var", "memorias")))
+	// o Studio e o turno dividem o cache: as escritas de um aparecem no outro
+	s.memorias = memoria.NovoCache(memoria.NovoPostgres(db))
 	s.atende = &atende.Servico{
-		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Account: account,
+		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
-		Gruvi:  s.gruvi, Sender: s.outbox, Sessoes: atende.NewSessoes(), Timeout: 120 * time.Second, Log: s.log,
+		Gruvi:  s.gruvi, Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
+		Pool: db.Pool,
 	}
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
 	}
+	s.telefoneMockB2C = telefoneMockB2C(cfg.Ambiente, s.atende.TelefoneB2C)
+	if s.telefoneMockB2C != "" {
+		slog.Warn("webhook: mock B2C ligado, todo morador do ATENDE é tratado como o telefone de teste",
+			"operacao", "mock_telefone_b2c", "ambiente", cfg.Ambiente, "telefone", escopo.MascararTelefone(s.telefoneMockB2C))
+	}
 	// registro de pedidos por contato (PEDIDOS=off desliga: a conversa segue só pelo orquestrador)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("PEDIDOS"))) != "off" {
-		s.atende.Pedidos = pedidos.NewArquivos(env.Ou("PEDIDOS_DIR", filepath.Join(cat.Root, "var", "pedidos")))
+		s.atende.Pedidos = pedidos.NovoCache(pedidos.NovoPostgres(db))
 		s.atende.ExtratorPedidos = harness.NovoExtratorPedidos(context.Background(), cfgHarness)
 	}
 
-	// Admin da administradora: mapeamento condomínio × casos de uso × payloads
-	s.admin = admin.NewStore(env.Ou("ADMIN_DIR", filepath.Join(cat.Root, "var", "admin")) + string(filepath.Separator) + "mapeamento.json")
-	if m, err := s.admin.Ler(); err == nil && len(m.Condominios) == 0 {
-		// primeiro uso: uma administradora de exemplo, dona do condomínio de exemplo
-		// (ligado à account, ao Gruvi e ao tenant do ATENDE)
-		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
-		_, _ = s.admin.SalvarCondominio(admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: s.gruviCompany, Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))})
-	} else if err == nil && len(m.Administradoras) == 0 {
-		// mapeamento de antes das administradoras: cria a de exemplo e dá a ela os condomínios sem dona
-		_, _ = s.admin.SalvarAdministradora(admin.Administradora{ID: "adm-exemplo", Nome: "Administradora exemplo"})
-		for _, c := range m.Condominios {
-			if c.Administradora == "" {
-				c.Administradora = "adm-exemplo"
-				_, _ = s.admin.SalvarCondominio(c)
-			}
-		}
+	// Admin das administradoras: mapeamento condomínio × casos de uso × payloads. O
+	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev. Sem
+	// GRUVI_COMPANY_ID ele ganha a company "exemplo": condomínio sem company não é atendido,
+	// e sem Gruvi configurado a identidade não é consultada.
+	adminPG := admin.NovoPostgres(db.Ent)
+	s.admin = adminPG
+	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
+	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
+		log.Fatal(err)
 	}
-	s.atende.Mapeamento = s.admin
+	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
+	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
+	mapeamento := admin.NovoCache(adminPG)
+	if _, err := mapeamento.Ler(context.Background()); err != nil {
+		log.Printf("okf-admin: mapeamento não aquecido no boot, o primeiro turno lê do banco: %v", err)
+	}
+	s.atende.Mapeamento = mapeamento
 	if c, ok := harness.NovoCopiloto(s.atende.Config); ok {
 		s.copiloto = c
 	}
 	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
 
-	mux := http.NewServeMux()
-	s.rotas(mux)
-	s.rotasStudio(mux)
-	s.rotasAtende(mux)
-	s.rotasAdmin(mux)
-	s.rotasLegado(mux)
-	s.rotasCopiloto(mux)
+	// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o repassa,
+	// para testar de fora (Inspector, curl) pela porta do concierge. O token NÃO é injetado:
+	// o cliente manda o seu Authorization.
+	var proxy http.Handler
 	if mcpCli != nil {
-		// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o
-		// repassa, para testar de fora (Inspector, curl) pela porta do concierge. O
-		// token NÃO é injetado: o cliente manda o seu Authorization.
-		if proxy, base, err := proxyMCP(mcpCli); err != nil {
+		p, base, err := proxyMCP(mcpCli)
+		if err != nil {
 			log.Printf("okf-admin: proxy do MCP desligado: %v", err)
 		} else {
-			// por método: um "/mcp/" sem método conflitaria com o "GET /" da interface
-			for _, m := range []string{"GET", "POST", "DELETE", "OPTIONS"} {
-				mux.Handle(m+" /mcp/", proxy)
-			}
+			proxy = p
 			log.Printf("okf-admin: MCP exposto em http://%s%s (repassa a %s; Authorization do cliente)", *addr, mcpPath(mcpCli.URL), base)
 		}
 	}
+	handler := s.rotear(proxy)
 
 	log.Printf("okf-admin: catálogo %s · account %s · recursos: %s · modelo: %s · gruvi: %v · http://%s", cat.Root, account, s.nexus, s.provedor, s.gruviOK, *addr)
 	if *abrir {
@@ -215,7 +264,99 @@ func main() {
 			abrirNavegador("http://" + *addr)
 		}()
 	}
-	log.Fatal(http.ListenAndServe(*addr, logar(mux)))
+	log.Fatal(http.ListenAndServe(*addr, handler))
+}
+
+// migrarPorPadrao liga as migrations no boot só em desenvolvimento; nos demais ambientes
+// elas rodam como job antes do deploy.
+func migrarPorPadrao(ambiente string) bool { return ehDesenvolvimento(ambiente) }
+
+// ehDesenvolvimento: AMBIENTE vazio ou dev.
+func ehDesenvolvimento(ambiente string) bool { return ambiente == "" || ambiente == "dev" }
+
+// flagInformada diz se a flag veio na linha de comando (e não do padrão).
+func flagInformada(nome string) bool {
+	informada := false
+	flag.Visit(func(f *flag.Flag) { informada = informada || f.Name == nome })
+	return informada
+}
+
+const comoSubirPostgres = "suba o Postgres com ./build.sh --run, ou com docker compose up -d postgres e " +
+	"DATABASE_URL=postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable"
+
+func abrirBanco(url string, migrar bool) (banco.Banco, error) {
+	if url == "" {
+		return banco.Banco{}, errors.New("DATABASE_URL vazia: " + comoSubirPostgres)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
+	defer cancel()
+	db, err := banco.Abrir(ctx, url)
+	if err != nil {
+		return banco.Banco{}, fmt.Errorf("%w (%s)", err, comoSubirPostgres)
+	}
+	if !migrar {
+		return db, nil
+	}
+	if err := banco.Migrar(ctx, db); err != nil {
+		return banco.Banco{}, errors.Join(err, db.Fechar())
+	}
+	return db, nil
+}
+
+// semearMapeamento: em desenvolvimento, um banco sem mapeamento ganha a administradora de
+// exemplo, dona do condomínio de exemplo (ligado à account, ao Gruvi e ao tenant do ATENDE).
+// Fora de dev o boot não grava nada: mapeamento vazio só gera um WARN pedindo o importar-json.
+func semearMapeamento(repo admin.Repositorio, ambiente string, exemplo admin.Condominio) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
+	defer cancel()
+	m, err := repo.Ler(ctx)
+	if err != nil {
+		return fmt.Errorf("semear mapeamento: %w", err)
+	}
+	if len(m.Condominios) > 0 || len(m.Administradoras) > 0 {
+		return nil
+	}
+	if !ehDesenvolvimento(ambiente) {
+		slog.WarnContext(ctx, "mapeamento das administradoras vazio; rode okf-admin importar-json",
+			"operacao", "semear_mapeamento", "ambiente", ambiente)
+		return nil
+	}
+	err = gravarExemplo(ctx, repo, exemplo)
+	if errors.Is(err, admin.ErrInvalido) {
+		slog.WarnContext(ctx, "mapeamento de exemplo não semeado", "operacao", "semear_mapeamento", "erro", err)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("semear mapeamento: %w", err)
+	}
+	return nil
+}
+
+// gravarExemplo grava o condomínio primeiro, ainda sem dona: um DEFAULT_ACCOUNT_ID fora da
+// regra de id é recusado antes de qualquer outra escrita.
+func gravarExemplo(ctx context.Context, repo admin.Repositorio, exemplo admin.Condominio) error {
+	semDona := exemplo
+	semDona.Administradora = ""
+	if _, err := repo.SalvarCondominio(ctx, semDona); err != nil {
+		return err
+	}
+	if _, err := repo.SalvarAdministradora(ctx, admin.Administradora{ID: exemplo.Administradora, Nome: "Administradora exemplo"}); err != nil {
+		return err
+	}
+	_, err := repo.SalvarCondominio(ctx, exemplo)
+	return err
+}
+
+// healthz responde 503 quando o Postgres não responde em timeoutHealthz.
+func (s *servidor) healthz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), timeoutHealthz)
+	defer cancel()
+	if err := s.banco.Pool.Ping(ctx); err != nil {
+		s.log.Printf("okf-admin: healthz: ping no postgres: %v", err)
+		http.Error(w, "postgres indisponível", http.StatusServiceUnavailable)
+		return
+	}
+	w.Write([]byte("ok"))
 }
 
 // proxyMCP repassa /mcp/... ao servidor MCP configurado (MCP_URL), com o Host que ele
@@ -248,27 +389,90 @@ func mcpPath(raw string) string {
 }
 
 func (s *servidor) rotas(mux *http.ServeMux) {
-	mux.Handle("GET /", semCache(http.FileServerFS(s.web)))
+	mux.Handle(padraoEstaticos, semCache(http.FileServerFS(s.web)))
 	mux.Handle("GET /{$}", http.RedirectHandler("/studio/", http.StatusFound))
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
+	mux.HandleFunc("GET /healthz", s.healthz)
 
-	mux.HandleFunc("GET /api/agentes", s.arvore)
-	mux.HandleFunc("GET /api/agente", s.agente)
-	mux.HandleFunc("PUT /api/agente/config", s.config)
-	mux.HandleFunc("POST /api/agentes/importar", s.importar)
-	mux.HandleFunc("GET /api/agentes/exportar", s.exportar)
-	mux.HandleFunc("GET /api/arquivo", s.lerArquivo)
-	mux.HandleFunc("PUT /api/arquivo", s.salvarArquivo)
-	mux.HandleFunc("DELETE /api/arquivo", s.excluirArquivo)
-	mux.HandleFunc("GET /api/arquivo/modelo", s.modelo)
-	mux.HandleFunc("GET /api/projecao", s.projecao)
-	mux.HandleFunc("GET /api/nexus/recursos", s.recursos)
-	mux.HandleFunc("PUT /api/nexus/recurso", s.salvarRecurso)
-	mux.HandleFunc("DELETE /api/nexus/recurso", s.removerRecurso)
-	mux.HandleFunc("POST /api/agente/recursos", s.vincular)
+	// leitura do catálogo: skills.ler em qualquer escopo
+	for padrao, h := range map[string]http.HandlerFunc{
+		"GET /api/anatomia":         s.anatomia,
+		"GET /api/agentes":          s.arvore,
+		"GET /api/agente":           s.agente,
+		"GET /api/agentes/exportar": s.exportar,
+		"GET /api/arquivo":          s.lerArquivo,
+		"GET /api/arquivo/modelo":   s.modelo,
+		"GET /api/projecao":         s.projecao,
+		"GET /api/nexus/recursos":   s.recursos,
+	} {
+		mux.Handle(padrao, s.protegidaEmAlgum(acesso.SkillsLer, h))
+	}
+	// fluxo dos agentes: skills.editar_fluxo na Superlógica
+	for padrao, h := range map[string]http.HandlerFunc{
+		"POST /api/agentes":          s.criar,
+		"PUT /api/agente/config":     s.config,
+		"DELETE /api/agente":         s.excluir,
+		"POST /api/agentes/mover":    s.mover,
+		"POST /api/agentes/importar": s.importar,
+		"PUT /api/arquivo":           s.salvarArquivo,
+		"DELETE /api/arquivo":        s.excluirArquivo,
+	} {
+		mux.Handle(padrao, s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, h))
+	}
+	// recursos do Nexus: ferramentas.editar na Superlógica
+	for padrao, h := range map[string]http.HandlerFunc{
+		"PUT /api/nexus/recurso":    s.salvarRecurso,
+		"DELETE /api/nexus/recurso": s.removerRecurso,
+		"POST /api/agente/recursos": s.vincular,
+	} {
+		mux.Handle(padrao, s.protegida(acesso.FerramentasEditar, alvoSuperlogica, h))
+	}
 }
 
 // ---- handlers ------------------------------------------------------------
+
+func (s *servidor) anatomia(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, map[string]any{
+		"caixinhas":    okf.Caixinhas,
+		"tipos_okf":    okf.TiposOKF,
+		"raiz":         []string{okf.AgentYAML, okf.PersonaMD, okf.CasoYAML},
+		"account":      s.account,
+		"nexus_origem": s.nexus,
+	})
+}
+
+func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
+	var n okf.NovoAgente
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&n); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	rel, mud, err := s.cat.CriarAgente(n)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 201, map[string]any{"caminho": rel, "mudancas": mud})
+}
+
+func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("agente")
+	if err := s.cat.ExcluirSkill(rel); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	// ExcluirSkill não devolve as rotas que ajustou (ao contrário da ExcluirAgente antiga);
+	// mudancas fica vazia em vez de ausente, pois backdoor.js:464 lê r.mudancas.length sem
+	// checar undefined.
+	writeJSON(w, 200, map[string]any{"excluido": rel, "mudancas": []string{}})
+}
+
+// mover: a árvore do Backdoor ainda tem o drag-and-drop de mover/clonar agente, mas o
+// catálogo não tem mais Mover (retirado nesta mesma fase, antes desta task, junto da
+// limpeza que manteve o Admin no ar). A rota continua registrada para o Backdoor não
+// quebrar ao carregar; o retorno é um erro claro em vez de fingir que moveu algo.
+func (s *servidor) mover(w http.ResponseWriter, _ *http.Request) {
+	writeErr(w, http.StatusGone, errors.New("mover agente: recurso retirado do catálogo nesta fase"))
+}
 
 func (s *servidor) arvore(w http.ResponseWriter, _ *http.Request) {
 	tree, err := s.cat.Tree()
@@ -537,15 +741,6 @@ func writeErr(w http.ResponseWriter, code int, err error) {
 func semCache(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		h.ServeHTTP(w, r)
-	})
-}
-
-func logar(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			log.Printf("%s %s", r.Method, r.URL.RequestURI())
-		}
 		h.ServeHTTP(w, r)
 	})
 }

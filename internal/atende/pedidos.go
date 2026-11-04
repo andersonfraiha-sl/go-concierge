@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/pedidos"
 )
@@ -27,7 +29,8 @@ type PedidoTurno struct {
 	Protocolo          string `json:"protocolo"`
 	Caso               string `json:"caso"`
 	Estado             string `json:"estado"`
-	Evento             string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | atendente
+	Evento             string `json:"evento"` // aberto | valores | pergunta | confirmar | concluido | cancelado | erro | transbordo_pendente
+	Resumo             string `json:"resumo,omitempty"`
 	confirmacaoTexto   string
 	confirmacaoValores json.RawMessage
 }
@@ -111,7 +114,7 @@ func ultimasFalas(sess *Sessao, n int) []string {
 	return out
 }
 
-var reCancelar = regexp.MustCompile(`CANCELA[R]?\s+(P-[A-Z0-9]{5})`)
+var reCancelar = regexp.MustCompile(`CANCELA[R]?\s+(P-[A-Z0-9]{8}|P-[A-Z0-9]{5})\b`) // 8 nos novos, 5 nos antigos
 var reMencionaData = regexp.MustCompile(`\d|janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|hoje|amanh|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|fim de semana|semana que vem|próxim|proxim`)
 
 // mencionaData: a mensagem fala de alguma data (dígito, mês, dia da semana, hoje…).
@@ -168,18 +171,19 @@ func corta(s string, n int) string {
 
 // turnoComPedidos é a vez do robô com o registro de pedidos como espinha dorsal.
 func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string, historico []*schema.Message) (*harness.Resultado, []PedidoTurno, error) {
-	desbloquear := s.bloquearPedidos(sess.Contato.Phone)
+	contato := sess.contato()
+	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
 	rel := ag.Def.Rel
 	var rota []harness.Passo
 	var uso harness.Uso
 	passo := func(tipo, det string) { rota = append(rota, harness.Passo{Agente: rel, Tipo: tipo, Detalhe: det}) }
 	casos, contratos := casosDisponiveis(ag)
-	cart, err := s.carregarCarteira(ctx, sess.Contato.Phone)
+	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
-		return nil, nil, fmt.Errorf("pedidos de %s: %w", sess.Contato.Phone, err)
+		return nil, nil, fmt.Errorf("pedidos de %s: %w", contato.Mascarado(), err)
 	}
-	cart.Account, cart.Telefone = s.Account, pedidos.NormalizarTelefone(sess.Contato.Phone)
+	estadosAntes := estadosDe(cart)
 
 	ex := s.ExtratorPedidos
 	if ex == nil {
@@ -224,6 +228,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		turnos = append(turnos, turno)
 	}
 	tocados := map[string]*pedidos.Pedido{}
+	trechos := map[string]string{} // o que o morador disse sobre cada pedido, neste turno
 	var cancelados []string
 
 	for _, c := range extracao.Confirmacoes {
@@ -266,7 +271,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			sess.mu.Lock()
 			numeroTurno := len(sess.Turnos)
 			sess.mu.Unlock()
-			p = cart.Novo(cc.ct, cc.agente, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: numeroTurno})
+			p = cart.Novo(cc.ct, cc.agente, contato.CondominioID, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: numeroTurno})
 			passo("pedido", p.Protocolo+" aberto: "+cc.ct.Caso.Name)
 			anota(p, "aberto")
 			// pedido novo sem nenhuma menção a data na mensagem: data extraída é invenção
@@ -293,13 +298,20 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			consumida = true
 		}
 		tocados[p.Protocolo] = p
+		if t := strings.TrimSpace(pe.Trecho); t != "" {
+			trechos[p.Protocolo] = t
+		}
 	}
 	// a mensagem inteira foi a resposta a um pedido ("sim", "salão"): não há restante
 	if consumida && normalizar(extracao.Restante) == normalizar(texto) {
 		extracao.Restante = ""
 	}
 
-	// avança os tocados e os abertos sem pergunta pendente (prontos para seguir)
+	// FILA: um pedido por vez. O ativo é o mais antigo em aberto (fora os que estão com
+	// o atendente); só ele avança, pergunta e lembra. Os outros ficam na fila: recebem os
+	// valores que o morador der, mas não perguntam nada. Quando o ativo termina
+	// (concluído, cancelado, falhou), o próximo da fila é puxado no mesmo turno, para o
+	// morador já receber a pergunta dele.
 	var partes, perguntas []string
 	precisaRedigir := false
 	transbordo := ""
@@ -307,21 +319,32 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		partes = append(partes, cancelados...)
 		precisaRedigir = true
 	}
+	var fila []*pedidos.Pedido
 	for _, p := range cart.Abertos() {
-		if p.Estado == pedidos.ComAtendente {
-			continue
+		if p.Estado != pedidos.ComAtendente {
+			if _, ok := contratos[p.Caso]; ok {
+				fila = append(fila, p)
+			}
 		}
+	}
+	var ativo *pedidos.Pedido
+	novosNaFila := false
+	for _, p := range fila {
+		if _, ok := tocados[p.Protocolo]; ok && p.Pendencia == nil && len(p.Historico) <= 1 {
+			novosNaFila = true
+		}
+	}
+	for len(fila) > 0 {
+		p := fila[0]
+		ativo = p
 		if _, ok := tocados[p.Protocolo]; !ok && p.Pendencia != nil {
-			continue
+			break // a pergunta em aberto volta pelo lembrete, abaixo
 		}
-		cc, ok := contratos[p.Caso]
-		if !ok {
-			continue
-		}
+		cc := contratos[p.Caso]
 		saida := pedidos.Avancar(ctx, cc.ct, p, &cart, amb)
 		if amb.escritaIniciada {
 			ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			err := s.salvarCarteira(ctxSalvar, cart)
+			err := s.salvarCarteira(ctxSalvar, contato, cart)
 			cancelar()
 			if err != nil {
 				return nil, nil, err
@@ -347,14 +370,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			partes = append(partes, "Não consegui concluir "+strings.ToLower(p.CasoNome)+": "+saida.Texto+".")
 			precisaRedigir = true
 		case "formulario":
-			// o caso tem formulário dinâmico: segue pelo subagente conversacional
+			// o caso tem formulário dinâmico: segue pelo subagente conversacional, que
+			// recebe só a parte da mensagem que é dele (numa mensagem com dois pedidos, o
+			// subagente não deve ver, nem responder por, o outro)
+			fala := trechos[p.Protocolo]
+			if fala == "" || len(extracao.Pedidos) <= 1 {
+				fala = texto
+			}
 			if sub, ok := ag.Subagentes[p.Agente]; ok {
-				r, err := harness.Run(ctx, sub, texto, historico)
+				r, err := harness.Run(ctx, sub, fala, historico)
 				if err != nil {
 					partes = append(partes, "Não consegui seguir com "+strings.ToLower(p.CasoNome)+".")
 				} else {
-					if r.Transbordo == "" || sess.Destino.Conector == "atende-emulado" {
+					if strings.TrimSpace(r.Resposta) != "" && (r.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 						partes = append(partes, r.Resposta)
+					} else if r.Transbordo != "" && sess.Destino.Conector == "atende" {
+						if resposta := removerPromessasTransbordo(r.Resposta); strings.TrimSpace(resposta) != "" {
+							partes = append(partes, resposta)
+						}
 					}
 					rota = append(rota, r.Rota...)
 					uso.Soma(r.Uso)
@@ -364,6 +397,24 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				}
 			}
 		}
+		if p.Aberto() && p.Estado != pedidos.ComAtendente {
+			break // o ativo ainda está em andamento: os outros esperam
+		}
+		fila = fila[1:] // terminou: o próximo da fila é puxado neste mesmo turno
+		ativo = nil
+		if len(fila) > 0 {
+			tocados[fila[0].Protocolo] = fila[0]
+			passo("pedido", fila[0].Protocolo+" sai da fila: próximo da vez")
+		}
+	}
+	// o morador sabe a ordem: quando pedidos novos entraram na fila atrás do ativo
+	if ativo != nil && len(fila) > 1 && novosNaFila {
+		var nomes []string
+		for _, p := range fila[1:] {
+			nomes = append(nomes, strings.ToLower(p.CasoNome)+" ("+p.Protocolo+")")
+		}
+		perguntas = append(perguntas, "Vou cuidar de um pedido por vez: agora "+strings.ToLower(ativo.CasoNome)+" ("+ativo.Protocolo+"); depois "+strings.Join(nomes, ", ")+".")
+		precisaRedigir = true
 	}
 
 	// o que não é pedido vai ao orquestrador (dúvidas, conversa), em modo router. O
@@ -381,6 +432,10 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		uso.Soma(res.Uso)
 		if strings.TrimSpace(res.Resposta) != "" && (res.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 			partes = append(partes, res.Resposta)
+		} else if res.Transbordo != "" && sess.Destino.Conector == "atende" {
+			if resposta := removerPromessasTransbordo(res.Resposta); strings.TrimSpace(resposta) != "" {
+				partes = append(partes, resposta)
+			}
 		}
 		if res.Transbordo != "" {
 			transbordo = res.Transbordo
@@ -394,6 +449,9 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	for _, p := range cart.Abertos() {
 		if _, ok := tocados[p.Protocolo]; ok || p.Estado == pedidos.ComAtendente {
 			continue
+		}
+		if ativo != nil && p.Protocolo != ativo.Protocolo {
+			continue // na fila: espera a vez, sem lembrete
 		}
 		lembrete, vezes := p.Lembrete()
 		if lembrete == "" {
@@ -418,7 +476,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 
 	// atendente: pendências viram resumo para o humano
 	if extracao.Atendente || transbordo != "" {
-		if sess.Destino.Conector != "atende-emulado" {
+		if sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 			seguras := partes[:0]
 			for _, parte := range partes {
 				if !harness.AnunciaTransferencia(parte) {
@@ -441,8 +499,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 					continue
 				}
 				resumo := pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6))
-				pedidos.AoAtendente(p, resumo)
-				anota(p, "atendente")
+				turnos = append(turnos, PedidoTurno{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: "transbordo_pendente", Resumo: resumo})
 				faltam := p.Faltando(cc.ct)
 				var nomes []string
 				for _, f := range faltam {
@@ -461,11 +518,11 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 				transbordo += "; pedidos pendentes: " + strings.Join(pend, "; ")
 				passo("pedido", "ao atendente: "+strings.Join(pend, "; "))
 			}
-			if len(partes) == 0 {
+			if len(partes) == 0 && sess.Destino.Conector != "atende" {
 				if extracao.Atendente {
-					partes = append(partes, "Certo, vou passar você para um atendente da administração. Ele já recebe o que conversamos até aqui.")
+					partes = append(partes, "Vou solicitar o atendimento de uma pessoa da administração. Ainda não tenho confirmação de que ela assumiu a conversa.")
 				} else {
-					partes = append(partes, "Vou passar o que ficou pendente para um atendente da administração, que segue com você por aqui.")
+					partes = append(partes, "Vou solicitar que uma pessoa da administração continue com você. Ainda não tenho confirmação de que ela assumiu a conversa.")
 				}
 				precisaRedigir = true
 			}
@@ -473,16 +530,46 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		}
 	}
 
-	if err := s.salvarCarteira(ctx, cart); err != nil {
-		return nil, nil, err
+	if abriuOuMudouDeEstado(estadosAntes, cart) {
+		// a resposta cita o pedido aberto ou o estado novo: ele vai ao banco antes dela, e uma
+		// falha aqui fecha o turno sem prometer o que não foi gravado. Se o protocolo de um
+		// pedido novo era de outro contato, a gravação o trocou, e a resposta já sai com o novo.
+		antes := protocolosDe(cart)
+		if err := s.salvarCarteira(ctx, contato, cart); err != nil {
+			return nil, nil, err
+		}
+		if r := renomeador(antes, protocolosDe(cart)); r != nil {
+			partes, perguntas, transbordo = renomearTodos(r, partes), renomearTodos(r, perguntas), r.Replace(transbordo)
+			for i := range turnos {
+				turnos[i].Protocolo, turnos[i].confirmacaoTexto = r.Replace(turnos[i].Protocolo), r.Replace(turnos[i].confirmacaoTexto)
+			}
+		}
+	} else {
+		// o resto (valores preenchidos, eventos) vai depois da resposta, junto com a sessão
+		// (gravarDepoisDaResposta)
+		s.adiarCarteira(contato, cart)
 	}
 
 	conteudo := strings.TrimSpace(strings.Join(append(partes, perguntas...), "\n\n"))
 	if conteudo == "" {
-		conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
-		precisaRedigir = true
+		if transbordo == "" || sess.Destino.Conector != "atende" {
+			conteudo = "Não entendi o que você precisa. Pode me dizer de outra forma, ou dizer que quer falar com um atendente?"
+			precisaRedigir = true
+		}
 	}
 	resposta := conteudo
+	if transbordo != "" && sess.Destino.Conector == "atende" {
+		resposta = conteudo
+		aviso := "Não consegui solicitar um atendente por este canal agora. Posso continuar ajudando por aqui."
+		if s.transferidorDisponivel(sess.Destino) {
+			aviso = "Vou solicitar que uma pessoa da administração assuma este protocolo. Ainda não tenho confirmação de que ela assumiu a conversa."
+		}
+		if strings.TrimSpace(resposta) != "" {
+			resposta += "\n\n"
+		}
+		resposta += aviso
+		precisaRedigir = false
+	}
 	if precisaRedigir {
 		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(historico) > 0)
 		switch {
@@ -506,7 +593,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo}, turnos, nil
 }
 
-func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, phone string, turnos []PedidoTurno, resposta string) error {
+func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, contato escopo.Contato, turnos []PedidoTurno, resposta string) error {
 	confirmacoes := map[string]PedidoTurno{}
 	for _, turno := range turnos {
 		if turno.confirmacaoTexto != "" && strings.Contains(resposta, turno.confirmacaoTexto) {
@@ -516,9 +603,9 @@ func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, phone string,
 	if len(confirmacoes) == 0 {
 		return nil
 	}
-	desbloquear := s.bloquearPedidos(phone)
+	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
-	cart, err := s.carregarCarteira(ctx, phone)
+	cart, err := s.carteiraDoTurno(ctx, contato)
 	if err != nil {
 		return err
 	}
@@ -537,21 +624,51 @@ func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, phone string,
 		alterada = true
 	}
 	if alterada {
-		return s.salvarCarteira(ctx, cart)
+		s.adiarCarteira(contato, cart)
 	}
 	return nil
 }
 
+// marcarPedidosAoAtendente passa ao atendente os pedidos que o turno deixou pendentes,
+// depois que a transferência foi confirmada. É mudança de estado: grava já, sem esperar o
+// lote depois da resposta.
+func (s *Servico) marcarPedidosAoAtendente(ctx context.Context, contato escopo.Contato, turnos []PedidoTurno) error {
+	pendentes := map[string]string{}
+	for _, turno := range turnos {
+		if turno.Evento == "transbordo_pendente" {
+			pendentes[turno.Protocolo] = turno.Resumo
+		}
+	}
+	if len(pendentes) == 0 || s.Pedidos == nil {
+		return nil
+	}
+	desbloquear := s.bloquearPedidos(contato)
+	defer desbloquear()
+	cart, err := s.carteiraDoTurno(ctx, contato)
+	if err != nil {
+		return err
+	}
+	for protocolo, resumo := range pendentes {
+		if p := cart.Por(protocolo); p != nil {
+			switch p.Estado {
+			case pedidos.Coletando, pedidos.Pronto, pedidos.Confirmando:
+				pedidos.AoAtendente(p, resumo)
+			}
+		}
+	}
+	return s.salvarCarteira(ctx, contato, cart)
+}
+
 // ---- ações do atendente ------------------------------------------------------------------
 
-// Carteira devolve os pedidos de um telefone com os contratos (slots) de cada caso.
-func (s *Servico) Carteira(ctx context.Context, phone string) (pedidos.Carteira, map[string][]*pedidos.Slot, error) {
+// Carteira devolve os pedidos de um contato com os contratos (slots) de cada caso.
+func (s *Servico) Carteira(ctx context.Context, contato escopo.Contato) (pedidos.Carteira, map[string][]*pedidos.Slot, error) {
 	if s.Pedidos == nil {
 		return pedidos.Carteira{}, nil, errors.New("pedidos desligados")
 	}
-	desbloquear := s.bloquearPedidos(phone)
+	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
-	cart, err := s.carregarCarteira(ctx, phone)
+	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
 		return cart, nil, err
 	}
@@ -579,14 +696,23 @@ func (s *Servico) Carteira(ctx context.Context, phone string) (pedidos.Carteira,
 
 // PreencherPedido: o atendente informa os parâmetros que faltavam (e, se for o caso,
 // confirma em nome do morador); o motor avança e, concluído, o resultado vai ao morador.
+// A sessão é persistida no fim, mesmo quando o preenchimento falha.
 func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocoloPedido, atendente string, valores map[string]any, confirmar bool) (*Sessao, *pedidos.Pedido, pedidos.Saida, error) {
 	if s.Pedidos == nil {
 		return nil, nil, pedidos.Saida{}, errors.New("pedidos desligados")
 	}
-	sess, ok := s.Sessoes.Get(protocoloAtende)
-	if !ok {
-		return nil, nil, pedidos.Saida{}, fmt.Errorf("protocolo %s não está aberto neste servidor", protocoloAtende)
+	sess, ok, err := s.Sessao(ctx, protocoloAtende)
+	if err != nil {
+		return nil, nil, pedidos.Saida{}, fmt.Errorf("sessão do protocolo %s: %w", protocoloAtende, err)
 	}
+	if !ok {
+		return nil, nil, pedidos.Saida{}, fmt.Errorf("%w: %s não está aberto neste servidor", ErrProtocoloDesconhecido, protocoloAtende)
+	}
+	res, p, saida, err := s.preencherPedido(ctx, sess, protocoloPedido, atendente, valores, confirmar)
+	return res, p, saida, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
+}
+
+func (s *Servico) preencherPedido(ctx context.Context, sess *Sessao, protocoloPedido, atendente string, valores map[string]any, confirmar bool) (*Sessao, *pedidos.Pedido, pedidos.Saida, error) {
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()
 	sess.mu.Lock()
@@ -606,14 +732,15 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 		return sess, nil, pedidos.Saida{}, errors.New("o protocolo está encerrado")
 	}
 	ctx = ctxTurno
-	desbloquear := s.bloquearPedidos(sess.Contato.Phone)
+	contato := sess.contato()
+	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
 	ag, err := s.agenteDaSessao(ctx, sess)
 	if err != nil {
 		return sess, nil, pedidos.Saida{}, err
 	}
 	_, contratos := casosDisponiveis(ag)
-	cart, err := s.carregarCarteira(ctx, sess.Contato.Phone)
+	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
 		return sess, nil, pedidos.Saida{}, err
 	}
@@ -653,7 +780,7 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	saida := pedidos.Avancar(ctx, cc.ct, p, &cart, amb)
 	if amb.escritaIniciada {
 		ctxSalvar, cancelar := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		err := s.salvarCarteira(ctxSalvar, cart)
+		err := s.salvarCarteira(ctxSalvar, contato, cart)
 		cancelar()
 		if err != nil {
 			return sess, p, saida, err
@@ -668,7 +795,7 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 	} else if saida.Tipo == "pergunta" {
 		pedidos.AoAtendente(p, pedidos.ResumoParaAtendente(cc.ct, p, ultimasFalas(sess, 6)))
 	}
-	if err := s.salvarCarteira(ctx, cart); err != nil {
+	if err := s.salvarCarteira(ctx, contato, cart); err != nil {
 		return sess, p, saida, err
 	}
 	if saida.Tipo == "concluido" || saida.Tipo == "erro" {
@@ -695,13 +822,13 @@ func (s *Servico) PreencherPedido(ctx context.Context, protocoloAtende, protocol
 }
 
 // CancelarPedido encerra um pedido a pedido do atendente.
-func (s *Servico) CancelarPedido(ctx context.Context, phone, protocoloPedido, atendente, motivo string) (*pedidos.Pedido, error) {
+func (s *Servico) CancelarPedido(ctx context.Context, contato escopo.Contato, protocoloPedido, atendente, motivo string) (*pedidos.Pedido, error) {
 	if s.Pedidos == nil {
 		return nil, errors.New("pedidos desligados")
 	}
-	desbloquear := s.bloquearPedidos(phone)
+	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
-	cart, err := s.carregarCarteira(ctx, phone)
+	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
 		return nil, err
 	}
@@ -713,21 +840,75 @@ func (s *Servico) CancelarPedido(ctx context.Context, phone, protocoloPedido, at
 		atendente = "Atendente"
 	}
 	pedidos.Cancelar(p, atendente, motivo)
-	return p, s.salvarCarteira(ctx, cart)
+	return p, s.salvarCarteira(ctx, contato, cart)
 }
 
 // RemoverPedido apaga do registro um pedido encerrado (concluído, cancelado ou que
 // falhou). É limpeza do Console: o morador não é avisado.
-func (s *Servico) RemoverPedido(ctx context.Context, phone, protocoloPedido string) error {
+func (s *Servico) RemoverPedido(ctx context.Context, contato escopo.Contato, protocoloPedido string) error {
 	if s.Pedidos == nil {
 		return errors.New("pedidos desligados")
 	}
-	cart, err := s.Pedidos.Ler(ctx, s.Account, phone)
+	// mesmo caminho do CancelarPedido: o lock do contato e a carteira adiada por um turno
+	// (gravada antes de ler), senão a gravação adiada traria de volta o pedido removido
+	desbloquear := s.bloquearPedidos(contato)
+	defer desbloquear()
+	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
 		return err
 	}
 	if err := cart.Remover(protocoloPedido); err != nil {
 		return err
 	}
-	return s.Pedidos.Gravar(ctx, cart)
+	return s.salvarCarteira(ctx, contato, cart)
+}
+
+// estadosDe guarda o estado de cada pedido da carteira, pelo protocolo.
+func estadosDe(cart pedidos.Carteira) map[string]string {
+	out := make(map[string]string, len(cart.Pedidos))
+	for _, p := range cart.Pedidos {
+		out[p.Protocolo] = p.Estado
+	}
+	return out
+}
+
+// abriuOuMudouDeEstado: algum pedido é novo na carteira ou mudou de estado (confirmado,
+// cancelado, com o atendente…) desde estadosAntes.
+func abriuOuMudouDeEstado(estadosAntes map[string]string, cart pedidos.Carteira) bool {
+	for _, p := range cart.Pedidos {
+		if estado, existia := estadosAntes[p.Protocolo]; !existia || estado != p.Estado {
+			return true
+		}
+	}
+	return false
+}
+
+// renomeador troca cada protocolo de antes pelo de depois, na mesma posição; nil se nenhum
+// mudou. Os que não mudaram entram trocando por si mesmos e os mais longos vêm primeiro: o
+// Replacer compara na ordem dos pares, e um protocolo que é prefixo de outro não pode
+// pegar um pedaço do maior.
+func renomeador(antes, depois []string) *strings.Replacer {
+	mudou := false
+	pares := make([][2]string, 0, len(antes))
+	for i := range antes {
+		mudou = mudou || antes[i] != depois[i]
+		pares = append(pares, [2]string{antes[i], depois[i]})
+	}
+	if !mudou {
+		return nil
+	}
+	slices.SortStableFunc(pares, func(a, b [2]string) int { return len(b[0]) - len(a[0]) })
+	args := make([]string, 0, 2*len(pares))
+	for _, p := range pares {
+		args = append(args, p[0], p[1])
+	}
+	return strings.NewReplacer(args...)
+}
+
+func renomearTodos(r *strings.Replacer, textos []string) []string {
+	out := make([]string, len(textos))
+	for i, t := range textos {
+		out[i] = r.Replace(t)
+	}
+	return out
 }

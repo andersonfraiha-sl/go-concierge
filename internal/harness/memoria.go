@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -81,7 +82,7 @@ func (e *ExtratorLLM) Extrair(ctx context.Context, mensagem, resposta string, at
 	b.WriteString("Mensagem do morador:\n" + mensagem + "\n\nResposta do concierge:\n" + resposta)
 	m, err := e.gerar(ctx, []*schema.Message{schema.SystemMessage(promptExtrator), schema.UserMessage(b.String())})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("extrair fatos: %w", err)
 	}
 	texto := strings.TrimSpace(m.Content)
 	texto = strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(texto, "```json"), "```"), "```")
@@ -89,7 +90,7 @@ func (e *ExtratorLLM) Extrair(ctx context.Context, mensagem, resposta string, at
 		Fatos []memoria.Fato `json:"fatos"`
 	}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(texto)), &out); err != nil {
-		return nil, nil // resposta fora do formato: nada a guardar
+		return nil, fmt.Errorf("extrair fatos: %w", memoria.ErrRespostaForaDoFormato)
 	}
 	var fatos []memoria.Fato
 	for _, f := range out.Fatos {

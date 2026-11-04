@@ -115,7 +115,6 @@ func TestTelasAntigasContinuamNoAr(t *testing.T) {
 	s.rotas(mux)
 	s.rotasStudio(mux)
 	s.rotasAdmin(mux)
-	s.rotasLegado(mux)
 
 	casos := []struct {
 		caminho string
@@ -154,7 +153,6 @@ func TestRotasDaTelaAntigaRegistradas(t *testing.T) {
 	s := &servidor{}
 	mux := http.NewServeMux()
 	s.rotas(mux)
-	s.rotasLegado(mux)
 
 	casos := []struct {
 		metodo  string
@@ -190,11 +188,9 @@ func TestExcluirDevolveMudancas(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &servidor{cat: cat}
-	mux := http.NewServeMux()
-	s.rotasLegado(mux)
 
 	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/agente?agente=agentes/concierge/agentes/faq", nil))
+	s.excluir(rec, httptest.NewRequest(http.MethodDelete, "/api/agente?agente=agentes/concierge/agentes/faq", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("DELETE /api/agente = %d, corpo %s", rec.Code, rec.Body.String())
 	}

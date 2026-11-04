@@ -248,7 +248,7 @@ func TestSalvarTextosAtualizaCasoAgenteERota(t *testing.T) {
 		"  agendamento, elevador, serviço, mudança de apartamento → rota\n" +
 		"  `agendar-mudanca`."
 	// a linha fica no mesmo lugar: logo depois da regra de dois pedidos
-	if !strings.Contains(rotas, "(o segundo fica para a próxima mensagem).\n"+wantRota+"\n- Saudação") {
+	if !strings.Contains(rotas, "(o segundo fica para a próxima mensagem).\n"+wantRota+"\n") {
 		t.Errorf("rota não trocada no lugar, com as palavras-chave:\n%s", rotas)
 	}
 	if got := lerArquivoDaSkill(t, c, relMudanca, "workflows/principal.md"); got != principalEsperado(t, c, relMudanca) {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -39,9 +38,9 @@ func (f *copilotoFalso) responder(_ context.Context, p harness.PedidoAoCopiloto)
 func servidorDoCopiloto(t *testing.T, falso *copilotoFalso) *servidor {
 	t.Helper()
 	s := servidorDeTeste(t, func(string) {})
-	s.admin = admin.NewStore(filepath.Join(t.TempDir(), "mapeamento.json"))
+	s.admin = admin.NovaEmMemoria()
 	for _, a := range []admin.Administradora{{ID: "adm-exemplo", Nome: "Exemplo"}, {ID: "adm-outra", Nome: "Outra"}} {
-		if _, err := s.admin.SalvarAdministradora(a); err != nil {
+		if _, err := s.admin.SalvarAdministradora(t.Context(), a); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -49,11 +48,11 @@ func servidorDoCopiloto(t *testing.T, falso *copilotoFalso) *servidor {
 		{ID: "vila-verde", Nome: "Vila Verde", Administradora: "adm-exemplo"},
 		{ID: "solar", Nome: "Solar", Administradora: "adm-outra"},
 	} {
-		if _, err := s.admin.SalvarCondominio(c); err != nil {
+		if _, err := s.admin.SalvarCondominio(t.Context(), c); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := s.admin.SalvarOrientacao("solar", admin.Orientacao{Geral: "segredo do Solar"}); err != nil {
+	if _, err := s.admin.SalvarOrientacao(t.Context(), admin.Alvo{Condominio: "solar", Dona: "adm-outra"}, admin.Orientacao{Geral: "segredo do Solar"}); err != nil {
 		t.Fatal(err)
 	}
 	if falso != nil {

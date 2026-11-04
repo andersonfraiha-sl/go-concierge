@@ -63,30 +63,69 @@ Configuração no `.env`: `GRUVI_COMPANY_ID`, `GRUVI_BFF_URL`, `MCP_AUTH=b2c` e
 
 Para a conexão real única, configure `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`,
 `ATENDE_API_SECRET`, `ATENDE_TENANT_ID` e `ATENDE_TENANT_TELEFONE`. O webhook público é
-`POST /webhook/atende`; o Console usa `POST /emulador/atende/webhook`. A verificação HMAC
-com `ATENDE_API_SECRET` está preparada, mas desativada por decisão do usuário nesta etapa.
-Assim, a assinatura não autentica os eventos recebidos. `ATENDE_WEBHOOK_TOKEN` legado
-continua restrito à rota do emulador. `ATENDE_REPLY_URL` e `ATENDE_REPLY_TOKEN` são lidos
+`POST /webhook/atende`; o Console usa `POST /emulador/atende/webhook`. O webhook real
+confere sempre a assinatura HMAC (`X-Atende-Signature`) com `ATENDE_API_SECRET`: evento
+sem assinatura válida recebe 401. Fora de `dev` o boot falha sem o segredo.
+`ATENDE_WEBHOOK_TOKEN` legado continua restrito à rota do emulador. `ATENDE_REPLY_URL` e `ATENDE_REPLY_TOKEN` são lidos
 como compatibilidade para respostas antigas quando a configuração nova de envio não está
 disponível.
 
 Enquanto o token B2C é gerado para um único telefone, o atendimento e a consulta de
-identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`.
+identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`; outro número recebe
+403. Só com `AMBIENTE=dev` o webhook real troca o telefone de todo evento por esse, para
+testar de qualquer celular, e o boot avisa com um WARN. Fora de `dev` isso fica desligado.
 
 As duas rotas convertem os eventos classificados para o contrato compartilhado
 `internal/entrada.Mensagem`; o servidor atribui origens e destinos separados para o ATENDE
 real e o Console emulado. Sessões são consultadas pelo `id` interno; `protocolo` segue
 disponível quando identifica uma sessão sem ambiguidade.
 
+## Acesso
+
+Toda rota `/api/*`, o emulador e o proxy `/mcp/` exigem usuário. Ficam de fora só o
+webhook real (que confere o HMAC), o `/healthz` e as páginas estáticas. Por enquanto as
+rotas do Studio (`/api/eu`, `/api/skills*`) e do Copiloto (`/api/copiloto*`) ainda não
+pedem usuário; a proteção delas vem nas próximas tarefas da integração. Sem usuário a
+resposta é 401; com usuário sem a permissão no alvo, 403.
+
+- `AUTH_MODE`: vazio deixa a API fechada (ainda não há login). `dev` aceita o usuário do
+  cabeçalho `X-Dev-Usuario` ou, sem ele, `AUTH_DEV_USUARIO`. O boot recusa `dev` com
+  `AMBIENTE` diferente de vazio ou `dev`.
+- `AUTH_DEV_USUARIO`: o usuário padrão do modo dev. A migration semeia
+  `admin-superlogica`, que só entra com `AUTH_MODE=dev`.
+- Usuários semeados pela migration: por enquanto só `admin-superlogica`
+  (`admin_superlogica` no escopo Superlógica). Em dev, `AUTH_MODE=dev` e
+  `AUTH_DEV_USUARIO=admin-superlogica` no `.env` abrem tudo; outro usuário vai no
+  cabeçalho, `curl -H 'X-Dev-Usuario: <id>' ...`.
+- `ADMINISTRADORA_ID`: fixa a implantação numa administradora. Vazio atende todas; com
+  ele, pedidos de outra administradora e do escopo Superlógica são recusados. As rotas de
+  memória e pedidos pedem `administradora` na query (400 `ADMINISTRADORA_OBRIGATORIA`);
+  com a implantação fixa ela vale por padrão.
+
+Os papéis herdam em cadeia, cada um com tudo do anterior:
+
+| Papel | Acrescenta |
+|---|---|
+| `operador_administradora` | ver skills, conversas, pedidos e memória; atender conversas |
+| `gestor_administradora` | habilitar condomínios, editar textos das skills, editar pedidos, esquecer memória |
+| `construtor_superlogica` | editar fluxo, criar e excluir skills, editar ferramentas e condomínios, `studio.avancado` |
+| `admin_superlogica` | editar administradoras e usuários |
+
+O papel vale no escopo em que foi atribuído (Superlógica, administradora ou condomínio).
+Atribuição num condomínio deixa de valer se ele mudar de administradora.
+`studio.avancado` (emulador, configuração do ATENDE, identidade no Gruvi, orquestração) é do construtor
+para cima. Uma administradora pode receber uma concessão que dá essa permissão a um papel
+menor, só dentro dela.
+
 ## Memória relacional por contato
 
 Tudo o que o morador afirma sobre si ("só tenho um apartamento", "pode me chamar de
 Van", "tenho um cachorro") vira um fato com chave estável na memória do telefone
-(`internal/memoria`, JSON em `okf/var/memorias/<account>/<telefone>.json`). A cada
+(`internal/memoria`, tabelas `memoria_contatos` e `memoria_fatos` no Postgres). A cada
 troca um extrator (modelo `MODEL_EXTRACT`, ou regras sem modelo) captura o que é
 durável; em toda conversa seguinte a memória entra na instrução da família inteira
 como "Memória sobre o morador: use sem perguntar de novo". O Console mostra e apaga os
-fatos (`GET`/`DELETE /api/memoria?phone=`).
+fatos (`GET`/`DELETE /api/memoria?phone=&administradora=`).
 
 ## Ficha do condomínio (Studio › Condomínios)
 
@@ -135,9 +174,58 @@ e da lista de docs, mas continua legível. Ver `internal/okf/bundle.go`.
 ## A interface (okf-admin)
 
 ```bash
-./build.sh            # Studio (pnpm test + build) + gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (em contêiner, sem Go nem Node locais)
-./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
+./build.sh            # Studio (lint + test + build) + gofmt + vet + test + bin/okf-admin.exe e bin/okf-admin (em contêiner, sem Go nem Node locais)
+./build.sh --test     # só os testes: Studio (lint + typecheck + test) e Go
+./build.sh --run      # compila o Studio, sobe o Postgres do compose, espera ficar saudável e roda o okf-admin
 ```
+
+O okf-admin exige o Postgres (`DATABASE_URL`). O `--run` cuida disso: sobe o serviço
+`postgres` do compose e, sem `DATABASE_URL` no ambiente nem no `.env`, usa
+`postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable`. Rodando o
+binário à mão:
+
+```bash
+docker compose up -d --wait postgres
+DATABASE_URL='postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable' \
+  ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
+```
+
+As migrations rodam no boot com `AMBIENTE` vazio ou `dev` (do ambiente ou do `.env`);
+`-migrar=false` desliga. Os testes de `internal/banco` sobem um Postgres por
+testcontainers, então precisam do Docker de pé.
+
+Tudo o que o concierge guarda mora no Postgres: o mapeamento das administradoras, a
+memória por contato, os pedidos e as sessões do ATENDE. Não há mais persistência em
+arquivo (`MEMORIAS_DIR`, `PEDIDOS_DIR` e `ADMIN_DIR` saíram); sem `DATABASE_URL` o boot
+falha dizendo como subir o Postgres.
+
+Em `dev`, um banco sem nenhum mapeamento ganha no boot uma administradora e um condomínio
+de exemplo (ligado ao `DEFAULT_ACCOUNT_ID`). Fora de `dev` o boot não grava nada: rode o
+`importar-json` antes do primeiro boot fora de dev; com o mapeamento vazio o log avisa
+(WARN). Ele leva para o banco os JSON da versão anterior (`admin/`, `memorias/` e
+`pedidos/` sob a pasta dada) e lê o `DATABASE_URL` do ambiente ou do `-env`:
+
+```bash
+./bin/okf-admin.exe importar-json -dir okf/var -env .env
+```
+
+Limite conhecido: o serviço inteiro assume **uma réplica**. Com duas ou mais, nada abaixo
+quebra o banco, mas uma réplica não vê o que a outra escreveu:
+
+- os locks por contato (pedidos e memória) são dentro do processo: trocas simultâneas do
+  mesmo telefone em réplicas diferentes podem perder um fato ou um pedido;
+- o cache de sessões vivas (`Sessoes`) não é revalidado contra o banco;
+- o turno lê o mapeamento, a memória e os pedidos de caches em processo (zero idas ao banco
+  com o contato quente). O cache do mapeamento é atualizado pelas escritas do Admin desta
+  réplica e não tem prazo: escrita de outra réplica, ou do `importar-json` com o servidor no
+  ar, só aparece aqui depois de reiniciar. Os caches de memória e pedidos são write-through
+  e também não são revalidados;
+- pedido aberto ou que muda de estado no turno vai ao banco antes da resposta; o resto da
+  carteira (valores preenchidos, eventos) vai depois dela, junto com a sessão. Se o processo
+  cair nesse intervalo, essas mudanças menores se perdem.
+
+Para escalar: invalidação entre réplicas (LISTEN/NOTIFY ou checagem de versão com prazo
+curto) e locks por contato no banco.
 
 Duas áreas: o **Studio** (`/studio/`, onde `/` redireciona) e o **Console** (`/console`, o
 emulador do ATENDE: a conversa do morador como o atendente a vê). O Studio é o front em
@@ -146,15 +234,22 @@ nunca o código-fonte nem `node_modules`); sem compilar, `/studio/` responde 503
 `STUDIO_NAO_COMPILADO`. Em desenvolvimento, `pnpm --dir web/studio run dev`
 serve o Studio com o proxy de `/api` para o okf-admin em 8090.
 
+Ficam no ar também as telas antigas: o **Admin** (`/admin`, a administradora: seus condomínios e a matriz de
+casos de uso; o seletor no topo escolhe a administradora (`?administradora=<id>`) e o
+servidor só mostra o que o usuário pode ver nela, veja [Acesso](#acesso)) e o **Backdoor**
+(`/backdoor`, nosso: casos de uso do concierge, `/backdoor/administradoras` com as
+administradoras e os condomínios de cada uma, `/backdoor/payloads` com o payload de
+cada recurso do Nexus por condomínio).
+
 No Studio: as skills (Quando usar, Fluxo, Regras, Base de conhecimento, Ferramentas), o
 Assistente (aba Persona), as Ferramentas, os Condomínios (habilitação, papéis,
 orientações, ajustes, identificação, administradoras) e a área Avançado (arquivos de cada
 pasta, prompt montado e roteador, orquestração, importar e exportar zip).
 
-Telas antigas, temporárias (saem na última tarefa da fase 2 do Studio): `/admin` (o Admin
-antigo, com a matriz skills × condomínios), `/backdoor/administradoras` (renomear uma
-administradora) e `/backdoor/payloads` (definições livres de um recurso por condomínio,
-inclusive de recursos que não declaram ajustes). O Studio e o Console têm link para elas.
+As telas antigas continuam no ar: `/admin` (o Admin antigo, com a matriz skills ×
+condomínios), `/backdoor/administradoras` (renomear uma administradora) e
+`/backdoor/payloads` (definições livres de um recurso por condomínio, inclusive de
+recursos que não declaram ajustes). O Studio e o Console têm link para elas.
 
 ### API
 
@@ -231,8 +326,8 @@ A cada mensagem (`internal/atende/pedidos.go`):
 
 Onde ver: aba **Pedidos** do Console (ao lado de Memória): protocolo, caso, estado,
 parâmetros com origem, pergunta em aberto, confirmação, resultado e histórico. Os pedidos
-ficam em `okf/var/pedidos/<account>/<telefone>.json` (`PEDIDOS_DIR`); `PEDIDOS=off` desliga
-e a conversa volta a seguir só pelo orquestrador. API: `GET /api/pedidos?phone=`,
+ficam no Postgres (tabelas `pedidos` e `pedido_eventos`); `PEDIDOS=off` desliga
+e a conversa volta a seguir só pelo orquestrador. API: `GET /api/pedidos?phone=&administradora=`,
 `POST /api/pedidos/acao` (`preencher`, `cancelar`). Casos com passo `form` (formulário
 dinâmico) ficam registrados, mas seguem pelo subagente conversacional.
 

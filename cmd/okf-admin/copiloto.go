@@ -240,7 +240,7 @@ func (r retrato) doEscopo(id string) bool {
 }
 
 func (s *servidor) retratoParaCopiloto(r *http.Request, tela copiloto.Contexto, usuario eu, quem copiloto.Quem) (retrato, error) {
-	mapa, err := s.admin.Ler()
+	mapa, err := s.admin.Ler(r.Context())
 	if err != nil {
 		return retrato{}, fmt.Errorf("copiloto: ler condomínios: %w", err)
 	}

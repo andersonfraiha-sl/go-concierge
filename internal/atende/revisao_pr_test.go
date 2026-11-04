@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/pedidos"
 )
@@ -32,7 +33,7 @@ func TestMudancaDeAtendimentoAntesDaEscritaInterrompeVisita(t *testing.T) {
 			msg := ev.Normalizar()
 			msg.ID, msg.Texto = "interrupcao-2", "sim"
 			msg.Origem, msg.Destino = sess.Origem, sess.Destino
-			msg, _ = svc.PrepararMensagem(msg)
+			msg, _ = preparar(t, svc, msg)
 			fim := make(chan error, 1)
 			go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 			select {
@@ -43,10 +44,10 @@ func TestMudancaDeAtendimentoAntesDaEscritaInterrompeVisita(t *testing.T) {
 			if caso == "humano" {
 				humana := msg
 				humana.Autor, humana.Texto = "atendente", "atendimento assumido"
-				if !svc.RegistrarHumano(humana) {
+				if !registrarHumano(t, svc, humana) {
 					t.Fatal("sessão não encontrada")
 				}
-			} else if !svc.Encerrar(msg) {
+			} else if !encerrar(t, svc, msg) {
 				t.Fatal("sessão não encontrada")
 			}
 			close(liberar)
@@ -82,11 +83,11 @@ type storePedidosFalho struct {
 	falhar bool
 }
 
-func (s *storePedidosFalho) Gravar(ctx context.Context, c pedidos.Carteira) error {
+func (s *storePedidosFalho) Gravar(ctx context.Context, contato escopo.Contato, c pedidos.Carteira) error {
 	if s.falhar {
 		return errors.New("gravação indisponível")
 	}
-	return s.Store.Gravar(ctx, c)
+	return s.Store.Gravar(ctx, contato, c)
 }
 
 func TestFalhaAoSalvarVisitaNaoPermiteRepetirEscrita(t *testing.T) {
@@ -154,7 +155,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	msg := ev.Normalizar()
 	msg.ID, msg.Texto = "escrita-2", "sim"
 	msg.Origem, msg.Destino = sess.Origem, sess.Destino
-	msg, _ = svc.PrepararMensagem(msg)
+	msg, _ = preparar(t, svc, msg)
 	fim := make(chan error, 1)
 	go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 	select {
@@ -164,7 +165,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	}
 	humana := msg
 	humana.Autor, humana.Texto = "atendente", "atendimento assumido"
-	if !svc.RegistrarHumano(humana) {
+	if !registrarHumano(t, svc, humana) {
 		t.Fatal("sessão não encontrada")
 	}
 	select {
@@ -172,7 +173,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("escrita em andamento não foi interrompida")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +321,7 @@ func TestFechamentoAntesDaEscritaManualInterrompeVisita(t *testing.T) {
 	ev, _ := Parse([]byte(eventoExemplo))
 	msg := ev.Normalizar()
 	msg.Origem, msg.Destino = sess.Origem, sess.Destino
-	if !svc.Encerrar(msg) {
+	if !encerrar(t, svc, msg) {
 		t.Fatal("sessão não encontrada")
 	}
 	close(bloqueado.liberar)
@@ -405,7 +406,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	msg.ID, msg.Texto = "sessao-a", "quero liberar Ana Souza hoje"
 	msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
 	msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: msg.ConversaID, Telefone: msg.Contato.Phone}
-	msg, sessA := svc.PrepararMensagem(msg)
+	msg, sessA := preparar(t, svc, msg)
 	fim := make(chan error, 1)
 	go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 	select {
@@ -413,7 +414,8 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("entrega inicial não iniciou")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", msg.Contato.Phone)
+	// a carteira do turno só vai ao banco depois da resposta; pelo serviço ela já aparece
+	cart, _, err := svc.Carteira(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil || len(cart.Pedidos) != 1 {
 		t.Fatalf("pedido não encontrado: %v", err)
 	}
@@ -421,13 +423,14 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	outra := msg
 	outra.ConversaID = "outro-protocolo"
 	outra.Destino.Protocolo = outra.ConversaID
-	sessB := svc.Sessoes.Abrir(outra)
+	sessB := abrir(t, svc.Sessoes, outra)
 	sessA.mu.Lock()
 	identidade := sessA.Identidade
 	sessA.mu.Unlock()
 	sessB.mu.Lock()
 	sessB.Identidade = identidade
 	sessB.mu.Unlock()
+	sessB.fixarContato(sessA.contato(), sessA.companyDoCondominio())
 	_, p, saida, err := svc.PreencherPedido(context.Background(), sessB.ID, prot, "Ana", map[string]any{"visitante_telefone": "5511888888888"}, true)
 	if err != nil || saida.Tipo != "confirmar" || p.Confirmacao == nil {
 		t.Fatalf("dados alterados deveriam exigir nova confirmação: %+v %v", saida, err)
@@ -441,7 +444,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("entrega inicial não terminou")
 	}
-	cart, err = svc.Pedidos.Ler(context.Background(), "cond-001", msg.Contato.Phone)
+	cart, err = svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,7 +476,7 @@ func TestFechamentoDuranteEscritaManualPreservaEstadoIncerto(t *testing.T) {
 	ev, _ := Parse([]byte(eventoExemplo))
 	msg := ev.Normalizar()
 	msg.Origem, msg.Destino = sess.Origem, sess.Destino
-	if !svc.Encerrar(msg) {
+	if !encerrar(t, svc, msg) {
 		t.Fatal("sessão não encontrada")
 	}
 	select {
@@ -481,7 +484,7 @@ func TestFechamentoDuranteEscritaManualPreservaEstadoIncerto(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("escrita manual não encerrou")
 	}
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,7 +532,7 @@ func TestConfirmacaoLegadaSemMarcadoresContinuaValida(t *testing.T) {
 	svc.ExtratorPedidos = extratorVisitaMCP()
 	sess := falar(t, svc, "legado-1", "quero liberar Ana Souza hoje")
 	prot := ultimoConcierge(sess).Pedidos[0].Protocolo
-	cart, err := svc.Pedidos.Ler(context.Background(), "cond-001", "5519981621916")
+	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +542,7 @@ func TestConfirmacaoLegadaSemMarcadoresContinuaValida(t *testing.T) {
 	}
 	p.Confirmacao.Entregue = nil
 	p.Confirmacao.Valores = nil
-	if err := svc.Pedidos.Gravar(context.Background(), cart); err != nil {
+	if err := svc.Pedidos.Gravar(context.Background(), contatoDeTeste(t, "adm-a"), cart); err != nil {
 		t.Fatal(err)
 	}
 	falar(t, svc, "legado-2", "sim")
