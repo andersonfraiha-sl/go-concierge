@@ -105,9 +105,9 @@ export function CartaoDeProposta({ proposta }: Props) {
           py: 1.25,
           bgcolor: tokens.color.background.subtle,
           borderBottom: linha,
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 600,
-          color: tokens.color.text.strong,
+          color: tokens.color.text.secondary,
         }}
       >
         {proposta.resumo}

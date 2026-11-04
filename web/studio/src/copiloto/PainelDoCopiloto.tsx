@@ -12,10 +12,22 @@ import { EstadoVazio } from './EstadoVazio';
 const AVISO_INDISPONIVEL = 'O Copiloto está fora do ar. O resto do Studio continua funcionando.';
 const AVISO_DE_FALHA = 'O Copiloto teve um problema. Feche e abra de novo.';
 
-const ROTULO_DO_STATUS: Record<Status, { texto: string; cor: string }> = {
-  pronto: { texto: 'Pronto', cor: tokens.color.success.main },
-  pensando: { texto: 'Pensando…', cor: tokens.color.text.muted },
-  indisponivel: { texto: 'Indisponível', cor: tokens.color.warning.text },
+const ROTULO_DO_STATUS: Record<Status, { texto: string; cor: string; corDoPonto: string }> = {
+  pronto: {
+    texto: 'Pronto',
+    cor: tokens.color.success.text,
+    corDoPonto: tokens.color.success.main,
+  },
+  pensando: {
+    texto: 'Pensando…',
+    cor: tokens.color.text.muted,
+    corDoPonto: tokens.color.text.muted,
+  },
+  indisponivel: {
+    texto: 'Indisponível',
+    cor: tokens.color.warning.text,
+    corDoPonto: tokens.color.warning.text,
+  },
 };
 
 /** Painel à esquerda do conteúdo; um erro dentro dele nunca derruba o resto do Studio. */
@@ -120,16 +132,22 @@ function Cabecalho({ status }: { status: Status }) {
         role="status"
         sx={{ display: 'flex', alignItems: 'center', gap: 0.625, fontSize: 12, color: rotulo.cor }}
       >
-        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: rotulo.cor }} />
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: rotulo.corDoPonto }} />
         {rotulo.texto}
       </Box>
       <IconButton
         aria-label="Fechar copiloto"
         onClick={fechar}
-        size="small"
-        sx={{ ml: 'auto', borderRadius: `${RAIOS.campo}px`, color: 'text.secondary' }}
+        sx={{
+          ml: 'auto',
+          width: 28,
+          height: 28,
+          borderRadius: `${RAIOS.campo - 1}px`,
+          bgcolor: tokens.color.background.neutralFill,
+          color: 'text.secondary',
+        }}
       >
-        <CloseRounded sx={{ fontSize: 16 }} />
+        <CloseRounded sx={{ fontSize: 13 }} />
       </IconButton>
     </Box>
   );
