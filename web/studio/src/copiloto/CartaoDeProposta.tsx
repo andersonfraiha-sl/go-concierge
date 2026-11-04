@@ -7,17 +7,18 @@ import { RAIOS, tokens } from '@/theme/tokens';
 import { podeAplicar } from './aplicar';
 import { useCopiloto } from './CopilotoProvider';
 import type { Proposta } from './contratos';
+import { MENSAGEM_DE_ESPERA } from './useAplicarPropostas';
 
 type Props = { proposta: Proposta };
 
-type Situacao = { tipo: 'pronta' } | { tipo: 'aplicando' } | { tipo: 'erro'; mensagem: string };
+type Situacao = { tipo: 'pronta' } | { tipo: 'erro'; mensagem: string };
 type Confirmacao = { texto: string; responder: (confirmou: boolean) => void };
 
 const PRONTA: Situacao = { tipo: 'pronta' };
 const linha = `1px solid ${tokens.color.border.subtle}`;
 
 export function CartaoDeProposta({ proposta }: Props) {
-  const { aplicar, aplicadas, descartar } = useCopiloto();
+  const { aplicar, aplicadas, emCurso, descartar } = useCopiloto();
   const { data: eu } = useEu();
   const [situacao, setSituacao] = useState<Situacao>(PRONTA);
   const [confirmacao, setConfirmacao] = useState<Confirmacao | null>(null);
@@ -32,7 +33,7 @@ export function CartaoDeProposta({ proposta }: Props) {
   };
 
   const aoAplicar = async (escopo: string | null) => {
-    setSituacao({ tipo: 'aplicando' });
+    setSituacao(PRONTA);
     try {
       await aplicar(proposta, { escopo, confirmar });
       setSituacao(PRONTA);
@@ -73,10 +74,10 @@ export function CartaoDeProposta({ proposta }: Props) {
             variant="contained"
             size="small"
             fullWidth
-            disabled={!eu || situacao.tipo === 'aplicando'}
+            disabled={!eu || emCurso !== null}
             onClick={() => eu && void aoAplicar(eu.administradoraId)}
           >
-            {situacao.tipo === 'aplicando' ? 'Aplicando…' : 'Aplicar'}
+            {rotuloDoAplicar(emCurso, proposta.id)}
           </Button>
           <BotaoDescartar onClick={descartarEsta} />
         </Acoes>
@@ -126,6 +127,11 @@ export function CartaoDeProposta({ proposta }: Props) {
   );
 }
 
+function rotuloDoAplicar(emCurso: string | null, id: string): string {
+  if (emCurso === null) return 'Aplicar';
+  return emCurso === id ? 'Aplicando…' : MENSAGEM_DE_ESPERA;
+}
+
 function Acoes({ children }: { children: ReactNode }) {
   return (
     <Box sx={{ px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1 }}>{children}</Box>
@@ -138,7 +144,15 @@ function Aviso({ cor, fundo, papel, children }: AvisoProps) {
   return (
     <Typography
       role={papel}
-      sx={{ px: 2, py: 1.25, fontSize: 13, fontWeight: 500, color: cor, bgcolor: fundo }}
+      sx={{
+        px: 2,
+        py: 1.25,
+        whiteSpace: 'pre-line',
+        fontSize: 13,
+        fontWeight: 500,
+        color: cor,
+        bgcolor: fundo,
+      }}
     >
       {children}
     </Typography>

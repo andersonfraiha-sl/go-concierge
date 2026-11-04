@@ -143,11 +143,18 @@ export function useEscopo(): Escopo | undefined {
   return eu?.administradoraId;
 }
 
+export const chaveDoEstado = (escopo: Escopo | undefined) =>
+  ['estado-condominios', escopo] as const;
+
+export function buscarEstado(escopo: Escopo): Promise<Estado> {
+  return apiGet(caminhoAdmin('estado', escopo), EstadoSchema);
+}
+
 export function useEstado() {
   const escopo = useEscopo();
   return useQuery({
-    queryKey: ['estado-condominios', escopo],
-    queryFn: () => apiGet(caminhoAdmin('estado', escopo ?? null), EstadoSchema),
+    queryKey: chaveDoEstado(escopo),
+    queryFn: () => buscarEstado(escopo ?? null),
     enabled: escopo !== undefined,
   });
 }

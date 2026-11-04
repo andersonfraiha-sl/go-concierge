@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { EuSchema } from '@/acesso/eu';
 import { EstadoSchema } from '@/condominios/contratos';
 import { json, responderCom } from '@/test/fetchFalso';
-import { type Ambiente, aplicarOperacao, podeAplicar } from './aplicar';
+import {
+  type Ambiente,
+  aplicarOperacao,
+  operacaoDaVez,
+  podeAplicar,
+  TextosNaoSalvaram,
+} from './aplicar';
 import { OperacaoSchema } from './contratos';
 
 const estado = EstadoSchema.parse({
@@ -38,7 +44,7 @@ const textosLidos = {
 const fluxo = { blocos: [{ id: 'b1', tipo: 'responder', texto: 'Oi' }], informacoes: [] };
 
 function ambiente(sobre: Partial<Ambiente> = {}): Ambiente {
-  return { escopo: null, lerEstado: () => estado, confirmar: async () => true, ...sobre };
+  return { escopo: null, lerEstado: async () => estado, confirmar: async () => true, ...sobre };
 }
 
 /** Rota que guarda o corpo recebido e responde `resposta`. */
@@ -88,7 +94,17 @@ describe('aplicarOperacao', () => {
 
   it('refusesFlowRejectedByServer', async () => {
     const put = gravando(
-      { codigo: 'FLUXO_INVALIDO', mensagem: 'O fluxo tem problemas; nada foi salvo.' },
+      {
+        codigo: 'FLUXO_INVALIDO',
+        mensagem: 'O fluxo tem problemas; nada foi salvo.',
+        problemas: [
+          {
+            codigo: 'SEM_CONFIRMAR',
+            nivel: 'erro',
+            mensagem: 'Gravar precisa de Confirmar antes.',
+          },
+        ],
+      },
       422,
     );
     responderCom({
@@ -98,7 +114,9 @@ describe('aplicarOperacao', () => {
 
     await expect(
       aplicarOperacao(op({ tipo: 'trocar_fluxo', skill: 'agendar-mudanca', fluxo }), ambiente()),
-    ).rejects.toThrow('O fluxo tem problemas; nada foi salvo.');
+    ).rejects.toThrow(
+      'O fluxo tem problemas; nada foi salvo.\n• Gravar precisa de Confirmar antes.',
+    );
     expect(put.corpos).toEqual([{ versao: 'f3', fluxo }]);
   });
 
@@ -149,6 +167,66 @@ describe('aplicarOperacao', () => {
     expect(put.corpos).toEqual([
       { versao: 'v1', textos: { ...textosLidos.textos, resumo: 'Acha.' } },
     ]);
+  });
+
+  it.each([
+    { caso: 'longo', resumo: 'a'.repeat(91) },
+    { caso: 'em duas linhas', resumo: 'Uma linha.\nOutra.' },
+  ])('refusesSummaryOutsideTheRule ($caso)', async ({ resumo }) => {
+    const fetchFalso = responderCom({});
+
+    await expect(
+      aplicarOperacao(op({ tipo: 'preencher_textos', skill: 's', textos: { resumo } }), ambiente()),
+    ).rejects.toThrow('O resumo tem uma linha só, até 90 caracteres.');
+    expect(fetchFalso).not.toHaveBeenCalled();
+  });
+
+  it('refusesCreatingSkillWithoutUsableTitle', async () => {
+    const fetchFalso = responderCom({});
+
+    await expect(
+      aplicarOperacao(op({ tipo: 'criar_skill', titulo: '  !!  ' }), ambiente()),
+    ).rejects.toThrow('Use letras ou números no nome.');
+    expect(fetchFalso).not.toHaveBeenCalled();
+  });
+
+  it('trimsTitleWhenCreatingSkill', async () => {
+    const post = gravando({ nome: 'portaria' });
+    responderCom({ 'POST /api/skills': post.rota });
+
+    await aplicarOperacao(op({ tipo: 'criar_skill', titulo: '  Portaria ' }), ambiente());
+
+    expect(post.corpos).toEqual([{ nome: 'portaria', titulo: 'Portaria' }]);
+  });
+
+  it('reportsCreatedSkillWhenTextsFail', async () => {
+    responderCom({
+      'POST /api/skills': () => json({ nome: 'portaria' }),
+      'GET /api/skills/portaria': () => json(textosLidos),
+      'PUT /api/skills/portaria/textos': () => json({ mensagem: 'Disco cheio.' }, 500),
+    });
+
+    const falha = aplicarOperacao(
+      op({ tipo: 'criar_skill', titulo: 'Portaria', textos: { resumo: 'Abre o portão.' } }),
+      ambiente(),
+    );
+
+    await expect(falha).rejects.toThrow(TextosNaoSalvaram);
+    await expect(falha).rejects.toMatchObject({
+      nome: 'portaria',
+      message: 'Skill criada, mas os textos não salvaram: Disco cheio.',
+    });
+  });
+
+  it('retriesOnlyTheTextsOfCreatedSkill', () => {
+    const criar = op({ tipo: 'criar_skill', titulo: 'Portaria', textos: { resumo: 'R' } });
+
+    expect(operacaoDaVez(criar, undefined)).toBe(criar);
+    expect(operacaoDaVez(criar, 'portaria')).toEqual({
+      tipo: 'preencher_textos',
+      skill: 'portaria',
+      textos: { resumo: 'R' },
+    });
   });
 
   it('mergesGuidanceWithCurrentState', async () => {
@@ -231,17 +309,6 @@ describe('aplicarOperacao', () => {
         limpar: false,
       },
     ]);
-  });
-
-  it('refusesCondominiumChangeWithoutLoadedState', async () => {
-    responderCom({});
-
-    await expect(
-      aplicarOperacao(
-        op({ tipo: 'orientar', condominio: 'vila-verde', texto: 'X' }),
-        ambiente({ lerEstado: () => undefined }),
-      ),
-    ).rejects.toThrow('Abra o condomínio de novo e aplique outra vez.');
   });
 
   it('writesPersonaFile', async () => {

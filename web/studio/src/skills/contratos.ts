@@ -51,6 +51,19 @@ const VersaoSchema = z.object({ versao: z.string() });
 const NomeSchema = z.object({ nome: z.string() });
 
 export const LIMITE_DO_RESUMO = 90;
+export const MENSAGEM_DO_RESUMO = `O resumo tem uma linha só, até ${LIMITE_DO_RESUMO} caracteres.`;
+
+/** Regra do resumo, a mesma no diálogo, na aba e nas propostas do Copiloto. */
+export const ResumoSchema = z
+  .string()
+  .max(LIMITE_DO_RESUMO, MENSAGEM_DO_RESUMO)
+  .regex(/^[^\r\n]*$/, MENSAGEM_DO_RESUMO);
+
+/** Título aparado que precisa virar um nome de pasta não vazio. */
+export const TituloDaSkillSchema = z
+  .string()
+  .trim()
+  .refine((titulo) => paraIdentificador(titulo) !== '', 'Use letras ou números no nome.');
 
 const caminhoDaSkill = (nome: string): string => `/api/skills/${encodeURIComponent(nome)}`;
 
@@ -108,15 +121,26 @@ export function salvarFluxo(
   return apiEnviar('PUT', `${caminhoDaSkill(nome)}/fluxo`, corpo, FluxoGravadoSchema);
 }
 
-/** Grava resumo e critério de uma skill recém-criada; sem efeito se os dois vierem em branco. */
-export async function preencherTextosNovos(
-  nome: string,
-  novos: { resumo: string; quandoUsar: string },
-): Promise<void> {
-  if (novos.resumo === '' && novos.quandoUsar === '') return;
+type CampoDeTexto = 'titulo' | 'resumo' | 'quandoUsar' | 'palavrasChave' | 'frasesDeExemplo';
+/** Campo ausente (ou undefined) mantém o que está gravado. */
+export type TextosNovos = { [C in CampoDeTexto]?: Textos[C] | undefined };
+
+/** Grava textos sobre a versão atual da skill; sem efeito se todos vierem ausentes ou em branco. */
+export async function preencherTextosNovos(nome: string, novos: TextosNovos): Promise<void> {
+  const vazio = Object.values(novos).every((valor) => valor === undefined || valor === '');
+  if (vazio) return;
   const lido = await buscarTextos(nome);
-  await salvarTextos(nome, { versao: lido.versao, textos: { ...lido.textos, ...novos } });
+  await salvarTextos(nome, { versao: lido.versao, textos: mesclarTextos(lido.textos, novos) });
 }
+
+const mesclarTextos = (atuais: Textos, novos: TextosNovos): Textos => ({
+  ...atuais,
+  titulo: novos.titulo ?? atuais.titulo,
+  resumo: novos.resumo ?? atuais.resumo,
+  quandoUsar: novos.quandoUsar ?? atuais.quandoUsar,
+  palavrasChave: novos.palavrasChave ?? atuais.palavrasChave,
+  frasesDeExemplo: novos.frasesDeExemplo ?? atuais.frasesDeExemplo,
+});
 
 /** Mutation que, ao dar certo, refaz a lista de skills. */
 function useMutationDeSkills<V, R>(enviar: (variaveis: V) => Promise<R>) {
