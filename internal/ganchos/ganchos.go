@@ -62,6 +62,10 @@ const (
 const (
 	PrazoPadrao   = 2 * time.Millisecond
 	MotivoDeFalha = "gancho falhou"
+	// MotivoOmitido substitui o motivo do transbordo quando o saneamento dele falha.
+	MotivoOmitido = "motivo omitido"
+	// GanchoTransbordoSemPII é o nome do fixo que mascara o motivo do transbordo.
+	GanchoTransbordoSemPII = "transbordo_sem_pii"
 )
 
 // Gancho avalia um evento. Avaliar é pura: sem I/O, sem relógio, sem estado, sem mudar
@@ -288,7 +292,7 @@ func aplicarFalha[E Ocorrencia](a avaliacao[E], g Gancho[E], f falha) avaliacao[
 	d := comOrigem(Decisao{Tipo: Deixar}, g)
 	if fechaNaFalha(politicaDe(g), a) {
 		d.Tipo, d.Motivo = Bloquear, MotivoDeFalha
-		a.decisao = d
+		a.decisao = maisForte(a.decisao, d) // vale o motivo do primeiro que bloqueou
 		a.encerrada = true
 	}
 	a.registros = append(a.registros, Registro{

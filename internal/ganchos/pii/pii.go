@@ -219,6 +219,27 @@ func aplicarValor(v any, planos []plano, marcadorDe map[string]string) any {
 	})
 }
 
+// neutralizarChaves copia v trocando « e » das chaves de mapa por aspas: uma chave
+// forjada não pode virar marcador na resposta.
+func neutralizarChaves(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, item := range x {
+			out[Neutralizar(k)] = neutralizarChaves(item)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, item := range x {
+			out[i] = neutralizarChaves(item)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
 // DevolverEmValor aplica Devolver a toda string dentro de map[string]any e []any
 // (params de ferramenta). Não muda o original.
 func DevolverEmValor(v any, cofre map[string]string) any {

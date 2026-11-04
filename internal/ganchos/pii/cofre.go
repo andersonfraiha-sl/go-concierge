@@ -35,21 +35,23 @@ var (
 
 func NovoCofre() *Cofre { return &Cofre{valores: map[string]string{}, proximo: 1} }
 
-// Mascarar troca CPF e telefone do texto por marcadores e guarda os valores. Achar
+// Mascarar devolve também quantos marcadores esta chamada criou (valor repetido no mesmo texto
+// reusa o marcador e não conta). Troca CPF e telefone do texto por marcadores e guarda os valores. Achar
 // e montar o texto rodam fora da trava; dentro, só a numeração e a guarda, juntas:
 // chamadas em paralelo nunca dividem um marcador e uma não espera a busca da outra.
-func (c *Cofre) Mascarar(texto string) string {
+func (c *Cofre) Mascarar(texto string) (mascarado string, novos int) {
 	p := planejar(texto)
 	valores := distintos([]plano{p})
-	return aplicar(p, indexar(valores, c.marcarEGuardar(valores)))
+	return aplicar(p, indexar(valores, c.marcarEGuardar(valores))), len(valores)
 }
 
 // MascararEmValor é o Mascarar para resultado de ferramenta (map[string]any, []any).
-// Não muda o original.
-func (c *Cofre) MascararEmValor(v any) any {
+// Neutraliza também as chaves dos mapas. Não muda o original.
+func (c *Cofre) MascararEmValor(v any) (mascarado any, novos int) {
+	v = neutralizarChaves(v)
 	planos := planejarValor(v)
 	valores := distintos(planos)
-	return aplicarValor(v, planos, indexar(valores, c.marcarEGuardar(valores)))
+	return aplicarValor(v, planos, indexar(valores, c.marcarEGuardar(valores))), len(valores)
 }
 
 // marcarEGuardar é a seção crítica: numera a partir do próximo livre, grava no cofre

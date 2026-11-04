@@ -360,7 +360,7 @@ func TestCofreConcorrente(t *testing.T) {
 	var wg sync.WaitGroup
 	for i, cpf := range cpfs {
 		wg.Go(func() {
-			mascarados[i] = c.MascararEmValor(map[string]any{"morador": map[string]any{"cpf": cpf}})
+			mascarados[i], _ = c.MascararEmValor(map[string]any{"morador": map[string]any{"cpf": cpf}})
 		})
 	}
 	wg.Wait()
@@ -384,10 +384,10 @@ func TestCofreConcorrente(t *testing.T) {
 
 func TestCofreMascararNumeraEmSequencia(t *testing.T) {
 	c := NovoCofre()
-	if got := c.Mascarar("cpf 123.456.789-09"); got != "cpf «cpf:1»" {
+	if got, _ := c.Mascarar("cpf 123.456.789-09"); got != "cpf «cpf:1»" {
 		t.Fatalf("1º Mascarar = %q", got)
 	}
-	if got := c.Mascarar("tel (19) 98162-1916 e cpf 529.982.247-25"); got != "tel «tel:2» e cpf «cpf:3»" {
+	if got, _ := c.Mascarar("tel (19) 98162-1916 e cpf 529.982.247-25"); got != "tel «tel:2» e cpf «cpf:3»" {
 		t.Fatalf("2º Mascarar = %q", got)
 	}
 	if got := Devolver("«cpf:1» «tel:2» «cpf:3»", c.Ler()); got != "123.456.789-09 (19) 98162-1916 529.982.247-25" {
@@ -418,7 +418,7 @@ func TestCofreGuardar(t *testing.T) {
 			t.Errorf("Guardar(%s): err = %v, want ErrMarcadorInvalido", m, err)
 		}
 	}
-	if got := c.Mascarar("529.982.247-25"); got != "«cpf:2»" {
+	if got, _ := c.Mascarar("529.982.247-25"); got != "«cpf:2»" {
 		t.Errorf("Mascarar depois de Guardar recusado = %q, want «cpf:2»", got)
 	}
 	if err := c.Guardar(map[string]string{"«tel:1000000»": "(19) 98162-1916"}); err != nil {
@@ -428,7 +428,7 @@ func TestCofreGuardar(t *testing.T) {
 	if err := c.Guardar(map[string]string{"«tel:7»": "(19) 98162-1916"}); err != nil {
 		t.Fatalf("Guardar: %v", err)
 	}
-	if got := c.Mascarar("111.444.777-35"); got != "«cpf:1000001»" {
+	if got, _ := c.Mascarar("111.444.777-35"); got != "«cpf:1000001»" {
 		t.Errorf("Mascarar depois de Guardar = %q, want «cpf:1000001»", got)
 	}
 }
@@ -465,5 +465,33 @@ func TestCofreNuncaSerializaNemLoga(t *testing.T) {
 		if strings.Contains(saida, "789-09") || strings.Contains(saida, "2710") || strings.Contains(saida, "«cpf:1»") {
 			t.Errorf("%s vazou o cofre: %s", formato, saida)
 		}
+	}
+}
+
+func TestCofreMascararContaSoMarcadoresNovos(t *testing.T) {
+	c := NovoCofre()
+	_, n := c.Mascarar("cpf 529.982.247-25 e tel (19) 98162-1916")
+	if n != 2 {
+		t.Errorf("primeira chamada criou %d, quer 2", n)
+	}
+	_, n = c.Mascarar("529.982.247-25 de novo 529.982.247-25")
+	if n != 1 {
+		t.Errorf("valor repetido no mesmo texto criou %d, quer 1", n)
+	}
+	_, n = c.MascararEmValor(map[string]any{"a": []any{"529.982.247-25", "111.444.777-35", "529.982.247-25"}})
+	if n != 2 {
+		t.Errorf("em valor criou %d, quer 2", n)
+	}
+}
+
+func TestCofreMascararEmValorNeutralizaChaves(t *testing.T) {
+	saida, _ := NovoCofre().MascararEmValor(map[string]any{"«cpf:1»": map[string]any{"«tel:2»": "x"}})
+	m, ok := saida.(map[string]any)
+	if !ok {
+		t.Fatalf("saida = %T", saida)
+	}
+	interno, ok := m[`"cpf:1"`].(map[string]any)
+	if !ok || interno[`"tel:2"`] != "x" {
+		t.Errorf("chaves nao neutralizadas: %v", saida)
 	}
 }

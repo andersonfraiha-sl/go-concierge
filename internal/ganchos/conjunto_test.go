@@ -138,8 +138,11 @@ func TestRegraNaoAfrouxaFixo(t *testing.T) {
 	if len(escopo.Eventos()) != 1 {
 		t.Errorf("fixo recebeu %d eventos, want 1", len(escopo.Eventos()))
 	}
-	if len(regra.Eventos()) != 0 || len(mascara.Eventos()) != 0 {
-		t.Errorf("depois do bloqueio rodaram regra=%d saneamento=%d, want 0", len(regra.Eventos()), len(mascara.Eventos()))
+	if len(regra.Eventos()) != 0 {
+		t.Errorf("depois do bloqueio a regra rodou %d vezes, want 0", len(regra.Eventos()))
+	}
+	if len(mascara.Eventos()) != 1 {
+		t.Errorf("o saneamento rodou %d vezes depois do bloqueio, want 1 (sempre roda)", len(mascara.Eventos()))
 	}
 }
 
@@ -394,5 +397,34 @@ func TestNomesDosFixos(t *testing.T) {
 	}
 	if !maps.EqualFunc(got, want, slices.Equal) {
 		t.Errorf("NomesDosFixos = %v, want %v", got, want)
+	}
+}
+
+func TestSaneamentoDepoisDoBloqueioMantemOPrimeiroMotivo(t *testing.T) {
+	bloqueio := ganchos.Gancho[ganchos.AntesDaFerramenta]{
+		Nome: "escopo", Falha: ganchos.Fechada,
+		Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
+			return e, ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "fora do escopo"}
+		},
+	}
+	saneamentos := map[string]ganchos.Gancho[ganchos.AntesDaFerramenta]{
+		"falha": {Nome: "mascara", Falha: ganchos.Fechada,
+			Avaliar: func(ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) { panic("quebrou") }},
+		"ajusta": {Nome: "mascara", Falha: ganchos.Fechada,
+			Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
+				return e, ganchos.Decisao{Tipo: ganchos.Ajustar, Quantidade: 1}
+			}},
+	}
+	for nome, saneamento := range saneamentos {
+		t.Run(nome, func(t *testing.T) {
+			f := ganchos.Fixos{AntesDaFerramenta: ganchos.Pontos[ganchos.AntesDaFerramenta]{
+				Checagem:   []ganchos.Gancho[ganchos.AntesDaFerramenta]{bloqueio},
+				Saneamento: []ganchos.Gancho[ganchos.AntesDaFerramenta]{saneamento},
+			}}
+			r := ganchostest.Conjunto(f, &ganchos.Indice{}).Turno().AntesDaFerramenta(context.Background(), ganchos.AntesDaFerramenta{Ferramenta: "reservar"})
+			if r.Decisao.Tipo != ganchos.Bloquear || r.Decisao.Motivo != "fora do escopo" || r.Decisao.Origem.Gancho != "escopo" {
+				t.Errorf("Decisao = %+v, want o bloqueio do escopo", r.Decisao)
+			}
+		})
 	}
 }
