@@ -14,6 +14,8 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/admin"
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/fixos"
@@ -21,6 +23,7 @@ import (
 	"go-concierge/internal/ganchos/pii"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
+	"go-concierge/internal/pedidos"
 )
 
 const (
@@ -406,5 +409,174 @@ func TestPoliticaDeFalhaNoTurno(t *testing.T) {
 				t.Fatalf("enviado = %q, want %q", enviado, tt.enviado)
 			}
 		})
+	}
+}
+
+const cpfDoSegundo = "111.444.777-35"
+
+// semCPF falha se algum texto tem um dos CPFs, formatado ou só com dígitos.
+func semCPF(t *testing.T, lugares map[string]string, cpfs ...string) {
+	t.Helper()
+	for lugar, texto := range lugares {
+		for _, cpf := range cpfs {
+			if strings.Contains(texto, cpf) || strings.Contains(texto, strings.NewReplacer(".", "", "-", "").Replace(cpf)) {
+				t.Errorf("%s tem o CPF %s: %s", lugar, cpf, texto)
+			}
+		}
+	}
+}
+
+func historicoEmTexto(sess *Sessao) string {
+	var falas []string
+	for _, m := range sess.historicoSnapshot() {
+		falas = append(falas, m.Content)
+	}
+	return strings.Join(falas, "\n")
+}
+
+func turnosEmTexto(sess *Sessao) string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	b, _ := json.Marshal(sess.Turnos)
+	return string(b)
+}
+
+func TestCPFForaDoTurnoNaoChegaAoHistoricoNemAoModelo(t *testing.T) {
+	svc, _, _, modelo := servicoComLLM(t, nil)
+	falar(t, svc, "fora-1", "oi")
+	morador := mensagemDeTexto(t, "meu cpf é "+cpfDoMorador)
+	morador.ID = "fora-2"
+	atendente := mensagemDeTexto(t, "anotei o cpf "+cpfDoMorador)
+	atendente.ID, atendente.Autor = "fora-3", "atendente"
+	for _, msg := range []entrada.Mensagem{morador, atendente} {
+		if !registrarHumano(t, svc, msg) {
+			t.Fatalf("%s: sessão não encontrada", msg.ID)
+		}
+	}
+	velha := mensagemDeTexto(t, "e o outro cpf é "+cpfDoSegundo)
+	velha.ID, velha.Revisao = "fora-4", 9999
+	sess, err := svc.Processar(context.Background(), velha)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(turnosEmTexto(sess), "«cpf:") {
+		t.Fatalf("a fala fora do turno devia entrar mascarada: %s", turnosEmTexto(sess))
+	}
+
+	sess = falar(t, svc, "fora-5", "obrigado")
+	svc.Aguardar()
+
+	lido, _ := modelo.leu()
+	semCPF(t, map[string]string{"turnos": turnosEmTexto(sess), "histórico": historicoEmTexto(sess), "modelo": lido}, cpfDoMorador, cpfDoSegundo)
+}
+
+func TestMarcadorDeTurnoAntigoNaoDevolveOCPFNovo(t *testing.T) {
+	r := &roteirosDoTurno{}
+	svc, out, _, _ := servicoComLLM(t, r.conjunto())
+
+	sess := falar(t, svc, "marcador-1", "meu cpf é "+cpfDoMorador)
+	if enviado := textoEnviado(t, out, sess); !strings.Contains(enviado, cpfDoMorador) {
+		t.Fatalf("turno 1 devia devolver o próprio CPF: %q", enviado)
+	}
+	sess = falar(t, svc, "marcador-2", "agora o cpf é "+cpfDoSegundo)
+	svc.Aguardar()
+
+	// o modelo repete «cpf:1», que é do turno 1: no turno 2 ele não vale nada
+	if enviado := textoEnviado(t, out, sess); strings.Contains(enviado, cpfDoSegundo) || strings.Contains(enviado, cpfDoMorador) {
+		t.Fatalf("o marcador antigo devolveu um CPF: %q", enviado)
+	}
+	antes := r.antes.Eventos()
+	if documento := antes[len(antes)-1].Params["document"]; documento != cpfDoSegundo {
+		t.Fatalf("turno 2 devia consultar o próprio CPF, veio %v", documento)
+	}
+	if sess.ProximoMarcador != 3 {
+		t.Fatalf("ProximoMarcador = %d, want 3", sess.ProximoMarcador)
+	}
+}
+
+// extratorVisitaComCPF põe o CPF digitado (já como marcador) no nome do visitante.
+func extratorVisitaComCPF() pedidos.Extrator {
+	return extratorPedidosFunc(func(ctx context.Context, entrada pedidos.Entrada) (pedidos.Extracao, error) {
+		if marcador := reMarcadorCPF.FindString(entrada.Mensagem); strings.Contains(entrada.Mensagem, "liberar Ana Souza") {
+			return pedidos.Extracao{Pedidos: []pedidos.PedidoExtraido{{Caso: "liberacao_visitante", Valores: map[string]any{
+				"visitante_nome": "Ana Souza " + marcador, "visitante_telefone": "5511999999999", "data_visita": "2026-10-28", "categoria_motivo": "GUEST",
+			}}}}, nil
+		}
+		return (pedidos.Regras{}).Extrair(ctx, entrada)
+	})
+}
+
+func TestSlotComCPFSoChegaRealAFerramentaEAoMorador(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	out := &Outbox{}
+	registro := &registroDoModelo{}
+	svc.Sender, svc.ExtratorPedidos = out, extratorVisitaComCPF()
+	svc.Config.ChatModel = modeloRoteirizado{registro: registro}
+
+	sess := falar(t, svc, "slot-1", "quero liberar Ana Souza "+cpfDoMorador+" hoje")
+	if enviado := textoEnviado(t, out, sess); !strings.Contains(enviado, "Ana Souza "+cpfDoMorador) {
+		t.Fatalf("a confirmação ao morador devia mostrar o CPF: %q", enviado)
+	}
+	sess = falar(t, svc, "slot-2", "sim")
+	svc.Aguardar()
+
+	escrita, _ := json.Marshal(fake.argsPorNome["gruvi.bff.building-operation.create-visit-controller-handle"])
+	if fake.escritasVisita != 1 || !strings.Contains(string(escrita), cpfDoMorador) {
+		t.Fatalf("a ferramenta devia receber o CPF real: escritas=%d args=%s", fake.escritasVisita, escrita)
+	}
+	lido, _ := registro.leu()
+	semCPF(t, map[string]string{"turnos": turnosEmTexto(sess), "histórico": historicoEmTexto(sess), "modelo": lido}, cpfDoMorador)
+}
+
+func TestPreencherPedidoRespondePeloGancho(t *testing.T) {
+	const troca = "Resposta trocada pela regra."
+	fixarAgoraDoFluxo(t)
+	svc, _ := servicoComMCPFluxo(t)
+	out := &Outbox{}
+	regra := &ganchostest.Roteiro[ganchos.AntesDeResponder]{}
+	svc.Sender, svc.ExtratorPedidos = out, extratorVisitaMCP()
+	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), &ganchos.Indice{
+		AntesDeResponder: ganchos.Nivel[ganchos.AntesDeResponder]{Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{ganchostest.Gancho("regra", regra)}},
+	})
+	sess := falar(t, svc, "manual-1", "quero liberar Ana Souza hoje")
+	// a regra passa a bloquear só depois do turno: o que importa é o envio do atendente
+	regra.Decisao = ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: troca}
+	cart, _, err := svc.Carteira(context.Background(), sess.contato())
+	if err != nil || len(cart.Abertos()) != 1 {
+		t.Fatalf("pedido aberto: %v %+v", err, cart)
+	}
+	if _, _, _, err := svc.PreencherPedido(context.Background(), sess.Protocolo, cart.Abertos()[0].Protocolo, "ana", nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if enviado := textoEnviado(t, out, sess); enviado != troca {
+		t.Fatalf("a resposta do pedido manual devia passar pelo antes_de_responder: %q", enviado)
+	}
+}
+
+func TestEscopoBloqueadoLogaACausa(t *testing.T) {
+	var log bytes.Buffer
+	anterior := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&log, nil)))
+	t.Cleanup(func() { slog.SetDefault(anterior) })
+	svc, _, _ := servicoMultiAdministradora(t, escopo.Implantacao{})
+
+	if _, err := svc.Processar(context.Background(), mensagemDe(t, "P-W", "tenant-dividido", "", "oi")); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(log.String(), admin.ErrCondominioAmbiguo.Error()) {
+		t.Fatalf("o WARN devia trazer a causa (condomínio ambíguo): %s", log.String())
+	}
+}
+
+func TestConjuntoSemFixoERecusado(t *testing.T) {
+	svc, _, _ := servicoMultiAdministradora(t, escopo.Implantacao{})
+	svc.Ganchos = ganchos.NovoConjunto(fixos.Checagem(), nil)
+	sess, err := svc.Processar(context.Background(), mensagemDe(t, "P-S", tenantExemplo, "", "meu cpf é "+cpfDoMorador))
+	if err == nil || !strings.Contains(err.Error(), "pii_na_entrada") {
+		t.Fatalf("conjunto sem saneamento devia ser recusado: %v", err)
+	}
+	if sess != nil {
+		semCPF(t, map[string]string{"turnos": turnosEmTexto(sess), "histórico": historicoEmTexto(sess)}, cpfDoMorador)
 	}
 }

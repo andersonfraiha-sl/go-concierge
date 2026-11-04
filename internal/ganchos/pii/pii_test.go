@@ -495,3 +495,26 @@ func TestCofreMascararEmValorNeutralizaChaves(t *testing.T) {
 		t.Errorf("chaves nao neutralizadas: %v", saida)
 	}
 }
+
+func TestCofreAPartirDeContinuaANumeracao(t *testing.T) {
+	tests := []struct {
+		nome          string
+		inicio        int
+		marcador      string
+		proximoDepois int
+	}{
+		{"zero vale 1", 0, "«cpf:1»", 2},
+		{"continua do turno anterior", 5, "«cpf:5»", 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			c := NovoCofreAPartirDe(tt.inicio)
+			if texto, _ := c.Mascarar("cpf 529.982.247-25"); texto != "cpf "+tt.marcador {
+				t.Fatalf("mascarado = %q, want %s", texto, tt.marcador)
+			}
+			if c.Proximo() != tt.proximoDepois {
+				t.Fatalf("Proximo = %d, want %d", c.Proximo(), tt.proximoDepois)
+			}
+		})
+	}
+}

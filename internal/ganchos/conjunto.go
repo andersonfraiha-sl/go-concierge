@@ -94,8 +94,11 @@ type Turno struct {
 }
 
 // Turno abre a visão de um turno, com o cofre de PII que só ele possui.
-func (c *Conjunto) Turno() Turno {
-	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofre()}
+func (c *Conjunto) Turno() Turno { return c.TurnoAPartirDe(1) }
+
+// TurnoAPartirDe abre o turno com o cofre numerando os marcadores a partir de proximo.
+func (c *Conjunto) TurnoAPartirDe(proximo int) Turno {
+	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofreAPartirDe(proximo)}
 }
 
 // Cofre é o cofre de PII do turno: o mesmo que os eventos recebem.

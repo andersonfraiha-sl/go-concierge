@@ -2,8 +2,10 @@ package atende
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric/noop"
@@ -20,13 +22,24 @@ import (
 // falha: a mensagem não pode seguir sem a checagem e a máscara (spec §11).
 const MotivoFalhaDeGancho = "não consegui atender agora"
 
-// ganchos é o conjunto injetado ou, sem ele, o dos fixos, montado no primeiro uso.
-func (s *Servico) ganchos() *ganchos.Conjunto {
-	if s.Ganchos != nil {
-		return s.Ganchos
+// ganchos é o conjunto do serviço, validado uma vez: Servico.Ganchos, senão
+// Config.Ganchos, senão só os fixos. Conjunto injetado sem algum fixo é recusado.
+func (s *Servico) ganchos() (*ganchos.Conjunto, error) {
+	s.ganchosUmaVez.Do(func() { s.conjunto, s.errGanchos = conjuntoDoServico(s.Ganchos, s.Config.Ganchos) })
+	return s.conjunto, s.errGanchos
+}
+
+func conjuntoDoServico(injetados ...*ganchos.Conjunto) (*ganchos.Conjunto, error) {
+	for _, c := range injetados {
+		if c == nil {
+			continue
+		}
+		if faltam := fixos.Ausentes(c.NomesDosFixos()); len(faltam) > 0 {
+			return nil, fmt.Errorf("atende: ganchos sem os fixos %s", strings.Join(faltam, ", "))
+		}
+		return c, nil
 	}
-	s.fixosUmaVez.Do(func() { s.soFixos = conjuntoDosFixos() })
-	return s.soFixos
+	return conjuntoDosFixos(), nil
 }
 
 // conjuntoDosFixos é o conjunto de quem não injetou um: só fixos, com log e métrica noop,
@@ -38,6 +51,41 @@ func conjuntoDosFixos() *ganchos.Conjunto {
 		return ganchos.NovoConjunto(fixos.Todos(), nil)
 	}
 	return ganchos.NovoConjunto(fixos.Todos(), nil, observar)
+}
+
+// abrirTurno abre o turno dos ganchos da sessão: o cofre numera a partir do marcador que
+// a conversa guardou. Quem abre chama sess.fecharTurno no fim.
+func (s *Servico) abrirTurno(sess *Sessao) (ganchos.Turno, error) {
+	conjunto, err := s.ganchos()
+	if err != nil {
+		return ganchos.Turno{}, err
+	}
+	return conjunto.TurnoAPartirDe(sess.proximoMarcador()), nil
+}
+
+// mascararForaDoTurno mascara a fala que chega sem turno (atendimento humano, revisão
+// trocada): ela vai ao histórico, e o histórico volta ao modelo depois. Só o cofre, sem
+// mensagem_recebida, que registraria um bloqueio de escopo falso.
+func (s *Servico) mascararForaDoTurno(sess *Sessao, texto string) (string, error) {
+	t, err := s.abrirTurno(sess)
+	if err != nil {
+		return "", err
+	}
+	defer sess.fecharTurno(t)
+	return mascararEntrada(t, texto), nil
+}
+
+// mascararEntrada é o que o pii_na_entrada faz: marcador digitado perde a forma, e CPF e
+// telefone viram marcadores do cofre do turno.
+func mascararEntrada(t ganchos.Turno, texto string) string {
+	return mascarado(t.Cofre(), pii.Neutralizar(texto))
+}
+
+// mascarado é o texto com CPF e telefone trocados por marcadores do cofre: o que vai ao
+// modelo, ao turno e ao histórico; o valor real fica só no cofre e no envio.
+func mascarado(c *pii.Cofre, texto string) string {
+	m, _ := c.Mascarar(texto)
+	return m
 }
 
 // lerMapeamento é o mapeamento que mensagem_recebida resolve. Sem repositório nenhum
@@ -86,17 +134,46 @@ func (s *Servico) antesDeResponder(ctx context.Context, sess *Sessao, t ganchos.
 	return resposta{texto: r.Evento.Texto}
 }
 
-// motivoDoTransbordo passa o transbordo ou o encerramento pelos ganchos, que nunca o
-// impedem, e devolve o motivo sem PII.
-func (s *Servico) motivoDoTransbordo(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo string, encerramento bool) string {
+// respostaPronta prepara uma resposta escrita pelo código (não pelo modelo), que pode trazer
+// valores reais: o envio sai do antes_de_responder; o turno e o histórico guardam o texto
+// mascarado, ou o que o gancho pôs no lugar.
+func (s *Servico) respostaPronta(ctx context.Context, sess *Sessao, t ganchos.Turno, texto string) (enviar, guardar string) {
+	guardar = mascarado(t.Cofre(), texto)
+	saida := s.antesDeResponder(ctx, sess, t, guardar)
+	if saida.trocada {
+		return saida.texto, saida.texto
+	}
+	return saida.texto, guardar
+}
+
+// transbordoOuEncerramento passa o transbordo ou o encerramento pelos ganchos, que nunca o
+// impedem; o motivo do resultado sai sem PII. Quem chama decide onde vão os registros.
+func (s *Servico) transbordoOuEncerramento(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo string, encerramento bool) ganchos.Resultado[ganchos.TransbordoOuEncerramento] {
 	alvo := sess.contato()
-	r := t.TransbordoOuEncerramento(ctx, ganchos.TransbordoOuEncerramento{
+	return t.TransbordoOuEncerramento(ctx, ganchos.TransbordoOuEncerramento{
 		Agora: time.Now(), Motivo: motivo, Encerramento: encerramento,
 		AdministradoraID: alvo.AdministradoraID, CondominioID: alvo.CondominioID,
 		Identidade: sess.identidadeDosGanchos(),
 	})
+}
+
+// motivoDoTransbordo saneia o motivo de um transbordo do turno e anota os registros nele.
+func (s *Servico) motivoDoTransbordo(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo string) string {
+	r := s.transbordoOuEncerramento(ctx, sess, t, motivo, false)
 	sess.anotarRegistros(r.Registros)
 	return r.Evento.Motivo
+}
+
+// encerramento passa o encerramento pelos ganchos. Roda fora do turno (o canal fecha o
+// protocolo enquanto um turno pode estar em curso): os registros ficam só com o observador
+// do conjunto, sem misturar com os do turno.
+func (s *Servico) encerramento(ctx context.Context, sess *Sessao) {
+	t, err := s.abrirTurno(sess)
+	if err != nil {
+		slog.ErrorContext(ctx, "atende: encerramento sem ganchos", "operacao", "encerrar", "sessao", sess.ID, "erro", err)
+		return
+	}
+	s.transbordoOuEncerramento(ctx, sess, t, "", true)
 }
 
 // bloqueioPorFalha diz se um gancho falhou e a política fechou: o evento não pode seguir

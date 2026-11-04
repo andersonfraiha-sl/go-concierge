@@ -366,10 +366,11 @@ type Servico struct {
 	// dela, uma ida ao banco cada. nil (stores sem Postgres) = cada store lê e grava sozinho.
 	Pool *pgxpool.Pool
 	// Ganchos avaliam o turno inteiro (entrada, ferramentas, resposta, transbordo); nil =
-	// só os fixos, montados no primeiro uso.
-	Ganchos     *ganchos.Conjunto
-	fixosUmaVez sync.Once
-	soFixos     *ganchos.Conjunto
+	// Config.Ganchos, senão só os fixos. Validado no primeiro uso: sem algum fixo, recusado.
+	Ganchos       *ganchos.Conjunto
+	ganchosUmaVez sync.Once
+	conjunto      *ganchos.Conjunto
+	errGanchos    error
 }
 
 // aquecivelNoLote é o store com cache por contato que lê o contato frio dentro de um lote.
@@ -679,6 +680,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	sess.workMu.Lock()
 	defer sess.workMu.Unlock()
+	sess.comecarRegistros()
 	sess.mu.Lock()
 	if sess.Encerrada {
 		sess.mu.Unlock()
@@ -686,12 +688,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	}
 	if sess.AtendimentoHumano || sess.revisaoEstado != msg.Revisao {
 		sess.mu.Unlock()
-		texto := strings.TrimSpace(msg.Texto)
-		if texto != "" {
-			sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: msg.ID})
-			sess.historicoAdicionar(schema.UserMessage(texto))
-		}
-		return sess, nil
+		return sess, s.guardarFalaSemTurno(sess, msg)
 	}
 	ctxTurno, cancelarTurno := context.WithCancel(ctx)
 	sess.cancelarTurno = cancelarTurno
@@ -714,15 +711,23 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	identidadeVazia := sess.Identidade.Phone == ""
 	plano := sess.Plano
 	sess.mu.Unlock()
-	sess.comecarRegistros()
-	turnoGanchos := s.ganchos().Turno()
+	turnoGanchos, err := s.abrirTurno(sess)
+	if err != nil {
+		return sess, err
+	}
+	defer sess.fecharTurno(turnoGanchos)
+	if transbordado {
+		// em transbordo o concierge não responde: a mensagem fica, mascarada, para o atendente
+		texto = mascararEntrada(turnoGanchos, texto)
+		sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: msg.ID})
+		sess.historicoAdicionar(schema.UserMessage(texto))
+		return sess, nil
+	}
 	m, errMapeamento := s.lerMapeamento(ctx)
 	entradaGanchos := s.mensagemRecebida(ctx, sess, turnoGanchos, msg, texto, m)
 	if bloqueioPorFalha(entradaGanchos.Registros) {
 		// sem a checagem e a máscara a mensagem não segue, nem para o histórico
-		if !transbordado {
-			s.transbordar(ctx, sess, turnoGanchos, MotivoFalhaDeGancho, "concierge", "")
-		}
+		s.transbordar(ctx, sess, turnoGanchos, MotivoFalhaDeGancho, "concierge", "")
 		return sess, nil
 	}
 	texto = entradaGanchos.Evento.Texto
@@ -742,11 +747,6 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			sess.historicoAtualizar(baseHistorico, mensagens)
 		}
 	}()
-	// em transbordo o concierge não responde: a mensagem fica para o atendente humano
-	if transbordado {
-		sess.historicoAdicionar(schema.UserMessage(texto))
-		return sess, nil
-	}
 	if errMapeamento != nil {
 		err := fmt.Errorf("resolver condomínio: %w", errMapeamento)
 		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
@@ -756,7 +756,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	decisao := entradaGanchos.Decisao
 	if decisao.Tipo == ganchos.Bloquear && decisao.Origem.Gancho == fixos.EscopoDaConversa {
 		// condomínio que este processo não atende: transborda, como sempre
-		s.avisar(ctx, "resolver_condominio", sess, decisao.Motivo)
+		s.avisar(ctx, "resolver_condominio", sess, fixos.CausaDoEscopo(entradaGanchos.Evento))
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		s.transbordar(ctx, sess, turnoGanchos, decisao.Motivo, "concierge", "")
 		return sess, nil
@@ -841,7 +841,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	sess.anotarRegistros(res.Registros)
 	if res.Transbordo != "" {
 		// o motivo vai ao ATENDE, à sessão e ao log: sai daqui já sem PII
-		res.Transbordo = s.motivoDoTransbordo(ctx, sess, turnoGanchos, res.Transbordo, false)
+		res.Transbordo = s.motivoDoTransbordo(ctx, sess, turnoGanchos, res.Transbordo)
 	}
 	if res.Transbordo != "" && sess.Destino.Conector != "atende-emulado" && sess.Destino.Conector != "atende" {
 		res.Resposta = "Não consigo transferir esta conversa para um atendente por este canal. Posso continuar ajudando por aqui."
@@ -1066,14 +1066,20 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 // RegistrarHumano: um humano falou no protocolo; o concierge para de responder.
 // Devolve false quando a sessão não existe ou já foi encerrada.
 func (s *Servico) RegistrarHumano(ctx context.Context, msg entrada.Mensagem) (bool, error) {
-	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool { return sess.registrarHumano(msg) })
+	var errMascara error
+	ok, err := s.mudarExistente(ctx, msg, func(sess *Sessao) bool {
+		msg.Texto, errMascara = s.mascararForaDoTurno(sess, strings.TrimSpace(msg.Texto))
+		return errMascara == nil && sess.registrarHumano(msg)
+	})
+	return ok, errors.Join(errMascara, err)
 }
 
 // Encerrar: o canal fechou o protocolo. Devolve false quando a sessão não existe.
 func (s *Servico) Encerrar(ctx context.Context, msg entrada.Mensagem) (bool, error) {
 	return s.mudarExistente(ctx, msg, func(sess *Sessao) bool {
-		s.motivoDoTransbordo(ctx, sess, s.ganchos().Turno(), "", true)
-		sess.encerrar(msg)
+		if sess.encerrar(msg) {
+			s.encerramento(ctx, sess)
+		}
 		return true
 	})
 }
@@ -1152,11 +1158,12 @@ func (sess *Sessao) registrarHumano(msg entrada.Mensagem) bool {
 	return true
 }
 
-func (sess *Sessao) encerrar(msg entrada.Mensagem) {
+// encerrar fecha o protocolo; devolve false quando o evento já tinha sido aplicado.
+func (sess *Sessao) encerrar(msg entrada.Mensagem) bool {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	if sess.jaRegistrado(msg.ID, "sistema") {
-		return
+		return false
 	}
 	sess.Encerrada = true
 	if sess.Transbordo != nil {
@@ -1172,6 +1179,7 @@ func (sess *Sessao) encerrar(msg entrada.Mensagem) {
 	turno := Turno{Quem: "sistema", Texto: "Protocolo encerrado pelo canal ATENDE.", EventoID: msg.ID, Quando: time.Now()}
 	sess.Turnos = append(sess.Turnos, turno)
 	sess.AtualizadaEm = turno.Quando
+	return true
 }
 
 func (s *Servico) PermiteTelefone(phone string) bool {
@@ -1206,6 +1214,22 @@ func (s *Servico) responderFalha(ctx context.Context, sess *Sessao, t ganchos.Tu
 	s.responderAoMorador(ctx, sess, t, troca, frase, err.Error())
 }
 
+// guardarFalaSemTurno guarda, mascarada, a fala que chega durante o atendimento humano ou
+// com a revisão trocada: o concierge não responde, mas o histórico volta ao modelo depois.
+func (s *Servico) guardarFalaSemTurno(sess *Sessao, msg entrada.Mensagem) error {
+	texto := strings.TrimSpace(msg.Texto)
+	if texto == "" {
+		return nil
+	}
+	texto, err := s.mascararForaDoTurno(sess, texto)
+	if err != nil {
+		return err
+	}
+	sess.registrar(Turno{Quem: "morador", Texto: texto, EventoID: msg.ID})
+	sess.historicoAdicionar(schema.UserMessage(texto))
+	return nil
+}
+
 // trocaDoTurno é a mensagem do morador (já mascarada) e o histórico em que ela entra.
 type trocaDoTurno struct {
 	texto     string
@@ -1216,9 +1240,9 @@ type trocaDoTurno struct {
 // responderAoMorador responde a troca com uma frase pronta (falha do concierge ou
 // mensagem de uma regra), que passa por antes_de_responder. erro é o técnico, para o turno.
 func (s *Servico) responderAoMorador(ctx context.Context, sess *Sessao, t ganchos.Turno, troca trocaDoTurno, frase, erro string) {
-	frase = s.antesDeResponder(ctx, sess, t, frase).texto
-	sess.registrar(Turno{Quem: "concierge", Texto: frase, Erro: erro})
-	mensagens := append(append([]*schema.Message(nil), troca.historico...), schema.UserMessage(troca.texto), schema.AssistantMessage(frase, nil))
+	frase, guardar := s.respostaPronta(ctx, sess, t, frase)
+	sess.registrar(Turno{Quem: "concierge", Texto: guardar, Erro: erro})
+	mensagens := append(append([]*schema.Message(nil), troca.historico...), schema.UserMessage(troca.texto), schema.AssistantMessage(guardar, nil))
 	sess.historicoAtualizar(troca.base, mensagens)
 	if s.Sender == nil {
 		return
@@ -1254,7 +1278,11 @@ func (s *Servico) prepararTurno(ctx context.Context, sess *Sessao, m admin.Mapea
 func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (cfg harness.Config, mem memoria.Memoria, dir string, err error) {
 	cfg = s.Config
 	cfg.Sessao = sess.ID
-	cfg.Ganchos = s.ganchos()
+	if cfg.Ganchos == nil {
+		if cfg.Ganchos, err = s.ganchos(); err != nil {
+			return cfg, mem, "", err
+		}
+	}
 	cfg.AdministradoraID, cfg.CondominioID = condo.Administradora, condo.ID
 	sess.mu.Lock()
 	identidade := sess.Identidade
@@ -1372,14 +1400,14 @@ func fixarCondominio(sess *Sessao, condo admin.Condominio, telefone string) erro
 	return nil
 }
 
-func (s *Servico) avisar(ctx context.Context, operacao string, sess *Sessao, motivo string) {
+func (s *Servico) avisar(ctx context.Context, operacao string, sess *Sessao, err error) {
 	slog.WarnContext(ctx, "atende: condomínio não atendido; conversa transbordada",
-		"operacao", operacao, "sessao", sess.ID, "motivo", motivo)
+		"operacao", operacao, "sessao", sess.ID, "erro", err)
 }
 
 // transbordar passa o protocolo ao atendente humano, com o motivo saneado pelos ganchos.
 func (s *Servico) transbordar(ctx context.Context, sess *Sessao, t ganchos.Turno, motivo, pedidoPor, atendente string) {
-	s.marcarTransbordo(sess, s.motivoDoTransbordo(ctx, sess, t, motivo, false), pedidoPor, atendente)
+	s.marcarTransbordo(sess, s.motivoDoTransbordo(ctx, sess, t, motivo), pedidoPor, atendente)
 }
 
 // marcarTransbordo registra o transbordo com um motivo que já passou pelos ganchos.
@@ -1613,7 +1641,13 @@ func (s *Servico) assumir(ctx context.Context, sess *Sessao, atendente, motivo s
 	if motivo == "" {
 		motivo = "o atendente assumiu a conversa"
 	}
-	s.transbordar(ctx, sess, s.ganchos().Turno(), motivo, "atendente", atendente)
+	t, err := s.abrirTurno(sess)
+	if err != nil {
+		return sess, err
+	}
+	defer sess.fecharTurno(t)
+	sess.comecarRegistros()
+	s.transbordar(ctx, sess, t, motivo, "atendente", atendente)
 	return sess, nil
 }
 
@@ -1649,8 +1683,14 @@ func (s *Servico) responder(ctx context.Context, sess *Sessao, atendente, texto 
 		finalizar()
 	}
 	if entregue := textoEntregue(texto, errEnvio); entregue != "" {
-		sess.registrar(Turno{Quem: "atendente", Texto: entregue, Agente: quem})
-		sess.historicoAdicionar(schema.AssistantMessage("[atendente humano] "+entregue, nil))
+		// a fala humana sai como foi escrita; o turno e o histórico (que volta ao modelo) a
+		// guardam mascarada
+		guardado, err := s.mascararForaDoTurno(sess, entregue)
+		if err != nil {
+			return sess, errors.Join(err, errEnvio)
+		}
+		sess.registrar(Turno{Quem: "atendente", Texto: guardado, Agente: quem})
+		sess.historicoAdicionar(schema.AssistantMessage("[atendente humano] "+guardado, nil))
 	}
 	if errEnvio != nil {
 		sess.registrar(Turno{Quem: "erro", Texto: errEnvio.Error()})

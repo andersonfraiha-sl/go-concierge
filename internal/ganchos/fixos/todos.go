@@ -18,6 +18,21 @@ func Todos() ganchos.Fixos {
 	}
 }
 
+// Ausentes lista, como evento/nome, os fixos de Todos que tem não traz: um conjunto
+// injetado sem eles é recusado, porque fixo nunca some por configuração.
+func Ausentes(tem map[ganchos.NomeDoEvento][]string) []string {
+	var faltam []string
+	for evento, nomes := range ganchos.NovoConjunto(Todos(), nil).NomesDosFixos() {
+		for _, nome := range nomes {
+			if !slices.Contains(tem[evento], nome) {
+				faltam = append(faltam, string(evento)+"/"+nome)
+			}
+		}
+	}
+	slices.Sort(faltam)
+	return faltam
+}
+
 func juntar[E ganchos.Ocorrencia](a, b ganchos.Pontos[E]) ganchos.Pontos[E] {
 	return ganchos.Pontos[E]{
 		Checagem:   slices.Concat(a.Checagem, b.Checagem),

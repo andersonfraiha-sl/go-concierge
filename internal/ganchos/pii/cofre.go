@@ -33,7 +33,21 @@ var (
 	reMarcadorInteiro = regexp.MustCompile(`^«(?:cpf|tel):(\d+)»$`)
 )
 
-func NovoCofre() *Cofre { return &Cofre{valores: map[string]string{}, proximo: 1} }
+func NovoCofre() *Cofre { return NovoCofreAPartirDe(1) }
+
+// NovoCofreAPartirDe numera os marcadores a partir de proximo (menor que 1 vale 1): a
+// conversa guarda o número entre turnos, e o marcador de um turno antigo que ficou no
+// histórico nunca casa com um valor do turno atual.
+func NovoCofreAPartirDe(proximo int) *Cofre {
+	return &Cofre{valores: map[string]string{}, proximo: max(proximo, 1)}
+}
+
+// Proximo é o número que o próximo marcador vai receber.
+func (c *Cofre) Proximo() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.proximo
+}
 
 // Mascarar devolve também quantos marcadores esta chamada criou (valor repetido no mesmo texto
 // reusa o marcador e não conta). Troca CPF e telefone do texto por marcadores e guarda os valores. Achar

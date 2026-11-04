@@ -74,6 +74,14 @@ func escopoDaConversa() ganchos.Gancho[ganchos.MensagemRecebida] {
 	}
 }
 
+// CausaDoEscopo é o erro detalhado (desconhecido, ambíguo, incompleto, fora da implantação,
+// mudou de dona) por trás do bloqueio do escopo_da_conversa; nil = o escopo deixa passar.
+// O gancho só devolve o motivo genérico: quem transborda chama esta para logar a causa.
+func CausaDoEscopo(e ganchos.MensagemRecebida) error {
+	_, err := resolverCondominio(e)
+	return err
+}
+
 // resolverCondominio acha o condomínio da mensagem e recusa o que não é da conversa.
 func resolverCondominio(e ganchos.MensagemRecebida) (admin.Condominio, error) {
 	condo, err := admin.ResolverCondominio(e.Mapeamento, e.Implantacao, e.CompanyID, e.Tenant)
