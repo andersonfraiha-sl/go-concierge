@@ -6,10 +6,17 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import { Fragment, type ReactNode, useState } from 'react';
-import { type Estado, PADRAO, salvarHabilitacao, useEscopo } from './contratos';
+import {
+  type Administradora,
+  type Estado,
+  PADRAO,
+  salvarHabilitacao,
+  useEscopo,
+} from './contratos';
 import { agruparPorCategoria, linhasDeSkills, ROTULO_DA_CATEGORIA } from './listaDeSkills';
 import {
   type CelulaAberta,
@@ -28,19 +35,28 @@ export function MatrizDeSkills({ estado, titulos, editavel }: Props): ReactNode 
   const escopo = useEscopo();
   const { executar, gravando } = useExecutar();
   const [celulaAberta, setCelulaAberta] = useState<CelulaAberta | null>(null);
+  const [filtroEscolhido, setFiltroEscolhido] = useState('');
+
+  // Só a Superlógica (sem escopo) muda o Padrão e filtra por qualquer administradora;
+  // quem pertence a uma administradora fica travado na própria, nos dois casos.
+  const travadoNaPropriaAdministradora = escopo !== null;
+  const filtro = travadoNaPropriaAdministradora ? (escopo ?? '') : filtroEscolhido;
+  const condominiosFiltrados =
+    filtro === ''
+      ? estado.mapeamento.condominios
+      : estado.mapeamento.condominios.filter((c) => c.administradora_id === filtro);
 
   const colunas: Coluna[] = [
     { id: PADRAO, nome: 'Padrão' },
-    ...estado.mapeamento.condominios.map((c) => ({ id: c.id, nome: c.nome })),
+    ...condominiosFiltrados.map((c) => ({ id: c.id, nome: c.nome })),
   ];
   const grupos = agruparPorCategoria(linhasDeSkills(estado, PADRAO, titulos));
-  // O padrão vale para todas as administradoras: só a Superlógica (sem escopo) o altera.
-  const padraoTravado = escopo !== null;
 
   const contexto: ContextoDaMatriz = {
     mapeamento: estado.mapeamento,
     colunas,
-    editavelNaColuna: (coluna) => editavel && !(coluna.id === PADRAO && padraoTravado),
+    editavelNaColuna: (coluna) =>
+      editavel && !(coluna.id === PADRAO && travadoNaPropriaAdministradora),
     gravando,
     onGravar: (caso, coluna, habilitado, papeis) =>
       executar((e) =>
@@ -54,7 +70,16 @@ export function MatrizDeSkills({ estado, titulos, editavel }: Props): ReactNode 
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <LegendaDaMatriz />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+        <LegendaDaMatriz />
+        <Box sx={{ flex: 1 }} />
+        <FiltroDeAdministradora
+          administradoras={estado.administradoras}
+          valor={filtro}
+          travado={travadoNaPropriaAdministradora}
+          onMudar={setFiltroEscolhido}
+        />
+      </Box>
       <Paper variant="outlined" sx={{ overflow: 'auto' }}>
         <Table size="small">
           <TableHead>
@@ -103,6 +128,38 @@ export function MatrizDeSkills({ estado, titulos, editavel }: Props): ReactNode 
         />
       )}
     </Box>
+  );
+}
+
+function FiltroDeAdministradora({
+  administradoras,
+  valor,
+  travado,
+  onMudar,
+}: {
+  administradoras: Administradora[];
+  valor: string;
+  travado: boolean;
+  onMudar: (id: string) => void;
+}): ReactNode {
+  return (
+    <TextField
+      select
+      size="small"
+      label="Administradora"
+      value={valor}
+      disabled={travado}
+      onChange={(e) => onMudar(e.target.value)}
+      sx={{ width: 240 }}
+      slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+    >
+      <option value="">Todas as administradoras</option>
+      {administradoras.map((a) => (
+        <option key={a.id} value={a.id}>
+          {a.nome}
+        </option>
+      ))}
+    </TextField>
   );
 }
 

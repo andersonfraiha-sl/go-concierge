@@ -14,6 +14,25 @@ estadoComDecisaoPropria.mapeamento.habilitacoes['vila-verde'] = {
   'agendar-mudanca': { habilitado: false, papeis: [] },
 };
 
+/** Bosque Azul pertence a outra administradora, para testar o filtro da matriz. */
+const estadoComDuasAdministradoras = structuredClone(estadoFalso);
+estadoComDuasAdministradoras.mapeamento.administradoras.push({
+  id: 'adm-outra',
+  nome: 'Administradora Outra',
+});
+estadoComDuasAdministradoras.administradoras.push({
+  id: 'adm-outra',
+  nome: 'Administradora Outra',
+});
+estadoComDuasAdministradoras.mapeamento.condominios.push({
+  id: 'bosque',
+  nome: 'Bosque Azul',
+  administradora_id: 'adm-outra',
+  account: 'acc-2',
+  company_id: '200',
+  tenant: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+});
+
 function Harness({ editavel = true }: { editavel?: boolean }): ReactNode {
   const consulta = useEstado();
   if (!consulta.data) return null;
@@ -58,14 +77,36 @@ describe('MatrizDeSkills', () => {
     responderCom(rotasBase(construtor));
     const { user } = abrirMatriz();
 
-    const switchDaCelula = await screen.findByRole('switch', {
-      name: 'Agendar mudança em Vila Verde',
-    });
-    const celula = switchDaCelula.closest('td');
-    if (!celula) throw new Error('célula não encontrada');
-    await user.click(celula);
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Ver papéis, orientação e ajustes de Agendar mudança em Vila Verde',
+      }),
+    );
 
     expect(await screen.findByRole('dialog', { name: /Agendar mudança/ })).toBeInTheDocument();
+  });
+
+  it('opensDrawerFromCellWithKeyboard', async () => {
+    responderCom(rotasBase(construtor));
+    const { user } = abrirMatriz();
+
+    const botaoDaCelula = await screen.findByRole('button', {
+      name: 'Ver papéis, orientação e ajustes de Agendar mudança em Vila Verde',
+    });
+    botaoDaCelula.focus();
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByRole('dialog', { name: /Agendar mudança/ })).toBeInTheDocument();
+  });
+
+  it('togglingSwitchDoesNotOpenDrawer', async () => {
+    const { handlers } = gravador('PUT /api/admin/habilitacao');
+    responderCom({ ...rotasBase(construtor), ...handlers });
+    const { user } = abrirMatriz();
+
+    await user.click(await screen.findByRole('switch', { name: 'Agendar mudança em Vila Verde' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('locksDefaultColumnForGestor', async () => {
@@ -74,5 +115,28 @@ describe('MatrizDeSkills', () => {
 
     expect(await screen.findByRole('switch', { name: 'Agendar mudança em Padrão' })).toBeDisabled();
     expect(screen.getByRole('switch', { name: 'Agendar mudança em Vila Verde' })).toBeEnabled();
+  });
+
+  it('filtersColumnsByAdministradora', async () => {
+    responderCom({
+      ...rotasBase(construtor),
+      'GET /api/admin/estado': () => json(estadoComDuasAdministradoras),
+    });
+    const { user } = abrirMatriz();
+
+    await screen.findByRole('columnheader', { name: 'Bosque Azul' });
+    await user.selectOptions(screen.getByLabelText('Administradora'), 'adm-exemplo');
+
+    expect(screen.getByRole('columnheader', { name: 'Vila Verde' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Bosque Azul' })).not.toBeInTheDocument();
+  });
+
+  it('locksAdministradoraFilterForGestor', async () => {
+    responderCom(rotasBase(gestor));
+    abrirMatriz();
+
+    const filtro = await screen.findByLabelText('Administradora');
+    expect(filtro).toBeDisabled();
+    expect(filtro).toHaveValue('adm-exemplo');
   });
 });

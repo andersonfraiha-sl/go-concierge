@@ -75,17 +75,36 @@ function Celula({
   const editavel = contexto.editavelNaColuna(coluna);
 
   return (
-    <TableCell
-      align="center"
-      sx={{ cursor: 'pointer' }}
-      onClick={() => contexto.onAbrirCelula({ caso: linha.caso, coluna })}
-    >
-      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+    <TableCell align="center" sx={{ position: 'relative' }}>
+      <Box
+        component="button"
+        type="button"
+        aria-label={`Ver papéis, orientação e ajustes de ${linha.titulo} em ${coluna.nome}`}
+        onClick={() => contexto.onAbrirCelula({ caso: linha.caso, coluna })}
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          border: 0,
+          padding: 0,
+          background: 'none',
+          cursor: 'pointer',
+        }}
+      />
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.75,
+        }}
+      >
         <Switch
           size="small"
           checked={habilitacao.habilitado}
           disabled={!editavel || contexto.gravando}
-          onClick={(evento) => evento.stopPropagation()}
           onChange={(_, ligado) =>
             void contexto.onGravar(linha.caso, coluna, ligado, habilitacao.papeis)
           }
