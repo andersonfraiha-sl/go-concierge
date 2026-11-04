@@ -1,6 +1,7 @@
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import { Box, InputAdornment, Switch, TextField, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
+import { RAIOS } from '@/theme/tokens';
 import { type Estado, PADRAO, salvarHabilitacao } from './contratos';
 import { LinhaDaSkill } from './LinhaDaSkill';
 import {
@@ -85,7 +86,14 @@ export function SkillsSecao({ estado, condominio, titulos, editavel }: Props): R
           </Box>
         )}
       </Box>
-      <Box sx={{ border: 1, borderColor: 'border.subtle', borderRadius: 13, overflow: 'hidden' }}>
+      <Box
+        sx={{
+          border: 1,
+          borderColor: 'border.subtle',
+          borderRadius: `${RAIOS.cartao}px`,
+          overflow: 'hidden',
+        }}
+      >
         {grupos.length === 0 && (
           <Typography color="text.secondary" sx={{ p: 2 }}>
             Nenhuma skill encontrada.

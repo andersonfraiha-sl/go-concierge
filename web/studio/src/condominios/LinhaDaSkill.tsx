@@ -2,7 +2,11 @@ import ChevronRightOutlined from '@mui/icons-material/ChevronRightOutlined';
 import { Box, ListItemButton, Switch, Tooltip, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { iconeDaSkill } from '@/skills/icones';
+import { RAIOS } from '@/theme/tokens';
 import { type LinhaDeSkill, rotuloDePapeis } from './listaDeSkills';
+
+/** Raio de pílula bem acima de qualquer altura real do chip: sempre fica totalmente arredondado. */
+const RAIO_DE_PILULA = '999px';
 
 type Props = {
   linha: LinhaDeSkill;
@@ -45,7 +49,7 @@ export function LinhaDaSkill({
           sx={{
             width: 30,
             height: 30,
-            borderRadius: 1,
+            borderRadius: `${RAIOS.campo}px`,
             bgcolor: 'background.tint',
             color: 'primary.main',
             display: 'flex',
@@ -70,7 +74,7 @@ export function LinhaDaSkill({
             sx={{
               px: 1,
               py: 0.25,
-              borderRadius: 99,
+              borderRadius: RAIO_DE_PILULA,
               bgcolor: 'background.tint',
               color: 'primary.main',
               whiteSpace: 'nowrap',
@@ -85,7 +89,7 @@ export function LinhaDaSkill({
             sx={{
               px: 1,
               py: 0.25,
-              borderRadius: 99,
+              borderRadius: RAIO_DE_PILULA,
               bgcolor: 'warning.background',
               color: 'warning.text',
               whiteSpace: 'nowrap',
