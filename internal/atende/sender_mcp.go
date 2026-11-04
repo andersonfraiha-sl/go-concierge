@@ -2,8 +2,10 @@ package atende
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -42,6 +44,7 @@ func NovoMCPSender(get func(string) string) (*MCPSender, error) {
 	// o gateway é um serviço comum: o Host é o da URL, não o 127.0.0.1 do servidor Gruvi
 	cli.HostHeader = u.Host
 	cli.HTTP.Timeout = 20 * time.Second
+	cli.HTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &MCPSender{Client: cli}, nil
 }
 
@@ -122,8 +125,30 @@ func (m *MCPSender) Encerrar(ctx context.Context, destino entrada.Destino, motiv
 	return nil
 }
 
+// recusaDefinitiva: o gateway garantiu que a operação não aconteceu. Timeout, upstream
+// inalcançável, 5xx do upstream e texto de erro ilegível deixam o resultado incerto.
 func recusaDefinitiva(err error) bool {
 	var ferramenta *erroFerramenta
+	if errors.As(err, &ferramenta) {
+		return !ferramenta.incerto()
+	}
 	var rpc *mcp.RPCError
-	return errors.As(err, &ferramenta) || errors.As(err, &rpc) || errors.Is(err, mcp.ErrNaoAutorizado)
+	return errors.As(err, &rpc) || errors.Is(err, mcp.ErrNaoAutorizado)
+}
+
+func (e *erroFerramenta) incerto() bool {
+	var corpo struct {
+		Erro           string `json:"error"`
+		UpstreamStatus *int   `json:"upstream_status"`
+	}
+	if json.Unmarshal([]byte(e.texto), &corpo) != nil {
+		return true
+	}
+	switch corpo.Erro {
+	case "upstream_timeout", "upstream_unreachable":
+		return true
+	case "upstream_error":
+		return corpo.UpstreamStatus == nil || *corpo.UpstreamStatus >= 500
+	}
+	return false
 }

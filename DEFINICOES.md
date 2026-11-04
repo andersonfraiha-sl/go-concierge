@@ -535,6 +535,10 @@ em `docker compose` (serviços `mcp` e `concierge`).
 - `MCPSender` (`atende/sender_mcp.go`) substitui `ATENDESender` e `ATENDETransferidor`.
   Recusa do gateway (`isError`) é definitiva; falha de transporte no transbordo é
   resultado incerto (`TransferenciaIncerta`). Escritas nunca são repetidas.
+- O encerramento pelo gateway existe (`MCPSender.Encerrar`, `protocols_close`), mas ainda
+  não tem chamador: nenhum fluxo encerra a sessão por decisão do concierge.
+- Transferência incerta: `upstream_timeout`, `upstream_unreachable`, `upstream_error` com
+  status 5xx (ou ausente) e texto de erro ilegível; 4xx e demais códigos são definitivos.
 - Alinhado à 1.12: o erro do gateway nunca vai ao morador; fica no turno de erro (Console)
   e no log. As tools do ATENDE não entram no catálogo do agente.
 - Sem `ATENDE_MCP_URL` o canal real fica desligado, com aviso na subida.

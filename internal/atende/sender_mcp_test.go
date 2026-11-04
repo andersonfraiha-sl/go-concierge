@@ -282,3 +282,32 @@ func TestNovoMCPSenderConfiguracao(t *testing.T) {
 		})
 	}
 }
+
+func TestTransferirClassificaFalhasDoGateway(t *testing.T) {
+	casos := []struct {
+		nome, texto string
+		incerta     bool
+	}{
+		{"timeout", `{"error":"upstream_timeout","details":"x","upstream_status":null}`, true},
+		{"inalcançável", `{"error":"upstream_unreachable","details":"x","upstream_status":null}`, true},
+		{"upstream 503", `{"error":"upstream_error","details":"x","upstream_status":503}`, true},
+		{"upstream sem status", `{"error":"upstream_error","details":"x","upstream_status":null}`, true},
+		{"upstream 404", `{"error":"upstream_error","details":"x","upstream_status":404}`, false},
+		{"upstream 422", `{"error":"upstream_error","details":"x","upstream_status":422}`, false},
+		{"argumentos", `{"error":"invalid_arguments","details":"x","upstream_status":null}`, false},
+		{"sem credencial", `{"error":"upstream_credential_missing","details":"x","upstream_status":null}`, false},
+		{"proibido", `{"error":"forbidden","details":"x","upstream_status":null}`, false},
+		{"não encontrado", `{"error":"not_found","details":"x","upstream_status":null}`, false},
+		{"texto ilegível", `Internal Server Error`, true},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			gw := novoGatewayFalso(t, func(string, map[string]any) (string, bool) { return c.texto, true })
+			err := gw.sender().Transferir(context.Background(), entrada.Destino{Protocolo: "P-1"}, "m")
+			var incerta *TransferenciaIncerta
+			if err == nil || errors.As(err, &incerta) != c.incerta {
+				t.Fatalf("incerta=%v, want %v (err=%v)", errors.As(err, &incerta), c.incerta, err)
+			}
+		})
+	}
+}

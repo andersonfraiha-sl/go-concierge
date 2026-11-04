@@ -84,7 +84,7 @@ passam pelo servidor MCP `atende` do gateway Nexus, que guarda a chave do ATENDE
 
 Tools usadas: `messages_send` (resposta, em partes de 4000 caracteres com a formatação do
 WhatsApp), `protocols_transfer` (transbordo pelo protocolo da sessão) e `protocols_close`
-(`MCPSender.Encerrar`). `ATENDE_API_SECRET` continua: o webhook de entrada é evento, não tool.
+(`MCPSender.Encerrar`; existe, mas ainda não tem chamador: nenhum fluxo encerra a sessão por decisão do concierge). `ATENDE_API_SECRET` continua: o webhook de entrada é evento, não tool.
 As tools do ATENDE não entram no catálogo de recursos do agente: quem decide transferir e
 encerrar é o código.
 
