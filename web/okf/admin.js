@@ -229,7 +229,7 @@
     const padrao = c.id === PADRAO;
     $('#condoTrilha').textContent = c.nome;
     $('#condoNome').textContent = c.nome;
-    $('#condoSub').textContent = padrao ? 'O que vale para todos os condomínios desta administradora quando o condomínio não decide diferente.' : [c.account && `account ${c.account}`, c.company_id && `Gruvi ${c.company_id}`, c.tenant && `ATENDE ${c.tenant}`].filter(Boolean).join(' · ') || 'sem ids de integração ainda';
+    $('#condoSub').textContent = padrao ? 'O que vale para todos os condomínios desta administradora quando o condomínio não decide diferente.' : [c.account && `account ${esc(c.account)}`, c.company_id && `Gruvi ${esc(c.company_id)}`, c.tenant && `ATENDE ${esc(c.tenant)}`].filter(Boolean).join(' · ') || 'sem ids de integração ainda';
     $('#cardCondoIdent').hidden = padrao;
     $('#btnRemoverCondo2').hidden = padrao;
     $('#condoStatus').textContent = '';
@@ -243,7 +243,7 @@
     }).join('') : '<div class="empty-state"><i data-lucide="list-checks"></i>O concierge ainda não tem casos de uso.</div>';
     $$('#condoCapacidades input[data-cap]').forEach((sw) => sw.addEventListener('change', async () => {
       const e = efetiva(c.id, sw.dataset.cap);
-      try { const r = await api(url('/api/admin/habilitacao'), { method: 'PUT', body: JSON.stringify({ condominio: c.id, caso: sw.dataset.cap, habilitado: sw.checked, papeis: e.papeis || [] }) }); toast(`${sw.checked ? 'ligado' : 'desligado'} em ${c.nome}`); aplicar(r.mapeamento, r.administradoras); } catch (err) { sw.checked = !sw.checked; toast(err.message, true); }
+      try { const r = await api(url('/api/admin/habilitacao'), { method: 'PUT', body: JSON.stringify({ condominio: c.id, caso: sw.dataset.cap, habilitado: sw.checked, papeis: e.papeis || [] }) }); toast(`${sw.checked ? 'ligado' : 'desligado'} em ${esc(c.nome)}`); aplicar(r.mapeamento, r.administradoras); } catch (err) { sw.checked = !sw.checked; toast(err.message, true); }
     }));
     $$('#condoCapacidades button[data-detalhe]').forEach((b) => b.addEventListener('click', () => abrirHab(c.id, b.dataset.detalhe)));
     // orientações (só as próprias; o padrão soma em tempo de execução)
