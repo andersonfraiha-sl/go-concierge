@@ -67,6 +67,11 @@ func TestMascarar(t *testing.T) {
 		{"cpf com barra", "123.456.789/09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123.456.789/09"}},
 		{"cpf com largura zero", "x 123.456.789\u200B-09 y", 1, "x «cpf:1» y", map[string]string{"«cpf:1»": "123.456.789\u200B-09"}},
 		{"cpf entremeado de largura zero", "123\u200B456\u2060789\uFEFF09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123\u200B456\u2060789\uFEFF09"}},
+		{"cpf com hífen suave", "123\u00AD456\u00AD789-09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123\u00AD456\u00AD789-09"}},
+		{"cpf com marca LRM", "123.456.789\u200E-09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123.456.789\u200E-09"}},
+		{"cpf com marca RLM", "123.456\u200F.789-09", 1, "«cpf:1»", map[string]string{"«cpf:1»": "123.456\u200F.789-09"}},
+		{"telefone com sinal de menos", "19 98162\u22121916", 1, "«tel:1»", map[string]string{"«tel:1»": "19 98162\u22121916"}},
+		{"telefone com hífen pequeno", "19 98162\uFE631916", 1, "«tel:1»", map[string]string{"«tel:1»": "19 98162\uFE631916"}},
 		{"cpf fullwidth", "cpf １２３４５６７８９０９ ok", 1, "cpf «cpf:1» ok", map[string]string{"«cpf:1»": "１２３４５６７８９０９"}},
 		{"telefone fullwidth", "（１９）９８１６２－１９１６", 1, "«tel:1»", map[string]string{"«tel:1»": "（１９）９８１６２－１９１６"}},
 		// Review Focus 2: o que parece CPF ou telefone mas não é continua intacto.
@@ -407,12 +412,24 @@ func TestCofreGuardar(t *testing.T) {
 	if got := c.Ler()["«cpf:1»"]; got != "123.456.789-09" {
 		t.Errorf("valor sobrescrito: %q", got)
 	}
+	// m1: número enorme estouraria a numeração; é recusado antes de mexer nela.
+	for _, m := range []string{"«tel:1000001»", "«cpf:9223372036854775807»", "«cpf:99999999999999999999»"} {
+		if err := c.Guardar(map[string]string{m: "529.982.247-25"}); !errors.Is(err, ErrMarcadorInvalido) {
+			t.Errorf("Guardar(%s): err = %v, want ErrMarcadorInvalido", m, err)
+		}
+	}
+	if got := c.Mascarar("529.982.247-25"); got != "«cpf:2»" {
+		t.Errorf("Mascarar depois de Guardar recusado = %q, want «cpf:2»", got)
+	}
+	if err := c.Guardar(map[string]string{"«tel:1000000»": "(19) 98162-1916"}); err != nil {
+		t.Errorf("Guardar no limite: %v", err)
+	}
 	// Numeração continua depois do maior marcador guardado.
 	if err := c.Guardar(map[string]string{"«tel:7»": "(19) 98162-1916"}); err != nil {
 		t.Fatalf("Guardar: %v", err)
 	}
-	if got := c.Mascarar("529.982.247-25"); got != "«cpf:8»" {
-		t.Errorf("Mascarar depois de Guardar = %q, want «cpf:8»", got)
+	if got := c.Mascarar("111.444.777-35"); got != "«cpf:1000001»" {
+		t.Errorf("Mascarar depois de Guardar = %q, want «cpf:1000001»", got)
 	}
 }
 

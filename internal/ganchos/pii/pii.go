@@ -19,10 +19,10 @@
 package pii
 
 import (
-	"fmt"
 	"maps"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -41,7 +41,6 @@ const (
 type trecho struct {
 	ini, fim int
 	tipo     tipo
-	digitos  string
 }
 
 const (
@@ -71,22 +70,85 @@ var (
 // neutralizado antes, para não casar com o cofre. Puro: quem numera e guarda junto é
 // o Cofre.
 func mascarar(texto string, proximo int) (mascarado string, achados map[string]string) {
-	texto = Neutralizar(texto)
-	trechos := achar(texto)
-	if len(trechos) == 0 {
-		return texto, nil
+	p := planejar(texto)
+	if len(p.trechos) == 0 {
+		return p.texto, nil
 	}
-	achados = map[string]string{}
-	marcadorDe := map[string]string{}
-	mascarado = substituir(texto, trechos, func(t trecho, valor string) string {
-		if m, ok := marcadorDe[valor]; ok {
-			return m
+	valores := distintos([]plano{p})
+	achados = make(map[string]string, len(valores))
+	marcas := marcar(valores, proximo, achados)
+	return aplicar(p, indexar(valores, marcas)), achados
+}
+
+// plano é o texto já neutralizado com os trechos achados, antes da numeração. Achar é
+// a parte cara e roda fora da trava do cofre; só marcar roda dentro.
+type plano struct {
+	texto   string
+	trechos []trecho
+}
+
+func planejar(texto string) plano {
+	neutro := Neutralizar(texto)
+	return plano{texto: neutro, trechos: achar(neutro)}
+}
+
+// valorAchado é um CPF ou telefone ainda sem marcador.
+type valorAchado struct {
+	tipo  tipo
+	valor string
+}
+
+// distintos lista os valores dos planos sem repetição, na ordem em que aparecem.
+func distintos(planos []plano) []valorAchado {
+	var (
+		valores []valorAchado
+		vistos  map[string]bool
+	)
+	for _, p := range planos {
+		for _, t := range p.trechos {
+			valor := p.texto[t.ini:t.fim]
+			if vistos[valor] {
+				continue
+			}
+			if vistos == nil {
+				vistos = map[string]bool{}
+			}
+			vistos[valor] = true
+			valores = append(valores, valorAchado{tipo: t.tipo, valor: valor})
 		}
-		m := fmt.Sprintf("«%s:%d»", t.tipo, proximo+len(achados))
-		marcadorDe[valor], achados[m] = m, valor
-		return m
-	})
-	return mascarado, achados
+	}
+	return valores
+}
+
+// marcar dá a cada valor o marcador de número proximo, proximo+1, ... e o grava em
+// destino (marcador → valor). É o que roda sob a trava do cofre: só concatena e grava.
+func marcar(valores []valorAchado, proximo int, destino map[string]string) []string {
+	marcas := make([]string, len(valores))
+	var buf []byte
+	for i, v := range valores {
+		buf = append(buf[:0], "«"...)
+		buf = append(buf, v.tipo...)
+		buf = append(buf, ':')
+		buf = strconv.AppendInt(buf, int64(proximo+i), 10)
+		buf = append(buf, "»"...)
+		marcas[i] = string(buf)
+		destino[marcas[i]] = v.valor
+	}
+	return marcas
+}
+
+// indexar monta valor → marcador para aplicar.
+func indexar(valores []valorAchado, marcas []string) map[string]string {
+	marcadorDe := make(map[string]string, len(valores))
+	for i, v := range valores {
+		marcadorDe[v.valor] = marcas[i]
+	}
+	return marcadorDe
+}
+
+// aplicar troca cada trecho do plano pelo marcador do seu valor.
+func aplicar(p plano, marcadorDe map[string]string) string {
+	return substituir(p.texto, p.trechos, func(_ trecho, valor string) string { return marcadorDe[valor] })
 }
 
 // mascararAnonimo é a máscara do log: sem número, sem cofre.
@@ -114,7 +176,7 @@ func Devolver(texto string, cofre map[string]string) string {
 			doCofre[digitosDe(v)] = true
 		}
 		alheios := slices.DeleteFunc(trechos, func(t trecho) bool {
-			return t.tipo != tipoCPF || doCofre[t.digitos]
+			return t.tipo != tipoCPF || doCofre[digitosDe(texto[t.ini:t.fim])]
 		})
 		texto = substituir(texto, alheios, func(trecho, string) string { return "«cpf»" })
 	}
@@ -132,13 +194,29 @@ func Devolver(texto string, cofre map[string]string) string {
 // mascararEmValor mascara toda string dentro de map[string]any e []any (resultado de
 // ferramenta), numerando a partir de proximo na ordem das chaves. Não muda o original.
 func mascararEmValor(v any, proximo int) (any, map[string]string) {
-	achados := map[string]string{}
-	mascarado := mapearStrings(v, func(s string) string {
-		m, novos := mascarar(s, proximo+len(achados))
-		maps.Copy(achados, novos)
-		return m
+	planos := planejarValor(v)
+	valores := distintos(planos)
+	achados := make(map[string]string, len(valores))
+	marcas := marcar(valores, proximo, achados)
+	return aplicarValor(v, planos, indexar(valores, marcas)), achados
+}
+
+// planejarValor planeja cada string de v, na ordem de mapearStrings.
+func planejarValor(v any) []plano {
+	var planos []plano
+	visitarStrings(v, func(s string) { planos = append(planos, planejar(s)) })
+	return planos
+}
+
+// aplicarValor copia v trocando cada string pelo seu plano aplicado; planos vem de
+// planejarValor(v), na mesma ordem.
+func aplicarValor(v any, planos []plano, marcadorDe map[string]string) any {
+	proxima := 0
+	return mapearStrings(v, func(string) string {
+		p := planos[proxima]
+		proxima++
+		return aplicar(p, marcadorDe)
 	})
-	return mascarado, achados
 }
 
 // DevolverEmValor aplica Devolver a toda string dentro de map[string]any e []any
@@ -170,6 +248,23 @@ func mapearStrings(v any, f func(string) string) any {
 	}
 }
 
+// visitarStrings passa cada string de v a f na mesma ordem de mapearStrings, sem
+// copiar nada.
+func visitarStrings(v any, f func(string)) {
+	switch x := v.(type) {
+	case string:
+		f(x)
+	case map[string]any:
+		for _, k := range slices.Sorted(maps.Keys(x)) {
+			visitarStrings(x[k], f)
+		}
+	case []any:
+		for _, item := range x {
+			visitarStrings(item, f)
+		}
+	}
+}
+
 // achar devolve CPFs e telefones do texto em ordem, sem sobreposição, com offsets do
 // texto original. CPF ganha do telefone quando os dois casam no mesmo trecho.
 func achar(texto string) []trecho {
@@ -193,22 +288,22 @@ func (f faixa) achar() []trecho {
 	cpfs := varrer(s, reCPF, podeSerCPF, func(ini, fim int) bool { return cpfValido(s[ini:fim]) })
 	// Telefone que encosta num CPF é recusado ali e a varredura segue: o "(19) ..."
 	// logo depois de um CPF terminado em 55 ainda é achado.
-	tels := varrer(s, reTelefone, podeComecar, func(ini, fim int) bool {
+	tels := varrer(s, reTelefone, podeSerTelefone, func(ini, fim int) bool {
 		return !slices.ContainsFunc(cpfs, func(c [2]int) bool { return ini < c[1] && c[0] < fim })
 	})
 	trechos := make([]trecho, 0, len(cpfs)+len(tels))
 	for _, c := range cpfs {
-		trechos = append(trechos, f.trecho(s, c, tipoCPF))
+		trechos = append(trechos, f.trecho(c, tipoCPF))
 	}
 	for _, t := range tels {
-		trechos = append(trechos, f.trecho(s, t, tipoTel))
+		trechos = append(trechos, f.trecho(t, tipoTel))
 	}
 	slices.SortFunc(trechos, func(a, b trecho) int { return a.ini - b.ini })
 	return trechos
 }
 
-func (f faixa) trecho(s string, loc [2]int, t tipo) trecho {
-	return trecho{ini: f.ini[loc[0]], fim: f.fim[loc[1]-1], tipo: t, digitos: soDigitosASCII(s[loc[0]:loc[1]])}
+func (f faixa) trecho(loc [2]int, t tipo) trecho {
+	return trecho{ini: f.ini[loc[0]], fim: f.fim[loc[1]-1], tipo: t}
 }
 
 type classe int
@@ -226,9 +321,9 @@ func classificar(r rune) (byte, classe) {
 		return classificarASCII(byte(r))
 	}
 	switch r {
-	case '\u200B', '\u200C', '\u200D', '\u2060', '\uFEFF':
+	case '\u00AD', '\u200B', '\u200C', '\u200D', '\u200E', '\u200F', '\u2060', '\uFEFF':
 		return 0, invisivel
-	case '\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '\u2015':
+	case '\u2010', '\u2011', '\u2012', '\u2013', '\u2014', '\u2015', '\u2212', '\uFE63':
 		return '-', separador
 	}
 	if unicode.IsSpace(r) {
@@ -414,6 +509,21 @@ func podeSerCPF(s string, i int) bool {
 		g++
 	}
 	return g == 3 || g == 6 || g == 9 || g == 11
+}
+
+// podeSerTelefone: um telefone começa onde um número pode começar e tem ao menos 10
+// dígitos nos seus até maxBytesNoTrecho bytes. Poupa o regexp.
+func podeSerTelefone(s string, i int) bool {
+	if !podeComecar(s, i) {
+		return false
+	}
+	digitos := 0
+	for _, b := range []byte(s[i:min(len(s), i+maxBytesNoTrecho)]) {
+		if ehDigito(b) {
+			digitos++
+		}
+	}
+	return digitos >= minDigitosNaFaixa
 }
 
 func podeComecar(s string, i int) bool {

@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+type pessoa struct{ CPF string }
+
+type morador struct{ Pessoa *pessoa }
+
 func slogJSON(w io.Writer) *slog.Logger { return slog.New(slog.NewJSONHandler(w, nil)) }
 
 func TestHandlerMascara(t *testing.T) {
@@ -29,11 +33,24 @@ func TestHandlerMascara(t *testing.T) {
 			l.Info("ok", "params", map[string]any{"cpf": "12345678909", "unidade": 1203})
 		}, `"params":{"cpf":"«cpf»","unidade":1203}`},
 		{"slice", func(l *slog.Logger) { l.Info("ok", "lista", []any{"19 98162-1916", "apto 12"}) }, `"lista":["«tel»","apto 12"]`},
-		{"slice tipado", func(l *slog.Logger) { l.Info("ok", "lista", []string{"19 98162-1916"}) }, `"lista":"[«tel»]"`},
-		{"struct", func(l *slog.Logger) { l.Info("ok", "st", struct{ Doc string }{"12345678909"}) }, `"st":"{«cpf»}"`},
+		{"slice tipado", func(l *slog.Logger) { l.Info("ok", "lista", []string{"19 98162-1916"}) }, `"lista":"[\"«tel»\"]"`},
+		{"struct", func(l *slog.Logger) { l.Info("ok", "st", struct{ Doc string }{"12345678909"}) }, `"st":"{\"Doc\":\"«cpf»\"}"`},
 		{"map com valor tipado", func(l *slog.Logger) {
 			l.Info("ok", "params", map[string]any{"tels": []string{"19 98162-1916"}})
-		}, `"params":"map[tels:[«tel»]]"`},
+		}, `"params":{"tels":"[\"«tel»\"]"}`},
+		{"ponteiro", func(l *slog.Logger) { l.Info("ok", "p", &pessoa{CPF: "12345678909"}) }, `"p":"{\"CPF\":\"«cpf»\"}"`},
+		{"ponteiro dentro de map", func(l *slog.Logger) {
+			l.Info("ok", "params", map[string]any{"p": &pessoa{CPF: "12345678909"}})
+		}, `"params":{"p":"{\"CPF\":\"«cpf»\"}"}`},
+		{"ponteiro dentro de slice", func(l *slog.Logger) { l.Info("ok", "lista", []any{&pessoa{CPF: "12345678909"}}) }, `"lista":["{\"CPF\":\"«cpf»\"}"]`},
+		{"ponteiro aninhado em struct", func(l *slog.Logger) {
+			l.Info("ok", "params", map[string]any{"m": morador{Pessoa: &pessoa{CPF: "12345678909"}}})
+		}, `«cpf»`},
+		{"ponteiro nil", func(l *slog.Logger) { l.Info("ok", "params", map[string]any{"p": (*pessoa)(nil)}) }, `"params":{"p":null}`},
+		{"bytes", func(l *slog.Logger) { l.Info("ok", "corpo", []byte(`{"cpf":"12345678909"}`)) }, `"corpo":"{\"cpf\":\"«cpf»\"}"`},
+		{"bytes dentro de map", func(l *slog.Logger) { l.Info("ok", "params", map[string]any{"b": []byte("tel 19 98162-1916")}) }, `"params":{"b":"tel «tel»"}`},
+		{"número que é cpf", func(l *slog.Logger) { l.Info("ok", "doc", int64(12345678909)) }, `"doc":"«cpf»"`},
+		{"número comum fica", func(l *slog.Logger) { l.Info("ok", "unidade", map[string]any{"n": 1203}) }, `"unidade":{"n":1203}`},
 		{"nil", func(l *slog.Logger) { l.Info("ok", "nada", nil) }, `"nada":null`},
 		{"número que não é cpf fica", func(l *slog.Logger) { l.Info("ok", "protocolo", "20261103000123") }, `"protocolo":"20261103000123"`},
 	}

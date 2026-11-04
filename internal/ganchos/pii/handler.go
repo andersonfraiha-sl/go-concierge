@@ -2,8 +2,10 @@ package pii
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"reflect"
 )
 
 // handler embrulha outro slog.Handler e troca CPF e telefone por «cpf» e «tel» na
@@ -52,24 +54,73 @@ func mascararAttr(a slog.Attr) slog.Attr {
 	case slog.KindAny:
 		return mascararQualquer(a.Key, v.Any())
 	}
+	// Número também pode ser CPF ou telefone (int64(12345678909)).
+	if texto := v.String(); len(achar(texto)) > 0 {
+		return slog.String(a.Key, mascararAnonimo(texto))
+	}
 	return slog.Attr{Key: a.Key, Value: v}
 }
 
-// mascararQualquer: erro pela mensagem, map[string]any e []any pelo conteúdo, e o
-// resto (struct, slice tipado, Stringer) pelo texto renderizado, perdendo a forma.
+// mascararQualquer limpa um atributo KindAny com limparParaLog.
 func mascararQualquer(chave string, v any) slog.Attr {
+	return slog.Any(chave, limparParaLog(v))
+}
+
+// limparParaLog devolve v sem CPF nem telefone:
+//   - texto, []byte e erro pela máscara do texto;
+//   - map[string]any e []any item a item, mantendo a forma;
+//   - ponteiro seguido (nil vira nil), Stringer pelo String();
+//   - número e bool como estão, a menos que o texto deles seja PII;
+//   - o resto (struct, slice ou map tipado) pelo JSON que o sink escreveria, que
+//     segue ponteiros aninhados. Perde a forma, mas nada passa cru.
+func limparParaLog(v any) any {
 	switch x := v.(type) {
 	case nil:
-		return slog.Any(chave, nil)
+		return nil
+	case string:
+		return mascararAnonimo(x)
+	case []byte:
+		return mascararAnonimo(string(x))
 	case error:
-		return slog.String(chave, mascararAnonimo(x.Error()))
-	case map[string]any, []any:
-		limpo := mapearStrings(x, mascararAnonimo)
-		// Valor tipado lá dentro ([]string, struct) não passa por mapearStrings.
-		if texto := fmt.Sprint(limpo); len(achar(texto)) > 0 {
-			return slog.String(chave, mascararAnonimo(texto))
+		return mascararAnonimo(x.Error())
+	case fmt.Stringer:
+		return mascararAnonimo(x.String())
+	case map[string]any:
+		limpo := make(map[string]any, len(x))
+		for k, item := range x {
+			limpo[k] = limparParaLog(item)
 		}
-		return slog.Any(chave, limpo)
+		return limpo
+	case []any:
+		limpo := make([]any, len(x))
+		for i, item := range x {
+			limpo[i] = limparParaLog(item)
+		}
+		return limpo
 	}
-	return slog.String(chave, mascararAnonimo(fmt.Sprint(v)))
+	rv := reflect.ValueOf(v)
+	switch {
+	case rv.Kind() == reflect.Pointer && rv.IsNil():
+		return nil
+	case rv.Kind() == reflect.Pointer:
+		return limparParaLog(rv.Elem().Interface())
+	case ehEscalar(rv.Kind()):
+		if texto := fmt.Sprint(v); len(achar(texto)) > 0 {
+			return mascararAnonimo(texto)
+		}
+		return v
+	}
+	return mascararAnonimo(renderizar(v))
+}
+
+func ehEscalar(k reflect.Kind) bool {
+	return k >= reflect.Bool && k <= reflect.Complex128
+}
+
+// renderizar escreve v como o JSONHandler escreveria; sem JSON, como o fmt.
+func renderizar(v any) string {
+	if b, err := json.Marshal(v); err == nil {
+		return string(b)
+	}
+	return fmt.Sprintf("%+v", v)
 }
