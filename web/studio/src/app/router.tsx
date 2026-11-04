@@ -3,6 +3,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router';
 // Nome do arquivo difere de rotaInicial.ts por mais que o caso da letra:
 // Windows/macOS têm sistema de arquivos insensível a maiúsculas e os dois
 // nomes colidiriam, fazendo o TypeScript resolver o import errado.
+import { ErroDaRaiz, LimiteDeRota } from './erro/LimiteDeErro';
 import { RotaInicial } from './RotaInicialRedirect';
 import { StudioLayout } from './StudioLayout';
 
@@ -45,7 +46,16 @@ const ROTAS_FILHAS: RouteObject[] = [
 ];
 
 export function criarRotas() {
-  return createBrowserRouter([{ path: '/', element: <StudioLayout />, children: ROTAS_FILHAS }], {
-    basename: '/studio',
-  });
+  return createBrowserRouter(
+    [
+      {
+        path: '/',
+        element: <StudioLayout />,
+        errorElement: <ErroDaRaiz />,
+        // Rota sem caminho só para isolar erros de tela: o layout continua de pé.
+        children: [{ element: <LimiteDeRota />, children: ROTAS_FILHAS }],
+      },
+    ],
+    { basename: '/studio' },
+  );
 }

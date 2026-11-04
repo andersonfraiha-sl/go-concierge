@@ -11,12 +11,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
+import type { Eu } from '@/acesso/eu';
+import { instalarCapturaGlobal } from '@/app/erro/reportarErro';
 import { criarRotas } from '@/app/router';
 import { deveTentarDeNovo } from '@/shared/api/http';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
 import { criarTema } from '@/theme/theme';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: deveTentarDeNovo } } });
+
+instalarCapturaGlobal(() => {
+  const eu = queryClient.getQueriesData<Eu>({ queryKey: ['eu'] })[0]?.[1];
+  return { rota: window.location.pathname, usuarioId: eu?.id ?? null, dev: eu?.dev ?? false };
+});
 
 const raiz = document.getElementById('root');
 if (!raiz) throw new Error('elemento #root ausente no index.html');
