@@ -10,6 +10,8 @@ type Config struct {
 	Ambiente     string // AMBIENTE: vazio ou dev, hml, prd
 	AuthMode     string // AUTH_MODE: vazio (API fechada) ou dev (usuário do cabeçalho X-Dev-Usuario)
 	AtendeSecret string // ATENDE_API_SECRET: segredo do HMAC do webhook real
+	// GANCHOS_SEGREDO_EXPORTACAO: segredo do HMAC que assina a exportação de regras
+	SegredoExportacao string
 }
 
 const authModeDev = "dev"
@@ -18,6 +20,7 @@ var (
 	errAuthModeDesconhecido = errors.New("AUTH_MODE desconhecido: use vazio ou dev")
 	errAuthDevForaDeDev     = errors.New("AUTH_MODE=dev só é aceito com AMBIENTE vazio ou dev")
 	errSegredoAtendeAusente = errors.New("ATENDE_API_SECRET vazio fora de dev: o webhook real não teria como conferir a assinatura")
+	errSegredoExportacao    = errors.New("GANCHOS_SEGREDO_EXPORTACAO vazio fora de dev: a exportação de regras não teria assinatura")
 )
 
 // normalizarConfig tira espaços e caixa de AMBIENTE e AUTH_MODE (" PRD" é prd).
@@ -39,6 +42,9 @@ func validarConfig(c Config) error {
 	}
 	if !ehDesenvolvimento(c.Ambiente) && c.AtendeSecret == "" {
 		return errSegredoAtendeAusente
+	}
+	if !ehDesenvolvimento(c.Ambiente) && c.SegredoExportacao == "" {
+		return errSegredoExportacao
 	}
 	return nil
 }

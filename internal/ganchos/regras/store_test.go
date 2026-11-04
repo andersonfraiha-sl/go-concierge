@@ -87,7 +87,7 @@ func TestSalvarComVersaoVelhaDevolveErrVersaoVelhaSemAvisar(t *testing.T) {
 	v1 := salvar(t, p, novaRegra("horario", true), 0)
 	salvar(t, p, v1, v1.Versao)
 	avisos := 0
-	p.aoAlterar = func(RegraGravada) { avisos++ }
+	p.aoAlterar = func([]RegraGravada) { avisos++ }
 	_, err := p.Salvar(t.Context(), v1, v1.Versao)
 	if !errors.Is(err, ErrVersaoVelha) {
 		t.Fatalf("Salvar com versão velha = %v, quer ErrVersaoVelha", err)
@@ -201,4 +201,49 @@ func jsonIgual(t *testing.T, a, b json.RawMessage) bool {
 	ja, _ := json.Marshal(x)
 	jb, _ := json.Marshal(y)
 	return string(ja) == string(jb)
+}
+
+func TestSalvarVariasGravaTudoEAvisaUmaVez(t *testing.T) {
+	p := NovoPostgres(bancotest.Novo(t).Ent)
+	existente := salvar(t, p, novaRegra("existente", true), 0)
+	var avisos [][]RegraGravada
+	p.aoAlterar = func(rs []RegraGravada) { avisos = append(avisos, rs) }
+	importada := novaRegra("importada", true)
+	importada.ID = "7d3c3f9e-0f5b-4c7a-9a43-2f1c1d0e5b11"
+	salvas, err := p.SalvarVarias(t.Context(), []RegraGravada{existente, importada}, []int{existente.Versao, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if salvas[0].Versao != 2 || salvas[1].Versao != 1 || salvas[1].ID != importada.ID {
+		t.Fatalf("salvas = %+v, quer existente na versão 2 e importada na 1 com o id dela", salvas)
+	}
+	if len(avisos) != 1 || len(avisos[0]) != 2 {
+		t.Fatalf("avisos = %d, quer 1 com as 2 regras", len(avisos))
+	}
+	versoes, err := p.VersoesAtuais(t.Context(), []string{existente.ID, importada.ID, "00000000-0000-0000-0000-000000000001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(versoes) != 2 || versoes[existente.ID] != 2 || versoes[importada.ID] != 1 {
+		t.Fatalf("VersoesAtuais = %v", versoes)
+	}
+}
+
+func TestSalvarVariasComUmaVersaoVelhaNaoGravaNenhuma(t *testing.T) {
+	p := NovoPostgres(bancotest.Novo(t).Ent)
+	v1 := salvar(t, p, novaRegra("horario", true), 0)
+	salvar(t, p, v1, v1.Versao)
+	avisos := 0
+	p.aoAlterar = func([]RegraGravada) { avisos++ }
+	_, err := p.SalvarVarias(t.Context(), []RegraGravada{novaRegra("nova", true), v1}, []int{0, v1.Versao})
+	if !errors.Is(err, ErrVersaoVelha) {
+		t.Fatalf("SalvarVarias = %v, quer ErrVersaoVelha", err)
+	}
+	todas, err := p.Listar(t.Context(), "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(todas) != 1 || avisos != 0 {
+		t.Fatalf("regras no banco = %d e avisos = %d, quer 1 e 0 (nada da transação)", len(todas), avisos)
+	}
 }

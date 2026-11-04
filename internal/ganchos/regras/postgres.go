@@ -22,9 +22,10 @@ const timeoutConsulta = 3 * time.Second
 // versão gravada, só acrescenta).
 type Postgres struct {
 	cli *ent.Client
-	// aoAlterar recebe cada regra gravada depois do commit (o Cache). A versão vem do banco
-	// e cresce por regra, então quem recebe pode descartar um aviso atrasado.
-	aoAlterar func(RegraGravada)
+	// aoAlterar recebe as regras de cada gravação depois do commit (o Cache), num aviso só por
+	// transação. A versão vem do banco e cresce por regra, então quem recebe pode descartar um
+	// aviso atrasado.
+	aoAlterar func([]RegraGravada)
 }
 
 func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
@@ -40,10 +41,70 @@ func (p *Postgres) Salvar(ctx context.Context, r RegraGravada, versaoLida int) (
 	if err != nil {
 		return RegraGravada{}, fmt.Errorf("salvar regra %q: %w", r.Nome, err)
 	}
-	if p.aoAlterar != nil {
-		p.aoAlterar(salva)
-	}
+	p.avisar([]RegraGravada{salva})
 	return salva, nil
+}
+
+// timeoutLote limita a transação de SalvarVarias: até 1000 regras, três comandos cada.
+const timeoutLote = 30 * time.Second
+
+// SalvarVarias grava rs numa transação só (tudo ou nada), cada uma contra a versão lida de
+// mesmo índice (0 = regra nova, com o id de r quando vier preenchido), e avisa uma vez depois
+// do commit. Uma versão desatualizada desfaz tudo com ErrVersaoVelha.
+func (p *Postgres) SalvarVarias(ctx context.Context, rs []RegraGravada, versoesLidas []int) ([]RegraGravada, error) {
+	if len(rs) != len(versoesLidas) {
+		return nil, fmt.Errorf("salvar %d regras com %d versões lidas", len(rs), len(versoesLidas))
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutLote)
+	defer cancel()
+	agora := time.Now().UTC().Truncate(time.Microsecond)
+	salvas, err := emTransacao(ctx, p.cli, func(tx *ent.Tx) ([]RegraGravada, error) {
+		out := make([]RegraGravada, len(rs))
+		for i, r := range rs {
+			r.Versao, r.AlteradaEm = versoesLidas[i]+1, agora
+			salva, err := gravar(ctx, tx, r, versoesLidas[i])
+			if err != nil {
+				return nil, fmt.Errorf("regra %d (%q): %w", i, r.Nome, err)
+			}
+			out[i] = salva
+		}
+		return out, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("salvar %d regras: %w", len(rs), err)
+	}
+	p.avisar(salvas)
+	return salvas, nil
+}
+
+func (p *Postgres) avisar(rs []RegraGravada) {
+	if p.aoAlterar != nil {
+		p.aoAlterar(rs)
+	}
+}
+
+// VersoesAtuais devolve a versão de cada id que já existe; os que não existem ficam fora.
+func (p *Postgres) VersoesAtuais(ctx context.Context, ids []string) (map[string]int, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
+	defer cancel()
+	uids := make([]uuid.UUID, len(ids))
+	for i, id := range ids {
+		uid, err := uuid.Parse(id)
+		if err != nil {
+			return nil, fmt.Errorf("versões atuais: id %q: %w", id, err)
+		}
+		uids[i] = uid
+	}
+	linhas, err := p.cli.GanchosRegra.Query().Where(ganchosregra.IDIn(uids...)).
+		Select(ganchosregra.FieldID, ganchosregra.FieldVersao).All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("versões atuais: %w", err)
+	}
+	versoes := make(map[string]int, len(linhas))
+	for _, l := range linhas {
+		versoes[l.ID.String()] = l.Versao
+	}
+	return versoes, nil
 }
 
 func gravar(ctx context.Context, tx *ent.Tx, r RegraGravada, versaoLida int) (RegraGravada, error) {
@@ -238,20 +299,21 @@ func deLinha(l *ent.GanchosRegra) RegraGravada {
 	}
 }
 
-func emTransacao(ctx context.Context, cli *ent.Client, fn func(*ent.Tx) (RegraGravada, error)) (RegraGravada, error) {
+func emTransacao[T any](ctx context.Context, cli *ent.Client, fn func(*ent.Tx) (T, error)) (T, error) {
+	var zero T
 	tx, err := cli.Tx(ctx)
 	if err != nil {
-		return RegraGravada{}, fmt.Errorf("abrir transação: %w", err)
+		return zero, fmt.Errorf("abrir transação: %w", err)
 	}
 	r, err := fn(tx)
 	if err != nil {
 		if errDesfazer := tx.Rollback(); errDesfazer != nil {
 			err = errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
 		}
-		return RegraGravada{}, err
+		return zero, err
 	}
 	if err := tx.Commit(); err != nil {
-		return RegraGravada{}, fmt.Errorf("confirmar transação: %w", err)
+		return zero, fmt.Errorf("confirmar transação: %w", err)
 	}
 	return r, nil
 }

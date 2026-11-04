@@ -77,10 +77,15 @@ func (c *Cache) Aquecer(ctx context.Context) error {
 // Indice devolve o índice publicado; nil só antes de Aquecer.
 func (c *Cache) Indice() *ganchos.Indice { return c.indice.Load() }
 
-func (c *Cache) guardar(r RegraGravada) {
+// guardar aplica o aviso de uma gravação (uma regra ou um lote) com uma recompilação só.
+func (c *Cache) guardar(rs []RegraGravada) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.aplicar(r) || !c.quente {
+	mudou := false
+	for _, r := range rs {
+		mudou = c.aplicar(r) || mudou
+	}
+	if !mudou || !c.quente {
 		return
 	}
 	c.recompilar()
