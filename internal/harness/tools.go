@@ -368,8 +368,13 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 	}
 	c.params = antes.Evento.Params
 	out, err := ag.executar(ctx, c)
-	if err != nil || out["error"] != nil {
-		return out, err
+	if err != nil {
+		return nil, err
+	}
+	if texto, falhou := out["error"].(string); falhou {
+		// o texto pode trazer o que o MCP ou a ferramenta devolveu: sai mascarado
+		out["error"], _ = ag.cfg.Turno.Cofre().Mascarar(texto)
+		return out, nil
 	}
 	return ag.depoisDe(ctx, c, out), nil
 }
@@ -494,7 +499,7 @@ func (ag *Agente) depoisDe(ctx context.Context, c chamada, out saida) saida {
 
 // executar roda o recurso que antes_da_ferramenta liberou, pela origem dele.
 func (ag *Agente) executar(ctx context.Context, c chamada) (saida, error) {
-	if c.achado == nil {
+	if c.achado == nil { // inalcançável: o Build exige ferramenta_permitida, que barra antes
 		return erro("recurso %q não está declarado por este agente", c.nome), nil
 	}
 	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus

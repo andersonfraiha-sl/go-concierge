@@ -18,7 +18,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -29,6 +31,7 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/fixos"
@@ -153,9 +156,11 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	if cfg.MaxIteracoes <= 0 {
 		cfg.MaxIteracoes = maxIteracoesPadrao
 	}
-	if cfg.Turno == nil {
-		cfg.Turno = abrirTurno(cfg.Ganchos)
+	turno, err := turnoDoAgente(cfg)
+	if err != nil {
+		return nil, err
 	}
+	cfg.Turno = turno
 	instrucao := cat.Projecao(a)
 	if c := strings.TrimSpace(cfg.Contexto); c != "" {
 		instrucao += "\n\n" + c
@@ -223,14 +228,54 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	return ag, nil
 }
 
-// abrirTurno abre o turno do conjunto; sem conjunto, um só com os fixos, que nenhuma
-// configuração tira.
-func abrirTurno(conjunto *ganchos.Conjunto) *ganchos.Turno {
-	if conjunto == nil {
-		conjunto = ganchos.NovoConjunto(fixos.Todos(), nil)
+// turnoDoAgente é o turno da Config ou um aberto no conjunto dela; sem conjunto, no dos
+// fixos. Recusa turno sem algum fixo: as guardas de permissão, escrita e contexto B2C
+// moram neles, e fixo nunca some por configuração.
+func turnoDoAgente(cfg Config) (*ganchos.Turno, error) {
+	turno := cfg.Turno
+	if turno == nil {
+		conjunto, err := conjuntoDe(cfg.Ganchos)
+		if err != nil {
+			return nil, err
+		}
+		t := conjunto.Turno()
+		turno = &t
 	}
-	t := conjunto.Turno()
-	return &t
+	if faltam := fixosAusentes(turno.NomesDosFixos()); len(faltam) > 0 {
+		return nil, fmt.Errorf("harness: ganchos sem os fixos %s", strings.Join(faltam, ", "))
+	}
+	return turno, nil
+}
+
+func conjuntoDe(conjunto *ganchos.Conjunto) (*ganchos.Conjunto, error) {
+	if conjunto != nil {
+		return conjunto, nil
+	}
+	return conjuntoDosFixos(fixos.Todos())
+}
+
+// conjuntoDosFixos é o conjunto de quem não injetou um: só fixos, com log e métrica noop,
+// para falha de fixo sair em ERROR.
+func conjuntoDosFixos(f ganchos.Fixos) (*ganchos.Conjunto, error) {
+	observar, err := ganchos.ComObservabilidade(slog.Default(), noop.NewMeterProvider().Meter("ganchos"))
+	if err != nil {
+		return nil, fmt.Errorf("harness: observabilidade dos ganchos: %w", err)
+	}
+	return ganchos.NovoConjunto(f, nil, observar), nil
+}
+
+// fixosAusentes lista, como evento/nome, os fixos obrigatórios que tem não traz.
+func fixosAusentes(tem map[ganchos.NomeDoEvento][]string) []string {
+	var faltam []string
+	for evento, nomes := range ganchos.NovoConjunto(fixos.Todos(), nil).NomesDosFixos() {
+		for _, nome := range nomes {
+			if !slices.Contains(tem[evento], nome) {
+				faltam = append(faltam, string(evento)+"/"+nome)
+			}
+		}
+	}
+	slices.Sort(faltam)
+	return faltam
 }
 
 // semTemplate põe a projeção como system message SEM formatação: ela tem JSON e
@@ -370,8 +415,8 @@ type Resultado struct {
 	// Plano é o estado da orquestração nos modos planning e react (nil no router). A
 	// sessão o guarda enquanto Pendente != "" e retoma com Continuar.
 	Plano *Plano `json:"plano,omitempty"`
-	// Registros são os ganchos que não deixaram passar ou falharam nas chamadas a
-	// recurso. Fora do JSON: o motivo pode citar a mensagem do morador.
+	// Registros são os ganchos que ajustaram, não deixaram passar ou falharam nas
+	// chamadas a recurso. Fora do JSON: o motivo pode citar a mensagem do morador.
 	Registros []ganchos.Registro `json:"-"`
 }
 

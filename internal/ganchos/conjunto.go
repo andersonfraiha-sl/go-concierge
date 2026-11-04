@@ -148,6 +148,14 @@ func (c *Conjunto) NomesDosFixos() map[NomeDoEvento][]string {
 	}
 }
 
+// NomesDosFixos do conjunto que abriu o turno; turno zero não tem fixos.
+func (t Turno) NomesDosFixos() map[NomeDoEvento][]string {
+	if t.conjunto == nil {
+		return nil
+	}
+	return t.conjunto.NomesDosFixos()
+}
+
 // comAlvo é o evento que sabe a que condomínio e administradora se refere.
 type comAlvo interface {
 	Ocorrencia

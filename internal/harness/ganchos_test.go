@@ -1,9 +1,12 @@
 package harness
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 
 	"go-concierge/internal/ganchos"
@@ -28,21 +31,26 @@ type cenarioGanchos struct {
 
 func novoCenarioGanchos(t *testing.T, conjunto *ganchos.Conjunto, fake *mcpFalso) cenarioGanchos {
 	t.Helper()
-	cat, a := catalogoComMCP(t)
 	turno := conjunto.Turno()
-	payloads := map[string]map[string]any{
-		"unidades.listar":     {"companyId": "5982", "filter_mobile_number": telefoneCanal},
-		ferramentaMotivos:     {"companyId": "5982"},
-		ferramentaCriarVisita: {"companyId": "5982", "resident": map[string]any{"mobile_number": telefoneCanal}},
-	}
-	ag, err := Build(context.Background(), cat, a, Config{
-		Mock: true, Env: semEnv, MCP: fake, Payloads: payloads, Ganchos: conjunto, Turno: &turno,
-		Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"},
-	})
+	ag, err := montarConcierge(t, Config{MCP: fake, Ganchos: conjunto, Turno: &turno})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return cenarioGanchos{ag: ag, fake: fake, turno: &turno}
+}
+
+// montarConcierge completa cfg com o Mock, os payloads B2C e um morador identificado.
+func montarConcierge(t *testing.T, cfg Config) (*Agente, error) {
+	t.Helper()
+	cat, a := catalogoComMCP(t)
+	cfg.Mock, cfg.Env = true, semEnv
+	cfg.Identidade = Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}
+	cfg.Payloads = map[string]map[string]any{
+		"unidades.listar":     {"companyId": "5982", "filter_mobile_number": telefoneCanal},
+		ferramentaMotivos:     {"companyId": "5982"},
+		ferramentaCriarVisita: {"companyId": "5982", "resident": map[string]any{"mobile_number": telefoneCanal}},
+	}
+	return Build(context.Background(), cat, a, cfg)
 }
 
 func comRegras(antes []ganchos.Gancho[ganchos.AntesDaFerramenta], depois []ganchos.Gancho[ganchos.DepoisDaFerramenta]) *ganchos.Conjunto {
@@ -245,4 +253,109 @@ func conjuntoComFixoQuebrado(antes bool) *ganchos.Conjunto {
 		f.DepoisDaFerramenta.Saneamento = append(f.DepoisDaFerramenta.Saneamento, quebrado[ganchos.DepoisDaFerramenta](ganchos.Fechada))
 	}
 	return ganchos.NovoConjunto(f, nil)
+}
+
+func TestBuildRecusaGanchosSemFixos(t *testing.T) {
+	semFixos := ganchos.NovoConjunto(ganchos.Fixos{}, nil)
+	turnoSemFixos := semFixos.Turno()
+	casos := []struct {
+		nome string
+		cfg  Config
+	}{
+		{"conjunto sem fixos", Config{Ganchos: semFixos}},
+		{"conjunto só com saneamento", Config{Ganchos: ganchos.NovoConjunto(fixos.Saneamento(), nil)}},
+		{"turno sem fixos", Config{Turno: &turnoSemFixos}},
+	}
+	for _, tt := range casos {
+		t.Run(tt.nome, func(t *testing.T) {
+			if _, err := montarConcierge(t, tt.cfg); err == nil || !strings.Contains(err.Error(), fixos.FerramentaPermitida) {
+				t.Fatalf("Build deveria recusar; err=%v", err)
+			}
+		})
+	}
+}
+
+// Não roda em paralelo: troca o slog.Default do processo.
+func TestFixoQuebradoNoConjuntoPadraoLogaErro(t *testing.T) {
+	var buf bytes.Buffer
+	anterior := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(anterior) })
+
+	f := fixos.Todos()
+	f.AntesDaFerramenta.Checagem = append(f.AntesDaFerramenta.Checagem, quebrado[ganchos.AntesDaFerramenta](ganchos.Fechada))
+	conjunto, err := conjuntoDosFixos(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conjunto.Turno().AntesDaFerramenta(context.Background(), ganchos.AntesDaFerramenta{Declarada: true, Permitida: true})
+	if !strings.Contains(buf.String(), "level=ERROR") {
+		t.Fatalf("falha de fixo sai em ERROR; log:\n%s", buf.String())
+	}
+}
+
+func TestErroDoMCPSaiMascarado(t *testing.T) {
+	fake := &mcpFalso{resultados: map[string]*mcp.CallResult{
+		ferramentaEmpresa: {IsError: true, Content: []mcp.Content{{Type: "text", Text: "documento " + cpfValido + " não encontrado"}}},
+	}}
+	c := novoCenarioGanchos(t, ganchos.NovoConjunto(fixos.Todos(), nil), fake)
+
+	out, err := c.ag.Subagentes["reserva-area-comum"].InvocarRecurso(context.Background(), "unidades.listar", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if texto := erroDe(out); strings.Contains(texto, cpfValido) || !strings.Contains(texto, "«cpf:1»") {
+		t.Fatalf("o CPF do erro do MCP sai mascarado: %q", texto)
+	}
+	if c.turno.Cofre().Ler()["«cpf:1»"] != cpfValido {
+		t.Fatal("o valor do CPF fica no cofre do turno")
+	}
+}
+
+// mcpConcorrente serializa o mcpFalso, que não é seguro entre goroutines.
+type mcpConcorrente struct {
+	mu   sync.Mutex
+	fake mcpFalso
+}
+
+func (m *mcpConcorrente) CallTool(ctx context.Context, name string, args map[string]any) (*mcp.CallResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.fake.CallTool(ctx, name, args)
+}
+
+func TestChamadasParalelasNoMesmoTurno(t *testing.T) {
+	const chamadas = 4
+	conjunto := ganchos.NovoConjunto(fixos.Todos(), nil)
+	turno := conjunto.Turno()
+	caller := &mcpConcorrente{fake: mcpFalso{resultados: map[string]*mcp.CallResult{
+		ferramentaEmpresa: resultadoTexto(`{"morador":{"cpf":"` + cpfValido + `"}}`),
+	}}}
+	ag, err := montarConcierge(t, Config{MCP: caller, Ganchos: conjunto, Turno: &turno})
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := &coletor{transbordo: new(string)}
+	ctx := context.WithValue(context.Background(), chaveColetor{}, col)
+	reservas := ag.Subagentes["reserva-area-comum"]
+
+	saidas := make([]map[string]any, chamadas)
+	var wg sync.WaitGroup
+	for i := range chamadas {
+		wg.Go(func() {
+			saidas[i], _ = reservas.chamarRecurso(ctx, &argsRecurso{Nome: "unidades.listar"})
+		})
+	}
+	wg.Wait()
+
+	cofre := turno.Cofre().Ler()
+	for i, out := range saidas {
+		cru, _ := json.Marshal(out)
+		if erroDe(out) != "" || strings.Contains(string(cru), cpfValido) {
+			t.Fatalf("chamada %d: %s", i, cru)
+		}
+	}
+	if len(cofre) == 0 || len(col.registros) != 2*chamadas {
+		t.Fatalf("cofre %d valores, %d registros; quer >0 e %d (contexto_b2c e pii_no_resultado por chamada)", len(cofre), len(col.registros), 2*chamadas)
+	}
 }
