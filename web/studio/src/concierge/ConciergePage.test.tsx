@@ -31,6 +31,8 @@ function rotas(
           nome: 'concierge',
           descricao: '',
           persona,
+          tipo: 'orquestrador',
+          tipo_declarado: true,
           arquivos: {},
           herdados: {},
           problemas: [],

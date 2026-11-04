@@ -180,6 +180,8 @@ describe('SkillEditorPage', () => {
             nome: 'agendar-mudanca',
             descricao: '',
             persona: '',
+            tipo: 'operador',
+            tipo_declarado: false,
           },
           recursos: [],
         }),

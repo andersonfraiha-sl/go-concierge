@@ -33,6 +33,8 @@ export const agenteLido = ({
     nome: 'agendar-mudanca',
     descricao: '',
     persona: '',
+    tipo: 'operador',
+    tipo_declarado: false,
     arquivos: { rules: regras, knowledge: documentos },
     herdados: { knowledge: herdados },
     problemas: [],
