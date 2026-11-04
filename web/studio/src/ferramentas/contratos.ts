@@ -50,7 +50,12 @@ export function classeDe(ferramenta: Ferramenta): Classe {
   return CLASSE_DO_TIPO[ferramenta.kind] ?? (ferramenta.write ? 'escrita' : 'leitura');
 }
 
-export const tituloDe = (ferramenta: Ferramenta): string => ferramenta.titulo || ferramenta.name;
+/**
+ * Quem não edita não vê o código técnico (`name`): sem título, a ferramenta
+ * aparece como "Ferramenta sem nome".
+ */
+export const tituloDe = (ferramenta: Ferramenta, editavel = true): string =>
+  ferramenta.titulo || (editavel ? ferramenta.name : 'Ferramenta sem nome');
 
 export const mantidaFora = (ferramenta: Ferramenta): boolean => ferramenta.origem === 'mcp';
 

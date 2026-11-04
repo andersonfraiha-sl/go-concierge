@@ -104,7 +104,7 @@ function LinhaDeFerramenta({ recurso, editavel, onDesligar }: LinhaProps): React
     <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="subtitle2">{titulo}</Typography>
-        {recurso.recurso && (
+        {editavel && recurso.recurso && (
           <Typography variant="caption" color="text.secondary">
             {recurso.recurso.description}
           </Typography>
