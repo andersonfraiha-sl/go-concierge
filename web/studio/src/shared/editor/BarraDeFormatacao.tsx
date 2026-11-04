@@ -9,7 +9,7 @@ import UndoIcon from '@mui/icons-material/Undo';
 import { Box, Divider, IconButton, Tooltip, Typography } from '@mui/material';
 import { type Editor, useEditorState } from '@tiptap/react';
 import { Fragment, type ReactNode } from 'react';
-import { tokens } from '@/theme/tokens';
+import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
 
 type Acao = {
   rotulo: string;
@@ -24,7 +24,11 @@ type Acao = {
 const titulo = (nivel: 2 | 3): Acao => ({
   rotulo: nivel === 2 ? 'Título' : 'Subtítulo',
   atalho: `Ctrl+Alt+${nivel}`,
-  icone: <Typography sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1 }}>H{nivel}</Typography>,
+  icone: (
+    <Typography sx={{ fontSize: TIPOS.body2, fontWeight: PESOS.negrito, lineHeight: 1 }}>
+      H{nivel}
+    </Typography>
+  ),
   ativa: (editor) => editor.isActive('heading', { level: nivel }),
   executar: (editor) => editor.chain().focus().toggleHeading({ level: nivel }).run(),
 });
@@ -171,10 +175,10 @@ function GrupoDeBotoes({ grupo, separar, children }: PropsDoGrupo): ReactNode {
 type PropsDoBotao = { acao: Acao; estado: EstadoDoBotao; onClick: () => void };
 
 const estiloDoBotao = (ativa: boolean) => ({
-  borderRadius: 1,
+  borderRadius: RAIO.campo,
   width: 30,
   height: 30,
-  ...(ativa && { color: 'primary.main', bgcolor: tokens.color.background.tint }),
+  ...(ativa && { color: 'primary.main', bgcolor: 'background.tint' }),
 });
 
 function Botao({ acao, estado, onClick }: PropsDoBotao): ReactNode {

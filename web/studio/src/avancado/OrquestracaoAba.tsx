@@ -15,6 +15,7 @@ import { type Control, Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { SectionCard } from '@/shared/ui/SectionCard';
+import { PESOS } from '@/theme/tokens';
 import {
   LIMITES_DE_ORQUESTRACAO,
   MODOS,
@@ -165,7 +166,7 @@ function SeletorDeModo({
 function DescricaoDoModo({ modo, emUso }: { modo: Rascunho['modo']; emUso: boolean }): ReactNode {
   return (
     <Box>
-      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+      <Typography variant="body2" sx={{ fontWeight: PESOS.negrito }}>
         {MODOS[modo].nome}
         {emUso && ' (em uso)'}
       </Typography>

@@ -4,7 +4,7 @@ import { Box, IconButton, InputBase, Typography } from '@mui/material';
 import type { BaseSyntheticEvent, KeyboardEvent } from 'react';
 import { type Control, Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { RAIOS, TIPOS, tokens } from '@/theme/tokens';
+import { RAIOS, TIPOS } from '@/theme/tokens';
 import { LIMITE_DA_MENSAGEM } from './contratos';
 
 type Props = { desabilitado: boolean; aoEnviar: (texto: string) => Promise<void> };
@@ -15,7 +15,7 @@ const FormularioSchema = z.object({
   texto: z.string().trim().min(1).max(LIMITE_DA_MENSAGEM),
 });
 type Formulario = z.infer<typeof FormularioSchema>;
-const rodape = { fontSize: TIPOS.overline, color: tokens.color.text.muted } as const;
+const rodape = { fontSize: TIPOS.overline, color: 'text.muted' } as const;
 
 export function Compositor({ desabilitado, aoEnviar }: Props) {
   const { handleSubmit, reset, control } = useForm({
@@ -30,7 +30,7 @@ export function Compositor({ desabilitado, aoEnviar }: Props) {
   });
 
   return (
-    <Box sx={{ px: 3, pt: 2, pb: 3, borderTop: `1px solid ${tokens.color.border.subtle}` }}>
+    <Box sx={{ px: 3, pt: 2, pb: 3, borderTop: 1, borderColor: 'border.subtle' }}>
       <CaixaDeMensagem control={control} desabilitado={desabilitado} enviar={enviar} />
       <DicasDoCompositor tamanho={tamanho} />
     </Box>
@@ -60,11 +60,11 @@ function CaixaDeMensagem({ control, desabilitado, enviar }: CaixaProps) {
         alignItems: 'flex-end',
         gap: 1,
         border: 1,
-        borderColor: tokens.color.border.strong,
+        borderColor: 'border.strong',
         borderRadius: `${RAIOS.painel}px`,
         p: 1,
         pl: 2,
-        bgcolor: desabilitado ? tokens.color.background.subtle : 'background.paper',
+        bgcolor: desabilitado ? 'background.subtle' : 'background.paper',
         '&:focus-within': { borderColor: 'primary.main' },
       }}
     >
@@ -86,7 +86,7 @@ function CaixaDeMensagem({ control, desabilitado, enviar }: CaixaProps) {
             slotProps={{
               input: { 'aria-label': 'Mensagem para o copiloto', maxLength: LIMITE_DA_MENSAGEM },
             }}
-            sx={{ fontSize: 13, lineHeight: 1.5 }}
+            sx={{ fontSize: TIPOS.body2, lineHeight: 1.5 }}
           />
         )}
       />

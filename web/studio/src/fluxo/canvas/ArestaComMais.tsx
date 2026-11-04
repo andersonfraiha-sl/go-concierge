@@ -1,5 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
-import { IconButton } from '@mui/material';
+import { IconButton, useTheme } from '@mui/material';
 import {
   BaseEdge,
   type Edge,
@@ -8,7 +8,7 @@ import {
   getStraightPath,
 } from '@xyflow/react';
 import { createContext, type MouseEvent, type ReactNode, useContext } from 'react';
-import { tokens } from '@/theme/tokens';
+import { ICONES } from '@/theme/tokens';
 
 /** O "+" só pede: quem abre o menu e insere é o canvas. */
 export type PedirInsercao = (indice: number, ancora: HTMLElement) => void;
@@ -24,15 +24,15 @@ const estiloDoBotao = ({ x, y }: Posicao) => ({
   pointerEvents: 'all',
   width: 24,
   height: 24,
-  bgcolor: tokens.color.studio.nodeBg,
+  bgcolor: 'studio.nodeBg',
   border: 1,
-  borderColor: tokens.color.studio.nodeBorder,
+  borderColor: 'studio.nodeBorder',
   color: 'text.secondary',
   transition: 'transform 120ms ease, border-color 120ms ease, color 120ms ease',
   '&:hover, &:focus-visible': {
-    bgcolor: tokens.color.studio.nodeBg,
-    borderColor: tokens.color.studio.nodeSelected,
-    color: tokens.color.studio.nodeSelected,
+    bgcolor: 'studio.nodeBg',
+    borderColor: 'studio.nodeSelected',
+    color: 'studio.nodeSelected',
   },
 });
 
@@ -52,7 +52,7 @@ export function BotaoMais({ indice, rotulo, posicao }: BotaoMaisProps): ReactNod
       onClick={pedir}
       sx={estiloDoBotao(posicao)}
     >
-      <AddIcon sx={{ fontSize: 16 }} />
+      <AddIcon sx={{ fontSize: ICONES.medio }} />
     </IconButton>
   );
 }
@@ -61,9 +61,10 @@ export type ArestaComMaisTipo = Edge<{ indice: number }, 'comMais'>;
 
 export function ArestaComMais({ id, data, ...pontas }: EdgeProps<ArestaComMaisTipo>): ReactNode {
   const [caminho, meioX, meioY] = getStraightPath(pontas);
+  const { conector } = useTheme().palette.studio;
   return (
     <>
-      <BaseEdge id={id} path={caminho} style={{ stroke: tokens.color.conector, strokeWidth: 2 }} />
+      <BaseEdge id={id} path={caminho} style={{ stroke: conector, strokeWidth: 2 }} />
       {data && (
         <EdgeLabelRenderer>
           <BotaoMais

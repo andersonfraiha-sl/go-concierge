@@ -3,7 +3,7 @@ import { type ReactNode, useId, useState } from 'react';
 import { useEu } from '@/acesso/eu';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { PESOS, RAIOS, TIPOS } from '@/theme/tokens';
 import { podeAplicar } from './aplicar';
 import { useCopiloto } from './CopilotoProvider';
 import type { Proposta } from './contratos';
@@ -16,7 +16,6 @@ type Confirmacao = { texto: string; responder: (confirmou: boolean) => void };
 type Confirmar = (texto: string) => Promise<boolean>;
 
 const PRONTA: Situacao = { tipo: 'pronta' };
-const linha = `1px solid ${tokens.color.border.subtle}`;
 
 function useConfirmacao() {
   const [confirmacao, setConfirmacao] = useState<Confirmacao | null>(null);
@@ -62,7 +61,7 @@ export function CartaoDeProposta({ proposta }: Props) {
         alignSelf: 'stretch',
         bgcolor: 'background.paper',
         border: 1,
-        borderColor: tokens.color.border.strong,
+        borderColor: 'border.strong',
         borderRadius: `${RAIOS.painel}px`,
         overflow: 'hidden',
       }}
@@ -90,11 +89,12 @@ function ResumoDaProposta({ id, children }: { id: string; children: ReactNode })
       sx={{
         px: 2,
         py: 1.25,
-        bgcolor: tokens.color.background.subtle,
-        borderBottom: linha,
-        fontSize: 12,
-        fontWeight: 600,
-        color: tokens.color.text.secondary,
+        bgcolor: 'background.subtle',
+        borderBottom: 1,
+        borderColor: 'border.subtle',
+        fontSize: TIPOS.caption,
+        fontWeight: PESOS.semi,
+        color: 'text.secondary',
       }}
     >
       {children}
@@ -115,7 +115,7 @@ function RodapeDaProposta({ proposta, situacao, onAplicar }: RodapeProps): React
 
   if (aplicadas.has(proposta.id)) {
     return (
-      <Aviso cor={tokens.color.success.main} fundo={tokens.color.success.background}>
+      <Aviso cor="success.main" fundo="success.soft">
         Aplicada
       </Aviso>
     );
@@ -123,7 +123,7 @@ function RodapeDaProposta({ proposta, situacao, onAplicar }: RodapeProps): React
   if (eu && !podeAplicar(eu, proposta.operacao)) {
     return (
       <Acoes>
-        <Typography sx={{ flex: 1, fontSize: 13, color: 'text.secondary' }}>
+        <Typography sx={{ flex: 1, fontSize: TIPOS.body2, color: 'text.secondary' }}>
           Você não pode aplicar esta.
         </Typography>
         <BotaoDescartar onClick={descartarEsta} />
@@ -133,7 +133,7 @@ function RodapeDaProposta({ proposta, situacao, onAplicar }: RodapeProps): React
   return (
     <>
       {situacao.tipo === 'erro' && (
-        <Aviso cor={tokens.color.danger.main} papel="alert">
+        <Aviso cor="error.main" papel="alert">
           {situacao.mensagem}
         </Aviso>
       )}
@@ -174,8 +174,8 @@ function Aviso({ cor, fundo, papel, children }: AvisoProps) {
         px: 2,
         py: 1.25,
         whiteSpace: 'pre-line',
-        fontSize: 13,
-        fontWeight: 500,
+        fontSize: TIPOS.body2,
+        fontWeight: PESOS.medio,
         color: cor,
         bgcolor: fundo,
       }}
@@ -193,7 +193,7 @@ function BotaoDescartar({ onClick }: { onClick: () => void }) {
       size="small"
       fullWidth
       onClick={onClick}
-      sx={{ color: 'text.secondary', borderColor: tokens.color.border.default }}
+      sx={{ color: 'text.secondary', borderColor: 'border.default' }}
     >
       Descartar
     </Button>

@@ -9,6 +9,7 @@ import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { DocumentoEditavel } from '@/skills/abas/DocumentoEditavel';
 import { chaveDosTextos, salvarTextos, type TextosLidos, useTextos } from '@/skills/contratos';
+import { PESOS, RAIO } from '@/theme/tokens';
 
 const CAMINHO_BOAS_VINDAS = caminhoDeRegra('boas-vindas.md');
 const CAMINHO_TRANSBORDO = caminhoDeRegra('transbordo.md');
@@ -101,7 +102,7 @@ function SeletorDeVisibilidade({
   const atual: Visibilidade = lidos.textos.visibilidade === 'public' ? 'public' : 'private';
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+      <Typography variant="body2" sx={{ fontWeight: PESOS.semi }}>
         Quem pode conversar
       </Typography>
       <ToggleButtonGroup
@@ -126,7 +127,7 @@ function BotaoDeVisibilidade({
   desabilitado: boolean;
 }): ReactNode {
   return (
-    <ToggleButton value={valor} disabled={desabilitado} sx={{ borderRadius: 9 }}>
+    <ToggleButton value={valor} disabled={desabilitado} sx={{ borderRadius: RAIO.chip }}>
       {ROTULOS_DE_VISIBILIDADE[valor]}
     </ToggleButton>
   );

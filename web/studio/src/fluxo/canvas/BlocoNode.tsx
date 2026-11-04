@@ -6,7 +6,8 @@ import type { ReactNode } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import { ALTURA_BLOCO, ESPACO, LARGURA_BLOCO } from '@/fluxo/modelo/edicao';
 import type { Bloco, ProblemaFluxo, TipoBloco } from '@/fluxo/modelo/tipos';
-import { RAIOS, SOMBRA_DO_BLOCO_EM_EDICAO, tokens } from '@/theme/tokens';
+import { useCorDoBloco } from '@/fluxo/modelo/useCorDoBloco';
+import { ICONES, PESOS, RAIO, RAIOS, SOMBRA_DO_BLOCO_EM_EDICAO, TIPOS } from '@/theme/tokens';
 import { BotaoMais } from './ArestaComMais';
 
 export type DadosDoBloco = {
@@ -31,10 +32,10 @@ const estiloDoCartao = (selecionado: boolean, realcado: boolean) => ({
   gap: 1.5,
   pl: 1.5,
   pr: 2,
-  bgcolor: realcado ? tokens.color.realceDoCopiloto : tokens.color.studio.nodeBg,
+  bgcolor: realcado ? 'studio.realceDoCopiloto' : 'studio.nodeBg',
   border: selecionado ? 2 : 1,
   borderStyle: 'solid',
-  borderColor: selecionado ? tokens.color.studio.nodeSelected : tokens.color.studio.nodeBorder,
+  borderColor: selecionado ? 'studio.nodeSelected' : 'studio.nodeBorder',
   borderLeftWidth: 4,
   borderRadius: `${RAIOS.cartao}px`,
   cursor: 'pointer',
@@ -49,7 +50,13 @@ function MarcaDoBloco({ indice, cor, Icone }: MarcaProps): ReactNode {
       <Typography
         component="span"
         aria-hidden="true"
-        sx={{ width: 18, flexShrink: 0, fontSize: 11, fontWeight: 600, color: cor }}
+        sx={{
+          width: 18,
+          flexShrink: 0,
+          fontSize: TIPOS.overline,
+          fontWeight: PESOS.semi,
+          color: cor,
+        }}
       >
         {indice + 1}.
       </Typography>
@@ -60,12 +67,12 @@ function MarcaDoBloco({ indice, cor, Icone }: MarcaProps): ReactNode {
           flexShrink: 0,
           display: 'grid',
           placeItems: 'center',
-          borderRadius: 1,
+          borderRadius: RAIO.campo,
           bgcolor: `${cor}1A`,
           color: cor,
         }}
       >
-        <Icone sx={{ fontSize: 18 }} />
+        <Icone sx={{ fontSize: ICONES.grande }} />
       </Box>
     </>
   );
@@ -73,7 +80,8 @@ function MarcaDoBloco({ indice, cor, Icone }: MarcaProps): ReactNode {
 
 export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
   const { bloco, indice, resumo, problemas, selecionado, realcado } = data;
-  const { rotulo, cor, Icone } = BLOCOS[bloco.tipo];
+  const { rotulo, Icone } = BLOCOS[bloco.tipo];
+  const cor = useCorDoBloco(bloco.tipo);
   return (
     <Box
       component="article"
@@ -94,7 +102,7 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
       )}
       <MarcaDoBloco indice={indice} cor={cor} Icone={Icone} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="body2" noWrap sx={{ fontWeight: 700 }}>
+        <Typography variant="body2" noWrap sx={{ fontWeight: PESOS.negrito }}>
           {rotulo}
         </Typography>
         <Typography variant="caption" color="text.secondary" noWrap component="p">
@@ -112,8 +120,7 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
   );
 }
 
-const corDoProblema = (temErro: boolean): string =>
-  temErro ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
+const corDoProblema = (temErro: boolean): string => (temErro ? 'error.main' : 'warning.main');
 
 function SeloDeProblema({ problemas }: { problemas: ProblemaFluxo[] }): ReactNode {
   if (problemas.length === 0) return null;
@@ -128,7 +135,7 @@ function SeloDeProblema({ problemas }: { problemas: ProblemaFluxo[] }): ReactNod
         aria-label={`${temErro ? 'Erro' : 'Aviso'}: ${mensagens}`}
         sx={{ display: 'grid', placeItems: 'center', color: corDoProblema(temErro) }}
       >
-        <Icone sx={{ fontSize: 20 }} />
+        <Icone sx={{ fontSize: ICONES.destaque }} />
       </Box>
     </Tooltip>
   );

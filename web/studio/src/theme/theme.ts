@@ -6,6 +6,17 @@ import { ESPACOS, tokens } from './tokens';
 // Tons do desenho aprovado que os componentes pedem pelo caminho da paleta no `sx`
 // ('border.subtle', 'text.muted', 'background.tint'...). Sem eles na paleta, o MUI
 // repassava o texto cru ao CSS e a borda caía na cor do texto.
+interface StudioPalette {
+  category: Record<'start' | 'send' | 'ask' | 'logic' | 'integrate' | 'ai' | 'end', string>;
+  canvasBg: string;
+  canvasDot: string;
+  nodeBg: string;
+  nodeBorder: string;
+  nodeSelected: string;
+  conector: string;
+  realceDoCopiloto: string;
+}
+
 declare module '@mui/material/styles' {
   interface TypeText {
     strong: string;
@@ -17,10 +28,21 @@ declare module '@mui/material/styles' {
     tint: string;
     neutralFill: string;
   }
+  // `soft`: fundo suave do tom; `onSoft`: texto legível sobre ele.
+  interface PaletteColor {
+    soft: string;
+    onSoft: string;
+  }
+  interface SimplePaletteColorOptions {
+    soft?: string;
+    onSoft?: string;
+  }
   interface Palette {
+    studio: StudioPalette;
     border: { default: string; strong: string; subtle: string };
   }
   interface PaletteOptions {
+    studio?: StudioPalette;
     border?: { default: string; strong: string; subtle: string };
   }
 }
@@ -58,8 +80,32 @@ const PALETA: PaletteOptions = {
   },
   border: tokens.color.border,
   divider: tokens.color.border.strong,
-  success: { main: tokens.color.success.main },
+  success: {
+    main: tokens.color.success.main,
+    soft: tokens.color.success.background,
+    onSoft: tokens.color.success.text,
+  },
+  warning: {
+    main: tokens.color.studio.issueWarning,
+    soft: tokens.color.warning.background,
+    onSoft: tokens.color.warning.text,
+  },
+  info: {
+    main: tokens.color.primary.main,
+    soft: tokens.color.background.tint,
+    onSoft: tokens.color.primary.main,
+  },
   error: { main: tokens.color.danger.main },
+  studio: {
+    category: tokens.color.studio.category,
+    canvasBg: tokens.color.studio.canvasBg,
+    canvasDot: tokens.color.studio.canvasDot,
+    nodeBg: tokens.color.studio.nodeBg,
+    nodeBorder: tokens.color.studio.nodeBorder,
+    nodeSelected: tokens.color.studio.nodeSelected,
+    conector: tokens.color.conector,
+    realceDoCopiloto: tokens.color.realceDoCopiloto,
+  },
 };
 
 export function criarTema(): Theme {

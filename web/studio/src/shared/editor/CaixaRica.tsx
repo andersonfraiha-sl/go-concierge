@@ -1,7 +1,7 @@
 import { Box } from '@mui/material';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import { type ReactNode, useEffect, useRef } from 'react';
-import { CAMPO, FONTE_MONO, tokens } from '@/theme/tokens';
+import { anel, CAMPO, FONTE_MONO, PESOS, RAIO } from '@/theme/tokens';
 import { BarraDeFormatacao } from './BarraDeFormatacao';
 import { EXTENSOES } from './extensoes';
 import { type Aberto, salvar } from './markdownFiel';
@@ -64,13 +64,13 @@ export function CaixaRica({
     <Box
       sx={(theme) => ({
         borderRadius: `${CAMPO.raio}px`,
-        bgcolor: tokens.color.background.subtle,
-        boxShadow: `inset 0 0 0 1px ${CAMPO.bordaEmRepouso}`,
+        bgcolor: 'background.subtle',
+        boxShadow: anel(CAMPO.bordaEmRepouso),
         transition: theme.transitions.create(['background-color', 'box-shadow']),
-        '&:hover:not(:focus-within)': { boxShadow: `inset 0 0 0 1px ${CAMPO.bordaNoHover}` },
+        '&:hover:not(:focus-within)': { boxShadow: anel(CAMPO.bordaNoHover) },
         '&:focus-within': {
           bgcolor: 'background.paper',
-          boxShadow: `inset 0 0 0 2px ${theme.palette.primary.main}`,
+          boxShadow: anel(theme.palette.primary.main, CAMPO.larguraDoAnelNoFoco),
         },
         ...realce,
       })}
@@ -108,20 +108,20 @@ export function CaixaRica({
 }
 
 const ESTILO_DO_TEXTO = {
-  px: '14px',
-  py: '12px',
+  px: `${CAMPO.paddingX}px`,
+  py: `${CAMPO.paddingY}px`,
   typography: 'body1',
   lineHeight: 1.6,
   '& p, & ul, & ol': { my: 0 },
   '& ul, & ol': { pl: 3 },
   '& h1': { typography: 'h5', mt: 0.5, mb: 1 },
   '& h2': { typography: 'h6', mt: 1, mb: 0.5 },
-  '& h3': { typography: 'subtitle1', fontWeight: 700, mt: 1, mb: 0.5 },
+  '& h3': { typography: 'subtitle1', fontWeight: PESOS.negrito, mt: 1, mb: 0.5 },
   '& code': {
     fontFamily: FONTE_MONO,
     fontSize: '0.9em',
-    bgcolor: tokens.color.background.neutralFill,
-    borderRadius: 0.5,
+    bgcolor: 'background.neutralFill',
+    borderRadius: RAIO.canto,
     px: 0.5,
   },
 } as const;

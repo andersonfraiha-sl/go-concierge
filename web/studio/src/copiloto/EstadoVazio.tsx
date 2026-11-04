@@ -1,6 +1,6 @@
 import { Box, Chip, Typography } from '@mui/material';
 import { useEu } from '@/acesso/eu';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { PESOS, RAIOS, TIPOS, tokens } from '@/theme/tokens';
 import { useCopiloto } from './CopilotoProvider';
 import { sugestoesPara } from './sugestoes';
 
@@ -17,9 +17,9 @@ export function EstadoVazio() {
       <Typography
         sx={{
           fontFamily: tokens.typography.h5.fontFamily,
-          fontWeight: 700,
-          fontSize: 21,
-          color: tokens.color.navy,
+          fontWeight: PESOS.negrito,
+          fontSize: TIPOS.h5,
+          color: 'secondary.main',
         }}
       >
         {TITULO}
@@ -47,9 +47,9 @@ function ListaDeSugestoes({ sugestoes, onEscolher }: SugestoesProps) {
             justifyContent: 'flex-start',
             height: 'auto',
             borderRadius: `${RAIOS.menu}px`,
-            borderColor: tokens.color.border.default,
-            color: tokens.color.text.strong,
-            bgcolor: tokens.color.background.paper,
+            borderColor: 'border.default',
+            color: 'text.strong',
+            bgcolor: 'background.paper',
             '& .MuiChip-label': { whiteSpace: 'normal', py: 1, px: 1.5 },
           }}
         />
