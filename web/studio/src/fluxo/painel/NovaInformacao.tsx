@@ -19,13 +19,9 @@ const esquemaDaNova = (existentes: string[]) =>
       ),
   });
 
-export function NovaInformacao({
-  existentes,
-  onAdicionar,
-}: {
-  existentes: string[];
-  onAdicionar: (nome: string) => void;
-}): ReactNode {
+type Props = { existentes: string[]; onAdicionar: (nome: string) => void };
+
+function useFormularioDaNova({ existentes, onAdicionar }: Props) {
   // onChange: a repetição aparece enquanto se digita, não só ao tentar adicionar.
   const { control, handleSubmit, reset } = useForm({
     mode: 'onChange',
@@ -33,12 +29,16 @@ export function NovaInformacao({
     defaultValues: { texto: '' },
   });
   const nome = nomeDaInformacao(useWatch({ control, name: 'texto' }));
-  const repetida = existentes.includes(nome);
   const adicionar = handleSubmit(({ texto }) => {
     if (nomeDaInformacao(texto) === '') return;
     onAdicionar(nomeDaInformacao(texto));
     reset();
   });
+  return { control, adicionar, indisponivel: nome === '' || existentes.includes(nome) };
+}
+
+export function NovaInformacao(props: Props): ReactNode {
+  const { control, adicionar, indisponivel } = useFormularioDaNova(props);
   return (
     <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
       <CampoTexto
@@ -47,11 +47,11 @@ export function NovaInformacao({
         size="small"
         fullWidth
         label="Nome da nova informação"
-        onKeyDown={(e) => e.key === 'Enter' && void adicionar()}
+        onKeyDown={(evento) => evento.key === 'Enter' && void adicionar()}
       />
       <Button
         startIcon={<AddIcon />}
-        disabled={nome === '' || repetida}
+        disabled={indisponivel}
         onClick={() => void adicionar()}
         sx={{ flexShrink: 0 }}
       >

@@ -1,14 +1,77 @@
-import { TextField } from '@mui/material';
 import type { ReactNode } from 'react';
 import { type Control, Controller } from 'react-hook-form';
+import { SeletorDaLinha, TextoDaLinha } from './CamposDaLinha';
 import { padraoDoAjuste, TIPOS_DE_AJUSTE } from './contratos';
-import { type RecursoNoFormulario, rotuloDoCampo, type Valores } from './formularioDaFerramenta';
+import type { RecursoNoFormulario, Valores } from './formularioDaFerramenta';
 import { ListaEditavel } from './ListaEditavel';
 
 type Props = { control: Control<Valores>; travado: boolean };
+type Ajuste = RecursoNoFormulario['definicoes'][number];
+
+const TIPOS = Object.entries(TIPOS_DE_AJUSTE);
 
 const textoDoPadrao = (valor: unknown): string =>
   valor === undefined || valor === null ? '' : String(valor);
+
+const novoAjuste = (): Ajuste => ({ name: '', label: '', type: 'string', options: [] });
+
+type LinhaProps = {
+  ajuste: Ajuste;
+  travado: boolean;
+  mudar: (parcial: Partial<Ajuste>) => void;
+};
+
+function LinhaDeAjuste({ ajuste, travado, mudar }: LinhaProps): ReactNode {
+  return (
+    <>
+      <TextoDaLinha
+        rotulo="Nome do ajuste"
+        dica="prazo_dias"
+        valor={ajuste.name}
+        travado={travado}
+        onMudar={(name) => mudar({ name })}
+      />
+      <TextoDaLinha
+        rotulo="Rótulo do ajuste"
+        dica="Como aparece para o condomínio"
+        valor={ajuste.label}
+        travado={travado}
+        onMudar={(label) => mudar({ label })}
+      />
+      <SeletorDaLinha
+        rotulo="Tipo do ajuste"
+        valor={ajuste.type ?? 'string'}
+        opcoes={TIPOS}
+        travado={travado}
+        onMudar={(type) => mudar({ type })}
+      />
+      <TextoDaLinha
+        rotulo="Padrão do ajuste"
+        dica="Valor quando o condomínio não decide"
+        valor={textoDoPadrao(ajuste.default)}
+        travado={travado}
+        onMudar={(texto) => mudar({ default: padraoDoAjuste(ajuste.type, texto) })}
+      />
+      {ajuste.type === 'select' && (
+        <TextoDaLinha
+          rotulo="Opções do ajuste"
+          dica="Opções, separadas por vírgula"
+          valor={ajuste.options.join(',')}
+          travado={travado}
+          onMudar={(texto) => mudar({ options: texto.split(',') })}
+        />
+      )}
+      <TextoDaLinha
+        rotulo="Descrição do ajuste"
+        dica="Para que serve"
+        valor={ajuste.description ?? ''}
+        travado={travado}
+        larguraTotal
+        onMudar={(description) => mudar({ description })}
+      />
+    </>
+  );
+}
 
 export function CamposDeAjustes({ control, travado }: Props): ReactNode {
   return (
@@ -16,73 +79,15 @@ export function CamposDeAjustes({ control, travado }: Props): ReactNode {
       control={control}
       name="recurso.definicoes"
       render={({ field }) => (
-        <ListaEditavel<RecursoNoFormulario['definicoes'][number]>
+        <ListaEditavel<Ajuste>
           titulo="Ajustes por condomínio"
           adicionar="Adicionar ajuste"
           linhas={field.value}
           desabilitado={travado}
-          criarLinha={() => ({ name: '', label: '', type: 'string', options: [] })}
+          criarLinha={novoAjuste}
           onMudar={field.onChange}
-          renderLinha={(d, mudarLinha) => (
-            <>
-              <TextField
-                size="small"
-                placeholder="prazo_dias"
-                value={d.name}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Nome do ajuste')}
-                onChange={(e) => mudarLinha({ name: e.target.value })}
-              />
-              <TextField
-                size="small"
-                placeholder="Como aparece para o condomínio"
-                value={d.label}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Rótulo do ajuste')}
-                onChange={(e) => mudarLinha({ label: e.target.value })}
-              />
-              <TextField
-                select
-                size="small"
-                value={d.type ?? 'string'}
-                disabled={travado}
-                slotProps={{ ...rotuloDoCampo('Tipo do ajuste'), select: { native: true } }}
-                onChange={(e) => mudarLinha({ type: e.target.value })}
-              >
-                {Object.entries(TIPOS_DE_AJUSTE).map(([valor, rotulo]) => (
-                  <option key={valor} value={valor}>
-                    {rotulo}
-                  </option>
-                ))}
-              </TextField>
-              <TextField
-                size="small"
-                placeholder="Valor quando o condomínio não decide"
-                value={textoDoPadrao(d.default)}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Padrão do ajuste')}
-                onChange={(e) => mudarLinha({ default: padraoDoAjuste(d.type, e.target.value) })}
-              />
-              {d.type === 'select' && (
-                <TextField
-                  size="small"
-                  placeholder="Opções, separadas por vírgula"
-                  value={d.options.join(',')}
-                  disabled={travado}
-                  slotProps={rotuloDoCampo('Opções do ajuste')}
-                  onChange={(e) => mudarLinha({ options: e.target.value.split(',') })}
-                />
-              )}
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="Para que serve"
-                value={d.description ?? ''}
-                disabled={travado}
-                slotProps={rotuloDoCampo('Descrição do ajuste')}
-                onChange={(e) => mudarLinha({ description: e.target.value })}
-              />
-            </>
+          renderLinha={(ajuste, mudar) => (
+            <LinhaDeAjuste ajuste={ajuste} travado={travado} mudar={mudar} />
           )}
         />
       )}

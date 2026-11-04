@@ -30,9 +30,26 @@ const TIPO_ESCOLHA = 'select';
 const semOpcoesForaDeEscolha = (tipo: string): Partial<Informacao> =>
   tipo === TIPO_ESCOLHA ? { tipo } : { tipo, opcoes: [] };
 
+function CabecalhoDasInformacoes(): ReactNode {
+  return (
+    <Box>
+      <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
+        Informações que a skill pede
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        O que a skill pode perguntar ao morador.
+      </Typography>
+    </Box>
+  );
+}
+
 export function InformacoesPainel({ informacoes, editavel, onMudar }: Props): ReactNode {
   const mudar = (nome: string, parcial: Partial<Informacao>) =>
-    onMudar(informacoes.map((info) => (info.nome === nome ? { ...info, ...parcial } : info)));
+    onMudar(
+      informacoes.map((informacao) =>
+        informacao.nome === nome ? { ...informacao, ...parcial } : informacao,
+      ),
+    );
 
   return (
     <Box
@@ -40,25 +57,18 @@ export function InformacoesPainel({ informacoes, editavel, onMudar }: Props): Re
       aria-label="Informações que a skill pede"
       sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}
     >
-      <Box>
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-          Informações que a skill pede
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          O que a skill pode perguntar ao morador.
-        </Typography>
-      </Box>
-      {informacoes.map((info) => (
+      <CabecalhoDasInformacoes />
+      {informacoes.map((informacao) => (
         <CartaoDeInformacao
-          key={info.nome}
-          info={info}
+          key={informacao.nome}
+          info={informacao}
           editavel={editavel}
-          onMudar={(parcial) => mudar(info.nome, parcial)}
+          onMudar={(parcial) => mudar(informacao.nome, parcial)}
         />
       ))}
       {editavel && (
         <NovaInformacao
-          existentes={informacoes.map((i) => i.nome)}
+          existentes={informacoes.map((informacao) => informacao.nome)}
           onAdicionar={(nome) => onMudar([...informacoes, InformacaoSchema.parse({ nome })])}
         />
       )}
@@ -71,6 +81,68 @@ type CartaoProps = {
   editavel: boolean;
   onMudar: (parcial: Partial<Informacao>) => void;
 };
+
+type TipoProps = {
+  tipo: string;
+  editavel: boolean;
+  onMudar: (parcial: Partial<Informacao>) => void;
+};
+
+function TipoDaInformacao({ tipo, editavel, onMudar }: TipoProps): ReactNode {
+  return (
+    <TextField
+      select
+      size="small"
+      label="Tipo"
+      value={tipo}
+      disabled={!editavel}
+      onChange={(evento) => onMudar(semOpcoesForaDeEscolha(evento.target.value))}
+    >
+      {Object.entries(TIPOS_DE_INFORMACAO).map(([valor, rotulo]) => (
+        <MenuItem key={valor} value={valor}>
+          {rotulo}
+        </MenuItem>
+      ))}
+      {!Object.hasOwn(TIPOS_DE_INFORMACAO, tipo) && <MenuItem value={tipo}>{tipo}</MenuItem>}
+    </TextField>
+  );
+}
+
+type OpcoesProps = Pick<Informacao, 'opcoes'> & {
+  editavel: boolean;
+  onMudar: (parcial: Partial<Informacao>) => void;
+};
+
+function OpcoesDaInformacao({ opcoes, editavel, onMudar }: OpcoesProps): ReactNode {
+  return (
+    <ListaEditavel
+      titulo="Opções"
+      adicionar="Adicionar opção"
+      linhas={opcoes}
+      desabilitado={!editavel}
+      criarLinha={() => ({ valor: '', rotulo: '' })}
+      onMudar={(novas) => onMudar({ opcoes: novas })}
+      renderLinha={(opcao, mudar) => (
+        <>
+          <TextField
+            size="small"
+            label="Valor"
+            value={opcao.valor}
+            disabled={!editavel}
+            onChange={(evento) => mudar({ valor: evento.target.value })}
+          />
+          <TextField
+            size="small"
+            label="Rótulo"
+            value={opcao.rotulo}
+            disabled={!editavel}
+            onChange={(evento) => mudar({ rotulo: evento.target.value })}
+          />
+        </>
+      )}
+    />
+  );
+}
 
 function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode {
   const tipo = tipoMostrado(info.tipo);
@@ -98,7 +170,7 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
         label="Título"
         value={info.titulo}
         disabled={!editavel}
-        onChange={(e) => onMudar({ titulo: e.target.value })}
+        onChange={(evento) => onMudar({ titulo: evento.target.value })}
       />
       <TextField
         size="small"
@@ -107,50 +179,11 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
         value={info.pergunta}
         disabled={!editavel}
         multiline
-        onChange={(e) => onMudar({ pergunta: e.target.value })}
+        onChange={(evento) => onMudar({ pergunta: evento.target.value })}
       />
-      <TextField
-        select
-        size="small"
-        label="Tipo"
-        value={tipo}
-        disabled={!editavel}
-        onChange={(e) => onMudar(semOpcoesForaDeEscolha(e.target.value))}
-      >
-        {Object.entries(TIPOS_DE_INFORMACAO).map(([valor, rotulo]) => (
-          <MenuItem key={valor} value={valor}>
-            {rotulo}
-          </MenuItem>
-        ))}
-        {!Object.hasOwn(TIPOS_DE_INFORMACAO, tipo) && <MenuItem value={tipo}>{tipo}</MenuItem>}
-      </TextField>
+      <TipoDaInformacao tipo={tipo} editavel={editavel} onMudar={onMudar} />
       {tipo === TIPO_ESCOLHA && (
-        <ListaEditavel
-          titulo="Opções"
-          adicionar="Adicionar opção"
-          linhas={info.opcoes}
-          desabilitado={!editavel}
-          criarLinha={() => ({ valor: '', rotulo: '' })}
-          onMudar={(opcoes) => onMudar({ opcoes })}
-          renderLinha={(opcao, mudar) => (
-            <>
-              <TextField
-                size="small"
-                label="Valor"
-                value={opcao.valor}
-                disabled={!editavel}
-                onChange={(e) => mudar({ valor: e.target.value })}
-              />
-              <TextField
-                size="small"
-                label="Rótulo"
-                value={opcao.rotulo}
-                disabled={!editavel}
-                onChange={(e) => mudar({ rotulo: e.target.value })}
-              />
-            </>
-          )}
-        />
+        <OpcoesDaInformacao opcoes={info.opcoes} editavel={editavel} onMudar={onMudar} />
       )}
     </Box>
   );

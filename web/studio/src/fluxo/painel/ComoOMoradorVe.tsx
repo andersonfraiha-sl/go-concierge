@@ -10,48 +10,31 @@ type Previa =
   | { tipo: 'bolha'; texto: string }
   | { tipo: 'chips'; itens: readonly string[] };
 
+const SILENCIOSO: Previa = { tipo: 'silencioso' };
+const bolha = (texto: string): Previa => (texto ? { tipo: 'bolha', texto } : SILENCIOSO);
+const chips = (itens: readonly string[]): Previa =>
+  itens.length > 0 ? { tipo: 'chips', itens } : SILENCIOSO;
+
 /** O que o bloco mostra ao morador: a fala literal (pergunta/texto) ou, para "Perguntar", os campos pedidos. */
 function previaDoBloco(bloco: Bloco): Previa {
   switch (bloco.tipo) {
     case 'pedir_escolha':
     case 'reaproveitar':
-      return bloco.pergunta ? { tipo: 'bolha', texto: bloco.pergunta } : { tipo: 'silencioso' };
+      return bolha(bloco.pergunta);
     case 'confirmar':
     case 'montar_texto':
     case 'responder':
-      return bloco.texto ? { tipo: 'bolha', texto: bloco.texto } : { tipo: 'silencioso' };
+      return bolha(bloco.texto);
     case 'perguntar':
-      return bloco.campos.length > 0
-        ? { tipo: 'chips', itens: bloco.campos }
-        : { tipo: 'silencioso' };
+      return chips(bloco.campos);
     case 'buscar_dados':
     case 'gravar_no_sistema':
     case 'formulario':
-      return { tipo: 'silencioso' };
+      return SILENCIOSO;
   }
 }
 
-export function ComoOMoradorVe({ bloco }: { bloco: Bloco }): ReactNode {
-  const previa = previaDoBloco(bloco);
-
-  if (previa.tipo === 'silencioso') {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        {SEM_FALA}
-      </Typography>
-    );
-  }
-
-  if (previa.tipo === 'chips') {
-    return (
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        {previa.itens.map((item) => (
-          <Chip key={item} label={item} size="small" variant="outlined" />
-        ))}
-      </Box>
-    );
-  }
-
+function BolhaDaFala({ texto }: { texto: string }): ReactNode {
   return (
     <Box
       sx={{
@@ -65,7 +48,28 @@ export function ComoOMoradorVe({ bloco }: { bloco: Bloco }): ReactNode {
         py: 1,
       }}
     >
-      <Typography variant="body2">{previa.texto}</Typography>
+      <Typography variant="body2">{texto}</Typography>
     </Box>
+  );
+}
+
+function CamposPedidos({ itens }: { itens: readonly string[] }): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+      {itens.map((item) => (
+        <Chip key={item} label={item} size="small" variant="outlined" />
+      ))}
+    </Box>
+  );
+}
+
+export function ComoOMoradorVe({ bloco }: { bloco: Bloco }): ReactNode {
+  const previa = previaDoBloco(bloco);
+  if (previa.tipo === 'chips') return <CamposPedidos itens={previa.itens} />;
+  if (previa.tipo === 'bolha') return <BolhaDaFala texto={previa.texto} />;
+  return (
+    <Typography variant="body2" color="text.secondary">
+      {SEM_FALA}
+    </Typography>
   );
 }

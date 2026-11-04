@@ -3,31 +3,64 @@ import type { ReactNode } from 'react';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { tituloDe } from '@/ferramentas/contratos';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
+import type { Bloco } from '@/fluxo/modelo/tipos';
 import type { CamposProps, CatalogoDeFerramentas } from './camposPorTipo';
 import { Texto } from './Texto';
+
+type Campos = CamposProps<'buscar_dados' | 'gravar_no_sistema'>;
+type DadoEnviado = Campos['bloco']['com'][number];
 
 const ferramentasDe = (catalogo: CatalogoDeFerramentas): readonly Ferramenta[] =>
   catalogo.estado === 'pronto' ? catalogo.ferramentas : [];
 
-export function CamposDeFerramenta({
-  bloco,
-  editavel,
-  catalogo,
-  onMudar,
-}: CamposProps<'buscar_dados' | 'gravar_no_sistema'>): ReactNode {
-  const escolher = (recurso: string) => {
-    const escolhida = ferramentasDe(catalogo).find((f) => f.name === recurso);
-    const tipo =
-      escolhida === undefined ? bloco.tipo : escolhida.write ? 'gravar_no_sistema' : 'buscar_dados';
-    onMudar({ ...bloco, tipo, recurso });
-  };
+/** Escolher uma ferramenta que grava (ou não) troca o tipo do bloco; fora do catálogo, o tipo fica. */
+function comFerramenta(
+  bloco: Campos['bloco'],
+  catalogo: CatalogoDeFerramentas,
+  recurso: string,
+): Bloco {
+  const escolhida = ferramentasDe(catalogo).find((ferramenta) => ferramenta.name === recurso);
+  if (escolhida === undefined) return { ...bloco, recurso };
+  return { ...bloco, tipo: escolhida.write ? 'gravar_no_sistema' : 'buscar_dados', recurso };
+}
+
+type LinhaProps = {
+  linha: DadoEnviado;
+  editavel: boolean;
+  mudar: (parcial: Partial<DadoEnviado>) => void;
+};
+
+function LinhaDeDado({ linha, editavel, mudar }: LinhaProps): ReactNode {
+  return (
+    <>
+      <Texto
+        rotulo="Campo"
+        valor={linha.campo}
+        editavel={editavel}
+        onMudar={(campo) => mudar({ campo })}
+      />
+      {typeof linha.valor === 'string' ? (
+        <Texto
+          rotulo="Valor"
+          valor={linha.valor}
+          editavel={editavel}
+          onMudar={(valor) => mudar({ valor })}
+        />
+      ) : (
+        <ValorEstruturado valor={linha.valor} />
+      )}
+    </>
+  );
+}
+
+export function CamposDeFerramenta({ bloco, editavel, catalogo, onMudar }: Campos): ReactNode {
   return (
     <>
       <SeletorDeFerramenta
         valor={bloco.recurso}
         catalogo={catalogo}
         editavel={editavel}
-        onMudar={escolher}
+        onMudar={(recurso) => onMudar(comFerramenta(bloco, catalogo, recurso))}
       />
       <ListaEditavel
         titulo="Dados enviados"
@@ -37,24 +70,7 @@ export function CamposDeFerramenta({
         criarLinha={() => ({ campo: '', valor: '' })}
         onMudar={(com) => onMudar({ ...bloco, com })}
         renderLinha={(linha, mudar) => (
-          <>
-            <Texto
-              rotulo="Campo"
-              valor={linha.campo}
-              editavel={editavel}
-              onMudar={(campo) => mudar({ campo })}
-            />
-            {typeof linha.valor === 'string' ? (
-              <Texto
-                rotulo="Valor"
-                valor={linha.valor}
-                editavel={editavel}
-                onMudar={(valor) => mudar({ valor })}
-              />
-            ) : (
-              <ValorEstruturado valor={linha.valor} />
-            )}
-          </>
+          <LinhaDeDado linha={linha} editavel={editavel} mudar={mudar} />
         )}
       />
       <Texto
@@ -94,17 +110,18 @@ type SeletorProps = {
   onMudar: (nome: string) => void;
 };
 
+const opcoesQueGravam = (ferramentas: readonly Ferramenta[], write: boolean): ReactNode[] =>
+  ferramentas
+    .filter((ferramenta) => ferramenta.write === write)
+    .map((ferramenta) => (
+      <MenuItem key={ferramenta.name} value={ferramenta.name}>
+        {tituloDe(ferramenta)}
+      </MenuItem>
+    ));
+
 function SeletorDeFerramenta({ valor, catalogo, editavel, onMudar }: SeletorProps): ReactNode {
   const ferramentas = ferramentasDe(catalogo);
-  const opcoes = (write: boolean) =>
-    ferramentas
-      .filter((f) => f.write === write)
-      .map((f) => (
-        <MenuItem key={f.name} value={f.name}>
-          {tituloDe(f)}
-        </MenuItem>
-      ));
-  const foraDaLista = valor !== '' && !ferramentas.some((f) => f.name === valor);
+  const foraDaLista = valor !== '' && !ferramentas.some((ferramenta) => ferramenta.name === valor);
   return (
     <TextField
       select
@@ -115,12 +132,12 @@ function SeletorDeFerramenta({ valor, catalogo, editavel, onMudar }: SeletorProp
       disabled={!editavel}
       error={catalogo.estado === 'erro'}
       helperText={AVISO_DO_CATALOGO[catalogo.estado]}
-      onChange={(e) => onMudar(e.target.value)}
+      onChange={(evento) => onMudar(evento.target.value)}
     >
       <ListSubheader>Consultas</ListSubheader>
-      {opcoes(false)}
+      {opcoesQueGravam(ferramentas, false)}
       <ListSubheader>Gravações</ListSubheader>
-      {opcoes(true)}
+      {opcoesQueGravam(ferramentas, true)}
       {foraDaLista && (
         <MenuItem value={valor}>
           {catalogo.estado === 'pronto' ? `${valor} (não encontrada)` : valor}

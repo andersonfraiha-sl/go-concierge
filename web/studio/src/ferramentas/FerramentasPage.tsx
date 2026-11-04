@@ -30,8 +30,66 @@ const contemTexto = (ferramenta: Ferramenta, filtro: string): boolean =>
 function agruparPorClasse(ferramentas: readonly Ferramenta[]): [Classe, Ferramenta[]][] {
   return CLASSES.map((classe): [Classe, Ferramenta[]] => [
     classe,
-    ferramentas.filter((f) => classeDe(f) === classe),
+    ferramentas.filter((ferramenta) => classeDe(ferramenta) === classe),
   ]).filter(([, grupo]) => grupo.length > 0);
+}
+
+type CabecalhoProps = { podeEditar: boolean; onNova: () => void };
+
+function CabecalhoDaPagina({ podeEditar, onNova }: CabecalhoProps): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+      <Box sx={{ flex: 1 }}>
+        <Typography variant="h5" component="h1">
+          Ferramentas
+        </Typography>
+        <Typography color="text.secondary">
+          Sistemas que as skills consultam e onde gravam.
+        </Typography>
+      </Box>
+      {podeEditar && (
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onNova}>
+          Nova ferramenta
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+type ResultadoProps = {
+  consulta: ReturnType<typeof useFerramentas>;
+  filtro: string;
+  podeEditar: boolean;
+  onAbrir: (ferramenta: Ferramenta) => void;
+};
+
+function ResultadoDaConsulta({ consulta, filtro, podeEditar, onAbrir }: ResultadoProps): ReactNode {
+  if (consulta.isPending) {
+    return <CircularProgress aria-label="Carregando ferramentas" sx={{ alignSelf: 'center' }} />;
+  }
+  if (consulta.isError) {
+    return (
+      <Alert
+        severity="error"
+        action={
+          <Button color="inherit" onClick={() => void consulta.refetch()}>
+            Tentar de novo
+          </Button>
+        }
+      >
+        Não deu para carregar as ferramentas.
+      </Alert>
+    );
+  }
+  const texto = filtro.trim().toLowerCase();
+  return (
+    <Grupos
+      ferramentas={consulta.data.recursos.filter((ferramenta) => contemTexto(ferramenta, texto))}
+      temFiltro={filtro.trim() !== ''}
+      podeEditar={podeEditar}
+      onAbrir={onAbrir}
+    />
+  );
 }
 
 export function FerramentasPage(): ReactNode {
@@ -43,56 +101,20 @@ export function FerramentasPage(): ReactNode {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h5" component="h1">
-            Ferramentas
-          </Typography>
-          <Typography color="text.secondary">
-            Sistemas que as skills consultam e onde gravam.
-          </Typography>
-        </Box>
-        {podeEditar && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAberta(null)}>
-            Nova ferramenta
-          </Button>
-        )}
-      </Box>
-
+      <CabecalhoDaPagina podeEditar={podeEditar} onNova={() => setAberta(null)} />
       <TextField
         label="Filtrar"
         size="small"
         value={filtro}
-        onChange={(e) => setFiltro(e.target.value)}
+        onChange={(evento) => setFiltro(evento.target.value)}
         sx={{ maxWidth: 360 }}
       />
-
-      {consulta.isPending && (
-        <CircularProgress aria-label="Carregando ferramentas" sx={{ alignSelf: 'center' }} />
-      )}
-      {consulta.isError && (
-        <Alert
-          severity="error"
-          action={
-            <Button color="inherit" onClick={() => void consulta.refetch()}>
-              Tentar de novo
-            </Button>
-          }
-        >
-          Não deu para carregar as ferramentas.
-        </Alert>
-      )}
-      {consulta.isSuccess && (
-        <Grupos
-          ferramentas={consulta.data.recursos.filter((f) =>
-            contemTexto(f, filtro.trim().toLowerCase()),
-          )}
-          temFiltro={filtro.trim() !== ''}
-          podeEditar={podeEditar}
-          onAbrir={setAberta}
-        />
-      )}
-
+      <ResultadoDaConsulta
+        consulta={consulta}
+        filtro={filtro}
+        podeEditar={podeEditar}
+        onAbrir={setAberta}
+      />
       {aberta !== undefined && (
         <FerramentaDrawer
           key={aberta?.name ?? 'nova'}
@@ -121,11 +143,26 @@ function Grupos({ ferramentas, temFiltro, podeEditar, onAbrir }: GruposProps): R
     );
   }
   return agruparPorClasse(ferramentas).map(([classe, grupo]) => (
-    <Box
+    <GrupoDeFerramentas
       key={classe}
-      component="section"
-      sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}
-    >
+      classe={classe}
+      grupo={grupo}
+      podeEditar={podeEditar}
+      onAbrir={onAbrir}
+    />
+  ));
+}
+
+type GrupoProps = {
+  classe: Classe;
+  grupo: readonly Ferramenta[];
+  podeEditar: boolean;
+  onAbrir: (ferramenta: Ferramenta) => void;
+};
+
+function GrupoDeFerramentas({ classe, grupo, podeEditar, onAbrir }: GrupoProps): ReactNode {
+  return (
+    <Box component="section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Typography variant="subtitle1" component="h2">
         {GRUPOS[classe]}
       </Typography>
@@ -146,23 +183,18 @@ function Grupos({ ferramentas, temFiltro, podeEditar, onAbrir }: GruposProps): R
         ))}
       </Box>
     </Box>
-  ));
+  );
 }
 
-type CartaoProps = {
-  ferramenta: Ferramenta;
-  clicavel: boolean;
-  onAbrir: (ferramenta: Ferramenta) => void;
-};
+type ConteudoProps = { ferramenta: Ferramenta; comDescricao: boolean };
 
-function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): ReactNode {
-  // Quem não edita não vê a descrição técnica da ferramenta.
-  const conteudo = (
+function ConteudoDoCartao({ ferramenta, comDescricao }: ConteudoProps): ReactNode {
+  return (
     <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: '100%' }}>
       <Typography variant="subtitle2" component="h3">
-        {tituloDe(ferramenta, clicavel)}
+        {tituloDe(ferramenta, comDescricao)}
       </Typography>
-      {clicavel && (
+      {comDescricao && (
         <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
           {ferramenta.description}
         </Typography>
@@ -178,6 +210,17 @@ function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): Rea
       )}
     </CardContent>
   );
+}
+
+type CartaoProps = {
+  ferramenta: Ferramenta;
+  clicavel: boolean;
+  onAbrir: (ferramenta: Ferramenta) => void;
+};
+
+function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): ReactNode {
+  // Quem não edita não vê a descrição técnica da ferramenta.
+  const conteudo = <ConteudoDoCartao ferramenta={ferramenta} comDescricao={clicavel} />;
   return (
     <Card variant="outlined">
       {clicavel ? (

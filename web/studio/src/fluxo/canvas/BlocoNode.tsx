@@ -5,7 +5,7 @@ import { Handle, type Node, type NodeProps, Position } from '@xyflow/react';
 import type { ReactNode } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import { ALTURA_BLOCO, ESPACO, LARGURA_BLOCO } from '@/fluxo/modelo/edicao';
-import type { Bloco, ProblemaFluxo } from '@/fluxo/modelo/tipos';
+import type { Bloco, ProblemaFluxo, TipoBloco } from '@/fluxo/modelo/tipos';
 import { RAIOS, SOMBRA_DO_BLOCO_EM_EDICAO, tokens } from '@/theme/tokens';
 import { BotaoMais } from './ArestaComMais';
 
@@ -22,46 +22,30 @@ export type BlocoNodeTipo = Node<DadosDoBloco, 'bloco'>;
 
 const ALCA_INVISIVEL = { opacity: 0, pointerEvents: 'none' } as const;
 
-export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
-  const { bloco, indice, resumo, problemas, selecionado, realcado } = data;
-  const { rotulo, cor, Icone } = BLOCOS[bloco.tipo];
+const estiloDoCartao = (selecionado: boolean, realcado: boolean) => ({
+  position: 'relative',
+  width: LARGURA_BLOCO,
+  height: ALTURA_BLOCO,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.5,
+  pl: 1.5,
+  pr: 2,
+  bgcolor: realcado ? tokens.color.realceDoCopiloto : tokens.color.studio.nodeBg,
+  border: selecionado ? 2 : 1,
+  borderStyle: 'solid',
+  borderColor: selecionado ? tokens.color.studio.nodeSelected : tokens.color.studio.nodeBorder,
+  borderLeftWidth: 4,
+  borderRadius: `${RAIOS.cartao}px`,
+  cursor: 'pointer',
+  transition: 'border-color 120ms ease, background-color 300ms ease-out',
+});
+
+type MarcaProps = { indice: number; cor: string; Icone: (typeof BLOCOS)[TipoBloco]['Icone'] };
+
+function MarcaDoBloco({ indice, cor, Icone }: MarcaProps): ReactNode {
   return (
-    <Box
-      component="article"
-      aria-label={rotulo}
-      sx={{
-        position: 'relative',
-        width: LARGURA_BLOCO,
-        height: ALTURA_BLOCO,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.5,
-        pl: 1.5,
-        pr: 2,
-        bgcolor: realcado ? tokens.color.realceDoCopiloto : tokens.color.studio.nodeBg,
-        border: selecionado ? 2 : 1,
-        borderStyle: 'solid',
-        borderColor: selecionado
-          ? tokens.color.studio.nodeSelected
-          : tokens.color.studio.nodeBorder,
-        borderLeftWidth: 4,
-        borderRadius: `${RAIOS.cartao}px`,
-        cursor: 'pointer',
-        transition: 'border-color 120ms ease, background-color 300ms ease-out',
-      }}
-      style={{
-        borderLeftColor: cor,
-        boxShadow: selecionado ? SOMBRA_DO_BLOCO_EM_EDICAO : 'none',
-      }}
-    >
-      <Handle type="target" position={Position.Top} isConnectable={false} style={ALCA_INVISIVEL} />
-      {indice === 0 && (
-        <BotaoMais
-          indice={0}
-          rotulo="Adicionar bloco no início"
-          posicao={{ x: LARGURA_BLOCO / 2, y: -ESPACO / 2 }}
-        />
-      )}
+    <>
       <Typography
         component="span"
         aria-hidden="true"
@@ -83,6 +67,32 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
       >
         <Icone sx={{ fontSize: 18 }} />
       </Box>
+    </>
+  );
+}
+
+export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
+  const { bloco, indice, resumo, problemas, selecionado, realcado } = data;
+  const { rotulo, cor, Icone } = BLOCOS[bloco.tipo];
+  return (
+    <Box
+      component="article"
+      aria-label={rotulo}
+      sx={estiloDoCartao(selecionado, realcado)}
+      style={{
+        borderLeftColor: cor,
+        boxShadow: selecionado ? SOMBRA_DO_BLOCO_EM_EDICAO : 'none',
+      }}
+    >
+      <Handle type="target" position={Position.Top} isConnectable={false} style={ALCA_INVISIVEL} />
+      {indice === 0 && (
+        <BotaoMais
+          indice={0}
+          rotulo="Adicionar bloco no início"
+          posicao={{ x: LARGURA_BLOCO / 2, y: -ESPACO / 2 }}
+        />
+      )}
+      <MarcaDoBloco indice={indice} cor={cor} Icone={Icone} />
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography variant="body2" noWrap sx={{ fontWeight: 700 }}>
           {rotulo}
@@ -102,10 +112,13 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
   );
 }
 
+const corDoProblema = (temErro: boolean): string =>
+  temErro ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
+
 function SeloDeProblema({ problemas }: { problemas: ProblemaFluxo[] }): ReactNode {
   if (problemas.length === 0) return null;
-  const temErro = problemas.some((p) => p.nivel === 'erro');
-  const mensagens = problemas.map((p) => p.mensagem).join(' ');
+  const temErro = problemas.some((problema) => problema.nivel === 'erro');
+  const mensagens = problemas.map((problema) => problema.mensagem).join(' ');
   const Icone = temErro ? ErrorOutlineIcon : WarningAmberIcon;
   return (
     <Tooltip title={mensagens}>
@@ -113,11 +126,7 @@ function SeloDeProblema({ problemas }: { problemas: ProblemaFluxo[] }): ReactNod
         component="span"
         role="img"
         aria-label={`${temErro ? 'Erro' : 'Aviso'}: ${mensagens}`}
-        sx={{
-          display: 'grid',
-          placeItems: 'center',
-          color: temErro ? tokens.color.studio.issueError : tokens.color.studio.issueWarning,
-        }}
+        sx={{ display: 'grid', placeItems: 'center', color: corDoProblema(temErro) }}
       >
         <Icone sx={{ fontSize: 20 }} />
       </Box>

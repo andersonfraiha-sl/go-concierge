@@ -18,6 +18,89 @@ type Props = {
   onExcluir: (id: string) => void;
 };
 
+function CabecalhoDoBloco({ bloco }: { bloco: Bloco }): ReactNode {
+  const { rotulo, descricao, cor, Icone } = BLOCOS[bloco.tipo];
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box
+        sx={{
+          width: 36,
+          height: 36,
+          display: 'grid',
+          placeItems: 'center',
+          borderRadius: 1,
+          bgcolor: `${cor}1A`,
+          color: cor,
+        }}
+      >
+        <Icone fontSize="small" />
+      </Box>
+      <Box>
+        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
+          {rotulo}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {descricao}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function PreviaParaOMorador({ bloco }: { bloco: Bloco }): ReactNode {
+  return (
+    <Box
+      component="section"
+      aria-label="Como o morador vê"
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.5,
+        p: 2,
+        borderRadius: `${RAIOS.painel}px`,
+        bgcolor: tokens.color.background.subtle,
+        border: 1,
+        borderColor: tokens.color.border.subtle,
+      }}
+    >
+      <Typography variant="caption" sx={{ fontWeight: 600, color: tokens.color.text.secondary }}>
+        Como o morador vê
+      </Typography>
+      <ComoOMoradorVe bloco={bloco} />
+    </Box>
+  );
+}
+
+type ExcluirProps = { bloco: Bloco; onExcluir: (id: string) => void };
+
+function ExcluirBloco({ bloco, onExcluir }: ExcluirProps): ReactNode {
+  const [confirmando, setConfirmando] = useState(false);
+  return (
+    <>
+      <Divider />
+      <Button
+        color="error"
+        startIcon={<DeleteOutlineIcon />}
+        onClick={() => setConfirmando(true)}
+        sx={{ alignSelf: 'flex-start' }}
+      >
+        Excluir bloco
+      </Button>
+      <ConfirmDialog
+        aberto={confirmando}
+        titulo={`Excluir o bloco "${BLOCOS[bloco.tipo].rotulo}"?`}
+        texto="O bloco sai do fluxo e o que estava configurado nele se perde."
+        confirmar="Excluir"
+        onCancelar={() => setConfirmando(false)}
+        onConfirmar={() => {
+          setConfirmando(false);
+          onExcluir(bloco.id);
+        }}
+      />
+    </>
+  );
+}
+
 export function BlocoPainel({
   bloco,
   problemas,
@@ -27,39 +110,14 @@ export function BlocoPainel({
   onMudar,
   onExcluir,
 }: Props): ReactNode {
-  const { rotulo, descricao, cor, Icone } = BLOCOS[bloco.tipo];
-  const [confirmando, setConfirmando] = useState(false);
   const podeExcluir = editavel && bloco.tipo !== 'responder';
-
   return (
     <Box
       component="section"
       aria-label="Bloco selecionado"
       sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2 }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: 1,
-            bgcolor: `${cor}1A`,
-            color: cor,
-          }}
-        >
-          <Icone fontSize="small" />
-        </Box>
-        <Box>
-          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-            {rotulo}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {descricao}
-          </Typography>
-        </Box>
-      </Box>
+      <CabecalhoDoBloco bloco={bloco} />
       <ListaDeProblemas problemas={problemas} />
       <Divider />
       <CamposDoBloco
@@ -69,70 +127,27 @@ export function BlocoPainel({
         informacoes={informacoes}
         onMudar={onMudar}
       />
-      <Box
-        component="section"
-        aria-label="Como o morador vê"
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1.5,
-          p: 2,
-          borderRadius: `${RAIOS.painel}px`,
-          bgcolor: tokens.color.background.subtle,
-          border: 1,
-          borderColor: tokens.color.border.subtle,
-        }}
-      >
-        <Typography variant="caption" sx={{ fontWeight: 600, color: tokens.color.text.secondary }}>
-          Como o morador vê
-        </Typography>
-        <ComoOMoradorVe bloco={bloco} />
-      </Box>
-      {podeExcluir && (
-        <>
-          <Divider />
-          <Button
-            color="error"
-            startIcon={<DeleteOutlineIcon />}
-            onClick={() => setConfirmando(true)}
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            Excluir bloco
-          </Button>
-          <ConfirmDialog
-            aberto={confirmando}
-            titulo={`Excluir o bloco "${rotulo}"?`}
-            texto="O bloco sai do fluxo e o que estava configurado nele se perde."
-            confirmar="Excluir"
-            onCancelar={() => setConfirmando(false)}
-            onConfirmar={() => {
-              setConfirmando(false);
-              onExcluir(bloco.id);
-            }}
-          />
-        </>
-      )}
+      <PreviaParaOMorador bloco={bloco} />
+      {podeExcluir && <ExcluirBloco bloco={bloco} onExcluir={onExcluir} />}
     </Box>
   );
 }
+
+const corDoProblema = (problema: ProblemaFluxo): string =>
+  problema.nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
 
 function ListaDeProblemas({ problemas }: { problemas: readonly ProblemaFluxo[] }): ReactNode {
   if (problemas.length === 0) return null;
   return (
     <Box component="ul" sx={{ m: 0, pl: 2.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-      {problemas.map((p) => (
+      {problemas.map((problema) => (
         <Typography
-          key={`${p.codigo}-${p.mensagem}`}
+          key={`${problema.codigo}-${problema.mensagem}`}
           component="li"
           variant="body2"
-          sx={{
-            color:
-              p.nivel === 'erro'
-                ? tokens.color.studio.issueError
-                : tokens.color.studio.issueWarning,
-          }}
+          sx={{ color: corDoProblema(problema) }}
         >
-          {p.mensagem}
+          {problema.mensagem}
         </Typography>
       ))}
     </Box>
