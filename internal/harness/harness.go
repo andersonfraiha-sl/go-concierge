@@ -105,6 +105,8 @@ type Config struct {
 	// AdministradoraID e CondominioID são o alvo dos ganchos nas ferramentas: sem eles só
 	// as regras globais valem.
 	AdministradoraID, CondominioID string
+	// Agora é o relógio dos eventos dos ganchos; nil = time.Now.
+	Agora func() time.Time
 }
 
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em

@@ -424,7 +424,7 @@ func comPadroes(params map[string]any, payloads ...map[string]any) map[string]an
 func (ag *Agente) eventoAntes(ctx context.Context, c chamada, confirmacao string) ganchos.AntesDaFerramenta {
 	_, subagente := ag.Subagentes[c.nome]
 	e := ganchos.AntesDaFerramenta{
-		Agora: time.Now(), Ferramenta: c.nomeMCP, Pedida: c.nome, Caso: ag.casoID(),
+		Agora: ag.agora(), Ferramenta: c.nomeMCP, Pedida: c.nome, Caso: ag.casoID(),
 		Params: c.params, ContextoB2C: ag.contextoB2C(c),
 		Declarada: c.achado != nil, Subagente: subagente,
 		MCPObrigatoria: c.obrigatoriaMCP, MCPDisponivel: ag.cfg.MCP != nil,
@@ -448,6 +448,14 @@ func (ag *Agente) contextoB2C(c chamada) map[string]any {
 	maps.Copy(contexto, ag.cfg.Payloads[c.nome])
 	maps.Copy(contexto, ag.cfg.Payloads[c.nomeMCP])
 	return contexto
+}
+
+// agora é o instante dos eventos dos ganchos: o relógio injetado, ou o de verdade.
+func (ag *Agente) agora() time.Time {
+	if ag.cfg.Agora != nil {
+		return ag.cfg.Agora()
+	}
+	return time.Now()
 }
 
 func (ag *Agente) casoID() string {
@@ -487,7 +495,7 @@ func registrarGanchos(ctx context.Context, registros []ganchos.Registro) {
 // depoisDe passa o resultado por depois_da_ferramenta: sai saneado, ou não sai.
 func (ag *Agente) depoisDe(ctx context.Context, c chamada, out saida) saida {
 	depois := ag.cfg.Turno.DepoisDaFerramenta(ctx, ganchos.DepoisDaFerramenta{
-		Agora: time.Now(), Ferramenta: c.nomeMCP, Caso: ag.casoID(), Params: c.params,
+		Agora: ag.agora(), Ferramenta: c.nomeMCP, Caso: ag.casoID(), Params: c.params,
 		Resultado: out["resultado"], Identidade: ag.identidadeDosGanchos(),
 		AdministradoraID: ag.cfg.AdministradoraID, CondominioID: ag.cfg.CondominioID,
 	})
