@@ -32,8 +32,8 @@ type leitura struct {
 	Params           map[string]any
 	Texto            string
 	Identidade       ganchos.Identidade
-	// Confirmacao é a mensagem atual do morador; só antes_da_ferramenta a traz.
-	Confirmacao string
+	// PerguntasConfirmadas: as que o morador confirmou; só antes_da_ferramenta as traz.
+	PerguntasConfirmadas []string
 }
 
 type condicaoCompilada func(leitura) veredito

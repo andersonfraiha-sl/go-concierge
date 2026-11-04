@@ -157,6 +157,7 @@ func conversaDaReserva(t *testing.T, svc *Servico) func(texto string) string {
 	t.Cleanup(func() { pedidos.Agora = time.Now })
 	instante := time.Date(2026, 11, 5, 1, 30, 0, 0, time.UTC) // 22h30 em São Paulo
 	svc.Agora = func() time.Time { return instante }
+	svc.Config.Agora = svc.Agora // o relógio dos eventos do harness
 	i := 0
 	return func(texto string) string {
 		t.Helper()
@@ -170,35 +171,40 @@ func conversaDaReserva(t *testing.T, svc *Servico) func(texto string) string {
 	}
 }
 
-func ateAConfirmacao(t *testing.T, fala func(string) string) {
+// ateAPerguntaDaRegra leva a reserva até o sim do caso: a escrita roda e a regra, que ainda
+// não teve a pergunta dela feita, segura a escrita e pergunta.
+func ateAPerguntaDaRegra(t *testing.T, fala func(string) string) {
 	t.Helper()
 	if r := fala("quero reservar uma área comum"); !strings.Contains(r, "Qual área") {
-		t.Fatalf("a pergunta da regra espera a confirmação do caso: %q", r)
+		t.Fatalf("a regra não pergunta antes da escrita: %q", r)
 	}
 	if r := fala("salão"); !strings.Contains(r, "Para qual data?") {
 		t.Fatalf("depois da área, a data: %q", r)
 	}
-	r := fala("15/11")
-	if !strings.Contains(r, "Confirma a reserva de Salão de festas") || !strings.Contains(r, perguntaDaRegraDeReserva) {
-		t.Fatalf("a confirmação do caso e a pergunta da regra saem juntas: %q", r)
+	if r := fala("15/11"); !strings.Contains(r, "Confirma a reserva de Salão de festas") || strings.Contains(r, perguntaDaRegraDeReserva) {
+		t.Fatalf("primeiro só a confirmação do caso: %q", r)
+	}
+	r := fala("sim")
+	if !strings.Contains(r, perguntaDaRegraDeReserva) || strings.Contains(r, "Não consegui concluir") || strings.Contains(r, "Reserva confirmada") {
+		t.Fatalf("o sim do caso leva à pergunta da regra, sem falha: %q", r)
 	}
 }
 
-func TestPerguntaDaRegraVaiNaConfirmacaoEUmSimGrava(t *testing.T) {
+func TestPerguntaDaRegraSaiDepoisDoSimDoCasoEOProximoSimGrava(t *testing.T) {
 	svc, db, _ := servicoNoPostgres(t)
 	comAuditor(svc, db, indiceDaRegraQueConfirma(t))
 	fala := conversaDaReserva(t, svc)
 
-	ateAConfirmacao(t, fala)
+	ateAPerguntaDaRegra(t, fala)
 	linhas := linhasDaRegra(t, db, "rc")
 	if len(linhas) != 1 || linhas[0].Decisao != string(ganchos.Confirmar) || linhas[0].RegraVersao != 2 {
-		t.Fatalf("a pergunta que foi ao morador tem uma linha; as prévias anteriores, nenhuma: %+v", linhas)
+		t.Fatalf("a pergunta da escrita real tem uma linha; as prévias, nenhuma: %+v", linhas)
 	}
 	if r := fala("sim"); !strings.Contains(r, "Reserva confirmada") {
-		t.Fatalf("um sim responde o caso e a regra: %q", r)
+		t.Fatalf("o sim à pergunta da regra deixa a escrita passar: %q", r)
 	}
 	if n := len(linhasDaRegra(t, db, "rc")); n != 1 {
-		t.Fatalf("a gravação com o sim deixa passar sem linha nova: %d linhas", n)
+		t.Fatalf("a escrita que passou não ganha linha: %d linhas", n)
 	}
 }
 
@@ -207,8 +213,22 @@ func TestNaoAPerguntaDaRegraCancelaOPedido(t *testing.T) {
 	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraQueConfirma(t))
 	fala := conversaDaReserva(t, svc)
 
-	ateAConfirmacao(t, fala)
+	ateAPerguntaDaRegra(t, fala)
 	if r := fala("não"); !strings.Contains(r, "cancelado") || strings.Contains(r, "Reserva confirmada") {
 		t.Fatalf("o não cancela como o não da confirmação do caso: %q", r)
+	}
+}
+
+func TestSimQueNaoVemDepoisDaPerguntaNaoRespondeARegra(t *testing.T) {
+	sess := &Sessao{PerguntasDeRegra: []string{perguntaDaRegraDeReserva}}
+	if got := sess.tomarPerguntasConfirmadas("quero outra data"); len(got) != 0 || len(sess.PerguntasDeRegra) != 0 {
+		t.Fatalf("mensagem que não confirma não responde e esquece a pergunta: %v %v", got, sess.PerguntasDeRegra)
+	}
+	sess.PerguntasDeRegra = []string{perguntaDaRegraDeReserva}
+	if got := sess.tomarPerguntasConfirmadas("sim"); len(got) != 1 || len(sess.PerguntasDeRegra) != 0 {
+		t.Fatalf("o sim responde a pergunta da resposta anterior, uma vez só: %v %v", got, sess.PerguntasDeRegra)
+	}
+	if got := sess.tomarPerguntasConfirmadas("sim"); len(got) != 0 {
+		t.Fatalf("um segundo sim já não tem pergunta a responder: %v", got)
 	}
 }

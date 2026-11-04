@@ -442,3 +442,37 @@ func TestComObservadorEmSequenciaAvisaTodosNaOrdem(t *testing.T) {
 		t.Fatalf("observadores avisados = %v, want [log auditoria]", ordem)
 	}
 }
+
+// perguntadora pede confirmação com a pergunta dada e anota o que o evento trouxe confirmado.
+func perguntadora(pergunta string, vistas *[][]string) ganchos.Gancho[ganchos.AntesDaFerramenta] {
+	return ganchos.Gancho[ganchos.AntesDaFerramenta]{
+		Nome: "regra",
+		Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
+			*vistas = append(*vistas, e.PerguntasConfirmadas)
+			return e, ganchos.Decisao{Tipo: ganchos.Confirmar, Motivo: pergunta}
+		},
+	}
+}
+
+func TestTurnoLevaAsConfirmadasEGuardaAsPerguntasFeitas(t *testing.T) {
+	var vistas [][]string
+	idx := &ganchos.Indice{AntesDaFerramenta: ganchos.Nivel[ganchos.AntesDaFerramenta]{
+		Globais: []ganchos.Gancho[ganchos.AntesDaFerramenta]{perguntadora("É para hoje?", &vistas)},
+	}}
+	c := ganchostest.Conjunto(ganchos.Fixos{}, idx)
+	turno := c.Turno().ComPerguntasConfirmadas([]string{"Já é tarde?"})
+
+	turno.AntesDaFerramenta(context.Background(), ganchos.AntesDaFerramenta{})
+	turno.AntesDaFerramenta(context.Background(), ganchos.AntesDaFerramenta{})
+	c.TurnoDePrevia().AntesDaFerramenta(context.Background(), ganchos.AntesDaFerramenta{})
+
+	if !slices.Equal(vistas[0], []string{"Já é tarde?"}) || len(vistas[2]) != 0 {
+		t.Fatalf("o turno leva as confirmadas; a prévia, nenhuma: %v", vistas)
+	}
+	if got := turno.PerguntasFeitas(); !slices.Equal(got, []string{"É para hoje?"}) {
+		t.Fatalf("perguntas feitas, sem repetir e sem a prévia: %v", got)
+	}
+	if got := c.Turno().PerguntasFeitas(); len(got) != 0 {
+		t.Fatalf("cada turno tem as suas: %v", got)
+	}
+}

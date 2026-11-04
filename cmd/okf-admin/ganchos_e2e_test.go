@@ -290,15 +290,18 @@ func TestE2EGanchosRegrasDeExemplo(t *testing.T) {
 		}
 	})
 
-	t.Run("desativar a reserva libera o turno seguinte e a pergunta da regra vai com a confirmação", func(t *testing.T) {
+	t.Run("desativar a reserva libera o turno seguinte e a regra de confirmar pergunta", func(t *testing.T) {
 		desativar(t, amb, reserva)
 		amb.relogio.Marcar(t, "2026-11-04T01:30:00Z")
 		fala := func(texto string) string { return amb.falar(t, "prot-confirmar", telefoneCadastrado, texto) }
 		quer(t, "reserva liberada", fala("quero reservar uma área comum"), "Qual área")
 		quer(t, "área", fala("salão"), "Para qual data?")
-		confirmacao := fala("15/11")
-		quer(t, "confirmação do caso", confirmacao, "Confirma a reserva")
-		quer(t, "pergunta da regra", confirmacao, "Já é tarde, quer mesmo reservar assim?")
+		quer(t, "data", fala("15/11"), "Confirma a reserva")
+		pergunta := fala("sim")
+		quer(t, "pergunta da regra", pergunta, "Já é tarde, quer mesmo reservar assim?")
+		if strings.Contains(pergunta, "Não consegui concluir") {
+			t.Fatalf("a pergunta da regra não pode virar falha: %q", pergunta)
+		}
 	})
 
 	t.Run("responder sim à pergunta da regra deixa a escrita passar", func(t *testing.T) {

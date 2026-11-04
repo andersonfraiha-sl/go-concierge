@@ -750,6 +750,8 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		return sess, err
 	}
 	defer sess.fecharTurno(turnoGanchos)
+	turnoGanchos = turnoGanchos.ComPerguntasConfirmadas(sess.tomarPerguntasConfirmadas(texto))
+	defer sess.guardarPerguntasDeRegra(turnoGanchos)
 	if transbordado {
 		// em transbordo o concierge não responde: a mensagem fica, mascarada, para o atendente
 		texto = mascararEntrada(turnoGanchos, texto)

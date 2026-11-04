@@ -2,20 +2,20 @@ package pedidos
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
 
 // ambienteComPrevia é o ambienteFalso que também prevê a escrita: bloqueia quando
-// bloqueiaSe aceita os params recebidos, senão faz a pergunta (vazia = nenhuma). Conta as
-// decisões que o motor aplicou em registradas.
+// bloqueiaSe aceita os params recebidos. Conta os bloqueios que o motor aplicou em
+// registradas.
 type ambienteComPrevia struct {
 	*ambienteFalso
 	bloqueiaSe  func(params map[string]any) bool
-	pergunta    string
 	previas     []map[string]any
-	registradas []string
+	registradas int
 }
 
 func (a *ambienteComPrevia) Prever(_ context.Context, _, recurso string, params map[string]any) Previsao {
@@ -23,19 +23,10 @@ func (a *ambienteComPrevia) Prever(_ context.Context, _, recurso string, params 
 		return Previsao{}
 	}
 	a.previas = append(a.previas, params)
-	if a.bloqueiaSe(params) {
-		return a.previsao(Previsao{Bloqueio: "Reservas só até as 22h."})
+	if !a.bloqueiaSe(params) {
+		return Previsao{}
 	}
-	if a.pergunta != "" {
-		return a.previsao(Previsao{Pergunta: a.pergunta})
-	}
-	return Previsao{}
-}
-
-func (a *ambienteComPrevia) previsao(pv Previsao) Previsao {
-	decisao := pv.Bloqueio + pv.Pergunta
-	pv.Registrar = func(context.Context) { a.registradas = append(a.registradas, decisao) }
-	return pv
+	return Previsao{Bloqueio: "Reservas só até as 22h.", Registrar: func(context.Context) { a.registradas++ }}
 }
 
 func novoPedidoDaReserva(t *testing.T) (*Contrato, *Pedido, *Carteira) {
@@ -144,8 +135,8 @@ func TestPreviaQueBloqueiaRegistraUmaVez(t *testing.T) {
 	}
 	Avancar(context.Background(), ct, p, cart, amb)
 	Avancar(context.Background(), ct, p, cart, amb)
-	if len(amb.registradas) != 1 {
-		t.Fatalf("o bloqueio que cancelou devia ser registrado uma vez: %v", amb.registradas)
+	if amb.registradas != 1 {
+		t.Fatalf("o bloqueio que cancelou devia ser registrado uma vez: %d", amb.registradas)
 	}
 }
 
@@ -159,72 +150,102 @@ func TestPreviaSemDecisaoNaoRegistra(t *testing.T) {
 	Avancar(ctx, ct, p, cart, amb)
 	Aplicar(ct, p, map[string]any{"area": "salao"}, OrigemMorador)
 	Avancar(ctx, ct, p, cart, amb)
-	if len(amb.previas) < 2 || len(amb.registradas) != 0 {
-		t.Fatalf("prévia que só deixa passar não registra: %d previsões, %v", len(amb.previas), amb.registradas)
+	if len(amb.previas) < 2 || amb.registradas != 0 {
+		t.Fatalf("prévia que só deixa passar não registra: %d previsões, %d", len(amb.previas), amb.registradas)
 	}
 }
 
 const perguntaDaRegra = "Já é tarde, quer mesmo reservar assim?"
 
-// confirmacaoComPerguntaDaRegra leva o pedido da reserva até a confirmação com a pergunta
-// da regra junto.
-func confirmacaoComPerguntaDaRegra(t *testing.T) (*Contrato, *Pedido, *Carteira, *ambienteComPrevia) {
+// ambienteQuePergunta é o ambienteFalso em que os ganchos pedem confirmação na primeira
+// chamada da reserva, como a regra que ainda não teve a pergunta dela respondida.
+type ambienteQuePergunta struct {
+	*ambienteFalso
+	perguntou bool
+}
+
+func (a *ambienteQuePergunta) Chamar(ctx context.Context, agente, recurso string, params map[string]any, confirmacao string) (any, error) {
+	if recurso == "areas.reservar" && !a.perguntou {
+		a.perguntou = true
+		a.confirms = append(a.confirms, confirmacao)
+		return nil, &PerguntaDosGanchos{Pergunta: perguntaDaRegra}
+	}
+	return a.ambienteFalso.Chamar(ctx, agente, recurso, params, confirmacao)
+}
+
+func novoAmbienteQuePergunta() *ambienteQuePergunta {
+	return &ambienteQuePergunta{ambienteFalso: &ambienteFalso{unidades: []any{map[string]any{"id": "109", "label": "Jataí - 101"}}}}
+}
+
+// ateAPerguntaDaRegra leva a reserva até o sim do caso, que dispara a pergunta da regra.
+func ateAPerguntaDaRegra(t *testing.T, ct *Contrato, p *Pedido, cart *Carteira, amb Ambiente) {
 	t.Helper()
-	ct, p, cart := novoPedidoDaReserva(t)
-	amb := &ambienteComPrevia{
-		ambienteFalso: &ambienteFalso{unidades: []any{map[string]any{"id": "109", "label": "Jataí - 101"}}},
-		bloqueiaSe:    func(map[string]any) bool { return false },
-		pergunta:      perguntaDaRegra,
-	}
 	ctx := context.Background()
-	if s := Avancar(ctx, ct, p, cart, amb); s.Tipo != "pergunta" {
-		t.Fatalf("a pergunta da regra espera a confirmação do caso: %+v", s)
-	}
+	Avancar(ctx, ct, p, cart, amb)
 	Aplicar(ct, p, map[string]any{"area": "salao", "data": "15/11"}, OrigemMorador)
-	s := Avancar(ctx, ct, p, cart, amb)
-	if s.Tipo != "confirmar" || p.Estado != Confirmando {
-		t.Fatalf("devia pedir a confirmação: %+v estado=%s", s, p.Estado)
+	if s := Avancar(ctx, ct, p, cart, amb); s.Tipo != "confirmar" || !strings.Contains(s.Texto, "Confirma a reserva") {
+		t.Fatalf("primeiro a confirmação do caso: %+v", s)
 	}
-	if !strings.Contains(s.Texto, "Salão de festas") || !strings.HasSuffix(s.Texto, "\n"+perguntaDaRegra) {
-		t.Fatalf("a confirmação do caso e a pergunta da regra saem juntas: %q", s.Texto)
-	}
-	return ct, p, cart, amb
-}
-
-func TestPerguntaDaRegraEntraNaConfirmacaoEUmSimResponde(t *testing.T) {
-	ct, p, cart, amb := confirmacaoComPerguntaDaRegra(t)
 	Confirmar(p, "sim", OrigemMorador)
-	s := Avancar(context.Background(), ct, p, cart, amb)
-	if s.Tipo != "concluido" || p.Estado != Concluido {
-		t.Fatalf("um sim responde as duas perguntas: %+v estado=%s", s, p.Estado)
-	}
-	if got := amb.confirms[len(amb.confirms)-1]; got != "sim" {
-		t.Fatalf("a gravação leva o sim do morador: %q", got)
-	}
-	if len(amb.registradas) != 1 || amb.registradas[0] != perguntaDaRegra {
-		t.Fatalf("a pergunta aplicada é registrada uma vez: %v", amb.registradas)
+	s := Avancar(ctx, ct, p, cart, amb)
+	if s.Tipo != "confirmar" || s.Texto != perguntaDaRegra || p.Estado != Confirmando || !p.Confirmacao.Ganchos {
+		t.Fatalf("a pergunta da regra vira a confirmação em aberto, não falha: %+v estado=%s", s, p.Estado)
 	}
 }
 
-func TestPerguntaDaRegraRepetidaNaoRegistraDeNovo(t *testing.T) {
-	ct, p, cart, amb := confirmacaoComPerguntaDaRegra(t)
-	s := Avancar(context.Background(), ct, p, cart, amb)
-	if s.Tipo != "confirmar" || !strings.HasSuffix(s.Texto, perguntaDaRegra) {
-		t.Fatalf("sem resposta, a confirmação continua esperando: %+v", s)
+func TestPerguntaDosGanchosEsperaOMoradorEOSimRefazAEscrita(t *testing.T) {
+	ct, p, cart := novoPedidoDaReserva(t)
+	amb := novoAmbienteQuePergunta()
+	ateAPerguntaDaRegra(t, ct, p, cart, amb)
+	ctx := context.Background()
+	if s := Avancar(ctx, ct, p, cart, amb); s.Tipo != "confirmar" || s.Texto != perguntaDaRegra || len(amb.confirms) != 1 {
+		t.Fatalf("sem resposta, a pergunta segue esperando e a escrita não roda: %+v %v", s, amb.confirms)
 	}
-	if len(amb.registradas) != 1 {
-		t.Fatalf("a mesma pergunta não é registrada de novo: %v", amb.registradas)
+	Confirmar(p, "sim", OrigemMorador)
+	s := Avancar(ctx, ct, p, cart, amb)
+	if s.Tipo != "concluido" || !strings.Contains(s.Texto, "R-77") {
+		t.Fatalf("o sim refaz a escrita: %+v", s)
+	}
+	if len(amb.confirms) != 2 || amb.confirms[1] != "sim" {
+		t.Fatalf("duas tentativas, a segunda com o sim: %v", amb.confirms)
 	}
 }
 
-func TestNaoAPerguntaDaRegraCancelaComoONaoDoCaso(t *testing.T) {
-	ct, p, cart, amb := confirmacaoComPerguntaDaRegra(t)
+func TestNaoAPerguntaDosGanchosCancelaComoONaoDoCaso(t *testing.T) {
+	ct, p, cart := novoPedidoDaReserva(t)
+	amb := novoAmbienteQuePergunta()
+	ateAPerguntaDaRegra(t, ct, p, cart, amb)
 	Confirmar(p, "nao", OrigemMorador)
 	s := Avancar(context.Background(), ct, p, cart, amb)
-	if s.Tipo != "cancelado" || s.Texto != CanceladoAPedido || p.Estado != Cancelado {
-		t.Fatalf("o não cancela a pedido do morador: %+v estado=%s", s, p.Estado)
+	if s.Tipo != "cancelado" || s.Texto != CanceladoAPedido || p.Estado != Cancelado || len(amb.confirms) != 1 {
+		t.Fatalf("o não cancela a pedido do morador, sem nova escrita: %+v estado=%s %v", s, p.Estado, amb.confirms)
 	}
-	if len(amb.confirms) != 0 {
-		t.Fatalf("a escrita não roda: %v", amb.confirms)
+}
+
+func TestValorNovoDepoisDaPerguntaDosGanchosVoltaAConfirmacaoDoCaso(t *testing.T) {
+	ct, p, cart := novoPedidoDaReserva(t)
+	amb := novoAmbienteQuePergunta()
+	ateAPerguntaDaRegra(t, ct, p, cart, amb)
+	Aplicar(ct, p, map[string]any{"data": "16/11"}, OrigemAtendente) // o atendente pode trocar um valor já dado
+	s := Avancar(context.Background(), ct, p, cart, amb)
+	if s.Tipo != "confirmar" || !strings.Contains(s.Texto, "16 de novembro") || p.Confirmacao.Ganchos {
+		t.Fatalf("com outro valor, a confirmação do caso volta: %+v", s)
+	}
+}
+
+func TestPerguntaDosGanchosSemPassoDeConfirmacao(t *testing.T) {
+	ct, p, cart := novoPedidoDaReserva(t)
+	semConfirmar := *ct
+	semConfirmar.Passos = slices.DeleteFunc(slices.Clone(ct.Passos), func(passo Passo) bool { return passo.Tipo == "confirmar" })
+	amb := novoAmbienteQuePergunta()
+	ctx := context.Background()
+	Avancar(ctx, &semConfirmar, p, cart, amb)
+	Aplicar(&semConfirmar, p, map[string]any{"area": "salao", "data": "15/11"}, OrigemMorador)
+	if s := Avancar(ctx, &semConfirmar, p, cart, amb); s.Tipo != "confirmar" || s.Texto != perguntaDaRegra || p.Estado != Confirmando {
+		t.Fatalf("sem passo de confirmação, a regra pergunta antes e o pedido espera: %+v estado=%s", s, p.Estado)
+	}
+	Confirmar(p, "sim", OrigemMorador)
+	if s := Avancar(ctx, &semConfirmar, p, cart, amb); s.Tipo != "concluido" || amb.confirms[len(amb.confirms)-1] != "sim" {
+		t.Fatalf("o sim refaz a chamada com a confirmação: %+v %v", s, amb.confirms)
 	}
 }
