@@ -2,6 +2,7 @@ package acesso
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"go-concierge/internal/escopo"
@@ -148,5 +149,62 @@ func TestAtribuicaoDeCondominioPerdeValidadeQuandoCondominioMuda(t *testing.T) {
 	a.Concessoes = []Concessao{{"B", "gestor_administradora", StudioAvancado}}
 	if Permitido(a, StudioAvancado, cond("c1")) {
 		t.Error("concessão da nova administradora vazou para atribuição obsoleta")
+	}
+}
+
+func naAdm(papel, adm string) []Atribuicao {
+	return []Atribuicao{{PapelID: papel, Escopo: Escopo{TipoAdministradora, adm}}}
+}
+
+func TestPermissoesEmAlgum(t *testing.T) {
+	casos := []struct {
+		nome   string
+		ats    []Atribuicao
+		conc   []Concessao
+		tem    []Permissao
+		naoTem []Permissao
+	}{
+		{"operador", naAdm("operador_administradora", "A"), nil, []Permissao{SkillsLer}, []Permissao{CondominiosHabilitar, StudioAvancado}},
+		{"gestor sem concessão", naAdm("gestor_administradora", "A"), nil, []Permissao{SkillsEditarTextos}, []Permissao{StudioAvancado}},
+		{"gestor com concessão", naAdm("gestor_administradora", "A"), []Concessao{{AdministradoraID: "A", PapelID: "gestor_administradora", Permissao: StudioAvancado}}, []Permissao{StudioAvancado}, nil},
+		{"sem papel", nil, nil, nil, []Permissao{SkillsLer}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			got := PermissoesEmAlgum(base(c.ats, c.conc, escopo.Implantacao{}))
+			if got == nil {
+				t.Fatal("PermissoesEmAlgum = nil")
+			}
+			for _, p := range c.tem {
+				if !slices.Contains(got, p) {
+					t.Errorf("falta %s em %v", p, got)
+				}
+			}
+			for _, p := range c.naoTem {
+				if slices.Contains(got, p) {
+					t.Errorf("sobra %s em %v", p, got)
+				}
+			}
+		})
+	}
+}
+
+func TestPapelPrincipal(t *testing.T) {
+	casos := []struct {
+		nome string
+		ats  []Atribuicao
+		quer string
+	}{
+		{"admin vence operador", []Atribuicao{{PapelID: "operador_administradora", Escopo: admA()}, {PapelID: "admin_superlogica", Escopo: Escopo{Tipo: TipoSuperlogica}}}, "admin_superlogica"},
+		{"só gestor", naAdm("gestor_administradora", "A"), "gestor_administradora"},
+		{"sem atribuição", nil, ""},
+		{"condomínio com dona mudada é ignorado", []Atribuicao{{PapelID: "gestor_administradora", Escopo: cond("c1"), AdministradoraID: "B"}}, ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			if got := PapelPrincipal(base(c.ats, nil, escopo.Implantacao{})); got != c.quer {
+				t.Fatalf("PapelPrincipal = %q, quer %q", got, c.quer)
+			}
+		})
 	}
 }

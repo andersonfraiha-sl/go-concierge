@@ -287,35 +287,6 @@ func TestStudioAPI(t *testing.T) {
 			querStatus: 404,
 			conferir:   exigirErroCom("SKILL_NAO_ENCONTRADA", "Esta skill não existe."),
 		},
-		{
-			nome:       "eu sem papel",
-			pedido:     pedido{metodo: "GET", caminho: "/api/eu"},
-			querStatus: 200,
-			conferir: func(t *testing.T, corpo map[string]any) {
-				exigirCampos(t, corpo, "id", "nome", "papel", "permissoes", "administradoraId", "dev")
-				if corpo["administradoraId"] != nil || corpo["dev"] != true {
-					t.Fatalf("eu = %v", corpo)
-				}
-			},
-		},
-		{
-			nome:       "eu como gestor",
-			pedido:     pedido{metodo: "GET", caminho: "/api/eu", cabecalhos: map[string]string{"X-Studio-Papel": "gestor"}},
-			querStatus: 200,
-			conferir: func(t *testing.T, corpo map[string]any) {
-				if corpo["administradoraId"] != "adm-exemplo" || slices.Contains(corpo["permissoes"].([]any), any("skills.editar_fluxo")) {
-					t.Fatalf("eu = %v", corpo)
-				}
-			},
-		},
-		{
-			nome:       "eu com papel desconhecido",
-			pedido:     pedido{metodo: "GET", caminho: "/api/eu", cabecalhos: map[string]string{"X-Studio-Papel": "xyz"}},
-			querStatus: 400,
-			conferir: func(t *testing.T, corpo map[string]any) {
-				exigirErro(t, corpo, "PAPEL_DESCONHECIDO")
-			},
-		},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
