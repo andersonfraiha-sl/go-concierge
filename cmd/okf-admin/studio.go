@@ -49,30 +49,6 @@ type eu struct {
 	Dev              bool     `json:"dev"`
 }
 
-// euDev é o usuário de desenvolvimento para o papel do cabeçalho X-Studio-Papel, até a
-// Fundação entregar o acesso de verdade.
-func euDev(papel string) (eu, bool) {
-	adm := "adm-exemplo"
-	gestor := []string{
-		"skills.ler", "conversas.ver", "conversas.atender", "pedidos.ver", "memoria.ver",
-		"condominios.habilitar", "skills.editar_textos", "pedidos.editar", "memoria.esquecer",
-	}
-	switch papel {
-	case "", "construtor":
-		return eu{ID: "dev-superlogica", Nome: "Dev Superlógica", Papel: "admin_superlogica", Dev: true, Permissoes: []string{
-			"skills.ler", "skills.editar_textos", "skills.editar_fluxo", "skills.criar", "skills.excluir",
-			"ferramentas.editar", "condominios.habilitar", "condominios.editar", "conversas.ver",
-			"conversas.atender", "pedidos.ver", "pedidos.editar", "memoria.ver", "memoria.esquecer",
-			"administradoras.editar", "usuarios.editar", "studio.avancado",
-		}}, true
-	case "gestor":
-		return eu{ID: "dev-gestor", Nome: "Dev Gestor", Papel: "gestor_administradora", Permissoes: gestor, AdministradoraID: &adm, Dev: true}, true
-	case "gestor_avancado":
-		return eu{ID: "dev-gestor", Nome: "Dev Gestor", Papel: "gestor_administradora", Permissoes: append(gestor, "studio.avancado"), AdministradoraID: &adm, Dev: true}, true
-	}
-	return eu{}, false
-}
-
 var errAdministradoraAmbigua = errors.New("usuário vê mais de uma administradora")
 
 // montarEu descreve o usuário carregado. Só consulta as administradoras quando ele não é da

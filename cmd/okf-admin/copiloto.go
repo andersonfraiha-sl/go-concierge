@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/copiloto"
 	"go-concierge/internal/harness"
@@ -24,7 +25,8 @@ import (
 // API do Copiloto do Studio. POST /api/copiloto conversa com o modelo e devolve só as
 // propostas que a pessoa pode aplicar na tela, com o motivo de cada recusa; o contexto
 // mandado ao modelo é montado aqui, nunca vindo do cliente. GET /api/copiloto/estado diz
-// se há modelo. O log nunca leva a conversa nem o contexto, só a forma do pedido.
+// se há modelo. Quem pede e o que vê vêm do Acesso da Fundação, nunca de cabeçalho do
+// cliente. O log nunca leva a conversa nem o contexto, só a forma do pedido.
 
 const (
 	prazoCopiloto        = 55 * time.Second // o front espera 60 s
@@ -34,13 +36,9 @@ const (
 	maxArquivoCopiloto   = 12000 // arquivo aberto no Avançado, cortado com aviso ao modelo
 	maxResumoProposta    = 90
 	nivelErroDoFluxo     = "erro"
-	permissaoAvancado    = "studio.avancado"
 )
 
-var (
-	errPedidoCopiloto    = errors.New("pedido ao copiloto inválido")
-	errSemAdministradora = errors.New("administradora vazia no usuário")
-)
+var errPedidoCopiloto = errors.New("pedido ao copiloto inválido")
 
 type pedidoAoCopiloto struct {
 	Mensagem  string                       `json:"mensagem"`
@@ -65,8 +63,8 @@ type estadoDoCopiloto struct {
 }
 
 func (s *servidor) rotasCopiloto(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/copiloto/estado", s.copilotoEstado)
-	mux.HandleFunc("POST /api/copiloto", s.copilotoPerguntar)
+	mux.Handle("GET /api/copiloto/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.copilotoEstado))
+	mux.Handle("POST /api/copiloto", s.protegidaEmAlgum(acesso.SkillsLer, s.copilotoPerguntar))
 }
 
 func (s *servidor) copilotoEstado(w http.ResponseWriter, _ *http.Request) {
@@ -82,26 +80,21 @@ type conversaRegistrada struct {
 }
 
 func (s *servidor) copilotoPerguntar(w http.ResponseWriter, r *http.Request) {
+	a, ok := acessoDe(r.Context())
+	if !ok {
+		responderNaoAutenticado(w)
+		return
+	}
 	inicio := time.Now()
 	gravado := &statusGravado{ResponseWriter: w, status: http.StatusOK}
-	reg := s.conversarComCopiloto(gravado, r)
-	s.registrarConversa(r.Header.Get("X-Studio-Papel"), gravado.status, reg, time.Since(inicio))
+	reg := s.conversarComCopiloto(gravado, r, a)
+	s.registrarConversa(a.UsuarioID, gravado.status, reg, time.Since(inicio))
 }
 
-func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request) conversaRegistrada {
+func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request, a acesso.Acesso) conversaRegistrada {
 	if s.copiloto == nil {
 		writeJSON(w, http.StatusServiceUnavailable, erroAPI{Codigo: "COPILOTO_INDISPONIVEL", Mensagem: "O Copiloto está fora do ar. O resto do Studio continua funcionando."})
 		return conversaRegistrada{}
-	}
-	usuario, ok := euDev(r.Header.Get("X-Studio-Papel"))
-	if !ok {
-		writeJSON(w, http.StatusBadRequest, erroAPI{Codigo: "PAPEL_DESCONHECIDO", Mensagem: "Esse papel não existe."})
-		return conversaRegistrada{}
-	}
-	quem, err := quemDoCopiloto(usuario)
-	if err != nil {
-		writeJSON(w, http.StatusForbidden, erroAPI{Codigo: "SEM_ACESSO", Mensagem: "Não deu para saber de qual administradora você é."})
-		return conversaRegistrada{err: err}
 	}
 	corpo, err := lerCorpo[pedidoAoCopiloto](w, r)
 	if err == nil {
@@ -112,22 +105,24 @@ func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request) 
 		return conversaRegistrada{tela: corpo.Contexto.Tela, err: err}
 	}
 	reg := conversaRegistrada{tela: corpo.Contexto.Tela}
-	ret, err := s.retratoParaCopiloto(r, corpo.Contexto, usuario, quem)
-	if err != nil {
-		reg.err = err
-		s.responderErroDoRetrato(w, err)
-		return reg
-	}
+	// o limite vem antes do retrato: quem já foi barrado não custa leitura no Postgres
 	liberar, ok := s.limiteCopiloto.ocuparVaga()
 	if !ok {
 		responderOcupado(w, esperaSemVagaCopiloto, "O Copiloto está atendendo muita gente agora. Tente de novo em alguns segundos.")
 		return reg
 	}
 	defer liberar()
-	if espera, ok := s.limiteCopiloto.tirarFicha(usuario.ID); !ok {
+	if espera, ok := s.limiteCopiloto.tirarFicha(a.UsuarioID); !ok {
 		responderOcupado(w, espera, "Você mandou muitos pedidos seguidos. Espere um pouco e tente de novo.")
 		return reg
 	}
+	ret, err := s.retratoParaCopiloto(r, corpo.Contexto, a)
+	if err != nil {
+		reg.err = err
+		s.responderErroDoRetrato(w, r, err)
+		return reg
+	}
+	quem := ret.quem
 	ctx, cancel := context.WithTimeout(r.Context(), prazoCopiloto)
 	defer cancel()
 	resp, err := s.copiloto(ctx, harness.PedidoAoCopiloto{
@@ -146,16 +141,18 @@ func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request) 
 	return reg
 }
 
-// quemDoCopiloto: só a ausência de administradora é Superlógica; um id vazio é recusado,
-// porque Administradora "" dá poder sobre o catálogo.
-func quemDoCopiloto(u eu) (copiloto.Quem, error) {
-	if u.AdministradoraID == nil {
-		return copiloto.Quem{Permissoes: u.Permissoes}, nil
+// quemDoCopiloto: Administradora "" (poder sobre o catálogo) só para a Superlógica, mesmo
+// quando ela olha o recorte de uma administradora; os demais ficam presos ao recorte, que
+// recorteDoUsuario nunca devolve vazio para eles.
+func quemDoCopiloto(a acesso.Acesso, recorte string) copiloto.Quem {
+	permissoes := []string{}
+	for _, p := range acesso.PermissoesEmAlgum(a) {
+		permissoes = append(permissoes, string(p))
 	}
-	if *u.AdministradoraID == "" {
-		return copiloto.Quem{}, errSemAdministradora
+	if acesso.Permitido(a, acesso.SkillsLer, escopoSuperlogica) {
+		return copiloto.Quem{Permissoes: permissoes}
 	}
-	return copiloto.Quem{Permissoes: u.Permissoes, Administradora: *u.AdministradoraID}, nil
+	return copiloto.Quem{Permissoes: permissoes, Administradora: recorte}
 }
 
 func validarPedido(p pedidoAoCopiloto) error {
@@ -228,6 +225,7 @@ func operacoesPermitidas(t copiloto.Tela, quem copiloto.Quem) []copiloto.TipoDeO
 // retrato é o que o servidor sabe na hora do pedido: o contexto para o modelo e os nomes,
 // o escopo e a classificação de ferramentas para conferir a resposta.
 type retrato struct {
+	quem        copiloto.Quem
 	contexto    string
 	skills      map[string]string // nome → título
 	condominios map[string]string // id → nome, só os do escopo
@@ -239,29 +237,36 @@ func (r retrato) doEscopo(id string) bool {
 	return ok
 }
 
-func (s *servidor) retratoParaCopiloto(r *http.Request, tela copiloto.Contexto, usuario eu, quem copiloto.Quem) (retrato, error) {
+// retratoParaCopiloto recorta o mapeamento como as outras leituras do Studio
+// (recorteDoUsuario e visaoPara); é desse recorte que sai quem pede.
+func (s *servidor) retratoParaCopiloto(r *http.Request, tela copiloto.Contexto, a acesso.Acesso) (retrato, error) {
 	mapa, err := s.admin.Ler(r.Context())
 	if err != nil {
 		return retrato{}, fmt.Errorf("copiloto: ler condomínios: %w", err)
 	}
-	visao := mapa.Visao(quem.Administradora) // "" só para a Superlógica (quemDoCopiloto)
+	recorte, err := recorteDoUsuario(r, mapa.Administradoras)
+	if err != nil {
+		return retrato{}, fmt.Errorf("copiloto: recortar administradora: %w", err)
+	}
+	quem := quemDoCopiloto(a, recorte)
+	visao, _ := visaoPara(r, mapa, recorte)
 	return comPrazo(r, func() (retrato, error) {
 		casos, err := s.casosDeUso()
 		if err != nil {
 			return retrato{}, fmt.Errorf("copiloto: listar skills: %w", err)
 		}
-		contexto, err := s.contextoDaTela(tela, usuario, visao, casos)
+		contexto, err := s.contextoDaTela(tela, quem, visao, casos)
 		if err != nil {
 			return retrato{}, err
 		}
 		return retrato{
-			contexto: contexto, skills: titulosDasSkills(casos),
+			quem: quem, contexto: contexto, skills: titulosDasSkills(casos),
 			condominios: nomesDosCondominios(visao.Condominios), escrita: escritaDoCatalogo(s.cat.RecursosNexus()),
 		}, nil
 	})
 }
 
-func (s *servidor) contextoDaTela(tela copiloto.Contexto, usuario eu, visao admin.Mapeamento, casos []casoDeUso) (string, error) {
+func (s *servidor) contextoDaTela(tela copiloto.Contexto, quem copiloto.Quem, visao admin.Mapeamento, casos []casoDeUso) (string, error) {
 	cabecalho := "Tela: " + string(tela.Tela) + "\n"
 	var conteudo any
 	switch tela.Tela {
@@ -278,7 +283,7 @@ func (s *servidor) contextoDaTela(tela copiloto.Contexto, usuario eu, visao admi
 	case copiloto.TelaSkills:
 		conteudo = map[string]any{"skills": resumosDasSkills(casos)}
 	case copiloto.TelaAvancado:
-		arquivo, err := s.arquivoParaCopiloto(tela, usuario)
+		arquivo, err := s.arquivoParaCopiloto(tela, quem)
 		if err != nil {
 			return "", err
 		}
@@ -352,8 +357,8 @@ func condominioParaCopiloto(visao admin.Mapeamento, id string, casos []casoDeUso
 	}
 }
 
-func (s *servidor) arquivoParaCopiloto(tela copiloto.Contexto, usuario eu) (string, error) {
-	if !slices.Contains(usuario.Permissoes, permissaoAvancado) {
+func (s *servidor) arquivoParaCopiloto(tela copiloto.Contexto, quem copiloto.Quem) (string, error) {
+	if !slices.Contains(quem.Permissoes, string(acesso.StudioAvancado)) {
 		return "Sem acesso ao Avançado.", nil
 	}
 	if tela.Agente == "" || tela.Caminho == "" {
@@ -530,7 +535,11 @@ func cortarResumo(s string) string {
 
 // ---- erros e log ----
 
-func (s *servidor) responderErroDoRetrato(w http.ResponseWriter, err error) {
+func (s *servidor) responderErroDoRetrato(w http.ResponseWriter, r *http.Request, err error) {
+	if _, ok := errors.AsType[erroDeAlvo](err); ok {
+		responderErroDeAlvo(w, r, err)
+		return
+	}
 	if errors.Is(err, errPedidoCopiloto) {
 		writeJSON(w, http.StatusBadRequest, erroAPI{Codigo: "PEDIDO_INVALIDO", Mensagem: "Não entendi o pedido."})
 		return
@@ -549,10 +558,10 @@ func responderErroDoModelo(w http.ResponseWriter, err error) {
 	}
 }
 
-func (s *servidor) registrarConversa(papel string, status int, reg conversaRegistrada, duracao time.Duration) {
+func (s *servidor) registrarConversa(usuarioID string, status int, reg conversaRegistrada, duracao time.Duration) {
 	atributos := []any{
 		"operacao", "copiloto.perguntar", "durationMs", duracao.Milliseconds(), "status", status,
-		"papel", papel, "tela", string(reg.tela), "propostas", reg.propostas, "recusas", reg.recusas,
+		"usuario_id", usuarioID, "tela", string(reg.tela), "propostas", reg.propostas, "recusas", reg.recusas,
 	}
 	nivel := slog.LevelInfo
 	if reg.err != nil {

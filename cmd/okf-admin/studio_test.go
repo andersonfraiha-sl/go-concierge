@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -21,50 +20,6 @@ import (
 )
 
 const skillMudanca = "/api/skills/agendar-mudanca"
-
-func TestEuDev(t *testing.T) {
-	admExemplo := "adm-exemplo"
-	gestor := []string{
-		"skills.ler", "conversas.ver", "conversas.atender", "pedidos.ver", "memoria.ver",
-		"condominios.habilitar", "skills.editar_textos", "pedidos.editar", "memoria.esquecer",
-	}
-	superlogica := eu{
-		ID: "dev-superlogica", Nome: "Dev Superlógica", Papel: "admin_superlogica",
-		Permissoes: []string{
-			"skills.ler", "skills.editar_textos", "skills.editar_fluxo", "skills.criar", "skills.excluir",
-			"ferramentas.editar", "condominios.habilitar", "condominios.editar", "conversas.ver",
-			"conversas.atender", "pedidos.ver", "pedidos.editar", "memoria.ver", "memoria.esquecer",
-			"administradoras.editar", "usuarios.editar", "studio.avancado",
-		},
-		Dev: true,
-	}
-	casos := []struct {
-		nome   string
-		papel  string
-		quer   eu
-		querOK bool
-	}{
-		{"vazio vira construtor", "", superlogica, true},
-		{"construtor", "construtor", superlogica, true},
-		{"gestor", "gestor", eu{
-			ID: "dev-gestor", Nome: "Dev Gestor", Papel: "gestor_administradora",
-			Permissoes: gestor, AdministradoraID: &admExemplo, Dev: true,
-		}, true},
-		{"gestor avancado", "gestor_avancado", eu{
-			ID: "dev-gestor", Nome: "Dev Gestor", Papel: "gestor_administradora",
-			Permissoes: append(slices.Clone(gestor), "studio.avancado"), AdministradoraID: &admExemplo, Dev: true,
-		}, true},
-		{"desconhecido", "xyz", eu{}, false},
-	}
-	for _, c := range casos {
-		t.Run(c.nome, func(t *testing.T) {
-			got, ok := euDev(c.papel)
-			if ok != c.querOK || !reflect.DeepEqual(got, c.quer) {
-				t.Fatalf("euDev(%q) = %+v, %v; quer %+v, %v", c.papel, got, ok, c.quer, c.querOK)
-			}
-		})
-	}
-}
 
 // pedido é uma chamada à API; corpo recebe o servidor para montar o que depende do estado (a versão atual).
 type pedido struct {

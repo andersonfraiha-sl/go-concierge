@@ -12,7 +12,7 @@ import (
 	"go-concierge/internal/okf"
 )
 
-// permissoesDoGestor espelha euDev("gestor") de cmd/okf-admin/studio.go.
+// permissoesDoGestor espelha o papel gestor_administradora de acesso.PapeisIniciais.
 var permissoesDoGestor = []string{
 	"skills.ler", "conversas.ver", "conversas.atender", "pedidos.ver", "memoria.ver",
 	"condominios.habilitar", "skills.editar_textos", "pedidos.editar", "memoria.esquecer",
