@@ -121,8 +121,20 @@ func (t Turno) AntesDeResponder(ctx context.Context, e AntesDeResponder) Resulta
 	return avaliarNoPonto(ctx, t, ponto[AntesDeResponder]{t.conjunto.fixos.AntesDeResponder, t.indice.AntesDeResponder}, e)
 }
 
+// TransbordoOuEncerramento nunca bloqueia. Se o saneamento do motivo falhar, o motivo cru
+// não segue: sai MotivoOmitido.
 func (t Turno) TransbordoOuEncerramento(ctx context.Context, e TransbordoOuEncerramento) Resultado[TransbordoOuEncerramento] {
-	return avaliarNoPonto(ctx, t, ponto[TransbordoOuEncerramento]{t.conjunto.fixos.TransbordoOuEncerramento, t.indice.TransbordoOuEncerramento}, e)
+	r := avaliarNoPonto(ctx, t, ponto[TransbordoOuEncerramento]{t.conjunto.fixos.TransbordoOuEncerramento, t.indice.TransbordoOuEncerramento}, e)
+	if saneamentoDoMotivoFalhou(r.Registros) {
+		r.Evento.Motivo = MotivoOmitido
+	}
+	return r
+}
+
+func saneamentoDoMotivoFalhou(registros []Registro) bool {
+	return slices.ContainsFunc(registros, func(r Registro) bool {
+		return r.Falhou && r.Decisao.Origem.Gancho == GanchoTransbordoSemPII
+	})
 }
 
 // NomesDosFixos lista, por evento, os fixos de checagem e depois os de saneamento.
@@ -156,7 +168,7 @@ func avaliarNoPonto[E comAlvo](ctx context.Context, t Turno, p ponto[E], ev E) R
 	a.grava = gravaDe(a.evento)
 	condominioID, administradoraID := a.evento.alvo()
 	a = seguir(ctx, a, carimbar(p.regras.Para(condominioID, administradoraID), false))
-	r := seguir(ctx, a, p.fixos.Saneamento).resultado(time.Since(inicio))
+	r := sanear(ctx, a, p.fixos.Saneamento).resultado(time.Since(inicio))
 	if t.conjunto.observar != nil {
 		t.conjunto.observar(ctx, Observacao{
 			Evento: ev.Nome(), CondominioID: condominioID, AdministradoraID: administradoraID,
@@ -164,6 +176,16 @@ func avaliarNoPonto[E comAlvo](ctx context.Context, t Turno, p ponto[E], ev E) R
 		})
 	}
 	return r
+}
+
+// sanear roda o saneamento mesmo depois de um Bloquear de checagem ou regra: o evento que
+// volta ao chamador nunca sai com PII crua. A decisão continua a que foi tomada.
+func sanear[E Ocorrencia](ctx context.Context, a avaliacao[E], gs []Gancho[E]) avaliacao[E] {
+	bloqueada := a.encerrada
+	a.encerrada = false
+	a = seguir(ctx, a, gs)
+	a.encerrada = a.encerrada || bloqueada
+	return a
 }
 
 func (c *Conjunto) indice() Indice {

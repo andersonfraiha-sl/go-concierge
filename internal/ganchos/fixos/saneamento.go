@@ -9,10 +9,9 @@ import (
 )
 
 const (
-	nomePIIEntrada       = "pii_na_entrada"
-	nomePIIResultado     = "pii_no_resultado"
-	nomePIIResposta      = "pii_na_resposta"
-	nomeTransbordoSemPII = "transbordo_sem_pii"
+	nomePIIEntrada   = "pii_na_entrada"
+	nomePIIResultado = "pii_no_resultado"
+	nomePIIResposta  = "pii_na_resposta"
 )
 
 // Saneamento devolve os fixos que tiram PII do que sai do turno e devolvem o valor real
@@ -32,7 +31,7 @@ func Saneamento() ganchos.Fixos {
 		},
 		TransbordoOuEncerramento: ganchos.Pontos[ganchos.TransbordoOuEncerramento]{
 			Saneamento: []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{
-				{Nome: nomeTransbordoSemPII, Falha: ganchos.Aberta, Avaliar: transbordoSemPII},
+				{Nome: ganchos.GanchoTransbordoSemPII, Falha: ganchos.Aberta, Avaliar: transbordoSemPII},
 			},
 		},
 	}
@@ -41,23 +40,21 @@ func Saneamento() ganchos.Fixos {
 // piiNaEntrada neutraliza antes de mascarar: marcador digitado pelo morador perde a forma.
 // Texto neutralizado sem achado também é ajuste, senão o Avaliar descartaria a troca.
 func piiNaEntrada(e ganchos.MensagemRecebida) (ganchos.MensagemRecebida, ganchos.Decisao) {
-	antes := len(e.Cofre.Ler())
-	texto := e.Cofre.Mascarar(pii.Neutralizar(e.Texto))
+	texto, novos := e.Cofre.Mascarar(pii.Neutralizar(e.Texto))
 	if texto == e.Texto {
 		return e, ganchos.Decisao{Tipo: ganchos.Deixar}
 	}
 	e.Texto = texto
-	return e, ajuste(len(e.Cofre.Ler()) - antes)
+	return e, ajuste(novos)
 }
 
 func piiNoResultado(e ganchos.DepoisDaFerramenta) (ganchos.DepoisDaFerramenta, ganchos.Decisao) {
-	antes := len(e.Cofre.Ler())
-	resultado := e.Cofre.MascararEmValor(e.Resultado)
+	resultado, novos := e.Cofre.MascararEmValor(e.Resultado)
 	if reflect.DeepEqual(resultado, e.Resultado) {
 		return e, ganchos.Decisao{Tipo: ganchos.Deixar}
 	}
 	e.Resultado = resultado
-	return e, ajuste(len(e.Cofre.Ler()) - antes)
+	return e, ajuste(novos)
 }
 
 // piiNaResposta devolve só marcadores do cofre deste turno; marcador alheio fica como
@@ -81,12 +78,12 @@ func piiNaResposta(e ganchos.AntesDeResponder) (ganchos.AntesDeResponder, gancho
 // para persistência, onde ninguém devolve o valor.
 func transbordoSemPII(e ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao) {
 	cofre := pii.NovoCofre()
-	motivo := cofre.Mascarar(e.Motivo)
+	motivo, novos := cofre.Mascarar(e.Motivo)
 	if motivo == e.Motivo {
 		return e, ganchos.Decisao{Tipo: ganchos.Deixar}
 	}
 	e.Motivo = motivo
-	return e, ajuste(len(cofre.Ler()))
+	return e, ajuste(novos)
 }
 
 func ajuste(quantidade int) ganchos.Decisao {

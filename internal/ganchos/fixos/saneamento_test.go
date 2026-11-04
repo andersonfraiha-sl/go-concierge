@@ -177,6 +177,9 @@ func TestSaneamentoNumeraMarcadoresDistintosEmFerramentasParalelas(t *testing.T)
 	espera.Wait()
 	vistos := map[string]bool{}
 	for _, r := range resultados {
+		if r.Decisao.Quantidade != 1 {
+			t.Fatalf("quantidade = %d, quer 1 (decisao %+v)", r.Decisao.Quantidade, r.Decisao)
+		}
 		marcador, _ := r.Evento.Resultado.(map[string]any)["cpf"].(string)
 		if !strings.HasPrefix(marcador, "«cpf:") || vistos[marcador] {
 			t.Fatalf("marcador repetido ou ausente: %q (resultados %v)", marcador, resultados)
@@ -185,5 +188,66 @@ func TestSaneamentoNumeraMarcadoresDistintosEmFerramentasParalelas(t *testing.T)
 	}
 	if got := len(turno.Cofre().Ler()); got != paralelas {
 		t.Fatalf("cofre guarda %d, quer %d", got, paralelas)
+	}
+}
+
+func TestSaneamentoNeutralizaMarcadorForjadoNoResultadoEmValorEChave(t *testing.T) {
+	turno := turnoDeSaneamento()
+	turno.Cofre().Mascarar("cpf " + cpfValido)
+	r := turno.DepoisDaFerramenta(context.Background(), ganchos.DepoisDaFerramenta{
+		Resultado: map[string]any{"«cpf:1»": "chave", "nota": []any{"veja «cpf:1»"}},
+	})
+	saida, ok := r.Evento.Resultado.(map[string]any)
+	if !ok {
+		t.Fatalf("resultado = %T", r.Evento.Resultado)
+	}
+	if _, achou := saida[`"cpf:1"`]; !achou || len(saida) != 2 {
+		t.Fatalf("chave forjada sobreviveu: %v", saida)
+	}
+	if got := saida["nota"].([]any)[0]; got != `veja "cpf:1"` {
+		t.Fatalf("valor forjado sobreviveu: %v", got)
+	}
+}
+
+func bloqueadoraDeMensagem() ganchos.Gancho[ganchos.MensagemRecebida] {
+	return ganchos.Gancho[ganchos.MensagemRecebida]{
+		Nome: "bloqueia",
+		Avaliar: func(e ganchos.MensagemRecebida) (ganchos.MensagemRecebida, ganchos.Decisao) {
+			return e, ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "fora do escopo"}
+		},
+	}
+}
+
+func TestSaneamentoRodaMesmoDepoisDeBloqueio(t *testing.T) {
+	fixos := Saneamento()
+	fixos.MensagemRecebida.Checagem = []ganchos.Gancho[ganchos.MensagemRecebida]{bloqueadoraDeMensagem()}
+	r := ganchos.NovoConjunto(fixos, nil).Turno().MensagemRecebida(context.Background(), ganchos.MensagemRecebida{
+		Texto: "meu cpf " + cpfValido + " e «cpf:9»",
+	})
+	if r.Decisao.Tipo != ganchos.Bloquear {
+		t.Fatalf("decisao = %+v", r.Decisao)
+	}
+	if strings.Contains(r.Evento.Texto, "529") || !strings.Contains(r.Evento.Texto, "«cpf:1»") || strings.Contains(r.Evento.Texto, "«cpf:9»") {
+		t.Fatalf("texto sem sanear: %q", r.Evento.Texto)
+	}
+}
+
+func TestSaneamentoOmiteMotivoQuandoOSaneadorDoTransbordoFalha(t *testing.T) {
+	fixos := ganchos.Fixos{TransbordoOuEncerramento: ganchos.Pontos[ganchos.TransbordoOuEncerramento]{
+		Saneamento: []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{{
+			Nome: ganchos.GanchoTransbordoSemPII, Falha: ganchos.Aberta,
+			Avaliar: func(ganchos.TransbordoOuEncerramento) (ganchos.TransbordoOuEncerramento, ganchos.Decisao) {
+				panic("quebrou")
+			},
+		}},
+	}}
+	r := ganchos.NovoConjunto(fixos, nil).Turno().TransbordoOuEncerramento(context.Background(), ganchos.TransbordoOuEncerramento{
+		Motivo: "morador " + cpfValido,
+	})
+	if r.Evento.Motivo != ganchos.MotivoOmitido {
+		t.Fatalf("motivo = %q", r.Evento.Motivo)
+	}
+	if r.Decisao.Tipo == ganchos.Bloquear {
+		t.Fatalf("transbordo bloqueado: %+v", r.Decisao)
 	}
 }

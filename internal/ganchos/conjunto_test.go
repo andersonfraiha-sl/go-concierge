@@ -138,8 +138,11 @@ func TestRegraNaoAfrouxaFixo(t *testing.T) {
 	if len(escopo.Eventos()) != 1 {
 		t.Errorf("fixo recebeu %d eventos, want 1", len(escopo.Eventos()))
 	}
-	if len(regra.Eventos()) != 0 || len(mascara.Eventos()) != 0 {
-		t.Errorf("depois do bloqueio rodaram regra=%d saneamento=%d, want 0", len(regra.Eventos()), len(mascara.Eventos()))
+	if len(regra.Eventos()) != 0 {
+		t.Errorf("depois do bloqueio a regra rodou %d vezes, want 0", len(regra.Eventos()))
+	}
+	if len(mascara.Eventos()) != 1 {
+		t.Errorf("o saneamento rodou %d vezes depois do bloqueio, want 1 (sempre roda)", len(mascara.Eventos()))
 	}
 }
 
