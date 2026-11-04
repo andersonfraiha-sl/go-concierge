@@ -10,14 +10,17 @@ type Mensagem struct {
 	ID         string
 	ConversaID string
 	Tenant     string
-	Contato    Contato
-	Canal      map[string]string
-	Origem     Origem
-	Destino    Destino
-	Tipo       string
-	Texto      string
-	Autor      string
-	Revisao    uint64
+	// CompanyID: a company do Gruvi, quando o canal a conhece (o emulador a preenche
+	// pelo condomínio escolhido); junto com o Tenant, resolve o condomínio.
+	CompanyID string
+	Contato   Contato
+	Canal     map[string]string
+	Origem    Origem
+	Destino   Destino
+	Tipo      string
+	Texto     string
+	Autor     string
+	Revisao   uint64
 }
 
 type Origem struct {

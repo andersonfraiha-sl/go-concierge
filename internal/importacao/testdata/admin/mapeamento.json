@@ -1,0 +1,12 @@
+{
+  "administradoras": [{"id": "adm-a", "nome": "Administradora A"}],
+  "condominios": [
+    {"id": "cond-001", "nome": "Condomínio Um", "administradora_id": "adm-a", "account": "cond-001", "company_id": "c1", "tenant": "t1"}
+  ],
+  "habilitacoes": {
+    "*": {"segunda_via": {"habilitado": true, "papeis": []}},
+    "cond-001": {"reserva": {"habilitado": false, "papeis": ["sindico"]}}
+  },
+  "payloads": {"cond-001": {"boletos": {"dias": 5}}},
+  "orientacoes": {"cond-001": {"geral": "Seja gentil.", "por_caso": {"reserva": "Salão fecha às 22h."}}}
+}

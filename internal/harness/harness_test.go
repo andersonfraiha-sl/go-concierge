@@ -259,7 +259,7 @@ func TestChamarRecursoRecusaEscritaENaoDeclarado(t *testing.T) {
 func TestChamarRecursoPrivadoParaContatoPublico(t *testing.T) {
 	cat, a := catalogoComMCP(t)
 	cli, ultimo := nexusFalso(t)
-	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli}) // identidade zero = público
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, Nexus: cli, Identidade: Identidade{AccountID: "cond-001"}}) // não autenticado = público
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,6 +307,26 @@ func TestChamarRecursoAutenticadoEIdempotencia(t *testing.T) {
 	}
 	if (*ultimo)["path"] != "/v1/resources/faq.buscar/invoke" {
 		t.Errorf("rota do invoke: %v", (*ultimo)["path"])
+	}
+}
+
+// Sem account do condomínio não há para quem chamar: nada de cair numa account padrão,
+// que seria a de outro condomínio.
+func TestChamarRecursoSemAccountNaoInvoca(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	cli, ultimo := nexusFalso(t)
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: func(k string) string {
+		if k == "DEFAULT_ACCOUNT_ID" {
+			return "cond-001"
+		}
+		return ""
+	}, Nexus: cli, Identidade: Identidade{Authenticated: true, Role: "morador"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := chama(t, ag, "chamar_recurso", map[string]any{"nome": "faq.buscar", "params": map[string]any{"query": "x"}})
+	if erroDe(out) == "" || len(*ultimo) != 0 {
+		t.Fatalf("sem account não deveria invocar: %v, invocado %v", out, *ultimo)
 	}
 }
 

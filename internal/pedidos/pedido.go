@@ -12,18 +12,19 @@
 package pedidos
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"maps"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
-	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 const (
@@ -44,13 +45,14 @@ const (
 
 // Pedido é um caso de uso em andamento para um contato.
 type Pedido struct {
-	Protocolo string `json:"protocolo"`
-	Account   string `json:"account"`
-	Telefone  string `json:"telefone"`
-	Caso      string `json:"caso"`      // id do caso.yaml
-	CasoNome  string `json:"caso_nome"` // name do caso.yaml
-	Agente    string `json:"agente"`    // pasta do subagente (nome), para as permissões
-	Estado    string `json:"estado"`
+	Protocolo        string `json:"protocolo"`
+	AdministradoraID string `json:"administradora_id"`
+	CondominioID     string `json:"condominio_id"` // o condomínio da conversa que abriu o pedido
+	Telefone         string `json:"telefone"`
+	Caso             string `json:"caso"`      // id do caso.yaml
+	CasoNome         string `json:"caso_nome"` // name do caso.yaml
+	Agente           string `json:"agente"`    // pasta do subagente (nome), para as permissões
+	Estado           string `json:"estado"`
 	// Valores são os parâmetros normalizados (slot → valor); Rotulos, o texto humano de
 	// cada um; Origens, quem informou (morador | atendente | sistema | memoria).
 	Valores map[string]any    `json:"valores"`
@@ -69,7 +71,11 @@ type Pedido struct {
 	Origem Origem `json:"origem"`
 	// Formulario: o caso tem um passo `form` que o motor não executa; o pedido fica
 	// registrado e a conversa segue pelo subagente do caso.
-	Formulario   bool      `json:"formulario,omitempty"`
+	Formulario bool `json:"formulario,omitempty"`
+	// Ordem é a posição de abertura na carteira (1, 2, ...): a fila de pedidos (um por vez)
+	// segue essa ordem. CriadoEm não basta: dois pedidos da mesma mensagem podem ter o mesmo
+	// instante. Pedidos anteriores à fila ficam com 0 e vêm antes, pelo CriadoEm.
+	Ordem        int       `json:"ordem,omitempty"`
 	CriadoEm     time.Time `json:"criado_em"`
 	AtualizadoEm time.Time `json:"atualizado_em"`
 	Historico    []Evento  `json:"historico"`
@@ -192,10 +198,10 @@ func (p *Pedido) Faltando(c *Contrato) []*Slot {
 // ---- carteira: os pedidos de um contato ----------------------------------------------
 
 type Carteira struct {
-	Account      string    `json:"account"`
-	Telefone     string    `json:"telefone"`
-	Pedidos      []*Pedido `json:"pedidos"`
-	AtualizadaEm time.Time `json:"atualizada_em"`
+	AdministradoraID string    `json:"administradora_id"`
+	Telefone         string    `json:"telefone"`
+	Pedidos          []*Pedido `json:"pedidos"`
+	AtualizadaEm     time.Time `json:"atualizada_em"`
 }
 
 func (c *Carteira) Abertos() []*Pedido {
@@ -244,10 +250,12 @@ func (c *Carteira) AbertoDoCaso(caso string) *Pedido {
 	return nil
 }
 
-// Novo abre um pedido para o caso, com protocolo aleatório único na carteira.
-func (c *Carteira) Novo(ct *Contrato, agente string, origem Origem) *Pedido {
-	p := &Pedido{Account: c.Account, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
-		Valores: map[string]any{}, Rotulos: map[string]string{}, Origens: map[string]string{}, Dados: map[string]any{}, Origem: origem, CriadoEm: time.Now()}
+// Novo abre um pedido para o caso, no condomínio da conversa, com protocolo aleatório
+// único na carteira.
+func (c *Carteira) Novo(ct *Contrato, agente, condominioID string, origem Origem) *Pedido {
+	p := &Pedido{AdministradoraID: c.AdministradoraID, CondominioID: condominioID, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
+		Valores: map[string]any{}, Rotulos: map[string]string{}, Origens: map[string]string{}, Dados: map[string]any{}, Origem: origem, CriadoEm: time.Now(),
+		Ordem: c.ultimaOrdem() + 1}
 	for {
 		p.Protocolo = NovoProtocolo()
 		if c.Por(p.Protocolo) == nil {
@@ -257,6 +265,14 @@ func (c *Carteira) Novo(ct *Contrato, agente string, origem Origem) *Pedido {
 	p.registrar("criado", ct.Caso.Name, OrigemMorador)
 	c.Pedidos = append(c.Pedidos, p)
 	return p
+}
+
+func (c *Carteira) ultimaOrdem() int {
+	ultima := 0
+	for _, p := range c.Pedidos {
+		ultima = max(ultima, p.Ordem)
+	}
+	return ultima
 }
 
 // ValorReutilizavel: o valor que outro pedido do contato já tem para um slot com
@@ -271,12 +287,13 @@ func (c *Carteira) ValorReutilizavel(slot string) (any, string, bool) {
 	return nil, "", false
 }
 
-// NovoProtocolo gera "P-" + 5 caracteres sem ambiguidade (sem 0/O, 1/I).
+// NovoProtocolo gera "P-" + 8 caracteres sem ambiguidade (sem 0/O, 1/I). Os pedidos antigos
+// têm 5 e continuam valendo.
 func NovoProtocolo() string {
 	const alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	b := make([]byte, 5)
+	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("P-%05d", time.Now().UnixNano()%100000)
+		return fmt.Sprintf("P-%08d", time.Now().UnixNano()%100000000)
 	}
 	for i := range b {
 		b[i] = alfabeto[int(b[i])%len(alfabeto)]
@@ -286,105 +303,122 @@ func NovoProtocolo() string {
 
 // ---- armazenamento ----------------------------------------------------------------------
 
+// Store guarda as carteiras. Gravar pode trocar o protocolo de um pedido novo que colide com
+// o de outro contato (veja redesenharColisoes); o pedido da carteira passa a ter o novo.
 type Store interface {
-	Ler(ctx context.Context, account, telefone string) (Carteira, error)
-	Gravar(ctx context.Context, c Carteira) error
-	Listar(ctx context.Context, account string) ([]Carteira, error)
+	Ler(ctx context.Context, c escopo.Contato) (Carteira, error)
+	Gravar(ctx context.Context, c escopo.Contato, cart Carteira) error
+	Listar(ctx context.Context, administradoraID string) ([]Carteira, error)
 }
-
-// Arquivos guarda uma carteira por telefone em <dir>/<account>/<telefone>.json.
-type Arquivos struct {
-	Dir string
-	mu  sync.Mutex
-}
-
-func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
 
 var naoDigitos = regexp.MustCompile(`\D+`)
 
-// NormalizarTelefone deixa só os dígitos.
-func NormalizarTelefone(t string) string { return naoDigitos.ReplaceAllString(t, "") }
+var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
-var naoChave = regexp.MustCompile(`[^a-z0-9_-]+`)
+// ErrProtocoloEmUso: o protocolo de um pedido novo já é de outro contato e nenhum dos
+// tentativasProtocolo sorteios saiu livre.
+var ErrProtocoloEmUso = errors.New("protocolo já em uso por outro contato")
 
-func (a *Arquivos) caminho(account, telefone string) (string, error) {
-	tel := naoDigitos.ReplaceAllString(telefone, "")
-	if tel == "" {
-		return "", errors.New("pedidos: telefone vazio")
-	}
-	acc := naoChave.ReplaceAllString(strings.ToLower(strings.TrimSpace(account)), "")
-	if acc == "" {
-		acc = "default"
-	}
-	return filepath.Join(a.Dir, acc, tel+".json"), nil
-}
+// tentativasProtocolo: quantos sorteios um pedido novo com protocolo de outro contato ganha.
+const tentativasProtocolo = 3
 
-func (a *Arquivos) Ler(_ context.Context, account, telefone string) (Carteira, error) {
-	c := Carteira{Account: account, Telefone: naoDigitos.ReplaceAllString(telefone, "")}
-	p, err := a.caminho(account, telefone)
-	if err != nil {
-		return c, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	raw, err := os.ReadFile(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return c, nil
-	}
-	if err != nil {
-		return c, err
-	}
-	if err := json.Unmarshal(raw, &c); err != nil {
-		return c, fmt.Errorf("pedidos: %s: %w", p, err)
-	}
-	return c, nil
-}
+// deOutros devolve, dentre os protocolos, os que já são de outro contato.
+type deOutros func(protocolos []string) (map[string]bool, error)
 
-func (a *Arquivos) Gravar(_ context.Context, c Carteira) error {
-	p, err := a.caminho(c.Account, c.Telefone)
-	if err != nil {
-		return err
+// redesenharColisoes devolve os pedidos com novo protocolo para os que colidem com o de outro
+// contato. O protocolo é único no banco inteiro, mas Carteira.Novo só o sorteia único na
+// carteira. Só pedido novo colide: o que já está gravado para o contato é dele e nunca muda
+// de protocolo.
+func redesenharColisoes(pedidos []Pedido, alheios deOutros, sortear func() string) ([]Pedido, error) {
+	usados := map[string]bool{}
+	for _, p := range pedidos {
+		usados[p.Protocolo] = true
 	}
-	c.AtualizadaEm = time.Now()
-	raw, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return err
+	colidem, err := alheios(slices.Collect(maps.Keys(usados)))
+	if err != nil || len(colidem) == 0 {
+		return pedidos, err
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, p)
-}
-
-func (a *Arquivos) Listar(ctx context.Context, account string) ([]Carteira, error) {
-	acc := naoChave.ReplaceAllString(strings.ToLower(strings.TrimSpace(account)), "")
-	if acc == "" {
-		acc = "default"
-	}
-	entradas, err := os.ReadDir(filepath.Join(a.Dir, acc))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var out []Carteira
-	for _, e := range entradas {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+	out := slices.Clone(pedidos)
+	for i := range out {
+		if !colidem[out[i].Protocolo] {
 			continue
 		}
-		c, err := a.Ler(ctx, account, strings.TrimSuffix(e.Name(), ".json"))
+		novo, err := sortearLivre(usados, alheios, sortear)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("pedido %s: %w", out[i].Protocolo, err)
 		}
-		out = append(out, c)
+		usados[novo] = true
+		out[i].Protocolo = novo
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].AtualizadaEm.After(out[j].AtualizadaEm) })
 	return out, nil
 }
+
+func sortearLivre(usados map[string]bool, alheios deOutros, sortear func() string) (string, error) {
+	for range tentativasProtocolo {
+		candidato := sortear()
+		if usados[candidato] {
+			continue
+		}
+		colide, err := alheios([]string{candidato})
+		if err != nil {
+			return "", err
+		}
+		if !colide[candidato] {
+			return candidato, nil
+		}
+	}
+	return "", ErrProtocoloEmUso
+}
+
+// adotarProtocolos leva aos pedidos do chamador os protocolos redesenhados, na mesma ordem.
+func adotarProtocolos(carteira []*Pedido, gravados []Pedido) {
+	for i, p := range carteira {
+		p.Protocolo = gravados[i].Protocolo
+	}
+}
+
+func validarAdministradora(administradoraID string) error {
+	if !escopo.AdministradoraValida(administradoraID) {
+		return fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
+	}
+	return nil
+}
+
+func validarContato(c escopo.Contato) error {
+	if err := validarAdministradora(c.AdministradoraID); err != nil {
+		return err
+	}
+	if c.Telefone == "" {
+		return errContatoInvalido
+	}
+	return nil
+}
+
+// copiasDoContato copia os pedidos com a administradora e o telefone do contato: quem grava é o
+// contato, não o que veio escrito no pedido. Os pedidos do chamador ficam intactos.
+func copiasDoContato(c escopo.Contato, pedidos []*Pedido) []Pedido {
+	out := make([]Pedido, 0, len(pedidos))
+	for _, p := range pedidos {
+		copia := *p
+		copia.AdministradoraID, copia.Telefone = c.AdministradoraID, c.Telefone
+		out = append(out, copia)
+	}
+	return out
+}
+
+// montar é a carteira do contato com os pedidos na ordem em que foram abertos; ela foi
+// atualizada quando o seu pedido mais recente foi.
+func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
+	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Pedidos: slices.Clone(pedidos)}
+	slices.SortStableFunc(cart.Pedidos, func(a, b *Pedido) int {
+		return cmp.Or(cmp.Compare(a.Ordem, b.Ordem), a.CriadoEm.Compare(b.CriadoEm), strings.Compare(a.Protocolo, b.Protocolo))
+	})
+	for _, p := range cart.Pedidos {
+		if p.AtualizadoEm.After(cart.AtualizadaEm) {
+			cart.AtualizadaEm = p.AtualizadoEm
+		}
+	}
+	return cart
+}
+
+func maisRecentesPrimeiro(a, b Carteira) int { return b.AtualizadaEm.Compare(a.AtualizadaEm) }

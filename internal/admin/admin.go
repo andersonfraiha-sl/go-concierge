@@ -1,8 +1,8 @@
 // Package admin é o mapeamento das administradoras: cada administradora tem seus
 // condomínios e, para cada condomínio, quais casos de uso o concierge pode usar (e para
 // quais papéis) e qual payload de definições vale para cada recurso do Nexus. É a
-// "matriz" de um banco com RLS por administradora e condomínio; hoje em JSON
-// (okf/var/admin/mapeamento.json), com a mesma forma que o Postgres terá.
+// "matriz" de um banco com RLS por administradora e condomínio, guardada no Postgres atrás
+// de Repositorio; as regras de escrita são puras (regras.go).
 //
 // Quem mexe em quê: a Superlógica (Backdoor) cadastra as administradoras e distribui
 // os condomínios entre elas; a administradora (Admin) só enxerga os seus condomínios
@@ -20,13 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
+	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 // Padrao é a chave do mapeamento comum a todos os condomínios.
@@ -98,7 +97,7 @@ func (m *Mapeamento) normalizar() {
 		}
 		m.AdministradoraLegado = ""
 	}
-	sort.Slice(m.Administradoras, func(i, j int) bool { return m.Administradoras[i].Nome < m.Administradoras[j].Nome })
+	slices.SortFunc(m.Administradoras, compararAdministradoras)
 	if m.Habilitacoes == nil {
 		m.Habilitacoes = map[string]map[string]Habilitacao{}
 	}
@@ -130,7 +129,7 @@ func (m *Mapeamento) normalizar() {
 			m.Payloads[k] = map[string]map[string]any{}
 		}
 	}
-	sort.Slice(m.Condominios, func(i, j int) bool { return m.Condominios[i].Nome < m.Condominios[j].Nome })
+	slices.SortFunc(m.Condominios, compararCondominios)
 }
 
 // Administradora procura pelo id.
@@ -216,25 +215,53 @@ func (m Mapeamento) Condominio(id string) (Condominio, bool) {
 	return Condominio{}, false
 }
 
-// Resolver acha o condomínio pelos ids que chegam em tempo de execução: company do
-// Gruvi, tenant do ATENDE ou account do Nexus. Sem casar, devolve ok=false (vale o padrão).
-func (m Mapeamento) Resolver(companyID, tenant, account string) (Condominio, bool) {
+var (
+	ErrCondominioDesconhecido = errors.New("condomínio não identificado")
+	ErrForaDaImplantacao      = errors.New("condomínio de outra administradora")
+	ErrCondominioAmbiguo      = errors.New("condomínio ambíguo entre administradoras")
+	ErrCondominioIncompleto   = errors.New("condomínio sem administradora, account ou company")
+)
+
+// ResolverCondominio acha o condomínio da mensagem pela company do Gruvi ou, só quando
+// ela não vem, pelo tenant do ATENDE. Se os que casam são de mais de uma administradora, é ambíguo;
+// na mesma administradora vale o primeiro na ordem do mapeamento (nome, depois id). Só
+// é atendido o condomínio completo (administradora, account e company) e permitido pela
+// implantação.
+func ResolverCondominio(m Mapeamento, imp escopo.Implantacao, companyID, tenant string) (Condominio, error) {
+	// a company, quando vem, decide sozinha: uma company que não casa não cai no tenant
+	casa := func(c Condominio) bool { return c.CompanyID == companyID }
+	if companyID == "" {
+		casa = func(c Condominio) bool { return tenant != "" && c.Tenant == tenant }
+	}
+	candidatos := condominiosPor(m, casa)
+	if len(candidatos) == 0 {
+		return Condominio{}, fmt.Errorf("company %q, tenant %q: %w", companyID, tenant, ErrCondominioDesconhecido)
+	}
+	if deMaisDeUmaAdministradora(candidatos) {
+		return Condominio{}, fmt.Errorf("company %q, tenant %q: %w", companyID, tenant, ErrCondominioAmbiguo)
+	}
+	c := slices.MinFunc(candidatos, compararCondominios)
+	if c.Administradora == "" || c.Account == "" || c.CompanyID == "" {
+		return Condominio{}, fmt.Errorf("condomínio %s: %w", c.ID, ErrCondominioIncompleto)
+	}
+	if !imp.Permite(c.Administradora) {
+		return Condominio{}, fmt.Errorf("condomínio %s: %w", c.ID, ErrForaDaImplantacao)
+	}
+	return c, nil
+}
+
+func condominiosPor(m Mapeamento, casa func(Condominio) bool) []Condominio {
+	var out []Condominio
 	for _, c := range m.Condominios {
-		if companyID != "" && c.CompanyID == companyID {
-			return c, true
+		if casa(c) {
+			out = append(out, c)
 		}
 	}
-	for _, c := range m.Condominios {
-		if tenant != "" && c.Tenant == tenant {
-			return c, true
-		}
-	}
-	for _, c := range m.Condominios {
-		if account != "" && c.Account == account {
-			return c, true
-		}
-	}
-	return Condominio{}, false
+	return out
+}
+
+func deMaisDeUmaAdministradora(cs []Condominio) bool {
+	return slices.ContainsFunc(cs, func(c Condominio) bool { return c.Administradora != cs[0].Administradora })
 }
 
 // Habilitado diz se o caso de uso vale no condomínio para o papel: a entrada do
@@ -327,263 +354,9 @@ func ContextoDoCondominio(c Condominio, payloads map[string]map[string]any, orie
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// Store guarda o mapeamento em JSON.
-type Store struct {
-	Path string
-	mu   sync.Mutex
-}
-
-func NewStore(path string) *Store { return &Store{Path: path} }
-
-// Ler devolve o mapeamento (vazio e normalizado se o arquivo não existe).
-func (s *Store) Ler() (Mapeamento, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.ler()
-}
-
-func (s *Store) ler() (Mapeamento, error) {
-	var m Mapeamento
-	raw, err := os.ReadFile(s.Path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			m.normalizar()
-			return m, nil
-		}
-		return m, err
-	}
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return m, fmt.Errorf("admin: %s: %w", s.Path, err)
-	}
+// Normalizado devolve o mapeamento lido de fora (JSON de uma versão antiga, por exemplo) na
+// forma que os repositórios guardam.
+func (m Mapeamento) Normalizado() Mapeamento {
 	m.normalizar()
-	return m, nil
-}
-
-// Gravar persiste o mapeamento inteiro.
-func (s *Store) Gravar(m Mapeamento) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.gravar(m)
-}
-
-func (s *Store) gravar(m Mapeamento) error {
-	m.normalizar()
-	m.AtualizadoEm = time.Now()
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
-		return err
-	}
-	raw, _ := json.MarshalIndent(m, "", "  ")
-	return os.WriteFile(s.Path, raw, 0o644)
-}
-
-// Alterar lê, aplica a função e grava, sob o mesmo lock.
-func (s *Store) Alterar(fn func(m *Mapeamento) error) (Mapeamento, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m, err := s.ler()
-	if err != nil {
-		return m, err
-	}
-	if err := fn(&m); err != nil {
-		return m, err
-	}
-	return m, s.gravar(m)
-}
-
-var reID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-
-// SalvarAdministradora cria ou atualiza (pelo id).
-func (s *Store) SalvarAdministradora(a Administradora) (Mapeamento, error) {
-	a.ID = strings.TrimSpace(strings.ToLower(a.ID))
-	a.Nome = strings.TrimSpace(a.Nome)
-	if a.ID == "" || !reID.MatchString(a.ID) {
-		return Mapeamento{}, errors.New("id da administradora inválido (minúsculas, dígitos, hífen)")
-	}
-	if a.Nome == "" {
-		return Mapeamento{}, errors.New("nome da administradora vazio")
-	}
-	return s.Alterar(func(m *Mapeamento) error {
-		for i, atual := range m.Administradoras {
-			if atual.ID == a.ID {
-				m.Administradoras[i] = a
-				return nil
-			}
-		}
-		m.Administradoras = append(m.Administradoras, a)
-		return nil
-	})
-}
-
-// RemoverAdministradora apaga a administradora; recusa enquanto ela tiver condomínios
-// (mova-os antes, para não perder mapeamento sem querer).
-func (s *Store) RemoverAdministradora(id string) (Mapeamento, error) {
-	return s.Alterar(func(m *Mapeamento) error {
-		for _, c := range m.Condominios {
-			if c.Administradora == id {
-				return fmt.Errorf("a administradora %s ainda tem o condomínio %s; mova-o antes", id, c.ID)
-			}
-		}
-		var resto []Administradora
-		for _, a := range m.Administradoras {
-			if a.ID != id {
-				resto = append(resto, a)
-			}
-		}
-		m.Administradoras = resto
-		return nil
-	})
-}
-
-// SalvarCondominio cria ou atualiza (pelo id). A administradora, se informada, tem de existir.
-func (s *Store) SalvarCondominio(c Condominio) (Mapeamento, error) {
-	c.ID = strings.TrimSpace(strings.ToLower(c.ID))
-	c.Nome = strings.TrimSpace(c.Nome)
-	c.Administradora = strings.TrimSpace(c.Administradora)
-	if c.ID == "" || !reID.MatchString(c.ID) {
-		return Mapeamento{}, errors.New("id do condomínio inválido (minúsculas, dígitos, hífen)")
-	}
-	if c.Nome == "" {
-		return Mapeamento{}, errors.New("nome do condomínio vazio")
-	}
-	return s.Alterar(func(m *Mapeamento) error {
-		if c.Administradora != "" {
-			if _, ok := m.Administradora(c.Administradora); !ok {
-				return fmt.Errorf("administradora desconhecida: %s", c.Administradora)
-			}
-		}
-		for i, atual := range m.Condominios {
-			if atual.ID == c.ID {
-				m.Condominios[i] = c
-				return nil
-			}
-		}
-		m.Condominios = append(m.Condominios, c)
-		return nil
-	})
-}
-
-// RemoverCondominio apaga o condomínio e tudo que era dele.
-func (s *Store) RemoverCondominio(id string) (Mapeamento, error) {
-	return s.Alterar(func(m *Mapeamento) error {
-		var resto []Condominio
-		for _, c := range m.Condominios {
-			if c.ID != id {
-				resto = append(resto, c)
-			}
-		}
-		m.Condominios = resto
-		delete(m.Habilitacoes, id)
-		delete(m.Payloads, id)
-		delete(m.Orientacoes, id)
-		return nil
-	})
-}
-
-// SalvarHabilitacao define (ou limpa, com limpar=true) a entrada condomínio × caso.
-func (s *Store) SalvarHabilitacao(condoID, caso string, h Habilitacao, limpar bool) (Mapeamento, error) {
-	if caso == "" {
-		return Mapeamento{}, errors.New("caso de uso vazio")
-	}
-	return s.Alterar(func(m *Mapeamento) error {
-		if condoID != Padrao {
-			if _, ok := m.Condominio(condoID); !ok {
-				return fmt.Errorf("condomínio desconhecido: %s", condoID)
-			}
-		}
-		if limpar {
-			delete(m.Habilitacoes[condoID], caso)
-			return nil
-		}
-		if m.Habilitacoes[condoID] == nil {
-			m.Habilitacoes[condoID] = map[string]Habilitacao{}
-		}
-		if h.Papeis == nil {
-			h.Papeis = []string{}
-		}
-		m.Habilitacoes[condoID][caso] = h
-		return nil
-	})
-}
-
-// SalvarOrientacao grava o texto livre do condomínio (ou do padrão).
-func (s *Store) SalvarOrientacao(condoID string, o Orientacao) (Mapeamento, error) {
-	return s.Alterar(func(m *Mapeamento) error {
-		if condoID != Padrao {
-			if _, ok := m.Condominio(condoID); !ok {
-				return fmt.Errorf("condomínio desconhecido: %s", condoID)
-			}
-		}
-		o.Geral = strings.TrimSpace(o.Geral)
-		porCaso := map[string]string{}
-		for k, v := range o.PorCaso {
-			if v = strings.TrimSpace(v); v != "" {
-				porCaso[k] = v
-			}
-		}
-		o.PorCaso = porCaso
-		if o.Geral == "" && len(porCaso) == 0 {
-			delete(m.Orientacoes, condoID)
-			return nil
-		}
-		m.Orientacoes[condoID] = o
-		return nil
-	})
-}
-
-// SalvarAjustes grava, chave a chave, os ajustes de vários recursos de um condomínio:
-// valor vazio ou nulo apaga a chave; um recurso que fica sem chaves sai do payload.
-// Chaves que o formulário não conhece (postas pelo Backdoor) ficam como estão.
-func (s *Store) SalvarAjustes(condoID string, ajustes map[string]map[string]any) (Mapeamento, error) {
-	return s.Alterar(func(m *Mapeamento) error {
-		if condoID != Padrao {
-			if _, ok := m.Condominio(condoID); !ok {
-				return fmt.Errorf("condomínio desconhecido: %s", condoID)
-			}
-		}
-		if m.Payloads[condoID] == nil {
-			m.Payloads[condoID] = map[string]map[string]any{}
-		}
-		for recurso, campos := range ajustes {
-			p := m.Payloads[condoID][recurso]
-			if p == nil {
-				p = map[string]any{}
-			}
-			for k, v := range campos {
-				if v == nil || fmt.Sprint(v) == "" {
-					delete(p, k)
-				} else {
-					p[k] = v
-				}
-			}
-			if len(p) == 0 {
-				delete(m.Payloads[condoID], recurso)
-			} else {
-				m.Payloads[condoID][recurso] = p
-			}
-		}
-		return nil
-	})
-}
-
-// SalvarPayload define (ou apaga, payload nil) o payload condomínio × recurso.
-func (s *Store) SalvarPayload(condoID, recurso string, payload map[string]any) (Mapeamento, error) {
-	if recurso == "" {
-		return Mapeamento{}, errors.New("recurso vazio")
-	}
-	return s.Alterar(func(m *Mapeamento) error {
-		if condoID != Padrao {
-			if _, ok := m.Condominio(condoID); !ok {
-				return fmt.Errorf("condomínio desconhecido: %s", condoID)
-			}
-		}
-		if payload == nil {
-			delete(m.Payloads[condoID], recurso)
-			return nil
-		}
-		if m.Payloads[condoID] == nil {
-			m.Payloads[condoID] = map[string]map[string]any{}
-		}
-		m.Payloads[condoID][recurso] = payload
-		return nil
-	})
+	return m
 }

@@ -3,22 +3,27 @@ package atende
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"sort"
+	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
 
+	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
 )
 
 // Sessao é uma conversa do ATENDE: um protocolo, um contato, a identidade resolvida
-// e os turnos (mensagens do morador e respostas do concierge). Fica em memória; a
-// persistência vem com o Postgres (decisão 4.6).
+// e os turnos (mensagens do morador e respostas do concierge). Sessoes a grava no
+// SessaoStore ao fim de cada operação.
 type Sessao struct {
 	ID                string            `json:"id"`
 	Origem            entrada.Origem    `json:"origem"`
@@ -29,7 +34,9 @@ type Sessao struct {
 	Canal             map[string]string `json:"canal"`
 	Identidade        gruvi.Identidade  `json:"identidade"`
 	IdentErro         string            `json:"identidade_erro,omitempty"`
-	Condominio        string            `json:"condominio,omitempty"` // id no Admin ("*" = padrão)
+	Condominio        string            `json:"condominio,omitempty"` // id no Admin, resolvido pela mensagem
+	AdministradoraID  string            `json:"administradora_id,omitempty"`
+	CompanyID         string            `json:"company_id,omitempty"` // company do Gruvi do condomínio resolvido
 	Turnos            []Turno           `json:"turnos"`
 	CriadaEm          time.Time         `json:"criada_em"`
 	AtualizadaEm      time.Time         `json:"atualizada_em"`
@@ -43,6 +50,7 @@ type Sessao struct {
 	// a próxima mensagem retoma por harness.Continuar em vez de planejar de novo.
 	Plano *harness.Plano `json:"plano,omitempty"`
 
+	escopo          escopo.Contato // o contato na administradora resolvida (vazio até resolver)
 	historico       []*schema.Message
 	mcpResultados   map[string]any
 	revisaoEstado   uint64
@@ -50,6 +58,7 @@ type Sessao struct {
 	cancelarTurno   context.CancelFunc
 	mu              sync.Mutex
 	workMu          sync.Mutex
+	persistMu       sync.Mutex // ordena as gravações: a última a gravar leva a foto mais nova
 }
 
 // Transbordo é a passagem do protocolo a um humano, como o ATENDE faria ao sair do
@@ -88,98 +97,265 @@ type Turno struct {
 	Memorias []memoria.Fato `json:"memorias,omitempty"`
 }
 
-// Sessoes guarda as conversas por protocolo.
+// Sessoes guarda as conversas por protocolo. O store é a fonte durável; o mapa é o
+// cache das sessões vivas neste processo (mutexes e cancelamentos não se serializam).
 type Sessoes struct {
-	mu sync.Mutex
-	m  map[string]*Sessao
+	store SessaoStore
+	mu    sync.Mutex
+	m     map[string]*Sessao
+	// ausentes: IDs que um lote acabou de procurar no store e não achou; o Abrir seguinte
+	// cria a sessão sem perguntar de novo ao banco
+	ausentes map[string]bool
 }
 
-func NewSessoes() *Sessoes { return &Sessoes{m: map[string]*Sessao{}} }
+// limiteLista: quantas sessões a listagem do Console devolve.
+const limiteLista = 200
 
-// Abrir devolve a sessão do protocolo, criando-a com os dados do evento.
-func (s *Sessoes) Abrir(msg entrada.Mensagem) *Sessao {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func NewSessoes(store SessaoStore) *Sessoes {
+	return &Sessoes{store: store, m: map[string]*Sessao{}, ausentes: map[string]bool{}}
+}
+
+// Abrir devolve a sessão do protocolo (do cache, do store ou nova, com os dados do evento).
+func (s *Sessoes) Abrir(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
 	msg = normalizarRoteamento(msg)
 	id := idSessao(msg.Origem, msg.ConversaID)
-	sess, ok := s.m[id]
+	sess, ok, err := s.carregar(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
-		sess = &Sessao{ID: id, Origem: msg.Origem, Destino: msg.Destino, Protocolo: msg.ConversaID, Tenant: msg.Tenant, Contato: msg.Contato, Canal: msg.Canal, CriadaEm: time.Now(), Turnos: []Turno{}, revisaoEstado: 1}
-		sess.Destino.SessaoID = id
-		s.m[id] = sess
+		sess = s.adotar(novaSessao(id, msg))
 	}
 	sess.mu.Lock()
 	if sess.Contato.Name == "" {
 		sess.Contato.Name = msg.Contato.Name
 	}
 	sess.mu.Unlock()
+	return sess, nil
+}
+
+func novaSessao(id string, msg entrada.Mensagem) *Sessao {
+	sess := &Sessao{ID: id, Origem: msg.Origem, Destino: msg.Destino, Protocolo: msg.ConversaID, Tenant: msg.Tenant, Contato: msg.Contato, Canal: msg.Canal, CriadaEm: time.Now(), Turnos: []Turno{}, revisaoEstado: 1}
+	sess.Destino.SessaoID = id
 	return sess
 }
 
-func (s *Sessoes) Existente(msg entrada.Mensagem) (*Sessao, bool) {
+// Existente devolve a sessão do protocolo do evento, sem criar.
+func (s *Sessoes) Existente(ctx context.Context, msg entrada.Mensagem) (*Sessao, bool, error) {
 	msg = normalizarRoteamento(msg)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	sess, ok := s.m[idSessao(msg.Origem, msg.ConversaID)]
-	return sess, ok
+	return s.carregar(ctx, idSessao(msg.Origem, msg.ConversaID))
 }
 
-// Get devolve a sessão pelo protocolo.
-func (s *Sessoes) Get(protocolo string) (*Sessao, bool) {
+// Get devolve a sessão pelo ID interno ou, entre as do cache, pelo protocolo (quando só
+// uma o usa).
+func (s *Sessoes) Get(ctx context.Context, id string) (*Sessao, bool, error) {
+	if sess, ok := s.porProtocolo(id); ok {
+		return sess, true, nil
+	}
+	return s.carregar(ctx, id)
+}
+
+func (s *Sessoes) porProtocolo(protocolo string) (*Sessao, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if sess, ok := s.m[protocolo]; ok {
-		return sess, true
+	if _, ok := s.m[protocolo]; ok {
+		return nil, false
 	}
 	var encontrado *Sessao
 	for _, sess := range s.m {
-		if sess.Protocolo == protocolo {
-			if encontrado != nil {
-				return nil, false
-			}
-			encontrado = sess
+		if sess.Protocolo != protocolo {
+			continue
 		}
+		if encontrado != nil {
+			return nil, false
+		}
+		encontrado = sess
 	}
 	return encontrado, encontrado != nil
 }
 
-// Lista devolve as sessões, mais recentes primeiro.
-func (s *Sessoes) Lista() []*Sessao {
+// carregar busca a sessão no cache e, se não estiver, no store.
+func (s *Sessoes) carregar(ctx context.Context, id string) (*Sessao, bool, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]*Sessao, 0, len(s.m))
-	for _, v := range s.m {
-		out = append(out, v)
+	sess, ok := s.m[id]
+	ausente := s.ausentes[id]
+	delete(s.ausentes, id)
+	s.mu.Unlock()
+	if ok {
+		return sess, true, nil
 	}
-	instante := func(sess *Sessao) time.Time {
-		sess.mu.Lock()
-		defer sess.mu.Unlock()
-		return sess.AtualizadaEm
+	if ausente {
+		return nil, false, nil
 	}
-	sort.Slice(out, func(i, j int) bool { return instante(out[i]).After(instante(out[j])) })
-	return out
+	r, ok, err := s.store.Carregar(ctx, id)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+	sess, err = RestaurarSessao(r)
+	if err != nil {
+		return nil, false, err
+	}
+	return s.adotar(sess), true, nil
 }
 
-// Remover apaga a sessão (o emulador reinicia a conversa).
-func (s *Sessoes) Remover(protocolo string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.m[protocolo]; ok {
-		delete(s.m, protocolo)
+// sessaoEmLote é o store que lê e grava a sessão dentro de um banco.Lote.
+type sessaoEmLote interface {
+	CarregarNoLote(ctx context.Context, lote *banco.Lote, id string, guardar func(RegistroSessao, bool))
+	SalvarNoLote(ctx context.Context, lote *banco.Lote, r RegistroSessao)
+}
+
+// aquecerNoLote põe no lote a leitura da sessão, se ela não está viva neste processo e o
+// store lê em lote. Sessão que não volta do store é lembrada como ausente.
+func (s *Sessoes) aquecerNoLote(ctx context.Context, lote *banco.Lote, id string) {
+	st, ok := s.store.(sessaoEmLote)
+	if !ok {
 		return
 	}
-	var id string
-	for key, sess := range s.m {
-		if sess.Protocolo == protocolo {
-			if id != "" {
-				return
-			}
-			id = key
+	s.mu.Lock()
+	_, viva := s.m[id]
+	s.mu.Unlock()
+	if viva {
+		return
+	}
+	st.CarregarNoLote(ctx, lote, id, func(r RegistroSessao, achou bool) {
+		if !achou {
+			s.mu.Lock()
+			s.ausentes[id] = true
+			s.mu.Unlock()
+			return
+		}
+		if sess, err := RestaurarSessao(r); err == nil {
+			s.adotar(sess)
+		}
+		// registro ilegível: o Abrir lê de novo pelo store e devolve o erro
+	})
+}
+
+// adotar põe a sessão no cache, a menos que outra chamada já tenha posto uma com o
+// mesmo ID: vale a que chegou primeiro, para todos partilharem a mesma instância.
+func (s *Sessoes) adotar(sess *Sessao) *Sessao {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if viva, ok := s.m[sess.ID]; ok {
+		return viva
+	}
+	s.m[sess.ID] = sess
+	return sess
+}
+
+// ErrSessaoNaoPersistida: a sessão mudou em memória, mas não foi gravada no store.
+var ErrSessaoNaoPersistida = errors.New("sessão não persistida")
+
+// Persistir grava a sessão no store. A falha é logada (ERROR) e devolvida.
+func (s *Sessoes) Persistir(ctx context.Context, sess *Sessao) error {
+	sess.persistMu.Lock()
+	defer sess.persistMu.Unlock()
+	r, err := sess.Registro()
+	if err == nil {
+		err = s.store.Salvar(ctx, r)
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "atende: sessão não persistida", "operacao", "persistir_sessao", "sessao", sess.ID, "erro", err)
+		return fmt.Errorf("%w %s: %w", ErrSessaoNaoPersistida, sess.ID, err)
+	}
+	return nil
+}
+
+// Lista devolve as sessões da administradora (vazia = todas), mais recentes primeiro:
+// as do store e as que ainda só existem neste processo, na versão viva do cache.
+func (s *Sessoes) Lista(ctx context.Context, administradoraID string) ([]*Sessao, error) {
+	regs, err := s.store.Listar(ctx, administradoraID, limiteLista)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	vivas := maps.Clone(s.m)
+	s.mu.Unlock()
+	out := make([]*Sessao, 0, len(regs)+len(vivas))
+	for _, r := range regs {
+		if viva, ok := vivas[r.ID]; ok {
+			out = append(out, viva)
+			delete(vivas, r.ID)
+			continue
+		}
+		sess, err := RestaurarSessao(r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sess)
+	}
+	for _, viva := range vivas {
+		if administradoraID == "" || viva.administradora() == administradoraID {
+			out = append(out, viva)
 		}
 	}
-	if id != "" {
-		delete(s.m, id)
+	slices.SortFunc(out, maisRecentesPrimeiro)
+	return out[:min(limiteLista, len(out))], nil
+}
+
+// Remover apaga a sessão do cache e do store (o emulador reinicia a conversa).
+func (s *Sessoes) Remover(ctx context.Context, id string) error {
+	s.mu.Lock()
+	delete(s.m, id)
+	s.mu.Unlock()
+	return s.store.Remover(ctx, id)
+}
+
+func maisRecentesPrimeiro(a, b *Sessao) int { return b.atualizadaEm().Compare(a.atualizadaEm()) }
+
+func (sess *Sessao) atualizadaEm() time.Time {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.AtualizadaEm
+}
+
+func (sess *Sessao) administradora() string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.AdministradoraID
+}
+
+// sessaoSerializavel é a Sessao sem os métodos (o MarshalJSON dela trava sess.mu).
+type sessaoSerializavel Sessao
+
+// sessaoGravada é o que vai em RegistroSessao.Dados: os campos públicos e o estado
+// privado que a conversa precisa para continuar depois de um restart.
+type sessaoGravada struct {
+	*sessaoSerializavel
+	Escopo        escopo.Contato    `json:"escopo"`
+	Historico     []*schema.Message `json:"historico"`
+	MCPResultados map[string]any    `json:"mcp_resultados,omitempty"`
+	RevisaoEstado uint64            `json:"revisao_estado"`
+}
+
+// Registro serializa a sessão para o store.
+func (sess *Sessao) Registro() (RegistroSessao, error) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	dados, err := json.Marshal(sessaoGravada{
+		sessaoSerializavel: (*sessaoSerializavel)(sess),
+		Escopo:             sess.escopo, Historico: sess.historico, MCPResultados: sess.mcpResultados, RevisaoEstado: sess.revisaoEstado,
+	})
+	if err != nil {
+		return RegistroSessao{}, fmt.Errorf("serializar sessão %s: %w", sess.ID, err)
 	}
+	return RegistroSessao{
+		ID: sess.ID, AdministradoraID: sess.AdministradoraID, CondominioID: sess.Condominio, Protocolo: sess.Protocolo,
+		AtualizadaEm: sess.AtualizadaEm, Dados: dados,
+	}, nil
+}
+
+// RestaurarSessao reconstrói a sessão gravada. Um turno não sobrevive ao processo que o
+// rodava: a sessão volta destravada (Processando false).
+func RestaurarSessao(r RegistroSessao) (*Sessao, error) {
+	sess := &Sessao{}
+	gravada := sessaoGravada{sessaoSerializavel: (*sessaoSerializavel)(sess)}
+	if err := json.Unmarshal(r.Dados, &gravada); err != nil {
+		return nil, fmt.Errorf("restaurar sessão %s: %w", r.ID, err)
+	}
+	sess.escopo, sess.historico, sess.mcpResultados, sess.revisaoEstado = gravada.Escopo, gravada.Historico, gravada.MCPResultados, gravada.RevisaoEstado
+	sess.Processando = false
+	return sess, nil
 }
 
 func idSessao(origem entrada.Origem, protocolo string) string {
@@ -208,7 +384,6 @@ func (sess *Sessao) registrar(t Turno) int {
 func (sess *Sessao) MarshalJSON() ([]byte, error) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
-	type sessaoSerializavel Sessao
 	return json.Marshal((*sessaoSerializavel)(sess))
 }
 
@@ -232,6 +407,34 @@ func (sess *Sessao) historicoAdicionar(mensagem *schema.Message) {
 	sess.mu.Lock()
 	sess.historico = append(sess.historico, mensagem)
 	sess.mu.Unlock()
+}
+
+// contato é o morador na administradora do condomínio resolvido para a conversa.
+func (sess *Sessao) contato() escopo.Contato {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.escopo
+}
+
+// Administradora é a administradora gravada quando a conversa resolveu o condomínio (vazia
+// até resolver). Não muda se o condomínio trocar de dona depois.
+func (sess *Sessao) Administradora() string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.AdministradoraID
+}
+
+// companyDoCondominio é a company do Gruvi do condomínio resolvido (vazia até resolver).
+func (sess *Sessao) companyDoCondominio() string {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.CompanyID
+}
+
+func (sess *Sessao) fixarContato(c escopo.Contato, companyID string) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.escopo, sess.AdministradoraID, sess.Condominio, sess.CompanyID = c, c.AdministradoraID, c.CondominioID, companyID
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.

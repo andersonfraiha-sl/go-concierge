@@ -1,7 +1,7 @@
 # Servidor MCP oficial da entrega (Capability Views): transforma as OpenAPIs do BFF do
 # Gruvi (building-operation.json e mobile.json) em tools MCP em /mcp/gruvi/bff, com
 # autenticação request_bearer (token B2C do Keycloak repassado ao BFF).
-FROM node:24-alpine
+FROM node:26-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 # tsx e typescript são devDependencies, mas o servidor roda direto do .ts: instala tudo

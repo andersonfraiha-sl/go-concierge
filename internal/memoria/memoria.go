@@ -4,80 +4,129 @@
 // Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
 // volta ao prompt em toda conversa seguinte daquele telefone.
 //
-// Hoje o armazenamento é um JSON por contato (okf/var/memorias/<account>/<telefone>.json);
-// a interface Store permite trocar por Postgres ou pelo recurso `memory` do Nexus.
+// O armazenamento é o Postgres, em duas tabelas: memoria_contatos (nome e quando mudou)
+// e memoria_fatos (um fato por linha).
 package memoria
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
-	"sync"
 	"time"
+
+	"go-concierge/internal/escopo"
 )
 
 // Fato é uma coisa durável sobre a pessoa, identificada por uma chave estável
 // (unidades, nome_preferido, pets, veiculo, horario_preferido…). A mesma chave
 // substitui o fato anterior.
 type Fato struct {
-	Chave     string    `json:"chave"`
-	Texto     string    `json:"texto"`
-	Fonte     string    `json:"fonte,omitempty"` // agente e protocolo que capturou
-	Quando    time.Time `json:"quando"`
-	Confianca float64   `json:"confianca,omitempty"`
+	Chave string `json:"chave"`
+	Texto string `json:"texto"`
+	Fonte string `json:"fonte,omitempty"` // agente e protocolo que capturou
+	// CondominioID: o condomínio da conversa em que o fato foi capturado.
+	CondominioID string    `json:"condominio_id,omitempty"`
+	Quando       time.Time `json:"quando"`
+	Confianca    float64   `json:"confianca,omitempty"`
 }
 
-// Memoria é o que o concierge sabe de um contato.
+// Memoria é o que o concierge sabe de um contato dentro de uma administradora.
 type Memoria struct {
-	Account      string    `json:"account"`
-	Telefone     string    `json:"telefone"`
-	Nome         string    `json:"nome,omitempty"`
-	Fatos        []Fato    `json:"fatos"`
-	AtualizadaEm time.Time `json:"atualizada_em"`
+	AdministradoraID string    `json:"administradora_id"`
+	Telefone         string    `json:"telefone"`
+	Nome             string    `json:"nome,omitempty"`
+	Fatos            []Fato    `json:"fatos"`
+	AtualizadaEm     time.Time `json:"atualizada_em"`
 }
 
-// Upsert põe ou substitui um fato pela chave. Devolve true se algo mudou.
-func (m *Memoria) Upsert(f Fato) bool {
+// Upsert devolve a memória com o fato posto ou substituído pela chave, e true se algo
+// mudou. Não altera o receptor: o fato sem Quando entra com o instante zero, quem chama
+// decide o relógio.
+func (m Memoria) Upsert(f Fato) (Memoria, bool) {
 	f.Chave = NormalizarChave(f.Chave)
 	f.Texto = strings.TrimSpace(f.Texto)
 	if f.Chave == "" || f.Texto == "" {
-		return false
+		return m, false
 	}
-	if f.Quando.IsZero() {
-		f.Quando = time.Now()
+	i := slices.IndexFunc(m.Fatos, func(atual Fato) bool { return atual.Chave == f.Chave })
+	if i >= 0 && m.Fatos[i].Texto == f.Texto {
+		return m, false
 	}
-	for i, atual := range m.Fatos {
-		if atual.Chave == f.Chave {
-			if atual.Texto == f.Texto {
-				return false
-			}
-			m.Fatos[i] = f
-			m.AtualizadaEm = f.Quando
-			return true
-		}
+	fatos := slices.Clone(m.Fatos)
+	if i >= 0 {
+		fatos[i] = f
+	} else {
+		fatos = append(fatos, f)
 	}
-	m.Fatos = append(m.Fatos, f)
-	m.AtualizadaEm = f.Quando
-	return true
+	m.Fatos, m.AtualizadaEm = fatos, f.Quando
+	return m, true
 }
 
-// Esquecer tira um fato pela chave.
-func (m *Memoria) Esquecer(chave string) bool {
+// Esquecer devolve a memória sem o fato da chave, e true se ele existia. Não altera o receptor.
+func (m Memoria) Esquecer(chave string) (Memoria, bool) {
 	chave = NormalizarChave(chave)
-	for i, f := range m.Fatos {
-		if f.Chave == chave {
-			m.Fatos = append(m.Fatos[:i], m.Fatos[i+1:]...)
-			m.AtualizadaEm = time.Now()
-			return true
-		}
+	ehDaChave := func(f Fato) bool { return f.Chave == chave }
+	if !slices.ContainsFunc(m.Fatos, ehDaChave) {
+		return m, false
 	}
-	return false
+	m.Fatos = slices.DeleteFunc(slices.Clone(m.Fatos), ehDaChave)
+	return m, true
+}
+
+// vazia é a memória de um contato de quem nada se sabe.
+func vazia(c escopo.Contato) Memoria {
+	return Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: []Fato{}}
+}
+
+// comoGuardada é a memória como um Store a guarda: sob o contato, uma chave só por fato (a
+// última vence, no lugar da primeira) e AtualizadaEm preenchida com agora quando vier vazia.
+func comoGuardada(c escopo.Contato, m Memoria, agora time.Time) Memoria {
+	m.AdministradoraID, m.Telefone = c.AdministradoraID, c.Telefone
+	m.Fatos = semChavesRepetidas(m.Fatos)
+	if m.AtualizadaEm.IsZero() {
+		m.AtualizadaEm = agora
+	}
+	return m
+}
+
+func semChavesRepetidas(fatos []Fato) []Fato {
+	out := make([]Fato, 0, len(fatos))
+	posicao := map[string]int{}
+	for _, f := range fatos {
+		if i, repetida := posicao[f.Chave]; repetida {
+			out[i] = f
+			continue
+		}
+		posicao[f.Chave] = len(out)
+		out = append(out, f)
+	}
+	return out
+}
+
+// maisRecentesPrimeiro ordena a listagem: a memória atualizada por último primeiro, telefone no empate.
+func maisRecentesPrimeiro(a, b Memoria) int {
+	if c := b.AtualizadaEm.Compare(a.AtualizadaEm); c != 0 {
+		return c
+	}
+	return strings.Compare(a.Telefone, b.Telefone)
+}
+
+// validarContato: a administradora tem o formato do Admin e o telefone não é vazio.
+func validarContato(c escopo.Contato) error {
+	if !escopo.AdministradoraValida(c.AdministradoraID) || c.Telefone == "" {
+		return errContatoInvalido
+	}
+	return nil
+}
+
+func validarAdministradora(administradoraID string) error {
+	if !escopo.AdministradoraValida(administradoraID) {
+		return fmt.Errorf("memória da administradora %q: %w", administradoraID, errContatoInvalido)
+	}
+	return nil
 }
 
 // Texto é como a memória entra no prompt.
@@ -107,109 +156,17 @@ func NormalizarChave(s string) string {
 	return strings.Trim(s, "_")
 }
 
-var naoDigitos = regexp.MustCompile(`\D`)
-
-// NormalizarTelefone: só dígitos.
-func NormalizarTelefone(t string) string { return naoDigitos.ReplaceAllString(t, "") }
-
-// Store guarda memórias por account e telefone.
+// Store guarda memórias por contato (administradora e telefone).
 type Store interface {
-	Ler(ctx context.Context, account, telefone string) (Memoria, error)
-	Gravar(ctx context.Context, m Memoria) error
-	Listar(ctx context.Context, account string) ([]Memoria, error)
+	Ler(ctx context.Context, c escopo.Contato) (Memoria, error)
+	Gravar(ctx context.Context, c escopo.Contato, m Memoria) error
+	Listar(ctx context.Context, administradoraID string) ([]Memoria, error)
 }
 
-// Arquivos é o Store em JSON: <Dir>/<account>/<telefone>.json.
-type Arquivos struct {
-	Dir string
-	mu  sync.Mutex
-}
+var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
 
-func NewArquivos(dir string) *Arquivos { return &Arquivos{Dir: dir} }
-
-func (a *Arquivos) caminho(account, telefone string) (string, error) {
-	tel := NormalizarTelefone(telefone)
-	if tel == "" {
-		return "", errors.New("memoria: telefone vazio")
-	}
-	acc := NormalizarChave(account)
-	if acc == "" {
-		acc = "default"
-	}
-	return filepath.Join(a.Dir, acc, tel+".json"), nil
-}
-
-func (a *Arquivos) Ler(_ context.Context, account, telefone string) (Memoria, error) {
-	m := Memoria{Account: account, Telefone: NormalizarTelefone(telefone), Fatos: []Fato{}}
-	p, err := a.caminho(account, telefone)
-	if err != nil {
-		return m, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	raw, err := os.ReadFile(p)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return m, nil
-		}
-		return m, err
-	}
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return m, fmt.Errorf("memoria: %s: %w", p, err)
-	}
-	if m.Fatos == nil {
-		m.Fatos = []Fato{}
-	}
-	return m, nil
-}
-
-func (a *Arquivos) Gravar(_ context.Context, m Memoria) error {
-	p, err := a.caminho(m.Account, m.Telefone)
-	if err != nil {
-		return err
-	}
-	m.Telefone = NormalizarTelefone(m.Telefone)
-	if m.AtualizadaEm.IsZero() {
-		m.AtualizadaEm = time.Now()
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-	raw, _ := json.MarshalIndent(m, "", "  ")
-	return os.WriteFile(p, raw, 0o644)
-}
-
-func (a *Arquivos) Listar(_ context.Context, account string) ([]Memoria, error) {
-	acc := NormalizarChave(account)
-	if acc == "" {
-		acc = "default"
-	}
-	entradas, err := os.ReadDir(filepath.Join(a.Dir, acc))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []Memoria{}, nil
-		}
-		return nil, err
-	}
-	out := []Memoria{}
-	for _, e := range entradas {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(a.Dir, acc, e.Name()))
-		if err != nil {
-			continue
-		}
-		var m Memoria
-		if json.Unmarshal(raw, &m) == nil {
-			out = append(out, m)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].AtualizadaEm.After(out[j].AtualizadaEm) })
-	return out, nil
-}
+// ErrRespostaForaDoFormato: o extrator com modelo recebeu algo que não é o JSON pedido.
+var ErrRespostaForaDoFormato = errors.New("resposta do extrator fora do formato")
 
 // Extrator decide, a partir de uma troca (mensagem do morador e resposta), quais
 // fatos duráveis sobre a pessoa valem guardar. O harness fornece o extrator com

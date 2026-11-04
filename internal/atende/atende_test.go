@@ -34,7 +34,7 @@ const eventoExemplo = `{
   }
 }`
 
-func raizDoRepo(t *testing.T) string {
+func raizDoRepo(t testing.TB) string {
 	_, arq, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(arq), "..", "..")
 }
@@ -149,19 +149,19 @@ func TestClassificacaoEValidacaoPorTipo(t *testing.T) {
 }
 
 func TestSessoesIsolamMesmoProtocoloEntreConectores(t *testing.T) {
-	sessoes := NewSessoes()
+	sessoes := NewSessoes(NovaSessaoEmMemoria())
 	real := entrada.Mensagem{ConversaID: "protocolo-igual", Tenant: "tenant", Canal: map[string]string{"displayNumber": "5511"}, Contato: entrada.Contato{Phone: "5511999"}}
 	emulado := real
 	emulado.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
-	realSessao := sessoes.Abrir(real)
-	emuladoSessao := sessoes.Abrir(emulado)
+	realSessao := abrir(t, sessoes, real)
+	emuladoSessao := abrir(t, sessoes, emulado)
 	if realSessao.ID == emuladoSessao.ID || realSessao.ID == "" || emuladoSessao.ID == "" {
 		t.Fatalf("IDs internos não foram isolados: real=%q emulado=%q", realSessao.ID, emuladoSessao.ID)
 	}
-	if _, ok := sessoes.Get(realSessao.ID); !ok {
+	if _, ok, _ := sessoes.Get(context.Background(), realSessao.ID); !ok {
 		t.Fatal("consulta por ID interno falhou")
 	}
-	if _, ok := sessoes.Get("protocolo-igual"); ok {
+	if _, ok, _ := sessoes.Get(context.Background(), "protocolo-igual"); ok {
 		t.Fatal("protocolo externo ambíguo deveria exigir ID interno")
 	}
 }
@@ -188,16 +188,16 @@ func TestOutboxFiltraPorIDInternoSemCruzarProtocolo(t *testing.T) {
 }
 
 func TestEventoHumanoEFechamentoAtualizamSessaoExistente(t *testing.T) {
-	sessoes := NewSessoes()
+	sessoes := NewSessoes(NovaSessaoEmMemoria())
 	msg := entrada.Mensagem{ID: "evt-1", ConversaID: "P-2", Tenant: "tenant", Contato: entrada.Contato{Phone: "5511999"}, Origem: entrada.Origem{Conector: "atende", Meio: "whatsapp", ConexaoID: "tenant:5511"}}
-	sess := sessoes.Abrir(msg)
+	sess := abrir(t, sessoes, msg)
 	svc := &Servico{Sessoes: sessoes}
 	msg.Autor = "atendente"
 	msg.Texto = "fala do atendente"
-	if !svc.RegistrarHumano(msg) || !sess.AtendimentoHumano || len(sess.Turnos) != 1 || sess.Turnos[0].Quem != "atendente" {
+	if !registrarHumano(t, svc, msg) || !sess.AtendimentoHumano || len(sess.Turnos) != 1 || sess.Turnos[0].Quem != "atendente" {
 		t.Fatalf("mensagem humana não foi registrada: sessão=%+v", sess)
 	}
-	if !svc.Encerrar(msg) || !sess.Encerrada || len(sess.Turnos) != 2 {
+	if !encerrar(t, svc, msg) || !sess.Encerrada || len(sess.Turnos) != 2 {
 		t.Fatalf("fechamento não foi registrado: sessão=%+v", sess)
 	}
 	antes := len(sess.Turnos)
@@ -215,7 +215,7 @@ func TestEventoNormalizadoPreservaDadosDaSessao(t *testing.T) {
 	if msg.ID != ev.ID || msg.ConversaID != ev.Data.Protocol.Number || msg.Tenant != ev.Tenant || msg.Tipo != ev.Data.Message.Type || msg.Texto != ev.Data.Message.Content {
 		t.Fatalf("mensagem normalizada: %+v", msg)
 	}
-	sess := NewSessoes().Abrir(msg)
+	sess := abrir(t, NewSessoes(NovaSessaoEmMemoria()), msg)
 	for nome, par := range map[string][2]any{
 		"contato": {ev.Data.Contact, sess.Contato},
 		"canal":   {ev.Data.Channel, sess.Canal},
@@ -246,7 +246,7 @@ func TestProcessarEntradaIndependenteDoAtende(t *testing.T) {
 	msg := entrada.Mensagem{
 		ID:         "mensagem-1",
 		ConversaID: "conversa-1",
-		Tenant:     "tenant-1",
+		Tenant:     tenantExemplo,
 		Contato:    entrada.Contato{Phone: "5519981621916", Name: "Morador"},
 		Canal:      map[string]string{"type": "outro-canal"},
 		Tipo:       "text",
@@ -265,12 +265,12 @@ func TestProcessarEntradaIndependenteDoAtende(t *testing.T) {
 }
 
 func TestProcessarRecusaTelefoneDiferenteDoB2C(t *testing.T) {
-	svc := &Servico{TelefoneB2C: "5511999999999", Sessoes: NewSessoes()}
+	svc := &Servico{TelefoneB2C: "5511999999999", Sessoes: NewSessoes(NovaSessaoEmMemoria())}
 	ev, err := Parse([]byte(eventoExemplo))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Processar(context.Background(), ev.Normalizar()); err == nil || len(svc.Sessoes.Lista()) != 0 {
+	if _, err := svc.Processar(context.Background(), ev.Normalizar()); err == nil || len(listar(t, svc.Sessoes)) != 0 {
 		t.Fatal("outro telefone deve ser recusado antes de criar uma sessão")
 	}
 	if !svc.PermiteTelefone("(11) 99999-9999") || svc.PermiteTelefone("") {
@@ -289,7 +289,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	out := &Outbox{}
 	mcpFalso := &mcpServicoFalso{}
 	svc := &Servico{
-		Cat: cat, Agente: "agentes/concierge", Account: "cond-001", Sessoes: NewSessoes(), Sender: out,
+		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: out,
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: mcpFalso},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 	}
@@ -318,12 +318,12 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sess2 != sess || len(sess.Turnos) != 4 || len(svc.Sessoes.Lista()) != 1 {
-		t.Fatalf("sessão deveria continuar: %d turnos, %d sessões", len(sess.Turnos), len(svc.Sessoes.Lista()))
+	if sess2 != sess || len(sess.Turnos) != 4 || len(listar(t, svc.Sessoes)) != 1 {
+		t.Fatalf("sessão deveria continuar: %d turnos, %d sessões", len(sess.Turnos), len(listar(t, svc.Sessoes)))
 	}
 	// memória relacional: o que o morador afirma sobre si fica guardado por telefone
-	st := memoria.NewArquivos(t.TempDir())
-	svcM := Servico{Cat: svc.Cat, Agente: svc.Agente, Account: svc.Account, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi, Memorias: st}
+	st := memoria.NovoFake()
+	svcM := Servico{Cat: svc.Cat, Agente: svc.Agente, Mapeamento: svc.Mapeamento, Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi, Memorias: st}
 	ev3, _ := Parse([]byte(strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "na verdade só tenho um apartamento, tenho um cachorro", 1)))
 	ev3.ID = "evt_3"
 	s4, err := svcM.Processar(context.Background(), ev3.Normalizar())
@@ -335,20 +335,20 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	if len(ult.Memorias) != 2 {
 		t.Fatalf("deveria ter capturado unidades e pets: %+v", ult.Memorias)
 	}
-	mem, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	mem, _ := st.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	if len(mem.Fatos) != 2 || mem.Fatos[0].Fonte != "344200011995" {
 		t.Fatalf("memória gravada: %+v", mem)
 	}
 	// na conversa seguinte do mesmo telefone, a memória vai ao prompt (Contexto)
 	var contexto string
-	svcM.Sessoes = NewSessoes()
+	svcM.Sessoes = NewSessoes(NovaSessaoEmMemoria())
 	svcM.Config.ChatModel = nil
 	svcM.Config.Env = func(k string) string { return "" }
 	// o harness recebe o contexto: conferimos pela instrução do agente montado
 	dir, _ := cat.ResolveAgente("agentes/concierge")
 	def, _ := cat.Load(dir)
 	cfg := svcM.Config
-	m2, _ := st.Ler(context.Background(), "cond-001", "5519981621916")
+	m2, _ := st.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
 	cfg.Contexto = harness.ContextoDeMemoria(m2)
 	ag, err := harness.Build(context.Background(), cat, def, cfg)
 	if err != nil {
@@ -363,7 +363,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 	}
 
 	// identidade falha: segue como público, com o erro registrado
-	svc2 := Servico{Cat: svc.Cat, Agente: svc.Agente, Account: svc.Account, Sessoes: NewSessoes(), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi}
+	svc2 := Servico{Cat: svc.Cat, Agente: svc.Agente, Mapeamento: svc.Mapeamento, Sessoes: NewSessoes(NovaSessaoEmMemoria()), Sender: svc.Sender, Config: svc.Config, TelefoneB2C: svc.TelefoneB2C, Gruvi: svc.Gruvi}
 	svc2.Config.MCP = &mcpServicoFalso{erroToken: errors.New("bff fora")}
 	s3, err := svc2.Processar(context.Background(), ev.Normalizar())
 	if err == nil || s3.Identidade.Authenticated || !strings.Contains(s3.IdentErro, "bff fora") {
