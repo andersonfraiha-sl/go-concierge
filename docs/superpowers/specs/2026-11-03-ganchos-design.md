@@ -146,8 +146,8 @@ Cada um sai do código atual, vira função pura em `internal/ganchos/fixos`, e 
 | `escopo_da_conversa` | `mensagem_recebida` | `admin.ResolverCondominio`, `Implantacao.Permite`, `errCondominioMudou`, dona em `condominioDaSessao` | condomínio desconhecido, ambíguo, incompleto, fora da implantação ou que mudou de dona: bloqueia e transborda com "condomínio não identificado", como hoje | fechada |
 | `pii_na_entrada` | `mensagem_recebida` | novo | troca CPF e telefone do texto por marcadores (`«cpf:1»`, `«tel:1»`) e guarda os valores no cofre do turno | fechada |
 | `ferramenta_permitida` | `antes_da_ferramenta` | `invocar` (recurso declarado, `Permitido`, MCP disponível) | ferramenta não declarada, não permitida para a identidade ou MCP fora: bloqueia com o motivo de hoje | fechada |
-| `contexto_b2c` | `antes_da_ferramenta` | `fixarContextoB2C` | ajusta `companyId`, `filter_mobile_number` e `resident.mobile_number` para os da conversa; sem eles, bloqueia | fechada |
 | `escrita_confirmada` | `antes_da_ferramenta` | `invocar` (`Confirmado`, `create-visit` só pelo motor) | escrita sem o "sim" explícito na mensagem atual ou fora do passo do caso: bloqueia com a instrução de hoje | fechada |
+| `contexto_b2c` | `antes_da_ferramenta` | `fixarContextoB2C` | ajusta `companyId`, `filter_mobile_number` e `resident.mobile_number` para os da conversa; sem eles, bloqueia | fechada |
 | `pii_no_resultado` | `depois_da_ferramenta` | novo | mascara CPF e telefone do resultado antes de ele voltar ao modelo; os valores vão para o cofre | fechada |
 | `pii_na_resposta` | `antes_de_responder` | novo | devolve os valores do cofre aos marcadores; CPF fora do cofre sai mascarado | fechada |
 | `transbordo_sem_pii` | `transbordo_ou_encerramento` | novo | mascara o motivo que vai ao ATENDE e ao log; nunca bloqueia | aberta |
