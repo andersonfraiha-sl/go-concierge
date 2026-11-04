@@ -2,6 +2,7 @@ import { Alert, Box, Button, Tab, Tabs, Typography } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
+import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import {
   CAMINHO_PERSONA,
@@ -14,7 +15,10 @@ import { useAutosave } from '@/shared/autosave/useAutosave';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
+import { ConhecimentoAba } from '@/skills/abas/ConhecimentoAba';
+import { RegrasAba } from '@/skills/abas/RegrasAba';
 import { useSkills } from '@/skills/contratos';
+import { BoasVindasAba, TransbordoAba } from './BoasVindasAba';
 
 export const TONS = {
   acolhedor: 'Fale como um vizinho prestativo e gentil: frases curtas, calorosas, sem gírias.',
@@ -41,19 +45,61 @@ function aplicarTom(personaAtual: string, frase: string): string {
   return personaAtual.trim() === '' ? frase : `${personaAtual} ${frase}`;
 }
 
+type Aba = 'persona' | 'boas-vindas' | 'regras' | 'conhecimento' | 'transbordo';
+
+const ABAS: ReadonlyArray<{ valor: Aba; rotulo: string }> = [
+  { valor: 'persona', rotulo: 'Persona' },
+  { valor: 'boas-vindas', rotulo: 'Boas-vindas' },
+  { valor: 'regras', rotulo: 'Regras gerais' },
+  { valor: 'conhecimento', rotulo: 'Base de conhecimento comum' },
+  { valor: 'transbordo', rotulo: 'Transbordo' },
+];
+
+const abaDaConsulta = (valor: string | null): Aba =>
+  ABAS.some((aba) => aba.valor === valor) ? (valor as Aba) : 'persona';
+
+const CONTEUDO_DA_ABA: Record<Aba, (assistente: string) => ReactNode> = {
+  persona: (assistente) => <PersonaDoAgente assistente={assistente} />,
+  'boas-vindas': (assistente) => <BoasVindasAba assistente={assistente} />,
+  regras: (assistente) => <RegrasAba caminho={assistente} titulo="Regras gerais" />,
+  conhecimento: (assistente) => (
+    <ConhecimentoAba caminho={assistente} titulo="Base de conhecimento comum" />
+  ),
+  transbordo: (assistente) => <TransbordoAba assistente={assistente} />,
+};
+
 export function ConciergePage(): ReactNode {
   const skills = useSkills();
+  const [params, setParams] = useSearchParams();
+  const aba = abaDaConsulta(params.get('aba'));
+
+  const trocarAba = (valor: Aba): void =>
+    setParams(
+      (atuais) => {
+        const proximos = new URLSearchParams(atuais);
+        proximos.set('aba', valor);
+        return proximos;
+      },
+      { replace: true },
+    );
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h5" component="h1">
         Concierge
       </Typography>
-      <Tabs value="persona" aria-label="Seções do Concierge">
-        <Tab value="persona" label="Persona" />
+      <Tabs
+        value={aba}
+        onChange={(_, valor: Aba) => trocarAba(valor)}
+        aria-label="Seções do Concierge"
+      >
+        {ABAS.map(({ valor, rotulo }) => (
+          <Tab key={valor} value={valor} label={rotulo} />
+        ))}
       </Tabs>
       {skills.isPending && <Typography color="text.secondary">Carregando…</Typography>}
       {skills.isError && <Falha aoTentar={() => void skills.refetch()} />}
-      {skills.data && <PersonaDoAgente assistente={skills.data.assistente} />}
+      {skills.data && CONTEUDO_DA_ABA[aba](skills.data.assistente)}
     </Box>
   );
 }
