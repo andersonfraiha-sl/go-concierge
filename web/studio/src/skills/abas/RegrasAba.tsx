@@ -11,9 +11,9 @@ import { SectionCard } from '@/shared/ui/SectionCard';
 import { regrasDe, tituloDaRegra, useGestaoDeArquivos } from './arquivosDaSkill';
 import { DocumentoEditavel } from './DocumentoEditavel';
 
-type Props = { nome: string; caminho: string };
+type Props = { nome?: string; caminho: string; titulo?: string };
 
-export function RegrasAba({ caminho }: Props): ReactNode {
+export function RegrasAba({ caminho, titulo = 'Regras' }: Props): ReactNode {
   const agente = useAgente(caminho);
   const editavel = usePodeEditar('skills.editar_textos');
   const regras = agente.data ? regrasDe(agente.data.agente) : [];
@@ -29,7 +29,7 @@ export function RegrasAba({ caminho }: Props): ReactNode {
 
   return (
     <SectionCard
-      titulo="Regras"
+      titulo={titulo}
       ajuda="Orientações que a skill sempre segue ao responder."
       acao={botaoNova}
     >
