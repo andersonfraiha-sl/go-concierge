@@ -67,6 +67,8 @@ type servidor struct {
 	provedor            string
 	memorias            memoria.Store
 	admin               *admin.Store
+	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
+	limiteCopiloto      *limiteDoCopiloto
 }
 
 var (
@@ -179,6 +181,10 @@ func main() {
 		}
 	}
 	s.atende.Mapeamento = s.admin
+	if c, ok := harness.NovoCopiloto(s.atende.Config); ok {
+		s.copiloto = c
+	}
+	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
 
 	mux := http.NewServeMux()
 	s.rotas(mux)
@@ -186,6 +192,7 @@ func main() {
 	s.rotasAtende(mux)
 	s.rotasAdmin(mux)
 	s.rotasLegado(mux)
+	s.rotasCopiloto(mux)
 	if mcpCli != nil {
 		// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o
 		// repassa, para testar de fora (Inspector, curl) pela porta do concierge. O
