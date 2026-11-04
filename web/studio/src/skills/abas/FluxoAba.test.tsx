@@ -455,6 +455,18 @@ describe('FluxoAba', () => {
     expect(await screen.findByText('Só leitura')).toBeInTheDocument();
   });
 
+  it('hidesInformationIdWhenReadOnly', async () => {
+    responderCom(rotas(construtor));
+    const { unmount } = montar();
+    expect(await screen.findByText('data_mudanca')).toBeInTheDocument();
+    unmount();
+
+    responderCom(rotas(gestor));
+    montar();
+    await screen.findByDisplayValue('Data da mudança');
+    expect(screen.queryByText('data_mudanca')).not.toBeInTheDocument();
+  });
+
   it('hidesEditingControlsForGestor', async () => {
     responderCom(rotas(gestor));
     montar();

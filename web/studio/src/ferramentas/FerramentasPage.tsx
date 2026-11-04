@@ -154,14 +154,17 @@ type CartaoProps = {
 };
 
 function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): ReactNode {
+  // Quem não edita não vê a descrição técnica da ferramenta.
   const conteudo = (
     <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: '100%' }}>
       <Typography variant="subtitle2" component="h3">
-        {tituloDe(ferramenta)}
+        {tituloDe(ferramenta, clicavel)}
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
-        {ferramenta.description}
-      </Typography>
+      {clicavel && (
+        <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+          {ferramenta.description}
+        </Typography>
+      )}
       {ferramenta.write && (
         <Chip
           size="small"

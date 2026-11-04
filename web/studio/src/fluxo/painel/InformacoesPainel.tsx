@@ -88,9 +88,11 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
         borderRadius: 1,
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-        {info.nome}
-      </Typography>
+      {editavel && (
+        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+          {info.nome}
+        </Typography>
+      )}
       <TextField
         size="small"
         label="Título"
@@ -101,6 +103,7 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
       <TextField
         size="small"
         label="Pergunta"
+        placeholder="Ex.: Para que dia é a reserva?"
         value={info.pergunta}
         disabled={!editavel}
         multiline

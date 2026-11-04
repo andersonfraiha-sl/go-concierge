@@ -87,4 +87,12 @@ describe('FerramentasAba', () => {
     expect(chave).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Adicionar ferramenta' })).not.toBeInTheDocument();
   });
+
+  it('hidesToolDescriptionInSkillFromGestor', async () => {
+    responderCom(rotas(gestor));
+    montar();
+    await screen.findByLabelText('Usar unidades.consultar');
+    expect(screen.queryByText('Descrição de unidades.consultar')).not.toBeInTheDocument();
+    expect(screen.queryByText('Descrição de mudancas.agendar')).not.toBeInTheDocument();
+  });
 });

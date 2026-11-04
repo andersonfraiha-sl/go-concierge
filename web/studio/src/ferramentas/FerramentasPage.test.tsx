@@ -179,6 +179,14 @@ describe('FerramentasPage', () => {
     expect(await screen.findByText('Ferramenta removida.')).toBeInTheDocument();
   });
 
+  it('hidesToolDescriptionFromGestor', async () => {
+    abrirPagina(euGestor);
+    renderComProvedores(<FerramentasPage />);
+    expect(await screen.findByText('Ferramenta sem nome')).toBeInTheDocument();
+    expect(screen.queryByText('Agenda a mudança')).not.toBeInTheDocument();
+    expect(screen.queryByText('Manual do condomínio')).not.toBeInTheDocument();
+  });
+
   it('showsRetryOnLoadError', async () => {
     responderCom({
       'GET /api/eu': () => json(euComEdicao),
