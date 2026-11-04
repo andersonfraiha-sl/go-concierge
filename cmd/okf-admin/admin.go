@@ -32,7 +32,7 @@ func (s *servidor) rotasAdmin(mux *http.ServeMux) {
 	mux.HandleFunc("GET /backdoor/orquestracao", s.telaAntiga("orquestracao.html"))
 	mux.HandleFunc("GET /backdoor/payloads", s.telaAntiga("payloads.html"))
 	mux.HandleFunc("GET /backdoor/administradoras", s.telaAntiga("administradoras.html"))
-	mux.Handle("GET /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminOrquestracao))
+	mux.Handle("GET /api/admin/orquestracao", s.protegidaEmAlgum(acesso.StudioAvancado, s.adminOrquestracao))
 	mux.Handle("PUT /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminSalvarOrquestracao))
 	// a resposta já vem recortada às administradoras visíveis ao usuário
 	mux.Handle("GET /api/admin/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.adminEstado))

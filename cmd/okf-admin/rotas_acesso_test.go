@@ -30,6 +30,7 @@ import (
 type acessosFake struct {
 	atribuicoes map[string][]acesso.Atribuicao
 	mapeamento  admin.Repositorio
+	concessoes  []acesso.Concessao
 }
 
 func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (acesso.Acesso, error) {
@@ -51,7 +52,7 @@ func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.
 	for _, p := range acesso.PapeisIniciais() {
 		papeis[p.ID] = p
 	}
-	return acesso.Acesso{UsuarioID: usuarioID, Nome: "Nome de " + usuarioID, Papeis: papeis, Atribuicoes: ats, AdministradoraDe: donas, Implantacao: imp}, nil
+	return acesso.Acesso{UsuarioID: usuarioID, Nome: "Nome de " + usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes, AdministradoraDe: donas, Implantacao: imp}, nil
 }
 
 func naAdministradora(papel, adm string) []acesso.Atribuicao {
@@ -68,6 +69,7 @@ func usuariosTeste() map[string][]acesso.Atribuicao {
 		"operador-a":      naAdministradora("operador_administradora", "adm-a"),
 		"construtor-a":    naAdministradora("construtor_superlogica", "adm-a"),
 		"sem-papel":       {},
+		"gestor-av":       naAdministradora("gestor_administradora", "adm-av"),
 		"gestor-ab":       append(naAdministradora("gestor_administradora", "adm-a"), naAdministradora("gestor_administradora", "adm-b")...),
 		usuarioSemeadoDev: {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
 	}
@@ -119,7 +121,7 @@ func novoAmbienteRotas(t *testing.T) ambienteRotas {
 			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
 		},
 		outbox: outbox, emulador: atende.NewEmulador(), memorias: memorias, admin: repo,
-		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo},
+		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo, concessoes: []acesso.Concessao{{AdministradoraID: "adm-av", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}}},
 		autenticador: autenticadorDev{}, authMode: authModeDev,
 		registro: slog.New(slog.NewJSONHandler(io.Discard, nil)),
 	}
@@ -186,7 +188,7 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "remover recurso", metodo: "DELETE", url: "/api/nexus/recurso?nome=nao-existe", sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "vincular recurso", metodo: "POST", url: "/api/agente/recursos", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		// studio.avancado na Superlógica
-		{nome: "ler orquestracao", metodo: "GET", url: "/api/admin/orquestracao", sem: "construtor-a", com: "admin", quer: 200},
+		{nome: "ler orquestracao", metodo: "GET", url: "/api/admin/orquestracao", sem: "gestor-a", com: "gestor-av", quer: 200},
 		{nome: "salvar orquestracao", metodo: "PUT", url: "/api/admin/orquestracao", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "webhook emulado", metodo: "POST", url: "/emulador/atende/webhook", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
 		{nome: "caixa do emulador", metodo: "POST", url: "/emulador/atende/messages", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
@@ -556,5 +558,16 @@ func TestLogDeRotaInexistenteDaAPI(t *testing.T) {
 	amb.pedir(t, "", "GET", "/styles.css", "")
 	if n := strings.Count(buf.String(), "\n"); n != 1 || !strings.Contains(buf.String(), `"caminho":"/api/nao-existe"`) {
 		t.Fatalf("quero só a linha de /api/nao-existe:\n%s", buf.String())
+	}
+}
+
+func TestOrquestracaoComAvancadoConcedido(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	if w := amb.pedir(t, "gestor-av", "GET", "/api/admin/orquestracao", ""); w.Code != http.StatusOK {
+		t.Fatalf("leitura: status %d: %s", w.Code, w.Body.String())
+	}
+	w := amb.pedir(t, "gestor-av", "PUT", "/api/admin/orquestracao", `{}`)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "SEM_PERMISSAO") {
+		t.Fatalf("escrita: status %d: %s", w.Code, w.Body.String())
 	}
 }
