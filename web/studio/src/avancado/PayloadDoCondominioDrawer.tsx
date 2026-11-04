@@ -9,10 +9,23 @@ import { tituloDe } from '@/ferramentas/contratos';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { CampoDoPar } from './CampoDoPar';
-import { type ParDoPayload, payloadEmPares } from './payloadLivre';
+import { errosDosPares, type ParDoPayload, parNovo, payloadEmPares, TIPOS } from './payloadLivre';
 
 const EsquemaDoFormulario = z.object({
-  pares: z.array(z.object({ chave: z.string(), valor: z.string() })),
+  pares: z
+    .array(
+      z.object({
+        chave: z.string(),
+        valor: z.string(),
+        tipo: z.enum(TIPOS),
+        fixo: z.boolean(),
+      }),
+    )
+    .superRefine((pares, contexto) => {
+      for (const { indice, campo, mensagem } of errosDosPares(pares)) {
+        contexto.addIssue({ code: 'custom', message: mensagem, path: [indice, campo] });
+      }
+    }),
 });
 
 type Props = {
@@ -37,7 +50,7 @@ export function PayloadDoCondominioDrawer({
   onFechar,
 }: Props): ReactNode {
   const [confirmando, setConfirmando] = useState(false);
-  const { control, handleSubmit } = useForm({
+  const { control, handleSubmit, formState } = useForm({
     resolver: zodResolver(EsquemaDoFormulario),
     defaultValues: { pares: payloadEmPares(payload) },
   });
@@ -78,18 +91,27 @@ export function PayloadDoCondominioDrawer({
               adicionar="Adicionar valor"
               linhas={field.value}
               desabilitado={travado}
-              criarLinha={() => ({ chave: '', valor: '' })}
+              criarLinha={parNovo}
               onMudar={field.onChange}
-              renderLinha={(par, mudar) => (
-                <CampoDoPar par={par} travado={travado} onMudar={mudar} />
-              )}
+              renderLinha={(par, mudar) => {
+                const erros = formState.errors.pares?.[field.value.indexOf(par)];
+                return (
+                  <CampoDoPar
+                    par={par}
+                    travado={travado}
+                    erroChave={erros?.chave?.message}
+                    erroValor={erros?.valor?.message}
+                    onMudar={mudar}
+                  />
+                );
+              }}
             />
           )}
         />
         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
           <Button
             color="error"
-            disabled={travado}
+            disabled={travado || Object.keys(payload).length === 0}
             onClick={() => setConfirmando(true)}
             sx={{ mr: 'auto' }}
           >

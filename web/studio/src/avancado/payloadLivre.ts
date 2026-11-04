@@ -1,23 +1,81 @@
 import type { Valor } from '@/condominios/contratos';
 
-export type ParDoPayload = { chave: string; valor: string };
+export const TIPOS = ['texto', 'número', 'sim/não', 'JSON'] as const;
+export type Tipo = (typeof TIPOS)[number];
+
+/** `fixo`: o tipo veio gravado ou foi escolhido à mão; só linha nova e sem escolha acompanha o que se digita. */
+export type ParDoPayload = { chave: string; valor: string; tipo: Tipo; fixo: boolean };
+
+export type Leitura = { ok: true; valor: Valor } | { ok: false; erro: string };
+
+export type ErroDePar = { indice: number; campo: 'chave' | 'valor'; mensagem: string };
+
+const tipoGravado = (valor: Valor): Tipo => {
+  if (typeof valor === 'string') return 'texto';
+  if (typeof valor === 'number') return 'número';
+  if (typeof valor === 'boolean') return 'sim/não';
+  return 'JSON';
+};
 
 export const payloadEmPares = (payload: Record<string, Valor>): ParDoPayload[] =>
   Object.entries(payload).map(([chave, valor]) => ({
     chave,
     valor: typeof valor === 'string' ? valor : JSON.stringify(valor),
+    tipo: tipoGravado(valor),
+    fixo: true,
   }));
 
-function lerValor(texto: string): Valor {
-  if (texto === 'true') return true;
-  if (texto === 'false') return false;
-  const numero = Number(texto);
-  return texto.trim() !== '' && Number.isFinite(numero) ? numero : texto;
+export const parNovo = (): ParDoPayload => ({ chave: '', valor: '', tipo: 'texto', fixo: false });
+
+export function tipoInferido(texto: string): Tipo {
+  if (texto === 'true' || texto === 'false') return 'sim/não';
+  return texto.trim() !== '' && Number.isFinite(Number(texto)) ? 'número' : 'texto';
+}
+
+export const tipoDe = (texto: string): Tipo => TIPOS.find((t) => t === texto) ?? 'texto';
+
+function lerJson(texto: string): Leitura {
+  try {
+    return { ok: true, valor: JSON.parse(texto) };
+  } catch {
+    return { ok: false, erro: 'JSON inválido' };
+  }
+}
+
+export function lerValor({ valor, tipo }: Pick<ParDoPayload, 'valor' | 'tipo'>): Leitura {
+  if (tipo === 'texto') return { ok: true, valor };
+  if (tipo === 'JSON') return lerJson(valor);
+  if (tipo === 'sim/não') {
+    return valor === 'true' || valor === 'false'
+      ? { ok: true, valor: valor === 'true' }
+      : { ok: false, erro: 'Use true ou false' };
+  }
+  const numero = Number(valor);
+  return valor.trim() !== '' && Number.isFinite(numero)
+    ? { ok: true, valor: numero }
+    : { ok: false, erro: 'Número inválido' };
 }
 
 export const paresEmPayload = (pares: readonly ParDoPayload[]): Record<string, Valor> =>
   Object.fromEntries(
-    pares
-      .filter((par) => par.chave.trim() !== '')
-      .map((par) => [par.chave.trim(), lerValor(par.valor)]),
+    pares.flatMap((par) => {
+      const leitura = lerValor(par);
+      return par.chave.trim() !== '' && leitura.ok ? [[par.chave.trim(), leitura.valor]] : [];
+    }),
   );
+
+/** Valor que não lê no tipo escolhido e chave repetida; linha sem chave é descartada, sem erro. */
+export function errosDosPares(pares: readonly ParDoPayload[]): ErroDePar[] {
+  const vistas = new Set<string>();
+  return pares.flatMap((par, indice) => {
+    const chave = par.chave.trim();
+    if (chave === '') return [];
+    const repetida = vistas.has(chave);
+    vistas.add(chave);
+    const leitura = lerValor(par);
+    return [
+      ...(repetida ? [{ indice, campo: 'chave' as const, mensagem: 'Chave repetida' }] : []),
+      ...(leitura.ok ? [] : [{ indice, campo: 'valor' as const, mensagem: leitura.erro }]),
+    ];
+  });
+}

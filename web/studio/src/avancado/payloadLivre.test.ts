@@ -1,33 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { type ParDoPayload, paresEmPayload, payloadEmPares } from './payloadLivre';
+import {
+  errosDosPares,
+  type ParDoPayload,
+  paresEmPayload,
+  payloadEmPares,
+  tipoInferido,
+} from './payloadLivre';
+
+const par = (chave: string, valor: string, tipo: ParDoPayload['tipo']): ParDoPayload => ({
+  chave,
+  valor,
+  tipo,
+  fixo: false,
+});
 
 describe('paresEmPayload', () => {
   const casos: [string, ParDoPayload[], Record<string, unknown>][] = [
-    ['dropsEmptyKeys', [{ chave: '  ', valor: 'x' }], {}],
+    ['dropsEmptyKeys', [par('  ', 'x', 'texto')], {}],
     [
       'readsBooleans',
-      [
-        { chave: 'a', valor: 'true' },
-        { chave: 'b', valor: 'false' },
-      ],
+      [par('a', 'true', 'sim/não'), par('b', 'false', 'sim/não')],
       { a: true, b: false },
     ],
+    ['readsNumbers', [par('a', '3', 'número'), par('b', '-1.5', 'número')], { a: 3, b: -1.5 }],
     [
-      'readsFiniteNumbers',
-      [
-        { chave: 'a', valor: '3' },
-        { chave: 'b', valor: '-1.5' },
-      ],
-      { a: 3, b: -1.5 },
+      'keepsLookalikesAsText',
+      [par('cep', '01310', 'texto'), par('b', 'true', 'texto')],
+      { cep: '01310', b: 'true' },
     ],
     [
-      'keepsOtherTextAsText',
-      [
-        { chave: 'a', valor: '7h às 22h' },
-        { chave: 'b', valor: 'Infinity' },
-        { chave: 'c', valor: '' },
-      ],
-      { a: '7h às 22h', b: 'Infinity', c: '' },
+      'parsesJson',
+      [par('a', '[1,2]', 'JSON'), par('b', 'null', 'JSON'), par('c', '{"x":1}', 'JSON')],
+      { a: [1, 2], b: null, c: { x: 1 } },
     ],
   ];
   it.each(casos)('convertsPairsAndValues: %s', (_nome, pares, esperado) => {
@@ -36,25 +40,47 @@ describe('paresEmPayload', () => {
 });
 
 describe('payloadEmPares', () => {
-  it('roundTripsPayload', () => {
+  it('roundTripsPayloadUnchanged', () => {
     const payload = {
       limite: 3,
       ativo: false,
-      horario: '7h às 22h',
+      cep: '01310',
+      verdade: 'true',
       faixas: [1, 2],
       extra: { a: 1 },
+      nulo: null,
     };
-    expect(paresEmPayload(payloadEmPares(payload))).toEqual({
-      ...payload,
-      faixas: '[1,2]',
-      extra: '{"a":1}',
-    });
+    expect(paresEmPayload(payloadEmPares(payload))).toEqual(payload);
   });
 
-  it('writesNonTextValuesAsJson', () => {
-    expect(payloadEmPares({ faixas: [1], nulo: null })).toEqual([
-      { chave: 'faixas', valor: '[1]' },
-      { chave: 'nulo', valor: 'null' },
+  it('keepsStoredTypes', () => {
+    expect(payloadEmPares({ cep: '01310', nulo: null }).map((p) => p.tipo)).toEqual([
+      'texto',
+      'JSON',
+    ]);
+  });
+});
+
+describe('tipoInferido', () => {
+  it.each([
+    ['3', 'número'],
+    ['true', 'sim/não'],
+    ['abc', 'texto'],
+    ['', 'texto'],
+  ] as const)('infers %s as %s', (texto, tipo) => expect(tipoInferido(texto)).toBe(tipo));
+});
+
+describe('errosDosPares', () => {
+  it('flagsDuplicateKeysAndInvalidValues', () => {
+    const erros = errosDosPares([
+      par('a', '1', 'número'),
+      par('a', 'x', 'número'),
+      par('b', '{', 'JSON'),
+    ]);
+    expect(erros).toEqual([
+      { indice: 1, campo: 'chave', mensagem: 'Chave repetida' },
+      { indice: 1, campo: 'valor', mensagem: 'Número inválido' },
+      { indice: 2, campo: 'valor', mensagem: 'JSON inválido' },
     ]);
   });
 });

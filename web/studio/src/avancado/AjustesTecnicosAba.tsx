@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   Chip,
   MenuItem,
   Paper,
@@ -84,17 +85,14 @@ function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): Reac
               const origem = origemDe(estado, condominio, recurso.name);
               return (
                 <TableRow key={recurso.name} hover>
-                  <TableCell
-                    component="th"
-                    scope="row"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setAberto(recurso)}
-                    onKeyDown={(e) => e.key === 'Enter' && setAberto(recurso)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    {tituloDe(recurso)}
-                    {origem && <Chip size="small" label={origem} sx={{ ml: 1 }} />}
+                  <TableCell component="th" scope="row">
+                    <Button
+                      onClick={() => setAberto(recurso)}
+                      sx={{ textTransform: 'none', color: 'text.primary', fontWeight: 400 }}
+                    >
+                      {tituloDe(recurso)}
+                      {origem && <Chip size="small" label={origem} sx={{ ml: 1 }} />}
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
