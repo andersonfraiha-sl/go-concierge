@@ -15,6 +15,9 @@ import (
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/ganchosauditoria"
+	"go-concierge/internal/banco/ent/ganchosregra"
+	"go-concierge/internal/banco/ent/ganchosregraversao"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
@@ -31,6 +34,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/google/uuid"
 
 	stdsql "database/sql"
 )
@@ -48,6 +52,12 @@ type Client struct {
 	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
 	Condominio *CondominioClient
+	// GanchosAuditoria is the client for interacting with the GanchosAuditoria builders.
+	GanchosAuditoria *GanchosAuditoriaClient
+	// GanchosRegra is the client for interacting with the GanchosRegra builders.
+	GanchosRegra *GanchosRegraClient
+	// GanchosRegraVersao is the client for interacting with the GanchosRegraVersao builders.
+	GanchosRegraVersao *GanchosRegraVersaoClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
 	// MemoriaContato is the client for interacting with the MemoriaContato builders.
@@ -85,6 +95,9 @@ func (c *Client) init() {
 	c.Atribuicao = NewAtribuicaoClient(c.config)
 	c.Concessao = NewConcessaoClient(c.config)
 	c.Condominio = NewCondominioClient(c.config)
+	c.GanchosAuditoria = NewGanchosAuditoriaClient(c.config)
+	c.GanchosRegra = NewGanchosRegraClient(c.config)
+	c.GanchosRegraVersao = NewGanchosRegraVersaoClient(c.config)
 	c.Habilitacao = NewHabilitacaoClient(c.config)
 	c.MemoriaContato = NewMemoriaContatoClient(c.config)
 	c.MemoriaFato = NewMemoriaFatoClient(c.config)
@@ -186,23 +199,26 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:            ctx,
-		config:         cfg,
-		Administradora: NewAdministradoraClient(cfg),
-		Atribuicao:     NewAtribuicaoClient(cfg),
-		Concessao:      NewConcessaoClient(cfg),
-		Condominio:     NewCondominioClient(cfg),
-		Habilitacao:    NewHabilitacaoClient(cfg),
-		MemoriaContato: NewMemoriaContatoClient(cfg),
-		MemoriaFato:    NewMemoriaFatoClient(cfg),
-		Orientacao:     NewOrientacaoClient(cfg),
-		Papel:          NewPapelClient(cfg),
-		PapelPermissao: NewPapelPermissaoClient(cfg),
-		Payload:        NewPayloadClient(cfg),
-		Pedido:         NewPedidoClient(cfg),
-		PedidoEvento:   NewPedidoEventoClient(cfg),
-		Sessao:         NewSessaoClient(cfg),
-		Usuario:        NewUsuarioClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		Administradora:     NewAdministradoraClient(cfg),
+		Atribuicao:         NewAtribuicaoClient(cfg),
+		Concessao:          NewConcessaoClient(cfg),
+		Condominio:         NewCondominioClient(cfg),
+		GanchosAuditoria:   NewGanchosAuditoriaClient(cfg),
+		GanchosRegra:       NewGanchosRegraClient(cfg),
+		GanchosRegraVersao: NewGanchosRegraVersaoClient(cfg),
+		Habilitacao:        NewHabilitacaoClient(cfg),
+		MemoriaContato:     NewMemoriaContatoClient(cfg),
+		MemoriaFato:        NewMemoriaFatoClient(cfg),
+		Orientacao:         NewOrientacaoClient(cfg),
+		Papel:              NewPapelClient(cfg),
+		PapelPermissao:     NewPapelPermissaoClient(cfg),
+		Payload:            NewPayloadClient(cfg),
+		Pedido:             NewPedidoClient(cfg),
+		PedidoEvento:       NewPedidoEventoClient(cfg),
+		Sessao:             NewSessaoClient(cfg),
+		Usuario:            NewUsuarioClient(cfg),
 	}, nil
 }
 
@@ -220,23 +236,26 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:            ctx,
-		config:         cfg,
-		Administradora: NewAdministradoraClient(cfg),
-		Atribuicao:     NewAtribuicaoClient(cfg),
-		Concessao:      NewConcessaoClient(cfg),
-		Condominio:     NewCondominioClient(cfg),
-		Habilitacao:    NewHabilitacaoClient(cfg),
-		MemoriaContato: NewMemoriaContatoClient(cfg),
-		MemoriaFato:    NewMemoriaFatoClient(cfg),
-		Orientacao:     NewOrientacaoClient(cfg),
-		Papel:          NewPapelClient(cfg),
-		PapelPermissao: NewPapelPermissaoClient(cfg),
-		Payload:        NewPayloadClient(cfg),
-		Pedido:         NewPedidoClient(cfg),
-		PedidoEvento:   NewPedidoEventoClient(cfg),
-		Sessao:         NewSessaoClient(cfg),
-		Usuario:        NewUsuarioClient(cfg),
+		ctx:                ctx,
+		config:             cfg,
+		Administradora:     NewAdministradoraClient(cfg),
+		Atribuicao:         NewAtribuicaoClient(cfg),
+		Concessao:          NewConcessaoClient(cfg),
+		Condominio:         NewCondominioClient(cfg),
+		GanchosAuditoria:   NewGanchosAuditoriaClient(cfg),
+		GanchosRegra:       NewGanchosRegraClient(cfg),
+		GanchosRegraVersao: NewGanchosRegraVersaoClient(cfg),
+		Habilitacao:        NewHabilitacaoClient(cfg),
+		MemoriaContato:     NewMemoriaContatoClient(cfg),
+		MemoriaFato:        NewMemoriaFatoClient(cfg),
+		Orientacao:         NewOrientacaoClient(cfg),
+		Papel:              NewPapelClient(cfg),
+		PapelPermissao:     NewPapelPermissaoClient(cfg),
+		Payload:            NewPayloadClient(cfg),
+		Pedido:             NewPedidoClient(cfg),
+		PedidoEvento:       NewPedidoEventoClient(cfg),
+		Sessao:             NewSessaoClient(cfg),
+		Usuario:            NewUsuarioClient(cfg),
 	}, nil
 }
 
@@ -266,9 +285,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
-		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.Usuario,
+		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.GanchosAuditoria,
+		c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao, c.MemoriaContato,
+		c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Pedido,
+		c.PedidoEvento, c.Sessao, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -278,9 +298,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.Habilitacao,
-		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.Usuario,
+		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.GanchosAuditoria,
+		c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao, c.MemoriaContato,
+		c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Pedido,
+		c.PedidoEvento, c.Sessao, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -297,6 +318,12 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Concessao.mutate(ctx, m)
 	case *CondominioMutation:
 		return c.Condominio.mutate(ctx, m)
+	case *GanchosAuditoriaMutation:
+		return c.GanchosAuditoria.mutate(ctx, m)
+	case *GanchosRegraMutation:
+		return c.GanchosRegra.mutate(ctx, m)
+	case *GanchosRegraVersaoMutation:
+		return c.GanchosRegraVersao.mutate(ctx, m)
 	case *HabilitacaoMutation:
 		return c.Habilitacao.mutate(ctx, m)
 	case *MemoriaContatoMutation:
@@ -1013,6 +1040,437 @@ func (c *CondominioClient) mutate(ctx context.Context, m *CondominioMutation) (V
 		return (&CondominioDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Condominio mutation op: %q", m.Op())
+	}
+}
+
+// GanchosAuditoriaClient is a client for the GanchosAuditoria schema.
+type GanchosAuditoriaClient struct {
+	config
+}
+
+// NewGanchosAuditoriaClient returns a client for the GanchosAuditoria from the given config.
+func NewGanchosAuditoriaClient(c config) *GanchosAuditoriaClient {
+	return &GanchosAuditoriaClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ganchosauditoria.Hooks(f(g(h())))`.
+func (c *GanchosAuditoriaClient) Use(hooks ...Hook) {
+	c.hooks.GanchosAuditoria = append(c.hooks.GanchosAuditoria, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ganchosauditoria.Intercept(f(g(h())))`.
+func (c *GanchosAuditoriaClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GanchosAuditoria = append(c.inters.GanchosAuditoria, interceptors...)
+}
+
+// Create returns a builder for creating a GanchosAuditoria entity.
+func (c *GanchosAuditoriaClient) Create() *GanchosAuditoriaCreate {
+	mutation := newGanchosAuditoriaMutation(c.config, OpCreate)
+	return &GanchosAuditoriaCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GanchosAuditoria entities.
+func (c *GanchosAuditoriaClient) CreateBulk(builders ...*GanchosAuditoriaCreate) *GanchosAuditoriaCreateBulk {
+	return &GanchosAuditoriaCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GanchosAuditoriaClient) MapCreateBulk(slice any, setFunc func(*GanchosAuditoriaCreate, int)) *GanchosAuditoriaCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GanchosAuditoriaCreateBulk{err: fmt.Errorf("calling to GanchosAuditoriaClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GanchosAuditoriaCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GanchosAuditoriaCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GanchosAuditoria.
+func (c *GanchosAuditoriaClient) Update() *GanchosAuditoriaUpdate {
+	mutation := newGanchosAuditoriaMutation(c.config, OpUpdate)
+	return &GanchosAuditoriaUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GanchosAuditoriaClient) UpdateOne(_m *GanchosAuditoria) *GanchosAuditoriaUpdateOne {
+	mutation := newGanchosAuditoriaMutation(c.config, OpUpdateOne, withGanchosAuditoria(_m))
+	return &GanchosAuditoriaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GanchosAuditoriaClient) UpdateOneID(id uuid.UUID) *GanchosAuditoriaUpdateOne {
+	mutation := newGanchosAuditoriaMutation(c.config, OpUpdateOne, withGanchosAuditoriaID(id))
+	return &GanchosAuditoriaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GanchosAuditoria.
+func (c *GanchosAuditoriaClient) Delete() *GanchosAuditoriaDelete {
+	mutation := newGanchosAuditoriaMutation(c.config, OpDelete)
+	return &GanchosAuditoriaDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GanchosAuditoriaClient) DeleteOne(_m *GanchosAuditoria) *GanchosAuditoriaDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GanchosAuditoriaClient) DeleteOneID(id uuid.UUID) *GanchosAuditoriaDeleteOne {
+	builder := c.Delete().Where(ganchosauditoria.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GanchosAuditoriaDeleteOne{builder}
+}
+
+// Query returns a query builder for GanchosAuditoria.
+func (c *GanchosAuditoriaClient) Query() *GanchosAuditoriaQuery {
+	return &GanchosAuditoriaQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGanchosAuditoria},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GanchosAuditoria entity by its id.
+func (c *GanchosAuditoriaClient) Get(ctx context.Context, id uuid.UUID) (*GanchosAuditoria, error) {
+	return c.Query().Where(ganchosauditoria.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GanchosAuditoriaClient) GetX(ctx context.Context, id uuid.UUID) *GanchosAuditoria {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *GanchosAuditoriaClient) Hooks() []Hook {
+	return c.hooks.GanchosAuditoria
+}
+
+// Interceptors returns the client interceptors.
+func (c *GanchosAuditoriaClient) Interceptors() []Interceptor {
+	return c.inters.GanchosAuditoria
+}
+
+func (c *GanchosAuditoriaClient) mutate(ctx context.Context, m *GanchosAuditoriaMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GanchosAuditoriaCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GanchosAuditoriaUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GanchosAuditoriaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GanchosAuditoriaDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GanchosAuditoria mutation op: %q", m.Op())
+	}
+}
+
+// GanchosRegraClient is a client for the GanchosRegra schema.
+type GanchosRegraClient struct {
+	config
+}
+
+// NewGanchosRegraClient returns a client for the GanchosRegra from the given config.
+func NewGanchosRegraClient(c config) *GanchosRegraClient {
+	return &GanchosRegraClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ganchosregra.Hooks(f(g(h())))`.
+func (c *GanchosRegraClient) Use(hooks ...Hook) {
+	c.hooks.GanchosRegra = append(c.hooks.GanchosRegra, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ganchosregra.Intercept(f(g(h())))`.
+func (c *GanchosRegraClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GanchosRegra = append(c.inters.GanchosRegra, interceptors...)
+}
+
+// Create returns a builder for creating a GanchosRegra entity.
+func (c *GanchosRegraClient) Create() *GanchosRegraCreate {
+	mutation := newGanchosRegraMutation(c.config, OpCreate)
+	return &GanchosRegraCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GanchosRegra entities.
+func (c *GanchosRegraClient) CreateBulk(builders ...*GanchosRegraCreate) *GanchosRegraCreateBulk {
+	return &GanchosRegraCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GanchosRegraClient) MapCreateBulk(slice any, setFunc func(*GanchosRegraCreate, int)) *GanchosRegraCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GanchosRegraCreateBulk{err: fmt.Errorf("calling to GanchosRegraClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GanchosRegraCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GanchosRegraCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GanchosRegra.
+func (c *GanchosRegraClient) Update() *GanchosRegraUpdate {
+	mutation := newGanchosRegraMutation(c.config, OpUpdate)
+	return &GanchosRegraUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GanchosRegraClient) UpdateOne(_m *GanchosRegra) *GanchosRegraUpdateOne {
+	mutation := newGanchosRegraMutation(c.config, OpUpdateOne, withGanchosRegra(_m))
+	return &GanchosRegraUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GanchosRegraClient) UpdateOneID(id uuid.UUID) *GanchosRegraUpdateOne {
+	mutation := newGanchosRegraMutation(c.config, OpUpdateOne, withGanchosRegraID(id))
+	return &GanchosRegraUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GanchosRegra.
+func (c *GanchosRegraClient) Delete() *GanchosRegraDelete {
+	mutation := newGanchosRegraMutation(c.config, OpDelete)
+	return &GanchosRegraDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GanchosRegraClient) DeleteOne(_m *GanchosRegra) *GanchosRegraDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GanchosRegraClient) DeleteOneID(id uuid.UUID) *GanchosRegraDeleteOne {
+	builder := c.Delete().Where(ganchosregra.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GanchosRegraDeleteOne{builder}
+}
+
+// Query returns a query builder for GanchosRegra.
+func (c *GanchosRegraClient) Query() *GanchosRegraQuery {
+	return &GanchosRegraQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGanchosRegra},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GanchosRegra entity by its id.
+func (c *GanchosRegraClient) Get(ctx context.Context, id uuid.UUID) (*GanchosRegra, error) {
+	return c.Query().Where(ganchosregra.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GanchosRegraClient) GetX(ctx context.Context, id uuid.UUID) *GanchosRegra {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryVersoes queries the versoes edge of a GanchosRegra.
+func (c *GanchosRegraClient) QueryVersoes(_m *GanchosRegra) *GanchosRegraVersaoQuery {
+	query := (&GanchosRegraVersaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ganchosregra.Table, ganchosregra.FieldID, id),
+			sqlgraph.To(ganchosregraversao.Table, ganchosregraversao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ganchosregra.VersoesTable, ganchosregra.VersoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *GanchosRegraClient) Hooks() []Hook {
+	return c.hooks.GanchosRegra
+}
+
+// Interceptors returns the client interceptors.
+func (c *GanchosRegraClient) Interceptors() []Interceptor {
+	return c.inters.GanchosRegra
+}
+
+func (c *GanchosRegraClient) mutate(ctx context.Context, m *GanchosRegraMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GanchosRegraCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GanchosRegraUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GanchosRegraUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GanchosRegraDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GanchosRegra mutation op: %q", m.Op())
+	}
+}
+
+// GanchosRegraVersaoClient is a client for the GanchosRegraVersao schema.
+type GanchosRegraVersaoClient struct {
+	config
+}
+
+// NewGanchosRegraVersaoClient returns a client for the GanchosRegraVersao from the given config.
+func NewGanchosRegraVersaoClient(c config) *GanchosRegraVersaoClient {
+	return &GanchosRegraVersaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `ganchosregraversao.Hooks(f(g(h())))`.
+func (c *GanchosRegraVersaoClient) Use(hooks ...Hook) {
+	c.hooks.GanchosRegraVersao = append(c.hooks.GanchosRegraVersao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `ganchosregraversao.Intercept(f(g(h())))`.
+func (c *GanchosRegraVersaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GanchosRegraVersao = append(c.inters.GanchosRegraVersao, interceptors...)
+}
+
+// Create returns a builder for creating a GanchosRegraVersao entity.
+func (c *GanchosRegraVersaoClient) Create() *GanchosRegraVersaoCreate {
+	mutation := newGanchosRegraVersaoMutation(c.config, OpCreate)
+	return &GanchosRegraVersaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GanchosRegraVersao entities.
+func (c *GanchosRegraVersaoClient) CreateBulk(builders ...*GanchosRegraVersaoCreate) *GanchosRegraVersaoCreateBulk {
+	return &GanchosRegraVersaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GanchosRegraVersaoClient) MapCreateBulk(slice any, setFunc func(*GanchosRegraVersaoCreate, int)) *GanchosRegraVersaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GanchosRegraVersaoCreateBulk{err: fmt.Errorf("calling to GanchosRegraVersaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GanchosRegraVersaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GanchosRegraVersaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GanchosRegraVersao.
+func (c *GanchosRegraVersaoClient) Update() *GanchosRegraVersaoUpdate {
+	mutation := newGanchosRegraVersaoMutation(c.config, OpUpdate)
+	return &GanchosRegraVersaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GanchosRegraVersaoClient) UpdateOne(_m *GanchosRegraVersao) *GanchosRegraVersaoUpdateOne {
+	mutation := newGanchosRegraVersaoMutation(c.config, OpUpdateOne, withGanchosRegraVersao(_m))
+	return &GanchosRegraVersaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GanchosRegraVersaoClient) UpdateOneID(id int) *GanchosRegraVersaoUpdateOne {
+	mutation := newGanchosRegraVersaoMutation(c.config, OpUpdateOne, withGanchosRegraVersaoID(id))
+	return &GanchosRegraVersaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GanchosRegraVersao.
+func (c *GanchosRegraVersaoClient) Delete() *GanchosRegraVersaoDelete {
+	mutation := newGanchosRegraVersaoMutation(c.config, OpDelete)
+	return &GanchosRegraVersaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GanchosRegraVersaoClient) DeleteOne(_m *GanchosRegraVersao) *GanchosRegraVersaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GanchosRegraVersaoClient) DeleteOneID(id int) *GanchosRegraVersaoDeleteOne {
+	builder := c.Delete().Where(ganchosregraversao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GanchosRegraVersaoDeleteOne{builder}
+}
+
+// Query returns a query builder for GanchosRegraVersao.
+func (c *GanchosRegraVersaoClient) Query() *GanchosRegraVersaoQuery {
+	return &GanchosRegraVersaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGanchosRegraVersao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GanchosRegraVersao entity by its id.
+func (c *GanchosRegraVersaoClient) Get(ctx context.Context, id int) (*GanchosRegraVersao, error) {
+	return c.Query().Where(ganchosregraversao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GanchosRegraVersaoClient) GetX(ctx context.Context, id int) *GanchosRegraVersao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryRegra queries the regra edge of a GanchosRegraVersao.
+func (c *GanchosRegraVersaoClient) QueryRegra(_m *GanchosRegraVersao) *GanchosRegraQuery {
+	query := (&GanchosRegraClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(ganchosregraversao.Table, ganchosregraversao.FieldID, id),
+			sqlgraph.To(ganchosregra.Table, ganchosregra.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, ganchosregraversao.RegraTable, ganchosregraversao.RegraColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *GanchosRegraVersaoClient) Hooks() []Hook {
+	return c.hooks.GanchosRegraVersao
+}
+
+// Interceptors returns the client interceptors.
+func (c *GanchosRegraVersaoClient) Interceptors() []Interceptor {
+	return c.inters.GanchosRegraVersao
+}
+
+func (c *GanchosRegraVersaoClient) mutate(ctx context.Context, m *GanchosRegraVersaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GanchosRegraVersaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GanchosRegraVersaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GanchosRegraVersaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GanchosRegraVersaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GanchosRegraVersao mutation op: %q", m.Op())
 	}
 }
 
@@ -2658,14 +3116,16 @@ func (c *UsuarioClient) mutate(ctx context.Context, m *UsuarioMutation) (Value, 
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaContato,
-		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento,
-		Sessao, Usuario []ent.Hook
+		Administradora, Atribuicao, Concessao, Condominio, GanchosAuditoria,
+		GanchosRegra, GanchosRegraVersao, Habilitacao, MemoriaContato, MemoriaFato,
+		Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento, Sessao,
+		Usuario []ent.Hook
 	}
 	inters struct {
-		Administradora, Atribuicao, Concessao, Condominio, Habilitacao, MemoriaContato,
-		MemoriaFato, Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento,
-		Sessao, Usuario []ent.Interceptor
+		Administradora, Atribuicao, Concessao, Condominio, GanchosAuditoria,
+		GanchosRegra, GanchosRegraVersao, Habilitacao, MemoriaContato, MemoriaFato,
+		Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento, Sessao,
+		Usuario []ent.Interceptor
 	}
 )
 

@@ -34,7 +34,9 @@ func TestPermitido(t *testing.T) {
 	operadorA := []Atribuicao{{"operador_administradora", admA(), ""}}
 	concGestor := []Concessao{{"A", "gestor_administradora", StudioAvancado}}
 	superl := []Atribuicao{{"admin_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
+	construtorSuperl := []Atribuicao{{"construtor_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
 	fixaA := escopo.Implantacao{AdministradoraFixa: "A"}
+	superlogica := Escopo{Tipo: TipoSuperlogica}
 
 	tests := []struct {
 		name string
@@ -68,6 +70,12 @@ func TestPermitido(t *testing.T) {
 		{"duas atribuicoes: concessao de A nao vale em c9 de B", base([]Atribuicao{{"gestor_administradora", admA(), ""}, {"operador_administradora", Escopo{TipoAdministradora, "B"}, ""}}, concGestor, escopo.Implantacao{}), StudioAvancado, cond("c9"), false},
 		{"atribuicao de condominio sem dona nega", base([]Atribuicao{{"gestor_administradora", cond("c1"), ""}}, nil, escopo.Implantacao{}), SkillsLer, cond("c1"), false},
 		{"condominio sem administradora conhecida nega", base(gestorA, nil, escopo.Implantacao{}), SkillsLer, cond("zz"), false},
+		{"construtor tem ganchos.editar em superlogica", base(construtorSuperl, nil, escopo.Implantacao{}), GanchosEditar, superlogica, true},
+		{"gestor de A nao tem ganchos.editar mesmo com concessao de ganchos.editar", base(gestorA, []Concessao{{"A", "gestor_administradora", GanchosEditar}}, escopo.Implantacao{}), GanchosEditar, superlogica, false},
+		{"gestor de A nao tem ganchos.editar mesmo com concessao de studio.avancado", base(gestorA, concGestor, escopo.Implantacao{}), GanchosEditar, superlogica, false},
+		{"gestor de A tem ganchos.historico no condominio c1 de A", base(gestorA, nil, escopo.Implantacao{}), GanchosHistorico, cond("c1"), true},
+		{"gestor de A nao tem ganchos.historico no condominio c9 de B", base(gestorA, nil, escopo.Implantacao{}), GanchosHistorico, cond("c9"), false},
+		{"administradora fixa A nega ganchos.editar ao admin superlogica", base(superl, nil, fixaA), GanchosEditar, superlogica, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

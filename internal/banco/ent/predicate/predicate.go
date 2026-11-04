@@ -18,6 +18,15 @@ type Concessao func(*sql.Selector)
 // Condominio is the predicate function for condominio builders.
 type Condominio func(*sql.Selector)
 
+// GanchosAuditoria is the predicate function for ganchosauditoria builders.
+type GanchosAuditoria func(*sql.Selector)
+
+// GanchosRegra is the predicate function for ganchosregra builders.
+type GanchosRegra func(*sql.Selector)
+
+// GanchosRegraVersao is the predicate function for ganchosregraversao builders.
+type GanchosRegraVersao func(*sql.Selector)
+
 // Habilitacao is the predicate function for habilitacao builders.
 type Habilitacao func(*sql.Selector)
 

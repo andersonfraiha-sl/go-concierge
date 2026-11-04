@@ -119,6 +119,115 @@ var (
 			},
 		},
 	}
+	// GanchosAuditoriaColumns holds the columns for the "ganchos_auditoria" table.
+	GanchosAuditoriaColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "origem", Type: field.TypeString},
+		{Name: "evento", Type: field.TypeString},
+		{Name: "gancho", Type: field.TypeString},
+		{Name: "regra_id", Type: field.TypeString, Default: ""},
+		{Name: "regra_versao", Type: field.TypeInt, Default: 0},
+		{Name: "decisao", Type: field.TypeString},
+		{Name: "motivo", Type: field.TypeString, Size: 2147483647},
+		{Name: "administradora_id", Type: field.TypeString, Default: ""},
+		{Name: "condominio_id", Type: field.TypeString, Default: ""},
+		{Name: "sessao_id", Type: field.TypeString, Default: ""},
+		{Name: "protocolo", Type: field.TypeString, Default: ""},
+		{Name: "usuario_id", Type: field.TypeString, Default: ""},
+		{Name: "tela", Type: field.TypeString, Default: ""},
+		{Name: "ferramenta", Type: field.TypeString, Default: ""},
+		{Name: "quantidade", Type: field.TypeInt, Default: 0},
+	}
+	// GanchosAuditoriaTable holds the schema information for the "ganchos_auditoria" table.
+	GanchosAuditoriaTable = &schema.Table{
+		Name:       "ganchos_auditoria",
+		Columns:    GanchosAuditoriaColumns,
+		PrimaryKey: []*schema.Column{GanchosAuditoriaColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ganchosauditoria_administradora_id_criado_em",
+				Unique:  false,
+				Columns: []*schema.Column{GanchosAuditoriaColumns[9], GanchosAuditoriaColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						GanchosAuditoriaColumns[1].Name: true,
+					},
+				},
+			},
+			{
+				Name:    "ganchosauditoria_condominio_id_criado_em",
+				Unique:  false,
+				Columns: []*schema.Column{GanchosAuditoriaColumns[10], GanchosAuditoriaColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					DescColumns: map[string]bool{
+						GanchosAuditoriaColumns[1].Name: true,
+					},
+				},
+			},
+			{
+				Name:    "ganchosauditoria_criado_em",
+				Unique:  false,
+				Columns: []*schema.Column{GanchosAuditoriaColumns[1]},
+			},
+		},
+	}
+	// GanchosRegrasColumns holds the columns for the "ganchos_regras" table.
+	GanchosRegrasColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "versao", Type: field.TypeInt},
+		{Name: "nome", Type: field.TypeString},
+		{Name: "evento", Type: field.TypeString},
+		{Name: "administradora_id", Type: field.TypeString, Default: ""},
+		{Name: "condominios", Type: field.TypeOther, SchemaType: map[string]string{"postgres": "text[]"}},
+		{Name: "ativa", Type: field.TypeBool},
+		{Name: "definicao", Type: field.TypeJSON},
+		{Name: "alterada_por", Type: field.TypeString, Default: ""},
+		{Name: "alterada_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// GanchosRegrasTable holds the schema information for the "ganchos_regras" table.
+	GanchosRegrasTable = &schema.Table{
+		Name:       "ganchos_regras",
+		Columns:    GanchosRegrasColumns,
+		PrimaryKey: []*schema.Column{GanchosRegrasColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ganchosregra_evento_ativa",
+				Unique:  false,
+				Columns: []*schema.Column{GanchosRegrasColumns[3], GanchosRegrasColumns[6]},
+			},
+		},
+	}
+	// GanchosRegrasVersoesColumns holds the columns for the "ganchos_regras_versoes" table.
+	GanchosRegrasVersoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "versao", Type: field.TypeInt},
+		{Name: "definicao", Type: field.TypeJSON},
+		{Name: "alterada_por", Type: field.TypeString, Default: ""},
+		{Name: "alterada_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "regra_id", Type: field.TypeUUID},
+	}
+	// GanchosRegrasVersoesTable holds the schema information for the "ganchos_regras_versoes" table.
+	GanchosRegrasVersoesTable = &schema.Table{
+		Name:       "ganchos_regras_versoes",
+		Columns:    GanchosRegrasVersoesColumns,
+		PrimaryKey: []*schema.Column{GanchosRegrasVersoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "ganchos_regras_versoes_ganchos_regras_versoes",
+				Columns:    []*schema.Column{GanchosRegrasVersoesColumns[5]},
+				RefColumns: []*schema.Column{GanchosRegrasColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "ganchosregraversao_regra_id_versao",
+				Unique:  true,
+				Columns: []*schema.Column{GanchosRegrasVersoesColumns[5], GanchosRegrasVersoesColumns[1]},
+			},
+		},
+	}
 	// HabilitacoesColumns holds the columns for the "habilitacoes" table.
 	HabilitacoesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -421,6 +530,9 @@ var (
 		AtribuicoesTable,
 		ConcessoesTable,
 		CondominiosTable,
+		GanchosAuditoriaTable,
+		GanchosRegrasTable,
+		GanchosRegrasVersoesTable,
 		HabilitacoesTable,
 		MemoriaContatosTable,
 		MemoriaFatosTable,
@@ -453,6 +565,16 @@ func init() {
 		Table: "concessoes",
 	}
 	CondominiosTable.ForeignKeys[0].RefTable = AdministradorasTable
+	GanchosAuditoriaTable.Annotation = &entsql.Annotation{
+		Table: "ganchos_auditoria",
+	}
+	GanchosRegrasTable.Annotation = &entsql.Annotation{
+		Table: "ganchos_regras",
+	}
+	GanchosRegrasVersoesTable.ForeignKeys[0].RefTable = GanchosRegrasTable
+	GanchosRegrasVersoesTable.Annotation = &entsql.Annotation{
+		Table: "ganchos_regras_versoes",
+	}
 	HabilitacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	HabilitacoesTable.Annotation = &entsql.Annotation{
 		Table: "habilitacoes",
