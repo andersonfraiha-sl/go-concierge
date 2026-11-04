@@ -45,6 +45,8 @@ type MensagemRecebida struct {
 // AntesDaFerramenta dispara no invocador único, antes de a ferramenta rodar.
 type AntesDaFerramenta struct {
 	Agora                    time.Time
+	// Ferramenta é o nome MCP resolvido (decide o contexto B2C); Pedida é o nome que o
+	// modelo chamou (entra nos motivos de recusa). Diferem no alias unidades.listar.
 	Ferramenta, Pedida, Caso string
 	Params, ContextoB2C      map[string]any
 	Declarada, Permitida     bool

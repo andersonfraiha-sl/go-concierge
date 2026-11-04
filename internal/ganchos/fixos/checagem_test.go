@@ -3,6 +3,7 @@ package fixos
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"go-concierge/internal/admin"
@@ -30,7 +31,7 @@ func TestChecagemMontaOsGanchosNaOrdem(t *testing.T) {
 			t.Errorf("%s deveria falhar fechado", g.Nome)
 		}
 	}
-	if want := []string{FerramentaPermitida, ContextoB2C, EscritaConfirmada}; !reflect.DeepEqual(antes, want) {
+	if want := []string{FerramentaPermitida, EscritaConfirmada, ContextoB2C}; !reflect.DeepEqual(antes, want) {
 		t.Errorf("ordem = %v, quer %v", antes, want)
 	}
 	if got := f.MensagemRecebida.Checagem; len(got) != 1 || got[0].Nome != EscopoDaConversa {
@@ -143,6 +144,7 @@ func TestEscritaConfirmada(t *testing.T) {
 		e    ganchos.AntesDaFerramenta
 		quer string
 	}{
+		{"prévia de escrita não grava", ganchos.AntesDaFerramenta{Pedida: "reserva", Escrita: true, Previa: true, Confirmacao: "quero reservar"}, ""},
 		{"leitura passa", ganchos.AntesDaFerramenta{Pedida: "x"}, ""},
 		{"escrita com sim", ganchos.AntesDaFerramenta{Pedida: "reserva", Escrita: true, Confirmacao: "Sim, pode!"}, ""},
 		{"escrita sem sim", ganchos.AntesDaFerramenta{Pedida: "reserva", Escrita: true, Confirmacao: "quero reservar"},
@@ -210,11 +212,36 @@ func TestContextoB2C(t *testing.T) {
 				}
 				return
 			}
+			quer := ganchos.Ajustar
+			if !comContextoB2C[tt.tool] {
+				quer = ganchos.Deixar
+			}
+			if d.Tipo != quer {
+				t.Errorf("tipo = %q, quer %q", d.Tipo, quer)
+			}
 			if !reflect.DeepEqual(saiu.Params, tt.quer) {
 				t.Errorf("params = %v, quer %v", saiu.Params, tt.quer)
 			}
 		})
 	}
+}
+
+// espelha TestChamarRecursoRecusaEscritaENaoDeclarado: create-visit sem payloads recebe a
+// recusa do motor, não a de contexto B2C.
+func TestOrdemDaChecagemSegueInvocar(t *testing.T) {
+	e := ganchos.AntesDaFerramenta{
+		Pedida: ferramentaCriarVisita, Ferramenta: ferramentaCriarVisita,
+		Declarada: true, Permitida: true, Escrita: true,
+	}
+	for _, g := range Checagem().AntesDaFerramenta.Checagem {
+		if _, d := g.Avaliar(e); d.Tipo == ganchos.Bloquear {
+			if !strings.Contains(d.Motivo, "motor determinístico") {
+				t.Fatalf("%s bloqueou com %q", g.Nome, d.Motivo)
+			}
+			return
+		}
+	}
+	t.Fatal("nenhum gancho bloqueou")
 }
 
 func TestNaoMudaParamsOriginais(t *testing.T) {

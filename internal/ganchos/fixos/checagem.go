@@ -45,7 +45,7 @@ func Checagem() ganchos.Fixos {
 		},
 		AntesDaFerramenta: ganchos.Pontos[ganchos.AntesDaFerramenta]{
 			Checagem: []ganchos.Gancho[ganchos.AntesDaFerramenta]{
-				ferramentaPermitida(), contextoB2C(), escritaConfirmada(),
+				ferramentaPermitida(), escritaConfirmada(), contextoB2C(),
 			},
 		},
 	}
@@ -216,7 +216,7 @@ func escritaConfirmada() ganchos.Gancho[ganchos.AntesDaFerramenta] {
 }
 
 func motivoDeEscritaRecusada(e ganchos.AntesDaFerramenta) string {
-	if !e.Escrita {
+	if !e.Escrita || e.Previa {
 		return ""
 	}
 	if e.Ferramenta == ferramentaCriarVisita && !e.PeloMotorDoCaso {
