@@ -1,6 +1,7 @@
 package okf
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -132,7 +133,7 @@ func TestSalvarFluxoGravaCasoEPrincipal(t *testing.T) {
 	if gravado.Versao == lido.Versao {
 		t.Error("a versão deve mudar com o fluxo")
 	}
-	if !strings.Contains(lerArquivoDaSkill(t, c, relMudanca, CasoYAML), "confirm: Posso agendar a mudança? (sim/não)") {
+	if !strings.Contains(lerArquivoDaSkill(t, c, relMudanca, CasoYAML), `confirm: "Posso agendar a mudança? (sim/não)"`) {
 		t.Error("caso.yaml sem o texto novo do confirmar")
 	}
 	if got := lerArquivoDaSkill(t, c, relMudanca, "workflows/principal.md"); got != principalEsperado(t, c, relMudanca) {
@@ -145,6 +146,78 @@ func TestSalvarFluxoGravaCasoEPrincipal(t *testing.T) {
 	if relido.Versao != gravado.Versao {
 		t.Errorf("versão relida %s != versão devolvida %s", relido.Versao, gravado.Versao)
 	}
+}
+
+// TestSalvarFluxoMudaSoALinhaDoCampo: o autosave do Studio troca um campo e o diff do
+// caso.yaml é só a linha dele; aspas, comentários e ordem das chaves ficam.
+func TestSalvarFluxoMudaSoALinhaDoCampo(t *testing.T) {
+	casos := []struct {
+		nome  string
+		mudar func(t *testing.T, f *Fluxo)
+		quero string
+	}{
+		{
+			nome:  "título de uma informação",
+			mudar: func(_ *testing.T, f *Fluxo) { f.Informacoes[0].Titulo = "Data desejada da mudança" },
+			quero: "    title: Data desejada da mudança",
+		},
+		{
+			nome:  "rótulo entre aspas de uma opção",
+			mudar: func(_ *testing.T, f *Fluxo) { f.Informacoes[1].Opcoes[0].Rotulo = "Manhã cedo (8h às 12h)" },
+			quero: `        label: "Manhã cedo (8h às 12h)"`,
+		},
+		{
+			nome:  "título da escolha com comentário e reuse",
+			mudar: func(t *testing.T, f *Fluxo) { f.Blocos[indiceDoTipo(t, *f, BlocoEscolha)].Titulo = "Sua unidade" },
+			quero: "      title: Sua unidade",
+		},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			cat := catalogoDeTeste(t)
+			antes := lerArquivoDaSkill(t, cat, relMudanca, CasoYAML)
+			lido, err := cat.LerFluxo(relMudanca)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f := comoDoStudio(t, lido.Fluxo)
+			c.mudar(t, &f)
+
+			if _, err := cat.SalvarFluxo(relMudanca, lido.Versao, f); err != nil {
+				t.Fatal(err)
+			}
+
+			linhasAntes := strings.Split(antes, "\n")
+			depois := lerArquivoDaSkill(t, cat, relMudanca, CasoYAML)
+			linhasDepois := strings.Split(depois, "\n")
+			if len(linhasAntes) != len(linhasDepois) {
+				t.Fatalf("número de linhas mudou: %d -> %d\n%s", len(linhasAntes), len(linhasDepois), depois)
+			}
+			var mudadas []string
+			for i := range linhasAntes {
+				if linhasAntes[i] != linhasDepois[i] {
+					mudadas = append(mudadas, linhasDepois[i])
+				}
+			}
+			if !slices.Equal(mudadas, []string{c.quero}) {
+				t.Fatalf("linhas mudadas = %q, quero só %q", mudadas, c.quero)
+			}
+		})
+	}
+}
+
+// comoDoStudio passa o fluxo pelo JSON, como chega no PUT do Studio.
+func comoDoStudio(t *testing.T, f Fluxo) Fluxo {
+	t.Helper()
+	corpo, err := json.Marshal(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var voltou Fluxo
+	if err := json.Unmarshal(corpo, &voltou); err != nil {
+		t.Fatal(err)
+	}
+	return voltou
 }
 
 func TestSalvarFluxoRecusaVersaoAntiga(t *testing.T) {

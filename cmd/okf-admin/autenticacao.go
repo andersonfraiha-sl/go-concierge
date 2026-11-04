@@ -80,13 +80,13 @@ func (s *servidor) autenticado(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		usuarioID, err := s.autenticador.Autenticar(r)
 		if err != nil || (semeadoDev(usuarioID) && s.authMode != authModeDev) {
-			responderNaoAutenticado(w)
+			s.recusarLogin(w)
 			return
 		}
 		anotarUsuario(r.Context(), usuarioID)
 		a, err := s.acessos.Carregar(r.Context(), usuarioID, s.implantacao)
 		if errors.Is(err, acesso.ErrUsuarioDesconhecido) {
-			responderNaoAutenticado(w)
+			s.recusarLogin(w)
 			return
 		}
 		if err != nil {
@@ -97,8 +97,21 @@ func (s *servidor) autenticado(next http.Handler) http.Handler {
 	})
 }
 
+// naoAutenticado é o corpo do 401. Dev diz ao Studio que pode oferecer o "Ver como" mesmo sem
+// /api/eu; fora de AUTH_MODE=dev o campo nem aparece.
+type naoAutenticado struct {
+	Codigo string `json:"codigo"`
+	Error  string `json:"error"`
+	Dev    bool   `json:"dev,omitempty"`
+}
+
 func responderNaoAutenticado(w http.ResponseWriter) {
-	writeJSON(w, http.StatusUnauthorized, map[string]string{"codigo": "NAO_AUTENTICADO", "error": "usuário não autenticado"})
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado"})
+}
+
+// recusarLogin é o 401 do middleware: o único ponto em que o usuário ainda não foi reconhecido.
+func (s *servidor) recusarLogin(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado", Dev: s.authMode == authModeDev})
 }
 
 func responderSemPermissao(w http.ResponseWriter) {

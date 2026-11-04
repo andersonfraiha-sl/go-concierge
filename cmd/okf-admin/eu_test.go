@@ -70,6 +70,28 @@ func TestEuSemUsuarioDa401(t *testing.T) {
 	}
 }
 
+func TestEuDesconhecidoDiz401ComModoDev(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	casos := []struct {
+		authMode string
+		dev      bool
+	}{{authMode: authModeDev, dev: true}, {authMode: "fechado", dev: false}}
+	for _, c := range casos {
+		t.Run(c.authMode, func(t *testing.T) {
+			amb.s.authMode = c.authMode
+			defer func() { amb.s.authMode = authModeDev }()
+			w := amb.pedir(t, "fantasma", "GET", "/api/eu", "")
+			var got naoAutenticado
+			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != http.StatusUnauthorized || got.Codigo != "NAO_AUTENTICADO" || got.Dev != c.dev {
+				t.Fatalf("%d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestEuIgnoraCabecalhoDePapel(t *testing.T) {
 	amb := novoAmbienteRotas(t)
 	r := httptest.NewRequest("GET", "/api/eu", nil)

@@ -1,6 +1,6 @@
 import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
-import { CHAVE_USUARIO_DEV } from '@/shared/api/http';
+import { gravarUsuarioDev } from './usuarioDev';
 
 const USUARIOS_DEV = [
   { valor: 'admin-superlogica', rotulo: 'Superlógica (admin)' },
@@ -15,20 +15,15 @@ function ehUsuarioDev(valor: string): valor is UsuarioDev {
   return USUARIOS_DEV.some((usuario) => usuario.valor === valor);
 }
 
-function gravarUsuario(usuario: UsuarioDev): void {
-  try {
-    localStorage.setItem(CHAVE_USUARIO_DEV, usuario);
-  } catch (cause) {
-    console.warn('gravar usuário de desenvolvimento:', cause);
-  }
-}
-
 export function DevRoleSwitch({ usuarioAtual }: { usuarioAtual: string }) {
   const cliente = useQueryClient();
 
   const trocar = (novo: string) => {
     if (!ehUsuarioDev(novo)) return;
-    gravarUsuario(novo);
+    // Tudo no mesmo clique: o Eu muda de chave no próximo render, então ninguém lê o anterior.
+    // O Eu antigo sai do cache em vez de ser rebuscado com o cabeçalho do usuário novo.
+    gravarUsuarioDev(novo);
+    cliente.removeQueries({ queryKey: ['eu'] });
     void cliente.resetQueries();
   };
 

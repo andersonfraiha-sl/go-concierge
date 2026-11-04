@@ -2,6 +2,7 @@ import { useMediaQuery } from '@mui/material';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { type ApiError, apiGet } from '@/shared/api/http';
+import { useUsuarioDev } from './usuarioDev';
 
 export const PERMISSOES = [
   'skills.ler',
@@ -32,8 +33,19 @@ export type Eu = z.infer<typeof EuSchema>;
 // Somente leitura abaixo desta largura, para qualquer papel.
 const TELA_ESTREITA = '(max-width:899.95px)';
 
+const STATUS_NAO_AUTENTICADO = 401;
+const CorpoNaoAutenticado = z.object({ dev: z.boolean().catch(false) });
+
+/** O 401 de /api/eu não traz o Eu; o modo dev vem no próprio corpo do erro. */
+export function naoReconhecido(erro: ApiError | null): { dev: boolean } | null {
+  if (erro?.status !== STATUS_NAO_AUTENTICADO) return null;
+  const corpo = CorpoNaoAutenticado.safeParse(erro.corpo);
+  return { dev: corpo.success && corpo.data.dev };
+}
+
 export function useEu(): UseQueryResult<Eu, ApiError> {
-  return useQuery({ queryKey: ['eu'], queryFn: () => apiGet('/api/eu', EuSchema) });
+  const usuarioDev = useUsuarioDev();
+  return useQuery({ queryKey: ['eu', usuarioDev], queryFn: () => apiGet('/api/eu', EuSchema) });
 }
 
 export function pode(eu: Eu, permissao: Permissao): boolean {
