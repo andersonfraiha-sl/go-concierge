@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { responderCom } from '@/test/fetchFalso';
+import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { AdministradorasAba } from './AdministradorasAba';
 import { construtor, rotasBase } from './estadoFalso';
@@ -27,7 +27,39 @@ function montar(condominios: ReturnType<typeof condominio>[] = []) {
 }
 
 describe('AdministradorasAba', () => {
-  it('renamesAdministradoraInPlace', async () => {
+  it('createsAdministradoraWithPost', async () => {
+    const { corpos, handlers } = gravador('POST /api/admin/administradora');
+    responderCom({ ...rotasBase(construtor), ...handlers });
+    const { user } = renderComProvedores(
+      <AdministradorasAba administradoras={[ADMINISTRADORA]} condominios={[]} />,
+    );
+
+    await user.type(await screen.findByLabelText('Nome da administradora'), 'Nova Adm');
+    await user.click(screen.getByRole('button', { name: 'Criar administradora' }));
+
+    expect(await screen.findByText('Administradora criada.')).toBeInTheDocument();
+    expect(corpos).toEqual([{ id: 'nova-adm', nome: 'Nova Adm' }]);
+  });
+
+  it('showsConflictMessageOnDuplicateAdministradora', async () => {
+    responderCom({
+      ...rotasBase(construtor),
+      'POST /api/admin/administradora': () =>
+        json({ codigo: 'JA_EXISTE', error: 'administradora nova-adm já existe' }, 409),
+    });
+    const { user } = renderComProvedores(
+      <AdministradorasAba administradoras={[ADMINISTRADORA]} condominios={[]} />,
+    );
+
+    await user.type(await screen.findByLabelText('Nome da administradora'), 'Nova Adm');
+    await user.click(screen.getByRole('button', { name: 'Criar administradora' }));
+
+    expect(
+      await screen.findByText('Já existe uma administradora com esse identificador.'),
+    ).toBeInTheDocument();
+  });
+
+  it('renamesAdministradoraWithPut', async () => {
     const { corpos, handlers } = gravador('PUT /api/admin/administradora');
     responderCom({ ...rotasBase(construtor), ...handlers });
     const { user } = renderComProvedores(

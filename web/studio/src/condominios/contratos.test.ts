@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { json, responderCom } from '@/test/fetchFalso';
 import {
+  criarAdministradora,
+  criarCondominio,
   EstadoSchema,
   faltamIds,
   ferramentasDaSkill,
@@ -7,7 +10,7 @@ import {
   habilitacaoDe,
   PADRAO,
 } from './contratos';
-import { estadoFalso } from './estadoFalso';
+import { estadoFalso, respostaMapeamento } from './estadoFalso';
 
 describe('contratos de condomínios', () => {
   it('leOEstadoDoAdmin', () => {
@@ -103,5 +106,29 @@ describe('CasoSchema', () => {
     const estado = EstadoSchema.parse(bruto);
 
     expect(estado.casos[0]).toMatchObject({ resumo: '', icone: '', id: '' });
+  });
+});
+
+describe('criação', () => {
+  const condominioNovo = {
+    id: 'c-n',
+    nome: 'N',
+    administradora_id: '',
+    account: '',
+    company_id: '',
+    tenant: '',
+  };
+
+  it.each([
+    ['criarCondominio', () => criarCondominio(condominioNovo, null), 'POST /api/admin/condominio'],
+    [
+      'criarAdministradora',
+      () => criarAdministradora({ id: 'adm-n', nome: 'N' }, null),
+      'POST /api/admin/administradora',
+    ],
+  ])('%s createsWithPost', async (_nome, chamar, rota) => {
+    const falso = responderCom({ [rota]: () => json(respostaMapeamento, 201) });
+    await chamar();
+    expect(falso).toHaveBeenCalledTimes(1);
   });
 });
