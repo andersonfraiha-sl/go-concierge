@@ -101,4 +101,14 @@ describe('ConhecimentoAba', () => {
     expect(screen.queryByRole('button', { name: 'Novo documento' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Excluir Faq' })).not.toBeInTheDocument();
   });
+
+  it('titledBaseComumForConcierge', async () => {
+    responderCom(rotasBase());
+    renderComProvedores(<ConhecimentoAba caminho={AGENTE} titulo="Base de conhecimento comum" />);
+    expect(
+      await screen.findByRole('heading', { name: 'Base de conhecimento comum' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Base de conhecimento' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Faq' })).toHaveValue('Perguntas.');
+  });
 });

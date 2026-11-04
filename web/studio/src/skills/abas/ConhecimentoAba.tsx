@@ -19,9 +19,9 @@ import {
 } from './arquivosDaSkill';
 import { DocumentoEditavel } from './DocumentoEditavel';
 
-type Props = { nome: string; caminho: string };
+type Props = { nome?: string; caminho: string; titulo?: string };
 
-export function ConhecimentoAba({ caminho }: Props): ReactNode {
+export function ConhecimentoAba({ caminho, titulo = 'Base de conhecimento' }: Props): ReactNode {
   const agente = useAgente(caminho);
   const editavel = usePodeEditar('skills.editar_textos');
   const proprios = agente.data ? documentosDe(agente.data.agente) : [];
@@ -38,7 +38,7 @@ export function ConhecimentoAba({ caminho }: Props): ReactNode {
 
   return (
     <SectionCard
-      titulo="Base de conhecimento"
+      titulo={titulo}
       ajuda="Documentos que a skill consulta para responder."
       acao={botaoNovo}
     >

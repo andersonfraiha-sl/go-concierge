@@ -133,4 +133,26 @@ describe('ConciergePage', () => {
       expect(screen.queryByRole('button', { name: rotulo })).not.toBeInTheDocument();
     }
   });
+
+  it('showsAllFiveConciergeTabs', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<ConciergePage />);
+    await screen.findByDisplayValue('Você é gentil.');
+    for (const rotulo of [
+      'Persona',
+      'Boas-vindas',
+      'Regras gerais',
+      'Base de conhecimento comum',
+      'Transbordo',
+    ]) {
+      expect(screen.getByRole('tab', { name: rotulo })).toBeInTheDocument();
+    }
+  });
+
+  it('opensTabFromQuery', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<ConciergePage />, { rota: '/?aba=regras' });
+    expect(await screen.findByRole('heading', { name: 'Regras gerais' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Texto da persona' })).not.toBeInTheDocument();
+  });
 });

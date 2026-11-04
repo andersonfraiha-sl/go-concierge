@@ -187,4 +187,12 @@ describe('RegrasAba', () => {
     expect(screen.queryByRole('button', { name: 'Nova regra' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Excluir Politicas' })).not.toBeInTheDocument();
   });
+
+  it('titledRegrasGeraisForConcierge', async () => {
+    responderCom(rotasBase());
+    renderComProvedores(<RegrasAba caminho={AGENTE} titulo="Regras gerais" />);
+    expect(await screen.findByRole('heading', { name: 'Regras gerais' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Regras' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'Politicas' })).toHaveValue('Seja gentil.');
+  });
 });
