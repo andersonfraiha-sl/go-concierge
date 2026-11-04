@@ -2,6 +2,7 @@ package pii
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -74,5 +75,26 @@ func TestHandlerRespeitaNivel(t *testing.T) {
 	l.Info("ignorado")
 	if saida.Len() != 0 {
 		t.Errorf("log abaixo do nível saiu: %s", saida.String())
+	}
+}
+
+type stringerQuePanica struct{ nome string }
+
+func (s *stringerQuePanica) String() string { return s.nome }
+
+func TestLimparParaLogSobreviveACicloENilTipado(t *testing.T) {
+	ciclo := map[string]any{"cpf": "123.456.789-09"}
+	ciclo["eu"] = ciclo
+	lista := []any{"x"}
+	lista[0] = lista
+	var nilTipado *stringerQuePanica
+
+	casos := map[string]any{"map cíclico": ciclo, "slice cíclico": lista, "stringer nil": nilTipado}
+	for nome, v := range casos {
+		t.Run(nome, func(t *testing.T) {
+			if got := fmt.Sprint(limparParaLog(v)); strings.Contains(got, "123.456.789-09") {
+				t.Fatalf("vazou CPF: %s", got)
+			}
+		})
 	}
 }

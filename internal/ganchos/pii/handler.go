@@ -74,6 +74,20 @@ func mascararQualquer(chave string, v any) slog.Attr {
 //   - o resto (struct, slice ou map tipado) pelo JSON que o sink escreveria, que
 //     segue ponteiros aninhados. Perde a forma, mas nada passa cru.
 func limparParaLog(v any) any {
+	return limparComLimite(v, 0)
+}
+
+// profundidadeMaxima corta estrutura cíclica (map ou slice que contém a si mesmo),
+// que sem limite estouraria a pilha e derrubaria o processo.
+const profundidadeMaxima = 32
+
+func limparComLimite(v any, profundidade int) any {
+	if profundidade > profundidadeMaxima {
+		return "[profundo demais]"
+	}
+	if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
+		return nil
+	}
 	switch x := v.(type) {
 	case nil:
 		return nil
@@ -88,22 +102,20 @@ func limparParaLog(v any) any {
 	case map[string]any:
 		limpo := make(map[string]any, len(x))
 		for k, item := range x {
-			limpo[k] = limparParaLog(item)
+			limpo[k] = limparComLimite(item, profundidade+1)
 		}
 		return limpo
 	case []any:
 		limpo := make([]any, len(x))
 		for i, item := range x {
-			limpo[i] = limparParaLog(item)
+			limpo[i] = limparComLimite(item, profundidade+1)
 		}
 		return limpo
 	}
 	rv := reflect.ValueOf(v)
 	switch {
-	case rv.Kind() == reflect.Pointer && rv.IsNil():
-		return nil
 	case rv.Kind() == reflect.Pointer:
-		return limparParaLog(rv.Elem().Interface())
+		return limparComLimite(rv.Elem().Interface(), profundidade+1)
 	case ehEscalar(rv.Kind()):
 		if texto := fmt.Sprint(v); len(achar(texto)) > 0 {
 			return mascararAnonimo(texto)
