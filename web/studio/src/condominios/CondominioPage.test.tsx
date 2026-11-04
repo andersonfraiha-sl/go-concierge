@@ -24,8 +24,8 @@ describe('CondominioPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
     expect(
-      screen.getByRole('textbox', { name: 'Orientações para este condomínio' }),
-    ).toBeDisabled();
+      await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
+    ).toHaveAttribute('aria-readonly', 'true');
   });
 
   describe('em tela estreita', () => {
@@ -60,8 +60,8 @@ describe('CondominioPage', () => {
         await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
       ).toBeDisabled();
       expect(
-        screen.getByRole('textbox', { name: 'Orientações para este condomínio' }),
-      ).toBeDisabled();
+        await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
+      ).toHaveAttribute('aria-readonly', 'true');
       expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
     });
   });

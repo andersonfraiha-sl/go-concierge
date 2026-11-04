@@ -13,6 +13,7 @@ import { FerramentasPage } from '@/ferramentas/FerramentasPage';
 import fixtureDoFluxo from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { SkillEditorPage } from '@/skills/SkillEditorPage';
 import { SkillsPage } from '@/skills/SkillsPage';
+import { digitarNoFim } from '@/test/editorRico';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { tokens } from '@/theme/tokens';
@@ -366,14 +367,14 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
       },
     });
     const campo = await screen.findByRole('textbox', { name: 'Orientações para este condomínio' });
-    await user.type(campo, 'Sem mudança aos domingos.');
+    await digitarNoFim(user, campo, 'Sem mudança aos domingos.');
     await screen.findByText('Falha ao salvar', {}, { timeout: 3000 });
 
     await aplicarProposta(user, resumo);
 
     expect(await screen.findByText(/O Copiloto mudou este campo/)).toBeInTheDocument();
     expect(screen.getByText('Não salvo: escolha qual versão fica')).toBeInTheDocument();
-    expect(campo).toHaveValue('Sem mudança aos domingos.');
+    expect(campo).toHaveTextContent(/^Sem mudança aos domingos\.$/);
     expect(corpos).toHaveLength(2);
     return { user, campo, corpos };
   }
@@ -383,7 +384,7 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
 
     await user.click(screen.getByRole('button', { name: 'Usar o do Copiloto' }));
 
-    expect(campo).toHaveValue('Piscina até 23h.');
+    await waitFor(() => expect(campo).toHaveTextContent(/^Piscina até 23h\.$/));
     expect(screen.queryByText(/O Copiloto mudou este campo/)).not.toBeInTheDocument();
     expect(corpos).toHaveLength(2);
   });
@@ -396,6 +397,6 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
 
     await waitFor(() => expect(corpos).toHaveLength(3));
     expect(corpos[2]).toMatchObject({ geral: 'Sem mudança aos domingos.' });
-    expect(campo).toHaveValue('Sem mudança aos domingos.');
+    expect(campo).toHaveTextContent(/^Sem mudança aos domingos\.$/);
   });
 });
