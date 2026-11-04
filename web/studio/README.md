@@ -27,6 +27,7 @@ O pre-commit (husky, ligado a partir desta pasta) só roda quando o commit toca 
 - **Autosave.** O valor do formulário entra no `useAutosave` por `useWatch` (campo único) ou `useValoresDoFormulario` (objeto).
 - **Componente com menos de 200 linhas.** Passou, extrair por responsabilidade.
 - **Zero hex fora de `src/theme/tokens.ts`.** Cor nova vira token.
+- Cores e medidas só do tema; o teste `estilo.test.ts` barra o resto.
 - **Zero `any` e zero `!`.** `unknown` com type guard ou Zod.
 - **Tela nova.** Rota com `React.lazy` e `Suspense` em `src/app/router.tsx`.
 - **Imports diretos.** Sem barrel files; `as const` para constantes.

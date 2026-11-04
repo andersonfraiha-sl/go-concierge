@@ -383,8 +383,8 @@ func TestStudioErroDoCliente(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			var registro strings.Builder
-			s := &servidor{log: log.New(&registro, "", 0)}
+			registro := capturarSlog(t)
+			s := &servidor{log: log.New(io.Discard, "", 0)}
 			w := httptest.NewRecorder()
 			s.responderErro(w, c.err)
 			if w.Code != 500 || (registro.Len() > 0) != c.querNoLog {

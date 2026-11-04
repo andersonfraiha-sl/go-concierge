@@ -4,7 +4,6 @@ import type { ReactNode } from 'react';
 import type { ProblemaFluxo } from '@/fluxo/modelo/tipos';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import type { EstadoSalvamento } from '@/shared/autosave/useAutosave';
-import { tokens } from '@/theme/tokens';
 import { chaveDoProblema, corDoNivel } from './fluxoDaSkill';
 
 type Props = {
@@ -34,7 +33,7 @@ function ChipSoLeitura(): ReactNode {
       icon={<LockOutlinedIcon fontSize="small" />}
       label="Só leitura"
       size="small"
-      sx={{ bgcolor: tokens.color.background.subtle, color: tokens.color.text.secondary }}
+      sx={{ bgcolor: 'background.subtle', color: 'text.secondary' }}
     />
   );
 }

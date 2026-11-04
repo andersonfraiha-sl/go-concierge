@@ -3,8 +3,9 @@ import { Box, Button, Divider, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { BLOCOS } from '@/fluxo/modelo/catalogo';
 import type { Bloco, Informacao, ProblemaFluxo } from '@/fluxo/modelo/tipos';
+import { useCorDoBloco } from '@/fluxo/modelo/useCorDoBloco';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { PESOS, RAIO, RAIOS } from '@/theme/tokens';
 import { ComoOMoradorVe } from './ComoOMoradorVe';
 import { CamposDoBloco, type CatalogoDeFerramentas } from './camposPorTipo';
 
@@ -19,7 +20,8 @@ type Props = {
 };
 
 function CabecalhoDoBloco({ bloco }: { bloco: Bloco }): ReactNode {
-  const { rotulo, descricao, cor, Icone } = BLOCOS[bloco.tipo];
+  const { rotulo, descricao, Icone } = BLOCOS[bloco.tipo];
+  const cor = useCorDoBloco(bloco.tipo);
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
       <Box
@@ -28,7 +30,7 @@ function CabecalhoDoBloco({ bloco }: { bloco: Bloco }): ReactNode {
           height: 36,
           display: 'grid',
           placeItems: 'center',
-          borderRadius: 1,
+          borderRadius: RAIO.campo,
           bgcolor: `${cor}1A`,
           color: cor,
         }}
@@ -36,7 +38,11 @@ function CabecalhoDoBloco({ bloco }: { bloco: Bloco }): ReactNode {
         <Icone fontSize="small" />
       </Box>
       <Box>
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
+        <Typography
+          variant="subtitle1"
+          component="h2"
+          sx={{ fontWeight: PESOS.negrito, lineHeight: 1.3 }}
+        >
           {rotulo}
         </Typography>
         <Typography variant="caption" color="text.secondary">
@@ -58,12 +64,12 @@ function PreviaParaOMorador({ bloco }: { bloco: Bloco }): ReactNode {
         gap: 1.5,
         p: 2,
         borderRadius: `${RAIOS.painel}px`,
-        bgcolor: tokens.color.background.subtle,
+        bgcolor: 'background.subtle',
         border: 1,
-        borderColor: tokens.color.border.subtle,
+        borderColor: 'border.subtle',
       }}
     >
-      <Typography variant="caption" sx={{ fontWeight: 600, color: tokens.color.text.secondary }}>
+      <Typography variant="caption" sx={{ fontWeight: PESOS.semi, color: 'text.secondary' }}>
         Como o morador vê
       </Typography>
       <ComoOMoradorVe bloco={bloco} />
@@ -134,7 +140,7 @@ export function BlocoPainel({
 }
 
 const corDoProblema = (problema: ProblemaFluxo): string =>
-  problema.nivel === 'erro' ? tokens.color.studio.issueError : tokens.color.studio.issueWarning;
+  problema.nivel === 'erro' ? 'error.main' : 'warning.main';
 
 function ListaDeProblemas({ problemas }: { problemas: readonly ProblemaFluxo[] }): ReactNode {
   if (problemas.length === 0) return null;

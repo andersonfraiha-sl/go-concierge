@@ -1,0 +1,18 @@
+{
+  "nome": "Regra de teste",
+  "evento": "depois_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "areas.reservar"
+      ]
+    }
+  ],
+  "decisao": {
+    "tipo": "confirmar",
+    "pergunta": "Posso devolver?"
+  },
+  "ativa": true
+}

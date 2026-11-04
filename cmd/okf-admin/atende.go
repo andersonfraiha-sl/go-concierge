@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"go-concierge/internal/atende"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/falha"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 )
@@ -237,11 +239,16 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	requestID := w.Header().Get("X-Request-Id") // a linha da falha do turno liga com a do webhook
+	s.turnos.Add(1)
 	go func() {
+		defer s.turnos.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
+		defer falha.Recuperar(ctx, "turno_atende")
 		if _, err := s.atende.Processar(ctx, msg); err != nil {
-			s.log.Printf("atende: protocolo %s: %v", ev.Data.Protocol.Number, err)
+			falha.Registrar(ctx, "turno do concierge falhou", err, slog.String("operacao", "turno_atende"),
+				slog.String("request_id", requestID), slog.String("protocolo", ev.Data.Protocol.Number))
 		}
 	}()
 	writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": sess.Protocolo, "session_id": sess.ID})
@@ -332,7 +339,7 @@ func statusDaFalha(err error) int {
 // ação recusada é do pedido (400), sem ecoar o erro interno.
 func (s *servidor) responderFalhaDoTransbordo(w http.ResponseWriter, r *http.Request, acao string, err error) {
 	if statusDaFalha(err) == http.StatusInternalServerError {
-		s.logger().ErrorContext(r.Context(), "transbordo", "operacao", operacaoDe(r), "acao", acao, "erro", err.Error())
+		anotarFalha(r.Context(), w, fmt.Errorf("transbordo, %s: %w", acao, err), 1)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
 		return
 	}

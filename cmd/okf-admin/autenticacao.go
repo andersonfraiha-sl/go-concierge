@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -120,6 +121,6 @@ func responderSemPermissao(w http.ResponseWriter) {
 
 // responderErroInterno: o erro vai só para o log; o cliente recebe uma mensagem fixa.
 func (s *servidor) responderErroInterno(w http.ResponseWriter, r *http.Request, operacao string, err error) {
-	s.logger().ErrorContext(r.Context(), "erro interno", "operacao", operacao, "erro", err.Error())
+	anotarFalha(r.Context(), w, fmt.Errorf("%s: %w", operacao, err), 1)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
 }

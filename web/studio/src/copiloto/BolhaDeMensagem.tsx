@@ -1,5 +1,5 @@
 import { Box } from '@mui/material';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { RAIOS, TIPOS } from '@/theme/tokens';
 import type { Mensagem } from './CopilotoProvider';
 
 type Props = { mensagem: Pick<Mensagem, 'papel' | 'texto' | 'tom'> };
@@ -16,7 +16,7 @@ const raioDaBolha = (daPessoa: boolean): string => {
 
 export function BolhaDeMensagem({ mensagem }: Props) {
   const daPessoa = mensagem.papel === 'pessoa';
-  const corDoErro = mensagem.tom === 'erro' ? tokens.color.danger.main : undefined;
+  const corDoErro = mensagem.tom === 'erro' ? 'error.main' : undefined;
   return (
     <Box
       sx={{
@@ -25,11 +25,11 @@ export function BolhaDeMensagem({ mensagem }: Props) {
         px: 2,
         py: 1.25,
         borderRadius: raioDaBolha(daPessoa),
-        bgcolor: daPessoa ? tokens.color.background.tint : 'background.paper',
+        bgcolor: daPessoa ? 'background.tint' : 'background.paper',
         border: daPessoa ? 0 : 1,
-        borderColor: corDoErro ?? tokens.color.border.default,
+        borderColor: corDoErro ?? 'border.default',
         color: corDoErro ?? 'text.primary',
-        fontSize: 13,
+        fontSize: TIPOS.body2,
         lineHeight: 1.55,
         whiteSpace: 'pre-wrap',
         overflowWrap: 'anywhere',

@@ -1,0 +1,32 @@
+{
+  "nome": "Reserva só até 22h",
+  "evento": "antes_da_ferramenta",
+  "alvo": {
+    "administradora": "adm-aurora",
+    "condominios": [
+      "cond-flores"
+    ]
+  },
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "areas.reservar"
+      ]
+    },
+    {
+      "tipo": "fora_do_horario",
+      "inicio": "06:00",
+      "fim": "22:00",
+      "fonte": {
+        "tipo": "agora"
+      }
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Reservas por aqui só das 6h às 22h. Me chama amanhã a partir das 6h que eu faço para você."
+  },
+  "ativa": true
+}
+{"outra":1}

@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
-import { tokens } from '@/theme/tokens';
+import { PESOS } from '@/theme/tokens';
 import { AjustesTecnicosAba } from './AjustesTecnicosAba';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, type NoDaArvore, useArvore } from './contratos';
@@ -125,9 +125,9 @@ function CabecalhoDoAvancado(): ReactNode {
         size="small"
         label="Mudanças aqui afetam todos os condomínios"
         sx={{
-          bgcolor: tokens.color.warning.background,
-          color: tokens.color.warning.text,
-          fontWeight: 500,
+          bgcolor: 'warning.soft',
+          color: 'warning.onSoft',
+          fontWeight: PESOS.medio,
         }}
       />
     </Box>

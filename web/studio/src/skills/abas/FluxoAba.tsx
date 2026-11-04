@@ -16,7 +16,7 @@ import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { ApiError } from '@/shared/api/http';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { tokens } from '@/theme/tokens';
+import { RAIO, tokens } from '@/theme/tokens';
 import { chaveDoFluxo, salvarFluxo, useFluxo } from '../contratos';
 import { BarraDoFluxo } from './BarraDoFluxo';
 import {
@@ -223,7 +223,7 @@ function CanvasEPainel(props: PropsDoCanvas): ReactNode {
         minHeight: 0,
         border: 1,
         borderColor: 'divider',
-        borderRadius: 1,
+        borderRadius: RAIO.campo,
         overflow: 'hidden',
       }}
     >

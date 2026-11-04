@@ -22,6 +22,12 @@ type Tx struct {
 	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
 	Condominio *CondominioClient
+	// GanchosAuditoria is the client for interacting with the GanchosAuditoria builders.
+	GanchosAuditoria *GanchosAuditoriaClient
+	// GanchosRegra is the client for interacting with the GanchosRegra builders.
+	GanchosRegra *GanchosRegraClient
+	// GanchosRegraVersao is the client for interacting with the GanchosRegraVersao builders.
+	GanchosRegraVersao *GanchosRegraVersaoClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
 	// MemoriaContato is the client for interacting with the MemoriaContato builders.
@@ -179,6 +185,9 @@ func (tx *Tx) init() {
 	tx.Atribuicao = NewAtribuicaoClient(tx.config)
 	tx.Concessao = NewConcessaoClient(tx.config)
 	tx.Condominio = NewCondominioClient(tx.config)
+	tx.GanchosAuditoria = NewGanchosAuditoriaClient(tx.config)
+	tx.GanchosRegra = NewGanchosRegraClient(tx.config)
+	tx.GanchosRegraVersao = NewGanchosRegraVersaoClient(tx.config)
 	tx.Habilitacao = NewHabilitacaoClient(tx.config)
 	tx.MemoriaContato = NewMemoriaContatoClient(tx.config)
 	tx.MemoriaFato = NewMemoriaFatoClient(tx.config)

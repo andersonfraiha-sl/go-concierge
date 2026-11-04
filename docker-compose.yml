@@ -39,6 +39,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # distroless não tem shell nem curl: o próprio binário consulta o /readyz
+    healthcheck:
+      test: ["CMD", "/app/okf-admin", "saude", "-url", "http://127.0.0.1:8090/readyz"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     restart: unless-stopped
 
   # Postgres 18: a partir do 18 a imagem guarda os dados numa subpasta por versão, então o

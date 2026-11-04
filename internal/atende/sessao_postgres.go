@@ -14,6 +14,7 @@ import (
 	"go-concierge/internal/banco/ent"
 	entsessao "go-concierge/internal/banco/ent/sessao"
 	"go-concierge/internal/banco/sqlc"
+	"go-concierge/internal/falha"
 )
 
 // timeoutSessao limita cada leitura ou escrita de sessão no Postgres.
@@ -33,7 +34,7 @@ func (p *SessaoPostgres) Salvar(ctx context.Context, r RegistroSessao) error {
 	lote := banco.NovoLote()
 	p.SalvarNoLote(ctx, lote, r)
 	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
-		return fmt.Errorf("salvar sessão %s: %w", r.ID, err)
+		return falha.ComPilha(fmt.Errorf("salvar sessão %s: %w", r.ID, err))
 	}
 	return nil
 }
@@ -61,7 +62,7 @@ func (p *SessaoPostgres) Carregar(ctx context.Context, id string) (RegistroSessa
 	lote := banco.NovoLote()
 	p.CarregarNoLote(ctx, lote, id, func(lido RegistroSessao, ok bool) { r, achou = lido, ok })
 	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
-		return RegistroSessao{}, false, fmt.Errorf("carregar sessão %s: %w", id, err)
+		return RegistroSessao{}, false, falha.ComPilha(fmt.Errorf("carregar sessão %s: %w", id, err))
 	}
 	return r, achou, nil
 }
@@ -100,7 +101,7 @@ func (p *SessaoPostgres) Listar(ctx context.Context, administradoraID string, li
 	}
 	linhas, err := q.Order(entsessao.ByAtualizadaEm(sql.OrderDesc())).Limit(limite).All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("listar sessões da administradora %q: %w", administradoraID, err)
+		return nil, falha.ComPilha(fmt.Errorf("listar sessões da administradora %q: %w", administradoraID, err))
 	}
 	regs := make([]RegistroSessao, len(linhas))
 	for i, l := range linhas {
@@ -113,7 +114,7 @@ func (p *SessaoPostgres) Remover(ctx context.Context, id string) error {
 	ctx, cancel := context.WithTimeout(ctx, timeoutSessao)
 	defer cancel()
 	if _, err := p.b.Ent.Sessao.Delete().Where(entsessao.ID(id)).Exec(ctx); err != nil {
-		return fmt.Errorf("remover sessão %s: %w", id, err)
+		return falha.ComPilha(fmt.Errorf("remover sessão %s: %w", id, err))
 	}
 	return nil
 }

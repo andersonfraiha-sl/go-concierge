@@ -12,11 +12,18 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/banco"
 	"go-concierge/internal/banco/bancotest"
+	"go-concierge/internal/banco/ent/ganchosauditoria"
 	"go-concierge/internal/entrada"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/auditoria"
+	"go-concierge/internal/ganchos/fixos"
+	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -90,9 +97,49 @@ func (m *marcaEnvio) Enviar(context.Context, entrada.Destino, string) error {
 	return nil
 }
 
+// regrasAtivas é o número de regras ativas do condomínio nas medições: a reserva, a obra e
+// as de texto_contem que não casam com nada.
+const regrasAtivas = 20
+
 // servicoNoPostgres monta o serviço como em produção: sessões, pedidos, memória e mapeamento
-// no Postgres, com os caches e os lotes do turno, e um contador de idas ao banco.
+// no Postgres, com os caches e os lotes do turno, os ganchos com 20 regras ativas, a
+// auditoria e um contador de idas ao banco.
 func servicoNoPostgres(tb testing.TB) (*Servico, banco.Banco, *idas) {
+	tb.Helper()
+	svc, db, contador, _ := servicoMedido(tb)
+	return svc, db, contador
+}
+
+// regraDeBench é a definição de uma regra ativa de cond-001 da adm-a.
+func regraDeBench(nome string, evento ganchos.NomeDoEvento, condicoes, decisao string) regras.RegraGravada {
+	definicao := fmt.Sprintf(`{"nome":%q,"evento":%q,"alvo":{"administradora":"adm-a","condominios":["cond-001"]},`+
+		`"condicoes":[%s],"decisao":%s,"ativa":true}`, nome, evento, condicoes, decisao)
+	return regras.RegraGravada{Nome: nome, Evento: evento, AdministradoraID: "adm-a", Condominios: []string{"cond-001"},
+		Ativa: true, Definicao: []byte(definicao)}
+}
+
+// regrasDeBench: a reserva fora do horário pede confirmação, a obra bloqueia, e as outras 18
+// procuram termos que o morador do teste não escreve.
+func regrasDeBench() []regras.RegraGravada {
+	rs := []regras.RegraGravada{
+		regraDeBench("reserva fora do horário", ganchos.EventoAntesDaFerramenta,
+			`{"tipo":"ferramenta","nomes":["areas.reservar"]},{"tipo":"fora_do_horario","inicio":"06:00","fim":"22:00","fonte":{"tipo":"agora"}}`,
+			`{"tipo":"confirmar","pergunta":"Já é tarde, quer mesmo reservar assim?"}`),
+		regraDeBench("obra", ganchos.EventoMensagemRecebida,
+			`{"tipo":"texto_contem","termos":["obra"]}`,
+			`{"tipo":"bloquear","mensagem":"Obra eu passo para a administração."}`),
+	}
+	for i := range regrasAtivas - len(rs) {
+		rs = append(rs, regraDeBench(fmt.Sprintf("termo %02d", i), ganchos.EventoMensagemRecebida,
+			fmt.Sprintf(`{"tipo":"texto_contem","termos":["termo-que-ninguem-escreve-%02d"]}`, i),
+			`{"tipo":"bloquear","mensagem":"Não vale."}`))
+	}
+	return rs
+}
+
+// servicoMedido é servicoNoPostgres com o leitor das métricas dos ganchos. Monta o Conjunto
+// com as mesmas peças do montarGanchos do okf-admin (que está no main e não se importa).
+func servicoMedido(tb testing.TB) (*Servico, banco.Banco, *idas, *metric.ManualReader) {
 	tb.Helper()
 	contador := &idas{inicio: map[*pgx.Conn]time.Time{}}
 	db := bancotest.Novo(tb, func(cfg *pgxpool.Config) { cfg.ConnConfig.Tracer = contador })
@@ -112,8 +159,56 @@ func servicoNoPostgres(tb testing.TB) (*Servico, banco.Banco, *idas) {
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pool: db.Pool,
 	}
+	leitor := ligarGanchos(tb, svc, db)
 	esfriar(svc, db)
-	return svc, db, contador
+	return svc, db, contador, leitor
+}
+
+func ligarGanchos(tb testing.TB, svc *Servico, db banco.Banco) *metric.ManualReader {
+	tb.Helper()
+	repo := regras.NovoPostgres(db.Ent)
+	cache := regras.NovoCache(repo, regras.Compilar, nil)
+	for _, r := range regrasDeBench() {
+		if _, err := repo.Salvar(tb.Context(), r, 0); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	if err := cache.Aquecer(tb.Context()); err != nil {
+		tb.Fatal(err)
+	}
+	if n := cache.Indice().Ativas[ganchos.EventoMensagemRecebida] + cache.Indice().Ativas[ganchos.EventoAntesDaFerramenta]; n != regrasAtivas {
+		tb.Fatalf("%d regras no índice, want %d", n, regrasAtivas)
+	}
+	leitor := metric.NewManualReader()
+	meter := metric.NewMeterProvider(metric.WithReader(leitor)).Meter("ganchos")
+	observabilidade, err := ganchos.ComObservabilidade(nil, meter)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	aud := auditoria.NovoAuditor(db, func(string) { tb.Error("auditoria não gravada") }, time.Now)
+	svc.Ganchos = ganchos.NovoConjunto(fixos.Todos(), cache.Indice, observabilidade, aud.Observador())
+	svc.Auditoria = aud
+	return leitor
+}
+
+// duracaoDosGanchosMs soma o histograma ganchos.duracao (ms) acumulado no leitor.
+func duracaoDosGanchosMs(tb testing.TB, leitor *metric.ManualReader) float64 {
+	tb.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := leitor.Collect(tb.Context(), &rm); err != nil {
+		tb.Fatal(err)
+	}
+	soma := 0.0
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if h, ok := m.Data.(metricdata.Histogram[float64]); ok && m.Name == "ganchos.duracao" {
+				for _, dp := range h.DataPoints {
+					soma += dp.Sum
+				}
+			}
+		}
+	}
+	return soma
 }
 
 // esfriar troca os caches por contato e as sessões vivas por novos, vazios.
@@ -280,14 +375,16 @@ func BenchmarkTurnoMock(b *testing.B) {
 	relatar(b, medidas)
 }
 
-// BenchmarkTurnoMockQuente: o segundo turno de uma conversa já aberta, com o contato quente;
+// BenchmarkTurnoMockQuente (reporta também ganchos-ms/turno: a soma de ganchos.duracao só do
+// turno medido, dividida pelos turnos): o segundo turno de uma conversa já aberta, com o contato quente;
 // o primeiro turno roda fora do cronômetro.
 func BenchmarkTurnoMockQuente(b *testing.B) {
-	svc, db, contador := servicoNoPostgres(b)
+	svc, db, contador, leitor := servicoMedido(b)
 	ev := eventoDoTurno(b)
 	exigirAgendamento(b, svc, db, mensagemDoMorador(ev, 0, 0))
 	medidas := make([]medida, 0, b.N)
 	b.ResetTimer()
+	ganchosMs := 0.0
 	for i := 1; i <= b.N; i++ {
 		b.StopTimer()
 		novaConversa(b, svc, db)
@@ -296,11 +393,15 @@ func BenchmarkTurnoMockQuente(b *testing.B) {
 		}
 		svc.Aguardar()
 		msg := mensagemDoMorador(ev, i, 1)
+		antes := duracaoDosGanchosMs(b, leitor)
 		b.StartTimer()
 		medidas = append(medidas, medir(b, svc, contador, msg))
+		b.StopTimer()
+		ganchosMs += duracaoDosGanchosMs(b, leitor) - antes
 	}
 	b.StopTimer()
 	relatar(b, medidas)
+	b.ReportMetric(ganchosMs/float64(b.N), "ganchos-ms/turno")
 }
 
 // BenchmarkTurnoMockQuenteNovoPedido: o segundo turno da conversa, com o contato quente,
@@ -356,6 +457,7 @@ func BenchmarkIdaAoBanco(b *testing.B) {
 func TestTurnoNoPostgresIdasAntesDaResposta(t *testing.T) {
 	svc, db, contador := servicoNoPostgres(t)
 	pergunta, agendamento := eventoCom(t, textoSemPedido), eventoDoTurno(t)
+	obra := eventoCom(t, "vou fazer uma obra no apartamento")
 	tests := []struct {
 		nome string
 		msg  entrada.Mensagem
@@ -364,15 +466,29 @@ func TestTurnoNoPostgresIdasAntesDaResposta(t *testing.T) {
 		{"contato frio, sem pedido", mensagemDoMorador(pergunta, 1, 0), 1},
 		{"contato quente, pedido novo", mensagemDoMorador(agendamento, 1, 1), 1},
 		{"contato quente, pedido sem mudança", mensagemDoMorador(agendamento, 1, 2), 0},
+		{"contato quente com 20 regras e um bloqueio", mensagemDoMorador(obra, 1, 3), 0},
 	}
 	for _, tt := range tests {
 		if got := medir(t, svc, contador, tt.msg).idas; got != tt.idas {
 			t.Fatalf("%s: %d idas antes da resposta, want %d", tt.nome, got, tt.idas)
 		}
 	}
-	exigirAgendamento(t, svc, db, mensagemDoMorador(agendamento, 1, 3))
-	roteada := normalizarRoteamento(mensagemDoMorador(agendamento, 1, 3))
+	if linhas := linhasDaRegraBloqueada(t, db); linhas == 0 {
+		t.Fatal("bloqueio da regra da obra sem linha de auditoria depois da resposta")
+	}
+	exigirAgendamento(t, svc, db, mensagemDoMorador(agendamento, 1, 4))
+	roteada := normalizarRoteamento(mensagemDoMorador(agendamento, 1, 4))
 	if _, achou, err := NovoSessaoPostgres(db).Carregar(t.Context(), idSessao(roteada.Origem, roteada.ConversaID)); err != nil || !achou {
 		t.Fatalf("sessão não gravada depois da resposta: %v", err)
 	}
+}
+
+// linhasDaRegraBloqueada conta as linhas de auditoria de decisão "bloquear" de regra (não fixo).
+func linhasDaRegraBloqueada(t *testing.T, db banco.Banco) int {
+	t.Helper()
+	n, err := db.Ent.GanchosAuditoria.Query().Where(ganchosauditoria.Decisao("bloquear"), ganchosauditoria.RegraIDNEQ("")).Count(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }

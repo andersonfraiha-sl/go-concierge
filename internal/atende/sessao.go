@@ -16,6 +16,8 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -49,6 +51,13 @@ type Sessao struct {
 	// Plano: estado da orquestração (planning/react) enquanto um item espera o morador;
 	// a próxima mensagem retoma por harness.Continuar em vez de planejar de novo.
 	Plano *harness.Plano `json:"plano,omitempty"`
+	// ProximoMarcador é o número do próximo marcador de PII da conversa (zero = 1). O
+	// histórico guarda marcadores de turnos antigos; cada turno numera a partir daqui para
+	// um «cpf:1» antigo nunca casar com o CPF de agora. Não leva PII.
+	ProximoMarcador int `json:"proximo_marcador,omitempty"`
+	// PerguntasDeRegra são as perguntas de confirmação que as regras fizeram no último
+	// turno: a próxima mensagem, se confirma, as responde. Texto fixo da regra, sem PII.
+	PerguntasDeRegra []string `json:"perguntas_de_regra,omitempty"`
 
 	escopo          escopo.Contato // o contato na administradora resolvida (vazio até resolver)
 	historico       []*schema.Message
@@ -435,6 +444,50 @@ func (sess *Sessao) fixarContato(c escopo.Contato, companyID string) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	sess.escopo, sess.AdministradoraID, sess.Condominio, sess.CompanyID = c, c.AdministradoraID, c.CondominioID, companyID
+}
+
+func (sess *Sessao) proximoMarcador() int {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.ProximoMarcador
+}
+
+// fecharTurno guarda o próximo marcador do cofre do turno; nunca volta a numeração.
+func (sess *Sessao) fecharTurno(t ganchos.Turno) {
+	proximo := t.Cofre().Proximo()
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.ProximoMarcador = max(sess.ProximoMarcador, proximo)
+}
+
+// tomarPerguntasConfirmadas devolve as perguntas de regra do último turno se a mensagem as
+// confirma, e as esquece: valem só para a mensagem seguinte (leitura e limpeza atômicas).
+func (sess *Sessao) tomarPerguntasConfirmadas(mensagem string) []string {
+	sess.mu.Lock()
+	perguntas := sess.PerguntasDeRegra
+	sess.PerguntasDeRegra = nil
+	sess.mu.Unlock()
+	if !fixos.Confirmado(mensagem) {
+		return nil
+	}
+	return perguntas
+}
+
+// guardarPerguntasDeRegra guarda as perguntas que os ganchos fizeram no turno, para a
+// próxima mensagem poder respondê-las. Só depois de a resposta do turno sair: pergunta que
+// não chegou ao morador não pode ser respondida.
+func (sess *Sessao) guardarPerguntasDeRegra(t ganchos.Turno) {
+	perguntas := t.PerguntasFeitas()
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.PerguntasDeRegra = perguntas
+}
+
+// respostaEnviada diz se o turno entregou a resposta inteira ao morador, sem transbordar: só
+// então as perguntas dele valem para o próximo sim. Não exige o texto exato, porque o
+// modelo pode reescrever a pergunta, e exigir prenderia a regra num laço.
+func respostaEnviada(sender Sender, res *harness.Resultado, erroEntrega error) bool {
+	return sender != nil && res.Resposta != "" && res.Transbordo == "" && erroEntrega == nil
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.

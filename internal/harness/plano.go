@@ -152,15 +152,6 @@ func (p *Plano) item(id string) *Item {
 	return nil
 }
 
-func (p *Plano) abertos() bool {
-	for _, it := range p.Itens {
-		if it.Status == StatusPendente || it.Status == StatusAguardando {
-			return true
-		}
-	}
-	return false
-}
-
 // candidato é uma opção de vínculo: um caso de uso (subagente) ou um recurso de leitura.
 type candidato struct {
 	Nome   string
@@ -813,7 +804,7 @@ func (ag *Agente) resultadoFinal(col *coletor, p *Plano, resposta string, histor
 	transbordo := guardaTransbordo(col, ag.Def.Rel, resposta)
 	col.mu.Lock()
 	defer col.mu.Unlock()
-	return &Resultado{Resposta: resposta, Agente: ag.Def.Rel, Rota: col.passos, Uso: col.uso, Mensagens: msgs, Transbordo: transbordo, Plano: p}
+	return &Resultado{Resposta: resposta, Agente: ag.Def.Rel, Rota: col.passos, Uso: col.uso, Mensagens: msgs, Transbordo: transbordo, Plano: p, Registros: col.registros}
 }
 
 // ---- util --------------------------------------------------------------------------

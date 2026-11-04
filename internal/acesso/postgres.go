@@ -13,6 +13,7 @@ import (
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/usuario"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/falha"
 )
 
 const timeoutCarregar = 3 * time.Second
@@ -41,21 +42,21 @@ func (p *Postgres) Carregar(ctx context.Context, usuarioID string, imp escopo.Im
 		return Acesso{}, fmt.Errorf("carregar acesso de %s: %w", usuarioID, ErrUsuarioDesconhecido)
 	}
 	if err != nil {
-		return Acesso{}, fmt.Errorf("carregar usuário %s: %w", usuarioID, err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar usuário %s: %w", usuarioID, err))
 	}
 	papeis, err := p.cli.Papel.Query().WithPermissoes().WithConcessoes().All(ctx)
 	if err != nil {
-		return Acesso{}, fmt.Errorf("carregar papéis: %w", err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar papéis: %w", err))
 	}
 	// ponytail: lê todos os condomínios a cada Carregar; quando a tabela passar de alguns
 	// milhares, trocar por consulta só dos ids de atribuições e dos alvos da requisição.
 	condominios, err := p.cli.Condominio.Query().All(ctx)
 	if err != nil {
-		return Acesso{}, fmt.Errorf("carregar condomínios: %w", err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar condomínios: %w", err))
 	}
 	porID := papeisDe(papeis)
 	if err := ValidarHeranca(slices.Collect(maps.Values(porID))); err != nil {
-		return Acesso{}, fmt.Errorf("carregar papéis: %w", err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar papéis: %w", err))
 	}
 	return Acesso{
 		UsuarioID:        usuarioID,
@@ -128,7 +129,7 @@ func (p *Postgres) Conceder(ctx context.Context, c Concessao) error {
 		DoNothing().Exec(ctx)
 	// o ent devolve sql.ErrNoRows quando o DoNothing não insere nada
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("conceder %s a %s em %s: %w", c.Permissao, c.PapelID, c.AdministradoraID, err)
+		return falha.ComPilha(fmt.Errorf("conceder %s a %s em %s: %w", c.Permissao, c.PapelID, c.AdministradoraID, err))
 	}
 	return nil
 }

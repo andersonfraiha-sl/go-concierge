@@ -11,17 +11,16 @@ import {
 import type { ReactNode } from 'react';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { iconeDaSkill } from '@/skills/icones';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { ICONES, PESOS, RAIO, RAIOS } from '@/theme/tokens';
 import { type LinhaDeSkill, rotuloDePapeis } from './listaDeSkills';
 
 /** Raio de pílula bem acima de qualquer altura real do chip: sempre fica totalmente arredondado. */
-const RAIO_DE_PILULA = '999px';
 
 const ESTILO_DA_LINHA = {
   minHeight: 52,
   gap: 1.5,
   px: 2.5,
-  borderRadius: 0,
+  borderRadius: RAIO.reto,
   borderTop: 1,
   borderColor: 'border.subtle',
   '&:hover': { bgcolor: 'background.subtle', color: 'inherit', fontWeight: 'inherit' },
@@ -50,7 +49,7 @@ const ESTILO_DO_ICONE = {
 const ESTILO_DO_CHIP = {
   px: 1,
   py: 0.25,
-  borderRadius: RAIO_DE_PILULA,
+  borderRadius: RAIO.pilula,
   whiteSpace: 'nowrap',
 } as const;
 
@@ -58,8 +57,8 @@ const CHIP_DE_PAPEIS = { ...ESTILO_DO_CHIP, bgcolor: 'background.tint', color: '
 
 const CHIP_DE_DECISAO_PROPRIA = {
   ...ESTILO_DO_CHIP,
-  bgcolor: tokens.color.warning.background,
-  color: tokens.color.warning.text,
+  bgcolor: 'warning.soft',
+  color: 'warning.onSoft',
 };
 
 type Props = {
@@ -103,7 +102,7 @@ function IdentidadeDaSkill({ linha, mostraDecisaoPropria }: IdentidadeProps): Re
   return (
     <Box sx={[ESTILO_DA_IDENTIDADE, { opacity: opacidade }]}>
       <Box sx={ESTILO_DO_ICONE}>
-        <Icone sx={{ fontSize: 18 }} />
+        <Icone sx={{ fontSize: ICONES.grande }} />
       </Box>
       <TituloEResumo linha={linha} />
       {rotuloPapeis !== null && <Chip texto={rotuloPapeis} estilo={CHIP_DE_PAPEIS} />}
@@ -115,7 +114,7 @@ function IdentidadeDaSkill({ linha, mostraDecisaoPropria }: IdentidadeProps): Re
 function TituloEResumo({ linha }: { linha: LinhaDeSkill }): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, flex: 1, minWidth: 0 }}>
-      <Typography sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{linha.titulo}</Typography>
+      <Typography sx={{ fontWeight: PESOS.semi, whiteSpace: 'nowrap' }}>{linha.titulo}</Typography>
       <Tooltip title={linha.caso.resumo}>
         <Typography variant="body2" color="text.muted" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {linha.caso.resumo}

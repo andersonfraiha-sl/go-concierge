@@ -7,6 +7,7 @@ import type { Ferramenta } from '@/catalogo/contratos';
 import { ApiError } from '@/shared/api/http';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { GAVETA } from '@/theme/tokens';
 import {
   ferramentaNova,
   lerAmostra,
@@ -136,7 +137,7 @@ export function FerramentaDrawer({ ferramenta, podeEditar, onFechar }: Props): R
       open
       onClose={onFechar}
       slotProps={{
-        paper: { sx: { width: 'min(560px, 100vw)' }, role: 'dialog', 'aria-label': 'Ferramenta' },
+        paper: { sx: { width: GAVETA.larga }, role: 'dialog', 'aria-label': 'Ferramenta' },
       }}
     >
       <Box

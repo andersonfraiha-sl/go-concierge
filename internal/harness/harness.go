@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -29,7 +30,10 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"go.opentelemetry.io/otel/metric/noop"
 
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
@@ -93,6 +97,16 @@ type Config struct {
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
 	ChatModel model.ToolCallingChatModel
+	// Ganchos avaliam toda chamada a recurso; nil = só os fixos, montados no Build.
+	Ganchos *ganchos.Conjunto
+	// Turno é o turno de quem chama, dono do cofre de PII; nil = o Build abre um com
+	// Ganchos, e toda a família do agente o compartilha.
+	Turno *ganchos.Turno
+	// AdministradoraID e CondominioID são o alvo dos ganchos nas ferramentas: sem eles só
+	// as regras globais valem.
+	AdministradoraID, CondominioID string
+	// Agora é o relógio dos eventos dos ganchos; nil = time.Now.
+	Agora func() time.Time
 }
 
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em
@@ -146,6 +160,11 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	if cfg.MaxIteracoes <= 0 {
 		cfg.MaxIteracoes = maxIteracoesPadrao
 	}
+	turno, err := turnoDoAgente(cfg)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Turno = turno
 	instrucao := cat.Projecao(a)
 	if c := strings.TrimSpace(cfg.Contexto); c != "" {
 		instrucao += "\n\n" + c
@@ -211,6 +230,42 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	}
 	ag.runner = adk.NewRunner(ctx, adk.RunnerConfig{Agent: cma})
 	return ag, nil
+}
+
+// turnoDoAgente é o turno da Config ou um aberto no conjunto dela; sem conjunto, no dos
+// fixos. Recusa turno sem algum fixo: as guardas de permissão, escrita e contexto B2C
+// moram neles, e fixo nunca some por configuração.
+func turnoDoAgente(cfg Config) (*ganchos.Turno, error) {
+	turno := cfg.Turno
+	if turno == nil {
+		conjunto, err := conjuntoDe(cfg.Ganchos)
+		if err != nil {
+			return nil, err
+		}
+		t := conjunto.Turno()
+		turno = &t
+	}
+	if faltam := fixos.Ausentes(turno.NomesDosFixos()); len(faltam) > 0 {
+		return nil, fmt.Errorf("harness: ganchos sem os fixos %s", strings.Join(faltam, ", "))
+	}
+	return turno, nil
+}
+
+func conjuntoDe(conjunto *ganchos.Conjunto) (*ganchos.Conjunto, error) {
+	if conjunto != nil {
+		return conjunto, nil
+	}
+	return conjuntoDosFixos(fixos.Todos())
+}
+
+// conjuntoDosFixos é o conjunto de quem não injetou um: só fixos, com log e métrica noop,
+// para falha de fixo sair em ERROR.
+func conjuntoDosFixos(f ganchos.Fixos) (*ganchos.Conjunto, error) {
+	observar, err := ganchos.ComObservabilidade(slog.Default(), noop.NewMeterProvider().Meter("ganchos"))
+	if err != nil {
+		return nil, fmt.Errorf("harness: observabilidade dos ganchos: %w", err)
+	}
+	return ganchos.NovoConjunto(f, nil, observar), nil
 }
 
 // semTemplate põe a projeção como system message SEM formatação: ela tem JSON e
@@ -350,6 +405,9 @@ type Resultado struct {
 	// Plano é o estado da orquestração nos modos planning e react (nil no router). A
 	// sessão o guarda enquanto Pendente != "" e retoma com Continuar.
 	Plano *Plano `json:"plano,omitempty"`
+	// Registros são os ganchos que ajustaram, não deixaram passar ou falharam nas
+	// chamadas a recurso. Fora do JSON: o motivo pode citar a mensagem do morador.
+	Registros []ganchos.Registro `json:"-"`
 }
 
 // coletor acompanha uma execução (e as aninhadas via invocar_agente) pelo contexto.
@@ -363,6 +421,13 @@ type coletor struct {
 	passos     []Passo
 	uso        Uso
 	invocacoes int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
+	registros  []ganchos.Registro
+}
+
+func (c *coletor) registrar(rs []ganchos.Registro) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.registros = append(c.registros, rs...)
 }
 
 func (c *coletor) proximaInvocacao() int {
@@ -384,6 +449,7 @@ func (c *coletor) absorve(r *Resultado) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.passos = append(c.passos, r.Rota...)
+	c.registros = append(c.registros, r.Registros...)
 	c.uso.soma(r.Uso)
 }
 
@@ -464,6 +530,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 				}
 				r.Transbordo = guardaTransbordo(col, rel, r.Resposta)
 				r.Rota = append(col.passos, r.Rota...)
+				r.Registros = append(col.registros, r.Registros...)
 				r.Uso.soma(col.uso)
 				return r, nil
 			}
@@ -532,6 +599,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 		Uso:        col.uso,
 		Mensagens:  msgs,
 		Transbordo: transbordo,
+		Registros:  col.registros,
 	}, nil
 }
 

@@ -14,15 +14,17 @@ func TestValidarConfig(t *testing.T) {
 		{nome: "dev sem segredo", config: Config{Ambiente: "dev", AuthMode: "dev"}},
 		{nome: "ambiente vazio sem segredo", config: Config{AuthMode: "dev"}},
 		{nome: "caixa e espaços normalizados", config: Config{Ambiente: " DEV ", AuthMode: "Dev"}},
-		{nome: "prd sem auth dev e com segredo", config: Config{Ambiente: "prd", AtendeSecret: "s"}},
-		{nome: "auth dev em PRD", config: Config{Ambiente: "PRD", AuthMode: "dev", AtendeSecret: "s"}, querErr: errAuthDevForaDeDev},
-		{nome: "auth dev em prd com espaço", config: Config{Ambiente: " prd", AuthMode: "dev", AtendeSecret: "s"}, querErr: errAuthDevForaDeDev},
-		{nome: "auth dev em prod", config: Config{Ambiente: "prod", AuthMode: "dev", AtendeSecret: "s"}, querErr: errAuthDevForaDeDev},
-		{nome: "auth dev em producao", config: Config{Ambiente: "producao", AuthMode: "dev", AtendeSecret: "s"}, querErr: errAuthDevForaDeDev},
-		{nome: "auth dev em hml", config: Config{Ambiente: "hml", AuthMode: "dev", AtendeSecret: "s"}, querErr: errAuthDevForaDeDev},
+		{nome: "prd sem auth dev e com segredo", config: Config{Ambiente: "prd", AtendeSecret: "s", SegredoExportacao: "e"}},
+		{nome: "auth dev em PRD", config: Config{Ambiente: "PRD", AuthMode: "dev", AtendeSecret: "s", SegredoExportacao: "e"}, querErr: errAuthDevForaDeDev},
+		{nome: "auth dev em prd com espaço", config: Config{Ambiente: " prd", AuthMode: "dev", AtendeSecret: "s", SegredoExportacao: "e"}, querErr: errAuthDevForaDeDev},
+		{nome: "auth dev em prod", config: Config{Ambiente: "prod", AuthMode: "dev", AtendeSecret: "s", SegredoExportacao: "e"}, querErr: errAuthDevForaDeDev},
+		{nome: "auth dev em producao", config: Config{Ambiente: "producao", AuthMode: "dev", AtendeSecret: "s", SegredoExportacao: "e"}, querErr: errAuthDevForaDeDev},
+		{nome: "auth dev em hml", config: Config{Ambiente: "hml", AuthMode: "dev", AtendeSecret: "s", SegredoExportacao: "e"}, querErr: errAuthDevForaDeDev},
 		{nome: "auth mode desconhecido", config: Config{Ambiente: "dev", AuthMode: "oauth"}, querErr: errAuthModeDesconhecido},
 		{nome: "hml sem segredo do ATENDE", config: Config{Ambiente: "hml"}, querErr: errSegredoAtendeAusente},
 		{nome: "prd sem segredo do ATENDE", config: Config{Ambiente: "prd"}, querErr: errSegredoAtendeAusente},
+		{nome: "hml sem segredo da exportação", config: Config{Ambiente: "hml", AtendeSecret: "s"}, querErr: errSegredoExportacao},
+		{nome: "prd sem segredo da exportação", config: Config{Ambiente: "prd", AtendeSecret: "s"}, querErr: errSegredoExportacao},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {

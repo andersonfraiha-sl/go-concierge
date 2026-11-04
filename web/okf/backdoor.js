@@ -176,7 +176,7 @@
   });
   async function moverAgente(origem, destino, clonar) {
     const r = await api('/api/agentes/mover', { method: 'POST', body: JSON.stringify({ origem, destino, clonar }) });
-    toast(`${clonar ? 'Clonado' : 'Movido'} para ${r.caminho}` + (r.mudancas.length ? ` · ${r.mudancas.join('; ')}` : ''));
+    toast(`${clonar ? 'Clonado' : 'Movido'} para ${esc(r.caminho)}` + (r.mudancas.length ? ` · ${esc(r.mudancas.join('; '))}` : ''));
     await recarregarArvore();
     await selecionar(r.caminho);
   }
@@ -189,21 +189,21 @@
   }
   async function vincular(agente, nome, ligar) {
     const r = await api('/api/agente/recursos', { method: 'POST', body: JSON.stringify({ agente, nome, ligar }) });
-    toast(`${nome} ${ligar ? 'declarado em' : 'tirado de'} ${agente.split('/').pop()} · ${r.mudancas.join('; ')}`);
+    toast(`${nome} ${ligar ? 'declarado em' : 'tirado de'} ${esc(agente.split('/').pop())} · ${esc(r.mudancas.join('; '))}`);
     if (agente === estado.selecionado) await selecionar(agente, true);
     await recarregarArvore();
   }
   function desenharNexus() {
     const el = $('#recursosNexus');
     const lista = estado.nexus.recursos || [];
-    $('#nexusResumo').textContent = `${plural(lista.length, 'recurso', 'recursos')} · ${estado.nexus.account}`;
-    $('#nexusDica span').textContent = estado.nexus.conferido ? `Origem: ${estado.nexus.origem}. A assinatura (params*) é a do MCP; o payload do condomínio preenche o que o agente não passar.` : 'Nexus indisponível: defina NEXUS_BASE_URL ou um instantâneo em okf/nexus/<account>.yaml.';
+    $('#nexusResumo').textContent = `${plural(lista.length, 'recurso', 'recursos')} · ${esc(estado.nexus.account)}`;
+    $('#nexusDica span').textContent = estado.nexus.conferido ? `Origem: ${esc(estado.nexus.origem)}. A assinatura (params*) é a do MCP; o payload do condomínio preenche o que o agente não passar.` : 'Nexus indisponível: defina NEXUS_BASE_URL ou um instantâneo em okf/nexus/<account>.yaml.';
     const q = ($('#filtroRecursos').value || '').trim().toLowerCase();
     const vis = lista.filter((r) => !q || (r.name + ' ' + (r.titulo || '') + ' ' + (r.description || '') + ' ' + r.kind + ' ' + r.visibility).toLowerCase().includes(q));
     if (!vis.length) { el.innerHTML = `<div class="cat-vazio">${lista.length ? 'nada com esse filtro' : estado.nexus.conferido ? 'a account não tem recursos' : 'Nexus indisponível'}</div>`; return; }
     const grupos = {};
     for (const r of vis) (grupos[r.classe || classeDe(r)] ||= []).push(r);
-    const assinatura = (r) => (r.params || []).length ? r.params.map((p) => `${p.name}${p.type ? ':' + p.type : ''}${p.required ? '*' : ''}`).join(', ') : 'sem parâmetros';
+    const assinatura = (r) => (r.params || []).length ? r.params.map((p) => `${esc(p.name)}${p.type ? ':' + p.type : ''}${p.required ? '*' : ''}`).join(', ') : 'sem parâmetros';
     let fechados = {};
     try { fechados = JSON.parse(localStorage.getItem('okf.catalogo.fechados') || '{}'); } catch (e) { /* sem storage */ }
     el.innerHTML = Object.keys(CLASSE).filter((k) => grupos[k]).map((k) => `<details class="cat-details" data-classe="${k}" ${fechados[k] && !q ? '' : 'open'}><summary class="cat-group"><i data-lucide="chevron-right" class="i-sm chev"></i><i data-lucide="${CLASSE[k][1]}"></i>${CLASSE[k][0]}<span class="tag tag-kind">${grupos[k].length}</span><span class="muted" style="font-weight:400;margin-left:6px">${CLASSE[k][2]}</span></summary><div class="cat-body">` + grupos[k].map((r) => `<div class="cat-card" data-nome="${esc(r.name)}">

@@ -1,7 +1,7 @@
 import { Box, Chip, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import type { Bloco } from '@/fluxo/modelo/tipos';
-import { tokens } from '@/theme/tokens';
+import { RAIOS } from '@/theme/tokens';
 
 const SEM_FALA = 'Este passo não aparece para o morador.';
 
@@ -40,10 +40,10 @@ function BolhaDaFala({ texto }: { texto: string }): ReactNode {
       sx={{
         alignSelf: 'flex-start',
         maxWidth: '85%',
-        bgcolor: tokens.color.background.paper,
+        bgcolor: 'background.paper',
         border: 1,
-        borderColor: tokens.color.border.default,
-        borderRadius: '12px 12px 12px 4px',
+        borderColor: 'border.default',
+        borderRadius: `${RAIOS.painel}px ${RAIOS.painel}px ${RAIOS.painel}px ${RAIOS.canto}px`,
         px: 1.5,
         py: 1,
       }}

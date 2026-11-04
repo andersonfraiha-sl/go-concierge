@@ -11,6 +11,9 @@ import (
 	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/ganchosauditoria"
+	"go-concierge/internal/banco/ent/ganchosregra"
+	"go-concierge/internal/banco/ent/ganchosregraversao"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
@@ -29,6 +32,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/google/uuid"
 )
 
 const (
@@ -40,21 +44,24 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeAdministradora = "Administradora"
-	TypeAtribuicao     = "Atribuicao"
-	TypeConcessao      = "Concessao"
-	TypeCondominio     = "Condominio"
-	TypeHabilitacao    = "Habilitacao"
-	TypeMemoriaContato = "MemoriaContato"
-	TypeMemoriaFato    = "MemoriaFato"
-	TypeOrientacao     = "Orientacao"
-	TypePapel          = "Papel"
-	TypePapelPermissao = "PapelPermissao"
-	TypePayload        = "Payload"
-	TypePedido         = "Pedido"
-	TypePedidoEvento   = "PedidoEvento"
-	TypeSessao         = "Sessao"
-	TypeUsuario        = "Usuario"
+	TypeAdministradora     = "Administradora"
+	TypeAtribuicao         = "Atribuicao"
+	TypeConcessao          = "Concessao"
+	TypeCondominio         = "Condominio"
+	TypeGanchosAuditoria   = "GanchosAuditoria"
+	TypeGanchosRegra       = "GanchosRegra"
+	TypeGanchosRegraVersao = "GanchosRegraVersao"
+	TypeHabilitacao        = "Habilitacao"
+	TypeMemoriaContato     = "MemoriaContato"
+	TypeMemoriaFato        = "MemoriaFato"
+	TypeOrientacao         = "Orientacao"
+	TypePapel              = "Papel"
+	TypePapelPermissao     = "PapelPermissao"
+	TypePayload            = "Payload"
+	TypePedido             = "Pedido"
+	TypePedidoEvento       = "PedidoEvento"
+	TypeSessao             = "Sessao"
+	TypeUsuario            = "Usuario"
 )
 
 // AdministradoraMutation represents an operation that mutates the Administradora nodes in the graph.
@@ -2599,6 +2606,2774 @@ func (m *CondominioMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Condominio edge %s", name)
+}
+
+// GanchosAuditoriaMutation represents an operation that mutates the GanchosAuditoria nodes in the graph.
+type GanchosAuditoriaMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *uuid.UUID
+	criado_em         *time.Time
+	origem            *string
+	evento            *string
+	gancho            *string
+	regra_id          *string
+	regra_versao      *int
+	addregra_versao   *int
+	decisao           *string
+	motivo            *string
+	administradora_id *string
+	condominio_id     *string
+	sessao_id         *string
+	protocolo         *string
+	usuario_id        *string
+	tela              *string
+	ferramenta        *string
+	quantidade        *int
+	addquantidade     *int
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*GanchosAuditoria, error)
+	predicates        []predicate.GanchosAuditoria
+}
+
+var _ ent.Mutation = (*GanchosAuditoriaMutation)(nil)
+
+// ganchosauditoriaOption allows management of the mutation configuration using functional options.
+type ganchosauditoriaOption func(*GanchosAuditoriaMutation)
+
+// newGanchosAuditoriaMutation creates new mutation for the GanchosAuditoria entity.
+func newGanchosAuditoriaMutation(c config, op Op, opts ...ganchosauditoriaOption) *GanchosAuditoriaMutation {
+	m := &GanchosAuditoriaMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGanchosAuditoria,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGanchosAuditoriaID sets the ID field of the mutation.
+func withGanchosAuditoriaID(id uuid.UUID) ganchosauditoriaOption {
+	return func(m *GanchosAuditoriaMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *GanchosAuditoria
+		)
+		m.oldValue = func(ctx context.Context) (*GanchosAuditoria, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().GanchosAuditoria.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGanchosAuditoria sets the old GanchosAuditoria of the mutation.
+func withGanchosAuditoria(node *GanchosAuditoria) ganchosauditoriaOption {
+	return func(m *GanchosAuditoriaMutation) {
+		m.oldValue = func(context.Context) (*GanchosAuditoria, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GanchosAuditoriaMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GanchosAuditoriaMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of GanchosAuditoria entities.
+func (m *GanchosAuditoriaMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GanchosAuditoriaMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GanchosAuditoriaMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().GanchosAuditoria.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCriadoEm sets the "criado_em" field.
+func (m *GanchosAuditoriaMutation) SetCriadoEm(t time.Time) {
+	m.criado_em = &t
+}
+
+// CriadoEm returns the value of the "criado_em" field in the mutation.
+func (m *GanchosAuditoriaMutation) CriadoEm() (r time.Time, exists bool) {
+	v := m.criado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCriadoEm returns the old "criado_em" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldCriadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCriadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCriadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCriadoEm: %w", err)
+	}
+	return oldValue.CriadoEm, nil
+}
+
+// ResetCriadoEm resets all changes to the "criado_em" field.
+func (m *GanchosAuditoriaMutation) ResetCriadoEm() {
+	m.criado_em = nil
+}
+
+// SetOrigem sets the "origem" field.
+func (m *GanchosAuditoriaMutation) SetOrigem(s string) {
+	m.origem = &s
+}
+
+// Origem returns the value of the "origem" field in the mutation.
+func (m *GanchosAuditoriaMutation) Origem() (r string, exists bool) {
+	v := m.origem
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrigem returns the old "origem" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldOrigem(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrigem is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrigem requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrigem: %w", err)
+	}
+	return oldValue.Origem, nil
+}
+
+// ResetOrigem resets all changes to the "origem" field.
+func (m *GanchosAuditoriaMutation) ResetOrigem() {
+	m.origem = nil
+}
+
+// SetEvento sets the "evento" field.
+func (m *GanchosAuditoriaMutation) SetEvento(s string) {
+	m.evento = &s
+}
+
+// Evento returns the value of the "evento" field in the mutation.
+func (m *GanchosAuditoriaMutation) Evento() (r string, exists bool) {
+	v := m.evento
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEvento returns the old "evento" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldEvento(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEvento is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEvento requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEvento: %w", err)
+	}
+	return oldValue.Evento, nil
+}
+
+// ResetEvento resets all changes to the "evento" field.
+func (m *GanchosAuditoriaMutation) ResetEvento() {
+	m.evento = nil
+}
+
+// SetGancho sets the "gancho" field.
+func (m *GanchosAuditoriaMutation) SetGancho(s string) {
+	m.gancho = &s
+}
+
+// Gancho returns the value of the "gancho" field in the mutation.
+func (m *GanchosAuditoriaMutation) Gancho() (r string, exists bool) {
+	v := m.gancho
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGancho returns the old "gancho" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldGancho(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGancho is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGancho requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGancho: %w", err)
+	}
+	return oldValue.Gancho, nil
+}
+
+// ResetGancho resets all changes to the "gancho" field.
+func (m *GanchosAuditoriaMutation) ResetGancho() {
+	m.gancho = nil
+}
+
+// SetRegraID sets the "regra_id" field.
+func (m *GanchosAuditoriaMutation) SetRegraID(s string) {
+	m.regra_id = &s
+}
+
+// RegraID returns the value of the "regra_id" field in the mutation.
+func (m *GanchosAuditoriaMutation) RegraID() (r string, exists bool) {
+	v := m.regra_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegraID returns the old "regra_id" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldRegraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegraID: %w", err)
+	}
+	return oldValue.RegraID, nil
+}
+
+// ResetRegraID resets all changes to the "regra_id" field.
+func (m *GanchosAuditoriaMutation) ResetRegraID() {
+	m.regra_id = nil
+}
+
+// SetRegraVersao sets the "regra_versao" field.
+func (m *GanchosAuditoriaMutation) SetRegraVersao(i int) {
+	m.regra_versao = &i
+	m.addregra_versao = nil
+}
+
+// RegraVersao returns the value of the "regra_versao" field in the mutation.
+func (m *GanchosAuditoriaMutation) RegraVersao() (r int, exists bool) {
+	v := m.regra_versao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegraVersao returns the old "regra_versao" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldRegraVersao(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegraVersao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegraVersao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegraVersao: %w", err)
+	}
+	return oldValue.RegraVersao, nil
+}
+
+// AddRegraVersao adds i to the "regra_versao" field.
+func (m *GanchosAuditoriaMutation) AddRegraVersao(i int) {
+	if m.addregra_versao != nil {
+		*m.addregra_versao += i
+	} else {
+		m.addregra_versao = &i
+	}
+}
+
+// AddedRegraVersao returns the value that was added to the "regra_versao" field in this mutation.
+func (m *GanchosAuditoriaMutation) AddedRegraVersao() (r int, exists bool) {
+	v := m.addregra_versao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRegraVersao resets all changes to the "regra_versao" field.
+func (m *GanchosAuditoriaMutation) ResetRegraVersao() {
+	m.regra_versao = nil
+	m.addregra_versao = nil
+}
+
+// SetDecisao sets the "decisao" field.
+func (m *GanchosAuditoriaMutation) SetDecisao(s string) {
+	m.decisao = &s
+}
+
+// Decisao returns the value of the "decisao" field in the mutation.
+func (m *GanchosAuditoriaMutation) Decisao() (r string, exists bool) {
+	v := m.decisao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDecisao returns the old "decisao" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldDecisao(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDecisao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDecisao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDecisao: %w", err)
+	}
+	return oldValue.Decisao, nil
+}
+
+// ResetDecisao resets all changes to the "decisao" field.
+func (m *GanchosAuditoriaMutation) ResetDecisao() {
+	m.decisao = nil
+}
+
+// SetMotivo sets the "motivo" field.
+func (m *GanchosAuditoriaMutation) SetMotivo(s string) {
+	m.motivo = &s
+}
+
+// Motivo returns the value of the "motivo" field in the mutation.
+func (m *GanchosAuditoriaMutation) Motivo() (r string, exists bool) {
+	v := m.motivo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMotivo returns the old "motivo" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldMotivo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMotivo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMotivo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMotivo: %w", err)
+	}
+	return oldValue.Motivo, nil
+}
+
+// ResetMotivo resets all changes to the "motivo" field.
+func (m *GanchosAuditoriaMutation) ResetMotivo() {
+	m.motivo = nil
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *GanchosAuditoriaMutation) SetAdministradoraID(s string) {
+	m.administradora_id = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *GanchosAuditoriaMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *GanchosAuditoriaMutation) ResetAdministradoraID() {
+	m.administradora_id = nil
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *GanchosAuditoriaMutation) SetCondominioID(s string) {
+	m.condominio_id = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *GanchosAuditoriaMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldCondominioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *GanchosAuditoriaMutation) ResetCondominioID() {
+	m.condominio_id = nil
+}
+
+// SetSessaoID sets the "sessao_id" field.
+func (m *GanchosAuditoriaMutation) SetSessaoID(s string) {
+	m.sessao_id = &s
+}
+
+// SessaoID returns the value of the "sessao_id" field in the mutation.
+func (m *GanchosAuditoriaMutation) SessaoID() (r string, exists bool) {
+	v := m.sessao_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessaoID returns the old "sessao_id" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldSessaoID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessaoID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessaoID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessaoID: %w", err)
+	}
+	return oldValue.SessaoID, nil
+}
+
+// ResetSessaoID resets all changes to the "sessao_id" field.
+func (m *GanchosAuditoriaMutation) ResetSessaoID() {
+	m.sessao_id = nil
+}
+
+// SetProtocolo sets the "protocolo" field.
+func (m *GanchosAuditoriaMutation) SetProtocolo(s string) {
+	m.protocolo = &s
+}
+
+// Protocolo returns the value of the "protocolo" field in the mutation.
+func (m *GanchosAuditoriaMutation) Protocolo() (r string, exists bool) {
+	v := m.protocolo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProtocolo returns the old "protocolo" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldProtocolo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProtocolo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProtocolo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProtocolo: %w", err)
+	}
+	return oldValue.Protocolo, nil
+}
+
+// ResetProtocolo resets all changes to the "protocolo" field.
+func (m *GanchosAuditoriaMutation) ResetProtocolo() {
+	m.protocolo = nil
+}
+
+// SetUsuarioID sets the "usuario_id" field.
+func (m *GanchosAuditoriaMutation) SetUsuarioID(s string) {
+	m.usuario_id = &s
+}
+
+// UsuarioID returns the value of the "usuario_id" field in the mutation.
+func (m *GanchosAuditoriaMutation) UsuarioID() (r string, exists bool) {
+	v := m.usuario_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUsuarioID returns the old "usuario_id" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldUsuarioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUsuarioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUsuarioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUsuarioID: %w", err)
+	}
+	return oldValue.UsuarioID, nil
+}
+
+// ResetUsuarioID resets all changes to the "usuario_id" field.
+func (m *GanchosAuditoriaMutation) ResetUsuarioID() {
+	m.usuario_id = nil
+}
+
+// SetTela sets the "tela" field.
+func (m *GanchosAuditoriaMutation) SetTela(s string) {
+	m.tela = &s
+}
+
+// Tela returns the value of the "tela" field in the mutation.
+func (m *GanchosAuditoriaMutation) Tela() (r string, exists bool) {
+	v := m.tela
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTela returns the old "tela" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldTela(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTela is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTela requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTela: %w", err)
+	}
+	return oldValue.Tela, nil
+}
+
+// ResetTela resets all changes to the "tela" field.
+func (m *GanchosAuditoriaMutation) ResetTela() {
+	m.tela = nil
+}
+
+// SetFerramenta sets the "ferramenta" field.
+func (m *GanchosAuditoriaMutation) SetFerramenta(s string) {
+	m.ferramenta = &s
+}
+
+// Ferramenta returns the value of the "ferramenta" field in the mutation.
+func (m *GanchosAuditoriaMutation) Ferramenta() (r string, exists bool) {
+	v := m.ferramenta
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFerramenta returns the old "ferramenta" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldFerramenta(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFerramenta is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFerramenta requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFerramenta: %w", err)
+	}
+	return oldValue.Ferramenta, nil
+}
+
+// ResetFerramenta resets all changes to the "ferramenta" field.
+func (m *GanchosAuditoriaMutation) ResetFerramenta() {
+	m.ferramenta = nil
+}
+
+// SetQuantidade sets the "quantidade" field.
+func (m *GanchosAuditoriaMutation) SetQuantidade(i int) {
+	m.quantidade = &i
+	m.addquantidade = nil
+}
+
+// Quantidade returns the value of the "quantidade" field in the mutation.
+func (m *GanchosAuditoriaMutation) Quantidade() (r int, exists bool) {
+	v := m.quantidade
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuantidade returns the old "quantidade" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldQuantidade(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuantidade is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuantidade requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuantidade: %w", err)
+	}
+	return oldValue.Quantidade, nil
+}
+
+// AddQuantidade adds i to the "quantidade" field.
+func (m *GanchosAuditoriaMutation) AddQuantidade(i int) {
+	if m.addquantidade != nil {
+		*m.addquantidade += i
+	} else {
+		m.addquantidade = &i
+	}
+}
+
+// AddedQuantidade returns the value that was added to the "quantidade" field in this mutation.
+func (m *GanchosAuditoriaMutation) AddedQuantidade() (r int, exists bool) {
+	v := m.addquantidade
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetQuantidade resets all changes to the "quantidade" field.
+func (m *GanchosAuditoriaMutation) ResetQuantidade() {
+	m.quantidade = nil
+	m.addquantidade = nil
+}
+
+// Where appends a list predicates to the GanchosAuditoriaMutation builder.
+func (m *GanchosAuditoriaMutation) Where(ps ...predicate.GanchosAuditoria) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GanchosAuditoriaMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GanchosAuditoriaMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GanchosAuditoria, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GanchosAuditoriaMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GanchosAuditoriaMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GanchosAuditoria).
+func (m *GanchosAuditoriaMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GanchosAuditoriaMutation) Fields() []string {
+	fields := make([]string, 0, 16)
+	if m.criado_em != nil {
+		fields = append(fields, ganchosauditoria.FieldCriadoEm)
+	}
+	if m.origem != nil {
+		fields = append(fields, ganchosauditoria.FieldOrigem)
+	}
+	if m.evento != nil {
+		fields = append(fields, ganchosauditoria.FieldEvento)
+	}
+	if m.gancho != nil {
+		fields = append(fields, ganchosauditoria.FieldGancho)
+	}
+	if m.regra_id != nil {
+		fields = append(fields, ganchosauditoria.FieldRegraID)
+	}
+	if m.regra_versao != nil {
+		fields = append(fields, ganchosauditoria.FieldRegraVersao)
+	}
+	if m.decisao != nil {
+		fields = append(fields, ganchosauditoria.FieldDecisao)
+	}
+	if m.motivo != nil {
+		fields = append(fields, ganchosauditoria.FieldMotivo)
+	}
+	if m.administradora_id != nil {
+		fields = append(fields, ganchosauditoria.FieldAdministradoraID)
+	}
+	if m.condominio_id != nil {
+		fields = append(fields, ganchosauditoria.FieldCondominioID)
+	}
+	if m.sessao_id != nil {
+		fields = append(fields, ganchosauditoria.FieldSessaoID)
+	}
+	if m.protocolo != nil {
+		fields = append(fields, ganchosauditoria.FieldProtocolo)
+	}
+	if m.usuario_id != nil {
+		fields = append(fields, ganchosauditoria.FieldUsuarioID)
+	}
+	if m.tela != nil {
+		fields = append(fields, ganchosauditoria.FieldTela)
+	}
+	if m.ferramenta != nil {
+		fields = append(fields, ganchosauditoria.FieldFerramenta)
+	}
+	if m.quantidade != nil {
+		fields = append(fields, ganchosauditoria.FieldQuantidade)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GanchosAuditoriaMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ganchosauditoria.FieldCriadoEm:
+		return m.CriadoEm()
+	case ganchosauditoria.FieldOrigem:
+		return m.Origem()
+	case ganchosauditoria.FieldEvento:
+		return m.Evento()
+	case ganchosauditoria.FieldGancho:
+		return m.Gancho()
+	case ganchosauditoria.FieldRegraID:
+		return m.RegraID()
+	case ganchosauditoria.FieldRegraVersao:
+		return m.RegraVersao()
+	case ganchosauditoria.FieldDecisao:
+		return m.Decisao()
+	case ganchosauditoria.FieldMotivo:
+		return m.Motivo()
+	case ganchosauditoria.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case ganchosauditoria.FieldCondominioID:
+		return m.CondominioID()
+	case ganchosauditoria.FieldSessaoID:
+		return m.SessaoID()
+	case ganchosauditoria.FieldProtocolo:
+		return m.Protocolo()
+	case ganchosauditoria.FieldUsuarioID:
+		return m.UsuarioID()
+	case ganchosauditoria.FieldTela:
+		return m.Tela()
+	case ganchosauditoria.FieldFerramenta:
+		return m.Ferramenta()
+	case ganchosauditoria.FieldQuantidade:
+		return m.Quantidade()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GanchosAuditoriaMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ganchosauditoria.FieldCriadoEm:
+		return m.OldCriadoEm(ctx)
+	case ganchosauditoria.FieldOrigem:
+		return m.OldOrigem(ctx)
+	case ganchosauditoria.FieldEvento:
+		return m.OldEvento(ctx)
+	case ganchosauditoria.FieldGancho:
+		return m.OldGancho(ctx)
+	case ganchosauditoria.FieldRegraID:
+		return m.OldRegraID(ctx)
+	case ganchosauditoria.FieldRegraVersao:
+		return m.OldRegraVersao(ctx)
+	case ganchosauditoria.FieldDecisao:
+		return m.OldDecisao(ctx)
+	case ganchosauditoria.FieldMotivo:
+		return m.OldMotivo(ctx)
+	case ganchosauditoria.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case ganchosauditoria.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case ganchosauditoria.FieldSessaoID:
+		return m.OldSessaoID(ctx)
+	case ganchosauditoria.FieldProtocolo:
+		return m.OldProtocolo(ctx)
+	case ganchosauditoria.FieldUsuarioID:
+		return m.OldUsuarioID(ctx)
+	case ganchosauditoria.FieldTela:
+		return m.OldTela(ctx)
+	case ganchosauditoria.FieldFerramenta:
+		return m.OldFerramenta(ctx)
+	case ganchosauditoria.FieldQuantidade:
+		return m.OldQuantidade(ctx)
+	}
+	return nil, fmt.Errorf("unknown GanchosAuditoria field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GanchosAuditoriaMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ganchosauditoria.FieldCriadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCriadoEm(v)
+		return nil
+	case ganchosauditoria.FieldOrigem:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrigem(v)
+		return nil
+	case ganchosauditoria.FieldEvento:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEvento(v)
+		return nil
+	case ganchosauditoria.FieldGancho:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGancho(v)
+		return nil
+	case ganchosauditoria.FieldRegraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegraID(v)
+		return nil
+	case ganchosauditoria.FieldRegraVersao:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegraVersao(v)
+		return nil
+	case ganchosauditoria.FieldDecisao:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDecisao(v)
+		return nil
+	case ganchosauditoria.FieldMotivo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMotivo(v)
+		return nil
+	case ganchosauditoria.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case ganchosauditoria.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case ganchosauditoria.FieldSessaoID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessaoID(v)
+		return nil
+	case ganchosauditoria.FieldProtocolo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProtocolo(v)
+		return nil
+	case ganchosauditoria.FieldUsuarioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUsuarioID(v)
+		return nil
+	case ganchosauditoria.FieldTela:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTela(v)
+		return nil
+	case ganchosauditoria.FieldFerramenta:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFerramenta(v)
+		return nil
+	case ganchosauditoria.FieldQuantidade:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuantidade(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosAuditoria field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GanchosAuditoriaMutation) AddedFields() []string {
+	var fields []string
+	if m.addregra_versao != nil {
+		fields = append(fields, ganchosauditoria.FieldRegraVersao)
+	}
+	if m.addquantidade != nil {
+		fields = append(fields, ganchosauditoria.FieldQuantidade)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GanchosAuditoriaMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ganchosauditoria.FieldRegraVersao:
+		return m.AddedRegraVersao()
+	case ganchosauditoria.FieldQuantidade:
+		return m.AddedQuantidade()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GanchosAuditoriaMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ganchosauditoria.FieldRegraVersao:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRegraVersao(v)
+		return nil
+	case ganchosauditoria.FieldQuantidade:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQuantidade(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosAuditoria numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GanchosAuditoriaMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GanchosAuditoriaMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GanchosAuditoriaMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown GanchosAuditoria nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GanchosAuditoriaMutation) ResetField(name string) error {
+	switch name {
+	case ganchosauditoria.FieldCriadoEm:
+		m.ResetCriadoEm()
+		return nil
+	case ganchosauditoria.FieldOrigem:
+		m.ResetOrigem()
+		return nil
+	case ganchosauditoria.FieldEvento:
+		m.ResetEvento()
+		return nil
+	case ganchosauditoria.FieldGancho:
+		m.ResetGancho()
+		return nil
+	case ganchosauditoria.FieldRegraID:
+		m.ResetRegraID()
+		return nil
+	case ganchosauditoria.FieldRegraVersao:
+		m.ResetRegraVersao()
+		return nil
+	case ganchosauditoria.FieldDecisao:
+		m.ResetDecisao()
+		return nil
+	case ganchosauditoria.FieldMotivo:
+		m.ResetMotivo()
+		return nil
+	case ganchosauditoria.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case ganchosauditoria.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case ganchosauditoria.FieldSessaoID:
+		m.ResetSessaoID()
+		return nil
+	case ganchosauditoria.FieldProtocolo:
+		m.ResetProtocolo()
+		return nil
+	case ganchosauditoria.FieldUsuarioID:
+		m.ResetUsuarioID()
+		return nil
+	case ganchosauditoria.FieldTela:
+		m.ResetTela()
+		return nil
+	case ganchosauditoria.FieldFerramenta:
+		m.ResetFerramenta()
+		return nil
+	case ganchosauditoria.FieldQuantidade:
+		m.ResetQuantidade()
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosAuditoria field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GanchosAuditoriaMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GanchosAuditoriaMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GanchosAuditoriaMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GanchosAuditoriaMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GanchosAuditoriaMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GanchosAuditoriaMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GanchosAuditoriaMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown GanchosAuditoria unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GanchosAuditoriaMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown GanchosAuditoria edge %s", name)
+}
+
+// GanchosRegraMutation represents an operation that mutates the GanchosRegra nodes in the graph.
+type GanchosRegraMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *uuid.UUID
+	versao            *int
+	addversao         *int
+	nome              *string
+	evento            *string
+	administradora_id *string
+	condominios       *schema.GanchosCondominios
+	ativa             *bool
+	definicao         *jsontext.Value
+	appenddefinicao   jsontext.Value
+	alterada_por      *string
+	alterada_em       *time.Time
+	clearedFields     map[string]struct{}
+	versoes           map[int]struct{}
+	removedversoes    map[int]struct{}
+	clearedversoes    bool
+	done              bool
+	oldValue          func(context.Context) (*GanchosRegra, error)
+	predicates        []predicate.GanchosRegra
+}
+
+var _ ent.Mutation = (*GanchosRegraMutation)(nil)
+
+// ganchosregraOption allows management of the mutation configuration using functional options.
+type ganchosregraOption func(*GanchosRegraMutation)
+
+// newGanchosRegraMutation creates new mutation for the GanchosRegra entity.
+func newGanchosRegraMutation(c config, op Op, opts ...ganchosregraOption) *GanchosRegraMutation {
+	m := &GanchosRegraMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGanchosRegra,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGanchosRegraID sets the ID field of the mutation.
+func withGanchosRegraID(id uuid.UUID) ganchosregraOption {
+	return func(m *GanchosRegraMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *GanchosRegra
+		)
+		m.oldValue = func(ctx context.Context) (*GanchosRegra, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().GanchosRegra.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGanchosRegra sets the old GanchosRegra of the mutation.
+func withGanchosRegra(node *GanchosRegra) ganchosregraOption {
+	return func(m *GanchosRegraMutation) {
+		m.oldValue = func(context.Context) (*GanchosRegra, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GanchosRegraMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GanchosRegraMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of GanchosRegra entities.
+func (m *GanchosRegraMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GanchosRegraMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GanchosRegraMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().GanchosRegra.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetVersao sets the "versao" field.
+func (m *GanchosRegraMutation) SetVersao(i int) {
+	m.versao = &i
+	m.addversao = nil
+}
+
+// Versao returns the value of the "versao" field in the mutation.
+func (m *GanchosRegraMutation) Versao() (r int, exists bool) {
+	v := m.versao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersao returns the old "versao" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldVersao(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersao: %w", err)
+	}
+	return oldValue.Versao, nil
+}
+
+// AddVersao adds i to the "versao" field.
+func (m *GanchosRegraMutation) AddVersao(i int) {
+	if m.addversao != nil {
+		*m.addversao += i
+	} else {
+		m.addversao = &i
+	}
+}
+
+// AddedVersao returns the value that was added to the "versao" field in this mutation.
+func (m *GanchosRegraMutation) AddedVersao() (r int, exists bool) {
+	v := m.addversao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetVersao resets all changes to the "versao" field.
+func (m *GanchosRegraMutation) ResetVersao() {
+	m.versao = nil
+	m.addversao = nil
+}
+
+// SetNome sets the "nome" field.
+func (m *GanchosRegraMutation) SetNome(s string) {
+	m.nome = &s
+}
+
+// Nome returns the value of the "nome" field in the mutation.
+func (m *GanchosRegraMutation) Nome() (r string, exists bool) {
+	v := m.nome
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNome returns the old "nome" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldNome(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNome is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNome requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNome: %w", err)
+	}
+	return oldValue.Nome, nil
+}
+
+// ResetNome resets all changes to the "nome" field.
+func (m *GanchosRegraMutation) ResetNome() {
+	m.nome = nil
+}
+
+// SetEvento sets the "evento" field.
+func (m *GanchosRegraMutation) SetEvento(s string) {
+	m.evento = &s
+}
+
+// Evento returns the value of the "evento" field in the mutation.
+func (m *GanchosRegraMutation) Evento() (r string, exists bool) {
+	v := m.evento
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEvento returns the old "evento" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldEvento(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEvento is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEvento requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEvento: %w", err)
+	}
+	return oldValue.Evento, nil
+}
+
+// ResetEvento resets all changes to the "evento" field.
+func (m *GanchosRegraMutation) ResetEvento() {
+	m.evento = nil
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *GanchosRegraMutation) SetAdministradoraID(s string) {
+	m.administradora_id = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *GanchosRegraMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *GanchosRegraMutation) ResetAdministradoraID() {
+	m.administradora_id = nil
+}
+
+// SetCondominios sets the "condominios" field.
+func (m *GanchosRegraMutation) SetCondominios(sc schema.GanchosCondominios) {
+	m.condominios = &sc
+}
+
+// Condominios returns the value of the "condominios" field in the mutation.
+func (m *GanchosRegraMutation) Condominios() (r schema.GanchosCondominios, exists bool) {
+	v := m.condominios
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominios returns the old "condominios" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldCondominios(ctx context.Context) (v schema.GanchosCondominios, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominios is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominios requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominios: %w", err)
+	}
+	return oldValue.Condominios, nil
+}
+
+// ResetCondominios resets all changes to the "condominios" field.
+func (m *GanchosRegraMutation) ResetCondominios() {
+	m.condominios = nil
+}
+
+// SetAtiva sets the "ativa" field.
+func (m *GanchosRegraMutation) SetAtiva(b bool) {
+	m.ativa = &b
+}
+
+// Ativa returns the value of the "ativa" field in the mutation.
+func (m *GanchosRegraMutation) Ativa() (r bool, exists bool) {
+	v := m.ativa
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAtiva returns the old "ativa" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldAtiva(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAtiva is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAtiva requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAtiva: %w", err)
+	}
+	return oldValue.Ativa, nil
+}
+
+// ResetAtiva resets all changes to the "ativa" field.
+func (m *GanchosRegraMutation) ResetAtiva() {
+	m.ativa = nil
+}
+
+// SetDefinicao sets the "definicao" field.
+func (m *GanchosRegraMutation) SetDefinicao(j jsontext.Value) {
+	m.definicao = &j
+	m.appenddefinicao = nil
+}
+
+// Definicao returns the value of the "definicao" field in the mutation.
+func (m *GanchosRegraMutation) Definicao() (r jsontext.Value, exists bool) {
+	v := m.definicao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDefinicao returns the old "definicao" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldDefinicao(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDefinicao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDefinicao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDefinicao: %w", err)
+	}
+	return oldValue.Definicao, nil
+}
+
+// AppendDefinicao adds j to the "definicao" field.
+func (m *GanchosRegraMutation) AppendDefinicao(j jsontext.Value) {
+	m.appenddefinicao = append(m.appenddefinicao, j...)
+}
+
+// AppendedDefinicao returns the list of values that were appended to the "definicao" field in this mutation.
+func (m *GanchosRegraMutation) AppendedDefinicao() (jsontext.Value, bool) {
+	if len(m.appenddefinicao) == 0 {
+		return nil, false
+	}
+	return m.appenddefinicao, true
+}
+
+// ResetDefinicao resets all changes to the "definicao" field.
+func (m *GanchosRegraMutation) ResetDefinicao() {
+	m.definicao = nil
+	m.appenddefinicao = nil
+}
+
+// SetAlteradaPor sets the "alterada_por" field.
+func (m *GanchosRegraMutation) SetAlteradaPor(s string) {
+	m.alterada_por = &s
+}
+
+// AlteradaPor returns the value of the "alterada_por" field in the mutation.
+func (m *GanchosRegraMutation) AlteradaPor() (r string, exists bool) {
+	v := m.alterada_por
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlteradaPor returns the old "alterada_por" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldAlteradaPor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlteradaPor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlteradaPor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlteradaPor: %w", err)
+	}
+	return oldValue.AlteradaPor, nil
+}
+
+// ResetAlteradaPor resets all changes to the "alterada_por" field.
+func (m *GanchosRegraMutation) ResetAlteradaPor() {
+	m.alterada_por = nil
+}
+
+// SetAlteradaEm sets the "alterada_em" field.
+func (m *GanchosRegraMutation) SetAlteradaEm(t time.Time) {
+	m.alterada_em = &t
+}
+
+// AlteradaEm returns the value of the "alterada_em" field in the mutation.
+func (m *GanchosRegraMutation) AlteradaEm() (r time.Time, exists bool) {
+	v := m.alterada_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlteradaEm returns the old "alterada_em" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldAlteradaEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlteradaEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlteradaEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlteradaEm: %w", err)
+	}
+	return oldValue.AlteradaEm, nil
+}
+
+// ResetAlteradaEm resets all changes to the "alterada_em" field.
+func (m *GanchosRegraMutation) ResetAlteradaEm() {
+	m.alterada_em = nil
+}
+
+// AddVersoIDs adds the "versoes" edge to the GanchosRegraVersao entity by ids.
+func (m *GanchosRegraMutation) AddVersoIDs(ids ...int) {
+	if m.versoes == nil {
+		m.versoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.versoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVersoes clears the "versoes" edge to the GanchosRegraVersao entity.
+func (m *GanchosRegraMutation) ClearVersoes() {
+	m.clearedversoes = true
+}
+
+// VersoesCleared reports if the "versoes" edge to the GanchosRegraVersao entity was cleared.
+func (m *GanchosRegraMutation) VersoesCleared() bool {
+	return m.clearedversoes
+}
+
+// RemoveVersoIDs removes the "versoes" edge to the GanchosRegraVersao entity by IDs.
+func (m *GanchosRegraMutation) RemoveVersoIDs(ids ...int) {
+	if m.removedversoes == nil {
+		m.removedversoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.versoes, ids[i])
+		m.removedversoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVersoes returns the removed IDs of the "versoes" edge to the GanchosRegraVersao entity.
+func (m *GanchosRegraMutation) RemovedVersoesIDs() (ids []int) {
+	for id := range m.removedversoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VersoesIDs returns the "versoes" edge IDs in the mutation.
+func (m *GanchosRegraMutation) VersoesIDs() (ids []int) {
+	for id := range m.versoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVersoes resets all changes to the "versoes" edge.
+func (m *GanchosRegraMutation) ResetVersoes() {
+	m.versoes = nil
+	m.clearedversoes = false
+	m.removedversoes = nil
+}
+
+// Where appends a list predicates to the GanchosRegraMutation builder.
+func (m *GanchosRegraMutation) Where(ps ...predicate.GanchosRegra) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GanchosRegraMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GanchosRegraMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GanchosRegra, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GanchosRegraMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GanchosRegraMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GanchosRegra).
+func (m *GanchosRegraMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GanchosRegraMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.versao != nil {
+		fields = append(fields, ganchosregra.FieldVersao)
+	}
+	if m.nome != nil {
+		fields = append(fields, ganchosregra.FieldNome)
+	}
+	if m.evento != nil {
+		fields = append(fields, ganchosregra.FieldEvento)
+	}
+	if m.administradora_id != nil {
+		fields = append(fields, ganchosregra.FieldAdministradoraID)
+	}
+	if m.condominios != nil {
+		fields = append(fields, ganchosregra.FieldCondominios)
+	}
+	if m.ativa != nil {
+		fields = append(fields, ganchosregra.FieldAtiva)
+	}
+	if m.definicao != nil {
+		fields = append(fields, ganchosregra.FieldDefinicao)
+	}
+	if m.alterada_por != nil {
+		fields = append(fields, ganchosregra.FieldAlteradaPor)
+	}
+	if m.alterada_em != nil {
+		fields = append(fields, ganchosregra.FieldAlteradaEm)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GanchosRegraMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ganchosregra.FieldVersao:
+		return m.Versao()
+	case ganchosregra.FieldNome:
+		return m.Nome()
+	case ganchosregra.FieldEvento:
+		return m.Evento()
+	case ganchosregra.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case ganchosregra.FieldCondominios:
+		return m.Condominios()
+	case ganchosregra.FieldAtiva:
+		return m.Ativa()
+	case ganchosregra.FieldDefinicao:
+		return m.Definicao()
+	case ganchosregra.FieldAlteradaPor:
+		return m.AlteradaPor()
+	case ganchosregra.FieldAlteradaEm:
+		return m.AlteradaEm()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GanchosRegraMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ganchosregra.FieldVersao:
+		return m.OldVersao(ctx)
+	case ganchosregra.FieldNome:
+		return m.OldNome(ctx)
+	case ganchosregra.FieldEvento:
+		return m.OldEvento(ctx)
+	case ganchosregra.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case ganchosregra.FieldCondominios:
+		return m.OldCondominios(ctx)
+	case ganchosregra.FieldAtiva:
+		return m.OldAtiva(ctx)
+	case ganchosregra.FieldDefinicao:
+		return m.OldDefinicao(ctx)
+	case ganchosregra.FieldAlteradaPor:
+		return m.OldAlteradaPor(ctx)
+	case ganchosregra.FieldAlteradaEm:
+		return m.OldAlteradaEm(ctx)
+	}
+	return nil, fmt.Errorf("unknown GanchosRegra field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GanchosRegraMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ganchosregra.FieldVersao:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersao(v)
+		return nil
+	case ganchosregra.FieldNome:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNome(v)
+		return nil
+	case ganchosregra.FieldEvento:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEvento(v)
+		return nil
+	case ganchosregra.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case ganchosregra.FieldCondominios:
+		v, ok := value.(schema.GanchosCondominios)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominios(v)
+		return nil
+	case ganchosregra.FieldAtiva:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAtiva(v)
+		return nil
+	case ganchosregra.FieldDefinicao:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDefinicao(v)
+		return nil
+	case ganchosregra.FieldAlteradaPor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlteradaPor(v)
+		return nil
+	case ganchosregra.FieldAlteradaEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlteradaEm(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegra field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GanchosRegraMutation) AddedFields() []string {
+	var fields []string
+	if m.addversao != nil {
+		fields = append(fields, ganchosregra.FieldVersao)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GanchosRegraMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ganchosregra.FieldVersao:
+		return m.AddedVersao()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GanchosRegraMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ganchosregra.FieldVersao:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVersao(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegra numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GanchosRegraMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GanchosRegraMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GanchosRegraMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown GanchosRegra nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GanchosRegraMutation) ResetField(name string) error {
+	switch name {
+	case ganchosregra.FieldVersao:
+		m.ResetVersao()
+		return nil
+	case ganchosregra.FieldNome:
+		m.ResetNome()
+		return nil
+	case ganchosregra.FieldEvento:
+		m.ResetEvento()
+		return nil
+	case ganchosregra.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case ganchosregra.FieldCondominios:
+		m.ResetCondominios()
+		return nil
+	case ganchosregra.FieldAtiva:
+		m.ResetAtiva()
+		return nil
+	case ganchosregra.FieldDefinicao:
+		m.ResetDefinicao()
+		return nil
+	case ganchosregra.FieldAlteradaPor:
+		m.ResetAlteradaPor()
+		return nil
+	case ganchosregra.FieldAlteradaEm:
+		m.ResetAlteradaEm()
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegra field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GanchosRegraMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.versoes != nil {
+		edges = append(edges, ganchosregra.EdgeVersoes)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GanchosRegraMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case ganchosregra.EdgeVersoes:
+		ids := make([]ent.Value, 0, len(m.versoes))
+		for id := range m.versoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GanchosRegraMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedversoes != nil {
+		edges = append(edges, ganchosregra.EdgeVersoes)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GanchosRegraMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case ganchosregra.EdgeVersoes:
+		ids := make([]ent.Value, 0, len(m.removedversoes))
+		for id := range m.removedversoes {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GanchosRegraMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedversoes {
+		edges = append(edges, ganchosregra.EdgeVersoes)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GanchosRegraMutation) EdgeCleared(name string) bool {
+	switch name {
+	case ganchosregra.EdgeVersoes:
+		return m.clearedversoes
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GanchosRegraMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown GanchosRegra unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GanchosRegraMutation) ResetEdge(name string) error {
+	switch name {
+	case ganchosregra.EdgeVersoes:
+		m.ResetVersoes()
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegra edge %s", name)
+}
+
+// GanchosRegraVersaoMutation represents an operation that mutates the GanchosRegraVersao nodes in the graph.
+type GanchosRegraVersaoMutation struct {
+	config
+	op              Op
+	typ             string
+	id              *int
+	versao          *int
+	addversao       *int
+	definicao       *jsontext.Value
+	appenddefinicao jsontext.Value
+	alterada_por    *string
+	alterada_em     *time.Time
+	clearedFields   map[string]struct{}
+	regra           *uuid.UUID
+	clearedregra    bool
+	done            bool
+	oldValue        func(context.Context) (*GanchosRegraVersao, error)
+	predicates      []predicate.GanchosRegraVersao
+}
+
+var _ ent.Mutation = (*GanchosRegraVersaoMutation)(nil)
+
+// ganchosregraversaoOption allows management of the mutation configuration using functional options.
+type ganchosregraversaoOption func(*GanchosRegraVersaoMutation)
+
+// newGanchosRegraVersaoMutation creates new mutation for the GanchosRegraVersao entity.
+func newGanchosRegraVersaoMutation(c config, op Op, opts ...ganchosregraversaoOption) *GanchosRegraVersaoMutation {
+	m := &GanchosRegraVersaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeGanchosRegraVersao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withGanchosRegraVersaoID sets the ID field of the mutation.
+func withGanchosRegraVersaoID(id int) ganchosregraversaoOption {
+	return func(m *GanchosRegraVersaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *GanchosRegraVersao
+		)
+		m.oldValue = func(ctx context.Context) (*GanchosRegraVersao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().GanchosRegraVersao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withGanchosRegraVersao sets the old GanchosRegraVersao of the mutation.
+func withGanchosRegraVersao(node *GanchosRegraVersao) ganchosregraversaoOption {
+	return func(m *GanchosRegraVersaoMutation) {
+		m.oldValue = func(context.Context) (*GanchosRegraVersao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m GanchosRegraVersaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m GanchosRegraVersaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *GanchosRegraVersaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *GanchosRegraVersaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().GanchosRegraVersao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetRegraID sets the "regra_id" field.
+func (m *GanchosRegraVersaoMutation) SetRegraID(u uuid.UUID) {
+	m.regra = &u
+}
+
+// RegraID returns the value of the "regra_id" field in the mutation.
+func (m *GanchosRegraVersaoMutation) RegraID() (r uuid.UUID, exists bool) {
+	v := m.regra
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegraID returns the old "regra_id" field's value of the GanchosRegraVersao entity.
+// If the GanchosRegraVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraVersaoMutation) OldRegraID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegraID: %w", err)
+	}
+	return oldValue.RegraID, nil
+}
+
+// ResetRegraID resets all changes to the "regra_id" field.
+func (m *GanchosRegraVersaoMutation) ResetRegraID() {
+	m.regra = nil
+}
+
+// SetVersao sets the "versao" field.
+func (m *GanchosRegraVersaoMutation) SetVersao(i int) {
+	m.versao = &i
+	m.addversao = nil
+}
+
+// Versao returns the value of the "versao" field in the mutation.
+func (m *GanchosRegraVersaoMutation) Versao() (r int, exists bool) {
+	v := m.versao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersao returns the old "versao" field's value of the GanchosRegraVersao entity.
+// If the GanchosRegraVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraVersaoMutation) OldVersao(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersao: %w", err)
+	}
+	return oldValue.Versao, nil
+}
+
+// AddVersao adds i to the "versao" field.
+func (m *GanchosRegraVersaoMutation) AddVersao(i int) {
+	if m.addversao != nil {
+		*m.addversao += i
+	} else {
+		m.addversao = &i
+	}
+}
+
+// AddedVersao returns the value that was added to the "versao" field in this mutation.
+func (m *GanchosRegraVersaoMutation) AddedVersao() (r int, exists bool) {
+	v := m.addversao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetVersao resets all changes to the "versao" field.
+func (m *GanchosRegraVersaoMutation) ResetVersao() {
+	m.versao = nil
+	m.addversao = nil
+}
+
+// SetDefinicao sets the "definicao" field.
+func (m *GanchosRegraVersaoMutation) SetDefinicao(j jsontext.Value) {
+	m.definicao = &j
+	m.appenddefinicao = nil
+}
+
+// Definicao returns the value of the "definicao" field in the mutation.
+func (m *GanchosRegraVersaoMutation) Definicao() (r jsontext.Value, exists bool) {
+	v := m.definicao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDefinicao returns the old "definicao" field's value of the GanchosRegraVersao entity.
+// If the GanchosRegraVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraVersaoMutation) OldDefinicao(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDefinicao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDefinicao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDefinicao: %w", err)
+	}
+	return oldValue.Definicao, nil
+}
+
+// AppendDefinicao adds j to the "definicao" field.
+func (m *GanchosRegraVersaoMutation) AppendDefinicao(j jsontext.Value) {
+	m.appenddefinicao = append(m.appenddefinicao, j...)
+}
+
+// AppendedDefinicao returns the list of values that were appended to the "definicao" field in this mutation.
+func (m *GanchosRegraVersaoMutation) AppendedDefinicao() (jsontext.Value, bool) {
+	if len(m.appenddefinicao) == 0 {
+		return nil, false
+	}
+	return m.appenddefinicao, true
+}
+
+// ResetDefinicao resets all changes to the "definicao" field.
+func (m *GanchosRegraVersaoMutation) ResetDefinicao() {
+	m.definicao = nil
+	m.appenddefinicao = nil
+}
+
+// SetAlteradaPor sets the "alterada_por" field.
+func (m *GanchosRegraVersaoMutation) SetAlteradaPor(s string) {
+	m.alterada_por = &s
+}
+
+// AlteradaPor returns the value of the "alterada_por" field in the mutation.
+func (m *GanchosRegraVersaoMutation) AlteradaPor() (r string, exists bool) {
+	v := m.alterada_por
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlteradaPor returns the old "alterada_por" field's value of the GanchosRegraVersao entity.
+// If the GanchosRegraVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraVersaoMutation) OldAlteradaPor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlteradaPor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlteradaPor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlteradaPor: %w", err)
+	}
+	return oldValue.AlteradaPor, nil
+}
+
+// ResetAlteradaPor resets all changes to the "alterada_por" field.
+func (m *GanchosRegraVersaoMutation) ResetAlteradaPor() {
+	m.alterada_por = nil
+}
+
+// SetAlteradaEm sets the "alterada_em" field.
+func (m *GanchosRegraVersaoMutation) SetAlteradaEm(t time.Time) {
+	m.alterada_em = &t
+}
+
+// AlteradaEm returns the value of the "alterada_em" field in the mutation.
+func (m *GanchosRegraVersaoMutation) AlteradaEm() (r time.Time, exists bool) {
+	v := m.alterada_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAlteradaEm returns the old "alterada_em" field's value of the GanchosRegraVersao entity.
+// If the GanchosRegraVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraVersaoMutation) OldAlteradaEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAlteradaEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAlteradaEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAlteradaEm: %w", err)
+	}
+	return oldValue.AlteradaEm, nil
+}
+
+// ResetAlteradaEm resets all changes to the "alterada_em" field.
+func (m *GanchosRegraVersaoMutation) ResetAlteradaEm() {
+	m.alterada_em = nil
+}
+
+// ClearRegra clears the "regra" edge to the GanchosRegra entity.
+func (m *GanchosRegraVersaoMutation) ClearRegra() {
+	m.clearedregra = true
+	m.clearedFields[ganchosregraversao.FieldRegraID] = struct{}{}
+}
+
+// RegraCleared reports if the "regra" edge to the GanchosRegra entity was cleared.
+func (m *GanchosRegraVersaoMutation) RegraCleared() bool {
+	return m.clearedregra
+}
+
+// RegraIDs returns the "regra" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// RegraID instead. It exists only for internal usage by the builders.
+func (m *GanchosRegraVersaoMutation) RegraIDs() (ids []uuid.UUID) {
+	if id := m.regra; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetRegra resets all changes to the "regra" edge.
+func (m *GanchosRegraVersaoMutation) ResetRegra() {
+	m.regra = nil
+	m.clearedregra = false
+}
+
+// Where appends a list predicates to the GanchosRegraVersaoMutation builder.
+func (m *GanchosRegraVersaoMutation) Where(ps ...predicate.GanchosRegraVersao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the GanchosRegraVersaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *GanchosRegraVersaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.GanchosRegraVersao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *GanchosRegraVersaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *GanchosRegraVersaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (GanchosRegraVersao).
+func (m *GanchosRegraVersaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *GanchosRegraVersaoMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.regra != nil {
+		fields = append(fields, ganchosregraversao.FieldRegraID)
+	}
+	if m.versao != nil {
+		fields = append(fields, ganchosregraversao.FieldVersao)
+	}
+	if m.definicao != nil {
+		fields = append(fields, ganchosregraversao.FieldDefinicao)
+	}
+	if m.alterada_por != nil {
+		fields = append(fields, ganchosregraversao.FieldAlteradaPor)
+	}
+	if m.alterada_em != nil {
+		fields = append(fields, ganchosregraversao.FieldAlteradaEm)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *GanchosRegraVersaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case ganchosregraversao.FieldRegraID:
+		return m.RegraID()
+	case ganchosregraversao.FieldVersao:
+		return m.Versao()
+	case ganchosregraversao.FieldDefinicao:
+		return m.Definicao()
+	case ganchosregraversao.FieldAlteradaPor:
+		return m.AlteradaPor()
+	case ganchosregraversao.FieldAlteradaEm:
+		return m.AlteradaEm()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *GanchosRegraVersaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case ganchosregraversao.FieldRegraID:
+		return m.OldRegraID(ctx)
+	case ganchosregraversao.FieldVersao:
+		return m.OldVersao(ctx)
+	case ganchosregraversao.FieldDefinicao:
+		return m.OldDefinicao(ctx)
+	case ganchosregraversao.FieldAlteradaPor:
+		return m.OldAlteradaPor(ctx)
+	case ganchosregraversao.FieldAlteradaEm:
+		return m.OldAlteradaEm(ctx)
+	}
+	return nil, fmt.Errorf("unknown GanchosRegraVersao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GanchosRegraVersaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case ganchosregraversao.FieldRegraID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegraID(v)
+		return nil
+	case ganchosregraversao.FieldVersao:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersao(v)
+		return nil
+	case ganchosregraversao.FieldDefinicao:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDefinicao(v)
+		return nil
+	case ganchosregraversao.FieldAlteradaPor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlteradaPor(v)
+		return nil
+	case ganchosregraversao.FieldAlteradaEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAlteradaEm(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegraVersao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *GanchosRegraVersaoMutation) AddedFields() []string {
+	var fields []string
+	if m.addversao != nil {
+		fields = append(fields, ganchosregraversao.FieldVersao)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *GanchosRegraVersaoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case ganchosregraversao.FieldVersao:
+		return m.AddedVersao()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *GanchosRegraVersaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case ganchosregraversao.FieldVersao:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddVersao(v)
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegraVersao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *GanchosRegraVersaoMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *GanchosRegraVersaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *GanchosRegraVersaoMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown GanchosRegraVersao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *GanchosRegraVersaoMutation) ResetField(name string) error {
+	switch name {
+	case ganchosregraversao.FieldRegraID:
+		m.ResetRegraID()
+		return nil
+	case ganchosregraversao.FieldVersao:
+		m.ResetVersao()
+		return nil
+	case ganchosregraversao.FieldDefinicao:
+		m.ResetDefinicao()
+		return nil
+	case ganchosregraversao.FieldAlteradaPor:
+		m.ResetAlteradaPor()
+		return nil
+	case ganchosregraversao.FieldAlteradaEm:
+		m.ResetAlteradaEm()
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegraVersao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *GanchosRegraVersaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.regra != nil {
+		edges = append(edges, ganchosregraversao.EdgeRegra)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *GanchosRegraVersaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case ganchosregraversao.EdgeRegra:
+		if id := m.regra; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *GanchosRegraVersaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *GanchosRegraVersaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *GanchosRegraVersaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedregra {
+		edges = append(edges, ganchosregraversao.EdgeRegra)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *GanchosRegraVersaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case ganchosregraversao.EdgeRegra:
+		return m.clearedregra
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *GanchosRegraVersaoMutation) ClearEdge(name string) error {
+	switch name {
+	case ganchosregraversao.EdgeRegra:
+		m.ClearRegra()
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegraVersao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *GanchosRegraVersaoMutation) ResetEdge(name string) error {
+	switch name {
+	case ganchosregraversao.EdgeRegra:
+		m.ResetRegra()
+		return nil
+	}
+	return fmt.Errorf("unknown GanchosRegraVersao edge %s", name)
 }
 
 // HabilitacaoMutation represents an operation that mutates the Habilitacao nodes in the graph.

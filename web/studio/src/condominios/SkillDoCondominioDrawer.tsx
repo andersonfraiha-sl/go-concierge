@@ -2,6 +2,7 @@ import { Box, Button, Drawer } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { pode, useEu, usePodeEditar } from '@/acesso/eu';
+import { GAVETA } from '@/theme/tokens';
 import { AjustesDaSkill } from './AjustesDaSkill';
 import { Cabecalho } from './Cabecalho';
 import { ComoReconhece } from './ComoReconhece';
@@ -26,7 +27,7 @@ function nomeDoCondominio(estado: Estado, condominio: string): string {
 }
 
 const slotsDoDrawer = (rotulo: string) => ({
-  paper: { sx: { width: 'min(420px, 100vw)' }, role: 'dialog', 'aria-label': rotulo },
+  paper: { sx: { width: GAVETA.padrao }, role: 'dialog', 'aria-label': rotulo },
 });
 
 export function SkillDoCondominioDrawer(props: Props): ReactNode {

@@ -1,0 +1,21 @@
+{
+  "nome": "Regra de teste",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "dia_nao_util",
+      "fonte": {
+        "tipo": "agora"
+      },
+      "feriados_extras": [
+        "2026-02-30"
+      ]
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Não posso fazer isso agora."
+  },
+  "ativa": true
+}

@@ -18,3 +18,16 @@ web/studio/*.tsbuildinfo
 # content-addressable store do pnpm quando ./build.sh roda em contêiner (store e install
 # ficam no mesmo filesystem do bind mount, por isso cai na raiz do repo, não em web/studio/).
 .pnpm-store/
+*.log
+*.test
+*.out
+coverage/
+web/studio/coverage/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+# pasta que o pnpm cria na raiz do repo
+/studio/
+go.work
+go.work.sum

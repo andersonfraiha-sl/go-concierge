@@ -1,5 +1,6 @@
 import { Box, ToggleButton, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
+import { RAIO } from '@/theme/tokens';
 import { rotuloDoPapel } from './listaDeSkills';
 
 type Props = {
@@ -61,7 +62,7 @@ function OpcaoDePapel({ valor, rotulo, selecionada, travada, onEscolher }: Opcao
       value={valor}
       selected={selecionada}
       disabled={travada}
-      sx={{ borderRadius: 9 }}
+      sx={{ borderRadius: RAIO.chip }}
       onClick={onEscolher}
     >
       {rotulo}

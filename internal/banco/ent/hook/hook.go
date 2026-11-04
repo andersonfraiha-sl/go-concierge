@@ -56,6 +56,42 @@ func (f CondominioFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CondominioMutation", m)
 }
 
+// The GanchosAuditoriaFunc type is an adapter to allow the use of ordinary
+// function as GanchosAuditoria mutator.
+type GanchosAuditoriaFunc func(context.Context, *ent.GanchosAuditoriaMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GanchosAuditoriaFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GanchosAuditoriaMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GanchosAuditoriaMutation", m)
+}
+
+// The GanchosRegraFunc type is an adapter to allow the use of ordinary
+// function as GanchosRegra mutator.
+type GanchosRegraFunc func(context.Context, *ent.GanchosRegraMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GanchosRegraFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GanchosRegraMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GanchosRegraMutation", m)
+}
+
+// The GanchosRegraVersaoFunc type is an adapter to allow the use of ordinary
+// function as GanchosRegraVersao mutator.
+type GanchosRegraVersaoFunc func(context.Context, *ent.GanchosRegraVersaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GanchosRegraVersaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GanchosRegraVersaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GanchosRegraVersaoMutation", m)
+}
+
 // The HabilitacaoFunc type is an adapter to allow the use of ordinary
 // function as Habilitacao mutator.
 type HabilitacaoFunc func(context.Context, *ent.HabilitacaoMutation) (ent.Value, error)

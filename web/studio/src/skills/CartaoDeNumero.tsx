@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
-import { RAIOS, tokens } from '@/theme/tokens';
+import { RAIOS } from '@/theme/tokens';
 import type { Estatistica } from './estatisticas';
 
 /** Cartão de número do topo da tela de skills: rótulo + valor, com tom de aviso quando `destaque`. */
@@ -15,22 +15,19 @@ export function CartaoDeNumero({
       role="group"
       aria-label={rotulo}
       sx={{
-        bgcolor: destaque ? tokens.color.warning.background : 'background.paper',
-        border: '1px solid',
+        bgcolor: destaque ? 'warning.soft' : 'background.paper',
+        border: 1,
         borderColor: 'divider',
         borderRadius: `${RAIOS.cartao}px`,
         p: 3,
       }}
     >
-      <Typography
-        variant="caption"
-        sx={{ color: destaque ? tokens.color.warning.text : tokens.color.text.tertiary }}
-      >
+      <Typography variant="caption" sx={{ color: destaque ? 'warning.onSoft' : 'text.tertiary' }}>
         {rotulo}
       </Typography>
       <Typography
         variant="h4"
-        sx={{ color: destaque ? tokens.color.warning.text : tokens.color.navy, mt: 1 }}
+        sx={{ color: destaque ? 'warning.onSoft' : 'secondary.main', mt: 1 }}
       >
         {valor}
       </Typography>

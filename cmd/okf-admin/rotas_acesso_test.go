@@ -30,7 +30,7 @@ import (
 type acessosFake struct {
 	atribuicoes map[string][]acesso.Atribuicao
 	mapeamento  admin.Repositorio
-	concessoes  []acesso.Concessao
+	concessoes  map[string][]acesso.Concessao // por usuário
 }
 
 func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (acesso.Acesso, error) {
@@ -52,7 +52,7 @@ func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.
 	for _, p := range acesso.PapeisIniciais() {
 		papeis[p.ID] = p
 	}
-	return acesso.Acesso{UsuarioID: usuarioID, Nome: "Nome de " + usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes, AdministradoraDe: donas, Implantacao: imp}, nil
+	return acesso.Acesso{UsuarioID: usuarioID, Nome: "Nome de " + usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes[usuarioID], AdministradoraDe: donas, Implantacao: imp}, nil
 }
 
 func naAdministradora(papel, adm string) []acesso.Atribuicao {
@@ -124,7 +124,7 @@ func novoAmbienteRotas(t *testing.T) ambienteRotas {
 			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
 		},
 		outbox: outbox, emulador: atende.NewEmulador(), memorias: memorias, admin: repo,
-		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo, concessoes: []acesso.Concessao{{AdministradoraID: "adm-av", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}}},
+		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo, concessoes: map[string][]acesso.Concessao{"gestor-av": {{AdministradoraID: "adm-av", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}}}},
 		autenticador: autenticadorDev{}, authMode: authModeDev,
 		registro: slog.New(slog.NewJSONHandler(io.Discard, nil)),
 	}

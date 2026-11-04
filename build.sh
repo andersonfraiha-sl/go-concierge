@@ -4,7 +4,7 @@
 # golang:1.27-trixie, com o cache de módulos compartilhado com o sl-concierge.
 #
 #   ./build.sh            # Studio (lint + test + build) + gofmt + vet + test + binários em bin/ (Windows e Linux)
-#   ./build.sh --test     # só os testes: Studio (lint + typecheck + test), vet e Go
+#   ./build.sh --test     # só os testes: Studio (lint + typecheck + test), gofmt, vet, govulncheck e Go
 #   ./build.sh --run      # compila o Studio, sobe o Postgres (compose) e roda o okf-admin no Windows (porta 8090)
 #
 # Os testes de internal/banco sobem um Postgres por testcontainers: o contêiner de build fala
@@ -19,12 +19,15 @@ command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado" >&2; exit 1
 PNPM="npm install -g corepack@latest >/dev/null && corepack enable && corepack install && pnpm install --frozen-lockfile"
 STUDIO="MSYS_NO_PATHCONV=1 docker run --rm -e HUSKY=0 -v $PWD:/src -v /src/web/studio/node_modules -w /src/web/studio node:26.13-trixie-slim"
 DOCKER_DO_HOST="-v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock --add-host=host.docker.internal:host-gateway"
+GOVULNCHECK=v1.9.0
 GO="MSYS_NO_PATHCONV=1 docker run --rm $DOCKER_DO_HOST -v $PWD:/src -w /src -v sl-concierge-gomod:/go/pkg/mod -v sl-concierge-gocache:/root/.cache/go-build golang:1.27-trixie"
 
 case "${1:-}" in
   --test)
     eval "$STUDIO" sh -c "'$PNPM && pnpm run lint && pnpm run typecheck && pnpm test'"
-    eval "$GO" sh -c "'gofmt -l . && go vet ./... && go test -p 1 ./...'"
+    # "! gofmt -l . | grep ." lista os arquivos fora do gofmt e falha se houver algum (gofmt -l
+    # sozinho sai com 0); sem aspas internas, para não quebrar o sh -c aninhado.
+    eval "$GO" sh -c "'! gofmt -l . | grep . && go vet ./... && go test -p 1 ./... && go run golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK ./...'"
     ;;
   --run)
     eval "$STUDIO" sh -c "'$PNPM && pnpm run lint && pnpm test && pnpm run build'"

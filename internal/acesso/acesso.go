@@ -30,6 +30,8 @@ const (
 	AdministradorasEditar Permissao = "administradoras.editar"
 	UsuariosEditar        Permissao = "usuarios.editar"
 	StudioAvancado        Permissao = "studio.avancado"
+	GanchosEditar         Permissao = "ganchos.editar"
+	GanchosHistorico      Permissao = "ganchos.historico"
 )
 
 // todasAsPermissoes lista as permissões na ordem das constantes.
@@ -87,8 +89,8 @@ var ErrCicloHeranca = errors.New("ciclo na herança de papéis")
 func PapeisIniciais() []Papel {
 	return []Papel{
 		{ID: "operador_administradora", Permissoes: []Permissao{SkillsLer, ConversasVer, ConversasAtender, PedidosVer, MemoriaVer}},
-		{ID: "gestor_administradora", HerdaDe: "operador_administradora", Permissoes: []Permissao{CondominiosHabilitar, SkillsEditarTextos, PedidosEditar, MemoriaEsquecer}},
-		{ID: "construtor_superlogica", HerdaDe: "gestor_administradora", Permissoes: []Permissao{SkillsEditarFluxo, SkillsCriar, SkillsExcluir, FerramentasEditar, CondominiosEditar, StudioAvancado}},
+		{ID: "gestor_administradora", HerdaDe: "operador_administradora", Permissoes: []Permissao{CondominiosHabilitar, SkillsEditarTextos, PedidosEditar, MemoriaEsquecer, GanchosHistorico}},
+		{ID: "construtor_superlogica", HerdaDe: "gestor_administradora", Permissoes: []Permissao{SkillsEditarFluxo, SkillsCriar, SkillsExcluir, FerramentasEditar, CondominiosEditar, StudioAvancado, GanchosEditar}},
 		{ID: "admin_superlogica", HerdaDe: "construtor_superlogica", Permissoes: []Permissao{AdministradorasEditar, UsuariosEditar}},
 	}
 }
@@ -179,7 +181,13 @@ func cadeia(papeis map[string]Papel, id string) []Papel {
 
 func atribuicaoTem(a Acesso, at Atribuicao, p Permissao) bool {
 	heranca := cadeia(a.Papeis, at.PapelID)
-	if slices.ContainsFunc(heranca, func(pp Papel) bool { return slices.Contains(pp.Permissoes, p) }) {
+	temDireto := slices.ContainsFunc(heranca, func(pp Papel) bool { return slices.Contains(pp.Permissoes, p) })
+	// ganchos.editar é só da Superlógica: nem atribuição de administradora nem concessão a
+	// abrem, só a atribuição no escopo superlogica.
+	if p == GanchosEditar {
+		return temDireto && at.Escopo.Tipo == TipoSuperlogica
+	}
+	if temDireto {
 		return true
 	}
 	return slices.ContainsFunc(a.Concessoes, func(c Concessao) bool {

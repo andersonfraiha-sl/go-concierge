@@ -14,6 +14,7 @@ import (
 	"go-concierge/internal/banco/ent/pedido"
 	"go-concierge/internal/banco/sqlc"
 	"go-concierge/internal/escopo"
+	comfalha "go-concierge/internal/falha" // falha já nomeia o tipo do motor
 )
 
 // timeoutConsulta limita cada leitura ou gravação dos pedidos.
@@ -39,7 +40,7 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Carteira, error) 
 	lote := banco.NovoLote()
 	p.LerNoLote(ctx, lote, c, func(lida Carteira) { cart = lida })
 	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
-		return Carteira{}, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err)
+		return Carteira{}, comfalha.ComPilha(fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err))
 	}
 	return cart, nil
 }
@@ -82,7 +83,7 @@ func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, cart Carteira) 
 	defer cancel()
 	pedidos, err := p.gravarRedesenhando(ctx, c, copiasDoContato(c, cart.Pedidos))
 	if err != nil {
-		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err)
+		return comfalha.ComPilha(fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err))
 	}
 	adotarProtocolos(cart.Pedidos, pedidos)
 	return nil
@@ -176,7 +177,7 @@ func (p *Postgres) Listar(ctx context.Context, administradoraID string) ([]Carte
 		Order(ent.Asc(pedido.FieldTelefone)).
 		All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("listar pedidos da administradora %s: %w", administradoraID, err)
+		return nil, comfalha.ComPilha(fmt.Errorf("listar pedidos da administradora %s: %w", administradoraID, err))
 	}
 	out := []Carteira{}
 	for doTelefone := range porTelefone(linhas) {
@@ -222,7 +223,7 @@ func carteiraDe(c escopo.Contato, linhas []dadosDoPedido) (Carteira, error) {
 	for _, l := range linhas {
 		var ped Pedido
 		if err := json.Unmarshal(l.json, &ped); err != nil {
-			return Carteira{}, fmt.Errorf("ler pedido %s de %s: %w", l.protocolo, c.Mascarado(), err)
+			return Carteira{}, comfalha.ComPilha(fmt.Errorf("ler pedido %s de %s: %w", l.protocolo, c.Mascarado(), err))
 		}
 		pedidos = append(pedidos, &ped)
 	}

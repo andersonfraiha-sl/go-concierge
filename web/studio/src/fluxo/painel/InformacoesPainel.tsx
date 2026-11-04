@@ -2,6 +2,7 @@ import { Box, MenuItem, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { type Informacao, InformacaoSchema } from '@/fluxo/modelo/tipos';
+import { PESOS, RAIO } from '@/theme/tokens';
 import { NovaInformacao } from './NovaInformacao';
 
 type Props = {
@@ -33,7 +34,7 @@ const semOpcoesForaDeEscolha = (tipo: string): Partial<Informacao> =>
 function CabecalhoDasInformacoes(): ReactNode {
   return (
     <Box>
-      <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
+      <Typography variant="subtitle1" component="h2" sx={{ fontWeight: PESOS.negrito }}>
         Informações que a skill pede
       </Typography>
       <Typography variant="caption" color="text.secondary">
@@ -157,7 +158,7 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
         p: 1.5,
         border: 1,
         borderColor: 'divider',
-        borderRadius: 1,
+        borderRadius: RAIO.campo,
       }}
     >
       {editavel && (

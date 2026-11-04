@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
@@ -524,7 +525,7 @@ func TestEscritaSoPeloCasoEComSim(t *testing.T) {
 		t.Fatalf("escrita fora do caso deveria ser recusada: %+v", out)
 	}
 	for msg, quer := range map[string]bool{"sim": true, "pode ser": true, "não, espera": false, "sim mas não hoje": false, "confirmo a reserva": true, "qual o horário?": false, "ok!": true} {
-		if Confirmado(msg) != quer {
+		if fixos.Confirmado(msg) != quer {
 			t.Errorf("Confirmado(%q) deveria ser %v", msg, quer)
 		}
 	}
