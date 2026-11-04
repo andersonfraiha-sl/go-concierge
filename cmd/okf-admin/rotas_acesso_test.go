@@ -195,6 +195,15 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "proxy mcp", metodo: "POST", url: "/mcp/gruvi/bff", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 200},
 		// estado: skills.ler em qualquer escopo
 		{nome: "estado", metodo: "GET", url: "/api/admin/estado?administradora=adm-a", sem: "sem-papel", com: "operador-a", quer: 200},
+		// skills do Studio
+		{nome: "listar skills", metodo: "GET", url: "/api/skills", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "textos da skill", metodo: "GET", url: "/api/skills/agendar-mudanca", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "fluxo da skill", metodo: "GET", url: "/api/skills/agendar-mudanca/fluxo", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "criar skill", metodo: "POST", url: "/api/skills", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "duplicar skill", metodo: "POST", url: "/api/skills/nao-existe/duplicar", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "salvar textos", metodo: "PUT", url: "/api/skills/nao-existe/textos", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 422},
+		{nome: "salvar fluxo", metodo: "PUT", url: "/api/skills/nao-existe/fluxo", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 404},
+		{nome: "excluir skill", metodo: "DELETE", url: "/api/skills/nao-existe", sem: "construtor-a", com: "admin", quer: 404},
 		// administradoras.editar na Superlógica
 		{nome: "criar administradora", metodo: "POST", url: "/api/admin/administradora", corpo: `{"id":"adm-c","nome":"C"}`, sem: "construtor-a", com: "admin", quer: 201},
 		{nome: "editar administradora", metodo: "PUT", url: "/api/admin/administradora", corpo: `{"id":"adm-a","nome":"A"}`, sem: "construtor-a", com: "admin", quer: 200},
