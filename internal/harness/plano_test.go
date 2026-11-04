@@ -183,7 +183,7 @@ func TestPlanningPerguntaAntesDeExecutar(t *testing.T) {
 	script := &roteiro{resposta: func(sistema, usuario, primeiroUsuario string) string {
 		switch {
 		case strings.Contains(sistema, "modo PLANNING"):
-			return `{"itens":[{"id":"t1","texto":"Liberar um visitante","alvo":"liberacao-visitante","confianca":0.5},{"id":"t2","texto":"saber se pode churrasco","alvo":"self","confianca":1}],"perguntas":["Qual o nome do visitante?"]}`
+			return `{"itens":[{"id":"t1","texto":"Liberar um visitante","alvo":"liberacao-visitante","confianca":0.4},{"id":"t2","texto":"saber se pode churrasco","alvo":"self","confianca":1}],"perguntas":["Qual o nome do visitante?"]}`
 		case strings.Contains(sistema, "Redija a resposta final"):
 			return "CONSOLIDADO"
 		}
