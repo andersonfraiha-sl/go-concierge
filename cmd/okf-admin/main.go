@@ -22,6 +22,7 @@ import (
 	"io/fs"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -31,6 +32,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -92,6 +94,7 @@ type servidor struct {
 	segredoExportacao   []byte           // GANCHOS_SEGREDO_EXPORTACAO; vazio só em dev, e aí exportar e importar recusam
 	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
 	limiteCopiloto      *limiteDoCopiloto
+	turnos              sync.WaitGroup // turnos do webhook em segundo plano; o desligamento espera
 
 	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
 	autenticador Autenticador
@@ -207,20 +210,27 @@ func main() {
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
-	// o sinal de desligamento cancela o ctx do servidor (a retenção da auditoria para com ele)
-	// e encerra o processo, como antes de o sinal ser capturado
+	// o sinal de desligamento cancela o ctx do servidor: o HTTP para de aceitar conexões e a
+	// retenção da auditoria para. Um segundo sinal volta ao padrão e mata na hora.
+	prazoDesligar, err := prazoDeDesligamento(os.Getenv("DESLIGAMENTO_PRAZO"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	ctxServidor, pararSinais := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-ctxServidor.Done()
 		pararSinais()
-		log.Print("okf-admin: desligando")
-		os.Exit(0)
+		log.Printf("okf-admin: desligando, esperando até %s pelo que está em andamento", prazoDesligar)
 	}()
 	conjunto, auditor, err := s.montarGanchos(ctxServidor, noop.NewMeterProvider().Meter("ganchos"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	go auditoria.Reter(ctxServidor, db.Ent, time.Now)
+	retencaoParou := make(chan struct{})
+	go func() {
+		defer close(retencaoParou)
+		auditoria.Reter(ctxServidor, db.Ent, time.Now)
+	}()
 
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv, Ganchos: conjunto}
@@ -286,7 +296,7 @@ func main() {
 		if err != nil {
 			log.Printf("okf-admin: proxy do MCP desligado: %v", err)
 		} else {
-			proxy = p
+			proxy = semPrazoDeEscrita(p) // SSE: a resposta dura o quanto o MCP quiser
 			log.Printf("okf-admin: MCP exposto em http://%s%s (repassa a %s; Authorization do cliente)", *addr, mcpPath(mcpCli.URL), base)
 		}
 	}
@@ -299,7 +309,23 @@ func main() {
 			abrirNavegador("http://" + *addr)
 		}()
 	}
-	log.Fatal(http.ListenAndServe(*addr, handler))
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = servir(ctxServidor, novoServidorHTTP(handler), ln, desligamento{prazo: prazoDesligar, aguardar: func() {
+		s.turnos.Wait()
+		s.atende.Aguardar()
+		<-retencaoParou
+	}})
+	pararSinais()
+	if err != nil {
+		encerrarComErro(errors.Join(err, db.Fechar()))
+	}
+	if err := db.Fechar(); err != nil {
+		encerrarComErro(err)
+	}
+	log.Print("okf-admin: desligado")
 }
 
 // novoRegistro é o log do processo: JSON, com CPF e telefone mascarados em toda mensagem e

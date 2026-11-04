@@ -237,7 +237,9 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+	s.turnos.Add(1)
 	go func() {
+		defer s.turnos.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
 		if _, err := s.atende.Processar(ctx, msg); err != nil {
