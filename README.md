@@ -61,7 +61,7 @@ telefone, a identidade (unidades do Gruvi), a rota com tokens e a caixa de saíd
 Configuração no `.env`: `GRUVI_COMPANY_ID`, `GRUVI_BFF_URL`, `MCP_AUTH=b2c` e
 `MCP_B2C_MOBILE`.
 
-Para a conexão real única, configure `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`,
+Para a conexão real única, configure `ATENDE_MCP_URL` (e as credenciais abaixo),
 `ATENDE_API_SECRET`, `ATENDE_TENANT_ID` e `ATENDE_TENANT_TELEFONE`. O webhook público é
 `POST /webhook/atende`; o Console usa `POST /emulador/atende/webhook`. O webhook real
 confere sempre a assinatura HMAC (`X-Atende-Signature`) com `ATENDE_API_SECRET`: evento
@@ -69,6 +69,24 @@ sem assinatura válida recebe 401. Fora de `dev` o boot falha sem o segredo.
 `ATENDE_WEBHOOK_TOKEN` legado continua restrito à rota do emulador. `ATENDE_REPLY_URL` e `ATENDE_REPLY_TOKEN` são lidos
 como compatibilidade para respostas antigas quando a configuração nova de envio não está
 disponível.
+
+#### ATENDE via gateway Nexus
+
+O concierge não fala mais com a API do ATENDE: envio da resposta, transbordo e encerramento
+passam pelo servidor MCP `atende` do gateway Nexus, que guarda a chave do ATENDE por company.
+`ATENDE_API_KEY` e `ATENDE_API_BASE_URL` saíram do concierge.
+
+| Variável | Para quê |
+|---|---|
+| `ATENDE_MCP_URL` | endpoint direto do servidor, `<gateway>/mcp/atende`. Vazio: canal real desligado, com aviso na subida (o emulador segue) |
+| `ATENDE_MCP_TOKEN_URL` | `<gateway>/api/mcp/token` (client credentials) |
+| `ATENDE_MCP_CLIENT_ID`, `ATENDE_MCP_CLIENT_SECRET` | credencial de serviço do concierge no gateway |
+
+Tools usadas: `messages_send` (resposta, em partes de 4000 caracteres com a formatação do
+WhatsApp), `protocols_transfer` (transbordo pelo protocolo da sessão) e `protocols_close`
+(`MCPSender.Encerrar`). `ATENDE_API_SECRET` continua: o webhook de entrada é evento, não tool.
+As tools do ATENDE não entram no catálogo de recursos do agente: quem decide transferir e
+encerrar é o código.
 
 Enquanto o token B2C é gerado para um único telefone, o atendimento e a consulta de
 identidade aceitam somente o telefone configurado em `MCP_B2C_MOBILE`; outro número recebe

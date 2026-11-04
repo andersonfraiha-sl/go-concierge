@@ -523,3 +523,18 @@ em `docker compose` (serviços `mcp` e `concierge`).
 - O erro técnico fica em `Turno.Erro` (o Console mostra dobrado, em letra miúda, embaixo
   da bolha) e no retorno de `Processar` (log). A bolha vermelha `quem=erro` só resta
   para falha de envio pelo canal, quando o morador não recebe nada mesmo.
+
+### 1.13 ATENDE pelo gateway Nexus (2026-11-03)
+
+- Problema: o concierge guardava a chave do ATENDE (`ATENDE_API_KEY`) e falava direto com a
+  API; o transbordo e o encerramento não tinham caminho único e auditável.
+- Decisão: envio, transbordo e encerramento passam pelo servidor MCP `atende` do gateway
+  Nexus (`messages_send`, `protocols_transfer`, `protocols_close`), com token de serviço
+  por client credentials (`ATENDE_MCP_*`, modo `keycloak` do `internal/mcp`). A chave do
+  ATENDE vive só no gateway. O emulador segue com `HTTPSender`.
+- `MCPSender` (`atende/sender_mcp.go`) substitui `ATENDESender` e `ATENDETransferidor`.
+  Recusa do gateway (`isError`) é definitiva; falha de transporte no transbordo é
+  resultado incerto (`TransferenciaIncerta`). Escritas nunca são repetidas.
+- Alinhado à 1.12: o erro do gateway nunca vai ao morador; fica no turno de erro (Console)
+  e no log. As tools do ATENDE não entram no catálogo do agente.
+- Sem `ATENDE_MCP_URL` o canal real fica desligado, com aviso na subida.
