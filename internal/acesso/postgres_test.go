@@ -207,3 +207,15 @@ func TestCarregarFalhaFechadoComCicloDeHeranca(t *testing.T) {
 		t.Fatalf("Carregar = %v, want ErrCicloHeranca", err)
 	}
 }
+
+func TestCarregarTrazNome(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	if err != nil {
+		t.Fatalf("Carregar: %v", err)
+	}
+	if a.Nome != "Ana" {
+		t.Fatalf("Nome = %q, quer Ana", a.Nome)
+	}
+}

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"go-concierge/internal/acesso"
+	"go-concierge/internal/admin"
 	"go-concierge/internal/okf"
 )
 
@@ -23,7 +25,7 @@ const (
 var errCorpoInvalido = errors.New("corpo inválido")
 
 func (s *servidor) rotasStudio(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/eu", s.studioEu)
+	mux.Handle("GET /api/eu", s.autenticado(http.HandlerFunc(s.studioEu)))
 	mux.HandleFunc("GET /api/skills", s.studioListar)
 	mux.HandleFunc("POST /api/skills", s.studioCriar)
 	mux.HandleFunc("GET /api/skills/{nome}", s.studioLerTextos)
@@ -71,10 +73,49 @@ func euDev(papel string) (eu, bool) {
 	return eu{}, false
 }
 
+var errAdministradoraAmbigua = errors.New("usuário vê mais de uma administradora")
+
+// montarEu descreve o usuário carregado. Só consulta as administradoras quando ele não é da
+// Superlógica.
+func montarEu(a acesso.Acesso, adms []admin.Administradora, dev bool) (eu, error) {
+	quem := eu{
+		ID: a.UsuarioID, Nome: a.Nome, Papel: acesso.PapelPrincipal(a), Dev: dev,
+		Permissoes: make([]string, 0),
+	}
+	for _, p := range acesso.PermissoesEmAlgum(a) {
+		quem.Permissoes = append(quem.Permissoes, string(p))
+	}
+	if acesso.Permitido(a, acesso.SkillsLer, acesso.Escopo{Tipo: acesso.TipoSuperlogica}) {
+		return quem, nil
+	}
+	visiveis := administradorasVisiveis(a, adms)
+	if len(visiveis) > 1 {
+		return eu{}, errAdministradoraAmbigua
+	}
+	if len(visiveis) == 1 {
+		quem.AdministradoraID = &visiveis[0].ID
+	}
+	return quem, nil
+}
+
 func (s *servidor) studioEu(w http.ResponseWriter, r *http.Request) {
-	quem, ok := euDev(r.Header.Get("X-Studio-Papel"))
+	a, ok := acessoDe(r.Context())
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, erroAPI{Codigo: "PAPEL_DESCONHECIDO", Mensagem: "Esse papel não existe."})
+		responderNaoAutenticado(w)
+		return
+	}
+	var adms []admin.Administradora
+	if !acesso.Permitido(a, acesso.SkillsLer, acesso.Escopo{Tipo: acesso.TipoSuperlogica}) {
+		m, err := s.admin.Ler(r.Context())
+		if err != nil {
+			s.responderErroInterno(w, r, "ler administradoras do usuário", err)
+			return
+		}
+		adms = m.Administradoras
+	}
+	quem, err := montarEu(a, adms, s.authMode == authModeDev)
+	if errors.Is(err, errAdministradoraAmbigua) {
+		writeJSON(w, http.StatusConflict, erroAPI{Codigo: "ADMINISTRADORA_AMBIGUA", Mensagem: "Seu usuário está em mais de uma administradora. Peça para a Superlógica ajustar seu acesso."})
 		return
 	}
 	writeJSON(w, http.StatusOK, quem)

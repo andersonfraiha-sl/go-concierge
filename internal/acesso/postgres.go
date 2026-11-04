@@ -57,6 +57,7 @@ func (p *Postgres) Carregar(ctx context.Context, usuarioID string, imp escopo.Im
 	}
 	return Acesso{
 		UsuarioID:        usuarioID,
+		Nome:             u.Nome,
 		Papeis:           porID,
 		Atribuicoes:      atribuicoesDe(u.Edges.Atribuicoes),
 		Concessoes:       concessoesDe(papeis),
