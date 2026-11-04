@@ -27,27 +27,33 @@ export function EstadoVazio() {
       <Typography variant="body2" color="text.secondary">
         {DESCRICAO}
       </Typography>
-      {sugestoes.length > 0 && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-          {sugestoes.map((texto) => (
-            <Chip
-              key={texto}
-              label={texto}
-              variant="outlined"
-              onClick={() => enviar(texto)}
-              sx={{
-                justifyContent: 'flex-start',
-                height: 'auto',
-                borderRadius: `${RAIOS.menu}px`,
-                borderColor: tokens.color.border.default,
-                color: tokens.color.text.strong,
-                bgcolor: tokens.color.background.paper,
-                '& .MuiChip-label': { whiteSpace: 'normal', py: 1, px: 1.5 },
-              }}
-            />
-          ))}
-        </Box>
-      )}
+      {sugestoes.length > 0 && <ListaDeSugestoes sugestoes={sugestoes} onEscolher={enviar} />}
+    </Box>
+  );
+}
+
+type SugestoesProps = { sugestoes: string[]; onEscolher: (texto: string) => Promise<void> };
+
+function ListaDeSugestoes({ sugestoes, onEscolher }: SugestoesProps) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+      {sugestoes.map((texto) => (
+        <Chip
+          key={texto}
+          label={texto}
+          variant="outlined"
+          onClick={() => onEscolher(texto)}
+          sx={{
+            justifyContent: 'flex-start',
+            height: 'auto',
+            borderRadius: `${RAIOS.menu}px`,
+            borderColor: tokens.color.border.default,
+            color: tokens.color.text.strong,
+            bgcolor: tokens.color.background.paper,
+            '& .MuiChip-label': { whiteSpace: 'normal', py: 1, px: 1.5 },
+          }}
+        />
+      ))}
     </Box>
   );
 }

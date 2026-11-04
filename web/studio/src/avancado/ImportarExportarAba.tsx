@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Box, Button, Typography } from '@mui/material';
-import { type ReactNode, useRef, useState } from 'react';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { type ReactNode, type RefObject, useRef, useState } from 'react';
+import { type Control, Controller, type UseFormSetValue, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
@@ -40,19 +40,14 @@ const ImportacaoSchema = z.object({
     .refine((zip) => zip !== null),
 });
 
-function Importar(): ReactNode {
+type Importacao = z.input<typeof ImportacaoSchema>;
+
+function useImportarZip(
+  setValue: UseFormSetValue<Importacao>,
+): (importacao: z.output<typeof ImportacaoSchema>) => Promise<void> {
   const { mostrar } = useSnackbar();
   const recarregar = useRecarregarAvancado();
-  const seletor = useRef<HTMLInputElement>(null);
-  const [confirmando, setConfirmando] = useState(false);
-  const { control, handleSubmit, setValue } = useForm({
-    resolver: zodResolver(ImportacaoSchema),
-    defaultValues: { destino: '', zip: null },
-  });
-  const [destino, zip] = useWatch({ control, name: ['destino', 'zip'] });
-
-  const importar = handleSubmit(async ({ destino, zip }) => {
-    setConfirmando(false);
+  return async ({ destino, zip }) => {
     if (!zip) return;
     try {
       const instalado = await importarZip(destino.trim(), zip);
@@ -62,6 +57,21 @@ function Importar(): ReactNode {
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
     }
+  };
+}
+
+function Importar(): ReactNode {
+  const seletor = useRef<HTMLInputElement>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const { control, handleSubmit, setValue } = useForm({
+    resolver: zodResolver(ImportacaoSchema),
+    defaultValues: { destino: '', zip: null },
+  });
+  const [destino, zip] = useWatch({ control, name: ['destino', 'zip'] });
+  const importar = useImportarZip(setValue);
+  const confirmar = handleSubmit((importacao) => {
+    setConfirmando(false);
+    return importar(importacao);
   });
 
   return (
@@ -76,28 +86,7 @@ function Importar(): ReactNode {
         label="Instalar em"
         helperText="Pasta de destino, como aparece na lista."
       />
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Button variant="outlined" onClick={() => seletor.current?.click()}>
-          Escolher zip
-        </Button>
-        <Typography variant="body2" color="text.secondary">
-          {zip?.name ?? 'Nenhum arquivo escolhido'}
-        </Typography>
-        <Controller
-          control={control}
-          name="zip"
-          render={({ field }) => (
-            <input
-              ref={seletor}
-              hidden
-              type="file"
-              accept=".zip,application/zip"
-              aria-label="Arquivo zip"
-              onChange={(evento) => field.onChange(evento.target.files?.[0] ?? null)}
-            />
-          )}
-        />
-      </Box>
+      <EscolhaDoZip control={control} seletor={seletor} nome={zip?.name} />
       <Box>
         <Button
           variant="contained"
@@ -112,9 +101,42 @@ function Importar(): ReactNode {
         titulo="Importar este zip?"
         texto={`Os arquivos do zip entram em ${destino.trim()} e substituem os que têm o mesmo nome.`}
         confirmar="Importar"
-        onConfirmar={() => void importar()}
+        onConfirmar={() => void confirmar()}
         onCancelar={() => setConfirmando(false)}
       />
     </SectionCard>
+  );
+}
+
+type EscolhaProps = {
+  control: Control<Importacao>;
+  seletor: RefObject<HTMLInputElement | null>;
+  nome: string | undefined;
+};
+
+function EscolhaDoZip({ control, seletor, nome }: EscolhaProps): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Button variant="outlined" onClick={() => seletor.current?.click()}>
+        Escolher zip
+      </Button>
+      <Typography variant="body2" color="text.secondary">
+        {nome ?? 'Nenhum arquivo escolhido'}
+      </Typography>
+      <Controller
+        control={control}
+        name="zip"
+        render={({ field }) => (
+          <input
+            ref={seletor}
+            hidden
+            type="file"
+            accept=".zip,application/zip"
+            aria-label="Arquivo zip"
+            onChange={(evento) => field.onChange(evento.target.files?.[0] ?? null)}
+          />
+        )}
+      />
+    </Box>
   );
 }

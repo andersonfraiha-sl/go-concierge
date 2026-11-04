@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Box, Button, FormControlLabel, MenuItem, Radio, RadioGroup } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { type Control, Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { chaveDoAgente, salvarConfigDoAgente, useAgente } from '@/catalogo/contratos';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
@@ -33,7 +33,7 @@ const ROTULO_DA_VISIBILIDADE: Record<Visibilidade, string> = {
 };
 
 const isVisibilidade = (valor: string): valor is Visibilidade =>
-  VISIBILIDADES.some((v) => v === valor);
+  VISIBILIDADES.some((visibilidade) => visibilidade === valor);
 
 const ultimoSegmento = (caminho: string): string => caminho.split('/').at(-1) ?? caminho;
 
@@ -57,16 +57,11 @@ export function IdentidadeAba({ no, editar }: Props): ReactNode {
       <ErroComRetry mensagem={agente.error.message} onTentarDeNovo={() => void agente.refetch()} />
     );
   }
-  if (no.caso) {
-    if (textos.isPending) return null;
-    if (textos.isError) {
-      return (
-        <ErroComRetry
-          mensagem={textos.error.message}
-          onTentarDeNovo={() => void textos.refetch()}
-        />
-      );
-    }
+  if (no.caso && textos.isPending) return null;
+  if (no.caso && textos.isError) {
+    return (
+      <ErroComRetry mensagem={textos.error.message} onTentarDeNovo={() => void textos.refetch()} />
+    );
   }
 
   return (
@@ -97,15 +92,12 @@ const rascunhoInicial = (dados: FormularioProps['dados'], textos: TextosDaSkill)
   };
 };
 
-function Formulario({ agente, dados, textos, editar }: FormularioProps): ReactNode {
+type SalvarIdentidade = (rascunho: Rascunho) => Promise<void>;
+
+function useSalvarIdentidade(agente: string, textos: TextosDaSkill): SalvarIdentidade {
   const { mostrar } = useSnackbar();
   const cliente = useQueryClient();
-  const { control, handleSubmit, formState } = useForm({
-    resolver: zodResolver(RascunhoSchema),
-    defaultValues: rascunhoInicial(dados, textos),
-  });
-
-  const salvar = handleSubmit(async (rascunho) => {
+  return async (rascunho) => {
     try {
       await salvarConfigDoAgente({
         agente,
@@ -123,7 +115,16 @@ function Formulario({ agente, dados, textos, editar }: FormularioProps): ReactNo
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
     }
+  };
+}
+
+function Formulario({ agente, dados, textos, editar }: FormularioProps): ReactNode {
+  const salvarIdentidade = useSalvarIdentidade(agente, textos);
+  const { control, handleSubmit, formState } = useForm({
+    resolver: zodResolver(RascunhoSchema),
+    defaultValues: rascunhoInicial(dados, textos),
   });
+  const salvar = handleSubmit(salvarIdentidade);
 
   return (
     <SectionCard
@@ -141,57 +142,69 @@ function Formulario({ agente, dados, textos, editar }: FormularioProps): ReactNo
         )
       }
     >
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <CampoTexto
-          control={control}
-          name="tipo"
-          select
-          label="Tipo"
-          size="small"
-          disabled={!editar}
-          sx={{ minWidth: 220 }}
-        >
-          {TIPOS.map((tipo) => (
-            <MenuItem key={tipo} value={tipo}>
-              {ROTULO_DO_TIPO[tipo]}
-            </MenuItem>
-          ))}
-        </CampoTexto>
-        <CampoTexto
-          control={control}
-          name="modelo"
-          label="Modelo"
-          size="small"
-          disabled={!editar}
-          helperText="Vazio usa o modelo padrão."
-          sx={{ minWidth: 260 }}
-        />
-      </Box>
-      {textos && (
-        <Controller
-          control={control}
-          name="visibilidade"
-          render={({ field }) => (
-            <RadioGroup
-              aria-label="Visibilidade"
-              value={field.value}
-              onChange={(_, valor) => {
-                if (isVisibilidade(valor)) field.onChange(valor);
-              }}
-            >
-              {VISIBILIDADES.map((visibilidade) => (
-                <FormControlLabel
-                  key={visibilidade}
-                  value={visibilidade}
-                  disabled={!editar}
-                  control={<Radio />}
-                  label={ROTULO_DA_VISIBILIDADE[visibilidade]}
-                />
-              ))}
-            </RadioGroup>
-          )}
-        />
-      )}
+      <CamposTecnicos control={control} editar={editar} />
+      {textos && <SeletorDeVisibilidade control={control} editar={editar} />}
     </SectionCard>
+  );
+}
+
+type CamposProps = { control: Control<Rascunho>; editar: boolean };
+
+function CamposTecnicos({ control, editar }: CamposProps): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+      <CampoTexto
+        control={control}
+        name="tipo"
+        select
+        label="Tipo"
+        size="small"
+        disabled={!editar}
+        sx={{ minWidth: 220 }}
+      >
+        {TIPOS.map((tipo) => (
+          <MenuItem key={tipo} value={tipo}>
+            {ROTULO_DO_TIPO[tipo]}
+          </MenuItem>
+        ))}
+      </CampoTexto>
+      <CampoTexto
+        control={control}
+        name="modelo"
+        label="Modelo"
+        size="small"
+        disabled={!editar}
+        helperText="Vazio usa o modelo padrão."
+        sx={{ minWidth: 260 }}
+      />
+    </Box>
+  );
+}
+
+function SeletorDeVisibilidade({ control, editar }: CamposProps): ReactNode {
+  return (
+    <Controller
+      control={control}
+      name="visibilidade"
+      render={({ field }) => (
+        <RadioGroup
+          aria-label="Visibilidade"
+          value={field.value}
+          onChange={(_, valor) => {
+            if (isVisibilidade(valor)) field.onChange(valor);
+          }}
+        >
+          {VISIBILIDADES.map((visibilidade) => (
+            <FormControlLabel
+              key={visibilidade}
+              value={visibilidade}
+              disabled={!editar}
+              control={<Radio />}
+              label={ROTULO_DA_VISIBILIDADE[visibilidade]}
+            />
+          ))}
+        </RadioGroup>
+      )}
+    />
   );
 }

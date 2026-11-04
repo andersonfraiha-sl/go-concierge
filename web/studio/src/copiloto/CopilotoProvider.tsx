@@ -73,23 +73,11 @@ export function useRealceDoCopiloto(alvo: string): EstiloDoRealce {
   return { ...transicao, bgcolor: tokens.color.realceDoCopiloto };
 }
 
-export function CopilotoProvider({ children }: { children: ReactNode }) {
-  const [aberto, setAberto] = useState(lerAberto);
-  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
-  const [pensando, setPensando] = useState(false);
-  const [alvosRealcados, realcar] = useAlvosRealcados();
-  const aplicacao = useAplicarPropostas(realcar);
-  const botaoDoCopiloto = useRef<HTMLButtonElement>(null);
-  // Ref para o pedido em curso (sempre a última tela, mesmo meio a um envio); state para quem
-  // lê no render (ex.: sugestões do estado vazio) — só muda, e só então redesenha, quando a
-  // tela de fato troca, nunca a cada chamada de definirContexto com o mesmo valor.
-  const contextoDoPedido = useRef(CONTEXTO_NEUTRO);
-  const [contexto, setContexto] = useState<ContextoDoCopiloto>(CONTEXTO_NEUTRO);
-  const pedidoEmCurso = useRef<AbortController | null>(null);
-  const estado = useEstadoDoCopiloto(aberto);
-  const queryClient = useQueryClient();
+type PedidoEmCurso = RefObject<AbortController | null>;
 
-  useEffect(() => () => pedidoEmCurso.current?.abort(), []);
+function useAbertura(pedidoEmCurso: PedidoEmCurso) {
+  const [aberto, setAberto] = useState(lerAberto);
+  const botaoDoCopiloto = useRef<HTMLButtonElement>(null);
 
   const alternar = () => {
     const proximo = !aberto;
@@ -103,6 +91,32 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     botaoDoCopiloto.current?.focus();
   };
 
+  return { aberto, alternar, fechar, botaoDoCopiloto };
+}
+
+function useContextoReativo() {
+  // Ref para o pedido em curso (sempre a última tela, mesmo meio a um envio); state para quem
+  // lê no render (ex.: sugestões do estado vazio) — só muda, e só então redesenha, quando a
+  // tela de fato troca, nunca a cada chamada de definirContexto com o mesmo valor.
+  const contextoDoPedido = useRef(CONTEXTO_NEUTRO);
+  const [contexto, setContexto] = useState<ContextoDoCopiloto>(CONTEXTO_NEUTRO);
+
+  const definirContexto = (proximo: ContextoDoCopiloto) => {
+    contextoDoPedido.current = proximo;
+    setContexto((atual) => (contextosIguais(atual, proximo) ? atual : proximo));
+  };
+
+  return { contexto, contextoDoPedido, definirContexto };
+}
+
+function useConversa(
+  pedidoEmCurso: PedidoEmCurso,
+  contextoDoPedido: RefObject<ContextoDoCopiloto>,
+) {
+  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
+  const [pensando, setPensando] = useState(false);
+  const queryClient = useQueryClient();
+
   // O id da proposta vem do servidor como índice ("0", "1"…) e se repete entre respostas.
   const acrescentar = (mensagem: Omit<Mensagem, 'id'>) => {
     const id = crypto.randomUUID();
@@ -111,6 +125,13 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
       id: `${id}:${proposta.id}`,
     }));
     setMensagens((atuais) => [...atuais, { ...mensagem, id, propostas }]);
+  };
+
+  const registrarFalha = async (erro: unknown) => {
+    if (erro instanceof ApiError && erro.codigo === 'COPILOTO_INDISPONIVEL') {
+      await queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTADO });
+    }
+    acrescentar({ papel: 'copiloto', texto: textoDoErro(erro), propostas: [], tom: 'erro' });
   };
 
   const enviar = async (texto: string) => {
@@ -132,11 +153,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
         tom: 'normal',
       });
     } catch (erro) {
-      if (controle.signal.aborted) return;
-      if (erro instanceof ApiError && erro.codigo === 'COPILOTO_INDISPONIVEL') {
-        await queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTADO });
-      }
-      acrescentar({ papel: 'copiloto', texto: textoDoErro(erro), propostas: [], tom: 'erro' });
+      if (!controle.signal.aborted) await registrarFalha(erro);
     } finally {
       if (pedidoEmCurso.current === controle) pedidoEmCurso.current = null;
       setPensando(false);
@@ -151,6 +168,20 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
       })),
     );
 
+  return { mensagens, pensando, enviar, descartar };
+}
+
+export function CopilotoProvider({ children }: { children: ReactNode }) {
+  const pedidoEmCurso = useRef<AbortController | null>(null);
+  const { aberto, alternar, fechar, botaoDoCopiloto } = useAbertura(pedidoEmCurso);
+  const { contexto, contextoDoPedido, definirContexto } = useContextoReativo();
+  const { mensagens, pensando, enviar, descartar } = useConversa(pedidoEmCurso, contextoDoPedido);
+  const [alvosRealcados, realcar] = useAlvosRealcados();
+  const aplicacao = useAplicarPropostas(realcar);
+  const estado = useEstadoDoCopiloto(aberto);
+
+  useEffect(() => () => pedidoEmCurso.current?.abort(), []);
+
   const valor: ValorDoCopiloto = {
     aberto,
     alternar,
@@ -162,10 +193,7 @@ export function CopilotoProvider({ children }: { children: ReactNode }) {
     enviar,
     ...aplicacao,
     descartar,
-    definirContexto: (proximo) => {
-      contextoDoPedido.current = proximo;
-      setContexto((atual) => (contextosIguais(atual, proximo) ? atual : proximo));
-    },
+    definirContexto,
     alvosRealcados,
     realcar,
   };
