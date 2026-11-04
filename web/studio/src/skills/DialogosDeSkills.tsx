@@ -23,6 +23,21 @@ type Props = { dialogo: Dialogo | null; fechar: () => void };
 
 /** Diálogos de criar, duplicar e excluir skill, com as ações que cada um dispara. */
 export function DialogosDeSkills({ dialogo, fechar }: Props): ReactNode {
+  const acoes = useAcoesDosDialogos(fechar);
+  if (dialogo === null) return null;
+  switch (dialogo.tipo) {
+    case 'nova':
+      return <DialogoNova acoes={acoes} fechar={fechar} />;
+    case 'duplicar':
+      return <DialogoDuplicar origem={dialogo.origem} acoes={acoes} fechar={fechar} />;
+    case 'excluir':
+      return <DialogoExcluir skill={dialogo.skill} acoes={acoes} fechar={fechar} />;
+  }
+}
+
+type Acoes = ReturnType<typeof useAcoesDosDialogos>;
+
+function useAcoesDosDialogos(fechar: () => void) {
   const navegar = useNavigate();
   const { mostrar } = useSnackbar();
   const criar = useCriarSkill();
@@ -62,36 +77,46 @@ export function DialogosDeSkills({ dialogo, fechar }: Props): ReactNode {
     }
   };
 
+  return { criarSkill, abrirEditor, abrirEditorComTextosPendentes, duplicarEAbrir, excluirSkill };
+}
+
+function DialogoNova({ acoes, fechar }: { acoes: Acoes; fechar: () => void }): ReactNode {
   return (
-    <>
-      {dialogo?.tipo === 'nova' && (
-        <NovaSkillDialog
-          onCriar={criarSkill}
-          onSalvarTextos={preencherTextosNovos}
-          onConcluida={abrirEditor}
-          onFecharComFalha={abrirEditorComTextosPendentes}
-          onCancelar={fechar}
-        />
-      )}
-      {dialogo?.tipo === 'duplicar' && (
-        <NomeDialog
-          titulo="Duplicar skill"
-          tituloInicial={`Cópia de ${dialogo.origem.titulo}`}
-          confirmar="Duplicar"
-          onEnviar={(nova) => duplicarEAbrir(dialogo.origem, nova)}
-          onCancelar={fechar}
-        />
-      )}
-      {dialogo?.tipo === 'excluir' && (
-        <ConfirmDialog
-          aberto
-          titulo="Excluir skill"
-          texto={`Excluir "${dialogo.skill.titulo}"? O fluxo e as regras somem junto.`}
-          confirmar="Excluir"
-          onConfirmar={() => void excluirSkill(dialogo.skill)}
-          onCancelar={fechar}
-        />
-      )}
-    </>
+    <NovaSkillDialog
+      onCriar={acoes.criarSkill}
+      onSalvarTextos={preencherTextosNovos}
+      onConcluida={acoes.abrirEditor}
+      onFecharComFalha={acoes.abrirEditorComTextosPendentes}
+      onCancelar={fechar}
+    />
+  );
+}
+
+type PropsDoDuplicar = { origem: SkillResumo; acoes: Acoes; fechar: () => void };
+
+function DialogoDuplicar({ origem, acoes, fechar }: PropsDoDuplicar): ReactNode {
+  return (
+    <NomeDialog
+      titulo="Duplicar skill"
+      tituloInicial={`Cópia de ${origem.titulo}`}
+      confirmar="Duplicar"
+      onEnviar={(nova) => acoes.duplicarEAbrir(origem, nova)}
+      onCancelar={fechar}
+    />
+  );
+}
+
+type PropsDoExcluir = { skill: SkillResumo; acoes: Acoes; fechar: () => void };
+
+function DialogoExcluir({ skill, acoes, fechar }: PropsDoExcluir): ReactNode {
+  return (
+    <ConfirmDialog
+      aberto
+      titulo="Excluir skill"
+      texto={`Excluir "${skill.titulo}"? O fluxo e as regras somem junto.`}
+      confirmar="Excluir"
+      onConfirmar={() => void acoes.excluirSkill(skill)}
+      onCancelar={fechar}
+    />
   );
 }

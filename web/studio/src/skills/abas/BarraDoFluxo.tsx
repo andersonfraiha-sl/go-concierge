@@ -16,30 +16,33 @@ type Props = {
 };
 
 /** Linha acima do canvas: só leitura, problemas do fluxo todo e o estado do salvamento. */
-export function BarraDoFluxo({
-  editavel,
-  doFluxoTodo,
-  salvamento,
-  onTentarDeNovo,
-}: Props): ReactNode {
+export function BarraDoFluxo({ editavel, doFluxoTodo, salvamento, onTentarDeNovo }: Props) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minHeight: 32 }}>
-      {!editavel && (
-        <Chip
-          icon={<LockOutlinedIcon fontSize="small" />}
-          label="Só leitura"
-          size="small"
-          sx={{ bgcolor: tokens.color.background.subtle, color: tokens.color.text.secondary }}
-        />
-      )}
-      {doFluxoTodo.map((p) => (
-        <Typography key={chaveDoProblema(p)} variant="caption" sx={{ color: corDoNivel(p.nivel) }}>
-          {p.mensagem}
-        </Typography>
-      ))}
+      {!editavel && <ChipSoLeitura />}
+      <ProblemasDoFluxoTodo problemas={doFluxoTodo} />
       <Box sx={{ ml: 'auto' }}>
         <SaveIndicator estado={salvamento} onTentarDeNovo={onTentarDeNovo} />
       </Box>
     </Box>
   );
+}
+
+function ChipSoLeitura(): ReactNode {
+  return (
+    <Chip
+      icon={<LockOutlinedIcon fontSize="small" />}
+      label="Só leitura"
+      size="small"
+      sx={{ bgcolor: tokens.color.background.subtle, color: tokens.color.text.secondary }}
+    />
+  );
+}
+
+function ProblemasDoFluxoTodo({ problemas }: { problemas: readonly ProblemaFluxo[] }): ReactNode {
+  return problemas.map((p) => (
+    <Typography key={chaveDoProblema(p)} variant="caption" sx={{ color: corDoNivel(p.nivel) }}>
+      {p.mensagem}
+    </Typography>
+  ));
 }

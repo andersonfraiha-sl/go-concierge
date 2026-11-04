@@ -19,15 +19,7 @@ type Props = {
 };
 
 /** Painel à direita do canvas: o bloco selecionado ou, sem seleção, as informações do fluxo. */
-export function PainelLateralDoFluxo({
-  fluxo,
-  bloco,
-  problemas,
-  catalogo,
-  editavel,
-  onMudarFluxo,
-  onExcluir,
-}: Props): ReactNode {
+export function PainelLateralDoFluxo(props: Props): ReactNode {
   return (
     <Box
       component="aside"
@@ -40,24 +32,43 @@ export function PainelLateralDoFluxo({
         bgcolor: 'background.paper',
       }}
     >
-      {bloco ? (
-        <BlocoPainel
-          key={bloco.id}
-          bloco={bloco}
-          problemas={problemas.filter((p) => p.blocoId === bloco.id)}
-          catalogo={catalogo}
-          informacoes={fluxo.informacoes}
-          editavel={editavel}
-          onMudar={(mudado) => onMudarFluxo((atual) => atualizarBloco(atual, mudado))}
-          onExcluir={onExcluir}
-        />
+      {props.bloco ? (
+        <PainelDoBloco key={props.bloco.id} {...props} bloco={props.bloco} />
       ) : (
-        <InformacoesPainel
-          informacoes={fluxo.informacoes}
-          editavel={editavel}
-          onMudar={(informacoes) => onMudarFluxo((atual) => ({ ...atual, informacoes }))}
-        />
+        <PainelDasInformacoes {...props} />
       )}
     </Box>
+  );
+}
+
+function PainelDoBloco({
+  fluxo,
+  bloco,
+  problemas,
+  catalogo,
+  editavel,
+  onMudarFluxo,
+  onExcluir,
+}: Props & { bloco: Bloco }): ReactNode {
+  return (
+    <BlocoPainel
+      bloco={bloco}
+      problemas={problemas.filter((p) => p.blocoId === bloco.id)}
+      catalogo={catalogo}
+      informacoes={fluxo.informacoes}
+      editavel={editavel}
+      onMudar={(mudado) => onMudarFluxo((atual) => atualizarBloco(atual, mudado))}
+      onExcluir={onExcluir}
+    />
+  );
+}
+
+function PainelDasInformacoes({ fluxo, editavel, onMudarFluxo }: Props): ReactNode {
+  return (
+    <InformacoesPainel
+      informacoes={fluxo.informacoes}
+      editavel={editavel}
+      onMudar={(informacoes) => onMudarFluxo((atual) => ({ ...atual, informacoes }))}
+    />
   );
 }

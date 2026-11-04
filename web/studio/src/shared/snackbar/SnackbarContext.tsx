@@ -23,25 +23,32 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
     setAviso({ mensagem, tipo });
     setAberto(true);
   };
-  const fechar = () => setAberto(false);
-  // Clique fora não fecha: o aviso dura os 4000 ms inteiros.
-  const aoFecharSnackbar = (_: unknown, motivo: SnackbarCloseReason) => {
-    if (motivo !== 'clickaway') fechar();
-  };
 
   return (
     <SnackbarContext.Provider value={{ mostrar }}>
       {children}
-      <Snackbar
-        open={aberto}
-        autoHideDuration={DURACAO_MS}
-        onClose={aoFecharSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={fechar} severity={aviso?.tipo ?? 'success'} variant="filled">
-          {aviso?.mensagem}
-        </Alert>
-      </Snackbar>
+      <AvisoNaTela aviso={aviso} aberto={aberto} aoFechar={() => setAberto(false)} />
     </SnackbarContext.Provider>
+  );
+}
+
+type PropsDoAviso = { aviso: Aviso | null; aberto: boolean; aoFechar: () => void };
+
+function AvisoNaTela({ aviso, aberto, aoFechar }: PropsDoAviso): ReactNode {
+  // Clique fora não fecha: o aviso dura os 4000 ms inteiros.
+  const aoFecharSnackbar = (_: unknown, motivo: SnackbarCloseReason) => {
+    if (motivo !== 'clickaway') aoFechar();
+  };
+  return (
+    <Snackbar
+      open={aberto}
+      autoHideDuration={DURACAO_MS}
+      onClose={aoFecharSnackbar}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+    >
+      <Alert onClose={aoFechar} severity={aviso?.tipo ?? 'success'} variant="filled">
+        {aviso?.mensagem}
+      </Alert>
+    </Snackbar>
   );
 }

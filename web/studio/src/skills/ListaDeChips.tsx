@@ -15,28 +15,8 @@ type Props = {
 };
 
 /** Lista de chips com adição por Enter; item em branco ou repetido nunca entra. */
-export function ListaDeChips({
-  titulo,
-  ajuda,
-  rotuloNovoItem,
-  mensagemVazia,
-  itens,
-  editavel,
-  onMudar,
-}: Props): ReactNode {
-  const { control, getValues, reset } = useForm({ defaultValues: { rascunho: '' } });
-
-  const adicionar = () => {
-    const item = getValues('rascunho').trim();
-    reset();
-    if (item !== '' && !itens.includes(item)) onMudar([...itens, item]);
-  };
-  const aoTeclar = (evento: KeyboardEvent) => {
-    if (evento.key !== 'Enter') return;
-    evento.preventDefault();
-    adicionar();
-  };
-
+export function ListaDeChips({ titulo, ajuda, rotuloNovoItem, ...lista }: Props): ReactNode {
+  const { mensagemVazia, itens, editavel, onMudar } = lista;
   return (
     <SectionCard titulo={titulo} ajuda={ajuda}>
       {!editavel && itens.length === 0 && (
@@ -53,17 +33,36 @@ export function ListaDeChips({
           />
         ))}
       </Box>
-      {editavel && (
-        <CampoTexto
-          control={control}
-          name="rascunho"
-          size="small"
-          placeholder="Adicionar e apertar Enter"
-          onKeyDown={aoTeclar}
-          onBlur={adicionar}
-          slotProps={{ htmlInput: { 'aria-label': rotuloNovoItem } }}
-        />
-      )}
+      {editavel && <CampoNovoItem rotulo={rotuloNovoItem} itens={itens} onMudar={onMudar} />}
     </SectionCard>
+  );
+}
+
+type PropsDoNovoItem = { rotulo: string; itens: string[]; onMudar: (itens: string[]) => void };
+
+function CampoNovoItem({ rotulo, itens, onMudar }: PropsDoNovoItem): ReactNode {
+  const { control, getValues, reset } = useForm({ defaultValues: { rascunho: '' } });
+
+  const adicionar = () => {
+    const item = getValues('rascunho').trim();
+    reset();
+    if (item !== '' && !itens.includes(item)) onMudar([...itens, item]);
+  };
+  const aoTeclar = (evento: KeyboardEvent) => {
+    if (evento.key !== 'Enter') return;
+    evento.preventDefault();
+    adicionar();
+  };
+
+  return (
+    <CampoTexto
+      control={control}
+      name="rascunho"
+      size="small"
+      placeholder="Adicionar e apertar Enter"
+      onKeyDown={aoTeclar}
+      onBlur={adicionar}
+      slotProps={{ htmlInput: { 'aria-label': rotulo } }}
+    />
   );
 }

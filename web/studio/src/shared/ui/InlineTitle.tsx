@@ -21,8 +21,6 @@ export function InlineTitle({
   component = 'h1',
 }: Props): ReactNode {
   const [editando, setEditando] = useState(false);
-  const { control, getValues, reset } = useForm({ defaultValues: { rascunho: valor } });
-  const cancelado = useRef(false);
 
   if (!editavel) {
     return (
@@ -31,26 +29,42 @@ export function InlineTitle({
       </Typography>
     );
   }
-
   if (!editando) {
     return (
       <ButtonBase
         aria-label={`Editar ${rotulo}`}
-        onClick={() => {
-          cancelado.current = false;
-          reset({ rascunho: valor });
-          setEditando(true);
-        }}
+        onClick={() => setEditando(true)}
         sx={{ ...estiloTitulo, justifyContent: 'flex-start', borderRadius: 1, px: 0.5 }}
       >
         {valor}
       </ButtonBase>
     );
   }
+  return (
+    <CampoDoTitulo
+      valor={valor}
+      rotulo={rotulo}
+      onMudar={onMudar}
+      onEncerrar={() => setEditando(false)}
+    />
+  );
+}
+
+type PropsDoCampo = {
+  valor: string;
+  rotulo: string;
+  onMudar: (v: string) => void;
+  onEncerrar: () => void;
+};
+
+/** Monte só enquanto edita: o rascunho nasce do valor atual. */
+function CampoDoTitulo({ valor, rotulo, onMudar, onEncerrar }: PropsDoCampo): ReactNode {
+  const { control, getValues } = useForm({ defaultValues: { rascunho: valor } });
+  const cancelado = useRef(false);
 
   const confirmar = () => {
     const aparado = getValues('rascunho').trim();
-    setEditando(false);
+    onEncerrar();
     if (!cancelado.current && aparado !== '' && aparado !== valor) onMudar(aparado);
   };
 
@@ -58,7 +72,7 @@ export function InlineTitle({
     if (e.key === 'Enter') confirmar();
     if (e.key === 'Escape') {
       cancelado.current = true;
-      setEditando(false);
+      onEncerrar();
     }
   };
 

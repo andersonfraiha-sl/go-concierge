@@ -22,24 +22,14 @@ type Props = {
 };
 
 const rotuloDeErros = (quantidade: number): string =>
-  `${quantidade} ${quantidade === 1 ? 'erro' : 'erros'}`;
+  quantidade === 1 ? '1 erro' : `${quantidade} erros`;
 
 const rotuloDeAvisos = (quantidade: number): string =>
-  `${quantidade} ${quantidade === 1 ? 'aviso' : 'avisos'}`;
+  quantidade === 1 ? '1 aviso' : `${quantidade} avisos`;
 
-export function SkillCard({
-  skill,
-  variante,
-  onAbrir,
-  onDuplicar,
-  onExcluir,
-  problemas,
-}: Props): ReactNode {
+export function SkillCard({ skill, variante, problemas, ...acoes }: Props): ReactNode {
   const completo = variante === 'completo';
-  const Icone = iconeDaSkill(skill.icone);
-  const tamanhoDoIcone = completo ? 42 : 30;
   const realce = useRealceDoCopiloto(`skill:${skill.nome}`);
-
   return (
     <Card
       component="article"
@@ -48,83 +38,108 @@ export function SkillCard({
       sx={[{ display: 'flex', flexDirection: 'column' }, realce]}
     >
       <CardContent sx={{ flex: 1, pb: 0, display: 'flex', gap: completo ? 2 : 1.5 }}>
-        <Box
-          sx={{
-            width: tamanhoDoIcone,
-            height: tamanhoDoIcone,
-            flex: 'none',
-            borderRadius: completo ? '12px' : '9px',
-            bgcolor: tokens.color.background.tint,
-            color: tokens.color.primary.main,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icone fontSize={completo ? 'medium' : 'small'} />
-        </Box>
+        <IconeDoCartao icone={skill.icone} completo={completo} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography
-            variant={completo ? 'subtitle1' : 'body1'}
-            component="h3"
-            sx={completo ? undefined : { fontWeight: 600 }}
-          >
-            {skill.titulo}
-          </Typography>
-          {skill.resumo !== '' && (
-            <Typography
-              variant={completo ? 'body2' : 'caption'}
-              color="text.secondary"
-              sx={{ display: 'block', mt: 0.5 }}
-            >
-              {skill.resumo}
-            </Typography>
-          )}
-          {completo && (
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-              {problemas !== undefined && problemas.erros > 0 && (
-                <Chip size="small" color="error" label={rotuloDeErros(problemas.erros)} />
-              )}
-              {problemas !== undefined && problemas.avisos > 0 && (
-                <Chip
-                  size="small"
-                  label={rotuloDeAvisos(problemas.avisos)}
-                  sx={{
-                    color: tokens.color.warning.text,
-                    bgcolor: tokens.color.warning.background,
-                  }}
-                />
-              )}
-            </Box>
-          )}
+          <TextosDoCartao skill={skill} completo={completo} />
+          {completo && <ChipsDeProblemas problemas={problemas} />}
         </Box>
       </CardContent>
-      <CardActions>
-        <Button size="small" aria-label={`Abrir ${skill.titulo}`} onClick={onAbrir}>
-          Abrir
-        </Button>
-        {onDuplicar && (
-          <Button
-            size="small"
-            startIcon={<ContentCopyIcon fontSize="small" />}
-            aria-label={`Duplicar ${skill.titulo}`}
-            onClick={onDuplicar}
-          >
-            Duplicar
-          </Button>
-        )}
-        {onExcluir && (
-          <Button
-            size="small"
-            color="error"
-            startIcon={<DeleteOutlinedIcon fontSize="small" />}
-            aria-label={`Excluir ${skill.titulo}`}
-            onClick={onExcluir}
-          >
-            Excluir
-          </Button>
-        )}
-      </CardActions>
+      <AcoesDoCartao titulo={skill.titulo} {...acoes} />
     </Card>
+  );
+}
+
+function IconeDoCartao({ icone, completo }: { icone: string; completo: boolean }): ReactNode {
+  const Icone = iconeDaSkill(icone);
+  const tamanho = completo ? 42 : 30;
+  return (
+    <Box
+      sx={{
+        width: tamanho,
+        height: tamanho,
+        flex: 'none',
+        borderRadius: completo ? '12px' : '9px',
+        bgcolor: tokens.color.background.tint,
+        color: tokens.color.primary.main,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Icone fontSize={completo ? 'medium' : 'small'} />
+    </Box>
+  );
+}
+
+function TextosDoCartao({ skill, completo }: { skill: SkillResumo; completo: boolean }) {
+  return (
+    <>
+      <Typography
+        variant={completo ? 'subtitle1' : 'body1'}
+        component="h3"
+        sx={completo ? undefined : { fontWeight: 600 }}
+      >
+        {skill.titulo}
+      </Typography>
+      {skill.resumo !== '' && (
+        <Typography
+          variant={completo ? 'body2' : 'caption'}
+          color="text.secondary"
+          sx={{ display: 'block', mt: 0.5 }}
+        >
+          {skill.resumo}
+        </Typography>
+      )}
+    </>
+  );
+}
+
+function ChipsDeProblemas({ problemas }: { problemas: Problemas | undefined }): ReactNode {
+  const erros = problemas?.erros ?? 0;
+  const avisos = problemas?.avisos ?? 0;
+  return (
+    <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+      {erros > 0 && <Chip size="small" color="error" label={rotuloDeErros(erros)} />}
+      {avisos > 0 && (
+        <Chip
+          size="small"
+          label={rotuloDeAvisos(avisos)}
+          sx={{ color: tokens.color.warning.text, bgcolor: tokens.color.warning.background }}
+        />
+      )}
+    </Box>
+  );
+}
+
+type PropsDasAcoes = Pick<Props, 'onAbrir' | 'onDuplicar' | 'onExcluir'> & { titulo: string };
+
+function AcoesDoCartao({ titulo, onAbrir, onDuplicar, onExcluir }: PropsDasAcoes): ReactNode {
+  return (
+    <CardActions>
+      <Button size="small" aria-label={`Abrir ${titulo}`} onClick={onAbrir}>
+        Abrir
+      </Button>
+      {onDuplicar && (
+        <Button
+          size="small"
+          startIcon={<ContentCopyIcon fontSize="small" />}
+          aria-label={`Duplicar ${titulo}`}
+          onClick={onDuplicar}
+        >
+          Duplicar
+        </Button>
+      )}
+      {onExcluir && (
+        <Button
+          size="small"
+          color="error"
+          startIcon={<DeleteOutlinedIcon fontSize="small" />}
+          aria-label={`Excluir ${titulo}`}
+          onClick={onExcluir}
+        >
+          Excluir
+        </Button>
+      )}
+    </CardActions>
   );
 }

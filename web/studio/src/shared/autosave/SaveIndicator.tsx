@@ -22,21 +22,27 @@ export function SaveIndicator({ estado, onTentarDeNovo }: Props): ReactNode {
         </Typography>
       );
     case 'erro':
-      return (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Tooltip title={estado.mensagem}>
-            <Typography variant="caption" color="error">
-              Falha ao salvar
-            </Typography>
-          </Tooltip>
-          <Button size="small" color="error" onClick={onTentarDeNovo}>
-            Tentar de novo
-          </Button>
-        </Box>
-      );
+      return <FalhaAoSalvar mensagem={estado.mensagem} onTentarDeNovo={onTentarDeNovo} />;
     default:
       return assertNever(estado);
   }
+}
+
+type PropsDaFalha = { mensagem: string; onTentarDeNovo: () => void };
+
+function FalhaAoSalvar({ mensagem, onTentarDeNovo }: PropsDaFalha): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Tooltip title={mensagem}>
+        <Typography variant="caption" color="error">
+          Falha ao salvar
+        </Typography>
+      </Tooltip>
+      <Button size="small" color="error" onClick={onTentarDeNovo}>
+        Tentar de novo
+      </Button>
+    </Box>
+  );
 }
 
 function assertNever(valor: never): never {
