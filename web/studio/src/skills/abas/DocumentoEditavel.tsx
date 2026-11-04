@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { chaveDoArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
+import { ApiError } from '@/shared/api/http';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
@@ -17,14 +18,19 @@ type Props = {
   onExcluir?: () => void;
   /** Arquivo em exclusão: gravações pendentes são descartadas para não recriá-lo. */
   descartar?: boolean;
+  /** Arquivo pode ainda não existir: nasce vazio em vez de erro, e o salvar o cria. */
+  criaSeNaoExistir?: boolean;
 };
 
+const eArquivoAusente = (erro: unknown): boolean => erro instanceof ApiError && erro.status === 404;
+
 export function DocumentoEditavel(props: Props): ReactNode {
-  const { agente, caminho, titulo } = props;
+  const { agente, caminho, titulo, criaSeNaoExistir = false } = props;
   const arquivo = useArquivo(agente, caminho);
+  const aindaNaoExiste = criaSeNaoExistir && arquivo.isError && eArquivoAusente(arquivo.error);
 
   if (arquivo.isPending) return <Typography variant="caption">Carregando {titulo}…</Typography>;
-  if (arquivo.isError) {
+  if (arquivo.isError && !aindaNaoExiste) {
     return (
       <ErroComRetry
         mensagem={`Não foi possível abrir ${titulo}.`}
@@ -32,7 +38,7 @@ export function DocumentoEditavel(props: Props): ReactNode {
       />
     );
   }
-  return <Editor {...props} inicial={arquivo.data.conteudo} />;
+  return <Editor {...props} inicial={arquivo.data?.conteudo ?? ''} />;
 }
 
 /** Monta só depois da leitura: o texto nasce do conteúdo salvo e é o `valor` estável do autosave. */

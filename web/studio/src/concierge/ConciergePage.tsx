@@ -56,7 +56,7 @@ const ABAS: ReadonlyArray<{ valor: Aba; rotulo: string }> = [
 ];
 
 const abaDaConsulta = (valor: string | null): Aba =>
-  ABAS.some((aba) => aba.valor === valor) ? (valor as Aba) : 'persona';
+  ABAS.find((aba) => aba.valor === valor)?.valor ?? 'persona';
 
 const CONTEUDO_DA_ABA: Record<Aba, (assistente: string) => ReactNode> = {
   persona: (assistente) => <PersonaDoAgente assistente={assistente} />,

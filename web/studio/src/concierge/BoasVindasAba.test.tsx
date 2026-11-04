@@ -89,7 +89,7 @@ describe('BoasVindasAba', () => {
       },
     });
     const { user } = montar();
-    const qualquerContato = await screen.findByRole('radio', { name: 'Qualquer contato' });
+    const qualquerContato = await screen.findByRole('button', { name: 'Qualquer contato' });
     await user.click(qualquerContato);
     await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos[0]).toEqual({
@@ -104,6 +104,6 @@ describe('BoasVindasAba', () => {
     montar();
     const campo = await screen.findByRole('textbox', { name: 'Mensagem de boas-vindas' });
     expect(campo).toBeDisabled();
-    expect(await screen.findByRole('radio', { name: 'Qualquer contato' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Qualquer contato' })).toBeDisabled();
   });
 });
