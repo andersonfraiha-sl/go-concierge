@@ -18,6 +18,17 @@ type Ambiente interface {
 	Chamar(ctx context.Context, agente, recurso string, params map[string]any, confirmacao string) (any, error)
 }
 
+// CanceladoAPedido é o texto da saída quando o próprio morador não confirma; qualquer
+// outro texto em Saida cancelada é o motivo de uma regra (ver Previsor).
+const CanceladoAPedido = "pedido cancelado a seu pedido"
+
+// Previsor é o Ambiente que avalia a escrita do caso antes da hora: com os params já
+// coletados, diz se uma regra vai bloquear a gravação, para o pedido não gastar as perguntas
+// do morador à toa. Só bloqueio cancela; pedir confirmação fica para a escrita real.
+type Previsor interface {
+	Prever(ctx context.Context, agente, recurso string, params map[string]any) (motivo string, bloqueia bool)
+}
+
 // Saida é o que o motor devolve depois de avançar um pedido até onde dá.
 type Saida struct {
 	Tipo   string  `json:"tipo"` // pergunta | confirmar | concluido | cancelado | formulario | erro
@@ -39,6 +50,10 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 	}
 	if p.Dados == nil {
 		p.Dados = map[string]any{}
+	}
+	if motivo, bloqueia := preverEscrita(ctx, ct, p, amb); bloqueia {
+		p.mudar(Cancelado, motivo)
+		return Saida{Tipo: "cancelado", Texto: motivo}
 	}
 	for _, passo := range ct.Passos {
 		switch passo.Tipo {
@@ -218,7 +233,7 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 			}
 			if p.Confirmacao.Resposta == "nao" {
 				p.mudar(Cancelado, "o morador não confirmou")
-				return Saida{Tipo: "cancelado", Texto: "pedido cancelado a seu pedido"}
+				return Saida{Tipo: "cancelado", Texto: CanceladoAPedido}
 			}
 		case "redigir", "formulario":
 			// redigir: a persona escreve a partir do resultado; formulario já saiu acima
@@ -242,6 +257,40 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 	p.Pendencia = nil
 	p.mudar(Concluido, "")
 	return Saida{Tipo: "concluido", Texto: texto}
+}
+
+// preverEscrita pergunta ao ambiente se a escrita do caso, com o que já foi coletado, será
+// bloqueada. Não prevê sem Previsor, sem escrita pendente, ou na vez da gravação (o sim já
+// veio): ali a avaliação completa roda no caminho normal.
+func preverEscrita(ctx context.Context, ct *Contrato, p *Pedido, amb Ambiente) (motivo string, bloqueia bool) {
+	prev, ok := amb.(Previsor)
+	if !ok || (p.Confirmacao != nil && p.Confirmacao.Resposta == "sim") {
+		return "", false
+	}
+	passo, ok := escritaPendente(ct, p)
+	if !ok {
+		return "", false
+	}
+	params, err := ct.ParamsDe(passo.With, p)
+	if err != nil {
+		return "", false // a gravação reporta o erro dos params com o contexto certo
+	}
+	return prev.Prever(ctx, p.Agente, passo.Recurso, params)
+}
+
+// escritaPendente é o primeiro passo de recurso com `with` que ainda não rodou: as
+// listagens não têm `with`.
+func escritaPendente(ct *Contrato, p *Pedido) (Passo, bool) {
+	for _, passo := range ct.Passos {
+		if passo.Tipo != "recurso" || passo.With == nil {
+			continue
+		}
+		if _, feito := p.Dados[passo.SaveAs]; passo.SaveAs != "" && feito {
+			continue
+		}
+		return passo, true
+	}
+	return Passo{}, false
 }
 
 func falha(p *Pedido, motivo string) Saida {
