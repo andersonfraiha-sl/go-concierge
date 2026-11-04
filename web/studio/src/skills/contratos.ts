@@ -4,6 +4,7 @@ import {
   type Fluxo,
   type FluxoGravado,
   FluxoGravadoSchema,
+  type FluxoLido,
   FluxoLidoSchema,
 } from '@/fluxo/modelo/tipos';
 import { ApiError, apiEnviar, apiGet } from '@/shared/api/http';
@@ -81,10 +82,14 @@ const TENTATIVAS_PADRAO = 3;
 const repetirSalvo404 = (falhas: number, erro: Error): boolean =>
   !(erro instanceof ApiError && erro.status === 404) && falhas < TENTATIVAS_PADRAO;
 
+export function buscarFluxo(nome: string): Promise<FluxoLido> {
+  return apiGet(`${caminhoDaSkill(nome)}/fluxo`, FluxoLidoSchema);
+}
+
 export function useFluxo(nome: string) {
   return useQuery({
     queryKey: chaveDoFluxo(nome),
-    queryFn: () => apiGet(`${caminhoDaSkill(nome)}/fluxo`, FluxoLidoSchema),
+    queryFn: () => buscarFluxo(nome),
     retry: repetirSalvo404,
   });
 }
@@ -122,10 +127,11 @@ function useMutationDeSkills<V, R>(enviar: (variaveis: V) => Promise<R>) {
   });
 }
 
+export const criarSkill = (c: { nome: string; titulo: string }): Promise<{ nome: string }> =>
+  apiEnviar('POST', '/api/skills', c, NomeSchema);
+
 export function useCriarSkill() {
-  return useMutationDeSkills((c: { nome: string; titulo: string }) =>
-    apiEnviar('POST', '/api/skills', c, NomeSchema),
-  );
+  return useMutationDeSkills(criarSkill);
 }
 
 export function useDuplicarSkill() {
@@ -139,10 +145,11 @@ export function useDuplicarSkill() {
   );
 }
 
+export const excluirSkill = (nome: string): Promise<null> =>
+  apiEnviar('DELETE', caminhoDaSkill(nome), undefined, z.null());
+
 export function useExcluirSkill() {
-  return useMutationDeSkills((nome: string) =>
-    apiEnviar('DELETE', caminhoDaSkill(nome), undefined, z.null()),
-  );
+  return useMutationDeSkills(excluirSkill);
 }
 
 /** Nome de pasta a partir do título: minúsculas, sem acento, hífen entre palavras. */
