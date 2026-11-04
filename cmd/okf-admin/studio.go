@@ -364,7 +364,7 @@ func (s *servidor) responderErro(w http.ResponseWriter, err error) {
 		}
 	}
 	if !errors.Is(err, context.Canceled) { // quem cancelou foi o cliente, que nem lê a resposta
-		s.log.Printf("studio: %v", err)
+		anotarFalha(context.Background(), w, fmt.Errorf("studio: %w", err), 1)
 	}
 	writeJSON(w, http.StatusInternalServerError, erroAPI{Codigo: "ERRO_INTERNO", Mensagem: "Não deu para concluir. Tente de novo."})
 }

@@ -23,6 +23,7 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
+	comfalha "go-concierge/internal/falha" // falha é o nome local do erro de entrega
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/auditoria"
 	"go-concierge/internal/ganchos/fixos"
@@ -193,11 +194,11 @@ func (h *HTTPSender) Enviar(ctx context.Context, destino entrada.Destino, texto 
 	}
 	res, err := cli.Do(req)
 	if err != nil {
-		return err
+		return comfalha.ComPilha(err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode >= 300 {
-		return fmt.Errorf("HTTP %d", res.StatusCode)
+		return comfalha.ComPilha(fmt.Errorf("HTTP %d", res.StatusCode))
 	}
 	return nil
 }
@@ -251,11 +252,11 @@ func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, text
 		}
 		res, err := client.Do(req)
 		if err != nil {
-			return falha(fmt.Errorf("ATENDE: parte %d de %d falhou: %w", i+1, len(partes), err))
+			return falha(comfalha.ComPilha(fmt.Errorf("ATENDE: parte %d de %d falhou: %w", i+1, len(partes), err)))
 		}
 		_ = res.Body.Close()
 		if res.StatusCode < 200 || res.StatusCode >= 300 {
-			return falha(fmt.Errorf("ATENDE: parte %d de %d respondeu HTTP %d", i+1, len(partes), res.StatusCode))
+			return falha(comfalha.ComPilha(fmt.Errorf("ATENDE: parte %d de %d respondeu HTTP %d", i+1, len(partes), res.StatusCode)))
 		}
 		enviadas = append(enviadas, formatada)
 	}
@@ -1034,6 +1035,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			defer extracoes.Done()
 			ctxMem, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
+			defer comfalha.Recuperar(ctxMem, "extrair_memoria")
 			fatos := s.lembrar(ctxMem, &memCopia, sess, texto, res.Resposta, revisaoMemoria)
 			sess.anotarMemorias(idx, fatos)
 			if len(fatos) > 0 {

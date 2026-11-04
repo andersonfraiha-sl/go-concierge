@@ -40,7 +40,7 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 			mux.Handle(m+" /mcp/", protegido)
 		}
 	}
-	return s.registrar(mux)
+	return s.registrar(comCabecalhosDeSeguranca(mux))
 }
 
 // alvoDe resolve o escopo sobre o qual a requisição age.
@@ -112,7 +112,7 @@ func responderErroDeAlvo(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, e.status, map[string]string{"codigo": e.codigo, "error": e.mensagem})
 		return
 	}
-	loggerDe(r.Context()).ErrorContext(r.Context(), "resolver alvo da requisição", "operacao", operacaoDe(r), "erro", err.Error())
+	anotarFalha(r.Context(), w, fmt.Errorf("resolver alvo da requisição: %w", err), 1)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
 }
 

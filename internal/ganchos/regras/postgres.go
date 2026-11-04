@@ -12,6 +12,7 @@ import (
 	"go-concierge/internal/banco/ent/ganchosregra"
 	"go-concierge/internal/banco/ent/ganchosregraversao"
 	"go-concierge/internal/banco/ent/schema"
+	"go-concierge/internal/falha"
 	"go-concierge/internal/ganchos"
 )
 
@@ -98,7 +99,7 @@ func (p *Postgres) VersoesAtuais(ctx context.Context, ids []string) (map[string]
 	linhas, err := p.cli.GanchosRegra.Query().Where(ganchosregra.IDIn(uids...)).
 		Select(ganchosregra.FieldID, ganchosregra.FieldVersao).All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("versões atuais: %w", err)
+		return nil, falha.ComPilha(fmt.Errorf("versões atuais: %w", err))
 	}
 	versoes := make(map[string]int, len(linhas))
 	for _, l := range linhas {
@@ -147,7 +148,7 @@ func gravarRegra(ctx context.Context, tx *ent.Tx, r RegraGravada, versaoLida int
 		SetAlteradaEm(r.AlteradaEm).
 		Save(ctx)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("atualizar regra: %w", err)
+		return uuid.Nil, falha.ComPilha(fmt.Errorf("atualizar regra: %w", err))
 	}
 	if alteradas > 0 {
 		return id, nil
@@ -187,7 +188,7 @@ func criarRegra(ctx context.Context, tx *ent.Tx, r RegraGravada) (uuid.UUID, err
 		return uuid.Nil, ErrVersaoVelha
 	}
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("criar regra: %w", err)
+		return uuid.Nil, falha.ComPilha(fmt.Errorf("criar regra: %w", err))
 	}
 	return criada.ID, nil
 }
@@ -217,7 +218,7 @@ func (p *Postgres) Listar(ctx context.Context, depois string, limite int) ([]Reg
 	if depois != "" {
 		cursor, err := uuid.Parse(depois)
 		if err != nil {
-			return nil, fmt.Errorf("listar regras depois de %q: %w", depois, err)
+			return nil, falha.ComPilha(fmt.Errorf("listar regras depois de %q: %w", depois, err))
 		}
 		consulta.Where(ganchosregra.IDGT(cursor))
 	}
@@ -240,7 +241,7 @@ func (p *Postgres) ativas(ctx context.Context) ([]RegraGravada, error) {
 func lerRegras(ctx context.Context, consulta *ent.GanchosRegraQuery, operacao string) ([]RegraGravada, error) {
 	linhas, err := consulta.Order(ent.Asc(ganchosregra.FieldID)).All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", operacao, err)
+		return nil, falha.ComPilha(fmt.Errorf("%s: %w", operacao, err))
 	}
 	regras := make([]RegraGravada, len(linhas))
 	for i, linha := range linhas {
@@ -307,7 +308,7 @@ func emTransacao[T any](ctx context.Context, cli *ent.Client, fn func(*ent.Tx) (
 	var zero T
 	tx, err := cli.Tx(ctx)
 	if err != nil {
-		return zero, fmt.Errorf("abrir transação: %w", err)
+		return zero, falha.ComPilha(fmt.Errorf("abrir transação: %w", err))
 	}
 	r, err := fn(tx)
 	if err != nil {
@@ -317,7 +318,7 @@ func emTransacao[T any](ctx context.Context, cli *ent.Client, fn func(*ent.Tx) (
 		return zero, err
 	}
 	if err := tx.Commit(); err != nil {
-		return zero, fmt.Errorf("confirmar transação: %w", err)
+		return zero, falha.ComPilha(fmt.Errorf("confirmar transação: %w", err))
 	}
 	return r, nil
 }

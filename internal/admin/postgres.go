@@ -19,6 +19,7 @@ import (
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/predicate"
 	"go-concierge/internal/banco/ent/schema"
+	"go-concierge/internal/falha"
 )
 
 // timeoutConsulta limita cada leitura ou escrita do mapeamento (vale também para as rotas HTTP).
@@ -107,7 +108,7 @@ func esperarNovaTentativa(ctx context.Context, tentativa int) error {
 func emTransacao(ctx context.Context, cli *ent.Client, opcoes *stdsql.TxOptions, fn func(context.Context, *ent.Client) (Mapeamento, error)) (Mapeamento, error) {
 	tx, err := cli.BeginTx(ctx, opcoes)
 	if err != nil {
-		return Mapeamento{}, fmt.Errorf("abrir transação: %w", err)
+		return Mapeamento{}, falha.ComPilha(fmt.Errorf("abrir transação: %w", err))
 	}
 	m, err := fn(ctx, tx.Client())
 	if err != nil {
@@ -117,7 +118,7 @@ func emTransacao(ctx context.Context, cli *ent.Client, opcoes *stdsql.TxOptions,
 		return Mapeamento{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return Mapeamento{}, fmt.Errorf("confirmar transação: %w", err)
+		return Mapeamento{}, falha.ComPilha(fmt.Errorf("confirmar transação: %w", err))
 	}
 	return m, nil
 }
@@ -294,23 +295,23 @@ func ler(ctx context.Context, cli *ent.Client) (Mapeamento, error) {
 	var m Mapeamento
 	adms, err := cli.Administradora.Query().Order(entadministradora.ByID()).All(ctx)
 	if err != nil {
-		return m, fmt.Errorf("ler administradoras: %w", err)
+		return m, falha.ComPilha(fmt.Errorf("ler administradoras: %w", err))
 	}
 	condos, err := cli.Condominio.Query().Order(entcondominio.ByNome(), entcondominio.ByID()).All(ctx)
 	if err != nil {
-		return m, fmt.Errorf("ler condomínios: %w", err)
+		return m, falha.ComPilha(fmt.Errorf("ler condomínios: %w", err))
 	}
 	habs, err := cli.Habilitacao.Query().All(ctx)
 	if err != nil {
-		return m, fmt.Errorf("ler habilitações: %w", err)
+		return m, falha.ComPilha(fmt.Errorf("ler habilitações: %w", err))
 	}
 	pays, err := cli.Payload.Query().All(ctx)
 	if err != nil {
-		return m, fmt.Errorf("ler payloads: %w", err)
+		return m, falha.ComPilha(fmt.Errorf("ler payloads: %w", err))
 	}
 	oris, err := cli.Orientacao.Query().All(ctx)
 	if err != nil {
-		return m, fmt.Errorf("ler orientações: %w", err)
+		return m, falha.ComPilha(fmt.Errorf("ler orientações: %w", err))
 	}
 	return montar(adms, condos, habs, pays, oris), nil
 }
