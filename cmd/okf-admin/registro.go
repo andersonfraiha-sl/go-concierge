@@ -73,7 +73,7 @@ func (s *servidor) registrar(next http.Handler) http.Handler {
 		r = r.WithContext(context.WithValue(r.Context(), chaveRegistro{}, reg))
 		rr := &respostaRegistrada{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rr, r)
-		if r.Pattern == padraoEstaticos && !strings.HasPrefix(r.URL.Path, "/api/") {
+		if ehSondaDeSaude(r.Pattern) || r.Pattern == padraoEstaticos && !strings.HasPrefix(r.URL.Path, "/api/") {
 			return
 		}
 		nivel := slog.LevelInfo

@@ -95,6 +95,7 @@ type servidor struct {
 	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
 	limiteCopiloto      *limiteDoCopiloto
 	turnos              sync.WaitGroup // turnos do webhook em segundo plano; o desligamento espera
+	regrasAquecidas     func() bool    // readyz: o cache de regras dos ganchos já carregou
 
 	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
 	autenticador Autenticador
@@ -117,6 +118,9 @@ var (
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarJSON {
 		os.Exit(importarJSON(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == subcomandoSaude {
+		os.Exit(saude(os.Args[2:], os.Stderr))
 	}
 	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
@@ -349,6 +353,7 @@ func (s *servidor) montarGanchos(ctx context.Context, m metric.Meter) (*ganchos.
 	if err := cache.Aquecer(ctx); err != nil {
 		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
 	}
+	s.regrasAquecidas = func() bool { return cache.Indice() != nil }
 	observabilidade, err := ganchos.ComObservabilidade(slog.Default(), m)
 	if err != nil {
 		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
@@ -437,16 +442,31 @@ func gravarExemplo(ctx context.Context, repo admin.Repositorio, exemplo admin.Co
 	return err
 }
 
-// healthz responde 503 quando o Postgres não responde em timeoutHealthz.
-func (s *servidor) healthz(w http.ResponseWriter, r *http.Request) {
+// healthz é a liveness: o processo responde. Sem I/O, para o orquestrador não reiniciar o
+// concierge por causa do banco.
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// readyz é a readiness: 503 enquanto o Postgres não responde em timeoutHealthz ou as regras
+// dos ganchos não foram aquecidas; o orquestrador só manda tráfego depois do 200.
+func (s *servidor) readyz(w http.ResponseWriter, r *http.Request) {
+	if s.regrasAquecidas == nil || !s.regrasAquecidas() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "indisponivel", "motivo": "regras não aquecidas"})
+		return
+	}
+	if s.banco.Pool == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "indisponivel", "motivo": "postgres não configurado"})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeoutHealthz)
 	defer cancel()
 	if err := s.banco.Pool.Ping(ctx); err != nil {
-		s.log.Printf("okf-admin: healthz: ping no postgres: %v", err)
-		http.Error(w, "postgres indisponível", http.StatusServiceUnavailable)
+		slog.WarnContext(ctx, "readyz: postgres não respondeu", "operacao", "readyz", "erro", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "indisponivel", "motivo": "postgres não respondeu"})
 		return
 	}
-	w.Write([]byte("ok"))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "pronto"})
 }
 
 // proxyMCP repassa /mcp/... ao servidor MCP configurado (MCP_URL), com o Host que ele
@@ -481,7 +501,8 @@ func mcpPath(raw string) string {
 func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.Handle(padraoEstaticos, semCache(http.FileServerFS(s.web)))
 	mux.Handle("GET /{$}", http.RedirectHandler("/studio/", http.StatusFound))
-	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.HandleFunc(padraoHealthz, healthz)
+	mux.HandleFunc(padraoReadyz, s.readyz)
 
 	// leitura do catálogo: skills.ler em qualquer escopo
 	for padrao, h := range map[string]http.HandlerFunc{

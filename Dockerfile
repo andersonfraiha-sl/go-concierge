@@ -26,5 +26,7 @@ COPY --from=build /out/ /app/
 # é montado de ./okf para editar pelo Studio sem rebuild.
 COPY --chown=nonroot:nonroot okf /app/okf
 EXPOSE 8090
+# forma exec: a imagem não tem shell; o binário consulta o /readyz (subcomando saude)
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["/app/okf-admin", "saude"]
 ENTRYPOINT ["/app/okf-admin"]
 CMD ["-root", "/app/okf", "-addr", "0.0.0.0:8090", "-env", "/app/.env"]
