@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 // senão o padrão do provedor (MODEL_PLANNER, senão o do provedor).
 
 // prazoDoModelo é o teto da chamada HTTP ao provedor; o servidor ainda impõe o seu.
-const prazoDoModelo = 90 * time.Second
+const prazoDoModelo = 55 * time.Second
 
 // MensagemDoCopiloto é uma fala da conversa; Papel é "pessoa" ou "copiloto".
 type MensagemDoCopiloto struct {
@@ -65,10 +66,9 @@ func NovoCopiloto(cfg Config) (Copiloto, bool) {
 	}
 	m, err := novoModelo(context.Background(), prov, chave, base, modeloDoCopiloto(cfg, prov), prazoDoModelo)
 	if err != nil {
-		// o provedor existe, mas o cliente não montou: cada pedido devolve o erro (vira 500 com log)
-		return func(context.Context, PedidoAoCopiloto) (RespostaDoModelo, error) {
-			return RespostaDoModelo{}, fmt.Errorf("copiloto: montar modelo: %w", err)
-		}, true
+		// sem cliente não há Copiloto: o painel mostra "Indisponível" (503), e o motivo fica no log
+		log.Printf("copiloto: montar modelo %s: %v", prov.Nome, err)
+		return nil, false
 	}
 	return func(ctx context.Context, p PedidoAoCopiloto) (RespostaDoModelo, error) {
 		resp, err := m.Generate(ctx, mensagensAoModelo(p))

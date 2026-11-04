@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/copiloto"
@@ -55,6 +59,7 @@ func servidorDoCopiloto(t *testing.T, falso *copilotoFalso) *servidor {
 	if falso != nil {
 		s.copiloto = falso.responder
 	}
+	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
 	return s
 }
 
@@ -131,23 +136,99 @@ func TestCopilotoDevolvePropostasDaTela(t *testing.T) {
 }
 
 func TestCopilotoNaoPropoeAlemDoPapel(t *testing.T) {
-	falso := &copilotoFalso{ops: []copiloto.Operacao{
-		{Tipo: copiloto.TrocarFluxo, Skill: "agendar-mudanca", Fluxo: &okf.Fluxo{}},
-		{Tipo: copiloto.HabilitarSkill, Skill: "reserva-area-comum", Condominio: "solar", Habilitado: ligado()},
-	}}
-	h := handlerDoCopiloto(servidorDoCopiloto(t, falso))
-
-	status, resp := perguntar(t, h, "gestor", copiloto.Contexto{Tela: copiloto.TelaCondominio, Condominio: "solar"})
-	if status != http.StatusOK {
-		t.Fatalf("status = %d", status)
+	casos := []struct {
+		nome        string
+		tela        copiloto.Contexto
+		ops         []copiloto.Operacao
+		querMotivos []string
+	}{
+		{
+			nome: "fora da tela e fora do escopo",
+			tela: copiloto.Contexto{Tela: copiloto.TelaCondominio, Condominio: "solar"},
+			ops: []copiloto.Operacao{
+				{Tipo: copiloto.TrocarFluxo, Skill: "agendar-mudanca", Fluxo: &okf.Fluxo{}},
+				{Tipo: copiloto.HabilitarSkill, Skill: "reserva-area-comum", Condominio: "solar", Habilitado: ligado()},
+			},
+			querMotivos: []string{"Esta tela não faz isso.", "Esse condomínio não está com você."},
+		},
+		{
+			nome:        "a tela aceita e so o papel recusa",
+			tela:        copiloto.Contexto{Tela: copiloto.TelaFluxo, Skill: "agendar-mudanca"},
+			ops:         []copiloto.Operacao{{Tipo: copiloto.TrocarFluxo, Skill: "agendar-mudanca", Fluxo: &okf.Fluxo{}}},
+			querMotivos: []string{"Você não tem permissão para isso."},
+		},
 	}
-	if len(resp.Propostas) != 0 || len(resp.Recusas) != 2 || resp.Recusas[0].Indice != 0 || resp.Recusas[1].Indice != 1 {
-		t.Fatalf("resposta = %+v", resp)
-	}
-	if strings.Contains(falso.recebeu.Contexto, "segredo do Solar") {
-		t.Fatal("o contexto vazou a orientação de um condomínio de outra administradora")
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			falso := &copilotoFalso{ops: c.ops}
+			status, resp := perguntar(t, handlerDoCopiloto(servidorDoCopiloto(t, falso)), "gestor", c.tela)
+			if status != http.StatusOK || len(resp.Propostas) != 0 {
+				t.Fatalf("status = %d, resposta = %+v", status, resp)
+			}
+			motivos := make([]string, len(resp.Recusas))
+			for i, r := range resp.Recusas {
+				if r.Indice != i {
+					t.Fatalf("recusa %d com índice %d", i, r.Indice)
+				}
+				motivos[i] = r.Motivo
+			}
+			if !slices.Equal(motivos, c.querMotivos) {
+				t.Fatalf("motivos = %q, quer %q", motivos, c.querMotivos)
+			}
+			if strings.Contains(falso.recebeu.Contexto, "segredo do Solar") {
+				t.Fatal("o contexto vazou a orientação de um condomínio de outra administradora")
+			}
+		})
 	}
 }
+
+func TestCopilotoSoPropoeParaOItemAberto(t *testing.T) {
+	textos := &copiloto.TextosParciais{Resumo: ptr("Novo resumo.")}
+	conteudo := "novo"
+	casos := []struct {
+		nome   string
+		tela   copiloto.Contexto
+		certa  copiloto.Operacao
+		outra  copiloto.Operacao
+		motivo string
+	}{
+		{
+			"skill", copiloto.Contexto{Tela: copiloto.TelaSkill, Skill: "reserva-area-comum"},
+			copiloto.Operacao{Tipo: copiloto.PreencherTextos, Skill: "reserva-area-comum", Textos: textos},
+			copiloto.Operacao{Tipo: copiloto.PreencherTextos, Skill: "agendar-mudanca", Textos: textos},
+			motivoOutroItem,
+		},
+		{
+			"condominio", copiloto.Contexto{Tela: copiloto.TelaCondominio, Condominio: "vila-verde"},
+			copiloto.Operacao{Tipo: copiloto.Orientar, Condominio: "vila-verde", Texto: "oi"},
+			copiloto.Operacao{Tipo: copiloto.Orientar, Condominio: "solar", Texto: "oi"},
+			"Esse condomínio não está com você.", // Filtrar já prende a ficha ao condomínio aberto
+		},
+		{
+			"arquivo", copiloto.Contexto{Tela: copiloto.TelaAvancado, Agente: "agentes/concierge", Caminho: "knowledge/a.md"},
+			copiloto.Operacao{Tipo: copiloto.EditarArquivo, Agente: "agentes/concierge", Caminho: "knowledge/a.md", Conteudo: &conteudo},
+			copiloto.Operacao{Tipo: copiloto.EditarArquivo, Agente: "agentes/concierge", Caminho: "knowledge/b.md", Conteudo: &conteudo},
+			motivoOutroItem,
+		},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			falso := &copilotoFalso{ops: []copiloto.Operacao{c.certa, c.outra}}
+			status, resp := perguntar(t, handlerDoCopiloto(servidorDoCopiloto(t, falso)), "construtor", c.tela)
+			if status != http.StatusOK {
+				t.Fatalf("status = %d", status)
+			}
+			if len(resp.Propostas) != 1 || resp.Propostas[0].ID != "0" {
+				t.Fatalf("propostas = %+v", resp.Propostas)
+			}
+			if len(resp.Recusas) != 1 || resp.Recusas[0].Indice != 1 || resp.Recusas[0].Motivo != c.motivo {
+				t.Fatalf("recusas = %+v", resp.Recusas)
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestCopilotoRecusaFluxoComErro(t *testing.T) {
 	s := servidorDoCopiloto(t, nil)
@@ -205,6 +286,7 @@ func TestCopilotoRecusaMensagemVazia(t *testing.T) {
 		{"mensagem vazia", map[string]any{"mensagem": "  ", "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}}},
 		{"mensagem longa", map[string]any{"mensagem": strings.Repeat("a", 4001), "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}}},
 		{"historico longo", map[string]any{"mensagem": "oi", "historico": historicoLongo, "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}}},
+		{"fala do historico longa", map[string]any{"mensagem": "oi", "historico": []harness.MensagemDoCopiloto{{Papel: "pessoa", Texto: strings.Repeat("a", 4001)}}, "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}}},
 		{"papel desconhecido no historico", map[string]any{"mensagem": "oi", "historico": []harness.MensagemDoCopiloto{{Papel: "sistema", Texto: "x"}}, "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}}},
 		{"tela desconhecida", map[string]any{"mensagem": "oi", "contexto": copiloto.Contexto{Tela: "xyz"}}},
 		{"skill sem nome", map[string]any{"mensagem": "oi", "contexto": copiloto.Contexto{Tela: copiloto.TelaSkill}}},
@@ -253,5 +335,175 @@ func TestQuemDoCopiloto(t *testing.T) {
 				t.Fatalf("= %+v, %v", quem, err)
 			}
 		})
+	}
+}
+
+func TestHistoricoNoOrcamento(t *testing.T) {
+	fala := func(n int) harness.MensagemDoCopiloto {
+		return harness.MensagemDoCopiloto{Papel: "pessoa", Texto: strings.Repeat("a", n)}
+	}
+	cheias := func(n int) []harness.MensagemDoCopiloto {
+		out := make([]harness.MensagemDoCopiloto, n)
+		for i := range out {
+			out[i] = fala(4000)
+		}
+		return out
+	}
+	casos := []struct {
+		nome      string
+		historico []harness.MensagemDoCopiloto
+		querFalas int
+	}{
+		{"mantem o que cabe", cheias(2), 2},
+		{"mantem o teto exato", cheias(5), 5},
+		{"tira as mais antigas", append([]harness.MensagemDoCopiloto{fala(1)}, cheias(5)...), 5},
+		{"vazio", nil, 0},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			got := historicoNoOrcamento(c.historico)
+			if len(got) != c.querFalas {
+				t.Fatalf("falas = %d, quer %d", len(got), c.querFalas)
+			}
+			if len(got) > 0 && &got[len(got)-1] != &c.historico[len(c.historico)-1] {
+				t.Fatal("ficou sem a fala mais nova")
+			}
+		})
+	}
+}
+
+func TestCopilotoCortaHistoricoAntesDoModelo(t *testing.T) {
+	falso := &copilotoFalso{}
+	h := handlerDoCopiloto(servidorDoCopiloto(t, falso))
+	historico := make([]harness.MensagemDoCopiloto, 6)
+	for i := range historico {
+		historico[i] = harness.MensagemDoCopiloto{Papel: "pessoa", Texto: strings.Repeat("a", 4000)}
+	}
+	corpo := corpoJSON(t, map[string]any{"mensagem": "oi", "historico": historico, "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}})
+	if w := chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo)}); w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	if len(falso.recebeu.Historico) != 5 {
+		t.Fatalf("o modelo recebeu %d falas, quer 5", len(falso.recebeu.Historico))
+	}
+}
+
+func TestCopilotoTruncaArquivoDoAvancado(t *testing.T) {
+	falso := &copilotoFalso{}
+	s := servidorDoCopiloto(t, falso)
+	grande := strings.Repeat("x", maxArquivoCopiloto) + "FIM"
+	if err := s.cat.SalvarArquivo("agentes/concierge", "knowledge/grande.md", []byte(grande)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cat.SalvarArquivo("agentes/concierge", "knowledge/pequeno.md", []byte("curto")); err != nil {
+		t.Fatal(err)
+	}
+	h := handlerDoCopiloto(s)
+	casos := []struct {
+		nome, papel, caminho string
+		querTem, querSem     []string
+	}{
+		{"corta o arquivo grande", "construtor", "knowledge/grande.md", []string{"arquivo truncado"}, []string{"FIM"}},
+		{"manda o arquivo pequeno inteiro", "construtor", "knowledge/pequeno.md", []string{"curto"}, []string{"arquivo truncado"}},
+		{"sem acesso ao Avançado não manda o arquivo", "gestor", "knowledge/pequeno.md", nil, []string{"curto"}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			status, _ := perguntar(t, h, c.papel, copiloto.Contexto{Tela: copiloto.TelaAvancado, Agente: "agentes/concierge", Caminho: c.caminho})
+			if status != http.StatusOK {
+				t.Fatalf("status = %d", status)
+			}
+			for _, quer := range c.querTem {
+				if !strings.Contains(falso.recebeu.Contexto, quer) {
+					t.Fatalf("contexto sem %q", quer)
+				}
+			}
+			for _, nao := range c.querSem {
+				if strings.Contains(falso.recebeu.Contexto, nao) {
+					t.Fatalf("contexto com %q", nao)
+				}
+			}
+			if n := utf8.RuneCountInString(falso.recebeu.Contexto); n > maxArquivoCopiloto+200 {
+				t.Fatalf("contexto com %d caracteres", n)
+			}
+		})
+	}
+}
+
+// copilotoPreso segura cada chamada até soltar fechar, para ocupar as vagas.
+type copilotoPreso struct {
+	entrou chan struct{}
+	soltar chan struct{}
+}
+
+func (p *copilotoPreso) responder(ctx context.Context, _ harness.PedidoAoCopiloto) (harness.RespostaDoModelo, error) {
+	p.entrou <- struct{}{}
+	select {
+	case <-p.soltar:
+	case <-ctx.Done():
+		return harness.RespostaDoModelo{}, ctx.Err()
+	}
+	return harness.RespostaDoModelo{Mensagem: "Pronto."}, nil
+}
+
+func pedirAoCopiloto(t *testing.T, h http.Handler, papel string) *httptest.ResponseRecorder {
+	t.Helper()
+	corpo := corpoJSON(t, map[string]any{"mensagem": "oi", "contexto": copiloto.Contexto{Tela: copiloto.TelaSkills}})
+	return chamar(t, h, pedido{metodo: "POST", caminho: "/api/copiloto", corpo: texto(corpo), cabecalhos: map[string]string{"X-Studio-Papel": papel}})
+}
+
+func TestCopilotoLimitaChamadasSimultaneas(t *testing.T) {
+	s := servidorDoCopiloto(t, nil)
+	// entrou com folga: a chamada depois de soltar também passa pelo falso
+	preso := &copilotoPreso{entrou: make(chan struct{}, chamadasSimultaneasCopiloto+1), soltar: make(chan struct{})}
+	s.copiloto = preso.responder
+	h := handlerDoCopiloto(s)
+
+	var espera sync.WaitGroup
+	for range chamadasSimultaneasCopiloto {
+		espera.Go(func() { pedirAoCopiloto(t, h, "construtor") })
+		<-preso.entrou
+	}
+	w := pedirAoCopiloto(t, h, "gestor")
+	close(preso.soltar)
+	espera.Wait()
+
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "5" {
+		t.Fatalf("status = %d, Retry-After = %q", w.Code, w.Header().Get("Retry-After"))
+	}
+	var erro map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &erro); err != nil {
+		t.Fatal(err)
+	}
+	exigirErro(t, erro, "COPILOTO_OCUPADO")
+	if w := pedirAoCopiloto(t, h, "gestor"); w.Code != http.StatusOK {
+		t.Fatalf("vagas liberadas: status = %d", w.Code)
+	}
+}
+
+func TestCopilotoLimitaChamadasPorUsuario(t *testing.T) {
+	s := servidorDoCopiloto(t, &copilotoFalso{})
+	agora := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	s.limiteCopiloto = novoLimiteDoCopiloto(func() time.Time { return agora })
+	h := handlerDoCopiloto(s)
+
+	for i := range chamadasPorMinutoCopiloto {
+		if w := pedirAoCopiloto(t, h, "construtor"); w.Code != http.StatusOK {
+			t.Fatalf("chamada %d: status = %d", i+1, w.Code)
+		}
+	}
+	w := pedirAoCopiloto(t, h, "construtor")
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "6" {
+		t.Fatalf("11ª chamada: status = %d, Retry-After = %q", w.Code, w.Header().Get("Retry-After"))
+	}
+	if w := pedirAoCopiloto(t, h, "gestor"); w.Code != http.StatusOK {
+		t.Fatalf("outro usuário tem o próprio balde: status = %d", w.Code)
+	}
+	agora = agora.Add(6 * time.Second)
+	if w := pedirAoCopiloto(t, h, "construtor"); w.Code != http.StatusOK {
+		t.Fatalf("depois de 6 s volta uma ficha: status = %d", w.Code)
+	}
+	if w := pedirAoCopiloto(t, h, "construtor"); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("só uma ficha voltou: status = %d", w.Code)
 	}
 }

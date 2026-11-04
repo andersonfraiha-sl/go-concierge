@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -26,9 +27,11 @@ import (
 // se há modelo. O log nunca leva a conversa nem o contexto, só a forma do pedido.
 
 const (
-	prazoCopiloto        = 90 * time.Second
-	maxMensagemCopiloto  = 4000
+	prazoCopiloto        = 55 * time.Second // o front espera 60 s
+	maxMensagemCopiloto  = 4000             // vale também para cada fala do histórico
 	maxHistoricoCopiloto = 20
+	maxTextoDoHistorico  = 20000 // soma das falas; acima disso saem as mais antigas
+	maxArquivoCopiloto   = 12000 // arquivo aberto no Avançado, cortado com aviso ao modelo
 	maxResumoProposta    = 90
 	nivelErroDoFluxo     = "erro"
 	permissaoAvancado    = "studio.avancado"
@@ -115,10 +118,20 @@ func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request) 
 		s.responderErroDoRetrato(w, err)
 		return reg
 	}
+	liberar, ok := s.limiteCopiloto.ocuparVaga()
+	if !ok {
+		responderOcupado(w, esperaSemVagaCopiloto, "O Copiloto está atendendo muita gente agora. Tente de novo em alguns segundos.")
+		return reg
+	}
+	defer liberar()
+	if espera, ok := s.limiteCopiloto.tirarFicha(usuario.ID); !ok {
+		responderOcupado(w, espera, "Você mandou muitos pedidos seguidos. Espere um pouco e tente de novo.")
+		return reg
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), prazoCopiloto)
 	defer cancel()
 	resp, err := s.copiloto(ctx, harness.PedidoAoCopiloto{
-		Mensagem: strings.TrimSpace(corpo.Mensagem), Historico: corpo.Historico,
+		Mensagem: strings.TrimSpace(corpo.Mensagem), Historico: historicoNoOrcamento(corpo.Historico),
 		Contexto: ret.contexto, Operacoes: operacoesPermitidas(corpo.Contexto.Tela, quem),
 	})
 	if err != nil {
@@ -127,7 +140,7 @@ func (s *servidor) conversarComCopiloto(w http.ResponseWriter, r *http.Request) 
 		return reg
 	}
 	_, recusas := copiloto.Filtrar(resp.Operacoes, corpo.Contexto, quem, ret.doEscopo)
-	propostas, recusas := separarPropostas(resp.Operacoes, recusas, ret)
+	propostas, recusas := separarPropostas(resp.Operacoes, recusas, corpo.Contexto, ret)
 	reg.propostas, reg.recusas = len(propostas), len(recusas)
 	writeJSON(w, http.StatusOK, respostaDoCopiloto{Mensagem: resp.Mensagem, Propostas: propostas, Recusas: recusas})
 	return reg
@@ -161,8 +174,28 @@ func validarPedido(p pedidoAoCopiloto) error {
 		if m.Papel != harness.PapelPessoa && m.Papel != harness.PapelCopiloto {
 			return fmt.Errorf("%w: papel %q no histórico", errPedidoCopiloto, m.Papel)
 		}
+		if n := utf8.RuneCountInString(m.Texto); n > maxMensagemCopiloto {
+			return fmt.Errorf("%w: fala do histórico com %d caracteres", errPedidoCopiloto, n)
+		}
 	}
 	return nil
+}
+
+// historicoNoOrcamento tira as falas mais antigas até a soma caber em maxTextoDoHistorico.
+func historicoNoOrcamento(h []harness.MensagemDoCopiloto) []harness.MensagemDoCopiloto {
+	total := 0
+	for i := len(h) - 1; i >= 0; i-- {
+		total += utf8.RuneCountInString(h[i].Texto)
+		if total > maxTextoDoHistorico {
+			return h[i+1:]
+		}
+	}
+	return h
+}
+
+func responderOcupado(w http.ResponseWriter, espera time.Duration, mensagem string) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(espera.Seconds()))))
+	writeJSON(w, http.StatusTooManyRequests, erroAPI{Codigo: "COPILOTO_OCUPADO", Mensagem: mensagem})
 }
 
 func telaConhecida(t copiloto.Tela) bool {
@@ -333,7 +366,19 @@ func (s *servidor) arquivoParaCopiloto(tela copiloto.Contexto, usuario eu) (stri
 	case err != nil:
 		return "", fmt.Errorf("%w: ler arquivo %s/%s: %w", errPedidoCopiloto, tela.Agente, tela.Caminho, err)
 	}
-	return fmt.Sprintf("Arquivo %s/%s:\n%s", tela.Agente, tela.Caminho, conteudo), nil
+	texto, truncado := cortarArquivo(string(conteudo))
+	if truncado {
+		return fmt.Sprintf("Arquivo %s/%s (arquivo truncado: só os primeiros %d caracteres):\n%s", tela.Agente, tela.Caminho, maxArquivoCopiloto, texto), nil
+	}
+	return fmt.Sprintf("Arquivo %s/%s:\n%s", tela.Agente, tela.Caminho, texto), nil
+}
+
+func cortarArquivo(conteudo string) (string, bool) {
+	r := []rune(conteudo)
+	if len(r) <= maxArquivoCopiloto {
+		return conteudo, false
+	}
+	return string(r[:maxArquivoCopiloto]), true
 }
 
 func titulosDasSkills(casos []casoDeUso) map[string]string {
@@ -371,7 +416,7 @@ func escritaDoCatalogo(recursos []okf.Recurso) func(string) bool {
 
 // separarPropostas junta às recusas de Filtrar os fluxos com erro e numera as propostas
 // pelo índice da operação, o mesmo das recusas.
-func separarPropostas(ops []copiloto.Operacao, recusasDoFiltro []copiloto.Recusa, ret retrato) ([]propostaDoCopiloto, []copiloto.Recusa) {
+func separarPropostas(ops []copiloto.Operacao, recusasDoFiltro []copiloto.Recusa, tela copiloto.Contexto, ret retrato) ([]propostaDoCopiloto, []copiloto.Recusa) {
 	recusas := slices.Clone(recusasDoFiltro)
 	if recusas == nil {
 		recusas = []copiloto.Recusa{}
@@ -385,6 +430,10 @@ func separarPropostas(ops []copiloto.Operacao, recusasDoFiltro []copiloto.Recusa
 		if recusada[i] {
 			continue
 		}
+		if !miraOQueEstaAberto(op, tela) {
+			recusas = append(recusas, copiloto.Recusa{Indice: i, Motivo: motivoOutroItem})
+			continue
+		}
 		if motivo := motivoDoFluxo(op, ret.escrita); motivo != "" {
 			recusas = append(recusas, copiloto.Recusa{Indice: i, Motivo: motivo})
 			continue
@@ -393,6 +442,22 @@ func separarPropostas(ops []copiloto.Operacao, recusasDoFiltro []copiloto.Recusa
 	}
 	slices.SortFunc(recusas, func(a, b copiloto.Recusa) int { return a.Indice - b.Indice })
 	return propostas, recusas
+}
+
+const motivoOutroItem = "Esta proposta mexe em outro item, não no que está aberto."
+
+// miraOQueEstaAberto: nas telas de um item só (skill, fluxo, condomínio, arquivo), a
+// proposta tem de ser para esse item; o servidor sabe qual é pelo contexto.
+func miraOQueEstaAberto(op copiloto.Operacao, tela copiloto.Contexto) bool {
+	switch tela.Tela {
+	case copiloto.TelaSkill, copiloto.TelaFluxo:
+		return op.Skill == tela.Skill
+	case copiloto.TelaCondominio:
+		return op.Condominio == tela.Condominio
+	case copiloto.TelaAvancado:
+		return op.Agente == tela.Agente && op.Caminho == tela.Caminho
+	}
+	return true
 }
 
 // motivoDoFluxo: todo trocar_fluxo aceito passa pela mesma validação da gravação; é o que
