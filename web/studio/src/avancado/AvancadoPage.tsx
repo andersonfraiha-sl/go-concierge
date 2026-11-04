@@ -62,20 +62,26 @@ const ABAS: readonly Aba[] = [
   },
 ];
 
+type Arvore = ReturnType<typeof useArvore>;
+
+function useNoEscolhido(nos: NoDaArvore[], escolhido: string | null): NoDaArvore | undefined {
+  const assistente = useSkills().data?.assistente;
+  return (
+    nos.find((candidato) => candidato.caminho === escolhido) ??
+    nos.find((candidato) => candidato.caminho === assistente) ??
+    nos[0]
+  );
+}
+
 export function AvancadoPage(): ReactNode {
   const [params, setParams] = useSearchParams();
   const editar = usePodeEditar('studio.avancado');
   const arvore = useArvore();
-  const skills = useSkills();
-  const escolhido = params.get('item');
-
-  const aba = ABAS.find((a) => a.id === params.get('aba')) ?? ABAS[0];
-  if (!aba) return null;
   const nos = arvore.data ?? [];
-  const no =
-    nos.find((n) => n.caminho === escolhido) ??
-    nos.find((n) => n.caminho === skills.data?.assistente) ??
-    nos[0];
+  const noAtual = useNoEscolhido(nos, params.get('item'));
+
+  const aba = ABAS.find((candidata) => candidata.id === params.get('aba')) ?? ABAS[0];
+  if (!aba) return null;
 
   const mudar = (chave: string, valor: string) =>
     setParams((atual) => new URLSearchParams({ ...Object.fromEntries(atual), [chave]: valor }), {
@@ -84,56 +90,71 @@ export function AvancadoPage(): ReactNode {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
-          Avançado
-        </Typography>
-        <Chip
-          size="small"
-          label="Mudanças aqui afetam todos os condomínios"
-          sx={{
-            bgcolor: tokens.color.warning.background,
-            color: tokens.color.warning.text,
-            fontWeight: 500,
-          }}
-        />
-      </Box>
+      <CabecalhoDoAvancado />
       <Tabs
         value={aba.id}
         onChange={(_, valor: string) => mudar('aba', valor)}
         aria-label="Seções do Avançado"
       >
-        {ABAS.map((a) => (
-          <Tab key={a.id} value={a.id} label={a.rotulo} />
+        {ABAS.map((candidata) => (
+          <Tab key={candidata.id} value={candidata.id} label={candidata.rotulo} />
         ))}
       </Tabs>
       {aba.porItem && (
-        <SeletorDeItem nos={nos} atual={no} onEscolher={(caminho) => mudar('item', caminho)} />
+        <>
+          <SeletorDeItem
+            nos={nos}
+            atual={noAtual}
+            onEscolher={(caminho) => mudar('item', caminho)}
+          />
+          <EstadoDaLista arvore={arvore} semItem={!noAtual} />
+        </>
       )}
-      {aba.porItem && arvore.isPending && (
-        <Typography color="text.secondary">Carregando…</Typography>
-      )}
-      {aba.porItem && arvore.isError && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography role="alert">Não foi possível carregar a lista.</Typography>
-          <Button size="small" onClick={() => void arvore.refetch()}>
-            Tentar de novo
-          </Button>
-        </Box>
-      )}
-      {aba.porItem && arvore.isSuccess && !no && (
-        <EmptyState frase="Ainda não há concierge nem skills para mostrar." />
-      )}
-      {aba.desenhar(no ? { no, editar } : null, editar)}
+      {aba.desenhar(noAtual ? { no: noAtual, editar } : null, editar)}
     </Box>
   );
+}
+
+function CabecalhoDoAvancado(): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
+        Avançado
+      </Typography>
+      <Chip
+        size="small"
+        label="Mudanças aqui afetam todos os condomínios"
+        sx={{
+          bgcolor: tokens.color.warning.background,
+          color: tokens.color.warning.text,
+          fontWeight: 500,
+        }}
+      />
+    </Box>
+  );
+}
+
+function EstadoDaLista({ arvore, semItem }: { arvore: Arvore; semItem: boolean }): ReactNode {
+  if (arvore.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (arvore.isError) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography role="alert">Não foi possível carregar a lista.</Typography>
+        <Button size="small" onClick={() => void arvore.refetch()}>
+          Tentar de novo
+        </Button>
+      </Box>
+    );
+  }
+  if (semItem) return <EmptyState frase="Ainda não há concierge nem skills para mostrar." />;
+  return null;
 }
 
 const contagem = (quantidade: number, singular: string, plural: string): string =>
   quantidade === 0 ? '' : ` · ${quantidade} ${quantidade === 1 ? singular : plural}`;
 
-const descreverNo = (no: NoDaArvore): string =>
-  `${no.caminho}${contagem(no.erros, 'erro', 'erros')}${contagem(no.avisos, 'aviso', 'avisos')}`;
+const descreverNo = (item: NoDaArvore): string =>
+  `${item.caminho}${contagem(item.erros, 'erro', 'erros')}${contagem(item.avisos, 'aviso', 'avisos')}`;
 
 type SeletorProps = {
   nos: NoDaArvore[];
@@ -152,9 +173,9 @@ function SeletorDeItem({ nos, atual, onEscolher }: SeletorProps): ReactNode {
       onChange={(evento) => onEscolher(evento.target.value)}
       sx={{ maxWidth: 480 }}
     >
-      {achatar(nos).map((no) => (
-        <MenuItem key={no.caminho} value={no.caminho}>
-          {descreverNo(no)}
+      {achatar(nos).map((item) => (
+        <MenuItem key={item.caminho} value={item.caminho}>
+          {descreverNo(item)}
         </MenuItem>
       ))}
     </TextField>

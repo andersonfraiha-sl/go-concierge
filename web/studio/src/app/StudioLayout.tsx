@@ -12,8 +12,8 @@ const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
 
 export function StudioLayout() {
   const [recolhido, setRecolhido] = useState(lerMenuRecolhido);
-  const eu = useEu();
-  const recusado = naoReconhecido(eu.error);
+  const usuario = useEu();
+  const recusado = naoReconhecido(usuario.error);
 
   const alternarMenu = () => {
     const proximo = !recolhido;
@@ -30,17 +30,19 @@ export function StudioLayout() {
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />
           <PainelDoCopiloto />
-          <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
-            {/* Sem o Eu, nenhuma tela: na troca de usuário a anterior some no mesmo clique. */}
-            {eu.isPending ? (
-              <Typography color="text.secondary">Carregando…</Typography>
-            ) : (
-              <Outlet />
-            )}
-          </Box>
+          <AreaPrincipal carregando={usuario.isPending} />
         </Box>
       </Box>
     </CopilotoProvider>
+  );
+}
+
+/** Sem o Eu, nenhuma tela: na troca de usuário a anterior some no mesmo clique. */
+function AreaPrincipal({ carregando }: { carregando: boolean }) {
+  return (
+    <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
+      {carregando ? <Typography color="text.secondary">Carregando…</Typography> : <Outlet />}
+    </Box>
   );
 }
 

@@ -3,11 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 const NENHUM_ALVO: ReadonlySet<string> = new Set();
 const DURACAO_DO_REALCE_MS = 1500;
 
-/** Um prazo por alvo: realçar de novo reinicia os 1500 ms daquele alvo; sair da tela limpa todos. */
-export function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly string[]) => void] {
-  const [alvosRealcados, setAlvosRealcados] = useState<ReadonlySet<string>>(NENHUM_ALVO);
-  const prazos = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+type Prazos = Map<string, ReturnType<typeof setTimeout>>;
 
+function usePrazosPorAlvo(): Prazos {
+  const prazos = useRef<Prazos>(new Map());
   useEffect(() => {
     const prazosAtivos = prazos.current;
     return () => {
@@ -15,21 +14,30 @@ export function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly stri
       prazosAtivos.clear();
     };
   }, []);
+  return prazos.current;
+}
+
+/** Um prazo por alvo: realçar de novo reinicia os 1500 ms daquele alvo; sair da tela limpa todos. */
+export function useAlvosRealcados(): [ReadonlySet<string>, (alvos: readonly string[]) => void] {
+  const [alvosRealcados, setAlvosRealcados] = useState<ReadonlySet<string>>(NENHUM_ALVO);
+  const prazos = usePrazosPorAlvo();
 
   const apagar = (alvo: string) => {
-    prazos.current.delete(alvo);
+    prazos.delete(alvo);
     setAlvosRealcados((atuais) => new Set([...atuais].filter((atual) => atual !== alvo)));
+  };
+
+  const agendarFim = (alvo: string) => {
+    clearTimeout(prazos.get(alvo));
+    prazos.set(
+      alvo,
+      setTimeout(() => apagar(alvo), DURACAO_DO_REALCE_MS),
+    );
   };
 
   const realcar = (alvos: readonly string[]) => {
     setAlvosRealcados((atuais) => new Set([...atuais, ...alvos]));
-    for (const alvo of alvos) {
-      clearTimeout(prazos.current.get(alvo));
-      prazos.current.set(
-        alvo,
-        setTimeout(() => apagar(alvo), DURACAO_DO_REALCE_MS),
-      );
-    }
+    alvos.forEach(agendarFim);
   };
 
   return [alvosRealcados, realcar];

@@ -55,19 +55,27 @@ function lerJson(texto: string): Leitura {
   }
 }
 
-export function lerValor({ valor, tipo }: Pick<ParDoPayload, 'valor' | 'tipo'>): Leitura {
-  if (tipo === 'texto') return { ok: true, valor };
-  if (tipo === 'JSON') return lerJson(valor);
-  if (tipo === 'sim/não') {
-    return valor === 'true' || valor === 'false'
-      ? { ok: true, valor: valor === 'true' }
-      : { ok: false, erro: 'Use true ou false' };
-  }
-  const numero = Number(valor);
-  return valor.trim() !== '' && Number.isFinite(numero)
-    ? { ok: true, valor: numero }
-    : { ok: false, erro: 'Número inválido' };
+function lerSimNao(valor: string): Leitura {
+  if (valor === 'true' || valor === 'false') return { ok: true, valor: valor === 'true' };
+  return { ok: false, erro: 'Use true ou false' };
 }
+
+function lerNumero(valor: string): Leitura {
+  const numero = Number(valor);
+  if (valor.trim() === '' || !Number.isFinite(numero))
+    return { ok: false, erro: 'Número inválido' };
+  return { ok: true, valor: numero };
+}
+
+const LEITORES: Record<Tipo, (valor: string) => Leitura> = {
+  texto: (valor) => ({ ok: true, valor }),
+  JSON: lerJson,
+  'sim/não': lerSimNao,
+  número: lerNumero,
+};
+
+export const lerValor = ({ valor, tipo }: Pick<ParDoPayload, 'valor' | 'tipo'>): Leitura =>
+  LEITORES[tipo](valor);
 
 export const paresEmPayload = (pares: readonly ParDoPayload[]): Record<string, Valor> =>
   Object.fromEntries(

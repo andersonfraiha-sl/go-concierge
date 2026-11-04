@@ -1,4 +1,4 @@
-import type { Theme } from '@mui/material/styles';
+import type { PaletteOptions, Theme } from '@mui/material/styles';
 import { createTheme } from '@mui/material/styles';
 import { componentOverrides } from './overrides';
 import { ESPACOS, tokens } from './tokens';
@@ -35,34 +35,36 @@ export function espaco(fator: number): number {
   return naTabela ?? Math.round(fator * 8);
 }
 
+const PALETA: PaletteOptions = {
+  primary: {
+    main: tokens.color.primary.main,
+    dark: tokens.color.primary.dark,
+    contrastText: tokens.color.primary.contrastText,
+  },
+  secondary: { main: tokens.color.navy },
+  text: {
+    primary: tokens.color.text.primary,
+    secondary: tokens.color.text.secondary,
+    strong: tokens.color.text.strong,
+    tertiary: tokens.color.text.tertiary,
+    muted: tokens.color.text.muted,
+  },
+  background: {
+    default: tokens.color.background.default,
+    paper: tokens.color.background.paper,
+    subtle: tokens.color.background.subtle,
+    tint: tokens.color.background.tint,
+    neutralFill: tokens.color.background.neutralFill,
+  },
+  border: tokens.color.border,
+  divider: tokens.color.border.strong,
+  success: { main: tokens.color.success.main },
+  error: { main: tokens.color.danger.main },
+};
+
 export function criarTema(): Theme {
   return createTheme({
-    palette: {
-      primary: {
-        main: tokens.color.primary.main,
-        dark: tokens.color.primary.dark,
-        contrastText: tokens.color.primary.contrastText,
-      },
-      secondary: { main: tokens.color.navy },
-      text: {
-        primary: tokens.color.text.primary,
-        secondary: tokens.color.text.secondary,
-        strong: tokens.color.text.strong,
-        tertiary: tokens.color.text.tertiary,
-        muted: tokens.color.text.muted,
-      },
-      background: {
-        default: tokens.color.background.default,
-        paper: tokens.color.background.paper,
-        subtle: tokens.color.background.subtle,
-        tint: tokens.color.background.tint,
-        neutralFill: tokens.color.background.neutralFill,
-      },
-      border: tokens.color.border,
-      divider: tokens.color.border.strong,
-      success: { main: tokens.color.success.main },
-      error: { main: tokens.color.danger.main },
-    },
+    palette: PALETA,
     typography: tokens.typography,
     shape: tokens.shape,
     spacing: espaco,

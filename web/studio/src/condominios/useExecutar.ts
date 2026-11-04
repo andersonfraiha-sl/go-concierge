@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { mensagemDe } from '@/shared/api/mensagemDe';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { type Escopo, type RespostaMapeamento, useAplicarMapeamento, useEscopo } from './contratos';
 
@@ -22,7 +23,7 @@ export function useExecutar(): Execucao {
     try {
       aplicar(await gravacao(escopo));
     } catch (erro) {
-      mostrar(erro instanceof Error ? erro.message : String(erro), 'error');
+      mostrar(mensagemDe(erro), 'error');
       return false;
     } finally {
       setGravando(false);

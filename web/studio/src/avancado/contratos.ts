@@ -222,16 +222,15 @@ export function importarZip(
   );
 }
 
+const CONSULTAS_DO_AVANCADO = ['avancado', 'agente', 'arquivo', 'skills'] as const;
+
 /** Refaz tudo que o Avançado mostra depois de mexer em arquivos ou importar. */
 export function useRecarregarAvancado(): () => Promise<void> {
   const cliente = useQueryClient();
   return async () => {
-    await Promise.all([
-      cliente.invalidateQueries({ queryKey: ['avancado'] }),
-      cliente.invalidateQueries({ queryKey: ['agente'] }),
-      cliente.invalidateQueries({ queryKey: ['arquivo'] }),
-      cliente.invalidateQueries({ queryKey: ['skills'] }),
-    ]);
+    await Promise.all(
+      CONSULTAS_DO_AVANCADO.map((consulta) => cliente.invalidateQueries({ queryKey: [consulta] })),
+    );
   };
 }
 

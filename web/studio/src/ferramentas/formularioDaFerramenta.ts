@@ -35,6 +35,16 @@ function paraFormulario(inicial: Ferramenta): RecursoNoFormulario {
   };
 }
 
+function definicaoCompleta({
+  default: padrao,
+  ...definicao
+}: RecursoNoFormulario['definicoes'][number]) {
+  return {
+    ...definicao,
+    ...(padrao === undefined ? {} : { default: ValorJson.parse(padrao) }),
+  };
+}
+
 /** Devolve ao recurso o que ficou fora do formulário; o padrão veio do servidor, então é JSON. */
 export function recursoCompleto(inicial: Ferramenta, recurso: RecursoNoFormulario): Ferramenta {
   const { conexao, ...resto } = recurso;
@@ -42,10 +52,7 @@ export function recursoCompleto(inicial: Ferramenta, recurso: RecursoNoFormulari
     ...inicial,
     ...resto,
     conexao: { ...conexao, headers: listaEmCabecalhos(conexao.headers) },
-    definicoes: recurso.definicoes.map(({ default: padrao, ...definicao }) => ({
-      ...definicao,
-      ...(padrao === undefined ? {} : { default: ValorJson.parse(padrao) }),
-    })),
+    definicoes: recurso.definicoes.map(definicaoCompleta),
   };
 }
 
@@ -56,28 +63,38 @@ export const valoresIniciais = (inicial: Ferramenta, ferramenta: Ferramenta | nu
   textoAmostra: ferramenta ? textoDaAmostra(ferramenta) : '',
 });
 
+type Problema = { path: string[]; message: string };
+type Preenchido = { recurso: RecursoNoFormulario; textoAmostra: string };
+
+function problemaDoTitulo({ recurso }: Preenchido): Problema[] {
+  const vazio = recurso.titulo === undefined || recurso.titulo.trim() === '';
+  return vazio ? [{ path: ['recurso', 'titulo'], message: 'Informe o título.' }] : [];
+}
+
+function problemaDoCodigo({ recurso }: Preenchido, original: string): Problema[] {
+  const codigo = recurso.name.trim();
+  if (codigo === original && original !== '') return [];
+  const erro = validarCodigo(codigo);
+  return erro ? [{ path: ['recurso', 'name'], message: erro }] : [];
+}
+
+function problemaDaAmostra({ textoAmostra }: Preenchido): Problema[] {
+  return lerAmostra(textoAmostra).ok ? [] : [{ path: ['textoAmostra'], message: 'JSON inválido' }];
+}
+
 // O recurso chega já validado pela borda da API; aqui só valem as regras do que se digita.
 // O código só é validado quando muda: ferramentas antigas fora do padrão grupo.acao continuam
 // salvando enquanto ninguém editar o código delas.
 export function criarEsquemaDoFormulario(original: string) {
   return z
     .object({ recurso: z.custom<RecursoNoFormulario>(), textoAmostra: z.string() })
-    .superRefine(({ recurso, textoAmostra }, contexto) => {
-      if (recurso.titulo === undefined || recurso.titulo.trim() === '') {
-        contexto.addIssue({
-          code: 'custom',
-          path: ['recurso', 'titulo'],
-          message: 'Informe o título.',
-        });
-      }
-      const codigo = recurso.name.trim();
-      if (codigo !== original || original === '') {
-        const erro = validarCodigo(codigo);
-        if (erro) contexto.addIssue({ code: 'custom', path: ['recurso', 'name'], message: erro });
-      }
-      if (!lerAmostra(textoAmostra).ok) {
-        contexto.addIssue({ code: 'custom', path: ['textoAmostra'], message: 'JSON inválido' });
-      }
+    .superRefine((valores, contexto) => {
+      const problemas = [
+        ...problemaDoTitulo(valores),
+        ...problemaDoCodigo(valores, original),
+        ...problemaDaAmostra(valores),
+      ];
+      for (const problema of problemas) contexto.addIssue({ code: 'custom', ...problema });
     });
 }
 

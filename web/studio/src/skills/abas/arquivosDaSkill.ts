@@ -76,42 +76,59 @@ const avisos: Record<Tipo, { criado: string; excluido: string; repetido: string 
   },
 };
 
-/** Criar e excluir arquivos de texto da skill, refazendo a leitura do agente e avisando no rodapé. */
-export function useGestaoDeArquivos(agente: string, tipo: Tipo, existentes: readonly Arquivo[]) {
+type Alvo = { agente: string; tipo: Tipo };
+
+/** Rejeita com a mensagem para o campo de nome mostrar. */
+function useCriarArquivo(
+  { agente, tipo }: Alvo,
+  existentes: readonly Arquivo[],
+  aoCriar: () => void,
+): (nome: string) => Promise<void> {
   const cliente = useQueryClient();
   const { mostrar } = useSnackbar();
-  const [emExclusao, setEmExclusao] = useState<string | null>(null);
-  const atualizar = () => cliente.invalidateQueries({ queryKey: chaveDoAgente(agente) });
 
-  /** Rejeita com a mensagem para o campo de nome mostrar. */
-  const criar = async (nome: string): Promise<void> => {
+  return async (nome) => {
     const caminho = caminhoNovo[tipo](nome);
     if (existentes.some((existente) => existente.caminho === caminho))
       throw new Error(avisos[tipo].repetido);
     await salvarArquivo({ agente, caminho, conteudo: '' });
-    setEmExclusao(null);
+    aoCriar();
     cliente.setQueryData(chaveDoArquivo(agente, caminho), { caminho, conteudo: '' });
-    await atualizar();
+    await cliente.invalidateQueries({ queryKey: chaveDoAgente(agente) });
     mostrar(avisos[tipo].criado);
   };
+}
 
-  /**
-   * `emExclusao` aponta o arquivo até um novo ser criado (ou a exclusão falhar): o editor dele descarta
-   * gravações pendentes, inclusive a do desmonte, que recriaria o arquivo.
-   */
-  const excluir = async (caminho: string): Promise<void> => {
-    setEmExclusao(caminho);
+/**
+ * `emExclusao` aponta o arquivo até um novo ser criado (ou a exclusão falhar): o editor dele descarta
+ * gravações pendentes, inclusive a do desmonte, que recriaria o arquivo.
+ */
+function useExcluirArquivo(
+  { agente, tipo }: Alvo,
+  marcarEmExclusao: (caminho: string | null) => void,
+): (caminho: string) => Promise<void> {
+  const cliente = useQueryClient();
+  const { mostrar } = useSnackbar();
+
+  return async (caminho) => {
+    marcarEmExclusao(caminho);
     try {
       await excluirArquivo(agente, caminho);
     } catch (erro) {
-      setEmExclusao(null);
+      marcarEmExclusao(null);
       mostrar(mensagemDe(erro), 'error');
       return;
     }
     cliente.removeQueries({ queryKey: chaveDoArquivo(agente, caminho) });
-    await atualizar();
+    await cliente.invalidateQueries({ queryKey: chaveDoAgente(agente) });
     mostrar(avisos[tipo].excluido);
   };
+}
 
+/** Criar e excluir arquivos de texto da skill, refazendo a leitura do agente e avisando no rodapé. */
+export function useGestaoDeArquivos(agente: string, tipo: Tipo, existentes: readonly Arquivo[]) {
+  const [emExclusao, setEmExclusao] = useState<string | null>(null);
+  const criar = useCriarArquivo({ agente, tipo }, existentes, () => setEmExclusao(null));
+  const excluir = useExcluirArquivo({ agente, tipo }, setEmExclusao);
   return { criar, excluir, emExclusao };
 }

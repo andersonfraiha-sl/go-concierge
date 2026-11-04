@@ -37,7 +37,9 @@ type EdicaoSobOServidor<T> = {
 type Gravado<T, V> = { valor: T; versao: V };
 
 const MOTIVO_DO_BLOQUEIO = 'escolha qual versão fica';
-const iguais = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+function iguais(esquerda: unknown, direita: unknown): boolean {
+  return JSON.stringify(esquerda) === JSON.stringify(direita);
+}
 
 /**
  * Formulário aberto quando o servidor muda por fora (proposta do Copiloto, colega editando):
@@ -62,7 +64,8 @@ export function useEdicaoSobOServidor<T, V extends string | null>({
   const localAtual = useRef(local);
   const realcado = useRef(doCopiloto);
   const [conflito, setConflito] = useState<OrigemDoConflito | null>(null);
-  const igualNoServidor = (a: T, b: T) => iguais(normalizar(a), normalizar(b));
+  const igualNoServidor = (esquerda: T, direita: T) =>
+    iguais(normalizar(esquerda), normalizar(direita));
 
   useEffect(() => {
     localAtual.current = local;
