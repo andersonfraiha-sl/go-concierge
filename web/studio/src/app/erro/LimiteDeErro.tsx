@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Outlet, Link as RouterLink, useLocation, useRouteError } from 'react-router';
 import { useEu } from '@/acesso/eu';
+import { FONTE_MONO } from '@/theme/tokens';
 import { falhaDeChunk, reportarErro } from './reportarErro';
 
 type Props = { children: ReactNode; aoCapturar: (erro: unknown, info: ErrorInfo) => void };
@@ -115,7 +116,10 @@ function DetalhesDoErro({ erro }: { erro: unknown }): ReactNode {
     <Alert severity="error" icon={false} sx={{ overflow: 'auto' }}>
       <details>
         <summary>Detalhes do erro</summary>
-        <Box component="pre" sx={{ fontFamily: 'monospace', fontSize: 12, whiteSpace: 'pre-wrap' }}>
+        <Box
+          component="pre"
+          sx={{ typography: 'caption', fontFamily: FONTE_MONO, whiteSpace: 'pre-wrap' }}
+        >
           {texto}
         </Box>
       </details>
