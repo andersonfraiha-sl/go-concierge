@@ -1,86 +1,74 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Box, Button, CircularProgress, Typography } from '@mui/material';
-import { type ReactNode, useState } from 'react';
+import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
+import { type ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
-import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { useArvore } from '@/avancado/contratos';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
-import { NomeDialog, type NomeEscolhido } from '@/shared/ui/NomeDialog';
-import {
-  preencherTextosNovos,
-  type SkillResumo,
-  useCriarSkill,
-  useDuplicarSkill,
-  useExcluirSkill,
-  useSkills,
-} from './contratos';
-import { NovaSkillDialog } from './NovaSkillDialog';
+import { type SkillResumo, useSkills } from './contratos';
+import { caminhoDoEditor, type Dialogo, DialogosDeSkills } from './DialogosDeSkills';
+import { filtrarPorBusca, type Problemas, problemasPorCaminho } from './estatisticas';
+import { GrupoDeSkills } from './GrupoDeSkills';
+import { NumerosDasSkills } from './NumerosDasSkills';
 import { SkillCard } from './SkillCard';
 
 const FRASE_VAZIA =
-  'Nenhuma skill ainda. Uma skill é algo que o concierge sabe fazer pelo morador, como reservar uma área comum.';
+  'Uma skill é algo que o concierge sabe fazer pelo morador, como reservar o salão ou mandar a 2ª via do boleto.';
 
-type Dialogo =
-  | { tipo: 'nova' }
-  | { tipo: 'duplicar'; origem: SkillResumo }
-  | { tipo: 'excluir'; skill: SkillResumo };
-
-const caminhoDoEditor = (nome: string): string => `/skills/${encodeURIComponent(nome)}`;
+const SEM_PROBLEMAS: ReadonlyMap<string, Problemas> = new Map();
 
 export function SkillsPage(): ReactNode {
   const skills = useSkills();
   const navegar = useNavigate();
-  const { mostrar } = useSnackbar();
-  const criar = useCriarSkill();
-  const duplicar = useDuplicarSkill();
-  const excluir = useExcluirSkill();
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
+  const [busca, setBusca] = useState('');
 
   const podeCriar = usePodeEditar('skills.criar');
   const podeExcluir = usePodeEditar('skills.excluir');
+  const podeVerProblemas = usePodeEditar('skills.editar_fluxo');
+  const arvore = useArvore({ enabled: podeVerProblemas });
   const fechar = () => setDialogo(null);
 
-  const criarSkill = async (nova: { nome: string; titulo: string }) => {
-    const criada = await criar.mutateAsync(nova);
-    mostrar('Skill criada.');
-    return criada;
-  };
+  const todasSkills = skills.data?.skills ?? [];
+  const problemas = useMemo(
+    () => (podeVerProblemas ? problemasPorCaminho(arvore.data ?? []) : SEM_PROBLEMAS),
+    [podeVerProblemas, arvore.data],
+  );
+  const escreventes = todasSkills.filter((skill) => skill.escrita);
+  const consultivas = todasSkills.filter((skill) => !skill.escrita);
 
-  const abrirEditor = (nome: string) => void navegar(caminhoDoEditor(nome));
+  const escreventesFiltradas = filtrarPorBusca(escreventes, busca);
+  const consultivasFiltradas = filtrarPorBusca(consultivas, busca);
+  const semResultadoDeBusca =
+    todasSkills.length > 0 &&
+    escreventesFiltradas.length === 0 &&
+    consultivasFiltradas.length === 0;
 
-  /**
-   * Textos não salvaram: a pessoa segue para o editor com o que digitou, levado como estado da
-   * navegação (não no cache), para o editor aplicar como alteração pendente e mandar ao servidor.
-   */
-  const abrirEditorComTextosPendentes = (
-    nome: string,
-    textos: { resumo: string; quandoUsar: string },
-  ) => void navegar(caminhoDoEditor(nome), { state: { textosPendentes: textos } });
-
-  const duplicarEAbrir = async (origem: SkillResumo, nova: NomeEscolhido) => {
-    const copia = await duplicar.mutateAsync({ origem: origem.nome, ...nova });
-    mostrar('Skill duplicada.');
-    void navegar(caminhoDoEditor(copia.nome));
-  };
-
-  const excluirSkill = async (skill: SkillResumo) => {
-    fechar();
-    try {
-      await excluir.mutateAsync(skill.nome);
-      mostrar('Skill excluída.');
-    } catch (erro) {
-      mostrar(erro instanceof Error ? erro.message : String(erro), 'error');
-    }
-  };
+  const cartaoDaSkill = (skill: SkillResumo, variante: 'completo' | 'compacto') => (
+    <SkillCard
+      key={skill.nome}
+      skill={skill}
+      variante={variante}
+      problemas={problemas.get(skill.caminho)}
+      onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
+      {...(podeCriar && { onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }) })}
+      {...(podeExcluir && { onExcluir: () => setDialogo({ tipo: 'excluir', skill }) })}
+    />
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
-          Skills
-        </Typography>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h5" component="h1">
+            Skills
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            O que o concierge sabe fazer. Abra uma skill para ajustar o que ele fala e o passo a
+            passo.
+          </Typography>
+        </Box>
         {podeCriar && (
           <Button
             variant="contained"
@@ -101,57 +89,42 @@ export function SkillsPage(): ReactNode {
           onTentarDeNovo={() => void skills.refetch()}
         />
       )}
-      {skills.isSuccess && skills.data.skills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
-      {skills.isSuccess && skills.data.skills.length > 0 && (
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 2,
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          }}
-        >
-          {skills.data.skills.map((skill) => (
-            <SkillCard
-              key={skill.nome}
-              skill={skill}
-              onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
-              {...(podeCriar && {
-                onDuplicar: () => setDialogo({ tipo: 'duplicar', origem: skill }),
-              })}
-              {...(podeExcluir && { onExcluir: () => setDialogo({ tipo: 'excluir', skill }) })}
-            />
-          ))}
-        </Box>
+      {skills.isSuccess && todasSkills.length === 0 && <EmptyState frase={FRASE_VAZIA} />}
+      {skills.isSuccess && todasSkills.length > 0 && (
+        <>
+          <NumerosDasSkills
+            skills={todasSkills}
+            problemas={problemas}
+            podeVerProblemas={podeVerProblemas}
+            arvore={arvore}
+          />
+          <TextField
+            label="Buscar skill"
+            slotProps={{ htmlInput: { 'aria-label': 'Buscar skill' } }}
+            size="small"
+            value={busca}
+            onChange={(evento) => setBusca(evento.target.value)}
+            sx={{ width: 300 }}
+          />
+          <GrupoDeSkills
+            titulo="Registram no sistema"
+            subtitulo="pedem confirmação do morador"
+            colunas={2}
+            skills={escreventesFiltradas}
+            renderCartao={(skill) => cartaoDaSkill(skill, 'completo')}
+          />
+          <GrupoDeSkills
+            titulo="Consultas e dúvidas"
+            subtitulo="só leem, não gravam nada"
+            colunas={3}
+            skills={consultivasFiltradas}
+            renderCartao={(skill) => cartaoDaSkill(skill, 'compacto')}
+          />
+          {semResultadoDeBusca && <EmptyState frase="Nenhuma skill encontrada." />}
+        </>
       )}
 
-      {dialogo?.tipo === 'nova' && (
-        <NovaSkillDialog
-          onCriar={criarSkill}
-          onSalvarTextos={preencherTextosNovos}
-          onConcluida={abrirEditor}
-          onFecharComFalha={abrirEditorComTextosPendentes}
-          onCancelar={fechar}
-        />
-      )}
-      {dialogo?.tipo === 'duplicar' && (
-        <NomeDialog
-          titulo="Duplicar skill"
-          tituloInicial={`Cópia de ${dialogo.origem.titulo}`}
-          confirmar="Duplicar"
-          onEnviar={(nova) => duplicarEAbrir(dialogo.origem, nova)}
-          onCancelar={fechar}
-        />
-      )}
-      {dialogo?.tipo === 'excluir' && (
-        <ConfirmDialog
-          aberto
-          titulo="Excluir skill"
-          texto={`Excluir "${dialogo.skill.titulo}"? O fluxo e as regras somem junto.`}
-          confirmar="Excluir"
-          onConfirmar={() => void excluirSkill(dialogo.skill)}
-          onCancelar={fechar}
-        />
-      )}
+      <DialogosDeSkills dialogo={dialogo} fechar={fechar} />
     </Box>
   );
 }
