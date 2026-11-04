@@ -5,10 +5,11 @@ import { usePodeEditarCondominio } from '@/acesso/eu';
 import { AdministradorasAba } from './AdministradorasAba';
 import { ComEstado } from './ComEstado';
 import { useEstado } from './contratos';
+import { MatrizDeSkills } from './MatrizDeSkills';
 import { NovoCondominio } from './NovoCondominio';
 import { TabelaDeCondominios } from './TabelaDeCondominios';
 
-type Aba = 'condominios' | 'administradoras';
+type Aba = 'condominios' | 'skills' | 'administradoras';
 
 // Temporário: o que o Studio ainda não faz fica nas telas antigas (fora do SPA).
 const TELAS_ANTIGAS = [
@@ -39,14 +40,18 @@ function TelasAntigas(): ReactNode {
 export function CondominiosPage(): ReactNode {
   const consulta = useEstado();
   const podeCriar = usePodeEditarCondominio('condominios.editar');
+  const podeVerMatriz = usePodeEditarCondominio('condominios.habilitar');
   const podeVerAdministradoras = usePodeEditarCondominio('administradoras.editar');
   const [params, setParams] = useSearchParams();
   const [criando, setCriando] = useState(false);
 
+  const abaDaQuery = params.get('aba');
   const aba: Aba =
-    podeVerAdministradoras && params.get('aba') === 'administradoras'
-      ? 'administradoras'
-      : 'condominios';
+    abaDaQuery === 'skills' && podeVerMatriz
+      ? 'skills'
+      : abaDaQuery === 'administradoras' && podeVerAdministradoras
+        ? 'administradoras'
+        : 'condominios';
 
   const trocarAba = (valor: Aba): void =>
     setParams(
@@ -76,19 +81,26 @@ export function CondominiosPage(): ReactNode {
         )}
       </Box>
 
-      {podeVerAdministradoras && (
+      {(podeVerMatriz || podeVerAdministradoras) && (
         <Tabs value={aba} onChange={(_, valor: Aba) => trocarAba(valor)}>
           <Tab value="condominios" label="Condomínios" />
-          <Tab value="administradoras" label="Administradoras" />
+          {podeVerMatriz && <Tab value="skills" label="Visão por skill" />}
+          {podeVerAdministradoras && <Tab value="administradoras" label="Administradoras" />}
         </Tabs>
       )}
 
       <ComEstado consulta={consulta}>
         {(estado) => (
           <>
-            {aba === 'condominios' ? (
-              <TabelaDeCondominios estado={estado} />
-            ) : (
+            {aba === 'condominios' && <TabelaDeCondominios estado={estado} />}
+            {aba === 'skills' && (
+              <MatrizDeSkills
+                estado={estado}
+                titulos={new Map(estado.casos.map((caso) => [caso.nome, caso.titulo]))}
+                editavel={podeVerMatriz}
+              />
+            )}
+            {aba === 'administradoras' && (
               <AdministradorasAba
                 administradoras={estado.administradoras}
                 condominios={estado.mapeamento.condominios}

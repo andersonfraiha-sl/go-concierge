@@ -140,6 +140,14 @@ describe('CondominiosPage', () => {
     expect(screen.queryByText('Nenhum condomínio ainda.')).not.toBeInTheDocument();
   });
 
+  it('opensMatrixTabFromQuery', async () => {
+    responderCom(rotasBase(construtor));
+    renderComProvedores(<CondominiosPage />, { rota: '/condominios?aba=skills' });
+
+    expect(await screen.findByRole('columnheader', { name: 'Vila Verde' })).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum condomínio ainda.')).not.toBeInTheDocument();
+  });
+
   it('hidesAdministradorasWithoutPermission', async () => {
     responderCom(rotasBase(gestor));
     renderComProvedores(<CondominiosPage />);
