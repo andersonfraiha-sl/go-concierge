@@ -41,6 +41,7 @@ func (s *servidor) rotasGanchos(mux *http.ServeMux) {
 	mux.Handle("GET /api/ganchos/regras/{id}/versoes/{versao}", s.autenticado(http.HandlerFunc(s.ganchosVersao)))
 	mux.Handle("GET /api/ganchos/regras/exportar", editar(s.ganchosExportar))
 	mux.Handle("POST /api/ganchos/regras/importar", s.importarProtegido())
+	mux.Handle("GET /api/ganchos/historico", s.protegidaEmAlgum(acesso.GanchosHistorico, s.ganchosHistorico))
 }
 
 func (s *servidor) importarProtegido() http.Handler {
