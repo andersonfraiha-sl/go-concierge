@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -103,6 +102,9 @@ type Config struct {
 	// Turno é o turno de quem chama, dono do cofre de PII; nil = o Build abre um com
 	// Ganchos, e toda a família do agente o compartilha.
 	Turno *ganchos.Turno
+	// AdministradoraID e CondominioID são o alvo dos ganchos nas ferramentas: sem eles só
+	// as regras globais valem.
+	AdministradoraID, CondominioID string
 }
 
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em
@@ -241,7 +243,7 @@ func turnoDoAgente(cfg Config) (*ganchos.Turno, error) {
 		t := conjunto.Turno()
 		turno = &t
 	}
-	if faltam := fixosAusentes(turno.NomesDosFixos()); len(faltam) > 0 {
+	if faltam := fixos.Ausentes(turno.NomesDosFixos()); len(faltam) > 0 {
 		return nil, fmt.Errorf("harness: ganchos sem os fixos %s", strings.Join(faltam, ", "))
 	}
 	return turno, nil
@@ -262,20 +264,6 @@ func conjuntoDosFixos(f ganchos.Fixos) (*ganchos.Conjunto, error) {
 		return nil, fmt.Errorf("harness: observabilidade dos ganchos: %w", err)
 	}
 	return ganchos.NovoConjunto(f, nil, observar), nil
-}
-
-// fixosAusentes lista, como evento/nome, os fixos obrigatórios que tem não traz.
-func fixosAusentes(tem map[ganchos.NomeDoEvento][]string) []string {
-	var faltam []string
-	for evento, nomes := range ganchos.NovoConjunto(fixos.Todos(), nil).NomesDosFixos() {
-		for _, nome := range nomes {
-			if !slices.Contains(tem[evento], nome) {
-				faltam = append(faltam, string(evento)+"/"+nome)
-			}
-		}
-	}
-	slices.Sort(faltam)
-	return faltam
 }
 
 // semTemplate põe a projeção como system message SEM formatação: ela tem JSON e

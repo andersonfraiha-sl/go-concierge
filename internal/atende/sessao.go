@@ -16,6 +16,7 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
@@ -49,6 +50,10 @@ type Sessao struct {
 	// Plano: estado da orquestração (planning/react) enquanto um item espera o morador;
 	// a próxima mensagem retoma por harness.Continuar em vez de planejar de novo.
 	Plano *harness.Plano `json:"plano,omitempty"`
+	// ProximoMarcador é o número do próximo marcador de PII da conversa (zero = 1). O
+	// histórico guarda marcadores de turnos antigos; cada turno numera a partir daqui para
+	// um «cpf:1» antigo nunca casar com o CPF de agora. Não leva PII.
+	ProximoMarcador int `json:"proximo_marcador,omitempty"`
 
 	escopo          escopo.Contato // o contato na administradora resolvida (vazio até resolver)
 	historico       []*schema.Message
@@ -56,9 +61,12 @@ type Sessao struct {
 	revisaoEstado   uint64
 	cancelarEntrega context.CancelFunc
 	cancelarTurno   context.CancelFunc
-	mu              sync.Mutex
-	workMu          sync.Mutex
-	persistMu       sync.Mutex // ordena as gravações: a última a gravar leva a foto mais nova
+	// registros dos ganchos no turno em curso (borda e harness); não se serializam: o
+	// motivo pode citar o texto do morador
+	registros []ganchos.Registro
+	mu        sync.Mutex
+	workMu    sync.Mutex
+	persistMu sync.Mutex // ordena as gravações: a última a gravar leva a foto mais nova
 }
 
 // Transbordo é a passagem do protocolo a um humano, como o ATENDE faria ao sair do
@@ -435,6 +443,43 @@ func (sess *Sessao) fixarContato(c escopo.Contato, companyID string) {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	sess.escopo, sess.AdministradoraID, sess.Condominio, sess.CompanyID = c, c.AdministradoraID, c.CondominioID, companyID
+}
+
+func (sess *Sessao) proximoMarcador() int {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return sess.ProximoMarcador
+}
+
+// fecharTurno guarda o próximo marcador do cofre do turno; nunca volta a numeração.
+func (sess *Sessao) fecharTurno(t ganchos.Turno) {
+	proximo := t.Cofre().Proximo()
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.ProximoMarcador = max(sess.ProximoMarcador, proximo)
+}
+
+// comecarRegistros zera os registros dos ganchos: um turno novo começou.
+func (sess *Sessao) comecarRegistros() {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.registros = nil
+}
+
+func (sess *Sessao) anotarRegistros(rs []ganchos.Registro) {
+	if len(rs) == 0 {
+		return
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	sess.registros = append(sess.registros, rs...)
+}
+
+// registrosDoTurno junta o que os ganchos da borda e do harness registraram no turno.
+func (sess *Sessao) registrosDoTurno() []ganchos.Registro {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	return slices.Clone(sess.registros)
 }
 
 // anotarMemorias põe no turno idx os fatos que a extração (assíncrona) capturou.

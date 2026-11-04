@@ -430,6 +430,7 @@ func (ag *Agente) eventoAntes(ctx context.Context, c chamada, confirmacao string
 		MCPObrigatoria: c.obrigatoriaMCP, MCPDisponivel: ag.cfg.MCP != nil,
 		PeloMotorDoCaso: ctx.Value(chaveExecucaoCaso{}) == true,
 		Confirmacao:     confirmacao, Identidade: ag.identidadeDosGanchos(),
+		AdministradoraID: ag.cfg.AdministradoraID, CondominioID: ag.cfg.CondominioID,
 	}
 	if c.achado == nil {
 		e.Permitidas = ag.recursosPermitidos()
@@ -488,6 +489,7 @@ func (ag *Agente) depoisDe(ctx context.Context, c chamada, out saida) saida {
 	depois := ag.cfg.Turno.DepoisDaFerramenta(ctx, ganchos.DepoisDaFerramenta{
 		Agora: time.Now(), Ferramenta: c.nomeMCP, Caso: ag.casoID(), Params: c.params,
 		Resultado: out["resultado"], Identidade: ag.identidadeDosGanchos(),
+		AdministradoraID: ag.cfg.AdministradoraID, CondominioID: ag.cfg.CondominioID,
 	})
 	registrarGanchos(ctx, depois.Registros)
 	if depois.Decisao.Tipo == ganchos.Bloquear {

@@ -94,8 +94,11 @@ type Turno struct {
 }
 
 // Turno abre a visão de um turno, com o cofre de PII que só ele possui.
-func (c *Conjunto) Turno() Turno {
-	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofre()}
+func (c *Conjunto) Turno() Turno { return c.TurnoAPartirDe(1) }
+
+// TurnoAPartirDe abre o turno com o cofre numerando os marcadores a partir de proximo.
+func (c *Conjunto) TurnoAPartirDe(proximo int) Turno {
+	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofreAPartirDe(proximo)}
 }
 
 // Cofre é o cofre de PII do turno: o mesmo que os eventos recebem.
@@ -122,11 +125,11 @@ func (t Turno) AntesDeResponder(ctx context.Context, e AntesDeResponder) Resulta
 }
 
 // TransbordoOuEncerramento nunca bloqueia. Se o saneamento do motivo falhar, o motivo cru
-// não segue: sai MotivoOmitido.
+// não segue: sai MotivoTransbordoSolicitado.
 func (t Turno) TransbordoOuEncerramento(ctx context.Context, e TransbordoOuEncerramento) Resultado[TransbordoOuEncerramento] {
 	r := avaliarNoPonto(ctx, t, ponto[TransbordoOuEncerramento]{t.conjunto.fixos.TransbordoOuEncerramento, t.indice.TransbordoOuEncerramento}, e)
 	if saneamentoDoMotivoFalhou(r.Registros) {
-		r.Evento.Motivo = MotivoOmitido
+		r.Evento.Motivo = MotivoTransbordoSolicitado
 	}
 	return r
 }

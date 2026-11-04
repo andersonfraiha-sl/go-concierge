@@ -22,3 +22,24 @@ func TestTodosJuntaChecagemESaneamento(t *testing.T) {
 		}
 	}
 }
+
+func TestAusentesListaOsFixosQueFaltam(t *testing.T) {
+	tests := []struct {
+		nome   string
+		fixos  ganchos.Fixos
+		faltam []string
+	}{
+		{"todos", Todos(), nil},
+		{"só checagem", Checagem(), []string{
+			"antes_de_responder/" + nomePIIResposta, "depois_da_ferramenta/" + nomePIIResultado,
+			"mensagem_recebida/" + nomePIIEntrada, "transbordo_ou_encerramento/" + ganchos.GanchoTransbordoSemPII,
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			if got := Ausentes(ganchos.NovoConjunto(tt.fixos, nil).NomesDosFixos()); !slices.Equal(got, tt.faltam) {
+				t.Fatalf("Ausentes = %v, want %v", got, tt.faltam)
+			}
+		})
+	}
+}

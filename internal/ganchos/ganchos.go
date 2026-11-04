@@ -65,8 +65,9 @@ const (
 const (
 	PrazoPadrao   = 2 * time.Millisecond
 	MotivoDeFalha = "gancho falhou"
-	// MotivoOmitido substitui o motivo do transbordo quando o saneamento dele falha.
-	MotivoOmitido = "motivo omitido"
+	// MotivoTransbordoSolicitado substitui o motivo do transbordo quando o saneamento
+	// dele falha (spec §11).
+	MotivoTransbordoSolicitado = "transbordo solicitado"
 	// GanchoTransbordoSemPII é o nome do fixo que mascara o motivo do transbordo.
 	GanchoTransbordoSemPII = "transbordo_sem_pii"
 )

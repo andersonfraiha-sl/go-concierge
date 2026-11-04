@@ -14,6 +14,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/pii"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/pedidos"
 )
@@ -63,6 +65,14 @@ func (a *ambienteHarness) Chamar(ctx context.Context, agente, recurso string, pa
 		return nil, errors.New(e)
 	}
 	return out["resultado"], nil
+}
+
+// guardarNoCofre põe no cofre do turno os valores dos pedidos abertos: um CPF coletado num
+// turno anterior chega à ferramenta e ao morador como valor, em vez de sair «cpf».
+func guardarNoCofre(cofre *pii.Cofre, cart pedidos.Carteira) {
+	for _, p := range cart.Abertos() {
+		cofre.MascararEmValor(p.Valores)
+	}
 }
 
 type contratoDoCaso struct {
@@ -170,13 +180,17 @@ func corta(s string, n int) string {
 }
 
 // turnoComPedidos é a vez do robô com o registro de pedidos como espinha dorsal.
-func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string, historico []*schema.Message) (*harness.Resultado, []PedidoTurno, error) {
+// cofre é o do turno: os slots extraídos da mensagem mascarada voltam aos valores reais
+// antes de entrar no pedido (é dele que a ferramenta lê), e o texto que sai para o modelo,
+// o turno e o histórico volta mascarado.
+func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness.Agente, texto string, historico []*schema.Message, cofre *pii.Cofre) (*harness.Resultado, []PedidoTurno, error) {
 	contato := sess.contato()
 	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
 	rel := ag.Def.Rel
 	var rota []harness.Passo
 	var uso harness.Uso
+	var registros []ganchos.Registro
 	passo := func(tipo, det string) { rota = append(rota, harness.Passo{Agente: rel, Tipo: tipo, Detalhe: det}) }
 	casos, contratos := casosDisponiveis(ag)
 	cart, err := s.carregarCarteira(ctx, contato)
@@ -184,6 +198,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		return nil, nil, fmt.Errorf("pedidos de %s: %w", contato.Mascarado(), err)
 	}
 	estadosAntes := estadosDe(cart)
+	guardarNoCofre(cofre, cart)
 
 	ex := s.ExtratorPedidos
 	if ex == nil {
@@ -288,7 +303,8 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			continue
 		}
 		antes := len(p.Valores)
-		if rej := pedidos.Aplicar(cc.ct, p, pe.Valores, pedidos.OrigemMorador); len(rej) > 0 {
+		valores, _ := pii.DevolverEmValor(pe.Valores, cofre.Ler()).(map[string]any)
+		if rej := pedidos.Aplicar(cc.ct, p, valores, pedidos.OrigemMorador); len(rej) > 0 {
 			for k, v := range rej {
 				passo("pedido", p.Protocolo+" rejeitou "+k+": "+v)
 			}
@@ -354,7 +370,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		passo("pedido", p.Protocolo+" "+saida.Tipo+": "+corta(saida.Texto, 140))
+		passo("pedido", p.Protocolo+" "+saida.Tipo+": "+corta(mascarado(cofre, saida.Texto), 140))
 		anota(p, saida.Tipo)
 		switch saida.Tipo {
 		case "pergunta", "confirmar":
@@ -391,6 +407,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 					}
 					rota = append(rota, r.Rota...)
 					uso.Soma(r.Uso)
+					registros = append(registros, r.Registros...)
 					if r.Transbordo != "" {
 						transbordo = r.Transbordo
 					}
@@ -430,6 +447,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		}
 		rota = append(rota, res.Rota...)
 		uso.Soma(res.Uso)
+		registros = append(registros, res.Registros...)
 		if strings.TrimSpace(res.Resposta) != "" && (res.Transbordo == "" || sess.Destino.Conector == "atende-emulado") {
 			partes = append(partes, res.Resposta)
 		} else if res.Transbordo != "" && sess.Destino.Conector == "atende" {
@@ -471,7 +489,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		perguntas = append(perguntas, texto)
 		precisaRedigir = true
 		anota(p, "lembrete")
-		passo("pedido", p.Protocolo+" lembrete ("+fmt.Sprint(vezes)+"x): "+corta(lembrete, 100))
+		passo("pedido", p.Protocolo+" lembrete ("+fmt.Sprint(vezes)+"x): "+corta(mascarado(cofre, lembrete), 100))
 	}
 
 	// atendente: pendências viram resumo para o humano
@@ -571,7 +589,7 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 		precisaRedigir = false
 	}
 	if precisaRedigir {
-		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", conteudo, len(historico) > 0)
+		texto, u, err := ag.Redigir(ctx, "Entregue ao morador o conteúdo abaixo (resultados concluídos, pedidos de confirmação e perguntas), preservando EXATAMENTE protocolos, datas, valores, as opções numeradas e as perguntas de confirmação (sim/não); perguntas e confirmações ficam por último, uma por parágrafo.", mascarado(cofre, conteudo), len(historico) > 0)
 		switch {
 		case err != nil:
 			passo("aviso", "redação falhou, conteúdo vai cru: "+err.Error())
@@ -580,17 +598,21 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			uso.Soma(u)
 		}
 	}
+	resposta = pii.Devolver(resposta, cofre.Ler())
 	for _, turno := range turnos {
 		if turno.confirmacaoTexto != "" && strings.Contains(conteudo, turno.confirmacaoTexto) && !strings.Contains(resposta, turno.confirmacaoTexto) {
 			resposta = strings.TrimSpace(resposta + "\n\n" + turno.confirmacaoTexto)
 		}
 	}
+	// o que volta vai ao turno, ao histórico e ao modelo: mascarado; antes_de_responder
+	// devolve os valores no envio
+	resposta = mascarado(cofre, resposta)
 	passo("entrega", corta(resposta, 160))
 
 	msgs := make([]*schema.Message, 0, len(historico)+2)
 	msgs = append(msgs, historico...)
 	msgs = append(msgs, schema.UserMessage(texto), schema.AssistantMessage(resposta, nil))
-	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo}, turnos, nil
+	return &harness.Resultado{Resposta: resposta, Agente: rel, Rota: rota, Uso: uso, Mensagens: msgs, Transbordo: transbordo, Registros: registros}, turnos, nil
 }
 
 func (s *Servico) marcarConfirmacoesEntregues(ctx context.Context, contato escopo.Contato, turnos []PedidoTurno, resposta string) error {
@@ -803,15 +825,25 @@ func (s *Servico) preencherPedido(ctx context.Context, sess *Sessao, protocoloPe
 		if saida.Tipo == "erro" {
 			texto = "Não consegui concluir " + strings.ToLower(p.CasoNome) + ": " + saida.Texto
 		}
+		t, err := s.abrirTurno(sess)
+		if err != nil {
+			return sess, p, saida, err
+		}
+		defer sess.fecharTurno(t)
+		sess.comecarRegistros()
+		enviar, guardar := s.respostaPronta(ctx, sess, t, texto)
 		var errEnvio error
 		if s.Sender != nil {
 			ctxEnvio, finalizar := sess.contextoEntregaManual(ctx)
-			errEnvio = s.Sender.Enviar(ctxEnvio, sess.Destino, texto)
+			errEnvio = s.Sender.Enviar(ctxEnvio, sess.Destino, enviar)
 			finalizar()
 		}
-		if entregue := textoEntregue(texto, errEnvio); entregue != "" {
-			sess.registrar(Turno{Quem: "concierge", Texto: entregue, Agente: ag.Def.Rel, Pedidos: []PedidoTurno{{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: saida.Tipo}}})
-			sess.historicoAdicionar(schema.AssistantMessage(entregue, nil))
+		if entregue := textoEntregue(enviar, errEnvio); entregue != "" {
+			if entregue != enviar {
+				guardar = mascarado(t.Cofre(), entregue)
+			}
+			sess.registrar(Turno{Quem: "concierge", Texto: guardar, Agente: ag.Def.Rel, Pedidos: []PedidoTurno{{Protocolo: p.Protocolo, Caso: p.CasoNome, Estado: p.Estado, Evento: saida.Tipo}}})
+			sess.historicoAdicionar(schema.AssistantMessage(guardar, nil))
 		}
 		if errEnvio != nil {
 			sess.registrar(Turno{Quem: "erro", Texto: errEnvio.Error()})
