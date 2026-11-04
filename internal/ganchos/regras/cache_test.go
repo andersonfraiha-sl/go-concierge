@@ -76,7 +76,7 @@ func TestAquecerDaAQueryOPrazoDeCincoSegundos(t *testing.T) {
 func TestAvisoAntesDeAquecerNaoPublicaIndiceParcial(t *testing.T) {
 	p := &Postgres{}
 	c := NovoCache(p, compilarContando, nil)
-	p.aoAlterar(RegraGravada{ID: "salva-no-boot", Versao: 1, Ativa: true})
+	p.aoAlterar([]RegraGravada{{ID: "salva-no-boot", Versao: 1, Ativa: true}})
 	if c.Indice() != nil {
 		t.Fatal("aviso antes de Aquecer publicou um índice")
 	}
@@ -128,7 +128,7 @@ func TestCacheIgnoraVersaoMenorOuIgualAGuardada(t *testing.T) {
 			p := &Postgres{}
 			c := aquecido(t, p, compilarContando, nil)
 			for _, r := range tt.avisos {
-				p.aoAlterar(r)
+				p.aoAlterar([]RegraGravada{r})
 			}
 			if n := ativasNoIndice(t, c); n != tt.quer {
 				t.Fatalf("ativas = %d, quer %d", n, tt.quer)
@@ -218,4 +218,19 @@ func lerAteTerminar(c *Cache, terminou *atomic.Bool, leituras *atomic.Int64, max
 		runtime.Gosched() // 50 laços apertados não podem tomar a CPU das gravações
 	}
 	return ""
+}
+
+func TestAvisoDeLoteRecompilaUmaVez(t *testing.T) {
+	p := &Postgres{}
+	compilacoes := 0
+	contando := func(rs []RegraGravada) (*ganchos.Indice, []ErroDeCarga) {
+		compilacoes++
+		return compilarContando(rs)
+	}
+	c := aquecido(t, p, contando, nil)
+	compilacoes = 0
+	p.aoAlterar([]RegraGravada{{ID: "a", Versao: 1, Ativa: true}, {ID: "b", Versao: 1, Ativa: true}, {ID: "c", Versao: 1, Ativa: true}})
+	if compilacoes != 1 || ativasNoIndice(t, c) != 3 {
+		t.Fatalf("compilações = %d e ativas = %d, quer 1 e 3", compilacoes, ativasNoIndice(t, c))
+	}
 }

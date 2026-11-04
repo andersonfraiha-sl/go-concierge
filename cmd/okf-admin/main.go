@@ -38,6 +38,7 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/env"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
@@ -77,6 +78,8 @@ type servidor struct {
 	admin               admin.Repositorio
 	implantacao         escopo.Implantacao // ADMINISTRADORA_ID: o processo atende só essa (vazia = todas)
 	banco               banco.Banco
+	regras              *regras.Postgres
+	segredoExportacao   []byte // GANCHOS_SEGREDO_EXPORTACAO; vazio só em dev, e aí exportar e importar recusam
 
 	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
 	autenticador Autenticador
@@ -110,7 +113,8 @@ func main() {
 	env.Carregar(*dotenv)
 	registro := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
-	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET")})
+	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET"),
+		SegredoExportacao: os.Getenv("GANCHOS_SEGREDO_EXPORTACAO")})
 	if err := validarConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
@@ -139,11 +143,13 @@ func main() {
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
 	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
-		implantacao:  escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
-		autenticador: novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
-		authMode:     cfg.AuthMode,
-		acessos:      acesso.NovoPostgres(db.Ent),
-		registro:     registro,
+		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
+		autenticador:      novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
+		authMode:          cfg.AuthMode,
+		acessos:           acesso.NovoPostgres(db.Ent),
+		registro:          registro,
+		regras:            regras.NovoPostgres(db.Ent),
+		segredoExportacao: []byte(cfg.SegredoExportacao),
 	}
 	var origens []string
 	if mcpCli != nil {

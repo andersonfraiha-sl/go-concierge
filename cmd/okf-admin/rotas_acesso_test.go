@@ -29,6 +29,7 @@ import (
 type acessosFake struct {
 	atribuicoes map[string][]acesso.Atribuicao
 	mapeamento  admin.Repositorio
+	concessoes  map[string][]acesso.Concessao // por usuário
 }
 
 func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (acesso.Acesso, error) {
@@ -50,7 +51,7 @@ func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.
 	for _, p := range acesso.PapeisIniciais() {
 		papeis[p.ID] = p
 	}
-	return acesso.Acesso{UsuarioID: usuarioID, Papeis: papeis, Atribuicoes: ats, AdministradoraDe: donas, Implantacao: imp}, nil
+	return acesso.Acesso{UsuarioID: usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes[usuarioID], AdministradoraDe: donas, Implantacao: imp}, nil
 }
 
 func naAdministradora(papel, adm string) []acesso.Atribuicao {
