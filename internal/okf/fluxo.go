@@ -381,7 +381,8 @@ func opcaoDe(item *yaml.Node) (opcao Opcao, ehTexto bool, err error) {
 
 // --- escrita: Fluxo -> YAML ---
 
-// AplicarFluxo troca steps, output e params do caso e mantém todo o resto como está.
+// AplicarFluxo troca steps, output e params do caso e mantém todo o resto como está. Só o que
+// mudou é regravado: o diff de uma edição é a linha dela.
 func AplicarFluxo(raw []byte, f Fluxo) ([]byte, error) {
 	passos, resposta, err := passosEResposta(f.Blocos)
 	if err != nil {
@@ -391,7 +392,25 @@ func AplicarFluxo(raw []byte, f Fluxo) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return substituirChaves(raw, []chaveNo{{"params", params}, {"steps", passos}, {"output", resposta}})
+	doc, raiz, err := lerDocumento(raw)
+	if err != nil {
+		return nil, fmt.Errorf("ler caso: %w", err)
+	}
+	for _, c := range []chaveNo{{"params", params}, {"steps", passos}, {"output", resposta}} {
+		raiz.Content = mesclarChave(raiz.Content, c)
+	}
+	return codificarCaso(doc)
+}
+
+// mesclarChave grava só o que mudou numa chave que já existe; chave nova ou removida segue
+// a regra de definirChave.
+func mesclarChave(conteudo []*yaml.Node, c chaveNo) []*yaml.Node {
+	i := indiceDaChave(conteudo, c.Chave)
+	if i < 0 || c.No == nil {
+		return definirChave(conteudo, c)
+	}
+	conteudo[i+1] = mesclarNo(conteudo[i+1], c.No)
+	return conteudo
 }
 
 func passosEResposta(blocos []Bloco) (steps, output *yaml.Node, err error) {
