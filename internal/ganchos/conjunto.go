@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"time"
+
+	"go-concierge/internal/ganchos/pii"
 )
 
 // Pontos são os fixos de um evento: checagem roda antes das regras, saneamento depois.
@@ -88,26 +90,34 @@ func NovoConjunto(f Fixos, regras func() *Indice, opcoes ...Opcao) *Conjunto {
 type Turno struct {
 	conjunto *Conjunto
 	indice   Indice
+	cofre    *pii.Cofre
 }
 
-// Turno abre a visão de um turno.
+// Turno abre a visão de um turno, com o cofre de PII que só ele possui.
 func (c *Conjunto) Turno() Turno {
-	return Turno{conjunto: c, indice: c.indice()}
+	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofre()}
 }
+
+// Cofre é o cofre de PII do turno: o mesmo que os eventos recebem.
+func (t Turno) Cofre() *pii.Cofre { return t.cofre }
 
 func (t Turno) MensagemRecebida(ctx context.Context, e MensagemRecebida) Resultado[MensagemRecebida] {
+	e.Cofre = t.cofre
 	return avaliarNoPonto(ctx, t, ponto[MensagemRecebida]{t.conjunto.fixos.MensagemRecebida, t.indice.MensagemRecebida}, e)
 }
 
 func (t Turno) AntesDaFerramenta(ctx context.Context, e AntesDaFerramenta) Resultado[AntesDaFerramenta] {
+	e.Cofre = t.cofre
 	return avaliarNoPonto(ctx, t, ponto[AntesDaFerramenta]{t.conjunto.fixos.AntesDaFerramenta, t.indice.AntesDaFerramenta}, e)
 }
 
 func (t Turno) DepoisDaFerramenta(ctx context.Context, e DepoisDaFerramenta) Resultado[DepoisDaFerramenta] {
+	e.Cofre = t.cofre
 	return avaliarNoPonto(ctx, t, ponto[DepoisDaFerramenta]{t.conjunto.fixos.DepoisDaFerramenta, t.indice.DepoisDaFerramenta}, e)
 }
 
 func (t Turno) AntesDeResponder(ctx context.Context, e AntesDeResponder) Resultado[AntesDeResponder] {
+	e.Cofre = t.cofre
 	return avaliarNoPonto(ctx, t, ponto[AntesDeResponder]{t.conjunto.fixos.AntesDeResponder, t.indice.AntesDeResponder}, e)
 }
 

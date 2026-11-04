@@ -5,6 +5,7 @@ import (
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos/pii"
 )
 
 // NomeDoEvento identifica o ponto do turno (ou do Copiloto) em que os ganchos rodam.
@@ -38,8 +39,7 @@ type MensagemRecebida struct {
 	ContatoDaSessao          escopo.Contato
 	Condominio               admin.Condominio
 	Identidade               Identidade
-	Cofre                    map[string]string
-	Achados                  map[string]string
+	Cofre                    *pii.Cofre
 }
 
 // AntesDaFerramenta dispara no invocador único, antes de a ferramenta rodar.
@@ -59,7 +59,7 @@ type AntesDaFerramenta struct {
 	AdministradoraID         string
 	CondominioID             string
 	Identidade               Identidade
-	Cofre                    map[string]string
+	Cofre                    *pii.Cofre
 }
 
 // DepoisDaFerramenta dispara no mesmo invocador, antes de o resultado voltar.
@@ -71,7 +71,7 @@ type DepoisDaFerramenta struct {
 	AdministradoraID string
 	CondominioID     string
 	Identidade       Identidade
-	Cofre, Achados   map[string]string
+	Cofre            *pii.Cofre
 }
 
 // AntesDeResponder dispara logo antes do envio, venha a resposta de onde vier.
@@ -81,7 +81,7 @@ type AntesDeResponder struct {
 	AdministradoraID string
 	CondominioID     string
 	Identidade       Identidade
-	Cofre            map[string]string
+	Cofre            *pii.Cofre
 }
 
 // TransbordoOuEncerramento dispara ao transbordar ou encerrar a conversa.

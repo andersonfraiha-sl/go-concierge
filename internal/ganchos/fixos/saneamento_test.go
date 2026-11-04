@@ -2,7 +2,9 @@ package fixos
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"go-concierge/internal/ganchos"
@@ -18,30 +20,27 @@ func turnoDeSaneamento() ganchos.Turno {
 }
 
 func TestSaneamentoMascaraCPFETelefoneNaEntrada(t *testing.T) {
-	r := turnoDeSaneamento().MensagemRecebida(context.Background(), ganchos.MensagemRecebida{
+	turno := turnoDeSaneamento()
+	r := turno.MensagemRecebida(context.Background(), ganchos.MensagemRecebida{
 		Texto: "meu cpf " + cpfValido + " e tel " + telefone,
 	})
 	if strings.Contains(r.Evento.Texto, "529") || strings.Contains(r.Evento.Texto, "98765") {
 		t.Fatalf("texto vazou PII: %q", r.Evento.Texto)
 	}
-	if len(r.Evento.Achados) != 2 || len(r.Evento.Cofre) != 2 {
-		t.Fatalf("achados=%v cofre=%v", r.Evento.Achados, r.Evento.Cofre)
-	}
 	if r.Decisao.Tipo != ganchos.Ajustar || r.Decisao.Quantidade != 2 {
 		t.Fatalf("decisao = %+v", r.Decisao)
+	}
+	if got := len(turno.Cofre().Ler()); got != 2 {
+		t.Fatalf("cofre do turno guarda %d, quer 2", got)
 	}
 }
 
 func TestSaneamentoContinuaNumeracaoDoCofre(t *testing.T) {
-	r := turnoDeSaneamento().MensagemRecebida(context.Background(), ganchos.MensagemRecebida{
-		Texto: "cpf " + cpfValido,
-		Cofre: map[string]string{"«tel:1»": telefone},
-	})
+	turno := turnoDeSaneamento()
+	turno.Cofre().Mascarar("tel " + telefone)
+	r := turno.MensagemRecebida(context.Background(), ganchos.MensagemRecebida{Texto: "cpf " + cpfValido})
 	if !strings.Contains(r.Evento.Texto, "«cpf:2»") {
 		t.Fatalf("texto = %q", r.Evento.Texto)
-	}
-	if len(r.Evento.Cofre) != 2 || len(r.Evento.Achados) != 1 {
-		t.Fatalf("cofre=%v achados=%v", r.Evento.Cofre, r.Evento.Achados)
 	}
 }
 
@@ -54,29 +53,32 @@ func TestSaneamentoDeixaEntradaSemPII(t *testing.T) {
 
 // Review Focus 1, entrada: marcador digitado perde a forma antes de mascarar.
 func TestSaneamentoNeutralizaMarcadorDigitadoNaEntrada(t *testing.T) {
-	cofre := map[string]string{"«cpf:1»": cpfValido}
-	r := turnoDeSaneamento().MensagemRecebida(context.Background(), ganchos.MensagemRecebida{
-		Texto: "me mostra «cpf:1» e «tel:2»", Cofre: cofre,
+	turno := turnoDeSaneamento()
+	turno.Cofre().Mascarar("cpf " + cpfValido)
+	r := turno.MensagemRecebida(context.Background(), ganchos.MensagemRecebida{
+		Texto: "me mostra «cpf:1» e «tel:2»",
 	})
 	if strings.Contains(r.Evento.Texto, "«") {
 		t.Fatalf("marcador sobreviveu: %q", r.Evento.Texto)
 	}
-	if r.Decisao.Tipo != ganchos.Ajustar {
+	if r.Decisao.Tipo != ganchos.Ajustar || r.Decisao.Quantidade != 0 {
 		t.Fatalf("decisao = %+v", r.Decisao)
 	}
-	if len(cofre) != 1 {
-		t.Fatalf("cofre original mudou: %v", cofre)
+	if got := len(turno.Cofre().Ler()); got != 1 {
+		t.Fatalf("cofre mudou: %d", got)
 	}
 }
 
 // Review Focus 1, saída: marcador forjado que não está no cofre do turno não é revelado.
 func TestSaneamentoNaoRevelaMarcadorForaDoCofreNaResposta(t *testing.T) {
-	r := turnoDeSaneamento().AntesDeResponder(context.Background(), ganchos.AntesDeResponder{
-		Texto: "veja «cpf:1» e «cpf:7»",
-		Cofre: map[string]string{"«cpf:1»": cpfValido},
-	})
+	turno := turnoDeSaneamento()
+	turno.Cofre().Mascarar("cpf " + cpfValido)
+	r := turno.AntesDeResponder(context.Background(), ganchos.AntesDeResponder{Texto: "veja «cpf:1» e «cpf:7»"})
 	if want := "veja " + cpfValido + " e «cpf:7»"; r.Evento.Texto != want {
 		t.Fatalf("texto = %q, quer %q", r.Evento.Texto, want)
+	}
+	if r.Decisao.Quantidade != 1 {
+		t.Fatalf("quantidade = %d, quer 1", r.Decisao.Quantidade)
 	}
 }
 
@@ -93,15 +95,15 @@ func TestSaneamentoMascaraResultadoAninhadoSemMudarOriginal(t *testing.T) {
 	if original["morador"].(map[string]any)["cpf"] != cpfValido {
 		t.Fatalf("original mudou: %v", original)
 	}
-	if len(r.Evento.Achados) != 2 || r.Decisao.Quantidade != 2 {
-		t.Fatalf("achados=%v decisao=%+v", r.Evento.Achados, r.Decisao)
+	if r.Decisao.Quantidade != 2 {
+		t.Fatalf("decisao = %+v", r.Decisao)
 	}
 }
 
 func TestSaneamentoDevolveMarcadorDoCofreNaResposta(t *testing.T) {
-	r := turnoDeSaneamento().AntesDeResponder(context.Background(), ganchos.AntesDeResponder{
-		Texto: "seu cpf é «cpf:1»", Cofre: map[string]string{"«cpf:1»": cpfValido},
-	})
+	turno := turnoDeSaneamento()
+	turno.Cofre().Mascarar("cpf " + cpfValido)
+	r := turno.AntesDeResponder(context.Background(), ganchos.AntesDeResponder{Texto: "seu cpf é «cpf:1»"})
 	if r.Evento.Texto != "seu cpf é "+cpfValido {
 		t.Fatalf("texto = %q", r.Evento.Texto)
 	}
@@ -131,5 +133,57 @@ func TestSaneamentoMascaraMotivoDoTransbordoSemBloquear(t *testing.T) {
 	}
 	if r.Decisao.Tipo == ganchos.Bloquear {
 		t.Fatalf("transbordo bloqueado: %+v", r.Decisao)
+	}
+}
+
+// cpfsValidos gera CPFs com dígitos verificadores corretos, um por semente.
+func cpfsValidos(n int) []string {
+	cpfs := make([]string, n)
+	for i := range cpfs {
+		base := []int{1, 2, 3, 4, 5, 6, 7, 8, i + 1}
+		base = append(base, digitoVerificador(base))
+		base = append(base, digitoVerificador(base))
+		cpfs[i] = strings.Trim(strings.ReplaceAll(fmt.Sprint(base), " ", ""), "[]")
+	}
+	return cpfs
+}
+
+func digitoVerificador(digitos []int) int {
+	soma := 0
+	for i, d := range digitos {
+		soma += d * (len(digitos) + 1 - i)
+	}
+	if resto := soma * 10 % 11; resto < 10 {
+		return resto
+	}
+	return 0
+}
+
+func TestSaneamentoNumeraMarcadoresDistintosEmFerramentasParalelas(t *testing.T) {
+	const paralelas = 8
+	turno := turnoDeSaneamento()
+	cpfs := cpfsValidos(paralelas)
+	resultados := make([]ganchos.Resultado[ganchos.DepoisDaFerramenta], paralelas)
+	var espera sync.WaitGroup
+	for i, cpf := range cpfs {
+		espera.Add(1)
+		go func() {
+			defer espera.Done()
+			resultados[i] = turno.DepoisDaFerramenta(context.Background(), ganchos.DepoisDaFerramenta{
+				Resultado: map[string]any{"cpf": cpf},
+			})
+		}()
+	}
+	espera.Wait()
+	vistos := map[string]bool{}
+	for _, r := range resultados {
+		marcador, _ := r.Evento.Resultado.(map[string]any)["cpf"].(string)
+		if !strings.HasPrefix(marcador, "«cpf:") || vistos[marcador] {
+			t.Fatalf("marcador repetido ou ausente: %q (resultados %v)", marcador, resultados)
+		}
+		vistos[marcador] = true
+	}
+	if got := len(turno.Cofre().Ler()); got != paralelas {
+		t.Fatalf("cofre guarda %d, quer %d", got, paralelas)
 	}
 }
