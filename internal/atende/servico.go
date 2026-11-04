@@ -750,6 +750,9 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		return sess, err
 	}
 	defer sess.fecharTurno(turnoGanchos)
+	// as perguntas da resposta anterior valem só para esta mensagem: turno que falha,
+	// é cancelado ou não envia nada não deixa pergunta para o próximo sim
+	turnoGanchos = turnoGanchos.ComPerguntasConfirmadas(sess.tomarPerguntasConfirmadas(texto))
 	if transbordado {
 		// em transbordo o concierge não responde: a mensagem fica, mascarada, para o atendente
 		texto = mascararEntrada(turnoGanchos, texto)
@@ -992,6 +995,9 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 			return sess, erroEntrega
 		}
 	}
+	if respostaEnviada(s.Sender, res, erroEntrega) {
+		sess.guardarPerguntasDeRegra(turnoGanchos)
+	}
 	sess.historicoAtualizar(baseHistorico, res.Mensagens)
 	historicoRegistrado = true
 	sess.mu.Lock()
@@ -1170,6 +1176,7 @@ func (sess *Sessao) registrarHumano(msg entrada.Mensagem) bool {
 	}
 	sess.AtendimentoHumano = true
 	sess.revisaoEstado++
+	sess.PerguntasDeRegra = nil // o sim que vier depois responde o atendente, não a regra
 	if sess.cancelarTurno != nil {
 		sess.cancelarTurno()
 	}
@@ -1199,6 +1206,7 @@ func (sess *Sessao) encerrar(msg entrada.Mensagem) bool {
 		return false
 	}
 	sess.Encerrada = true
+	sess.PerguntasDeRegra = nil
 	if sess.Transbordo != nil {
 		sess.Transbordo.Ativo = false
 	}
@@ -1452,6 +1460,7 @@ func (s *Servico) marcarTransbordo(sess *Sessao, motivo, pedidoPor, atendente st
 		return
 	}
 	sess.Transbordo = &Transbordo{Ativo: true, Estado: "transferido", Motivo: motivo, PedidoPor: pedidoPor, Quando: time.Now(), Atendente: atendente}
+	sess.PerguntasDeRegra = nil
 	sess.mu.Unlock()
 	sess.registrar(Turno{Quem: "sistema", Texto: "Transferido ao atendente humano: " + motivo})
 	if ob, ok := s.Sender.(*Outbox); ok && ob != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -26,7 +27,27 @@ const CanceladoAPedido = "pedido cancelado a seu pedido"
 // coletados, diz se uma regra vai bloquear a gravação, para o pedido não gastar as perguntas
 // do morador à toa. Só bloqueio cancela; pedir confirmação fica para a escrita real.
 type Previsor interface {
-	Prever(ctx context.Context, agente, recurso string, params map[string]any) (motivo string, bloqueia bool)
+	Prever(ctx context.Context, agente, recurso string, params map[string]any) Previsao
+}
+
+// Previsao é o que a prévia da escrita decidiu: Bloqueio (vazio = segue) cancela o pedido.
+// Registrar audita o bloqueio quando o motor o aplica (nil = nada a auditar): prévia que
+// não muda o pedido não deixa rastro.
+type Previsao struct {
+	Bloqueio  string
+	Registrar func(context.Context)
+}
+
+// PerguntaDosGanchos é o erro do Ambiente quando os ganchos pedem confirmação antes do
+// recurso: o pedido espera a resposta do morador em vez de falhar.
+type PerguntaDosGanchos struct{ Pergunta string }
+
+func (e *PerguntaDosGanchos) Error() string { return e.Pergunta }
+
+func (pv Previsao) registrar(ctx context.Context) {
+	if pv.Registrar != nil {
+		pv.Registrar(ctx)
+	}
 }
 
 // Saida é o que o motor devolve depois de avançar um pedido até onde dá.
@@ -51,9 +72,11 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 	if p.Dados == nil {
 		p.Dados = map[string]any{}
 	}
-	if motivo, bloqueia := preverEscrita(ctx, ct, p, amb); bloqueia {
-		p.mudar(Cancelado, motivo)
-		return Saida{Tipo: "cancelado", Texto: motivo}
+	previsao := preverEscrita(ctx, ct, p, amb)
+	if previsao.Bloqueio != "" {
+		previsao.registrar(ctx)
+		p.mudar(Cancelado, previsao.Bloqueio)
+		return Saida{Tipo: "cancelado", Texto: previsao.Bloqueio}
 	}
 	for _, passo := range ct.Passos {
 		switch passo.Tipo {
@@ -87,6 +110,9 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 			}
 			p.mudar(Executando, "")
 			res, err := amb.Chamar(ctx, p.Agente, passo.Recurso, params, confirmacao)
+			if pg, ok := errors.AsType[*PerguntaDosGanchos](err); ok {
+				return perguntarPelosGanchos(p, pg.Pergunta)
+			}
 			if err != nil {
 				return falha(p, fmt.Sprintf("%s: %v", passo.Recurso, err))
 			}
@@ -206,6 +232,7 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 				}
 				valoresMudaram = !bytes.Equal(anteriores.Bytes(), valores)
 			}
+			texto = textoEmConfirmacao(p, texto, valoresMudaram)
 			if p.Confirmacao != nil && p.Confirmacao.Resposta != "nao" &&
 				(p.Confirmacao.Texto != "" && p.Confirmacao.Texto != texto || valoresMudaram) {
 				entregue := false
@@ -259,23 +286,54 @@ func Avancar(ctx context.Context, ct *Contrato, p *Pedido, cart *Carteira, amb A
 	return Saida{Tipo: "concluido", Texto: texto}
 }
 
-// preverEscrita pergunta ao ambiente se a escrita do caso, com o que já foi coletado, será
-// bloqueada. Não prevê sem Previsor, sem escrita pendente, ou na vez da gravação (o sim já
-// veio): ali a avaliação completa roda no caminho normal.
-func preverEscrita(ctx context.Context, ct *Contrato, p *Pedido, amb Ambiente) (motivo string, bloqueia bool) {
+// preverEscrita pergunta ao ambiente o que os ganchos vão decidir sobre a escrita do caso,
+// com o que já foi coletado. Não prevê sem Previsor, sem escrita pendente, ou na vez da
+// gravação (o sim já veio): ali a avaliação completa roda no caminho normal.
+func preverEscrita(ctx context.Context, ct *Contrato, p *Pedido, amb Ambiente) Previsao {
 	prev, ok := amb.(Previsor)
-	if !ok || (p.Confirmacao != nil && p.Confirmacao.Resposta == "sim") {
-		return "", false
+	if !ok || p.confirmado() {
+		return Previsao{}
 	}
 	passo, ok := escritaPendente(ct, p)
 	if !ok {
-		return "", false
+		return Previsao{}
 	}
 	params, err := ct.ParamsDe(passo.With, p)
 	if err != nil {
-		return "", false // a gravação reporta o erro dos params com o contexto certo
+		return Previsao{} // a gravação reporta o erro dos params com o contexto certo
 	}
 	return prev.Prever(ctx, p.Agente, passo.Recurso, params)
+}
+
+func (p *Pedido) confirmado() bool { return p.Confirmacao != nil && p.Confirmacao.Resposta == "sim" }
+
+// perguntarPelosGanchos põe a pergunta dos ganchos no lugar da confirmação: a do caso (se
+// houve) já foi respondida, e o pedido espera o morador responder esta. O sim dele refaz a
+// chamada; o não cancela como o não da confirmação do caso.
+func perguntarPelosGanchos(p *Pedido, pergunta string) Saida {
+	valores, err := json.Marshal(p.Valores)
+	if err != nil {
+		return falha(p, "valores da confirmação: "+err.Error())
+	}
+	entregue := false
+	p.Confirmacao = &Confirmacao{Texto: pergunta, Pedida: time.Now(), Vezes: 1, Entregue: &entregue, Valores: valores, Ganchos: true}
+	p.registrar("confirmacao", "pedida pelos ganchos: "+pergunta, "")
+	p.mudar(Confirmando, "")
+	return Saida{Tipo: "confirmar", Texto: pergunta}
+}
+
+// textoEmConfirmacao é o texto que o passo confirmar compara e pergunta. Com a pergunta dos
+// ganchos em curso, vale ela: a confirmação do caso já veio. Se os valores mudaram, a
+// pergunta dos ganchos perde o sentido e volta a valer a do caso.
+func textoEmConfirmacao(p *Pedido, textoDoCaso string, valoresMudaram bool) string {
+	if p.Confirmacao == nil || !p.Confirmacao.Ganchos {
+		return textoDoCaso
+	}
+	if valoresMudaram {
+		p.Confirmacao.Ganchos = false
+		return textoDoCaso
+	}
+	return p.Confirmacao.Texto
 }
 
 // escritaPendente é o primeiro passo de recurso com `with` que o laço de Avancar ainda rodaria (sem SkipIf, sem execução prévia): as

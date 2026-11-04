@@ -3,6 +3,7 @@ package ganchos
 import (
 	"context"
 	"slices"
+	"sync"
 	"time"
 
 	"go-concierge/internal/ganchos/pii"
@@ -106,6 +107,39 @@ type Turno struct {
 	indice   Indice
 	cofre    *pii.Cofre
 	previa   bool
+	// confirmadas são as perguntas de regra da resposta anterior que a mensagem atual
+	// confirmou; feitas, as que os ganchos fizeram neste turno.
+	confirmadas []string
+	feitas      *perguntasFeitas
+}
+
+// perguntasFeitas junta as perguntas de confirmação de um turno: as chamadas de ferramenta
+// do mesmo turno podem rodar em paralelo.
+type perguntasFeitas struct {
+	mu        sync.Mutex
+	perguntas []string
+}
+
+func (f *perguntasFeitas) guardar(ps []string) {
+	if f == nil || len(ps) == 0 {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range ps {
+		if !slices.Contains(f.perguntas, p) {
+			f.perguntas = append(f.perguntas, p)
+		}
+	}
+}
+
+func (f *perguntasFeitas) ler() []string {
+	if f == nil {
+		return nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.perguntas)
 }
 
 // Turno abre a visão de um turno, com o cofre de PII que só ele possui.
@@ -113,7 +147,7 @@ func (c *Conjunto) Turno() Turno { return c.TurnoAPartirDe(1) }
 
 // TurnoAPartirDe abre o turno com o cofre numerando os marcadores a partir de proximo.
 func (c *Conjunto) TurnoAPartirDe(proximo int) Turno {
-	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofreAPartirDe(proximo)}
+	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofreAPartirDe(proximo), feitas: &perguntasFeitas{}}
 }
 
 // TurnoDePrevia abre um turno descartável, com cofre próprio, para prever uma decisão antes
@@ -127,6 +161,18 @@ func (c *Conjunto) TurnoDePrevia() Turno {
 // Cofre é o cofre de PII do turno: o mesmo que os eventos recebem.
 func (t Turno) Cofre() *pii.Cofre { return t.cofre }
 
+// ComPerguntasConfirmadas devolve o turno que leva, em cada antes_da_ferramenta, as
+// perguntas de regra que a mensagem atual confirmou. Quem decide se confirmou é a borda,
+// que conhece a mensagem e a resposta anterior.
+func (t Turno) ComPerguntasConfirmadas(perguntas []string) Turno {
+	t.confirmadas = slices.Clone(perguntas)
+	return t
+}
+
+// PerguntasFeitas são as perguntas de confirmação que os ganchos fizeram neste turno, sem
+// repetição, na ordem em que saíram. Texto fixo da regra: sem PII. Prévia não conta.
+func (t Turno) PerguntasFeitas() []string { return t.feitas.ler() }
+
 func (t Turno) MensagemRecebida(ctx context.Context, e MensagemRecebida) Resultado[MensagemRecebida] {
 	e.Cofre = t.cofre
 	return avaliarNoPonto(ctx, t, ponto[MensagemRecebida]{t.conjunto.fixos.MensagemRecebida, t.indice.MensagemRecebida}, e)
@@ -134,7 +180,12 @@ func (t Turno) MensagemRecebida(ctx context.Context, e MensagemRecebida) Resulta
 
 func (t Turno) AntesDaFerramenta(ctx context.Context, e AntesDaFerramenta) Resultado[AntesDaFerramenta] {
 	e.Cofre = t.cofre
-	return avaliarNoPonto(ctx, t, ponto[AntesDaFerramenta]{t.conjunto.fixos.AntesDaFerramenta, t.indice.AntesDaFerramenta}, e)
+	e.PerguntasConfirmadas = t.confirmadas
+	r := avaliarNoPonto(ctx, t, ponto[AntesDaFerramenta]{t.conjunto.fixos.AntesDaFerramenta, t.indice.AntesDaFerramenta}, e)
+	if !t.previa {
+		t.feitas.guardar(r.Perguntas)
+	}
+	return r
 }
 
 func (t Turno) DepoisDaFerramenta(ctx context.Context, e DepoisDaFerramenta) Resultado[DepoisDaFerramenta] {

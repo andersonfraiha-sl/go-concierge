@@ -58,10 +58,13 @@ type AntesDaFerramenta struct {
 	Escrita, PeloMotorDoCaso bool
 	Previa                   bool
 	Confirmacao              string
-	AdministradoraID         string
-	CondominioID             string
-	Identidade               Identidade
-	Cofre                    *pii.Cofre
+	// PerguntasConfirmadas são as perguntas de regra da resposta anterior, quando a
+	// mensagem atual as confirma; vazia em qualquer outro caso. O Turno preenche.
+	PerguntasConfirmadas []string
+	AdministradoraID     string
+	CondominioID         string
+	Identidade           Identidade
+	Cofre                *pii.Cofre
 }
 
 // DepoisDaFerramenta dispara no mesmo invocador, antes de o resultado voltar.

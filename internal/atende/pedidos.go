@@ -57,23 +57,46 @@ type previaDeEscrita struct {
 }
 
 // Prever implementa pedidos.Previsor. Só bloqueio cancela: pedir confirmação fica para a
-// escrita real. O turno é de prévia (cofre próprio; log e métrica sim, auditoria nunca) e
-// qualquer falha em montá-lo deixa a escrita seguir.
-func (a *ambienteHarness) Prever(ctx context.Context, agente, recurso string, params map[string]any) (string, bool) {
+// escrita real. O turno é de prévia (cofre próprio; log e métrica sim, auditoria só do
+// bloqueio que o motor aplicou) e qualquer falha em montá-lo deixa a escrita seguir.
+func (a *ambienteHarness) Prever(ctx context.Context, agente, recurso string, params map[string]any) pedidos.Previsao {
 	sub, ok := a.ag.Subagentes[agente]
 	if !ok || a.previa == nil {
-		return "", false
+		return pedidos.Previsao{}
 	}
 	conjunto, err := a.previa.s.ganchos()
 	if err != nil {
 		slog.WarnContext(ctx, "atende: previsão da escrita sem ganchos", "operacao", "prever_escrita", "sessao", a.previa.sess.ID, "erro", err)
-		return "", false
+		return pedidos.Previsao{}
 	}
-	r := conjunto.TurnoDePrevia().AntesDaFerramenta(ctx, a.previa.evento(sub, recurso, params))
+	evento := a.previa.evento(sub, recurso, params)
+	r := conjunto.TurnoDePrevia().AntesDaFerramenta(ctx, evento)
 	if slices.ContainsFunc(r.Registros, func(g ganchos.Registro) bool { return g.Falhou }) {
-		return "", false // gancho que falhou na previsão não cancela: a escrita real decide
+		return pedidos.Previsao{} // gancho que falhou na previsão não cancela: a escrita real decide
 	}
-	return r.Decisao.Motivo, r.Decisao.Tipo == ganchos.Bloquear
+	if r.Decisao.Tipo != ganchos.Bloquear {
+		return pedidos.Previsao{} // pedir confirmação fica para a escrita real
+	}
+	// bloquear encerra: o único registro de bloqueio é o do gancho que cancelou
+	return pedidos.Previsao{Bloqueio: r.Decisao.Motivo, Registrar: a.previa.auditar(evento, registrosDoBloqueio(r))}
+}
+
+// registrosDoBloqueio são os registros que bloquearam (os de ajuste e de falha ficam de fora).
+func registrosDoBloqueio(r ganchos.Resultado[ganchos.AntesDaFerramenta]) []ganchos.Registro {
+	return slices.DeleteFunc(slices.Clone(r.Registros), func(g ganchos.Registro) bool { return g.Decisao.Tipo != ganchos.Bloquear })
+}
+
+// auditar devolve o registro do bloqueio da prévia que o motor aplicou: vai ao coletor do
+// turno real (o ctx do motor), e a linha só é gravada depois do envio.
+func (p *previaDeEscrita) auditar(e ganchos.AntesDaFerramenta, registros []ganchos.Registro) func(context.Context) {
+	return func(ctx context.Context) {
+		if p.s.Auditoria == nil {
+			return
+		}
+		p.s.Auditoria.Registrar(ctx, ganchos.Observacao{
+			Evento: e.Nome(), CondominioID: e.CondominioID, AdministradoraID: e.AdministradoraID, Registros: registros,
+		})
+	}
 }
 
 func (p *previaDeEscrita) evento(sub *harness.Agente, recurso string, params map[string]any) ganchos.AntesDaFerramenta {
@@ -161,6 +184,9 @@ func (a *ambienteHarness) Chamar(ctx context.Context, agente, recurso string, pa
 	out, err := sub.ExecutarPassoCaso(ctx, recurso, params, confirmacao)
 	if err != nil {
 		return nil, err
+	}
+	if perguntas, ok := out[harness.ChavePerguntas].([]string); ok && len(perguntas) > 0 {
+		return nil, &pedidos.PerguntaDosGanchos{Pergunta: strings.Join(perguntas, "\n")}
 	}
 	if e, ok := out["error"].(string); ok && e != "" {
 		return nil, errors.New(e)

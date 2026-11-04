@@ -252,7 +252,7 @@ func TestE2EGanchosRegrasDeExemplo(t *testing.T) {
 	fixarDatasDosPedidos(t)
 	amb := novoAmbienteE2E(t)
 	reserva := amb.gravar(t, "reserva-so-ate-22h.json")
-	amb.gravar(t, "obra-so-comeca-em-dia-util.json")
+	obra := amb.gravar(t, "obra-so-comeca-em-dia-util.json")
 	codigo := amb.gravar(t, "codigo-de-retirada-so-cadastrado.json")
 	confirmar := amb.gravar(t, "confirmar-escrita-fora-do-horario.json")
 
@@ -297,12 +297,19 @@ func TestE2EGanchosRegrasDeExemplo(t *testing.T) {
 		quer(t, "reserva liberada", fala("quero reservar uma área comum"), "Qual área")
 		quer(t, "área", fala("salão"), "Para qual data?")
 		quer(t, "data", fala("15/11"), "Confirma a reserva")
-		quer(t, "pergunta da regra", fala("sim"), "Já é tarde, quer mesmo reservar assim?")
+		pergunta := fala("sim")
+		quer(t, "pergunta da regra", pergunta, "Já é tarde, quer mesmo reservar assim?")
+		if strings.Contains(pergunta, "Não consegui concluir") {
+			t.Fatalf("a pergunta da regra não pode virar falha: %q", pergunta)
+		}
 	})
 
 	t.Run("responder sim à pergunta da regra deixa a escrita passar", func(t *testing.T) {
-		t.Skip("lacuna aberta: a regra confirmar dispara a cada tentativa de escrita e o caso termina como falha, " +
-			"então não há sim que a satisfaça (ver task-19-report.md)")
+		texto := amb.falar(t, "prot-confirmar", telefoneCadastrado, "sim")
+		quer(t, "sim", texto, "Reserva confirmada")
+		if strings.Contains(texto, "Não consegui concluir") {
+			t.Fatalf("o sim não pode virar falha: %q", texto)
+		}
 	})
 
 	t.Run("histórico traz a regra, a versão, o condomínio e a hora de cada decisão", func(t *testing.T) {
@@ -316,6 +323,23 @@ func TestE2EGanchosRegrasDeExemplo(t *testing.T) {
 			if l.RegraVersao != regra.Versao || l.CondominioID != condominioE2E || l.CriadoEm.IsZero() {
 				t.Errorf("%s: linha %+v, quer versão %d e condomínio %s", nome, l, regra.Versao, condominioE2E)
 			}
+		}
+	})
+
+	t.Run("histórico traz uma linha por prévia que cancelou o pedido", func(t *testing.T) {
+		linhas := amb.linhasDoHistorico(t, "gestor-aurora")
+		for nome, regra := range map[string]regraVisao{"reserva": reserva, "obra": obra} {
+			achadas := linhasDaRegra(linhas, regra)
+			if len(achadas) != 1 {
+				t.Fatalf("%s: %d linhas, quer 1 (só a prévia que cancelou): %+v", nome, len(achadas), achadas)
+			}
+			l := achadas[0]
+			if l.Decisao != "bloquear" || l.RegraVersao != regra.Versao || l.CondominioID != condominioE2E || l.CriadoEm.IsZero() {
+				t.Errorf("%s: linha %+v, quer bloquear na versão %d e condomínio %s", nome, l, regra.Versao, condominioE2E)
+			}
+		}
+		if n := len(linhasDaRegra(linhas, confirmar)); n != 1 {
+			t.Errorf("confirmar: %d linhas, quer 1 (a pergunta que foi ao morador)", n)
 		}
 	})
 

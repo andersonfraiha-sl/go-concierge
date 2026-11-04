@@ -36,6 +36,13 @@ func (a *Auditor) Gravar(ctx context.Context, linhas []Linha) {
 	_ = Gravar(ctx, a.banco, linhas, a.aoFalhar)
 }
 
+// Registrar audita a decisão de uma prévia que o chamador aplicou (o bloqueio que cancelou
+// o pedido, a pergunta que foi ao morador), pelo mesmo destino de uma observação real.
+func (a *Auditor) Registrar(ctx context.Context, obs ganchos.Observacao) {
+	obs.Previa = false
+	a.observar(ctx, obs)
+}
+
 func (a *Auditor) observar(ctx context.Context, obs ganchos.Observacao) {
 	if obs.Previa {
 		return

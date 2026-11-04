@@ -62,6 +62,10 @@ func (ag *Agente) recursoMCP(nome string) *okf.Recurso {
 	return nil
 }
 
+// ChavePerguntas é a chave da saída de um recurso que os ganchos seguraram para pedir
+// confirmação: as perguntas, em []string, além do texto delas em "error".
+const ChavePerguntas = "perguntas"
+
 func erro(formato string, args ...any) saida {
 	return saida{"error": fmt.Sprintf(formato, args...)}
 }
@@ -364,7 +368,12 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 	antes := ag.cfg.Turno.AntesDaFerramenta(ctx, ag.eventoAntes(ctx, c, confirmacao))
 	registrarGanchos(ctx, antes.Registros)
 	if recusa := recusaDeAntes(antes); recusa != "" {
-		return erro("%s", recusa), nil
+		out := erro("%s", recusa)
+		if antes.Decisao.Tipo == ganchos.Confirmar {
+			// o motor do caso lê as perguntas para esperar o morador, em vez de falhar
+			out[ChavePerguntas] = antes.Perguntas
+		}
+		return out, nil
 	}
 	c.params = antes.Evento.Params
 	out, err := ag.executar(ctx, c)

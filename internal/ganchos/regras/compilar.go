@@ -108,11 +108,16 @@ func incluir(ix *ganchos.Indice, fusos fusosCarregados, g RegraGravada, r Regra)
 }
 
 // decisorDe devolve a decisão da regra para uma leitura: Deixar se alguma condição não vale
-// ou depende, a decisão gravada se todas valem.
+// ou depende, a decisão gravada se todas valem. Pedir confirmação só deixa passar quando a
+// própria pergunta da regra saiu na resposta anterior e a mensagem atual a confirmou: um
+// sim dado a outra pergunta não responde esta.
 func decisorDe(d DecisaoDaRegra, conds []condicaoCompilada) func(leitura) ganchos.Decisao {
 	decisao := decisaoDe(d)
 	return func(l leitura) ganchos.Decisao {
 		if todas(conds, l) != sim {
+			return ganchos.Decisao{}
+		}
+		if decisao.Tipo == ganchos.Confirmar && slices.Contains(l.PerguntasConfirmadas, decisao.Motivo) {
 			return ganchos.Decisao{}
 		}
 		return decisao
@@ -159,7 +164,7 @@ func lerMensagem(e ganchos.MensagemRecebida) leitura {
 }
 
 func lerAntesDaFerramenta(e ganchos.AntesDaFerramenta) leitura {
-	return leitura{Agora: e.Agora, Ferramenta: e.Ferramenta, Caso: e.Caso, Params: e.Params, Identidade: e.Identidade}
+	return leitura{Agora: e.Agora, Ferramenta: e.Ferramenta, Caso: e.Caso, Params: e.Params, Identidade: e.Identidade, PerguntasConfirmadas: e.PerguntasConfirmadas}
 }
 
 func lerDepoisDaFerramenta(e ganchos.DepoisDaFerramenta) leitura {

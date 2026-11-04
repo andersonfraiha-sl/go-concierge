@@ -12,6 +12,7 @@ import (
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/ganchos/ganchostest"
+	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/mcp"
 )
 
@@ -357,5 +358,86 @@ func TestChamadasParalelasNoMesmoTurno(t *testing.T) {
 	}
 	if len(cofre) == 0 || len(col.registros) != 2*chamadas {
 		t.Fatalf("cofre %d valores, %d registros; quer >0 e %d (contexto_b2c e pii_no_resultado por chamada)", len(cofre), len(col.registros), 2*chamadas)
+	}
+}
+
+// conversaComRegra simula os turnos do caminho do modelo: cada fala abre um turno, que leva
+// as perguntas da regra feitas no turno anterior quando a fala as confirma (o que a borda,
+// atende, faz com a sessão).
+type conversaComRegra struct {
+	t          *testing.T
+	conjunto   *ganchos.Conjunto
+	fake       *mcpFalso
+	anteriores []string
+}
+
+func novaConversaComRegra(t *testing.T, ferramenta, pergunta string) *conversaComRegra {
+	t.Helper()
+	definicao := `{"nome":"Confirmar ferramenta","evento":"antes_da_ferramenta","alvo":{},` +
+		`"condicoes":[{"tipo":"ferramenta","nomes":["` + ferramenta + `"]}],` +
+		`"decisao":{"tipo":"confirmar","pergunta":"` + pergunta + `"},"ativa":true}`
+	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: "rc", Versao: 1, Ativa: true, Definicao: []byte(definicao)}})
+	if len(erros) > 0 {
+		t.Fatal(erros)
+	}
+	return &conversaComRegra{t: t, conjunto: ganchostest.Conjunto(fixos.Todos(), indice), fake: &mcpFalso{}}
+}
+
+// falar chama o recurso como o subagente da reserva, num turno novo, com a fala do morador.
+func (c *conversaComRegra) falar(mensagem, recurso string, params map[string]any) saida {
+	c.t.Helper()
+	var confirmadas []string
+	if fixos.Confirmado(mensagem) {
+		confirmadas = c.anteriores
+	}
+	turno := c.conjunto.Turno().ComPerguntasConfirmadas(confirmadas)
+	ag, err := montarConcierge(c.t, Config{MCP: c.fake, Ganchos: c.conjunto, Turno: &turno})
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	ctx := context.WithValue(context.Background(), chaveColetor{}, &coletor{mensagem: mensagem, transbordo: new(string)})
+	out, err := ag.Subagentes["reserva-area-comum"].chamarRecurso(ctx, &argsRecurso{Nome: recurso, Params: params})
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	c.anteriores = turno.PerguntasFeitas()
+	return out
+}
+
+// Caminho do modelo, leitura: a regra devolve a pergunta como erro da ferramenta; no turno
+// seguinte, o sim do morador a responde e a ferramenta roda.
+func TestRegraQuePedeConfirmacaoPassaComOSimDoTurnoSeguinte(t *testing.T) {
+	c := novaConversaComRegra(t, ferramentaEmpresa, "Quer mesmo ver as unidades?")
+
+	out := c.falar("quais são minhas unidades?", "unidades.listar", nil)
+	if erroDe(out) != "Quer mesmo ver as unidades?" || len(c.fake.chamadas) != 0 {
+		t.Fatalf("sem o sim, a pergunta da regra volta como erro e o MCP não roda: %q %v", erroDe(out), c.fake.chamadas)
+	}
+	if perguntas, _ := out[ChavePerguntas].([]string); len(perguntas) != 1 {
+		t.Fatalf("a saída leva as perguntas para o motor do caso: %v", out)
+	}
+	if out := c.falar("sim", "unidades.listar", nil); erroDe(out) != "" || len(c.fake.chamadas) != 1 {
+		t.Fatalf("com o sim à pergunta, a ferramenta roda: %q %v", erroDe(out), c.fake.chamadas)
+	}
+}
+
+// Caminho do modelo, escrita: o primeiro sim responde o escrita_confirmada e só então a
+// regra pergunta; o sim seguinte responde a regra e a escrita passa pelos dois.
+func TestRegraQueConfirmaEscritaPerguntaDepoisDoSimDaEscrita(t *testing.T) {
+	const pergunta = "Já é tarde, quer mesmo reservar assim?"
+	c := novaConversaComRegra(t, "areas.reservar", pergunta)
+	params := map[string]any{"area": "salao", "data": "2026-11-15", "unidade": "109"}
+
+	if out := c.falar("quero reservar o salão dia 15", "areas.reservar", params); !strings.Contains(erroDe(out), "exige a confirmação explícita") {
+		t.Fatalf("sem sim, o escrita_confirmada segura primeiro: %q", erroDe(out))
+	}
+	if out := c.falar("sim", "areas.reservar", params); erroDe(out) != pergunta {
+		t.Fatalf("depois do sim da escrita, a regra pergunta: %q", erroDe(out))
+	}
+	if out := c.falar("sim", "areas.reservar", params); erroDe(out) != "" {
+		t.Fatalf("o sim à pergunta da regra deixa a escrita passar: %q", erroDe(out))
+	}
+	if out := c.falar("sim", "areas.reservar", params); erroDe(out) != pergunta {
+		t.Fatalf("a pergunta respondida vale uma vez: um novo sim sem pergunta antes volta a perguntar: %q", erroDe(out))
 	}
 }
