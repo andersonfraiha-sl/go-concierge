@@ -29,6 +29,9 @@ import (
 const (
 	ProtocolVersion = "2025-06-18"
 	maxBody         = 8 << 20
+	// prazoChamada limita cada chamada ao MCP (initialize, tools/list, tools/call), mesmo com
+	// um ctx sem prazo; o Timeout do http.Client é a segunda trava.
+	prazoChamada = 60 * time.Second
 )
 
 // Client fala JSON-RPC 2.0 com um endpoint MCP por HTTP.
@@ -49,7 +52,7 @@ type Client struct {
 
 // New cria um cliente para a URL (ex.: http://127.0.0.1:3337/mcp/gruvi/bff).
 func New(endpoint string, token TokenProvider) *Client {
-	return &Client{URL: endpoint, Token: token, HTTP: &http.Client{Timeout: 60 * time.Second}}
+	return &Client{URL: endpoint, Token: token, HTTP: &http.Client{Timeout: prazoChamada}}
 }
 
 func (c *Client) ValidarToken(ctx context.Context) error {
@@ -309,6 +312,8 @@ func (c *Client) call(ctx context.Context, method string, params, out any) error
 // post envia o JSON-RPC e lê a resposta. wantID != nil: procura a resposta com esse
 // id (num corpo JSON ou num stream SSE). Devolve nil para notificações (202).
 func (c *Client) post(ctx context.Context, body rpcRequest, wantID *int64) (*rpcResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, prazoChamada)
+	defer cancel() // a resposta (JSON ou SSE) é lida inteira antes de voltar
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -337,7 +342,7 @@ func (c *Client) post(ctx context.Context, body rpcRequest, wantID *int64) (*rpc
 	}
 	hc := c.HTTP
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = &http.Client{Timeout: prazoChamada} // Client montado à mão, sem New
 	}
 	res, err := hc.Do(req)
 	if err != nil {
