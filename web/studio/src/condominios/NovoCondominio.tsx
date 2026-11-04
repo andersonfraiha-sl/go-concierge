@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { paraIdentificador } from '@/skills/contratos';
-import { type Condominio, type Estado, PADRAO, salvarCondominio, useEscopo } from './contratos';
+import { type Condominio, criarCondominio, type Estado, PADRAO, useEscopo } from './contratos';
 import { SeletorDeAdministradora } from './SeletorDeAdministradora';
 import { useExecutar } from './useExecutar';
 
@@ -44,7 +44,7 @@ export function NovoCondominio({ aberto, estado, onFechar }: NovoProps): ReactNo
       company_id: '',
       tenant: '',
     };
-    const criado = await executar((e) => salvarCondominio(novo, e), 'Condomínio criado.');
+    const criado = await executar((e) => criarCondominio(novo, e), 'Condomínio criado.');
     if (!criado) return;
     reset();
     onFechar();

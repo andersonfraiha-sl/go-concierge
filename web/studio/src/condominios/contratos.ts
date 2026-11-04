@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useEu } from '@/acesso/eu';
 import { type Ferramenta, FerramentaSchema } from '@/catalogo/contratos';
-import { apiEnviar, apiGet } from '@/shared/api/http';
+import { ApiError, apiEnviar, apiGet } from '@/shared/api/http';
 import { listaDoGo } from '@/shared/api/listaDoGo';
 
 /** Chave do mapeamento comum a todos os condomínios. */
@@ -95,11 +95,28 @@ function caminhoAdmin(rota: string, escopo: Escopo, extras: Record<string, strin
 const gravar = (rota: string, escopo: Escopo, corpo: unknown): Promise<RespostaMapeamento> =>
   apiEnviar('PUT', caminhoAdmin(rota, escopo), corpo, RespostaMapeamentoSchema);
 
+const criar = (rota: string, escopo: Escopo, corpo: unknown): Promise<RespostaMapeamento> =>
+  apiEnviar('POST', caminhoAdmin(rota, escopo), corpo, RespostaMapeamentoSchema);
+
+const comMensagemDeConflito =
+  (mensagem: string) =>
+  (erro: unknown): never => {
+    if (erro instanceof ApiError && erro.codigo === 'JA_EXISTE') {
+      throw new ApiError(erro.status, erro.codigo, mensagem, erro.corpo);
+    }
+    throw erro;
+  };
+
 const apagar = (rota: string, escopo: Escopo, id: string): Promise<RespostaMapeamento> =>
   apiEnviar('DELETE', caminhoAdmin(rota, escopo, { id }), undefined, RespostaMapeamentoSchema);
 
 export const salvarCondominio = (condominio: Condominio, escopo: Escopo) =>
   gravar('condominio', escopo, condominio);
+
+export const criarCondominio = (condominio: Condominio, escopo: Escopo) =>
+  criar('condominio', escopo, condominio).catch(
+    comMensagemDeConflito('Já existe um condomínio com esse identificador.'),
+  );
 
 export const removerCondominio = (id: string, escopo: Escopo) => apagar('condominio', escopo, id);
 
@@ -129,6 +146,11 @@ export const salvarPayload = (
 
 export const salvarAdministradora = (administradora: Administradora, escopo: Escopo) =>
   gravar('administradora', escopo, administradora);
+
+export const criarAdministradora = (administradora: Administradora, escopo: Escopo) =>
+  criar('administradora', escopo, administradora).catch(
+    comMensagemDeConflito('Já existe uma administradora com esse identificador.'),
+  );
 
 export const removerAdministradora = (id: string, escopo: Escopo) =>
   apagar('administradora', escopo, id);

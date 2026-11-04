@@ -13,6 +13,7 @@ import { paraIdentificador } from '@/skills/contratos';
 import {
   type Administradora,
   type Condominio,
+  criarAdministradora,
   removerAdministradora,
   salvarAdministradora,
 } from './contratos';
@@ -51,7 +52,7 @@ export function AdministradorasAba({ administradoras, condominios }: Props): Rea
 
   const criar = handleSubmit(async ({ nome }) => {
     const criada = await executar(
-      (escopo) => salvarAdministradora({ id: paraIdentificador(nome), nome: nome.trim() }, escopo),
+      (escopo) => criarAdministradora({ id: paraIdentificador(nome), nome: nome.trim() }, escopo),
       'Administradora criada.',
     );
     if (criada) reset();
