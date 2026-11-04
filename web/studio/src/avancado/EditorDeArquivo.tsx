@@ -11,6 +11,7 @@ import { SectionCard } from '@/shared/ui/SectionCard';
 import { tokens } from '@/theme/tokens';
 import { mensagemDeErro, useRecarregarAvancado } from './contratos';
 import { ESTILO_DO_EDITOR, PADDING_TOPO_DO_EDITOR } from './estilo';
+import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
 
 type EditorProps = { agente: string; caminho: string; editar: boolean; onExcluido: () => void };
 
@@ -19,28 +20,25 @@ export function EditorDeArquivo(props: EditorProps): ReactNode {
   if (arquivo.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
   if (arquivo.isError) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography role="alert">Não foi possível abrir o arquivo.</Typography>
-        <Button size="small" onClick={() => void arquivo.refetch()}>
-          Tentar de novo
-        </Button>
-      </Box>
+      <FalhaComTentarDeNovo
+        mensagem="Não foi possível abrir o arquivo."
+        onTentarDeNovo={() => void arquivo.refetch()}
+      />
     );
   }
   return <EditorCarregado {...props} conteudoGravado={arquivo.data.conteudo} />;
 }
 
-function EditorCarregado({
-  agente,
-  caminho,
-  editar,
-  onExcluido,
-  conteudoGravado,
-}: EditorProps & { conteudoGravado: string }): ReactNode {
-  const { mostrar } = useSnackbar();
+type TextoDoArquivo = { texto: string };
+
+function useSincroniaDoArquivo(
+  { agente, caminho }: Pick<EditorProps, 'agente' | 'caminho'>,
+  conteudoGravado: string,
+) {
   const recarregar = useRecarregarAvancado();
-  const [excluindo, setExcluindo] = useState(false);
-  const { control, handleSubmit, reset } = useForm({ defaultValues: { texto: conteudoGravado } });
+  const { control, handleSubmit, reset } = useForm<TextoDoArquivo>({
+    defaultValues: { texto: conteudoGravado },
+  });
   const sincronia = useEdicaoSobOServidor({
     servidor: conteudoGravado,
     alvos: [`arquivo:${agente}:${caminho}`, `arquivo::${caminho}`],
@@ -53,11 +51,23 @@ function EditorCarregado({
       return null;
     },
   });
-  const numerosRef = useRef<HTMLPreElement>(null);
+  return { control, handleSubmit, sincronia };
+}
 
-  const sincronizarScroll = (evento: UIEvent<HTMLTextAreaElement>): void => {
-    if (numerosRef.current) numerosRef.current.scrollTop = evento.currentTarget.scrollTop;
-  };
+function EditorCarregado({
+  agente,
+  caminho,
+  editar,
+  onExcluido,
+  conteudoGravado,
+}: EditorProps & { conteudoGravado: string }): ReactNode {
+  const { mostrar } = useSnackbar();
+  const [excluindo, setExcluindo] = useState(false);
+  const { control, handleSubmit, sincronia } = useSincroniaDoArquivo(
+    { agente, caminho },
+    conteudoGravado,
+  );
+  const excluir = useExcluirArquivo({ agente, caminho }, onExcluido);
 
   const salvar = handleSubmit(async ({ texto }) => {
     try {
@@ -68,36 +78,17 @@ function EditorCarregado({
     }
   });
 
-  const excluir = async (): Promise<void> => {
-    setExcluindo(false);
-    try {
-      await excluirArquivo(agente, caminho);
-      await recarregar();
-      onExcluido();
-      mostrar(`Arquivo ${caminho} excluído`);
-    } catch (erro) {
-      mostrar(mensagemDeErro(erro), 'error');
-    }
-  };
-
   return (
     <SectionCard
       titulo={caminho}
       ajuda="O texto exatamente como está gravado."
       acao={
         editar && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button color="error" onClick={() => setExcluindo(true)}>
-              Excluir
-            </Button>
-            <Button
-              variant="contained"
-              disabled={sincronia.conflito !== null}
-              onClick={() => void salvar()}
-            >
-              Salvar
-            </Button>
-          </Box>
+          <AcoesDoEditor
+            salvarBloqueado={sincronia.conflito !== null}
+            onExcluir={() => setExcluindo(true)}
+            onSalvar={() => void salvar()}
+          />
         )
       }
     >
@@ -106,43 +97,92 @@ function EditorCarregado({
         onManterOMeu={sincronia.manterOMeu}
         onUsarONovo={sincronia.usarONovo}
       />
-      <Box sx={{ display: 'flex' }}>
-        <NumerosDeLinha ref={numerosRef} control={control} />
-        <CampoTexto
-          control={control}
-          name="texto"
-          multiline
-          minRows={16}
-          maxRows={16}
-          fullWidth
-          sx={{ overflowX: 'auto' }}
-          slotProps={{
-            htmlInput: {
-              readOnly: !editar,
-              'aria-label': `Conteúdo de ${caminho}`,
-              style: ESTILO_DO_EDITOR,
-              onScroll: sincronizarScroll,
-            },
-          }}
-        />
-      </Box>
+      <AreaDoTexto control={control} caminho={caminho} editar={editar} />
       <ConfirmDialog
         aberto={excluindo}
         titulo={`Excluir ${caminho}?`}
         texto="O arquivo sai deste item e não dá para desfazer."
         confirmar="Excluir"
-        onConfirmar={() => void excluir()}
+        onConfirmar={() => {
+          setExcluindo(false);
+          void excluir();
+        }}
         onCancelar={() => setExcluindo(false)}
       />
     </SectionCard>
   );
 }
 
-type NumerosProps = { control: Control<{ texto: string }> };
+function useExcluirArquivo(
+  { agente, caminho }: Pick<EditorProps, 'agente' | 'caminho'>,
+  onExcluido: () => void,
+): () => Promise<void> {
+  const { mostrar } = useSnackbar();
+  const recarregar = useRecarregarAvancado();
+  return async () => {
+    try {
+      await excluirArquivo(agente, caminho);
+      await recarregar();
+    } catch (erro) {
+      mostrar(mensagemDeErro(erro), 'error');
+      return;
+    }
+    onExcluido();
+    mostrar(`Arquivo ${caminho} excluído`);
+  };
+}
+
+type AcoesProps = { salvarBloqueado: boolean; onExcluir: () => void; onSalvar: () => void };
+
+function AcoesDoEditor({ salvarBloqueado, onExcluir, onSalvar }: AcoesProps): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <Button color="error" onClick={onExcluir}>
+        Excluir
+      </Button>
+      <Button variant="contained" disabled={salvarBloqueado} onClick={onSalvar}>
+        Salvar
+      </Button>
+    </Box>
+  );
+}
+
+type AreaProps = { control: Control<TextoDoArquivo>; caminho: string; editar: boolean };
+
+function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
+  const numerosRef = useRef<HTMLPreElement>(null);
+  const sincronizarScroll = (evento: UIEvent<HTMLTextAreaElement>): void => {
+    if (numerosRef.current) numerosRef.current.scrollTop = evento.currentTarget.scrollTop;
+  };
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <NumerosDeLinha ref={numerosRef} control={control} />
+      <CampoTexto
+        control={control}
+        name="texto"
+        multiline
+        minRows={16}
+        maxRows={16}
+        fullWidth
+        sx={{ overflowX: 'auto' }}
+        slotProps={{
+          htmlInput: {
+            readOnly: !editar,
+            'aria-label': `Conteúdo de ${caminho}`,
+            style: ESTILO_DO_EDITOR,
+            onScroll: sincronizarScroll,
+          },
+        }}
+      />
+    </Box>
+  );
+}
+
+type NumerosProps = { control: Control<TextoDoArquivo> };
 
 // ponytail: uma linha lógica é uma linha visual (ESTILO_DO_EDITOR usa `pre`,
 // sem quebra), então contar por `\n` não desalinha com texto longo; o
-// scroll vertical é sincronizado por `sincronizarScroll` em EditorCarregado.
+// scroll vertical é sincronizado por `sincronizarScroll` em AreaDoTexto.
 const NumerosDeLinha = forwardRef<HTMLPreElement, NumerosProps>(function NumerosDeLinha(
   { control },
   ref,

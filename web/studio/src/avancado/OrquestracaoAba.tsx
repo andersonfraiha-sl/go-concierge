@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { type Control, Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { SectionCard } from '@/shared/ui/SectionCard';
@@ -26,6 +26,7 @@ import {
   useOrquestracao,
   validarOrquestracao,
 } from './contratos';
+import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
 
 const RascunhoSchema = z
   .object({
@@ -60,29 +61,19 @@ export function OrquestracaoAba({ editar }: { editar: boolean }): ReactNode {
   if (orquestracao.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
   if (orquestracao.isError) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography role="alert">Não foi possível carregar o ajuste.</Typography>
-        <Button size="small" onClick={() => void orquestracao.refetch()}>
-          Tentar de novo
-        </Button>
-      </Box>
+      <FalhaComTentarDeNovo
+        mensagem="Não foi possível carregar o ajuste."
+        onTentarDeNovo={() => void orquestracao.refetch()}
+      />
     );
   }
   return <Formulario lida={orquestracao.data} editar={editar} />;
 }
 
-function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean }): ReactNode {
+function useSalvarOrquestracao(): (rascunho: Rascunho) => Promise<void> {
   const { mostrar } = useSnackbar();
   const cliente = useQueryClient();
-  const { control, handleSubmit, formState } = useForm({
-    resolver: zodResolver(RascunhoSchema),
-    defaultValues: rascunhoDe(lida.arquivo),
-  });
-  const problemas = LIMITES_DE_ORQUESTRACAO.flatMap(
-    ({ campo }) => formState.errors[campo]?.message ?? [],
-  );
-
-  const salvar = handleSubmit(async (rascunho) => {
+  return async (rascunho) => {
     try {
       const gravada = await salvarOrquestracao(ajusteDe(rascunho));
       await cliente.invalidateQueries({ queryKey: ['avancado', 'orquestracao'] });
@@ -90,7 +81,18 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
     }
+  };
+}
+
+function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean }): ReactNode {
+  const { control, handleSubmit, formState } = useForm({
+    resolver: zodResolver(RascunhoSchema),
+    defaultValues: rascunhoDe(lida.arquivo),
   });
+  const problemas = LIMITES_DE_ORQUESTRACAO.flatMap(
+    ({ campo }) => formState.errors[campo]?.message ?? [],
+  );
+  const salvar = handleSubmit(useSalvarOrquestracao());
 
   return (
     <SectionCard
@@ -114,69 +116,91 @@ function Formulario({ lida, editar }: { lida: OrquestracaoLida; editar: boolean 
           essa trava sair.
         </Alert>
       )}
-      <Controller
-        control={control}
-        name="modo"
-        render={({ field }) => (
-          <RadioGroup
-            aria-label="Modo"
-            value={field.value}
-            onChange={(_, valor) => {
-              const modo = MODOS_DE_ORQUESTRACAO.find((m) => m === valor);
-              if (modo) field.onChange(modo);
-            }}
-          >
-            {MODOS_DE_ORQUESTRACAO.map((modo) => (
-              <FormControlLabel
-                key={modo}
-                value={modo}
-                disabled={!editar}
-                control={<Radio />}
-                label={
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                      {MODOS[modo].nome}
-                      {lida.efetivo.modo === modo && ' (em uso)'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {MODOS[modo].descricao}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Quando: {MODOS[modo].quando}
-                    </Typography>
-                  </Box>
-                }
-              />
-            ))}
-          </RadioGroup>
-        )}
-      />
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        {LIMITES_DE_ORQUESTRACAO.map(({ campo, rotulo, min, max, passo, ajuda }) => (
-          <Controller
-            key={campo}
-            control={control}
-            name={campo}
-            render={({ field }) => (
-              <TextField
-                type="number"
-                size="small"
-                label={rotulo}
-                helperText={ajuda}
-                value={field.value}
-                onChange={field.onChange}
-                slotProps={{ htmlInput: { min, max, step: passo, readOnly: !editar } }}
-              />
-            )}
-          />
-        ))}
-      </Box>
+      <SeletorDeModo control={control} editar={editar} modoEmUso={lida.efetivo.modo} />
+      <CamposDeLimite control={control} editar={editar} />
       {problemas.map((problema) => (
         <Typography key={problema} role="alert" color="error" variant="body2">
           {problema}
         </Typography>
       ))}
     </SectionCard>
+  );
+}
+
+type ControleProps = { control: Control<Rascunho>; editar: boolean };
+
+function SeletorDeModo({
+  control,
+  editar,
+  modoEmUso,
+}: ControleProps & { modoEmUso: Rascunho['modo'] }): ReactNode {
+  return (
+    <Controller
+      control={control}
+      name="modo"
+      render={({ field }) => (
+        <RadioGroup
+          aria-label="Modo"
+          value={field.value}
+          onChange={(_, valor) => {
+            const modo = MODOS_DE_ORQUESTRACAO.find((candidato) => candidato === valor);
+            if (modo) field.onChange(modo);
+          }}
+        >
+          {MODOS_DE_ORQUESTRACAO.map((modo) => (
+            <FormControlLabel
+              key={modo}
+              value={modo}
+              disabled={!editar}
+              control={<Radio />}
+              label={<DescricaoDoModo modo={modo} emUso={modoEmUso === modo} />}
+            />
+          ))}
+        </RadioGroup>
+      )}
+    />
+  );
+}
+
+function DescricaoDoModo({ modo, emUso }: { modo: Rascunho['modo']; emUso: boolean }): ReactNode {
+  return (
+    <Box>
+      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+        {MODOS[modo].nome}
+        {emUso && ' (em uso)'}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        {MODOS[modo].descricao}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+        Quando: {MODOS[modo].quando}
+      </Typography>
+    </Box>
+  );
+}
+
+function CamposDeLimite({ control, editar }: ControleProps): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+      {LIMITES_DE_ORQUESTRACAO.map(({ campo, rotulo, min, max, passo, ajuda }) => (
+        <Controller
+          key={campo}
+          control={control}
+          name={campo}
+          render={({ field }) => (
+            <TextField
+              type="number"
+              size="small"
+              label={rotulo}
+              helperText={ajuda}
+              value={field.value}
+              onChange={field.onChange}
+              slotProps={{ htmlInput: { min, max, step: passo, readOnly: !editar } }}
+            />
+          )}
+        />
+      ))}
+    </Box>
   );
 }
 

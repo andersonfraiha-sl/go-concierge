@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Box, Button, Drawer, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { type Control, Controller, type FieldErrors, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { Ferramenta } from '@/catalogo/contratos';
 import type { Valor } from '@/condominios/contratos';
@@ -38,6 +38,8 @@ type Props = {
   onLimpar: () => void;
   onFechar: () => void;
 };
+
+type Formulario = z.infer<typeof EsquemaDoFormulario>;
 
 export function PayloadDoCondominioDrawer({
   recurso,
@@ -82,46 +84,13 @@ export function PayloadDoCondominioDrawer({
         <Typography variant="caption" color="text.secondary">
           Valores só de {nomeDoCondominio}. Número e true/false são gravados como tal.
         </Typography>
-        <Controller
-          control={control}
-          name="pares"
-          render={({ field }) => (
-            <ListaEditavel<ParDoPayload>
-              titulo="Valores"
-              adicionar="Adicionar valor"
-              linhas={field.value}
-              desabilitado={travado}
-              criarLinha={parNovo}
-              onMudar={field.onChange}
-              renderLinha={(par, mudar) => {
-                const erros = formState.errors.pares?.[field.value.indexOf(par)];
-                return (
-                  <CampoDoPar
-                    par={par}
-                    travado={travado}
-                    erroChave={erros?.chave?.message}
-                    erroValor={erros?.valor?.message}
-                    onMudar={mudar}
-                  />
-                );
-              }}
-            />
-          )}
+        <ListaDePares control={control} erros={formState.errors.pares} travado={travado} />
+        <RodapeDoDrawer
+          travado={travado}
+          podeLimpar={Object.keys(payload).length > 0}
+          onLimpar={() => setConfirmando(true)}
+          onFechar={onFechar}
         />
-        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-          <Button
-            color="error"
-            disabled={travado || Object.keys(payload).length === 0}
-            onClick={() => setConfirmando(true)}
-            sx={{ mr: 'auto' }}
-          >
-            Limpar deste condomínio
-          </Button>
-          <Button onClick={onFechar}>Fechar</Button>
-          <Button type="submit" variant="contained" disabled={travado}>
-            Salvar
-          </Button>
-        </Box>
       </Box>
       <ConfirmDialog
         aberto={confirmando}
@@ -135,5 +104,68 @@ export function PayloadDoCondominioDrawer({
         }}
       />
     </Drawer>
+  );
+}
+
+type ListaProps = {
+  control: Control<Formulario>;
+  erros: FieldErrors<Formulario>['pares'];
+  travado: boolean;
+};
+
+function ListaDePares({ control, erros, travado }: ListaProps): ReactNode {
+  return (
+    <Controller
+      control={control}
+      name="pares"
+      render={({ field }) => (
+        <ListaEditavel<ParDoPayload>
+          titulo="Valores"
+          adicionar="Adicionar valor"
+          linhas={field.value}
+          desabilitado={travado}
+          criarLinha={parNovo}
+          onMudar={field.onChange}
+          renderLinha={(par, mudar) => {
+            const errosDaLinha = erros?.[field.value.indexOf(par)];
+            return (
+              <CampoDoPar
+                par={par}
+                travado={travado}
+                erroChave={errosDaLinha?.chave?.message}
+                erroValor={errosDaLinha?.valor?.message}
+                onMudar={mudar}
+              />
+            );
+          }}
+        />
+      )}
+    />
+  );
+}
+
+type RodapeProps = {
+  travado: boolean;
+  podeLimpar: boolean;
+  onLimpar: () => void;
+  onFechar: () => void;
+};
+
+function RodapeDoDrawer({ travado, podeLimpar, onLimpar, onFechar }: RodapeProps): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+      <Button
+        color="error"
+        disabled={travado || !podeLimpar}
+        onClick={onLimpar}
+        sx={{ mr: 'auto' }}
+      >
+        Limpar deste condomínio
+      </Button>
+      <Button onClick={onFechar}>Fechar</Button>
+      <Button type="submit" variant="contained" disabled={travado}>
+        Salvar
+      </Button>
+    </Box>
   );
 }

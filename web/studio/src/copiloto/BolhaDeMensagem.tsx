@@ -7,9 +7,16 @@ type Props = { mensagem: Pick<Mensagem, 'papel' | 'texto' | 'tom'> };
 // Bico da bolha do lado de quem fala: canto inferior direito da pessoa, esquerdo do Copiloto.
 const BICO = 4;
 
+const raioDaBolha = (daPessoa: boolean): string => {
+  const { painel } = RAIOS;
+  return daPessoa
+    ? `${painel}px ${painel}px ${BICO}px ${painel}px`
+    : `${painel}px ${painel}px ${painel}px ${BICO}px`;
+};
+
 export function BolhaDeMensagem({ mensagem }: Props) {
   const daPessoa = mensagem.papel === 'pessoa';
-  const comErro = mensagem.tom === 'erro';
+  const corDoErro = mensagem.tom === 'erro' ? tokens.color.danger.main : undefined;
   return (
     <Box
       sx={{
@@ -17,13 +24,11 @@ export function BolhaDeMensagem({ mensagem }: Props) {
         maxWidth: daPessoa ? '85%' : '92%',
         px: 2,
         py: 1.25,
-        borderRadius: daPessoa
-          ? `${RAIOS.painel}px ${RAIOS.painel}px ${BICO}px ${RAIOS.painel}px`
-          : `${RAIOS.painel}px ${RAIOS.painel}px ${RAIOS.painel}px ${BICO}px`,
+        borderRadius: raioDaBolha(daPessoa),
         bgcolor: daPessoa ? tokens.color.background.tint : 'background.paper',
         border: daPessoa ? 0 : 1,
-        borderColor: comErro ? tokens.color.danger.main : tokens.color.border.default,
-        color: comErro ? tokens.color.danger.main : 'text.primary',
+        borderColor: corDoErro ?? tokens.color.border.default,
+        color: corDoErro ?? 'text.primary',
         fontSize: 13,
         lineHeight: 1.55,
         whiteSpace: 'pre-wrap',

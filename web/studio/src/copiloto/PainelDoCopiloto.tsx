@@ -1,12 +1,12 @@
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import { Alert, Box, IconButton, Typography } from '@mui/material';
-import { Component, Fragment, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
 import { RAIOS, tokens } from '@/theme/tokens';
 import { BolhaDeMensagem } from './BolhaDeMensagem';
 import { CartaoDeProposta } from './CartaoDeProposta';
 import { Compositor } from './Compositor';
-import { type Status, useCopiloto } from './CopilotoProvider';
+import { type Mensagem, type Status, useCopiloto } from './CopilotoProvider';
 import { EstadoVazio } from './EstadoVazio';
 
 const AVISO_INDISPONIVEL = 'O Copiloto está fora do ar. O resto do Studio continua funcionando.';
@@ -30,28 +30,26 @@ const ROTULO_DO_STATUS: Record<Status, { texto: string; cor: string; corDoPonto:
   },
 };
 
+const ESTILO_DO_PAINEL = {
+  width: tokens.layout.copiloto,
+  flexShrink: 0,
+  position: 'sticky',
+  top: tokens.layout.navbarHeight,
+  alignSelf: 'flex-start',
+  height: `calc(100vh - ${tokens.layout.navbarHeight}px)`,
+  display: 'flex',
+  flexDirection: 'column',
+  bgcolor: 'background.paper',
+  borderRight: 1,
+  borderColor: tokens.color.border.default,
+} as const;
+
 /** Painel à esquerda do conteúdo; um erro dentro dele nunca derruba o resto do Studio. */
 export function PainelDoCopiloto() {
   const { aberto } = useCopiloto();
   if (!aberto) return null;
   return (
-    <Box
-      component="aside"
-      aria-label="Copiloto"
-      sx={{
-        width: tokens.layout.copiloto,
-        flexShrink: 0,
-        position: 'sticky',
-        top: tokens.layout.navbarHeight,
-        alignSelf: 'flex-start',
-        height: `calc(100vh - ${tokens.layout.navbarHeight}px)`,
-        display: 'flex',
-        flexDirection: 'column',
-        bgcolor: 'background.paper',
-        borderRight: 1,
-        borderColor: tokens.color.border.default,
-      }}
-    >
+    <Box component="aside" aria-label="Copiloto" sx={ESTILO_DO_PAINEL}>
       <LimiteDeErro>
         <ConteudoDoPainel />
       </LimiteDeErro>
@@ -64,29 +62,7 @@ function ConteudoDoPainel() {
   return (
     <>
       <Cabecalho status={status} />
-      {/* column-reverse mantém a rolagem presa na última mensagem sem JS. */}
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column-reverse',
-          bgcolor: tokens.color.background.subtle,
-        }}
-      >
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {mensagens.length === 0 && <EstadoVazio />}
-          {mensagens.map((mensagem) => (
-            <Fragment key={mensagem.id}>
-              <BolhaDeMensagem mensagem={mensagem} />
-              {mensagem.propostas.map((proposta) => (
-                <CartaoDeProposta key={proposta.id} proposta={proposta} />
-              ))}
-            </Fragment>
-          ))}
-        </Box>
-      </Box>
+      <ListaDeMensagens mensagens={mensagens} />
       {status === 'indisponivel' && (
         <Alert severity="warning" sx={{ mx: 3, mt: 2, borderRadius: `${RAIOS.campo}px` }}>
           {AVISO_INDISPONIVEL}
@@ -97,59 +73,111 @@ function ConteudoDoPainel() {
   );
 }
 
-function Cabecalho({ status }: { status: Status }) {
-  const { fechar } = useCopiloto();
-  const rotulo = ROTULO_DO_STATUS[status];
+function ListaDeMensagens({ mensagens }: { mensagens: Mensagem[] }) {
   return (
+    // column-reverse mantém a rolagem presa na última mensagem sem JS.
     <Box
       sx={{
-        height: 50,
-        flexShrink: 0,
-        px: 3,
+        flex: 1,
+        minHeight: 0,
+        overflowY: 'auto',
         display: 'flex',
-        alignItems: 'center',
-        gap: 1.25,
-        borderBottom: `1px solid ${tokens.color.border.subtle}`,
+        flexDirection: 'column-reverse',
+        bgcolor: tokens.color.background.subtle,
       }}
     >
-      <Box
-        sx={{
-          width: 26,
-          height: 26,
-          borderRadius: `${RAIOS.campo}px`,
-          bgcolor: tokens.color.navy,
-          color: 'primary.contrastText',
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
-        <AutoAwesomeOutlined sx={{ fontSize: 14 }} />
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {mensagens.length === 0 && <EstadoVazio />}
+        {mensagens.map((mensagem) => (
+          <MensagemComPropostas key={mensagem.id} mensagem={mensagem} />
+        ))}
       </Box>
+    </Box>
+  );
+}
+
+function MensagemComPropostas({ mensagem }: { mensagem: Mensagem }) {
+  return (
+    <>
+      <BolhaDeMensagem mensagem={mensagem} />
+      {mensagem.propostas.map((proposta) => (
+        <CartaoDeProposta key={proposta.id} proposta={proposta} />
+      ))}
+    </>
+  );
+}
+
+const ESTILO_DO_CABECALHO = {
+  height: 50,
+  flexShrink: 0,
+  px: 3,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.25,
+  borderBottom: `1px solid ${tokens.color.border.subtle}`,
+} as const;
+
+function Cabecalho({ status }: { status: Status }) {
+  return (
+    <Box sx={ESTILO_DO_CABECALHO}>
+      <IconeDoCopiloto />
       <Typography sx={{ fontWeight: 600, fontSize: 14, color: tokens.color.navy }}>
         Copiloto
       </Typography>
-      <Box
-        role="status"
-        sx={{ display: 'flex', alignItems: 'center', gap: 0.625, fontSize: 12, color: rotulo.cor }}
-      >
-        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: rotulo.corDoPonto }} />
-        {rotulo.texto}
-      </Box>
-      <IconButton
-        aria-label="Fechar copiloto"
-        onClick={fechar}
-        sx={{
-          ml: 'auto',
-          width: 28,
-          height: 28,
-          borderRadius: `${RAIOS.campo - 1}px`,
-          bgcolor: tokens.color.background.neutralFill,
-          color: 'text.secondary',
-        }}
-      >
-        <CloseRounded sx={{ fontSize: 13 }} />
-      </IconButton>
+      <IndicadorDeStatus status={status} />
+      <BotaoFechar />
     </Box>
+  );
+}
+
+function IconeDoCopiloto() {
+  return (
+    <Box
+      sx={{
+        width: 26,
+        height: 26,
+        borderRadius: `${RAIOS.campo}px`,
+        bgcolor: tokens.color.navy,
+        color: 'primary.contrastText',
+        display: 'grid',
+        placeItems: 'center',
+      }}
+    >
+      <AutoAwesomeOutlined sx={{ fontSize: 14 }} />
+    </Box>
+  );
+}
+
+function IndicadorDeStatus({ status }: { status: Status }) {
+  const rotulo = ROTULO_DO_STATUS[status];
+  return (
+    <Box
+      role="status"
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.625, fontSize: 12, color: rotulo.cor }}
+    >
+      <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: rotulo.corDoPonto }} />
+      {rotulo.texto}
+    </Box>
+  );
+}
+
+function BotaoFechar() {
+  const { fechar } = useCopiloto();
+  return (
+    <IconButton
+      aria-label="Fechar copiloto"
+      onClick={fechar}
+      sx={{
+        ml: 'auto',
+        width: 28,
+        height: 28,
+        borderRadius: `${RAIOS.campo - 1}px`,
+        bgcolor: tokens.color.background.neutralFill,
+        color: 'text.secondary',
+      }}
+    >
+      <CloseRounded sx={{ fontSize: 13 }} />
+    </IconButton>
   );
 }
 

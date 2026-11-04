@@ -2,7 +2,7 @@ import { Box, Button, Paper, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { pode, useEu } from '@/acesso/eu';
 import { type Arquivo, lerModeloDeArquivo, salvarArquivo, useAgente } from '@/catalogo/contratos';
-import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import { type EstiloDoRealce, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { TIPOS, tokens } from '@/theme/tokens';
@@ -16,6 +16,7 @@ import {
 } from './contratos';
 import { EditorDeArquivo } from './EditorDeArquivo';
 import { ESTILO_DE_CODIGO } from './estilo';
+import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
 import { agruparArquivos, type GrupoDeArquivos } from './gruposDeArquivos';
 import { NovoArquivoDialog } from './NovoArquivoDialog';
 import { Problemas } from './ProblemasDoItem';
@@ -26,67 +27,36 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   const agente = useAgente(no.caminho);
   const [aberto, setAberto] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
-  const { mostrar } = useSnackbar();
-  const recarregar = useRecarregarAvancado();
-  const { data: eu } = useEu();
-  const podeVerArquivos = eu !== undefined && pode(eu, 'studio.avancado');
-  useContextoDaTela(
-    podeVerArquivos
-      ? { tela: 'avancado', agente: no.caminho, ...(aberto !== null && { caminho: aberto }) }
-      : null,
-  );
-  const realceDoAgente = useRealceDoCopiloto(`arquivo:${no.caminho}:${aberto ?? ''}`);
-  // Proposta sem agente vale para o agente desta tela: o servidor só aceita a do contexto.
-  const realceSemAgente = useRealceDoCopiloto(`arquivo::${aberto ?? ''}`);
-  const realce = realceSemAgente.bgcolor === undefined ? realceDoAgente : realceSemAgente;
+  const criar = useCriarArquivo(no.caminho, (caminho) => {
+    setCriando(false);
+    setAberto(caminho);
+  });
+  useContextoDoArquivo(no.caminho, aberto);
+  const realce = useRealceDoArquivo(no.caminho, aberto);
 
   if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
   if (agente.isError) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography role="alert">Não foi possível carregar os arquivos.</Typography>
-        <Button size="small" onClick={() => void agente.refetch()}>
-          Tentar de novo
-        </Button>
-      </Box>
+      <FalhaComTentarDeNovo
+        mensagem="Não foi possível carregar os arquivos."
+        onTentarDeNovo={() => void agente.refetch()}
+      />
     );
   }
 
   const { arquivos, herdados, persona, problemas } = agente.data.agente;
   const grupos = agruparArquivos(montarArquivosPorPasta(no, persona !== '', arquivos, herdados));
 
-  const criar = async (caminho: string): Promise<void> => {
-    try {
-      await salvarArquivo({
-        agente: no.caminho,
-        caminho,
-        conteudo: await lerModeloDeArquivo(caminho),
-      });
-      await recarregar();
-      setCriando(false);
-      setAberto(caminho);
-      mostrar(`Arquivo ${caminho} criado`);
-    } catch (erro) {
-      mostrar(mensagemDeErro(erro), 'error');
-    }
-  };
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <Paper
-          variant="outlined"
-          sx={{ p: 1.5, width: 300, display: 'flex', flexDirection: 'column', gap: 1 }}
-        >
-          {editar && (
-            <Button variant="outlined" size="small" onClick={() => setCriando(true)}>
-              Novo arquivo
-            </Button>
-          )}
-          {grupos.map((grupo) => (
-            <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={setAberto} />
-          ))}
-        </Paper>
+        <ListaDeGrupos
+          grupos={grupos}
+          aberto={aberto}
+          editar={editar}
+          onAbrir={setAberto}
+          onNovo={() => setCriando(true)}
+        />
         <Box sx={{ flex: 1, minWidth: 320, '& .MuiInputBase-root': realce }}>
           {aberto ? (
             <EditorDeArquivo
@@ -104,6 +74,68 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
       <Problemas problemas={problemas} />
       <NovoArquivoDialog aberto={criando} onCriar={criar} onFechar={() => setCriando(false)} />
     </Box>
+  );
+}
+
+function useContextoDoArquivo(agente: string, aberto: string | null): void {
+  const { data: eu } = useEu();
+  const podeVerArquivos = eu !== undefined && pode(eu, 'studio.avancado');
+  useContextoDaTela(
+    podeVerArquivos
+      ? { tela: 'avancado', agente, ...(aberto !== null && { caminho: aberto }) }
+      : null,
+  );
+}
+
+function useCriarArquivo(
+  agente: string,
+  onCriado: (caminho: string) => void,
+): (caminho: string) => Promise<void> {
+  const { mostrar } = useSnackbar();
+  const recarregar = useRecarregarAvancado();
+  return async (caminho) => {
+    try {
+      await salvarArquivo({ agente, caminho, conteudo: await lerModeloDeArquivo(caminho) });
+      await recarregar();
+    } catch (erro) {
+      mostrar(mensagemDeErro(erro), 'error');
+      return;
+    }
+    onCriado(caminho);
+    mostrar(`Arquivo ${caminho} criado`);
+  };
+}
+
+function useRealceDoArquivo(agente: string, aberto: string | null): EstiloDoRealce {
+  const realceDoAgente = useRealceDoCopiloto(`arquivo:${agente}:${aberto ?? ''}`);
+  // Proposta sem agente vale para o agente desta tela: o servidor só aceita a do contexto.
+  const realceSemAgente = useRealceDoCopiloto(`arquivo::${aberto ?? ''}`);
+  return realceSemAgente.bgcolor === undefined ? realceDoAgente : realceSemAgente;
+}
+
+type ListaDeGruposProps = {
+  grupos: GrupoDeArquivos[];
+  aberto: string | null;
+  editar: boolean;
+  onAbrir: (caminho: string) => void;
+  onNovo: () => void;
+};
+
+function ListaDeGrupos({ grupos, aberto, editar, onAbrir, onNovo }: ListaDeGruposProps): ReactNode {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{ p: 1.5, width: 300, display: 'flex', flexDirection: 'column', gap: 1 }}
+    >
+      {editar && (
+        <Button variant="outlined" size="small" onClick={onNovo}>
+          Novo arquivo
+        </Button>
+      )}
+      {grupos.map((grupo) => (
+        <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={onAbrir} />
+      ))}
+    </Paper>
   );
 }
 
@@ -135,44 +167,50 @@ type ListaProps = {
   onAbrir: (caminho: string) => void;
 };
 
+const ESTILO_DO_TITULO_DO_GRUPO = {
+  fontSize: TIPOS.overline,
+  fontWeight: 600,
+  color: tokens.color.text.muted,
+  textTransform: 'uppercase',
+  letterSpacing: '.06em',
+} as const;
+
 function ListaDoGrupo({ grupo, aberto, onAbrir }: ListaProps): ReactNode {
   return (
     <Box>
-      <Typography
-        sx={{
-          fontSize: TIPOS.overline,
-          fontWeight: 600,
-          color: tokens.color.text.muted,
-          textTransform: 'uppercase',
-          letterSpacing: '.06em',
-        }}
-      >
-        {grupo.grupo}
-      </Typography>
-      {grupo.arquivos.map((arquivo) =>
-        arquivo.herdado_de ? (
-          <Typography key={arquivo.caminho} variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
-            {rotuloDoArquivo(arquivo)}
-          </Typography>
-        ) : (
-          <Button
-            key={arquivo.caminho}
-            fullWidth
-            size="small"
-            color="inherit"
-            variant={aberto === arquivo.caminho ? 'outlined' : 'text'}
-            sx={{
-              justifyContent: 'flex-start',
-              textTransform: 'none',
-              fontFamily: ESTILO_DE_CODIGO.fontFamily,
-              fontSize: TIPOS.caption,
-            }}
-            onClick={() => onAbrir(arquivo.caminho)}
-          >
-            {arquivo.caminho}
-          </Button>
-        ),
-      )}
+      <Typography sx={ESTILO_DO_TITULO_DO_GRUPO}>{grupo.grupo}</Typography>
+      {grupo.arquivos.map((arquivo) => (
+        <ItemDoGrupo key={arquivo.caminho} arquivo={arquivo} aberto={aberto} onAbrir={onAbrir} />
+      ))}
     </Box>
+  );
+}
+
+type ItemProps = { arquivo: Arquivo; aberto: string | null; onAbrir: (caminho: string) => void };
+
+function ItemDoGrupo({ arquivo, aberto, onAbrir }: ItemProps): ReactNode {
+  if (arquivo.herdado_de) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
+        {rotuloDoArquivo(arquivo)}
+      </Typography>
+    );
+  }
+  return (
+    <Button
+      fullWidth
+      size="small"
+      color="inherit"
+      variant={aberto === arquivo.caminho ? 'outlined' : 'text'}
+      sx={{
+        justifyContent: 'flex-start',
+        textTransform: 'none',
+        fontFamily: ESTILO_DE_CODIGO.fontFamily,
+        fontSize: TIPOS.caption,
+      }}
+      onClick={() => onAbrir(arquivo.caminho)}
+    >
+      {arquivo.caminho}
+    </Button>
   );
 }

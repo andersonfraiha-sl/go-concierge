@@ -26,17 +26,31 @@ export function AvisoDeConflito({ conflito, onManterOMeu, onUsarONovo }: Props):
     <Alert
       severity="warning"
       action={
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <Button color="inherit" size="small" onClick={onManterOMeu}>
-            Manter o meu
-          </Button>
-          <Button color="inherit" size="small" onClick={onUsarONovo}>
-            {USAR_O_NOVO[conflito]}
-          </Button>
-        </Box>
+        <EscolhasDoConflito
+          conflito={conflito}
+          onManterOMeu={onManterOMeu}
+          onUsarONovo={onUsarONovo}
+        />
       }
     >
       {`${QUEM_MUDOU[conflito]} ${NADA_FOI_GRAVADO}`}
     </Alert>
+  );
+}
+
+function EscolhasDoConflito({
+  conflito,
+  onManterOMeu,
+  onUsarONovo,
+}: Omit<Props, 'conflito'> & { conflito: OrigemDoConflito }): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <Button color="inherit" size="small" onClick={onManterOMeu}>
+        Manter o meu
+      </Button>
+      <Button color="inherit" size="small" onClick={onUsarONovo}>
+        {USAR_O_NOVO[conflito]}
+      </Button>
+    </Box>
   );
 }

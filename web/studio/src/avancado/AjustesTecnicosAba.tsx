@@ -40,6 +40,8 @@ export function AjustesTecnicosAba({ editar }: { editar: boolean }): ReactNode {
   );
 }
 
+type Opcao = { id: string; nome: string };
+
 function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): ReactNode {
   const { executar, gravando } = useExecutar();
   const [condominio, setCondominio] = useState(PADRAO);
@@ -48,7 +50,7 @@ function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): Reac
     { id: PADRAO, nome: 'Padrão (todos os condomínios)' },
     ...estado.mapeamento.condominios,
   ];
-  const nomeAtual = opcoes.find((o) => o.id === condominio)?.nome ?? condominio;
+  const nomeAtual = opcoes.find((opcao) => opcao.id === condominio)?.nome ?? condominio;
 
   const gravar = async (recurso: Ferramenta, pares: readonly ParDoPayload[], apagar: boolean) => {
     const payload = apagar ? {} : paresEmPayload(pares);
@@ -61,45 +63,15 @@ function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): Reac
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <TextField
-        select
-        size="small"
-        label="Condomínio"
-        value={condominio}
-        onChange={(e) => setCondominio(e.target.value)}
-        sx={{ maxWidth: 480 }}
-      >
-        {opcoes.map((o) => (
-          <MenuItem key={o.id} value={o.id}>
-            {o.nome}
-          </MenuItem>
-        ))}
-      </TextField>
+      <SeletorDeCondominio opcoes={opcoes} valor={condominio} onMudar={setCondominio} />
       {estado.recursos.length === 0 && (
         <Typography color="text.secondary">Ainda não há ferramentas cadastradas.</Typography>
       )}
-      <Paper variant="outlined">
-        <Table size="small" aria-label="Ferramentas">
-          <TableBody>
-            {estado.recursos.map((recurso) => {
-              const origem = origemDe(estado, condominio, recurso.name);
-              return (
-                <TableRow key={recurso.name} hover>
-                  <TableCell component="th" scope="row">
-                    <Button
-                      onClick={() => setAberto(recurso)}
-                      sx={{ textTransform: 'none', color: 'text.primary', fontWeight: 400 }}
-                    >
-                      {tituloDe(recurso)}
-                      {origem && <Chip size="small" label={origem} sx={{ ml: 1 }} />}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </Paper>
+      <TabelaDeFerramentas
+        recursos={estado.recursos}
+        origemDe={(recurso) => origemDe(estado, condominio, recurso.name)}
+        onAbrir={setAberto}
+      />
       {aberto && (
         <PayloadDoCondominioDrawer
           key={`${condominio}/${aberto.name}`}
@@ -114,5 +86,69 @@ function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): Reac
         />
       )}
     </Box>
+  );
+}
+
+type SeletorProps = { opcoes: Opcao[]; valor: string; onMudar: (id: string) => void };
+
+function SeletorDeCondominio({ opcoes, valor, onMudar }: SeletorProps): ReactNode {
+  return (
+    <TextField
+      select
+      size="small"
+      label="Condomínio"
+      value={valor}
+      onChange={(evento) => onMudar(evento.target.value)}
+      sx={{ maxWidth: 480 }}
+    >
+      {opcoes.map((opcao) => (
+        <MenuItem key={opcao.id} value={opcao.id}>
+          {opcao.nome}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
+type TabelaProps = {
+  recursos: readonly Ferramenta[];
+  origemDe: (recurso: Ferramenta) => Origem;
+  onAbrir: (recurso: Ferramenta) => void;
+};
+
+function TabelaDeFerramentas({ recursos, origemDe, onAbrir }: TabelaProps): ReactNode {
+  return (
+    <Paper variant="outlined">
+      <Table size="small" aria-label="Ferramentas">
+        <TableBody>
+          {recursos.map((recurso) => (
+            <LinhaDeFerramenta
+              key={recurso.name}
+              recurso={recurso}
+              origem={origemDe(recurso)}
+              onAbrir={onAbrir}
+            />
+          ))}
+        </TableBody>
+      </Table>
+    </Paper>
+  );
+}
+
+type LinhaProps = { recurso: Ferramenta; origem: Origem; onAbrir: (recurso: Ferramenta) => void };
+
+function LinhaDeFerramenta({ recurso, origem, onAbrir }: LinhaProps): ReactNode {
+  return (
+    <TableRow hover>
+      <TableCell component="th" scope="row">
+        <Button
+          onClick={() => onAbrir(recurso)}
+          sx={{ textTransform: 'none', color: 'text.primary', fontWeight: 400 }}
+        >
+          {tituloDe(recurso)}
+          {origem && <Chip size="small" label={origem} sx={{ ml: 1 }} />}
+        </Button>
+      </TableCell>
+    </TableRow>
   );
 }

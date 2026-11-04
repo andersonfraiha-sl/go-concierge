@@ -25,7 +25,7 @@ export function CampoDoPar({ par, travado, erroChave, erroValor, onMudar }: Prop
         error={erroChave !== undefined}
         helperText={erroChave}
         slotProps={rotuloDoCampo('Chave')}
-        onChange={(e) => onMudar({ chave: e.target.value })}
+        onChange={(evento) => onMudar({ chave: evento.target.value })}
       />
       <TextField
         size="small"
@@ -35,22 +35,34 @@ export function CampoDoPar({ par, travado, erroChave, erroValor, onMudar }: Prop
         error={erroValor !== undefined}
         helperText={erroValor}
         slotProps={rotuloDoCampo('Valor')}
-        onChange={(e) => digitar(e.target.value)}
+        onChange={(evento) => digitar(evento.target.value)}
       />
-      <TextField
-        select
-        size="small"
-        value={par.tipo}
-        disabled={travado}
-        slotProps={{ select: { native: true }, htmlInput: { 'aria-label': 'Tipo do valor' } }}
-        onChange={(e) => onMudar({ tipo: tipoDe(e.target.value), fixo: true })}
-      >
-        {TIPOS.map((tipo) => (
-          <option key={tipo} value={tipo}>
-            {tipo}
-          </option>
-        ))}
-      </TextField>
+      <SeletorDeTipo tipo={par.tipo} travado={travado} onEscolher={onMudar} />
     </>
+  );
+}
+
+type SeletorProps = {
+  tipo: ParDoPayload['tipo'];
+  travado: boolean;
+  onEscolher: (parcial: Partial<ParDoPayload>) => void;
+};
+
+function SeletorDeTipo({ tipo, travado, onEscolher }: SeletorProps): ReactNode {
+  return (
+    <TextField
+      select
+      size="small"
+      value={tipo}
+      disabled={travado}
+      slotProps={{ select: { native: true }, htmlInput: { 'aria-label': 'Tipo do valor' } }}
+      onChange={(evento) => onEscolher({ tipo: tipoDe(evento.target.value), fixo: true })}
+    >
+      {TIPOS.map((opcao) => (
+        <option key={opcao} value={opcao}>
+          {opcao}
+        </option>
+      ))}
+    </TextField>
   );
 }

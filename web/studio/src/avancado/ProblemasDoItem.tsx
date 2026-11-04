@@ -10,18 +10,25 @@ export function Problemas({ problemas }: { problemas: Problema[] }): ReactNode {
         <Typography variant="body2">Nenhum problema encontrado.</Typography>
       )}
       {problemas.map((problema) => (
-        <Box key={`${problema.onde}-${problema.texto}`}>
-          <Typography variant="body2" color={problema.nivel === 'erro' ? 'error' : 'text.primary'}>
-            {problema.nivel === 'erro' ? 'Erro' : 'Aviso'} em {problema.onde}
-          </Typography>
-          <Typography variant="body2">{problema.texto}</Typography>
-          {problema.solucao && (
-            <Typography variant="caption" color="text.secondary">
-              {problema.solucao}
-            </Typography>
-          )}
-        </Box>
+        <ItemDeProblema key={`${problema.onde}-${problema.texto}`} problema={problema} />
       ))}
     </SectionCard>
+  );
+}
+
+function ItemDeProblema({ problema }: { problema: Problema }): ReactNode {
+  const ehErro = problema.nivel === 'erro';
+  return (
+    <Box>
+      <Typography variant="body2" color={ehErro ? 'error' : 'text.primary'}>
+        {ehErro ? 'Erro' : 'Aviso'} em {problema.onde}
+      </Typography>
+      <Typography variant="body2">{problema.texto}</Typography>
+      {problema.solucao && (
+        <Typography variant="caption" color="text.secondary">
+          {problema.solucao}
+        </Typography>
+      )}
+    </Box>
   );
 }
