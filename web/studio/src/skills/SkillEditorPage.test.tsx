@@ -1,5 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
@@ -45,6 +45,16 @@ function rotasDoEditor(eu: Eu, corpos: unknown[], textos = lidos()) {
 }
 
 describe('SkillEditorPage', () => {
+  // shouldAdvanceTime mantém o relógio falso andando junto do real: interações do
+  // userEvent continuam funcionando sem mudar de sentido; só o autosave de 1s
+  // vira previsível com avanços explícitos abaixo, sem depender do relógio real.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('savesSummaryOneSecondAfterTyping', async () => {
     const corpos: unknown[] = [];
     responderCom(rotasDoEditor(construtor, corpos));
@@ -53,7 +63,8 @@ describe('SkillEditorPage', () => {
     await waitFor(() => expect(campo).toBeEnabled());
     await user.type(campo, 'Agenda a mudança.');
     expect(corpos).toEqual([]);
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos).toEqual([
       { versao: 'v1', textos: { ...lidos().textos, resumo: 'Agenda a mudança.' } },
     ]);
@@ -75,7 +86,8 @@ describe('SkillEditorPage', () => {
     await waitFor(() => expect(campo).toBeEnabled());
     await user.type(campo, ' Sempre.');
     expect(corpos).toEqual([]);
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos).toEqual([
       {
         versao: 'v1',
@@ -92,7 +104,8 @@ describe('SkillEditorPage', () => {
     const campo = screen.getByRole('textbox', { name: 'Nome da skill' });
     await user.clear(campo);
     await user.type(campo, 'Mudança de unidade{Enter}');
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos).toEqual([
       { versao: 'v1', textos: { ...lidos().textos, titulo: 'Mudança de unidade' } },
     ]);
@@ -111,7 +124,8 @@ describe('SkillEditorPage', () => {
       screen.getByRole('textbox', { name: 'Nova frase de exemplo' }),
       'Preciso do elevador{Enter}',
     );
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos).toEqual([
       {
         versao: 'v1',
@@ -136,7 +150,8 @@ describe('SkillEditorPage', () => {
     const campo = await screen.findByRole('textbox', { name: 'Como reconhecer o pedido' });
     await waitFor(() => expect(campo).toBeEnabled());
     await user.type(campo, '!');
-    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 5000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await waitFor(() => expect(corpos).toHaveLength(1));
     expect(corpos).toEqual([
       { versao: 'v1', textos: { ...lidos().textos, quandoUsar: 'Quando o morador quer mudar.!' } },
     ]);
