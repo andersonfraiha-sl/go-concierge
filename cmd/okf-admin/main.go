@@ -45,6 +45,7 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/env"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/falha"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/auditoria"
 	"go-concierge/internal/ganchos/fixos"
@@ -333,9 +334,10 @@ func main() {
 }
 
 // novoRegistro é o log do processo: JSON, com CPF e telefone mascarados em toda mensagem e
-// atributo de texto antes de sair.
+// atributo de texto antes de sair (a pilha também); ERROR ganha fonte e, sem stack, a pilha
+// curta do projeto.
 func novoRegistro(w io.Writer) *slog.Logger {
-	return slog.New(pii.NovoHandler(slog.NewJSONHandler(w, nil)))
+	return slog.New(falha.ComFonte(pii.NovoHandler(slog.NewJSONHandler(w, nil))))
 }
 
 // montarGanchos monta o Conjunto único do servidor: os fixos, as regras do cache (aquecido
@@ -842,9 +844,14 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// writeErr responde o erro em JSON. Um 5xx é falha do servidor: vai para a linha de ERROR da
+// requisição, com a cadeia, a pilha (se capturada) e quem respondeu.
 func writeErr(w http.ResponseWriter, code int, err error) {
 	if err == nil {
 		err = errors.New("erro")
+	}
+	if code >= http.StatusInternalServerError {
+		anotarFalha(context.Background(), w, err, 1)
 	}
 	writeJSON(w, code, map[string]string{"error": err.Error()})
 }

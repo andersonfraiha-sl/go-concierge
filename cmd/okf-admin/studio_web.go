@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
-	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -19,7 +19,7 @@ func studioEstatico(arquivos fs.FS) http.Handler {
 			return
 		}
 		if err != nil {
-			log.Printf("studio: ler index.html: %v", err)
+			anotarFalha(r.Context(), w, fmt.Errorf("studio: ler index.html: %w", err), 0)
 			writeJSON(w, http.StatusInternalServerError, erroAPI{Codigo: "ERRO_INTERNO", Mensagem: "Não foi possível abrir o Studio."})
 			return
 		}

@@ -8,6 +8,7 @@ import (
 
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
+	"go-concierge/internal/falha"
 )
 
 const (
@@ -66,6 +67,7 @@ func rodar(ctx context.Context, cli *ent.Client, relogio func() time.Time) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutDaRodada)
 	defer cancel()
+	defer falha.Recuperar(ctx, "reter_auditoria") // uma rodada que quebra não para as próximas
 	n, err := Apagar(ctx, cli, relogio())
 	if err != nil {
 		slog.ErrorContext(ctx, "retenção da auditoria falhou", "operacao", "reter_auditoria", "erro", err)

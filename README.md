@@ -253,6 +253,19 @@ pasta, prompt montado e roteador, orquestração, importar e exportar zip).
 O Studio e o Console têm link para as telas antigas. `/backdoor/payloads` aceita
 definições livres de um recurso por condomínio, inclusive de recursos que não declaram ajustes.
 
+### Logs e pilha de erro
+
+O log é JSON no stderr, com CPF e telefone mascarados em tudo, pilha inclusive. Erro
+inesperado ganha pilha onde nasce, com `falha.ComPilha` (`internal/falha`): nas chamadas ao
+Postgres dos stores e de `internal/banco` e nos clientes HTTP de saída (MCP, Gruvi, ATENDE,
+LLM). Erro esperado de negócio (sentinela como `ErrVersaoVelha`, validação) não ganha. A
+falha só vira log uma vez, na borda de cima: um 5xx sai numa linha só de ERROR da
+requisição (`request_id`, `usuario_id`, `operacao`, `erro` com a cadeia, `chamador` e
+`stack`), o turno do webhook que falha sai em `turno do concierge falhou`, e pânico em
+handler (500 com `ERRO_INTERNO`) ou em goroutine de fundo (`falha.Recuperar`) sai com a pilha
+do pânico. Camada de baixo devolve o erro embrulhado e não loga. Todo ERROR traz `fonte`
+(arquivo:linha) e, sem `stack`, a `pilha` curta do projeto; INFO e WARN ficam enxutos.
+
 ### API
 
 | método | rota | o que faz |

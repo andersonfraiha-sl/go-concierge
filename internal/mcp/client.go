@@ -24,6 +24,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go-concierge/internal/falha"
 )
 
 const (
@@ -346,7 +348,7 @@ func (c *Client) post(ctx context.Context, body rpcRequest, wantID *int64) (*rpc
 	}
 	res, err := hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("mcp: %w", err)
+		return nil, falha.ComPilha(fmt.Errorf("mcp: %w", err))
 	}
 	defer res.Body.Close()
 	if sid := res.Header.Get("Mcp-Session-Id"); sid != "" {
@@ -359,7 +361,7 @@ func (c *Client) post(ctx context.Context, body rpcRequest, wantID *int64) (*rpc
 		return nil, nil
 	case res.StatusCode < 200 || res.StatusCode >= 300:
 		corpo, _ := io.ReadAll(io.LimitReader(res.Body, 2048))
-		return nil, &httpError{status: res.StatusCode, corpo: string(corpo)}
+		return nil, falha.ComPilha(&httpError{status: res.StatusCode, corpo: string(corpo)})
 	}
 	if wantID == nil {
 		return nil, nil
