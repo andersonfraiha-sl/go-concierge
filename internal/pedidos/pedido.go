@@ -71,7 +71,11 @@ type Pedido struct {
 	Origem Origem `json:"origem"`
 	// Formulario: o caso tem um passo `form` que o motor não executa; o pedido fica
 	// registrado e a conversa segue pelo subagente do caso.
-	Formulario   bool      `json:"formulario,omitempty"`
+	Formulario bool `json:"formulario,omitempty"`
+	// Ordem é a posição de abertura na carteira (1, 2, ...): a fila de pedidos (um por vez)
+	// segue essa ordem. CriadoEm não basta: dois pedidos da mesma mensagem podem ter o mesmo
+	// instante. Pedidos anteriores à fila ficam com 0 e vêm antes, pelo CriadoEm.
+	Ordem        int       `json:"ordem,omitempty"`
 	CriadoEm     time.Time `json:"criado_em"`
 	AtualizadoEm time.Time `json:"atualizado_em"`
 	Historico    []Evento  `json:"historico"`
@@ -250,7 +254,8 @@ func (c *Carteira) AbertoDoCaso(caso string) *Pedido {
 // único na carteira.
 func (c *Carteira) Novo(ct *Contrato, agente, condominioID string, origem Origem) *Pedido {
 	p := &Pedido{AdministradoraID: c.AdministradoraID, CondominioID: condominioID, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
-		Valores: map[string]any{}, Rotulos: map[string]string{}, Origens: map[string]string{}, Dados: map[string]any{}, Origem: origem, CriadoEm: time.Now()}
+		Valores: map[string]any{}, Rotulos: map[string]string{}, Origens: map[string]string{}, Dados: map[string]any{}, Origem: origem, CriadoEm: time.Now(),
+		Ordem: c.ultimaOrdem() + 1}
 	for {
 		p.Protocolo = NovoProtocolo()
 		if c.Por(p.Protocolo) == nil {
@@ -260,6 +265,14 @@ func (c *Carteira) Novo(ct *Contrato, agente, condominioID string, origem Origem
 	p.registrar("criado", ct.Caso.Name, OrigemMorador)
 	c.Pedidos = append(c.Pedidos, p)
 	return p
+}
+
+func (c *Carteira) ultimaOrdem() int {
+	ultima := 0
+	for _, p := range c.Pedidos {
+		ultima = max(ultima, p.Ordem)
+	}
+	return ultima
 }
 
 // ValorReutilizavel: o valor que outro pedido do contato já tem para um slot com
@@ -398,7 +411,7 @@ func copiasDoContato(c escopo.Contato, pedidos []*Pedido) []Pedido {
 func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
 	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Pedidos: slices.Clone(pedidos)}
 	slices.SortStableFunc(cart.Pedidos, func(a, b *Pedido) int {
-		return cmp.Or(a.CriadoEm.Compare(b.CriadoEm), strings.Compare(a.Protocolo, b.Protocolo))
+		return cmp.Or(cmp.Compare(a.Ordem, b.Ordem), a.CriadoEm.Compare(b.CriadoEm), strings.Compare(a.Protocolo, b.Protocolo))
 	})
 	for _, p := range cart.Pedidos {
 		if p.AtualizadoEm.After(cart.AtualizadaEm) {

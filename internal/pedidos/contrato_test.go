@@ -16,6 +16,7 @@ import (
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/okf"
 )
 
 func TestMain(m *testing.M) {
@@ -61,6 +62,30 @@ func testarStore(t *testing.T, novo func(t *testing.T) Store) {
 	t.Run("listar", func(t *testing.T) { cenarioListar(t, novo(t)) })
 	t.Run("contato invalido", func(t *testing.T) { cenarioContatoInvalido(t, novo(t)) })
 	t.Run("gravar concorrente", func(t *testing.T) { cenarioGravarConcorrente(t, novo(t)) })
+	t.Run("fila na ordem de abertura", func(t *testing.T) { cenarioFilaNaOrdemDeAbertura(t, novo(t)) })
+}
+
+// A fila de pedidos (um por vez) é a ordem de abertura: ela sobrevive à releitura mesmo
+// quando dois pedidos abertos no mesmo turno têm o mesmo CriadoEm, e o protocolo sorteado
+// do segundo vem antes na ordem alfabética.
+func cenarioFilaNaOrdemDeAbertura(t *testing.T, st Store) {
+	c := contatoDeTeste("adm-a", "5519981621916")
+	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}
+	reserva := cart.Novo(&Contrato{Caso: &okf.Caso{ID: "reserva", Name: "Reserva"}}, "reservas", "cond-1", Origem{})
+	mudanca := cart.Novo(&Contrato{Caso: &okf.Caso{ID: "mudanca", Name: "Mudança"}}, "mudancas", "cond-1", Origem{})
+	reserva.Protocolo, mudanca.Protocolo = "P-ZZZZZZZZ", "P-AAAAAAAA"
+	mudanca.CriadoEm = reserva.CriadoEm
+	if err := st.Gravar(t.Context(), c, cart); err != nil {
+		t.Fatalf("Gravar: %v", err)
+	}
+	lida := lerCarteira(t, st, c)
+	var ordem []string
+	for _, p := range lida.Abertos() {
+		ordem = append(ordem, p.Protocolo)
+	}
+	if want := []string{"P-ZZZZZZZZ", "P-AAAAAAAA"}; !slices.Equal(ordem, want) {
+		t.Fatalf("fila = %v, want %v", ordem, want)
+	}
 }
 
 var diaDeTeste = time.Date(2026, 11, 3, 10, 0, 0, 123456789, time.UTC)
