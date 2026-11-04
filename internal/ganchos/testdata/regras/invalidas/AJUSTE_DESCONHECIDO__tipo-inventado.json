@@ -1,0 +1,20 @@
+{
+  "nome": "Regra de teste",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "areas.reservar"
+      ]
+    }
+  ],
+  "decisao": {
+    "tipo": "ajustar",
+    "ajuste": {
+      "tipo": "apagar_tudo"
+    }
+  },
+  "ativa": true
+}

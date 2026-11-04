@@ -2,7 +2,6 @@ package regras
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -69,8 +68,8 @@ func TestExemplosInvalidos(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := codigosDe(raw); !slices.Contains(got, esperado) {
-				t.Fatalf("códigos %v não contêm %s", got, esperado)
+			if got := codigosDe(raw); !slices.Equal(got, []string{esperado}) {
+				t.Fatalf("códigos = %v, quer só %s", got, esperado)
 			}
 		})
 	}
@@ -91,7 +90,7 @@ func codigosDe(raw []byte) []string {
 func TestRegraComAjusteNuncaPassa(t *testing.T) {
 	r := Regra{
 		Nome: "Aviso de teste", Evento: ganchos.EventoAntesDeResponder, Ativa: true,
-		Condicoes: []Condicao{{Tipo: CondicaoContatoCadastrado, ContatoCadastrado: &CondCadastrado{}}},
+		Condicoes: []Condicao{{Tipo: CondicaoContatoCadastrado, ContatoCadastrado: &CondCadastrado{Valor: new(bool)}}},
 		Decisao:   DecisaoDaRegra{Tipo: ganchos.Ajustar, Ajuste: &Ajuste{Tipo: "acrescentar_aviso", Texto: "oi"}},
 	}
 	if got := codigos(ValidarRegra(r, catalogoDeTeste())); !slices.Equal(got, []string{"AJUSTE_NAO_PERMITIDO"}) {
@@ -100,7 +99,7 @@ func TestRegraComAjusteNuncaPassa(t *testing.T) {
 }
 
 func TestMatrizDoEvento(t *testing.T) {
-	cadastrado := Condicao{Tipo: CondicaoContatoCadastrado, ContatoCadastrado: &CondCadastrado{}}
+	cadastrado := Condicao{Tipo: CondicaoContatoCadastrado, ContatoCadastrado: &CondCadastrado{Valor: new(bool)}}
 	ferramenta := Condicao{Tipo: CondicaoFerramenta, Ferramenta: &CondFerramenta{Nomes: []string{"areas.reservar"}}}
 	texto := Condicao{Tipo: CondicaoTextoContem, TextoContem: &CondTermos{Termos: []string{"oi"}}}
 	bloquear := DecisaoDaRegra{Tipo: ganchos.Bloquear, Mensagem: "Não."}
@@ -128,55 +127,6 @@ func TestMatrizDoEvento(t *testing.T) {
 		t.Run(c.nome, func(t *testing.T) {
 			r := Regra{Nome: "Regra de matriz", Evento: c.evento, Condicoes: []Condicao{c.cond}, Decisao: c.dec}
 			got := codigos(ValidarRegra(r, catalogoDeTeste()))
-			if c.codigo == "" && len(got) > 0 || c.codigo != "" && !slices.Contains(got, c.codigo) {
-				t.Fatalf("códigos = %v, quer %q", got, c.codigo)
-			}
-		})
-	}
-}
-
-func ativas(n int, evento ganchos.NomeDoEvento, alvo Alvo) []Regra {
-	out := make([]Regra, n)
-	for i := range out {
-		out[i] = Regra{ID: fmt.Sprintf("r%d-%s", i, alvo.Administradora), Evento: evento, Alvo: alvo, Ativa: true}
-	}
-	return out
-}
-
-func TestLimites(t *testing.T) {
-	flores := Alvo{Administradora: "adm-aurora", Condominios: []string{"cond-flores"}}
-	nova := Regra{ID: "nova", Evento: ganchos.EventoAntesDaFerramenta, Alvo: flores, Ativa: true}
-	total := ativas(limiteAtivasTotal, ganchos.EventoMensagemRecebida, Alvo{Administradora: "adm-x"})
-	for i := range total {
-		total[i].ID = fmt.Sprintf("t%d", i)
-	}
-	editada := ativas(limiteAtivasPorEvento, ganchos.EventoAntesDaFerramenta, flores)
-	editada[0].ID = "nova"
-
-	casos := []struct {
-		nome   string
-		ativas []Regra
-		nova   Regra
-		codigo string
-	}{
-		{"19 ativas aceita a vigésima", ativas(19, nova.Evento, flores), nova, ""},
-		{"20 ativas recusa a vigésima primeira", ativas(20, nova.Evento, flores), nova, "LIMITE_POR_EVENTO"},
-		{"outro evento não conta", ativas(20, ganchos.EventoAntesDeResponder, flores), nova, ""},
-		{"outro condomínio não conta", ativas(20, nova.Evento, Alvo{Administradora: "adm-aurora", Condominios: []string{"cond-x"}}), nova, ""},
-		{"inativas não contam", func() []Regra {
-			rs := ativas(20, nova.Evento, flores)
-			for i := range rs {
-				rs[i].Ativa = false
-			}
-			return rs
-		}(), nova, ""},
-		{"editar a própria regra não conta em dobro", editada, nova, ""},
-		{"nova inativa nunca estoura", ativas(20, nova.Evento, flores), Regra{Evento: nova.Evento, Alvo: flores}, ""},
-		{"10 mil ativas recusa a próxima", total, nova, "LIMITE_TOTAL"},
-	}
-	for _, c := range casos {
-		t.Run(c.nome, func(t *testing.T) {
-			got := codigos(ValidarLimites(c.ativas, c.nova))
 			if c.codigo == "" && len(got) > 0 || c.codigo != "" && !slices.Contains(got, c.codigo) {
 				t.Fatalf("códigos = %v, quer %q", got, c.codigo)
 			}

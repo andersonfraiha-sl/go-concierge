@@ -71,7 +71,8 @@ var eventosComParametro = []ganchos.NomeDoEvento{ganchos.EventoAntesDaFerramenta
 
 var diasDaSemana = []string{"seg", "ter", "qua", "qui", "sex", "sab", "dom"}
 
-// ValidarRegra devolve todos os problemas da regra; vazio significa válida.
+// ValidarRegra devolve todos os problemas da regra; vazio significa válida. Só pula a
+// checagem que depende de um campo já quebrado (a matriz sem evento válido).
 func ValidarRegra(r Regra, cat Catalogo) []Problema {
 	ev, eventoOK := aceita[r.Evento]
 	var ps []Problema
@@ -82,10 +83,7 @@ func ValidarRegra(r Regra, cat Catalogo) []Problema {
 	ps = append(ps, validarAlvo(r.Alvo, cat)...)
 	ps = append(ps, validarFuso(r.Fuso)...)
 	ps = append(ps, validarCondicoes(r, ev.condicoes, eventoOK, cat)...)
-	if eventoOK {
-		ps = append(ps, validarDecisao(r.Decisao, ev.decisoes)...)
-	}
-	return ps
+	return append(ps, validarDecisao(r.Decisao, ev.decisoes, eventoOK)...)
 }
 
 func validarNome(nome string, fixos []string) []Problema {
@@ -100,37 +98,39 @@ func validarNome(nome string, fixos []string) []Problema {
 }
 
 func validarAlvo(a Alvo, cat Catalogo) []Problema {
-	if len(a.Condominios) > 0 && a.Administradora == "" {
-		return []Problema{{"alvo.administradora", "ALVO_SEM_ADMINISTRADORA", "condomínios exigem a administradora do alvo"}}
-	}
 	var ps []Problema
+	if len(a.Condominios) > 0 && a.Administradora == "" {
+		ps = append(ps, Problema{"alvo.administradora", "ALVO_SEM_ADMINISTRADORA", "condomínios exigem a administradora do alvo"})
+	}
 	for _, c := range a.Condominios {
 		adm, existe := cat.AdministradoraDe[c]
 		switch {
 		case !existe:
 			ps = append(ps, Problema{"alvo.condominios", "CONDOMINIO_DESCONHECIDO", "condomínio fora do catálogo: " + c})
-		case adm != a.Administradora:
+		case a.Administradora != "" && adm != a.Administradora:
 			ps = append(ps, Problema{"alvo.condominios", "CONDOMINIO_DE_OUTRA_ADMINISTRADORA", "o condomínio " + c + " não é da administradora do alvo"})
 		}
 	}
 	return ps
 }
 
+// validarFuso aceita só zona IANA no formato Area/Cidade: "Local" e "UTC" dependem do
+// servidor ou não são zona de negócio. Vazio vira FusoPadrao no Decodificar.
 func validarFuso(fuso string) []Problema {
 	if fuso == "" {
 		return nil
 	}
-	if _, err := time.LoadLocation(fuso); err != nil {
-		return []Problema{{"fuso", "FUSO_INVALIDO", "fuso desconhecido: " + fuso}}
+	if _, err := time.LoadLocation(fuso); err != nil || !strings.Contains(fuso, "/") {
+		return []Problema{{"fuso", "FUSO_INVALIDO", "use uma zona IANA no formato Area/Cidade: " + fuso}}
 	}
 	return nil
 }
 
 func validarCondicoes(r Regra, aceitas []TipoCondicao, eventoOK bool, cat Catalogo) []Problema {
-	if n := len(r.Condicoes); n < 1 || n > limiteCondicoes {
-		return []Problema{{"condicoes", "CONDICOES_QUANTIDADE", fmt.Sprintf("a regra precisa ter de 1 a %d condições", limiteCondicoes)}}
-	}
 	var ps []Problema
+	if n := len(r.Condicoes); n < 1 || n > limiteCondicoes {
+		ps = append(ps, Problema{"condicoes", "CONDICOES_QUANTIDADE", fmt.Sprintf("a regra precisa ter de 1 a %d condições", limiteCondicoes)})
+	}
 	for i, c := range r.Condicoes {
 		campo := fmt.Sprintf("condicoes[%d]", i)
 		if !conferePreenchimento(c) {
@@ -185,6 +185,11 @@ func validarCondicao(campo string, c Condicao, ev ganchos.NomeDoEvento, cat Cata
 	case CondicaoDiaNaoUtil:
 		return append(validarFonte(campo+".fonte", c.DiaNaoUtil.Fonte, ev),
 			validarDatas(campo+".feriados_extras", c.DiaNaoUtil.FeriadosExtras)...)
+	case CondicaoContatoCadastrado:
+		if c.ContatoCadastrado.Valor == nil {
+			return []Problema{{campo + ".valor", "VALOR_AUSENTE", "informe valor: true ou false"}}
+		}
+		return nil
 	case CondicaoPapelDoMorador:
 		return validarLista(campo+".papeis", c.PapelDoMorador.Papeis, limiteLista, "", nil)
 	case CondicaoTextoContem:
@@ -195,10 +200,10 @@ func validarCondicao(campo string, c Condicao, ev ganchos.NomeDoEvento, cat Cata
 
 // validarLista confere tamanho 1..max, itens não vazios e, com catálogo, a existência.
 func validarLista(campo string, itens []string, max int, codigoDesconhecido string, catalogo map[string]bool) []Problema {
-	if n := len(itens); n < 1 || n > max {
-		return []Problema{{campo, "LISTA_TAMANHO", fmt.Sprintf("a lista precisa ter de 1 a %d itens", max)}}
-	}
 	var ps []Problema
+	if n := len(itens); n < 1 || n > max {
+		ps = append(ps, Problema{campo, "LISTA_TAMANHO", fmt.Sprintf("a lista precisa ter de 1 a %d itens", max)})
+	}
 	for _, it := range itens {
 		switch {
 		case strings.TrimSpace(it) == "":
@@ -243,10 +248,10 @@ func validarDias(campo string, dias []string) []Problema {
 }
 
 func validarDatas(campo string, datas []string) []Problema {
-	if len(datas) > limiteFeriadosExtras {
-		return []Problema{{campo, "LISTA_TAMANHO", fmt.Sprintf("no máximo %d feriados extras", limiteFeriadosExtras)}}
-	}
 	var ps []Problema
+	if len(datas) > limiteFeriadosExtras {
+		ps = append(ps, Problema{campo, "LISTA_TAMANHO", fmt.Sprintf("no máximo %d feriados extras", limiteFeriadosExtras)})
+	}
 	for _, d := range datas {
 		if _, err := time.Parse("2006-01-02", d); err != nil {
 			ps = append(ps, Problema{campo, "DATA_INVALIDA", "use AAAA-MM-DD: " + d})
@@ -255,17 +260,21 @@ func validarDatas(campo string, datas []string) []Problema {
 	return ps
 }
 
-func validarDecisao(d DecisaoDaRegra, aceitas []ganchos.TipoDecisao) []Problema {
+func validarDecisao(d DecisaoDaRegra, aceitas []ganchos.TipoDecisao, eventoOK bool) []Problema {
 	if d.Tipo == ganchos.Ajustar || d.Ajuste != nil {
 		return []Problema{{"decisao", "AJUSTE_NAO_PERMITIDO", "regra só bloqueia ou pede confirmação; ajustar é de gancho fixo"}}
 	}
-	if !slices.Contains(aceitas, d.Tipo) {
-		return []Problema{{"decisao.tipo", "DECISAO_NAO_ACEITA", "o evento não aceita a decisão " + string(d.Tipo)}}
+	var ps []Problema
+	if eventoOK && !slices.Contains(aceitas, d.Tipo) {
+		ps = append(ps, Problema{"decisao.tipo", "DECISAO_NAO_ACEITA", "o evento não aceita a decisão " + string(d.Tipo)})
 	}
-	if d.Tipo == ganchos.Confirmar {
-		return validarTexto("decisao.pergunta", d.Pergunta)
+	switch d.Tipo {
+	case ganchos.Confirmar:
+		return append(ps, validarTexto("decisao.pergunta", d.Pergunta)...)
+	case ganchos.Bloquear:
+		return append(ps, validarTexto("decisao.mensagem", d.Mensagem)...)
 	}
-	return validarTexto("decisao.mensagem", d.Mensagem)
+	return append(ps, Problema{"decisao.tipo", "DECISAO_DESCONHECIDA", "tipo de decisão desconhecido: " + string(d.Tipo)})
 }
 
 // validarTexto exige texto fixo: escrito por quem grava a regra, sem PII nem template.
@@ -280,27 +289,34 @@ func validarTexto(campo, texto string) []Problema {
 	return ps
 }
 
-type baldeDeLimite struct {
-	evento         ganchos.NomeDoEvento
-	administradora string // "" com condomínio vazio = regra para todas
-	condominio     string
+// alcanca diz se a regra vale para o condomínio c: alvo explícito, ou a administradora
+// dele, ou todos.
+func alcanca(r Regra, c string, cat Catalogo) bool {
+	if len(r.Alvo.Condominios) > 0 {
+		return slices.Contains(r.Alvo.Condominios, c)
+	}
+	return r.Alvo.Administradora == "" || cat.AdministradoraDe[c] == r.Alvo.Administradora
 }
 
-// baldes diz em quais índices (evento × condomínio) a regra entra, como no cache.
-func baldes(r Regra) []baldeDeLimite {
-	if len(r.Alvo.Condominios) == 0 {
-		return []baldeDeLimite{{r.Evento, r.Alvo.Administradora, ""}}
+// condominiosDaNova lista os condomínios que a nova regra alcança, pelo catálogo.
+func condominiosDaNova(nova Regra, cat Catalogo) []string {
+	if len(nova.Alvo.Condominios) > 0 {
+		return nova.Alvo.Condominios
 	}
-	out := make([]baldeDeLimite, len(r.Alvo.Condominios))
-	for i, c := range r.Alvo.Condominios {
-		out[i] = baldeDeLimite{r.Evento, "", c}
+	var out []string
+	for c := range cat.AdministradoraDe {
+		if alcanca(nova, c, cat) {
+			out = append(out, c)
+		}
 	}
 	return out
 }
 
-// ValidarLimites confere 20 ativas por evento e condomínio e 10 mil no total, contando
-// a nova. Regra com o mesmo ID de uma ativa é a mesma regra (edição) e não conta em dobro.
-func ValidarLimites(ativas []Regra, nova Regra) []Problema {
+// ValidarLimites confere 20 ativas efetivas por evento e condomínio (as dele, as da
+// administradora e as globais, contando a nova) e 10 mil no total. Regra com o mesmo ID
+// da nova (edição) e regra inativa não contam.
+// ponytail: O(regras do evento x condomínios da nova), só no caminho de gravação.
+func ValidarLimites(ativas []Regra, nova Regra, cat Catalogo) []Problema {
 	if !nova.Ativa {
 		return nil
 	}
@@ -311,17 +327,24 @@ func ValidarLimites(ativas []Regra, nova Regra) []Problema {
 	if len(outras)+1 > limiteAtivasTotal {
 		ps = append(ps, Problema{"ativa", "LIMITE_TOTAL", fmt.Sprintf("já existem %d regras ativas", limiteAtivasTotal)})
 	}
-	porBalde := map[baldeDeLimite]int{}
-	for _, r := range outras {
-		for _, b := range baldes(r) {
-			porBalde[b]++
-		}
-	}
-	for _, b := range baldes(nova) {
-		if porBalde[b]+1 > limiteAtivasPorEvento {
-			ps = append(ps, Problema{"ativa", "LIMITE_POR_EVENTO", fmt.Sprintf("já existem %d regras ativas para este evento e alvo", limiteAtivasPorEvento)})
-			break
-		}
+	mesmoEvento := slices.DeleteFunc(outras, func(r Regra) bool { return r.Evento != nova.Evento })
+	if c, ok := primeiroCondominioCheio(mesmoEvento, nova, cat); ok {
+		ps = append(ps, Problema{"ativa", "LIMITE_POR_EVENTO", fmt.Sprintf("o condomínio %s já tem %d regras ativas neste evento", c, limiteAtivasPorEvento)})
 	}
 	return ps
+}
+
+func primeiroCondominioCheio(mesmoEvento []Regra, nova Regra, cat Catalogo) (string, bool) {
+	for _, c := range condominiosDaNova(nova, cat) {
+		n := 1
+		for _, r := range mesmoEvento {
+			if alcanca(r, c, cat) {
+				n++
+			}
+		}
+		if n > limiteAtivasPorEvento {
+			return c, true
+		}
+	}
+	return "", false
 }

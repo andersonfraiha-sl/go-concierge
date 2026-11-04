@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
 	"go-concierge/internal/ganchos"
 )
@@ -77,7 +78,7 @@ type CondNaoUtil struct {
 	FeriadosExtras []string `json:"feriados_extras,omitempty"`
 }
 type CondCadastrado struct {
-	Valor bool `json:"valor"`
+	Valor *bool `json:"valor"` // ponteiro: ausente é problema, não false
 }
 type CondPapeis struct {
 	Papeis []string `json:"papeis"`
@@ -117,12 +118,18 @@ type ErroDeEsquema struct{ Campo, Codigo, Mensagem string }
 
 func (e *ErroDeEsquema) Error() string { return e.Campo + ": " + e.Codigo + ": " + e.Mensagem }
 
+// FusoPadrao vale quando a regra não diz o fuso.
+const FusoPadrao = "America/Sao_Paulo"
+
 // Decodificar lê o JSON da spec. Campo desconhecido, tipo desconhecido e campo de
 // outro tipo são erro (*ErroDeEsquema).
 func Decodificar(raw []byte) (Regra, error) {
 	var r Regra
 	if err := decodificarEstrito(raw, &r); err != nil {
 		return Regra{}, fmt.Errorf("decodificar regra: %w", err)
+	}
+	if r.Fuso == "" {
+		r.Fuso = FusoPadrao
 	}
 	return r, nil
 }
@@ -131,6 +138,9 @@ func decodificarEstrito(raw []byte, destino any) error {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	err := d.Decode(destino)
+	if err == nil && d.Decode(&struct{}{}) != io.EOF {
+		return &ErroDeEsquema{Codigo: "JSON_INVALIDO", Mensagem: "há conteúdo depois do JSON"}
+	}
 	if err == nil {
 		return nil
 	}
@@ -231,6 +241,58 @@ func (d *DecisaoDaRegra) UnmarshalJSON(raw []byte) error {
 		d.Ajuste = a.Ajuste
 	default:
 		return &ErroDeEsquema{Campo: "decisao.tipo", Codigo: "DECISAO_DESCONHECIDA", Mensagem: "tipo de decisão desconhecido: " + tipo}
+	}
+	return err
+}
+
+type fonteAgora struct{}
+type fonteParametro struct {
+	Nome string `json:"nome"`
+}
+
+func (f *Fonte) UnmarshalJSON(raw []byte) error {
+	tipo, resto, err := tipoDe(raw)
+	if err != nil {
+		return err
+	}
+	switch tipo {
+	case FonteAgora:
+		err = decodificarEstrito(resto, &fonteAgora{})
+	case FonteParametro:
+		var p fonteParametro
+		err = decodificarEstrito(resto, &p)
+		f.Nome = p.Nome
+	default:
+		return &ErroDeEsquema{Campo: "fonte.tipo", Codigo: "FONTE_DESCONHECIDA", Mensagem: "tipo de fonte desconhecido: " + tipo}
+	}
+	f.Tipo = tipo
+	return err
+}
+
+type ajusteCampo struct {
+	Campo string `json:"campo"`
+}
+type ajusteAviso struct {
+	Texto string `json:"texto"`
+}
+
+func (a *Ajuste) UnmarshalJSON(raw []byte) error {
+	tipo, resto, err := tipoDe(raw)
+	if err != nil {
+		return err
+	}
+	a.Tipo = tipo
+	switch tipo {
+	case "remover_campo", "mascarar_campo":
+		var c ajusteCampo
+		err = decodificarEstrito(resto, &c)
+		a.Campo = c.Campo
+	case "acrescentar_aviso":
+		var v ajusteAviso
+		err = decodificarEstrito(resto, &v)
+		a.Texto = v.Texto
+	default:
+		return &ErroDeEsquema{Campo: "decisao.ajuste.tipo", Codigo: "AJUSTE_DESCONHECIDO", Mensagem: "tipo de ajuste desconhecido: " + tipo}
 	}
 	return err
 }
