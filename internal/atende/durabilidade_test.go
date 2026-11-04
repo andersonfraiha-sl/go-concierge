@@ -163,7 +163,7 @@ func TestRemoverPedidoComCarteiraAdiada(t *testing.T) {
 	if err := svc.RemoverPedido(context.Background(), contato, prot); err != nil {
 		t.Fatalf("RemoverPedido: %v", err)
 	}
-	if err := svc.gravarDepoisDaResposta(context.Background(), sess); err != nil {
+	if err := svc.gravarDepoisDaResposta(context.Background(), sess, nil); err != nil {
 		t.Fatalf("gravarDepoisDaResposta: %v", err)
 	}
 	if final, _ := st.Ler(context.Background(), contato); final.Por(prot) != nil {

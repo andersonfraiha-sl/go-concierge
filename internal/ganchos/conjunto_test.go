@@ -428,3 +428,17 @@ func TestSaneamentoDepoisDoBloqueioMantemOPrimeiroMotivo(t *testing.T) {
 		})
 	}
 }
+
+func TestComObservadorEmSequenciaAvisaTodosNaOrdem(t *testing.T) {
+	var ordem []string
+	observar := func(nome string) ganchos.Opcao {
+		return ganchos.ComObservador(func(context.Context, ganchos.Observacao) { ordem = append(ordem, nome) })
+	}
+	c := ganchos.NovoConjunto(ganchos.Fixos{}, nil, observar("log"), observar("auditoria"))
+
+	c.Turno().AntesDeResponder(context.Background(), ganchos.AntesDeResponder{})
+
+	if !slices.Equal(ordem, []string{"log", "auditoria"}) {
+		t.Fatalf("observadores avisados = %v, want [log auditoria]", ordem)
+	}
+}

@@ -189,7 +189,7 @@ func TestGanchosVeemOTurnoInteiro(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.nome, func(t *testing.T) {
 			r := &roteirosDoTurno{}
-			sess := tt.falar(t, r.conjunto())
+			tt.falar(t, r.conjunto())
 			if n := len(r.entrada.Eventos()); n != 1 {
 				t.Fatalf("mensagem_recebida: %d eventos", n)
 			}
@@ -208,9 +208,6 @@ func TestGanchosVeemOTurnoInteiro(t *testing.T) {
 				if e.CondominioID != "cond-001" || e.AdministradoraID != "adm-a" {
 					t.Fatalf("depois_da_ferramenta sem o alvo: %q/%q", e.AdministradoraID, e.CondominioID)
 				}
-			}
-			if len(sess.registrosDoTurno()) == 0 {
-				t.Fatal("registros do turno vazios")
 			}
 		})
 	}

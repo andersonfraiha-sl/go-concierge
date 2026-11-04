@@ -27,10 +27,15 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
@@ -38,6 +43,10 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/env"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/auditoria"
+	"go-concierge/internal/ganchos/fixos"
+	"go-concierge/internal/ganchos/pii"
 	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
@@ -111,7 +120,7 @@ func main() {
 	migrar := flag.Bool("migrar", false, "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev, lido também do -env)")
 	flag.Parse()
 	env.Carregar(*dotenv)
-	registro := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	registro := novoRegistro(os.Stderr)
 	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
 	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET"),
 		SegredoExportacao: os.Getenv("GANCHOS_SEGREDO_EXPORTACAO")})
@@ -195,8 +204,23 @@ func main() {
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
+	// o sinal de desligamento cancela o ctx do servidor (a retenção da auditoria para com ele)
+	// e encerra o processo, como antes de o sinal ser capturado
+	ctxServidor, pararSinais := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctxServidor.Done()
+		pararSinais()
+		log.Print("okf-admin: desligando")
+		os.Exit(0)
+	}()
+	conjunto, auditor, err := s.montarGanchos(ctxServidor, noop.NewMeterProvider().Meter("ganchos"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	go auditoria.Reter(ctxServidor, db.Ent, time.Now)
+
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
-	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}
+	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv, Ganchos: conjunto}
 	if mcpCli != nil {
 		cfgHarness.MCP = mcpCli
 	}
@@ -207,7 +231,7 @@ func main() {
 		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
-		Pool: db.Pool,
+		Pool: db.Pool, Ganchos: conjunto, Auditoria: auditor,
 	}
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
@@ -264,6 +288,35 @@ func main() {
 		}()
 	}
 	log.Fatal(http.ListenAndServe(*addr, handler))
+}
+
+// novoRegistro é o log do processo: JSON, com CPF e telefone mascarados em toda mensagem e
+// atributo de texto antes de sair.
+func novoRegistro(w io.Writer) *slog.Logger {
+	return slog.New(pii.NovoHandler(slog.NewJSONHandler(w, nil)))
+}
+
+// montarGanchos monta o Conjunto único do servidor: os fixos, as regras do cache (aquecido
+// aqui; sem ele o boot falha), log e métricas em m, e o auditor que grava as decisões. O
+// mesmo Conjunto vai no turno do concierge e no harness; o auditor, no Servico, para o turno
+// gravar a auditoria no lote pós resposta.
+func (s *servidor) montarGanchos(ctx context.Context, m metric.Meter) (*ganchos.Conjunto, *auditoria.Auditor, error) {
+	var recarga func(resultado string)
+	// o cache só recarrega a partir do Aquecer, quando recarga já existe
+	cache := regras.NovoCache(s.regras, regras.Compilar, func(resultado string) { recarga(resultado) })
+	recarga, auditoriaFalhou, err := ganchos.Contadores(m, cache.Indice)
+	if err != nil {
+		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
+	}
+	if err := cache.Aquecer(ctx); err != nil {
+		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
+	}
+	observabilidade, err := ganchos.ComObservabilidade(slog.Default(), m)
+	if err != nil {
+		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
+	}
+	auditor := auditoria.NovoAuditor(s.banco, auditoriaFalhou, time.Now)
+	return ganchos.NovoConjunto(fixos.Todos(), cache.Indice, observabilidade, auditor.Observador()), auditor, nil
 }
 
 // migrarPorPadrao liga as migrations no boot só em desenvolvimento; nos demais ambientes
