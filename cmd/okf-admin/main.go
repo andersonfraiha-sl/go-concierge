@@ -36,6 +36,7 @@ import (
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/banco"
+	"go-concierge/internal/catalogonexus"
 	"go-concierge/internal/env"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/gruvi"
@@ -49,11 +50,13 @@ import (
 )
 
 type servidor struct {
-	cat     *okf.Catalogo
-	web     fs.FS
-	account string
-	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
-	log     *log.Logger
+	cat                *okf.Catalogo
+	web                fs.FS
+	account            string
+	nexus              string
+	catalogoNexusStore *okf.CatalogoNexusStore
+	catalogoNexusMCP   *catalogonexus.Service
+	log                *log.Logger
 
 	// canal ATENDE (webhook + emulador no Console)
 	atende              *atende.Servico
@@ -129,6 +132,19 @@ func main() {
 		log.Fatal(err)
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
+	catalogoNexusStore, err := okf.NewCatalogoNexusStore(cat.Root, account)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var catalogoNexusMCP *catalogonexus.Service
+	if token := strings.TrimSpace(os.Getenv("LLM_LUNA_GATEWAY_TOKEN")); token != "" {
+		endpoint := env.Ou("CATALOGO_NEXUS_MCP_URL", catalogonexus.DefaultURL)
+		caller, err := catalogonexus.NewMCPCaller(endpoint, token)
+		if err != nil {
+			log.Fatal(err)
+		}
+		catalogoNexusMCP = catalogonexus.New(caller)
+	}
 	cli := nexus.New(os.Getenv("NEXUS_BASE_URL"), os.Getenv("NEXUS_TOKEN"))
 	// Recursos: o catálogo MCP (tools/list) tem precedência; depois o Nexus ao vivo ou o
 	// instantâneo nexus/<account>.yaml. Sem nenhum, o catálogo não confere declarações.
@@ -138,7 +154,7 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
+	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
 		implantacao:  escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
 		autenticador: novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
 		authMode:     cfg.AuthMode,
@@ -387,14 +403,17 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 
 	// leitura do catálogo: skills.ler em qualquer escopo
 	for padrao, h := range map[string]http.HandlerFunc{
-		"GET /api/anatomia":         s.anatomia,
-		"GET /api/agentes":          s.arvore,
-		"GET /api/agente":           s.agente,
-		"GET /api/agentes/exportar": s.exportar,
-		"GET /api/arquivo":          s.lerArquivo,
-		"GET /api/arquivo/modelo":   s.modelo,
-		"GET /api/projecao":         s.projecao,
-		"GET /api/nexus/recursos":   s.recursos,
+		"GET /api/anatomia":                s.anatomia,
+		"GET /api/agentes":                 s.arvore,
+		"GET /api/agente":                  s.agente,
+		"GET /api/agentes/exportar":        s.exportar,
+		"GET /api/arquivo":                 s.lerArquivo,
+		"GET /api/arquivo/modelo":          s.modelo,
+		"GET /api/projecao":                s.projecao,
+		"GET /api/nexus/recursos":          s.recursos,
+		"GET /api/catalogo-nexus/recursos": s.listarCatalogoNexus,
+		"POST /api/catalogo-nexus/search":  s.buscarCatalogoNexus,
+		"POST /api/catalogo-nexus/detail":  s.detalharCatalogoNexus,
 	} {
 		mux.Handle(padrao, s.protegidaEmAlgum(acesso.SkillsLer, h))
 	}
@@ -412,9 +431,11 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	}
 	// recursos do Nexus: ferramentas.editar na Superlógica
 	for padrao, h := range map[string]http.HandlerFunc{
-		"PUT /api/nexus/recurso":    s.salvarRecurso,
-		"DELETE /api/nexus/recurso": s.removerRecurso,
-		"POST /api/agente/recursos": s.vincular,
+		"PUT /api/nexus/recurso":             s.salvarRecurso,
+		"DELETE /api/nexus/recurso":          s.removerRecurso,
+		"POST /api/agente/recursos":          s.vincular,
+		"PUT /api/catalogo-nexus/recurso":    s.salvarCatalogoNexus,
+		"DELETE /api/catalogo-nexus/recurso": s.removerCatalogoNexus,
 	} {
 		mux.Handle(padrao, s.protegida(acesso.FerramentasEditar, alvoSuperlogica, h))
 	}
@@ -647,6 +668,91 @@ func (s *servidor) projecao(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"projecao": s.cat.Projecao(a), "roteador": s.cat.Roteador(a)})
+}
+
+func (s *servidor) listarCatalogoNexus(w http.ResponseWriter, r *http.Request) {
+	lista, err := s.catalogoNexusStore.Listar()
+	if err != nil {
+		s.responderErroInterno(w, r, "ler catálogo Nexus de recursos", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"account": s.account, "recursos": lista})
+}
+
+func (s *servidor) buscarCatalogoNexus(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Query string `json:"q"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("informe a busca em q"))
+		return
+	}
+	resultados, err := s.catalogoNexusMCP.Search(r.Context(), corpo.Query)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"resultados": resultados})
+}
+
+func (s *servidor) detalharCatalogoNexus(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		ServiceID   string `json:"serviceId"`
+		OperationID string `json:"operationId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("informe serviceId e operationId"))
+		return
+	}
+	detalhes, err := s.catalogoNexusMCP.GetOperation(r.Context(), corpo.ServiceID, corpo.OperationID)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, detalhes)
+}
+
+func (s *servidor) salvarCatalogoNexus(w http.ResponseWriter, r *http.Request) {
+	var corpo struct {
+		Original string      `json:"original"`
+		Recurso  okf.Recurso `json:"recurso"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("corpo de recurso inválido"))
+		return
+	}
+	if err := s.catalogoNexusStore.Salvar(corpo.Original, corpo.Recurso); err != nil {
+		switch {
+		case errors.Is(err, okf.ErrRecursoCatalogoDuplicado):
+			writeJSON(w, http.StatusConflict, map[string]string{"codigo": "RECURSO_DUPLICADO", "error": "já existe um recurso com esse nome"})
+		case errors.Is(err, okf.ErrRecursoCatalogoAusente):
+			writeJSON(w, http.StatusNotFound, map[string]string{"codigo": "RECURSO_NAO_ENCONTRADO", "error": "o recurso que está sendo editado não existe mais"})
+		case strings.Contains(err.Error(), "inválido") || strings.Contains(err.Error(), "desconhecido") || strings.Contains(err.Error(), "precisa ser") || strings.Contains(err.Error(), "sem nome"):
+			writeErr(w, http.StatusBadRequest, err)
+		default:
+			s.responderErroInterno(w, r, "salvar catálogo Nexus de recursos", err)
+			return
+		}
+		return
+	}
+	s.listarCatalogoNexus(w, r)
+}
+
+func (s *servidor) removerCatalogoNexus(w http.ResponseWriter, r *http.Request) {
+	nome := strings.TrimSpace(r.URL.Query().Get("nome"))
+	if nome == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("informe nome"))
+		return
+	}
+	if err := s.catalogoNexusStore.Remover(nome); err != nil {
+		if errors.Is(err, okf.ErrRecursoCatalogoAusente) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"codigo": "RECURSO_NAO_ENCONTRADO", "error": err.Error()})
+		} else {
+			s.responderErroInterno(w, r, "remover do catálogo Nexus de recursos", err)
+		}
+		return
+	}
+	s.listarCatalogoNexus(w, r)
 }
 
 func (s *servidor) recursos(w http.ResponseWriter, _ *http.Request) {

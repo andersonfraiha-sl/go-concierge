@@ -85,8 +85,12 @@ type ambienteRotas struct {
 func novoAmbienteRotas(t *testing.T) ambienteRotas {
 	t.Helper()
 	raiz := t.TempDir()
-	if err := os.CopyFS(raiz, os.DirFS(filepath.Join("..", "..", "okf"))); err != nil {
-		t.Fatal(err)
+	for _, pasta := range []string{"agentes", "nexus"} {
+		origem := filepath.Join("..", "..", "okf", pasta)
+		destino := filepath.Join(raiz, pasta)
+		if err := os.CopyFS(destino, os.DirFS(origem)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	cat, err := okf.NewCatalogo(raiz)
 	if err != nil {

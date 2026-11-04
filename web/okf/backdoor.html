@@ -41,6 +41,7 @@
       <a href="#/" class="nav-home" id="navHome" data-secao="visao"><i data-lucide="layout-dashboard"></i><span>Visão geral</span><em>o concierge e os casos de uso</em></a>
       <a href="#/agentes" class="nav-home" data-secao="agentes"><i data-lucide="folder-tree"></i><span>Casos de uso</span><em>a árvore: o concierge e os casos de uso</em></a>
       <a href="#/recursos" class="nav-home" data-secao="recursos"><i data-lucide="plug"></i><span>Recursos do Nexus</span><em id="nexusResumo">o que a account oferece</em></a>
+      <a href="#/catalogo-nexus" class="nav-home" data-secao="catalogo-nexus"><i data-lucide="search"></i><span>Catálogo Nexus Recursos</span><em id="catalogoNexusResumo">recursos escolhidos</em></a>
       <a href="/backdoor/orquestracao" class="nav-home"><i data-lucide="route"></i><span>Orquestração</span><em>router, planning ou react</em></a>
       <span class="nav-label">Condomínios</span>
       <a href="/backdoor/administradoras" class="nav-home"><i data-lucide="building"></i><span>Administradoras</span><em>e os condomínios de cada uma</em></a>
@@ -70,6 +71,14 @@
         </div>
         <p class="notice info" id="nexusDica"><i data-lucide="info"></i><span></span></p>
         <div class="card"><div id="recursosNexus" class="catalogo catalogo-central"></div></div>
+      </section>
+
+      <section id="secCatalogoNexus" hidden>
+        <div class="page-head">
+          <div><h1>Catálogo Nexus Recursos</h1><p>Encontre operações no catálogo Nexus, revise os detalhes e mantenha a lista de recursos escolhidos para esta account.</p></div>
+          <div class="page-actions"><label class="form-row" style="min-width:240px"><span class="muted" style="font-size:12px">Filtrar</span><input class="field-input" id="filtroCatalogoNexus" placeholder="nome, descrição, tipo…" autocomplete="off"></label><button class="btn btn-primary" id="btnNovoRecursoCatalogo" style="align-self:end"><i data-lucide="plus"></i><span>Novo recurso</span></button></div>
+        </div>
+        <div class="card"><div id="recursosCatalogoNexus" class="catalogo catalogo-central"></div></div>
       </section>
 
       <!-- visão geral -->
@@ -275,6 +284,51 @@
     </aside>
   </div>
 
+  <div id="drawerCatalogoNexus" hidden>
+    <div class="drawer-backdrop" data-fecha="drawerCatalogoNexus"></div>
+    <aside class="drawer drawer-larga">
+      <header><span class="res-icon"><i data-lucide="search"></i></span><h2 id="drawerCatalogoNexusTitulo">Novo recurso</h2><button class="vote" data-fecha="drawerCatalogoNexus" aria-label="Fechar"><i data-lucide="x"></i></button></header>
+      <div class="body" id="catalogoNexusBusca">
+        <p class="notice info"><i data-lucide="info"></i><span>Pesquise operações no catálogo. A seleção só consulta os detalhes; não executa a API.</span></p>
+        <div class="form-row"><label>O que deseja encontrar?</label><div class="page-actions"><input class="field-input" id="catalogoNexusQuery" autocomplete="off" placeholder="listar moradores por unidade"><button type="button" class="btn btn-primary" id="btnBuscarCatalogoNexus"><i data-lucide="search"></i><span>Buscar</span></button></div></div>
+        <p class="muted" id="catalogoNexusBuscaStatus"></p>
+        <div id="catalogoNexusResultados"></div>
+      </div>
+      <form id="formCatalogoNexus" class="body" hidden>
+        <p class="notice info"><i data-lucide="info"></i><span>Encontre a operação, revise os campos e decida o que cadastrar. Autenticação, corpo e retorno não são preenchidos por suposição.</span></p>
+        <div class="form-grid">
+          <div class="form-row"><label>Nome comercial</label><input class="field-input" name="titulo"></div>
+          <div class="form-row"><label>Código</label><input class="field-input mono" name="name" required spellcheck="false"></div>
+          <div class="form-row"><label>Tipo (kind)</label><select class="field-select" name="kind"><option value="api">api</option><option value="database">database</option><option value="knowledge">knowledge</option><option value="memory">memory</option><option value="action">action</option><option value="activity">activity</option><option value="agent">agent</option><option value="form">form</option></select></div>
+          <div class="form-row"><label>Visibilidade</label><select class="field-select" name="visibility"><option value="">— escolha —</option><option value="private">private</option><option value="public">public</option></select></div>
+          <div class="form-row"><label>Efeito</label><label class="switch" style="margin-top:8px"><input type="checkbox" name="write"><i></i>write — revise se a operação altera dados</label></div>
+          <div class="form-row span-2"><label>Descrição</label><textarea class="field-area" name="description" rows="3"></textarea></div>
+        </div>
+        <h3 class="sec-titulo"><i data-lucide="link" class="i-sm"></i>Conexão</h3>
+        <div class="form-grid">
+          <div class="form-row"><label>Método</label><input class="field-input mono" name="metodo" spellcheck="false"></div>
+          <div class="form-row"><label>URL</label><input class="field-input mono" name="url" spellcheck="false"></div>
+          <div class="form-row span-2"><label>Headers <small>inclua autenticação somente após revisar o detalhe recebido</small></label><table class="res-table larga tabela-edit" id="tabCatalogoNexusHeaders"><thead><tr><th>Header</th><th>Valor</th><th></th></tr></thead><tbody></tbody></table><button type="button" class="btn btn-ghost btn-sm" id="btnAddCatalogoNexusHeader">Adicionar header</button></div>
+          <div class="form-row span-2"><label>Corpo <small>template JSON, revisado manualmente</small></label><textarea class="field-area code" name="corpo" rows="3" spellcheck="false"></textarea></div>
+        </div>
+        <h3 class="sec-titulo"><i data-lucide="log-out" class="i-sm"></i>Saída</h3>
+        <div class="form-row"><label>Resumo do retorno</label><input class="field-input" name="output"></div>
+        <table class="res-table larga tabela-edit" id="tabCatalogoNexusSaida"><thead><tr><th>Campo</th><th>Caminho</th><th>Tipo</th><th>Descrição</th><th></th></tr></thead><tbody></tbody></table>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddCatalogoNexusSaida">Adicionar campo de saída</button>
+        <h3 class="sec-titulo"><i data-lucide="flask-conical" class="i-sm"></i>Amostra de retorno <small class="muted">JSON</small></h3>
+        <textarea class="field-area code" name="amostra" rows="4" spellcheck="false"></textarea>
+        <h3 class="sec-titulo"><i data-lucide="log-in" class="i-sm"></i>Parâmetros de entrada</h3>
+        <table class="res-table larga tabela-edit" id="tabCatalogoNexusParams"><thead><tr><th>Nome</th><th>Tipo</th><th>Obrig.</th><th>Descrição e localização</th><th></th></tr></thead><tbody></tbody></table>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddCatalogoNexusParam"><i data-lucide="plus" class="i-sm"></i>Parâmetro</button>
+        <h3 class="sec-titulo"><i data-lucide="file-text" class="i-sm"></i>Detalhes recebidos do catálogo</h3>
+        <pre id="catalogoNexusEvidence" class="pre"></pre>
+        <h3 class="sec-titulo"><i data-lucide="file-json" class="i-sm"></i>Definição OpenAPI para revisão</h3>
+        <pre id="catalogoNexusDefinition" class="pre"></pre>
+        <div class="form-actions"><button type="button" class="btn btn-ghost" id="btnVoltarCatalogoNexus">Voltar à busca</button><button type="button" class="btn btn-danger" id="btnRemoverCatalogoNexus" hidden><i data-lucide="trash-2"></i><span>Remover</span></button><span class="muted" id="catalogoNexusFormStatus" style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="save"></i><span>Adicionar recurso</span></button></div>
+      </form>
+    </aside>
+  </div>
+
   <!-- drawer: novo arquivo -->
   <div id="drawerArquivo" hidden>
     <div class="drawer-backdrop" data-fecha="drawerArquivo"></div>
@@ -289,6 +343,7 @@
     </aside>
   </div>
 
-  <script src="/backdoor.js?v=11"></script>
+  <script src="/backdoor.js?v=12"></script>
+  <script src="/catalogo-nexus.js?v=3"></script>
 </body>
 </html>
