@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
-import { PESOS, TOKENS_DA_SKILL } from '@/theme/tokens';
+import { PESOS, TIPOS, TOKENS_DA_SKILL } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
 
 type Props = {
@@ -36,7 +36,12 @@ function CabecalhoDoGrupo({ titulo, subtitulo }: Pick<Props, 'titulo' | 'subtitu
       <Typography
         component="h2"
         variant="overline"
-        sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
+        sx={{
+          color: 'text.secondary',
+          fontWeight: PESOS.semi,
+          fontSize: TIPOS.body2,
+          lineHeight: 16 / TIPOS.body2,
+        }}
       >
         {titulo}
       </Typography>

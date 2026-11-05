@@ -40,10 +40,10 @@ function CabecalhoDaPagina({ onNova }: { onNova: () => void }): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <Box sx={{ flex: 1 }}>
-        <Typography variant="h5" component="h1">
+        <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
           Skills
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: PESOS.regular }}>
           O que o concierge sabe fazer. Abra uma skill para ajustar o que ele fala e o passo a
           passo.
         </Typography>
