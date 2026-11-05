@@ -52,7 +52,7 @@ function CabecalhoDaPagina({ podeEditar, onNova }: CabecalhoProps): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
       <Box sx={{ flex: 1 }}>
-        <Typography variant="h5" component="h1">
+        <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
           Ferramentas
         </Typography>
         <Typography color="text.secondary">

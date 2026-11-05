@@ -163,7 +163,7 @@ function CabecalhoDoDrawer({ ferramenta, usadaEm, onFechar }: CabecalhoProps): R
         >
           Ferramenta
         </Typography>
-        <Typography variant="h5" component="h2" color="secondary.main" sx={{ mt: 1 }}>
+        <Typography variant="h5" component="h2" sx={{ color: 'secondary.main', mt: 1 }}>
           {ferramenta ? tituloDe(ferramenta) : 'Nova ferramenta'}
         </Typography>
         {usadaEm.length > 0 && (
