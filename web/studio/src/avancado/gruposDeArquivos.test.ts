@@ -17,7 +17,7 @@ describe('agruparArquivos', () => {
     { pasta: 'evals', grupo: 'Modelos e testes' },
   ])('groupsFilesByFolder: $pasta vai para $grupo', ({ pasta, grupo }) => {
     const resultado = agruparArquivos({ [pasta]: [arquivo(`${pasta}/x`)] });
-    expect(resultado).toEqual([{ grupo, arquivos: [arquivo(`${pasta}/x`)] }]);
+    expect(resultado).toEqual([{ grupo, arquivos: [{ ...arquivo(`${pasta}/x`), exibicao: 'x' }] }]);
   });
 
   it('groupsFilesByFolder combines multiple folders in the same group in a fixed order', () => {
@@ -27,10 +27,25 @@ describe('agruparArquivos', () => {
       assets: [arquivo('assets/rodape.md')],
     });
     expect(resultado).toEqual([
-      { grupo: 'Raiz', arquivos: [arquivo('rules/politicas.md')] },
+      { grupo: 'Raiz', arquivos: [{ ...arquivo('rules/politicas.md'), exibicao: 'politicas.md' }] },
       {
         grupo: 'Modelos e testes',
-        arquivos: [arquivo('evals/casos.yaml'), arquivo('assets/rodape.md')],
+        arquivos: [
+          { ...arquivo('evals/casos.yaml'), exibicao: 'casos.yaml' },
+          { ...arquivo('assets/rodape.md'), exibicao: 'rodape.md' },
+        ],
+      },
+    ]);
+  });
+
+  it('groupsFilesByFolder keeps a nested relative path when it does not repeat the folder', () => {
+    const resultado = agruparArquivos({ knowledge: [arquivo('knowledge/domain/condominio.md')] });
+    expect(resultado).toEqual([
+      {
+        grupo: 'Conhecimento',
+        arquivos: [
+          { ...arquivo('knowledge/domain/condominio.md'), exibicao: 'domain/condominio.md' },
+        ],
       },
     ]);
   });

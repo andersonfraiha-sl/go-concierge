@@ -244,7 +244,7 @@ describe('contexto do Copiloto por tela', () => {
         'GET /api/arquivo': () => json({ caminho: 'rules/politicas.md', conteudo: 'Regra' }),
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'rules/politicas.md' }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await screen.findByDisplayValue('Regra');
 
     expect(await contextoEnviado(user, pedidos)).toEqual({
@@ -263,7 +263,7 @@ describe('contexto do Copiloto por tela', () => {
         'GET /api/arquivo': () => json({ caminho: 'rules/politicas.md', conteudo: 'Regra' }),
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'rules/politicas.md' }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await screen.findByDisplayValue('Regra');
 
     expect(await contextoEnviado(user, pedidos)).toEqual({ tela: 'skills' });

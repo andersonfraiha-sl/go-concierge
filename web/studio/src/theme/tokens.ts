@@ -207,3 +207,7 @@ export const REGISTRA_FORTE = '#8A4300';
 export const COR_DA_CHAVE_YAML = '#7B1FA2';
 /** Botão perigoso contornado (Remover/Excluir): borda e texto mais suaves que `danger.main`. */
 export const PERIGO_SUAVE = { borda: '#F3C6C6', texto: '#B3191A' } as const;
+/** Raio do item de arquivo selecionado/não selecionado na árvore do Avançado. */
+export const RAIO_DO_ITEM_DA_ARVORE = '7px';
+/** Fundo do bloco de código do editor de arquivo (Avançado), um tom abaixo do branco. */
+export const FUNDO_DO_EDITOR = '#FBFCFD';

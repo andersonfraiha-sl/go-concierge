@@ -99,7 +99,17 @@ export function AvancadoPage(): ReactNode {
           onTrocar: (valor) => mudar('aba', valor),
         }}
       />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, py: 3, px: 4 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+          py: 3,
+          px: 4,
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
         {aba.porItem && (
           <>
             <SeletorDeItem
@@ -169,13 +179,23 @@ const contagem = (quantidade: number, singular: string, plural: string): string 
   quantidade === 0 ? '' : ` · ${quantidade} ${quantidade === 1 ? singular : plural}`;
 
 const descreverNo = (item: NoDaArvore): string =>
-  `${item.caminho}${contagem(item.erros, 'erro', 'erros')}${contagem(item.avisos, 'aviso', 'avisos')}`;
+  `${item.nome}${contagem(item.erros, 'erro', 'erros')}${contagem(item.avisos, 'aviso', 'avisos')}`;
 
 type SeletorProps = {
   nos: NoDaArvore[];
   atual: NoDaArvore | undefined;
   onEscolher: (caminho: string) => void;
 };
+
+const ESTILO_DO_ROTULO_FIXO = {
+  '& .MuiInputLabel-root.MuiInputLabel-shrink': {
+    fontSize: TIPOS.overline,
+    fontWeight: PESOS.semi,
+    color: 'text.tertiary',
+    textTransform: 'uppercase',
+    letterSpacing: '.06em',
+  },
+} as const;
 
 function SeletorDeItem({ nos, atual, onEscolher }: SeletorProps): ReactNode {
   if (!atual) return null;
@@ -186,7 +206,7 @@ function SeletorDeItem({ nos, atual, onEscolher }: SeletorProps): ReactNode {
       label="Concierge ou skill"
       value={atual.caminho}
       onChange={(evento) => onEscolher(evento.target.value)}
-      sx={{ maxWidth: 480 }}
+      sx={{ maxWidth: 480, ...ESTILO_DO_ROTULO_FIXO }}
     >
       {achatar(nos).map((item) => (
         <MenuItem key={item.caminho} value={item.caminho}>
