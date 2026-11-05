@@ -80,11 +80,19 @@ type Conjunto struct {
 	fixos    Fixos
 	regras   func() *Indice
 	observar func(context.Context, Observacao)
+	relogio  func() time.Time
+}
+
+// ComRelogio troca o relógio que mede o prazo de cada gancho (o padrão é time.Now). Teste
+// que não mede prazo passa um relógio parado: o resultado não depende de pausa do escalonador.
+func ComRelogio(relogio func() time.Time) Opcao {
+	return func(c *Conjunto) { c.relogio = relogio }
 }
 
 // NovoConjunto monta o conjunto. regras nil (ou devolvendo nil) = sem regras.
 func NovoConjunto(f Fixos, regras func() *Indice, opcoes ...Opcao) *Conjunto {
 	c := &Conjunto{
+		relogio: time.Now,
 		fixos: Fixos{
 			MensagemRecebida:         fixar(f.MensagemRecebida),
 			AntesDaFerramenta:        fixar(f.AntesDaFerramenta),
@@ -248,12 +256,11 @@ type ponto[E Ocorrencia] struct {
 // avaliarNoPonto roda checagem, regras do alvo e saneamento como uma avaliação só. O alvo
 // e o Grava() da política saem do evento como ele deixou a checagem: só fixo mexe neles.
 func avaliarNoPonto[E comAlvo](ctx context.Context, t Turno, p ponto[E], ev E) Resultado[E] {
-	inicio := time.Now()
-	a := seguir(ctx, comecar(ev), p.fixos.Checagem)
+	a := seguir(ctx, comecar(ev, t.conjunto.relogio), p.fixos.Checagem)
 	a.grava = gravaDe(a.evento)
 	condominioID, administradoraID := a.evento.alvo()
 	a = seguir(ctx, a, carimbar(p.regras.Para(condominioID, administradoraID), false))
-	r := sanear(ctx, a, p.fixos.Saneamento).resultado(time.Since(inicio))
+	r := sanear(ctx, a, p.fixos.Saneamento).resultado()
 	if t.conjunto.observar != nil {
 		t.conjunto.observar(ctx, Observacao{
 			Evento: ev.Nome(), CondominioID: condominioID, AdministradoraID: administradoraID,

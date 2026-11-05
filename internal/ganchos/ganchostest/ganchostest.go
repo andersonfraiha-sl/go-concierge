@@ -4,6 +4,7 @@ package ganchostest
 import (
 	"slices"
 	"sync"
+	"time"
 
 	"go-concierge/internal/ganchos"
 )
@@ -38,7 +39,11 @@ func Gancho[E ganchos.Ocorrencia](nome string, r *Roteiro[E]) ganchos.Gancho[E] 
 	}
 }
 
-// Conjunto monta um conjunto com fixos f e o índice fixo idx (nil = sem regras).
+// Conjunto monta um conjunto com fixos f e o índice fixo idx (nil = sem regras). O relógio
+// do prazo fica parado: o prazo de 2 ms é guarda de produção, e com o relógio de verdade
+// uma pausa de GC ou do escalonador fazia a regra do teste falhar e mudar o turno.
+// Quem testa o prazo usa ganchos.Avaliar ou ganchos.ComRelogio.
 func Conjunto(f ganchos.Fixos, idx *ganchos.Indice) *ganchos.Conjunto {
-	return ganchos.NovoConjunto(f, func() *ganchos.Indice { return idx })
+	parado := time.Unix(0, 0)
+	return ganchos.NovoConjunto(f, func() *ganchos.Indice { return idx }, ganchos.ComRelogio(func() time.Time { return parado }))
 }
