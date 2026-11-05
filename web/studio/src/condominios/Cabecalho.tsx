@@ -1,4 +1,5 @@
-import { Box, Switch, Typography } from '@mui/material';
+import CloseOutlined from '@mui/icons-material/CloseOutlined';
+import { Box, IconButton, Switch, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { iconeDaSkill } from '@/skills/icones';
 import { ICONES, RAIOS } from '@/theme/tokens';
@@ -25,6 +26,7 @@ type Props = {
   origem: Origem;
   travado: boolean;
   onMudarHabilitada: (ligado: boolean) => void;
+  onFechar: () => void;
 };
 
 export function Cabecalho(props: Props): ReactNode {
@@ -43,6 +45,14 @@ const CORES_DO_ICONE = {
   consulta: { bgcolor: 'background.tint', color: 'primary.main' },
 } as const;
 
+const ESTILO_DO_BOTAO_DE_FECHAR = {
+  width: 30,
+  height: 30,
+  borderRadius: `${RAIOS.campo - 1}px`,
+  bgcolor: 'background.neutralFill',
+  color: 'text.secondary',
+} as const;
+
 function LinhaDoTitulo(props: Props): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -53,6 +63,13 @@ function LinhaDoTitulo(props: Props): ReactNode {
         slotProps={{ input: { 'aria-label': 'Ligada neste condomínio' } }}
         onChange={(_, ligado) => props.onMudarHabilitada(ligado)}
       />
+      <IconButton
+        aria-label="Fechar detalhes"
+        onClick={props.onFechar}
+        sx={ESTILO_DO_BOTAO_DE_FECHAR}
+      >
+        <CloseOutlined sx={{ fontSize: ICONES.grande }} />
+      </IconButton>
     </Box>
   );
 }

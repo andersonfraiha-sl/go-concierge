@@ -19,13 +19,14 @@ const donoDoCatalogo: Eu = {
   dev: true,
 };
 
-type Opcoes = { condominio?: string; caso?: string; editavel?: boolean };
+type Opcoes = { condominio?: string; caso?: string; editavel?: boolean; onFechar?: () => void };
 
 /** Busca o estado ao vivo, como fará a página que abre o drawer, para refletir o que o servidor devolve. */
 function Harness({
   condominio = 'vila-verde',
   caso = 'agendar-mudanca',
   editavel = true,
+  onFechar = () => {},
 }: Opcoes): ReactNode {
   const consulta = useEstado();
   if (!consulta.data) return null;
@@ -38,7 +39,7 @@ function Harness({
       caso={encontrado}
       titulo={encontrado.titulo}
       editavel={editavel}
-      onFechar={() => {}}
+      onFechar={onFechar}
     />
   );
 }
@@ -233,6 +234,16 @@ describe('SkillDoCondominioDrawer', () => {
     abrirDrawer();
     await screen.findByText('Agendar mudança');
     expect(screen.queryByText('Como o concierge reconhece o pedido')).not.toBeInTheDocument();
+  });
+
+  it('closesOnCloseButtonClick', async () => {
+    responderCom(rotasBase(gestor));
+    let fechou = false;
+    const { user } = renderComProvedores(<Harness onFechar={() => (fechou = true)} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Fechar detalhes' }));
+
+    expect(fechou).toBe(true);
   });
 
   it('linksToFlow', async () => {

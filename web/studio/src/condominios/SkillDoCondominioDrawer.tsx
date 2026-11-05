@@ -48,14 +48,14 @@ export function SkillDoCondominioDrawer(props: Props): ReactNode {
 }
 
 function ConteudoDoDrawer(props: Props): ReactNode {
-  const { estado, condominio, caso, titulo, editavel } = props;
+  const { estado, condominio, caso, titulo, editavel, onFechar } = props;
   const { cabecalho, quem, rodape } = useHabilitacaoDaSkill(props);
   const podeVerTextoDaSkill = usePodeEditar('skills.editar_textos');
   const alvo = { estado, condominio, caso, editavel };
 
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Cabecalho caso={caso} titulo={titulo} {...cabecalho} />
+      <Cabecalho caso={caso} titulo={titulo} onFechar={onFechar} {...cabecalho} />
       <QuemPodeUsar {...quem} />
       <OrientacaoDaSkill {...alvo} />
       <AjustesDaSkill {...alvo} />
