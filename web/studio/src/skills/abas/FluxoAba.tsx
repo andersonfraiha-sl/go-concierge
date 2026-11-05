@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress } from '@mui/material';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { type Dispatch, type ReactNode, type SetStateAction, useMemo, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
@@ -51,6 +52,32 @@ export function FluxoAba({ nome }: Props): ReactNode {
   if (lido.isError)
     return <FalhaDoFluxo erro={lido.error} onTentarDeNovo={() => void lido.refetch()} />;
   return <EditorDeFluxo key={nome} nome={nome} lido={lido.data} />;
+}
+
+/** Faixa no topo do canvas quando o gestor só pode ver o passo a passo, não editá-lo. */
+function AvisoDeSoLeitura(): ReactNode {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        mb: 2.5,
+        py: 1.25,
+        px: 2,
+        bgcolor: 'background.paper',
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: RAIO.painel,
+      }}
+    >
+      <LockOutlinedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+      <Typography variant="body2" sx={{ color: 'text.strong' }}>
+        Você vê o passo a passo como gestor. Para mudar, fale com quem constrói as skills ou peça ao
+        Copiloto uma explicação.
+      </Typography>
+    </Box>
+  );
 }
 
 function FalhaDoFluxo({ erro, onTentarDeNovo }: { erro: Error; onTentarDeNovo: () => void }) {
@@ -246,7 +273,8 @@ function CanvasEPainel(props: PropsDoCanvas): ReactNode {
         overflow: 'hidden',
       }}
     >
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {!editavel && <AvisoDeSoLeitura />}
         <FluxoCanvas
           fluxo={fluxo}
           problemas={problemas}
