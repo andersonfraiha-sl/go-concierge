@@ -47,7 +47,7 @@ export type PropsDoCabecalho<Id extends string> = {
 };
 
 /**
- * Cabeçalho das telas de detalhe: substitui a barra global e o menu. Dentro do LayoutDeDetalhe
+ * Cabeçalho das telas de detalhe: substitui a barra global. Dentro do LayoutDeDetalhe
  * se desenha na vaga do topo (acima do Copiloto); fora dele, no próprio lugar.
  * "Salvo às" vem sozinho do último autosave bem-sucedido da tela.
  */

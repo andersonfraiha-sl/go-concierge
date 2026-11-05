@@ -1,22 +1,27 @@
 import type { SxProps, Theme } from '@mui/material';
 import { type ReactNode, useState } from 'react';
-import { SHELL } from '@/theme/tokens';
 import { MolduraDoStudio } from './MolduraDoStudio';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
 
-// Telas de lista: 34 px em cima, 55 nas laterais e embaixo, até 1204 px de largura.
-const ESTILO_DO_CONTEUDO: SxProps<Theme> = {
-  pt: 4,
-  px: 5,
-  pb: 5,
-  maxWidth: SHELL.larguraMaximaDaLista,
-};
+// Telas de lista: 34 px em cima, 55 nas laterais e embaixo, na largura toda da janela.
+const ESTILO_DO_CONTEUDO: SxProps<Theme> = { pt: 4, px: 5, pb: 5 };
 
 /** Layout das telas de lista: barra global no topo e menu à esquerda. */
 export function StudioLayout(): ReactNode {
+  return (
+    <MolduraDoStudio
+      topo={<Topbar />}
+      lateral={<MenuLateral />}
+      estiloDoConteudo={ESTILO_DO_CONTEUDO}
+    />
+  );
+}
+
+/** Menu à esquerda com a preferência de recolhido lembrada entre telas e sessões. */
+export function MenuLateral(): ReactNode {
   const [recolhido, setRecolhido] = useState(lerMenuRecolhido);
 
   const alternarMenu = () => {
@@ -25,13 +30,7 @@ export function StudioLayout(): ReactNode {
     gravarMenuRecolhido(proximo);
   };
 
-  return (
-    <MolduraDoStudio
-      topo={<Topbar />}
-      lateral={<Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />}
-      estiloDoConteudo={ESTILO_DO_CONTEUDO}
-    />
-  );
+  return <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />;
 }
 
 function lerMenuRecolhido(): boolean {

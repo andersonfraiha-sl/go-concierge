@@ -29,7 +29,7 @@ function Tela() {
 }
 
 describe('CabecalhoDeDetalhe no LayoutDeDetalhe', () => {
-  it('trocaBarraEMenuPeloCabecalhoAcimaDoConteudo', async () => {
+  it('trocaBarraPeloCabecalhoEMantemOMenu', async () => {
     responderCom({ 'GET /api/eu': () => json(eu) });
     renderComProvedores(<Tela />, { layout: <LayoutDeDetalhe /> });
 
@@ -47,7 +47,7 @@ describe('CabecalhoDeDetalhe no LayoutDeDetalhe', () => {
     );
     expect(within(cabecalho).getByRole('button', { name: 'Copiloto' })).toBeInTheDocument();
     expect(within(screen.getByRole('main')).getByText('conteúdo da tela')).toBeInTheDocument();
-    expect(screen.queryByRole('navigation', { name: 'Menu principal' })).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Menu principal' })).toBeInTheDocument();
     expect(screen.queryByText(/Salvo às/)).not.toBeInTheDocument();
   });
 

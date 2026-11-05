@@ -3,6 +3,7 @@ import { createContext, type ReactNode, useContext, useState } from 'react';
 import { useLocation } from 'react-router';
 import { RegistroDeSalvamento } from '@/shared/autosave/registroDeSalvamento';
 import { MolduraDoStudio } from '../MolduraDoStudio';
+import { MenuLateral } from '../StudioLayout';
 
 type Detalhe = {
   /** Onde o cabeçalho da tela se desenha; null até a moldura montar. */
@@ -21,7 +22,7 @@ export function useDetalhe(): Detalhe | undefined {
 type Salvamento = { caminho: string; em: Date };
 
 /**
- * Layout das telas de detalhe (skill, condomínio, Avançado): sem barra global nem menu.
+ * Layout das telas de detalhe (skill, condomínio, Avançado): sem barra global, com o menu.
  * A própria tela desenha o cabeçalho (CabecalhoDeDetalhe), que vai para a vaga do topo.
  */
 export function LayoutDeDetalhe(): ReactNode {
@@ -34,7 +35,10 @@ export function LayoutDeDetalhe(): ReactNode {
   return (
     <DetalheContext value={{ vaga, salvoEm }}>
       <RegistroDeSalvamento value={registrar}>
-        <MolduraDoStudio topo={<Box ref={setVaga} sx={{ flexShrink: 0 }} />} />
+        <MolduraDoStudio
+          topo={<Box ref={setVaga} sx={{ flexShrink: 0 }} />}
+          lateral={<MenuLateral />}
+        />
       </RegistroDeSalvamento>
     </DetalheContext>
   );

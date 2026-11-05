@@ -65,7 +65,6 @@ export const SHELL = {
   divisorDaMarca: 21,
   larguraDaBusca: 260,
   alturaDoItemDoMenu: 40,
-  larguraMaximaDaLista: 1204,
   larguraMaximaDaFicha: 980,
   pontoDeSalvo: 7,
   gapDasAbas: 26,

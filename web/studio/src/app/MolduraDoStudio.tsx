@@ -8,7 +8,7 @@ import { PainelDoCopiloto } from '@/copiloto/PainelDoCopiloto';
 type Props = {
   /** Faixa do topo: barra global ou cabeçalho de detalhe. */
   topo: ReactNode;
-  /** Menu à esquerda do Copiloto; a tela de detalhe não tem. */
+  /** Menu à esquerda do Copiloto. */
   lateral?: ReactNode;
   estiloDoConteudo?: SxProps<Theme>;
 };
