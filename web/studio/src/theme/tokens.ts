@@ -15,6 +15,7 @@ export const TIPOS = {
   body1: 14,
   subtitle1: 15,
   h6: 17,
+  marca: 16,
   h5: 21,
   tituloEditavel: 18,
   h4: 26,
@@ -44,7 +45,37 @@ export const RAIO = {
 export const PESOS = { regular: 400, medio: 500, semi: 600, negrito: 700 } as const;
 
 // Tamanhos de ícone, em px.
-export const ICONES = { minimo: 13, pequeno: 14, medio: 16, grande: 18, destaque: 20 } as const;
+export const ICONES = {
+  minimo: 13,
+  pequeno: 14,
+  controle: 15,
+  medio: 16,
+  entidade: 17,
+  grande: 18,
+  destaque: 20,
+} as const;
+
+/** Moldura do Studio (barra do topo, menu lateral, cabeçalho de detalhe, abas), em px. */
+export const SHELL = {
+  alturaDoControle: 34,
+  alturaDoBotaoDoDetalhe: 36,
+  paddingDoBotaoDeTeste: 16,
+  logo: 34,
+  avatar: 32,
+  divisorDaMarca: 21,
+  larguraDaBusca: 260,
+  alturaDoItemDoMenu: 40,
+  larguraMaximaDaFicha: 980,
+  pontoDeSalvo: 7,
+  gapDasAbas: 26,
+  paddingDaAba: 13,
+  indicadorDaAba: 2,
+  /** Traço dos ícones de linha do desenho (o de voltar é mais grosso). */
+  traco: 2,
+  tracoDoVoltar: 2.2,
+  alturaDaLinha: 1.2,
+  alturaDaLinhaDoTitulo: 1.25,
+} as const;
 
 /** Alinhamento vertical da primeira linha, compartilhado pelo textarea e pela coluna de números. */
 export const PADDING_TOPO_DO_EDITOR = '16.5px';
@@ -59,6 +90,20 @@ export const GAVETA = {
 
 export const SOMBRA_DO_BLOCO_EM_EDICAO = '0 8px 21px rgba(16,52,242,.12)';
 
+// concierge
+export const CONCIERGE = {
+  /** H1 "Concierge" do desenho: 26px com leve aperto de letras. */
+  letterSpacingDoTitulo: '-0.26px',
+  /** Base de texto dos cartões da página (board usa 16px; o resto do Studio usa 14px). */
+  fonteDoCartao: 16,
+  /** Pílula de tom/visibilidade: padding vertical do desenho (o horizontal já é ESPACOS[2]). */
+  paddingYDaPilula: 6,
+  /** Altura fixa da pílula de tom e dos botões de ação dos cartões (board: 30px / 34px). */
+  alturaDaPilula: 30,
+  /** Bolinha de "N mudança(s) esperando você", ainda sem proposta real para testar ao vivo. */
+  pontoDePendencia: '#FFC02A',
+} as const;
+
 /** Anel interno que imita borda sem mexer no layout. */
 export const anel = (cor: string, largura = 1): string => `inset 0 0 0 ${largura}px ${cor}`;
 
@@ -69,13 +114,13 @@ export const INTERRUPTOR = {
   duracaoMs: 200,
 } as const;
 
-/** Caixa de texto: fundo suave, raio de 10 px, anel de 2 px no foco. */
+/** Caixa de texto: fundo branco, raio de 10 px, anel de 2 px no foco. */
 export const CAMPO = {
   raio: 10,
   paddingX: 14,
   paddingY: 12,
   larguraDoAnelNoFoco: 2,
-  bordaEmRepouso: '#D5DAE1',
+  bordaEmRepouso: '#DBDFE5',
   bordaNoHover: '#B7BFCB',
 } as const;
 
@@ -96,6 +141,7 @@ export const tokens = {
       secondary: '#536379',
       tertiary: '#637792',
       muted: '#7789A3',
+      faint: '#A7B1C2',
     },
     border: {
       default: '#E4E7EC',
@@ -113,6 +159,7 @@ export const tokens = {
     warning: { text: '#8A5A00', background: '#FFF6DF' },
     danger: { main: '#D61D1E' },
     realceDoCopiloto: '#FFF7CC',
+    registra: { background: '#FFF3E6', text: '#C25E00' },
     conector: '#C1CAD6',
     scrollbar: { thumb: '#c1c1c1', thumbHover: '#a8a8a8' },
     studio: {
@@ -160,3 +207,44 @@ export const tokens = {
     copiloto: 380,
   },
 } as const;
+
+// skill
+/** Tokens novos da fase 2 (área Skill: lista, Fluxo, Copiloto). */
+export const TOKENS_DA_SKILL = {
+  bordaDeAviso: '#F5DDAF',
+  textoMuitoSuave: '#8A93A6',
+  erroFundoSuave: '#FDE8E8',
+  pendenciaFundo: '#FFFDF5',
+} as const;
+
+// condominios
+/** Medidas específicas das telas de Condomínios (lista, matriz e ficha), do desenho aprovado. */
+export const CONDOMINIOS = {
+  larguraDaBusca: 300,
+  larguraDoFiltro: 240,
+  larguraDaColunaDeAdministradora: 239,
+  larguraMaximaDoPainel: 400,
+  larguraDoCampoNumerico: 70,
+  letterSpacingDoTitulo: '-0.01em',
+  // Mais claro que background.tint (fundo do badge "Base"), pra pílula não sumir na linha Padrão.
+  fundoDaLinhaPadrao: '#F7F9FF',
+} as const;
+
+// ferramentas
+/** Largura fixa da gaveta de edição de ferramenta (desenho aprovado: 460px). */
+export const GAVETA_DA_FERRAMENTA = 'min(460px, 100vw)';
+/** Largura e altura de listas/campos estreitos (filtro de ferramentas, árvore do Avançado). */
+export const LARGURA_DA_LISTA_ESTREITA = 320;
+export const ALTURA_DO_CAMPO_ESTREITO = 36;
+/** Texto do rótulo "Grava no sistema" dentro do destaque laranja do drawer da ferramenta. */
+export const REGISTRA_FORTE = '#8A4300';
+/** Cor da chave num par chave/valor do YAML realçado (Avançado). */
+export const COR_DA_CHAVE_YAML = '#7B1FA2';
+/** Botão perigoso contornado (Remover/Excluir): borda e texto mais suaves que `danger.main`. */
+export const PERIGO_SUAVE = { borda: '#F3C6C6', texto: '#B3191A' } as const;
+/** Raio do item de arquivo selecionado/não selecionado na árvore do Avançado. */
+export const RAIO_DO_ITEM_DA_ARVORE = '7px';
+/** Fundo do bloco de código do editor de arquivo (Avançado), um tom abaixo do branco. */
+export const FUNDO_DO_EDITOR = '#FBFCFD';
+/** Lista e editor do Avançado vão até o pé da janela (topo, título, abas e seletor somam ~380 px). */
+export const ALTURA_DA_AREA_DE_ARQUIVOS = 'max(480px, calc(100vh - 380px))';

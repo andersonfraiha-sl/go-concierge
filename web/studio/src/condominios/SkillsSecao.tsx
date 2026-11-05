@@ -1,5 +1,5 @@
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
-import { Box, InputAdornment, Switch, TextField, Typography } from '@mui/material';
+import { Box, Checkbox, InputAdornment, TextField, Typography } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { LARGURA_MINIMA_DO_CARTAO, PESOS, RAIOS } from '@/theme/tokens';
 import { type Estado, PADRAO, salvarHabilitacao } from './contratos';
@@ -65,9 +65,10 @@ type BarraProps = {
 };
 
 function BarraDaSecao({ linhas, ehPadrao, filtro, onFiltrar }: BarraProps): ReactNode {
+  const diferentes = linhas.filter((linha) => linha.propria).length;
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, flexWrap: 'wrap' }}>
-      <TituloEContagem {...contarLigadas(linhas)} />
+      <TituloEContagem {...contarLigadas(linhas)} diferentes={ehPadrao ? 0 : diferentes} />
       <CampoDeBusca busca={filtro.busca} onMudar={(busca) => onFiltrar({ ...filtro, busca })} />
       {!ehPadrao && (
         <SoQueMuda
@@ -79,14 +80,20 @@ function BarraDaSecao({ linhas, ehPadrao, filtro, onFiltrar }: BarraProps): Reac
   );
 }
 
-function TituloEContagem({ ligadas, total }: { ligadas: number; total: number }): ReactNode {
+type ContagemProps = { ligadas: number; total: number; diferentes: number };
+
+function TituloEContagem({ ligadas, total, diferentes }: ContagemProps): ReactNode {
+  const resumo =
+    diferentes === 0
+      ? `${ligadas} de ${total} ligadas`
+      : `${ligadas} de ${total} ligadas · ${diferentes} diferentes do Padrão`;
   return (
     <Box sx={{ flex: `1 1 ${LARGURA_MINIMA_DO_CARTAO}px` }}>
-      <Typography variant="h5" component="h2">
+      <Typography variant="h5" component="h2" color="secondary">
         O que o concierge faz aqui
       </Typography>
-      <Typography variant="body2" color="text.tertiary">
-        {`${ligadas} de ${total} ligadas`}
+      <Typography variant="body2" color="textTertiary">
+        {resumo}
       </Typography>
     </Box>
   );
@@ -104,7 +111,7 @@ function CampoDeBusca({ busca, onMudar }: { busca: string; onMudar: (busca: stri
   return (
     <TextField
       size="small"
-      placeholder="Buscar…"
+      placeholder="Filtrar"
       value={busca}
       onChange={(evento) => onMudar(evento.target.value)}
       slotProps={{ input: ADORNO_DA_BUSCA, htmlInput: { 'aria-label': 'Buscar skill' } }}
@@ -114,14 +121,16 @@ function CampoDeBusca({ busca, onMudar }: { busca: string; onMudar: (busca: stri
 
 function SoQueMuda({ ligado, onMudar }: { ligado: boolean; onMudar: (ligado: boolean) => void }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <Switch
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Checkbox
         size="small"
         checked={ligado}
-        onChange={(_, novo) => onMudar(novo)}
+        onChange={(_, novo: boolean) => onMudar(novo)}
         slotProps={{ input: { 'aria-label': 'Só o que muda do Padrão' } }}
       />
-      <Typography variant="body2">Só o que muda do Padrão</Typography>
+      <Typography variant="body2" sx={{ fontWeight: PESOS.semi, color: 'text.strong' }}>
+        Só o que muda do Padrão
+      </Typography>
     </Box>
   );
 }
@@ -177,7 +186,7 @@ function useContextoDaLista(
 
 function SemSkills(): ReactNode {
   return (
-    <Typography color="text.secondary" sx={{ p: 2 }}>
+    <Typography color="textSecondary" sx={{ p: 2 }}>
       Nenhuma skill encontrada.
     </Typography>
   );

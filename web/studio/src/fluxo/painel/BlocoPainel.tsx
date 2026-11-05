@@ -45,7 +45,7 @@ function CabecalhoDoBloco({ bloco }: { bloco: Bloco }): ReactNode {
         >
           {rotulo}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="textSecondary">
           {descricao}
         </Typography>
       </Box>

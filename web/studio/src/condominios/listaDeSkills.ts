@@ -10,19 +10,37 @@ import {
 
 export type Categoria = 'registra' | 'consulta' | 'duvida';
 
-export const ROTULO_DA_CATEGORIA: Record<Categoria, string> = {
-  registra: 'Registra pedidos',
-  consulta: 'Consultas',
-  duvida: 'Dúvidas',
-};
-
-const ORDEM_DAS_CATEGORIAS: readonly Categoria[] = ['registra', 'consulta', 'duvida'];
-
 /** Escreve algo → registra pedido; só lê mas tem id de integração → consulta; senão, é dúvida de conhecimento. */
 export function categoriaDe(caso: Caso): Categoria {
   if (caso.escrita) return 'registra';
   if (caso.id !== '') return 'consulta';
   return 'duvida';
+}
+
+/** Tom do ícone da skill: laranja para quem registra, azul para o resto (desenho aprovado). */
+export function tomDaCategoria(categoria: Categoria): 'registra' | 'consulta' {
+  return categoria === 'registra' ? 'registra' : 'consulta';
+}
+
+/** As listas agrupam em só 2 blocos: o que registra, e o resto (consulta + dúvida juntos). */
+export type GrupoDeSkills = 'registra' | 'consultaEDuvida';
+
+export const ROTULO_DA_CATEGORIA: Record<GrupoDeSkills, string> = {
+  registra: 'Registram no sistema',
+  consultaEDuvida: 'Consultas e dúvidas',
+};
+
+const ORDEM_DOS_GRUPOS: readonly GrupoDeSkills[] = ['registra', 'consultaEDuvida'];
+
+function grupoDe(categoria: Categoria): GrupoDeSkills {
+  return categoria === 'registra' ? 'registra' : 'consultaEDuvida';
+}
+
+/** "Agendamento De Mudança" (Title Case da API) → "Agendamento de mudança" (sentence case do desenho). */
+export function paraSentenceCase(titulo: string): string {
+  if (titulo === '') return titulo;
+  const minusculo = titulo.toLocaleLowerCase('pt-BR');
+  return minusculo.charAt(0).toLocaleUpperCase('pt-BR') + minusculo.slice(1);
 }
 
 const ROTULO_DO_PAPEL: Record<string, string> = {
@@ -68,7 +86,7 @@ export function linhasDeSkills(
     const { habilitacao, propria } = habilitacaoDe(estado.mapeamento, condominio, caso.nome);
     return {
       caso,
-      titulo: titulos.get(caso.nome) ?? caso.titulo,
+      titulo: paraSentenceCase(titulos.get(caso.nome) ?? caso.titulo),
       habilitacao,
       propria,
       categoria: categoriaDe(caso),
@@ -89,10 +107,10 @@ export function filtrarLinhas(
 
 export function agruparPorCategoria(
   linhas: readonly LinhaDeSkill[],
-): { categoria: Categoria; linhas: LinhaDeSkill[] }[] {
-  return ORDEM_DAS_CATEGORIAS.map((categoria) => ({
-    categoria,
-    linhas: linhas.filter((linha) => linha.categoria === categoria),
+): { categoria: GrupoDeSkills; linhas: LinhaDeSkill[] }[] {
+  return ORDEM_DOS_GRUPOS.map((grupo) => ({
+    categoria: grupo,
+    linhas: linhas.filter((linha) => grupoDe(linha.categoria) === grupo),
   })).filter((grupo) => grupo.linhas.length > 0);
 }
 

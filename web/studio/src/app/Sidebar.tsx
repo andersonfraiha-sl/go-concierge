@@ -1,61 +1,43 @@
-import type { SvgIconComponent } from '@mui/icons-material';
-import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
-import BuildOutlined from '@mui/icons-material/BuildOutlined';
-import ChatBubbleOutlined from '@mui/icons-material/ChatBubbleOutlined';
-import ChevronLeft from '@mui/icons-material/ChevronLeft';
-import ChevronRight from '@mui/icons-material/ChevronRight';
-import ExtensionOutlined from '@mui/icons-material/ExtensionOutlined';
-import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined';
-import TuneOutlined from '@mui/icons-material/TuneOutlined';
-import {
-  Box,
-  Divider,
-  IconButton,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  type SxProps,
-  type Theme,
-  Tooltip,
-} from '@mui/material';
+import { Box, IconButton, ListItemButton, type SxProps, type Theme, Tooltip } from '@mui/material';
+import type { ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { ErroAcesso } from '@/acesso/ErroAcesso';
-import { type Eu, pode, useEu } from '@/acesso/eu';
-import { tokens } from '@/theme/tokens';
+import { type Eu, pode, podeVerCondominios, useEu } from '@/acesso/eu';
+import { ICONES, RAIO, SHELL, TIPOS, tokens } from '@/theme/tokens';
+import { IconeDeLinha, type NomeDoIcone } from './iconesDoShell';
 
-type ItemMenu = { rotulo: string; destino: string; Icone: SvgIconComponent };
+type ItemMenu = { rotulo: string; destino: string; icone: NomeDoIcone };
 type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean };
 
 const ITENS_SPA = [
   {
     rotulo: 'Concierge',
     destino: '/concierge',
-    Icone: ChatBubbleOutlined,
+    icone: 'concierge',
     visivelPara: (eu) => pode(eu, 'skills.ler'),
   },
   {
     rotulo: 'Skills',
     destino: '/skills',
-    Icone: ExtensionOutlined,
+    icone: 'skills',
     visivelPara: (eu) => pode(eu, 'skills.ler'),
   },
   {
     rotulo: 'Ferramentas',
     destino: '/ferramentas',
-    Icone: BuildOutlined,
+    icone: 'ferramentas',
     visivelPara: (eu) => pode(eu, 'skills.ler'),
   },
   {
     rotulo: 'Condomínios',
     destino: '/condominios',
-    Icone: ApartmentOutlined,
-    visivelPara: (eu) => pode(eu, 'condominios.habilitar') || pode(eu, 'condominios.editar'),
+    icone: 'condominios',
+    visivelPara: podeVerCondominios,
   },
   {
     rotulo: 'Avançado',
     destino: '/avancado',
-    Icone: TuneOutlined,
+    icone: 'avancado',
     visivelPara: (eu) => pode(eu, 'studio.avancado'),
   },
 ] as const satisfies readonly ItemSpa[];
@@ -64,44 +46,44 @@ const ITENS_SPA = [
 const ITEM_ATENDENTE = {
   rotulo: 'Atendente',
   destino: '/console',
-  Icone: HeadsetMicOutlined,
+  icone: 'atendente',
 } satisfies ItemMenu;
 
 type Props = { recolhido: boolean; aoAlternar: () => void };
 
-const estiloDaSidebar = (largura: number): SxProps<Theme> => ({
-  width: largura,
+const estiloDaSidebar = (recolhido: boolean): SxProps<Theme> => ({
+  width: recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth,
   flexShrink: 0,
   display: 'flex',
   flexDirection: 'column',
+  gap: 0.375,
+  py: 3,
+  px: recolhido ? 1 : 2,
+  overflowY: 'auto',
   borderRight: 1,
-  borderColor: 'divider',
+  borderColor: 'border.default',
   bgcolor: 'background.paper',
   transition: (tema) =>
     tema.transitions.create('width', { duration: tema.transitions.duration.shorter }),
 });
 
-export function Sidebar({ recolhido, aoAlternar }: Props) {
-  const largura = recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth;
-
+export function Sidebar({ recolhido, aoAlternar }: Props): ReactNode {
   return (
-    <Box component="nav" aria-label="Menu principal" sx={estiloDaSidebar(largura)}>
-      <List sx={{ p: 1, flex: 1 }}>
-        <ItensDoSpa recolhido={recolhido} />
-        <Divider sx={{ my: 1 }} />
-        <ItemDoMenu
-          item={ITEM_ATENDENTE}
-          recolhido={recolhido}
-          selecionado={false}
-          aoNavegar={{ component: 'a', href: ITEM_ATENDENTE.destino }}
-        />
-      </List>
+    <Box component="nav" aria-label="Menu principal" sx={estiloDaSidebar(recolhido)}>
+      <ItensDoSpa recolhido={recolhido} />
+      <Box sx={{ my: 2, mx: 1, borderTop: 1, borderColor: 'border.subtle' }} />
+      <ItemDoMenu
+        item={ITEM_ATENDENTE}
+        recolhido={recolhido}
+        selecionado={false}
+        aoNavegar={{ component: 'a', href: ITEM_ATENDENTE.destino }}
+      />
       <BotaoDeRecolher recolhido={recolhido} aoAlternar={aoAlternar} />
     </Box>
   );
 }
 
-function ItensDoSpa({ recolhido }: { recolhido: boolean }) {
+function ItensDoSpa({ recolhido }: { recolhido: boolean }): ReactNode {
   const { pathname } = useLocation();
   const { data: eu, isError, refetch } = useEu();
   const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
@@ -122,12 +104,18 @@ function ItensDoSpa({ recolhido }: { recolhido: boolean }) {
   );
 }
 
-function BotaoDeRecolher({ recolhido, aoAlternar }: Props) {
+/** Fora do desenho aprovado, mas é uma função que já existia: fica discreta, no pé do menu. */
+function BotaoDeRecolher({ recolhido, aoAlternar }: Props): ReactNode {
   const rotulo = recolhido ? 'Expandir menu' : 'Recolher menu';
   return (
-    <Box sx={{ p: 1, display: 'flex', justifyContent: recolhido ? 'center' : 'flex-end' }}>
-      <IconButton size="small" onClick={aoAlternar} aria-label={rotulo}>
-        {recolhido ? <ChevronRight /> : <ChevronLeft />}
+    <Box sx={{ mt: 'auto', display: 'flex', justifyContent: recolhido ? 'center' : 'flex-end' }}>
+      <IconButton
+        size="small"
+        onClick={aoAlternar}
+        aria-label={rotulo}
+        sx={{ color: 'text.faint' }}
+      >
+        <IconeDeLinha nome={recolhido ? 'expandir' : 'recolher'} tamanho={ICONES.medio} />
       </IconButton>
     </Box>
   );
@@ -140,27 +128,39 @@ type ItemProps = {
   aoNavegar: { component: typeof NavLink; to: string } | { component: 'a'; href: string };
 };
 
-function ItemDoMenu({ item, recolhido, selecionado, aoNavegar }: ItemProps) {
-  const { rotulo, Icone } = item;
+const estiloDoItem = (recolhido: boolean, externo: boolean): SxProps<Theme> => ({
+  flex: 'none',
+  height: SHELL.alturaDoItemDoMenu,
+  minHeight: 0,
+  px: recolhido ? 0 : 2,
+  gap: 2,
+  justifyContent: recolhido ? 'center' : 'flex-start',
+  borderRadius: RAIO.menu,
+  fontSize: TIPOS.body1,
+  color: externo ? 'text.secondary' : 'text.strong',
+});
+
+function ItemDoMenu({ item, recolhido, selecionado, aoNavegar }: ItemProps): ReactNode {
+  const { rotulo, icone, destino } = item;
+  const externo = destino === ITEM_ATENDENTE.destino;
   return (
     <Tooltip title={recolhido ? rotulo : ''} placement="right">
       <ListItemButton
         {...aoNavegar}
         selected={selecionado}
         aria-label={rotulo}
-        sx={{ mb: 0.5, minHeight: 40, justifyContent: recolhido ? 'center' : 'flex-start' }}
+        sx={estiloDoItem(recolhido, externo)}
       >
-        <ListItemIcon sx={{ minWidth: recolhido ? 0 : 40, color: 'inherit' }}>
-          <Icone fontSize="small" />
-        </ListItemIcon>
-        {!recolhido && <RotuloDoItem rotulo={rotulo} />}
+        <IconeDeLinha nome={icone} />
+        {!recolhido && rotulo}
+        {!recolhido && externo && (
+          <IconeDeLinha
+            nome="linkExterno"
+            tamanho={ICONES.minimo}
+            sx={{ ml: 'auto', color: 'text.faint' }}
+          />
+        )}
       </ListItemButton>
     </Tooltip>
-  );
-}
-
-function RotuloDoItem({ rotulo }: { rotulo: string }) {
-  return (
-    <ListItemText primary={rotulo} slotProps={{ primary: { sx: { fontWeight: 'inherit' } } }} />
   );
 }

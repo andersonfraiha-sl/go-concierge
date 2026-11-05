@@ -1,4 +1,5 @@
-import { Alert, Box, Button, CircularProgress } from '@mui/material';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { Alert, Box, Button, CircularProgress, Typography } from '@mui/material';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { type Dispatch, type ReactNode, type SetStateAction, useMemo, useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
@@ -16,7 +17,7 @@ import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { ApiError } from '@/shared/api/http';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { RAIO, tokens } from '@/theme/tokens';
+import { ESPACOS, RAIO } from '@/theme/tokens';
 import { chaveDoFluxo, salvarFluxo, useFluxo } from '../contratos';
 import { BarraDoFluxo } from './BarraDoFluxo';
 import {
@@ -30,9 +31,14 @@ import { PainelLateralDoFluxo } from './PainelLateralDoFluxo';
 
 type Props = { nome: string; caminho: string };
 
-// Título da skill, abas e margens do editor acima da aba; o resto da janela é do canvas.
-const ALTURA_DO_CABECALHO_DO_EDITOR = 160;
-const ALTURA_DA_AREA = `calc(100vh - ${tokens.layout.navbarHeight + ALTURA_DO_CABECALHO_DO_EDITOR}px)`;
+// A área acima do canvas não é mais o navbar global: é o CabecalhoDeDetalhe (faixa + abas) da
+// própria moldura de detalhe, mais o padding vertical de ESTILO_DO_CONTEUDO_DE_DETALHE.
+const ALTURA_DO_CABECALHO_DE_DETALHE = 59;
+const ALTURA_DAS_ABAS = 46;
+const ALTURA_DO_PADDING_DO_CONTEUDO = ESPACOS[4] * 2;
+const ALTURA_DA_AREA = `calc(100vh - ${
+  ALTURA_DO_CABECALHO_DE_DETALHE + ALTURA_DAS_ABAS + ALTURA_DO_PADDING_DO_CONTEUDO
+}px)`;
 const ALTURA_MINIMA_DA_AREA = 480;
 
 function ehSemFluxo(erro: Error): boolean {
@@ -46,6 +52,32 @@ export function FluxoAba({ nome }: Props): ReactNode {
   if (lido.isError)
     return <FalhaDoFluxo erro={lido.error} onTentarDeNovo={() => void lido.refetch()} />;
   return <EditorDeFluxo key={nome} nome={nome} lido={lido.data} />;
+}
+
+/** Faixa no topo do canvas quando o gestor só pode ver o passo a passo, não editá-lo. */
+function AvisoDeSoLeitura(): ReactNode {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        mb: 2.5,
+        py: 1.25,
+        px: 2,
+        bgcolor: 'background.paper',
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: RAIO.painel,
+      }}
+    >
+      <LockOutlinedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+      <Typography variant="body2" sx={{ color: 'text.strong' }}>
+        Você vê o passo a passo como gestor. Para mudar, fale com quem constrói as skills ou peça ao
+        Copiloto uma explicação.
+      </Typography>
+    </Box>
+  );
 }
 
 function FalhaDoFluxo({ erro, onTentarDeNovo }: { erro: Error; onTentarDeNovo: () => void }) {
@@ -93,6 +125,8 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
       />
       <BarraDoFluxo
         editavel={editavel}
+        totalDePassos={fluxo.blocos.length}
+        problemas={problemas}
         doFluxoTodo={problemas.filter((p) => p.blocoId === undefined)}
         salvamento={salvamento.estado}
         onTentarDeNovo={() => void salvamento.tentarDeNovo()}
@@ -197,6 +231,17 @@ function useTituloDaFerramenta(catalogo: CatalogoDeFerramentas) {
   }, [ferramentas]);
 }
 
+/** Nome amigável de uma informação pedida ao morador, pelo `titulo` gravado no fluxo. */
+function useTituloDaInformacao(fluxo: Fluxo) {
+  return useMemo(() => {
+    const titulos = new Map(fluxo.informacoes.map((info) => [info.nome, info.titulo]));
+    return (nome: string): string => {
+      const titulo = titulos.get(nome);
+      return titulo && titulo !== '' ? titulo : nome;
+    };
+  }, [fluxo.informacoes]);
+}
+
 type PropsDoCanvas = {
   nome: string;
   fluxo: Fluxo;
@@ -213,6 +258,7 @@ function CanvasEPainel(props: PropsDoCanvas): ReactNode {
   const { alvosRealcados } = useCopiloto();
   const realcados = useMemo(() => blocosRealcados(alvosRealcados, nome), [alvosRealcados, nome]);
   const tituloDaFerramenta = useTituloDaFerramenta(catalogo);
+  const tituloDaInformacao = useTituloDaInformacao(fluxo);
   const blocoSelecionado = fluxo.blocos.find((b) => b.id === edicao.selecionado);
 
   return (
@@ -227,13 +273,15 @@ function CanvasEPainel(props: PropsDoCanvas): ReactNode {
         overflow: 'hidden',
       }}
     >
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {!editavel && <AvisoDeSoLeitura />}
         <FluxoCanvas
           fluxo={fluxo}
           problemas={problemas}
           selecionado={edicao.selecionado}
           editavel={editavel}
           tituloDaFerramenta={tituloDaFerramenta}
+          tituloDaInformacao={tituloDaInformacao}
           realcados={realcados}
           onSelecionar={edicao.setSelecionado}
           onInserir={edicao.inserir}

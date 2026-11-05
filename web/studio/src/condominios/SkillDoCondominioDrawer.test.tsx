@@ -19,13 +19,14 @@ const donoDoCatalogo: Eu = {
   dev: true,
 };
 
-type Opcoes = { condominio?: string; caso?: string; editavel?: boolean };
+type Opcoes = { condominio?: string; caso?: string; editavel?: boolean; onFechar?: () => void };
 
 /** Busca o estado ao vivo, como fará a página que abre o drawer, para refletir o que o servidor devolve. */
 function Harness({
   condominio = 'vila-verde',
   caso = 'agendar-mudanca',
   editavel = true,
+  onFechar = () => {},
 }: Opcoes): ReactNode {
   const consulta = useEstado();
   if (!consulta.data) return null;
@@ -38,7 +39,7 @@ function Harness({
       caso={encontrado}
       titulo={encontrado.titulo}
       editavel={editavel}
-      onFechar={() => {}}
+      onFechar={onFechar}
     />
   );
 }
@@ -105,7 +106,7 @@ describe('SkillDoCondominioDrawer', () => {
     });
     const { user } = abrirDrawer();
 
-    await user.click(await screen.findByRole('button', { name: 'síndico' }));
+    await user.click(await screen.findByRole('button', { name: 'Síndico' }));
 
     await waitFor(() =>
       expect(corpos[0]).toMatchObject({
@@ -135,7 +136,7 @@ describe('SkillDoCondominioDrawer', () => {
     });
     const { user } = abrirDrawer();
 
-    await user.click(await screen.findByRole('button', { name: 'síndico' }));
+    await user.click(await screen.findByRole('button', { name: 'Síndico' }));
 
     await waitFor(() => expect(corpos[0]).toMatchObject({ papeis: [] }));
     expect(screen.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'true');
@@ -235,6 +236,16 @@ describe('SkillDoCondominioDrawer', () => {
     expect(screen.queryByText('Como o concierge reconhece o pedido')).not.toBeInTheDocument();
   });
 
+  it('closesOnCloseButtonClick', async () => {
+    responderCom(rotasBase(gestor));
+    let fechou = false;
+    const { user } = renderComProvedores(<Harness onFechar={() => (fechou = true)} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Fechar detalhes' }));
+
+    expect(fechou).toBe(true);
+  });
+
   it('linksToFlow', async () => {
     responderCom(rotasBase(donoDoCatalogo));
     abrirDrawer();
@@ -253,7 +264,7 @@ describe('SkillDoCondominioDrawer', () => {
 
     expect(await screen.findByRole('switch', { name: 'Ligada neste condomínio' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Todos' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'síndico' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Síndico' })).toBeDisabled();
     expect(screen.getByPlaceholderText(/^Ex\.:/)).toBeDisabled();
     expect(screen.getByLabelText('Antecedência mínima')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Voltar ao Padrão' })).not.toBeInTheDocument();

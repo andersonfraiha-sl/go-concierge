@@ -1,10 +1,11 @@
-import { Box, Button, Chip, MenuItem, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Box, Button, MenuItem, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
+import { AbasEmFaixa } from '@/app/detalhe/CabecalhoDeDetalhe';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
-import { PESOS } from '@/theme/tokens';
+import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
 import { AjustesTecnicosAba } from './AjustesTecnicosAba';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, type NoDaArvore, useArvore } from './contratos';
@@ -89,53 +90,74 @@ export function AvancadoPage(): ReactNode {
     });
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <CabecalhoDoAvancado />
-      <Tabs
-        value={aba.id}
-        onChange={(_, valor: string) => mudar('aba', valor)}
-        aria-label="Seções do Avançado"
-      >
-        {ABAS.map((candidata) => (
-          <Tab key={candidata.id} value={candidata.id} label={candidata.rotulo} />
-        ))}
-      </Tabs>
-      {aba.porItem && (
-        <>
-          <SeletorDeItem
-            nos={nos}
-            atual={noAtual}
-            onEscolher={(caminho) => mudar('item', caminho)}
-          />
-          <EstadoDaLista arvore={arvore} semItem={!noAtual} />
-        </>
-      )}
-      {aba.desenhar(noAtual ? { no: noAtual, editar } : null, editar)}
+      <AbasEmFaixa
+        rotulo="Seções do Avançado"
+        itens={ABAS}
+        atual={aba.id}
+        onTrocar={(valor) => mudar('aba', valor)}
+        sx={ABAS_NO_CONTEUDO}
+      />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minHeight: 0 }}>
+        {aba.porItem && (
+          <>
+            <SeletorDeItem
+              nos={nos}
+              atual={noAtual}
+              onEscolher={(caminho) => mudar('item', caminho)}
+            />
+            <EstadoDaLista arvore={arvore} semItem={!noAtual} />
+          </>
+        )}
+        {aba.desenhar(noAtual ? { no: noAtual, editar } : null, editar)}
+      </Box>
     </Box>
   );
 }
 
-function CabecalhoDoAvancado(): ReactNode {
+// No conteúdo da tela de lista a faixa não tem fundo nem recuo próprio: herda a moldura.
+const ABAS_NO_CONTEUDO = { px: 0, bgcolor: 'transparent', mt: -1 } as const;
+
+/** Título da seção, como nas outras telas do menu; serve também ao acesso negado e ao erro. */
+export function CabecalhoDoAvancado(): ReactNode {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-      <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
-        Avançado
-      </Typography>
-      <Chip
-        size="small"
-        label="Mudanças aqui afetam todos os condomínios"
-        sx={{
-          bgcolor: 'warning.soft',
-          color: 'warning.onSoft',
-          fontWeight: PESOS.medio,
-        }}
-      />
+    <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 3 }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
+          Avançado
+        </Typography>
+        <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: PESOS.regular }}>
+          Arquivos e configurações internas, só para quem constrói skills.
+        </Typography>
+      </Box>
+      <AvisoDeAlcance />
     </Box>
+  );
+}
+
+function AvisoDeAlcance(): ReactNode {
+  return (
+    <Typography
+      component="span"
+      sx={{
+        flexShrink: 0,
+        py: 0.5,
+        px: 1.25,
+        borderRadius: RAIO.pilula,
+        bgcolor: 'warning.soft',
+        color: 'warning.onSoft',
+        fontSize: TIPOS.caption,
+        fontWeight: PESOS.medio,
+      }}
+    >
+      Mudanças aqui afetam todos os condomínios
+    </Typography>
   );
 }
 
 function EstadoDaLista({ arvore, semItem }: { arvore: Arvore; semItem: boolean }): ReactNode {
-  if (arvore.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (arvore.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (arvore.isError) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -154,13 +176,23 @@ const contagem = (quantidade: number, singular: string, plural: string): string 
   quantidade === 0 ? '' : ` · ${quantidade} ${quantidade === 1 ? singular : plural}`;
 
 const descreverNo = (item: NoDaArvore): string =>
-  `${item.caminho}${contagem(item.erros, 'erro', 'erros')}${contagem(item.avisos, 'aviso', 'avisos')}`;
+  `${item.nome}${contagem(item.erros, 'erro', 'erros')}${contagem(item.avisos, 'aviso', 'avisos')}`;
 
 type SeletorProps = {
   nos: NoDaArvore[];
   atual: NoDaArvore | undefined;
   onEscolher: (caminho: string) => void;
 };
+
+const ESTILO_DO_ROTULO_FIXO = {
+  '& .MuiInputLabel-root.MuiInputLabel-shrink': {
+    fontSize: TIPOS.overline,
+    fontWeight: PESOS.semi,
+    color: 'text.tertiary',
+    textTransform: 'uppercase',
+    letterSpacing: '.06em',
+  },
+} as const;
 
 function SeletorDeItem({ nos, atual, onEscolher }: SeletorProps): ReactNode {
   if (!atual) return null;
@@ -171,7 +203,7 @@ function SeletorDeItem({ nos, atual, onEscolher }: SeletorProps): ReactNode {
       label="Concierge ou skill"
       value={atual.caminho}
       onChange={(evento) => onEscolher(evento.target.value)}
-      sx={{ maxWidth: 480 }}
+      sx={{ maxWidth: 480, ...ESTILO_DO_ROTULO_FIXO }}
     >
       {achatar(nos).map((item) => (
         <MenuItem key={item.caminho} value={item.caminho}>

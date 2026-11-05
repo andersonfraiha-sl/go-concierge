@@ -12,7 +12,7 @@ export function SectionCard({ titulo, ajuda, acao, children }: Props): ReactNode
           <Typography variant="subtitle2" component="h2">
             {titulo}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="textSecondary">
             {ajuda}
           </Typography>
         </Box>

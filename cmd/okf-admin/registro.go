@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -35,14 +36,6 @@ type registroRequisicao struct {
 }
 
 type chaveRegistro struct{}
-
-// loggerDe é o logger do servidor que atende a requisição; fora do registrar, o padrão.
-func loggerDe(ctx context.Context) *slog.Logger {
-	if reg, ok := ctx.Value(chaveRegistro{}).(*registroRequisicao); ok && reg.logger != nil {
-		return reg.logger
-	}
-	return slog.Default()
-}
 
 func anotarUsuario(ctx context.Context, usuarioID string) {
 	if reg, ok := ctx.Value(chaveRegistro{}).(*registroRequisicao); ok {
@@ -82,7 +75,7 @@ func (rr *respostaRegistrada) Unwrap() http.ResponseWriter { return rr.ResponseW
 // recuperar troca o pânico do handler por 500 com o JSON de erro do projeto; a pilha vai na
 // linha da requisição. ErrAbortHandler é o jeito do net/http de abortar e segue adiante.
 func (rr *respostaRegistrada) recuperar(p any) {
-	if p == http.ErrAbortHandler {
+	if err, ok := p.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 		panic(p)
 	}
 	rr.falha = &falhaDaRequisicao{erro: fmt.Sprint("pânico: ", p), pilha: string(debug.Stack())}

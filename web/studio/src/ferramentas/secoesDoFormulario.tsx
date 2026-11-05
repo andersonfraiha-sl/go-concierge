@@ -12,7 +12,7 @@ export const SECOES = [
   'Parâmetros',
   'Saída',
   'Conexão',
-  'Amostra',
+  'Amostra de retorno',
   'Ajustes por condomínio',
 ] as const;
 export type Secao = (typeof SECOES)[number];
@@ -45,7 +45,7 @@ export function secoesDoFormulario(
     { titulo: 'Parâmetros', conteudo: <CamposDeParametros {...campos} /> },
     { titulo: 'Saída', conteudo: <CamposDeSaida {...campos} /> },
     { titulo: 'Conexão', conteudo: <CamposDeConexao {...campos} /> },
-    { titulo: 'Amostra', conteudo: <AmostraDeRetorno {...campos} /> },
+    { titulo: 'Amostra de retorno', conteudo: <AmostraDeRetorno {...campos} /> },
     { titulo: 'Ajustes por condomínio', conteudo: <CamposDeAjustes {...campos} /> },
   ];
 }

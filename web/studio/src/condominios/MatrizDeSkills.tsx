@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import { type ReactNode, useState } from 'react';
+import { CONDOMINIOS, PESOS, RAIOS } from '@/theme/tokens';
 import {
   type Administradora,
   type Condominio,
@@ -18,7 +19,12 @@ import {
   salvarHabilitacao,
   useEscopo,
 } from './contratos';
-import { agruparPorCategoria, linhasDeSkills, ROTULO_DA_CATEGORIA } from './listaDeSkills';
+import {
+  agruparPorCategoria,
+  linhasDeSkills,
+  paraSentenceCase,
+  ROTULO_DA_CATEGORIA,
+} from './listaDeSkills';
 import {
   type CelulaAberta,
   type Coluna,
@@ -118,28 +124,38 @@ type TabelaProps = { contexto: ContextoDaMatriz; grupos: ReturnType<typeof agrup
 
 function TabelaDaMatriz({ contexto, grupos }: TabelaProps): ReactNode {
   return (
-    <Paper variant="outlined" sx={{ overflow: 'auto' }}>
-      <Table size="small">
-        <CabecalhoDaMatriz colunas={contexto.colunas} />
-        <TableBody>
-          {grupos.map((grupo) => (
-            <GrupoDaMatriz key={grupo.categoria} grupo={grupo} contexto={contexto} />
-          ))}
-        </TableBody>
-      </Table>
+    <Paper variant="outlined" sx={{ borderRadius: `${RAIOS.cartao}px`, overflow: 'hidden' }}>
+      <Box sx={{ overflow: 'auto' }}>
+        <Table size="small">
+          <CabecalhoDaMatriz colunas={contexto.colunas} />
+          <TableBody>
+            {grupos.map((grupo) => (
+              <GrupoDaMatriz key={grupo.categoria} grupo={grupo} contexto={contexto} />
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
     </Paper>
   );
 }
+
+const ESTILO_DO_CABECALHO = {
+  fontWeight: PESOS.semi,
+  bgcolor: 'background.paper',
+  color: 'text.strong',
+  py: 1.25,
+  px: 3,
+} as const;
 
 function CabecalhoDaMatriz({ colunas }: { colunas: Coluna[] }): ReactNode {
   return (
     <TableHead>
       <TableRow>
-        <TableCell component="th" scope="col" sx={ESTILO_COLUNA_FIXA}>
+        <TableCell component="th" scope="col" sx={[ESTILO_COLUNA_FIXA, ESTILO_DO_CABECALHO]}>
           Skill
         </TableCell>
         {colunas.map((coluna) => (
-          <TableCell key={coluna.id} scope="col" align="center">
+          <TableCell key={coluna.id} scope="col" align="center" sx={ESTILO_DO_CABECALHO}>
             {coluna.nome}
           </TableCell>
         ))}
@@ -150,14 +166,23 @@ function CabecalhoDaMatriz({ colunas }: { colunas: Coluna[] }): ReactNode {
 
 type Grupo = ReturnType<typeof agruparPorCategoria>[number];
 
+const ESTILO_DO_GRUPO = {
+  bgcolor: 'background.subtle',
+  typography: 'overline',
+  fontWeight: PESOS.semi,
+  color: 'text.tertiary',
+  textTransform: 'uppercase',
+  borderBottom: 1,
+  borderColor: 'border.subtle',
+  py: 1.25,
+  px: 3,
+} as const;
+
 function GrupoDaMatriz({ grupo, contexto }: { grupo: Grupo; contexto: ContextoDaMatriz }) {
   return (
     <>
       <TableRow>
-        <TableCell
-          colSpan={contexto.colunas.length + 1}
-          sx={{ bgcolor: 'background.default', typography: 'overline', color: 'text.tertiary' }}
-        >
+        <TableCell colSpan={contexto.colunas.length + 1} sx={ESTILO_DO_GRUPO}>
           {ROTULO_DA_CATEGORIA[grupo.categoria]}
         </TableCell>
       </TableRow>
@@ -183,7 +208,7 @@ function SkillDaCelula({ celula, estado, titulos, contexto, onFechar }: SkillDaC
       estado={estado}
       condominio={celula.coluna.id}
       caso={celula.caso}
-      titulo={titulos.get(celula.caso.nome) ?? celula.caso.titulo}
+      titulo={paraSentenceCase(titulos.get(celula.caso.nome) ?? celula.caso.titulo)}
       editavel={contexto.editavelNaColuna(celula.coluna)}
       onFechar={onFechar}
     />
@@ -202,12 +227,11 @@ function FiltroDeAdministradora({ administradoras, valor, travado, onMudar }: Fi
     <TextField
       select
       size="small"
-      label="Administradora"
       value={valor}
       disabled={travado}
       onChange={(e) => onMudar(e.target.value)}
-      sx={{ width: 240 }}
-      slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+      sx={{ width: CONDOMINIOS.larguraDoFiltro, bgcolor: 'background.paper' }}
+      slotProps={{ select: { native: true, 'aria-label': 'Administradora' } }}
     >
       <option value="">Todas as administradoras</option>
       <OpcoesDeAdministradora administradoras={administradoras} />

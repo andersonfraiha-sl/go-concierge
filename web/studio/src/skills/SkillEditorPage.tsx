@@ -1,8 +1,14 @@
-import { Box, CircularProgress, Tab, Tabs } from '@mui/material';
+import { Box, CircularProgress } from '@mui/material';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { type Control, Controller, type UseFormSetValue, useForm } from 'react-hook-form';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
+import {
+  CabecalhoDeDetalhe,
+  IconeDaEntidade,
+  type PropsDoCabecalho,
+} from '@/app/detalhe/CabecalhoDeDetalhe';
+import { ESTILO_DO_CONTEUDO_DE_DETALHE } from '@/app/detalhe/LayoutDeDetalhe';
 import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
@@ -15,7 +21,8 @@ import { ConhecimentoAba } from './abas/ConhecimentoAba';
 import { FerramentasAba } from './abas/FerramentasAba';
 import { FluxoAba } from './abas/FluxoAba';
 import { RegrasAba } from './abas/RegrasAba';
-import { salvarTextos, type Textos, useTextos } from './contratos';
+import { salvarTextos, type Textos, useSkills, useTextos } from './contratos';
+import { iconeDaSkill } from './icones';
 import { QuandoUsarAba } from './QuandoUsarAba';
 import { semVazios, type TextosPendentes, textosPendentesDaRota } from './textosDoEditor';
 
@@ -39,10 +46,27 @@ export function SkillEditorPage(): ReactNode {
   const lidos = useTextos(nome);
   const { textosPendentes, limparTextosPendentes } = useTextosPendentesDaRota();
 
-  if (lidos.isPending) return <CircularProgress aria-label="Carregando skill" />;
+  if (lidos.isPending) {
+    return (
+      <>
+        <CabecalhoDaSkill nome={nome} titulo={nome} />
+        <Box sx={ESTILO_DO_CONTEUDO_DE_DETALHE}>
+          <CircularProgress aria-label="Carregando skill" />
+        </Box>
+      </>
+    );
+  }
   if (lidos.isError) {
     return (
-      <ErroComRetry mensagem={lidos.error.message} onTentarDeNovo={() => void lidos.refetch()} />
+      <>
+        <CabecalhoDaSkill nome={nome} titulo={nome} />
+        <Box sx={ESTILO_DO_CONTEUDO_DE_DETALHE}>
+          <ErroComRetry
+            mensagem={lidos.error.message}
+            onTentarDeNovo={() => void lidos.refetch()}
+          />
+        </Box>
+      </>
     );
   }
   return (
@@ -86,28 +110,68 @@ function Editor(props: EditorProps): ReactNode {
   useContextoDaTela({ tela: aba === 'fluxo' ? 'fluxo' : 'skill', skill: nome });
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <TituloDaSkill control={control} editavel={editavel} />
-        <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
-      </Box>
-      <AvisoDeConflito
-        conflito={sincronia.conflito}
-        onManterOMeu={sincronia.manterOMeu}
-        onUsarONovo={sincronia.usarONovo}
-      />
-      <AbasDoEditor
-        aba={aba}
-        onTrocar={(proxima) => setParams({ aba: proxima }, { replace: true })}
-      />
-      <ConteudoDaAba
-        aba={aba}
+    <>
+      <CabecalhoDaSkill
         nome={nome}
-        caminho={caminho}
-        control={control}
-        editavel={editavel}
+        somenteLeitura={!editavel}
+        titulo={<TituloDaSkill control={control} editavel={editavel} />}
+        // "Salvo às" vem do cabeçalho; aqui só o que pede atenção (salvando, falha, bloqueio).
+        acoes={
+          estado.tipo !== 'salvo' && (
+            <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
+          )
+        }
+        abas={{
+          rotulo: 'Abas da skill',
+          itens: ABAS,
+          atual: aba,
+          onTrocar: (proxima) => setParams({ aba: proxima }, { replace: true }),
+        }}
       />
-    </Box>
+      <Box sx={ESTILO_DO_CONTEUDO_DE_DETALHE}>
+        <AvisoDeConflito
+          conflito={sincronia.conflito}
+          onManterOMeu={sincronia.manterOMeu}
+          onUsarONovo={sincronia.usarONovo}
+        />
+        <ConteudoDaAba
+          aba={aba}
+          nome={nome}
+          caminho={caminho}
+          control={control}
+          editavel={editavel}
+        />
+      </Box>
+    </>
+  );
+}
+
+type PropsDoCabecalhoDaSkill = Pick<
+  PropsDoCabecalho<AbaId>,
+  'titulo' | 'acoes' | 'abas' | 'somenteLeitura'
+> & {
+  nome: string;
+};
+
+/** Ícone, tom e categoria vêm do resumo da skill na lista; até chegar, só o título. */
+function CabecalhoDaSkill({ nome, ...props }: PropsDoCabecalhoDaSkill): ReactNode {
+  const resumo = useSkills().data?.skills.find((skill) => skill.nome === nome);
+  const categoria = resumo?.escrita ? 'registra no sistema' : 'consulta e dúvida';
+  return (
+    <CabecalhoDeDetalhe
+      voltar={{ para: '/skills', rotulo: 'Voltar para Skills' }}
+      icone={
+        resumo && (
+          <IconeDaEntidade
+            Icone={iconeDaSkill(resumo.icone)}
+            tom={resumo.escrita ? 'registra' : 'consulta'}
+          />
+        )
+      }
+      subtitulo={resumo && `Skills · ${categoria}`}
+      testarNoConsole
+      {...props}
+    />
   );
 }
 
@@ -158,6 +222,8 @@ function TituloDaSkill({ control, editavel }: { control: Control<Textos>; editav
       name="titulo"
       render={({ field }) => (
         <InlineTitle
+          component="span"
+          aparencia="herdada"
           rotulo="Nome da skill"
           valor={field.value}
           editavel={editavel}
@@ -165,16 +231,6 @@ function TituloDaSkill({ control, editavel }: { control: Control<Textos>; editav
         />
       )}
     />
-  );
-}
-
-function AbasDoEditor({ aba, onTrocar }: { aba: AbaId; onTrocar: (aba: AbaId) => void }) {
-  return (
-    <Tabs value={aba} onChange={(_, proxima: AbaId) => onTrocar(proxima)} variant="scrollable">
-      {ABAS.map(({ id, rotulo }) => (
-        <Tab key={id} value={id} label={rotulo} />
-      ))}
-    </Tabs>
   );
 }
 

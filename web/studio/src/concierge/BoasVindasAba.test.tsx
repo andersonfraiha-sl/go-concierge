@@ -19,25 +19,10 @@ const construtor: Eu = {
   dev: false,
 };
 
-const textosLidos = (visibilidade = 'private') => ({
-  caminho: ASSISTENTE,
-  textos: {
-    titulo: 'Concierge',
-    quandoUsar: '',
-    frasesDeExemplo: [],
-    palavrasChave: [],
-    temFluxo: false,
-    resumo: '',
-    visibilidade,
-  },
-  versao: 'v1',
-});
-
 const montar = () => renderComProvedores(<BoasVindasAba assistente={ASSISTENTE} />);
 
-const rotasBase = (visibilidade = 'private') => ({
+const rotasBase = () => ({
   'GET /api/eu': () => json(construtor),
-  'GET /api/skills/concierge': () => json(textosLidos(visibilidade)),
   'GET /api/arquivo': () => json({ caminho: CAMINHO_BOAS_VINDAS, conteudo: 'Oi, morador!' }),
 });
 
@@ -80,31 +65,11 @@ describe('BoasVindasAba', () => {
     expect(corpos).toEqual([{ agente: ASSISTENTE, caminho: CAMINHO_BOAS_VINDAS, conteudo: 'Oi!' }]);
   });
 
-  it('savesWhoCanTalkAsVisibility', async () => {
-    const corpos: unknown[] = [];
-    responderCom({
-      ...rotasBase(),
-      'PUT /api/skills/concierge/textos': async (req: Request) => {
-        corpos.push(await req.json());
-        return json({ versao: 'v2' });
-      },
-    });
-    const { user } = montar();
-    const qualquerContato = await screen.findByRole('button', { name: 'Qualquer contato' });
-    await user.click(qualquerContato);
-    await waitFor(() => expect(corpos).toHaveLength(1));
-    expect(corpos[0]).toEqual({
-      versao: 'v1',
-      textos: { ...textosLidos().textos, visibilidade: 'public' },
-    });
-  });
-
   it('gestorReadsOnly', async () => {
     const gestor: Eu = { ...construtor, papel: 'gestor', administradoraId: 'adm-1' };
     responderCom({ ...rotasBase(), 'GET /api/eu': () => json(gestor) });
     montar();
     const campo = await screen.findByRole('textbox', { name: 'Mensagem de boas-vindas' });
     expect(campo).toHaveAttribute('aria-readonly', 'true');
-    expect(await screen.findByRole('button', { name: 'Qualquer contato' })).toBeDisabled();
   });
 });

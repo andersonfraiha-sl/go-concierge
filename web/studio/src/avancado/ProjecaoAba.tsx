@@ -7,7 +7,7 @@ import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
 
 export function ProjecaoAba({ caminho }: { caminho: string }): ReactNode {
   const projecao = useProjecao(caminho);
-  if (projecao.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (projecao.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (projecao.isError) {
     return (
       <FalhaComTentarDeNovo

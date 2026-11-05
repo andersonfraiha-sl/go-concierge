@@ -61,7 +61,7 @@ function CorpoDosAjustes({ condominio, ferramentas, ajustes, editavel }: CorpoPr
 
 function SemAjustesGerais(): ReactNode {
   return (
-    <Typography color="text.secondary">
+    <Typography color="textSecondary">
       Os ajustes de cada skill ficam na própria skill, na lista acima.
     </Typography>
   );

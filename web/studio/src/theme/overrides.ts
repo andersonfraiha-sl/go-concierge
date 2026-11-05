@@ -22,7 +22,13 @@ export const componentOverrides: Components<Theme> = {
   },
   MuiCard: {
     defaultProps: { variant: 'outlined' },
-    styleOverrides: { root: { borderRadius: RAIOS.cartao, boxShadow: 'none' } },
+    styleOverrides: {
+      root: {
+        borderRadius: RAIOS.cartao,
+        borderColor: tokens.color.border.default,
+        boxShadow: 'none',
+      },
+    },
   },
   MuiPaper: {
     defaultProps: { elevation: 0 },
@@ -65,7 +71,7 @@ export const componentOverrides: Components<Theme> = {
     styleOverrides: {
       root: ({ theme }) => ({
         borderRadius: CAMPO.raio,
-        backgroundColor: tokens.color.background.subtle,
+        backgroundColor: theme.palette.background.paper,
         transition: theme.transitions.create(['background-color', 'border-color']),
         '& .MuiOutlinedInput-notchedOutline': { borderColor: CAMPO.bordaEmRepouso },
         '&:hover:not(.Mui-disabled):not(.Mui-focused):not(.Mui-error) .MuiOutlinedInput-notchedOutline':

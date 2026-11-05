@@ -1,11 +1,19 @@
-import { Box, Button, Paper, Typography } from '@mui/material';
-import { type ReactNode, useState } from 'react';
+import AddIcon from '@mui/icons-material/Add';
+import { Box, Button, Typography } from '@mui/material';
+import { type ReactNode, useEffect, useState } from 'react';
 import { pode, useEu } from '@/acesso/eu';
 import { type Arquivo, lerModeloDeArquivo, salvarArquivo, useAgente } from '@/catalogo/contratos';
-import { type EstiloDoRealce, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import { type EstiloDoRealce, useCopiloto, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { PESOS, TIPOS } from '@/theme/tokens';
+import {
+  ALTURA_DA_AREA_DE_ARQUIVOS,
+  LARGURA_DA_LISTA_ESTREITA,
+  PESOS,
+  RAIO,
+  RAIO_DO_ITEM_DA_ARVORE,
+  TIPOS,
+} from '@/theme/tokens';
 import {
   ARQUIVO_DE_CASO,
   ARQUIVO_DE_IDENTIDADE,
@@ -17,11 +25,23 @@ import {
 import { EditorDeArquivo } from './EditorDeArquivo';
 import { ESTILO_DE_CODIGO } from './estilo';
 import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
-import { agruparArquivos, type GrupoDeArquivos } from './gruposDeArquivos';
+import { type ArquivoNaArvore, agruparArquivos, type GrupoDeArquivos } from './gruposDeArquivos';
 import { NovoArquivoDialog } from './NovoArquivoDialog';
-import { Problemas } from './ProblemasDoItem';
 
 type Props = { no: NoDaArvore; editar: boolean };
+
+/** Abre o primeiro arquivo da árvore sozinho quando nada está selecionado ainda. */
+function usePrimeiroArquivoAberto(
+  grupos: readonly GrupoDeArquivos[],
+  aberto: string | null,
+  setAberto: (caminho: string) => void,
+): void {
+  useEffect(() => {
+    if (aberto !== null) return;
+    const primeiro = grupos[0]?.arquivos[0];
+    if (primeiro) setAberto(primeiro.caminho);
+  }, [grupos, aberto, setAberto]);
+}
 
 export function ArquivosAba({ no, editar }: Props): ReactNode {
   const agente = useAgente(no.caminho);
@@ -33,8 +53,21 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   });
   useContextoDoArquivo(no.caminho, aberto);
   const realce = useRealceDoArquivo(no.caminho, aberto);
+  const copilotoAberto = useCopiloto().aberto;
 
-  if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  const grupos = agruparArquivos(
+    agente.data
+      ? montarArquivosPorPasta(
+          no,
+          agente.data.agente.persona !== '',
+          agente.data.agente.arquivos,
+          agente.data.agente.herdados,
+        )
+      : {},
+  );
+  usePrimeiroArquivoAberto(grupos, aberto, setAberto);
+
+  if (agente.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (agente.isError) {
     return (
       <FalhaComTentarDeNovo
@@ -44,34 +77,30 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
     );
   }
 
-  const { arquivos, herdados, persona, problemas } = agente.data.agente;
-  const grupos = agruparArquivos(montarArquivosPorPasta(no, persona !== '', arquivos, herdados));
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <ListaDeGrupos
-          grupos={grupos}
-          aberto={aberto}
-          editar={editar}
-          onAbrir={setAberto}
-          onNovo={() => setCriando(true)}
-        />
-        <Box sx={{ flex: 1, minWidth: 320, '& .MuiInputBase-root': realce }}>
-          {aberto ? (
-            <EditorDeArquivo
-              key={aberto}
-              agente={no.caminho}
-              caminho={aberto}
-              editar={editar}
-              onExcluido={() => setAberto(null)}
-            />
-          ) : (
-            <Typography color="text.secondary">Escolha um arquivo na lista para abrir.</Typography>
-          )}
-        </Box>
+    <Box
+      sx={{ display: 'flex', gap: 3, alignItems: 'stretch', height: ALTURA_DA_AREA_DE_ARQUIVOS }}
+    >
+      <ListaDeGrupos
+        grupos={grupos}
+        aberto={aberto}
+        editar={editar && !copilotoAberto}
+        onAbrir={setAberto}
+        onNovo={() => setCriando(true)}
+      />
+      <Box sx={{ flex: 1, minWidth: 320, display: 'flex', '& .MuiInputBase-root': realce }}>
+        {aberto ? (
+          <EditorDeArquivo
+            key={aberto}
+            agente={no.caminho}
+            caminho={aberto}
+            editar={editar}
+            onExcluido={() => setAberto(null)}
+          />
+        ) : (
+          <Typography color="textSecondary">Escolha um arquivo na lista para abrir.</Typography>
+        )}
       </Box>
-      <Problemas problemas={problemas} />
       <NovoArquivoDialog aberto={criando} onCriar={criar} onFechar={() => setCriando(false)} />
     </Box>
   );
@@ -123,19 +152,48 @@ type ListaDeGruposProps = {
 
 function ListaDeGrupos({ grupos, aberto, editar, onAbrir, onNovo }: ListaDeGruposProps): ReactNode {
   return (
-    <Paper
-      variant="outlined"
-      sx={{ p: 1.5, width: 300, display: 'flex', flexDirection: 'column', gap: 1 }}
+    <Box
+      sx={{
+        width: LARGURA_DA_LISTA_ESTREITA,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+      }}
     >
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.25,
+        }}
+      >
+        {grupos.map((grupo) => (
+          <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={onAbrir} />
+        ))}
+      </Box>
       {editar && (
-        <Button variant="outlined" size="small" onClick={onNovo}>
+        <Button
+          startIcon={<AddIcon fontSize="small" />}
+          onClick={onNovo}
+          sx={{
+            flexShrink: 0,
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderStyle: 'dashed',
+            borderColor: 'text.faint',
+            borderRadius: RAIO.chip,
+            color: 'text.secondary',
+            fontWeight: PESOS.medio,
+          }}
+        >
           Novo arquivo
         </Button>
       )}
-      {grupos.map((grupo) => (
-        <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={onAbrir} />
-      ))}
-    </Paper>
+    </Box>
   );
 }
 
@@ -158,8 +216,8 @@ function montarArquivosPorPasta(
   };
 }
 
-const rotuloDoArquivo = (arquivo: Arquivo): string =>
-  arquivo.herdado_de ? `${arquivo.caminho} (herdado de ${arquivo.herdado_de})` : arquivo.caminho;
+const rotuloDoArquivo = (arquivo: ArquivoNaArvore): string =>
+  arquivo.herdado_de ? `${arquivo.exibicao} (herdado de ${arquivo.herdado_de})` : arquivo.exibicao;
 
 type ListaProps = {
   grupo: GrupoDeArquivos;
@@ -168,6 +226,9 @@ type ListaProps = {
 };
 
 const ESTILO_DO_TITULO_DO_GRUPO = {
+  pt: 2,
+  pb: 0.5,
+  px: 1.25,
   fontSize: TIPOS.overline,
   fontWeight: PESOS.semi,
   color: 'text.muted',
@@ -186,31 +247,42 @@ function ListaDoGrupo({ grupo, aberto, onAbrir }: ListaProps): ReactNode {
   );
 }
 
-type ItemProps = { arquivo: Arquivo; aberto: string | null; onAbrir: (caminho: string) => void };
+type ItemProps = {
+  arquivo: ArquivoNaArvore;
+  aberto: string | null;
+  onAbrir: (caminho: string) => void;
+};
 
 function ItemDoGrupo({ arquivo, aberto, onAbrir }: ItemProps): ReactNode {
   if (arquivo.herdado_de) {
     return (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
+      <Typography variant="body2" color="textSecondary" sx={{ py: 0.5, px: 1.25 }}>
         {rotuloDoArquivo(arquivo)}
       </Typography>
     );
   }
+  const selecionado = aberto === arquivo.caminho;
   return (
     <Button
       fullWidth
       size="small"
       color="inherit"
-      variant={aberto === arquivo.caminho ? 'outlined' : 'text'}
       sx={{
         justifyContent: 'flex-start',
         textTransform: 'none',
         fontFamily: ESTILO_DE_CODIGO.fontFamily,
         fontSize: TIPOS.caption,
+        fontWeight: PESOS.regular,
+        borderRadius: RAIO_DO_ITEM_DA_ARVORE,
+        py: 0.875,
+        px: 1.25,
+        ...(selecionado
+          ? { bgcolor: 'background.tint', color: 'primary.main' }
+          : { color: 'text.strong' }),
       }}
       onClick={() => onAbrir(arquivo.caminho)}
     >
-      {arquivo.caminho}
+      {arquivo.exibicao}
     </Button>
   );
 }

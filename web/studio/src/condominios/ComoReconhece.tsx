@@ -11,7 +11,7 @@ export function ComoReconhece({ descricao }: { descricao: string }): ReactNode {
         </Typography>
       </AccordionSummary>
       <AccordionDetails>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="textSecondary">
           {descricao}
         </Typography>
       </AccordionDetails>

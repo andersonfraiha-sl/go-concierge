@@ -1,5 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
-import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, Typography } from '@mui/material';
 import { type ComponentProps, type ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
@@ -8,9 +8,10 @@ import { PecaAoCopiloto } from '@/copiloto/PecaAoCopiloto';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
+import { PESOS, RAIO } from '@/theme/tokens';
 import { type SkillResumo, useSkills } from './contratos';
 import { caminhoDoEditor, type Dialogo, DialogosDeSkills } from './DialogosDeSkills';
-import { filtrarPorBusca, type Problemas, problemasPorCaminho } from './estatisticas';
+import { type Problemas, problemasPorCaminho } from './estatisticas';
 import { GrupoDeSkills } from './GrupoDeSkills';
 import { NumerosDasSkills } from './NumerosDasSkills';
 import { SkillCard } from './SkillCard';
@@ -39,16 +40,21 @@ function CabecalhoDaPagina({ onNova }: { onNova: () => void }): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <Box sx={{ flex: 1 }}>
-        <Typography variant="h5" component="h1">
+        <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
           Skills
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: PESOS.regular }}>
           O que o concierge sabe fazer. Abra uma skill para ajustar o que ele fala e o passo a
           passo.
         </Typography>
       </Box>
       {podeCriar && (
-        <Button variant="contained" startIcon={<AddIcon />} onClick={onNova}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={onNova}
+          sx={{ height: 42, px: 3, borderRadius: RAIO.menu, fontWeight: PESOS.semi }}
+        >
           Nova skill
         </Button>
       )}
@@ -92,15 +98,8 @@ type PropsDasEncontradas = Pick<
 
 function SkillsEncontradas({ onDialogo, ...numeros }: PropsDasEncontradas): ReactNode {
   const { skills, problemas } = numeros;
-  const [busca, setBusca] = useState('');
-  const escreventes = filtrarPorBusca(
-    skills.filter((skill) => skill.escrita),
-    busca,
-  );
-  const consultivas = filtrarPorBusca(
-    skills.filter((skill) => !skill.escrita),
-    busca,
-  );
+  const escreventes = skills.filter((skill) => skill.escrita);
+  const consultivas = skills.filter((skill) => !skill.escrita);
   const cartao = (variante: 'completo' | 'compacto') => (skill: SkillResumo) => (
     <CartaoDaSkill
       key={skill.nome}
@@ -114,14 +113,6 @@ function SkillsEncontradas({ onDialogo, ...numeros }: PropsDasEncontradas): Reac
   return (
     <>
       <NumerosDasSkills {...numeros} />
-      <TextField
-        label="Buscar skill"
-        slotProps={{ htmlInput: { 'aria-label': 'Buscar skill' } }}
-        size="small"
-        value={busca}
-        onChange={(evento) => setBusca(evento.target.value)}
-        sx={{ width: 300 }}
-      />
       <GrupoDeSkills
         titulo="Registram no sistema"
         subtitulo="pedem confirmação do morador"

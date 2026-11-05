@@ -153,7 +153,12 @@ describe('contexto do Copiloto por tela', () => {
       tela: <SkillEditorPage />,
       rota: '/skills/agendar-mudanca',
       caminho: '/skills/:nome',
-      rotas: { 'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')) },
+      rotas: {
+        'GET /api/skills': () => json(skillsFalsas),
+        'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')),
+        'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
+        'GET /api/admin/estado': () => json(estadoFalso),
+      },
     });
     await screen.findByRole('textbox', { name: 'Resumo' });
 
@@ -169,6 +174,7 @@ describe('contexto do Copiloto por tela', () => {
       rota: '/skills/agendar-mudanca?aba=fluxo',
       caminho: '/skills/:nome',
       rotas: {
+        'GET /api/skills': () => json(skillsFalsas),
         'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')),
         'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
         'GET /api/nexus/recursos': () =>
@@ -211,6 +217,7 @@ describe('contexto do Copiloto por tela', () => {
       rotas: {
         'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
         'GET /api/agente': () => json(agente),
+        'GET /api/arquivo': () => json({ codigo: 'NAO_ENCONTRADO', mensagem: 'sem arquivo' }, 404),
       },
     });
     await screen.findByRole('textbox', { name: 'Texto da persona' });
@@ -224,6 +231,7 @@ describe('contexto do Copiloto por tela', () => {
       rotas: {
         'GET /api/nexus/recursos': () =>
           json({ account: 'a', origem: 'instantaneo', conferido: true, recursos: [] }),
+        'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
       },
     });
     await screen.findByRole('heading', { name: 'Ferramentas' });
@@ -239,7 +247,7 @@ describe('contexto do Copiloto por tela', () => {
         'GET /api/arquivo': () => json({ caminho: 'rules/politicas.md', conteudo: 'Regra' }),
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'rules/politicas.md' }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await screen.findByDisplayValue('Regra');
 
     expect(await contextoEnviado(user, pedidos)).toEqual({
@@ -258,7 +266,7 @@ describe('contexto do Copiloto por tela', () => {
         'GET /api/arquivo': () => json({ caminho: 'rules/politicas.md', conteudo: 'Regra' }),
       },
     });
-    await user.click(await screen.findByRole('button', { name: 'rules/politicas.md' }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await screen.findByDisplayValue('Regra');
 
     expect(await contextoEnviado(user, pedidos)).toEqual({ tela: 'skills' });
@@ -319,6 +327,8 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
       rotas: {
         'GET /api/skills/agendar-mudanca': () => json(lido),
         'GET /api/skills': () => json(skillsFalsas),
+        'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
+        'GET /api/admin/estado': () => json(estadoFalso),
         'POST /api/copiloto': () => json(respostaCom(resumo, operacao)),
         'PUT /api/skills/agendar-mudanca/textos': () => {
           lido = textosLidos('Marca o dia da mudança.', 'v2');

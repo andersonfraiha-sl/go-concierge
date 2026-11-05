@@ -22,7 +22,9 @@ describe('CondominioPage', () => {
     expect(
       await screen.findByText('Vale para todas as administradoras; só a Superlógica muda.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: 'Agendar mudança neste condomínio' })).toBeDisabled();
+    expect(
+      await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
+    ).toBeDisabled();
     expect(
       await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
     ).toHaveAttribute('aria-readonly', 'true');

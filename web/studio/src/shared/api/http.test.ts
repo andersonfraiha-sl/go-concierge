@@ -219,7 +219,11 @@ describe('deveTentarDeNovo', () => {
     { falhas: 0, erro: new ApiError(500, 'ERRO_INTERNO', 'x', null), quer: true },
     { falhas: 3, erro: new ApiError(500, 'ERRO_INTERNO', 'x', null), quer: false },
     { falhas: 0, erro: new Error('rede'), quer: true },
-  ])('doesNotRetryOnUnauthenticated $falhas $erro.message', ({ falhas, erro, quer }) => {
+    { falhas: 0, erro: new ApiError(404, 'NAO_ENCONTRADO', 'x', null), quer: false },
+    { falhas: 0, erro: new ApiError(409, 'CONFLITO', 'x', null), quer: false },
+    { falhas: 0, erro: new ApiError(429, 'LIMITE', 'x', null), quer: true },
+    { falhas: 0, erro: new ApiError(408, 'TEMPO', 'x', null), quer: true },
+  ])('retriesOnlyTransientFailures $falhas $erro.message', ({ falhas, erro, quer }) => {
     expect(deveTentarDeNovo(falhas, erro)).toBe(quer);
   });
 });

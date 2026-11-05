@@ -41,6 +41,8 @@ function rotas(
         },
         recursos: [],
       }),
+    // Boas-vindas e Transbordo leem seus arquivos ao montar; sem dado, nascem vazios.
+    'GET /api/arquivo': () => json({ codigo: 'NAO_ENCONTRADO', mensagem: 'sem arquivo' }, 404),
     'PUT /api/arquivo': async (req: Request) => {
       aoSalvar(await req.json());
       return json({ salvo: 'persona.md' });
@@ -134,6 +136,21 @@ describe('ConciergePage', () => {
     },
   );
 
+  it('marksTheToneDetectedInTheCurrentPersonaAsPressed', async () => {
+    const personaInicial = `Saudação gentil ao morador. ${TONS.direto} Encerre desejando um bom dia.`;
+    responderCom(rotas(construtor, personaInicial));
+    renderComProvedores(<ConciergePage />);
+    await personaCom(personaInicial);
+    expect(await screen.findByRole('button', { name: 'Direto' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Acolhedor' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
   it('gestorSeesNoToneButtons', async () => {
     responderCom(rotas(gestor));
     renderComProvedores(<ConciergePage />);
@@ -143,25 +160,36 @@ describe('ConciergePage', () => {
     }
   });
 
-  it('showsAllFiveConciergeTabs', async () => {
+  it('showsAllSixConciergeCardsAtOnce', async () => {
     responderCom(rotas(construtor));
     renderComProvedores(<ConciergePage />);
     await personaCom('Você é gentil.');
-    for (const rotulo of [
-      'Persona',
+    for (const titulo of [
+      'Identidade',
+      'Persona e tom de voz',
       'Boas-vindas',
       'Regras gerais',
       'Base de conhecimento comum',
-      'Transbordo',
+      'Transbordo para atendente',
     ]) {
-      expect(screen.getByRole('tab', { name: rotulo })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: titulo })).toBeInTheDocument();
     }
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
-  it('opensTabFromQuery', async () => {
+  it('showsTheRealAgentNameInTheIdentityCard', async () => {
     responderCom(rotas(construtor));
-    renderComProvedores(<ConciergePage />, { rota: '/?aba=regras' });
-    expect(await screen.findByRole('heading', { name: 'Regras gerais' })).toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Texto da persona' })).not.toBeInTheDocument();
+    renderComProvedores(<ConciergePage />);
+    expect(await screen.findByText('concierge')).toBeInTheDocument();
+  });
+
+  it('showsTestInConsoleLink', async () => {
+    responderCom(rotas(construtor));
+    renderComProvedores(<ConciergePage />);
+    await personaCom('Você é gentil.');
+    expect(screen.getByRole('link', { name: 'Testar no Console' })).toHaveAttribute(
+      'href',
+      '/console',
+    );
   });
 });

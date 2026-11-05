@@ -14,9 +14,10 @@ import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { type EstadoSalvamento, useAutosave } from '@/shared/autosave/useAutosave';
-import { CampoRico } from '@/shared/editor/CampoRico';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { SectionCard } from '@/shared/ui/SectionCard';
+import { CONCIERGE, ESPACOS, PESOS, RAIO, SHELL } from '@/theme/tokens';
+import { CampoDeTextoSimples } from './CampoDeTextoSimples';
+import { ConciergeCard } from './ConciergeCard';
 
 export const TONS = {
   acolhedor: 'Fale como um vizinho prestativo e gentil: frases curtas, calorosas, sem gírias.',
@@ -43,9 +44,14 @@ function aplicarTom(personaAtual: string, frase: string): string {
   return personaAtual.trim() === '' ? frase : `${personaAtual} ${frase}`;
 }
 
+/** Tom que a persona atual reflete, se algum (a frase de um dos tons está literalmente no texto). */
+function tomAtualDe(persona: string): keyof typeof TONS | null {
+  return ORDEM_DOS_TONS.find((tom) => persona.includes(TONS[tom])) ?? null;
+}
+
 export function PersonaDoAgente({ assistente }: { assistente: string }): ReactNode {
   const agente = useAgente(assistente);
-  if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (agente.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (agente.isError) return <Falha aoTentar={() => void agente.refetch()} />;
   return <PersonaEditor assistente={assistente} personaGravada={agente.data.agente.persona} />;
 }
@@ -59,8 +65,8 @@ function PersonaEditor({ assistente, personaGravada }: PropsDoEditor): ReactNode
     usePersonaEditavel({ assistente, personaGravada });
   const realce = useRealceDoCopiloto('persona');
   return (
-    <SectionCard
-      titulo="Persona"
+    <ConciergeCard
+      titulo="Persona e tom de voz"
       ajuda="A voz do concierge em todas as respostas ao morador."
       acao={
         <AcoesDaPersona
@@ -81,16 +87,16 @@ function PersonaEditor({ assistente, personaGravada }: PropsDoEditor): ReactNode
           Sem persona, o concierge responde sem um jeito próprio de falar.
         </Alert>
       )}
-      {editavel && <BotoesDeTom onEscolher={escolherTom} />}
-      <CampoRico
+      {editavel && <BotoesDeTom tomAtual={tomAtualDe(persona)} onEscolher={escolherTom} />}
+      <CampoDeTextoSimples
         control={control}
         name="persona"
         rotulo="Texto da persona"
         editavel={editavel}
         minLinhas={12}
-        realce={realce}
+        sx={realce}
       />
-    </SectionCard>
+    </ConciergeCard>
   );
 }
 
@@ -143,7 +149,18 @@ function AcoesDaPersona({ editavel, estado, onUsarModelo, onTentarDeNovo }: Prop
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       {editavel && (
-        <Button size="small" onClick={onUsarModelo}>
+        <Button
+          size="small"
+          onClick={onUsarModelo}
+          sx={{
+            fontWeight: PESOS.semi,
+            px: `${ESPACOS[1]}px`,
+            py: 0,
+            height: SHELL.alturaDoControle,
+            lineHeight: 'normal',
+            borderRadius: RAIO.chip,
+          }}
+        >
           Usar o modelo
         </Button>
       )}
@@ -152,15 +169,55 @@ function AcoesDaPersona({ editavel, estado, onUsarModelo, onTentarDeNovo }: Prop
   );
 }
 
-function BotoesDeTom({ onEscolher }: { onEscolher: (tom: keyof typeof TONS) => void }): ReactNode {
+type PropsDosBotoesDeTom = {
+  tomAtual: keyof typeof TONS | null;
+  onEscolher: (tom: keyof typeof TONS) => void;
+};
+
+function BotoesDeTom({ tomAtual, onEscolher }: PropsDosBotoesDeTom): ReactNode {
   return (
     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
       {ORDEM_DOS_TONS.map((tom) => (
-        <Button key={tom} size="small" variant="outlined" onClick={() => onEscolher(tom)}>
-          {ROTULOS_DE_TOM[tom]}
-        </Button>
+        <BotaoDeTom
+          key={tom}
+          selecionado={tom === tomAtual}
+          onClick={() => onEscolher(tom)}
+          rotulo={ROTULOS_DE_TOM[tom]}
+        />
       ))}
     </Box>
+  );
+}
+
+function BotaoDeTom({
+  selecionado,
+  onClick,
+  rotulo,
+}: {
+  selecionado: boolean;
+  onClick: () => void;
+  rotulo: string;
+}): ReactNode {
+  return (
+    <Button
+      size="small"
+      aria-pressed={selecionado}
+      onClick={onClick}
+      sx={{
+        borderRadius: RAIO.pilula,
+        px: `${ESPACOS[2]}px`,
+        py: `${CONCIERGE.paddingYDaPilula}px`,
+        height: CONCIERGE.alturaDaPilula,
+        lineHeight: 'normal',
+        border: 1,
+        borderColor: selecionado ? 'primary.main' : 'border.strong',
+        bgcolor: selecionado ? 'background.tint' : 'background.paper',
+        color: selecionado ? 'primary.main' : 'text.secondary',
+        fontWeight: selecionado ? PESOS.semi : PESOS.regular,
+      }}
+    >
+      {rotulo}
+    </Button>
   );
 }
 

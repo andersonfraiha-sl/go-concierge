@@ -48,7 +48,7 @@ function BolhaDaFala({ texto }: { texto: string }): ReactNode {
         py: 1,
       }}
     >
-      <Typography variant="body2">{texto}</Typography>
+      <Typography variant="body2">“{texto}”</Typography>
     </Box>
   );
 }
@@ -68,7 +68,7 @@ export function ComoOMoradorVe({ bloco }: { bloco: Bloco }): ReactNode {
   if (previa.tipo === 'chips') return <CamposPedidos itens={previa.itens} />;
   if (previa.tipo === 'bolha') return <BolhaDaFala texto={previa.texto} />;
   return (
-    <Typography variant="body2" color="text.secondary">
+    <Typography variant="body2" color="textSecondary">
       {SEM_FALA}
     </Typography>
   );

@@ -33,10 +33,9 @@ const ROTULO_DO_STATUS: Record<Status, { texto: string; cor: string; corDoPonto:
 const ESTILO_DO_PAINEL = {
   width: tokens.layout.copiloto,
   flexShrink: 0,
-  position: 'sticky',
-  top: tokens.layout.navbarHeight,
-  alignSelf: 'flex-start',
-  height: `calc(100vh - ${tokens.layout.navbarHeight}px)`,
+  // A moldura não rola: o painel ocupa a altura toda abaixo do topo, seja barra ou cabeçalho.
+  alignSelf: 'stretch',
+  minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
   bgcolor: 'background.paper',

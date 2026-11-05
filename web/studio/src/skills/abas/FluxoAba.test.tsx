@@ -442,9 +442,9 @@ describe('FluxoAba', () => {
   it('numbersBlocksInOrder', async () => {
     responderCom(rotas(construtor));
     montar();
-    expect(within(await bloco('Buscar dados')).getByText('1.')).toBeInTheDocument();
-    expect(within(await bloco('Pedir escolha')).getByText('2.')).toBeInTheDocument();
-    expect(within(await bloco('Responder')).getByText('6.')).toBeInTheDocument();
+    expect(within(await bloco('Buscar dados')).getByText('1')).toBeInTheDocument();
+    expect(within(await bloco('Pedir escolha')).getByText('2')).toBeInTheDocument();
+    expect(within(await bloco('Responder')).getByText('6')).toBeInTheDocument();
   });
 
   it('marksBlockTypeWithLeftBar', async () => {
@@ -489,8 +489,19 @@ describe('FluxoAba', () => {
 
     responderCom(rotas(gestor));
     montar();
-    await screen.findByDisplayValue('Data da mudança');
+    await screen.findByText('Data da mudança');
     expect(screen.queryByText('data_mudanca')).not.toBeInTheDocument();
+  });
+
+  it('showsSidebarInformationAsPlainTextForGestor', async () => {
+    responderCom(rotas(gestor));
+    montar();
+    expect(await screen.findByText('Data da mudança')).toBeInTheDocument();
+    expect(
+      screen.getByText('Para qual data você gostaria de agendar a mudança?'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Manhã (8h às 12h)').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('textbox', { name: 'Título' })).not.toBeInTheDocument();
   });
 
   it('hidesEditingControlsForGestor', async () => {
@@ -500,6 +511,31 @@ describe('FluxoAba', () => {
     expect(screen.queryByRole('button', { name: /Adicionar bloco/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Excluir bloco' })).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Como o morador vê' })).toBeInTheDocument();
+  });
+
+  it('showsReadOnlyBannerAboveCanvasForGestor', async () => {
+    responderCom(rotas(construtor));
+    const { unmount } = montar();
+    await bloco('Responder');
+    expect(screen.queryByText(/Você vê o passo a passo como gestor/)).not.toBeInTheDocument();
+    unmount();
+
+    responderCom(rotas(gestor));
+    montar();
+    expect(await screen.findByText(/Você vê o passo a passo como gestor/)).toBeInTheDocument();
+  });
+
+  it('showsQuestionsAsPlainTextForGestor', async () => {
+    responderCom(rotas(gestor));
+    montar();
+    await selecionar('Perguntar');
+    expect(
+      screen.getByText('Para qual data você gostaria de agendar a mudança?'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Manhã (8h às 12h)')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('combobox', { name: 'Informações perguntadas' }),
+    ).not.toBeInTheDocument();
   });
 });
 

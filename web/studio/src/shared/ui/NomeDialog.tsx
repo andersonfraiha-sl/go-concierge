@@ -79,7 +79,7 @@ function CampoDoNome({ control, identificador }: PropsDoCampoDoNome): ReactNode 
   return (
     <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <CampoTexto control={control} name="nome" autoFocus fullWidth margin="dense" label="Nome" />
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         Identificador: {identificador}
       </Typography>
     </DialogContent>

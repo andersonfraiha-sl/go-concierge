@@ -13,18 +13,23 @@ type Opcoes = {
   rota?: string;
   /** Padrão de rota em que o componente é montado, ex.: "/skills/:nome". */
   caminho?: string;
+  /** Layout de rota (com Outlet) em volta da tela, ex.: <LayoutDeDetalhe />. */
+  layout?: ReactNode;
 };
 
 export function renderComProvedores(
   ui: ReactNode,
-  { rota = '/', caminho = '*' }: Opcoes = {},
+  { rota = '/', caminho = '*', layout }: Opcoes = {},
 ): RenderResult & { user: UserEvent } {
   const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   // Toda tela fala com o Copiloto (contexto, realce); fechado, ele não faz pedido nenhum.
-  const rotas = createMemoryRouter(
-    [{ path: caminho, element: <CopilotoProvider>{ui}</CopilotoProvider> }],
-    { initialEntries: [rota] },
-  );
+  const rotaDaTela = layout
+    ? {
+        element: <CopilotoProvider>{layout}</CopilotoProvider>,
+        children: [{ path: caminho, element: ui }],
+      }
+    : { path: caminho, element: <CopilotoProvider>{ui}</CopilotoProvider> };
+  const rotas = createMemoryRouter([rotaDaTela], { initialEntries: [rota] });
   const resultado = render(
     <QueryClientProvider client={cliente}>
       <ThemeProvider theme={criarTema()}>

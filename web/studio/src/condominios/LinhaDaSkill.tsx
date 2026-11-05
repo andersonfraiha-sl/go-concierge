@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { iconeDaSkill } from '@/skills/icones';
 import { ICONES, PESOS, RAIO, RAIOS } from '@/theme/tokens';
-import { type LinhaDeSkill, rotuloDePapeis } from './listaDeSkills';
+import { categoriaDe, type LinhaDeSkill, rotuloDePapeis, tomDaCategoria } from './listaDeSkills';
 
 /** Raio de pílula bem acima de qualquer altura real do chip: sempre fica totalmente arredondado. */
 
@@ -38,12 +38,15 @@ const ESTILO_DO_ICONE = {
   width: 30,
   height: 30,
   borderRadius: `${RAIOS.campo}px`,
-  bgcolor: 'background.tint',
-  color: 'primary.main',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   flex: 'none',
+} as const;
+
+const CORES_DO_ICONE = {
+  registra: { bgcolor: 'studio.registra.soft', color: 'studio.registra.onSoft' },
+  consulta: { bgcolor: 'background.tint', color: 'primary.main' },
 } as const;
 
 const ESTILO_DO_CHIP = {
@@ -79,7 +82,10 @@ export function LinhaDaSkill(props: Props): ReactNode {
 
   return (
     <ListItemButton onClick={onAbrir} sx={[ESTILO_DA_LINHA, realce]}>
-      <IdentidadeDaSkill linha={linha} mostraDecisaoPropria={linha.propria && !ehPadrao} />
+      <IdentidadeDaSkill
+        linha={linha}
+        mostraDesligadaAqui={linha.propria && !ehPadrao && !linha.habilitacao.habilitado}
+      />
       <ChevronRightOutlined fontSize="small" sx={{ color: 'text.muted', flex: 'none' }} />
       <Switch
         checked={linha.habilitacao.habilitado}
@@ -92,21 +98,22 @@ export function LinhaDaSkill(props: Props): ReactNode {
   );
 }
 
-type IdentidadeProps = { linha: LinhaDeSkill; mostraDecisaoPropria: boolean };
+type IdentidadeProps = { linha: LinhaDeSkill; mostraDesligadaAqui: boolean };
 
-function IdentidadeDaSkill({ linha, mostraDecisaoPropria }: IdentidadeProps): ReactNode {
+function IdentidadeDaSkill({ linha, mostraDesligadaAqui }: IdentidadeProps): ReactNode {
   const Icone = iconeDaSkill(linha.caso.icone);
   const rotuloPapeis = rotuloDePapeis(linha.habilitacao.papeis);
   const opacidade = linha.habilitacao.habilitado ? 1 : 0.6;
+  const tom = tomDaCategoria(categoriaDe(linha.caso));
 
   return (
     <Box sx={[ESTILO_DA_IDENTIDADE, { opacity: opacidade }]}>
-      <Box sx={ESTILO_DO_ICONE}>
+      <Box sx={[ESTILO_DO_ICONE, CORES_DO_ICONE[tom]]}>
         <Icone sx={{ fontSize: ICONES.grande }} />
       </Box>
       <TituloEResumo linha={linha} />
       {rotuloPapeis !== null && <Chip texto={rotuloPapeis} estilo={CHIP_DE_PAPEIS} />}
-      {mostraDecisaoPropria && <Chip texto="deste condomínio" estilo={CHIP_DE_DECISAO_PROPRIA} />}
+      {mostraDesligadaAqui && <Chip texto="desligada aqui" estilo={CHIP_DE_DECISAO_PROPRIA} />}
     </Box>
   );
 }
@@ -116,7 +123,7 @@ function TituloEResumo({ linha }: { linha: LinhaDeSkill }): ReactNode {
     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, flex: 1, minWidth: 0 }}>
       <Typography sx={{ fontWeight: PESOS.semi, whiteSpace: 'nowrap' }}>{linha.titulo}</Typography>
       <Tooltip title={linha.caso.resumo}>
-        <Typography variant="body2" color="text.muted" noWrap sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" color="textMuted" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {linha.caso.resumo}
         </Typography>
       </Tooltip>

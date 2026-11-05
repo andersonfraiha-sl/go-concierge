@@ -26,8 +26,14 @@ function nomeDoCondominio(estado: Estado, condominio: string): string {
   return estado.mapeamento.condominios.find((c) => c.id === condominio)?.nome ?? condominio;
 }
 
+// O desenho aprovado mostra o painel sem véu escuro: o conteúdo principal continua visível ao lado.
 const slotsDoDrawer = (rotulo: string) => ({
-  paper: { sx: { width: GAVETA.padrao }, role: 'dialog', 'aria-label': rotulo },
+  paper: {
+    sx: { width: GAVETA.padrao, borderLeft: 1, borderColor: 'border.default' },
+    role: 'dialog',
+    'aria-label': rotulo,
+  },
+  backdrop: { sx: { bgcolor: 'transparent' } },
 });
 
 export function SkillDoCondominioDrawer(props: Props): ReactNode {
@@ -42,14 +48,14 @@ export function SkillDoCondominioDrawer(props: Props): ReactNode {
 }
 
 function ConteudoDoDrawer(props: Props): ReactNode {
-  const { estado, condominio, caso, titulo, editavel } = props;
+  const { estado, condominio, caso, titulo, editavel, onFechar } = props;
   const { cabecalho, quem, rodape } = useHabilitacaoDaSkill(props);
   const podeVerTextoDaSkill = usePodeEditar('skills.editar_textos');
   const alvo = { estado, condominio, caso, editavel };
 
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Cabecalho caso={caso} titulo={titulo} {...cabecalho} />
+      <Cabecalho caso={caso} titulo={titulo} onFechar={onFechar} {...cabecalho} />
       <QuemPodeUsar {...quem} />
       <OrientacaoDaSkill {...alvo} />
       <AjustesDaSkill {...alvo} />
@@ -100,10 +106,17 @@ type RodapeProps = { caso: Caso; podeVoltar: boolean; gravando: boolean; onVolta
 function RodapeDoDrawer({ caso, podeVoltar, gravando, onVoltar }: RodapeProps): ReactNode {
   const { data: eu } = useEu();
   return (
-    <Box sx={{ display: 'flex', gap: 1 }}>
+    <Box sx={{ display: 'flex', gap: 1, mt: 'auto', pt: 2 }}>
       {eu && pode(eu, 'skills.ler') && <VerOFluxo nome={caso.nome} />}
       {podeVoltar && (
-        <Button fullWidth onClick={onVoltar} disabled={gravando}>
+        <Button
+          variant="contained"
+          disableElevation
+          fullWidth
+          onClick={onVoltar}
+          disabled={gravando}
+          sx={{ bgcolor: 'background.neutralFill', color: 'text.primary' }}
+        >
           Voltar ao Padrão
         </Button>
       )}
@@ -113,7 +126,12 @@ function RodapeDoDrawer({ caso, podeVoltar, gravando, onVoltar }: RodapeProps): 
 
 function VerOFluxo({ nome }: { nome: string }): ReactNode {
   return (
-    <Button fullWidth component={Link} to={`/skills/${encodeURIComponent(nome)}?aba=fluxo`}>
+    <Button
+      variant="outlined"
+      fullWidth
+      component={Link}
+      to={`/skills/${encodeURIComponent(nome)}?aba=fluxo`}
+    >
       Ver o fluxo
     </Button>
   );

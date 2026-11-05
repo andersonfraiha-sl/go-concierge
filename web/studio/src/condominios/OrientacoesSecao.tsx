@@ -131,7 +131,7 @@ function OrientacaoDoPadrao({ estado, condominio }: Omit<Props, 'editavel'>): Re
       <Typography variant="body2" sx={{ fontWeight: PESOS.semi }}>
         Também vale o do Padrão:
       </Typography>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         {doPadrao}
       </Typography>
     </Box>
