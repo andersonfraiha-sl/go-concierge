@@ -42,6 +42,9 @@ function usePrimeiroArquivoAberto(
   }, [grupos, aberto, setAberto]);
 }
 
+// Lista e editor vão até o pé da janela (topo, título, abas e seletor somam ~380 px).
+const ALTURA_DA_AREA = 'max(480px, calc(100vh - 380px))';
+
 export function ArquivosAba({ no, editar }: Props): ReactNode {
   const agente = useAgente(no.caminho);
   const [aberto, setAberto] = useState<string | null>(null);
@@ -77,7 +80,7 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   }
 
   return (
-    <Box sx={{ display: 'flex', gap: 3, alignItems: 'stretch', flex: 1, minHeight: 0 }}>
+    <Box sx={{ display: 'flex', gap: 3, alignItems: 'stretch', height: ALTURA_DA_AREA }}>
       <ListaDeGrupos
         grupos={grupos}
         aberto={aberto}
@@ -155,18 +158,29 @@ function ListaDeGrupos({ grupos, aberto, editar, onAbrir, onNovo }: ListaDeGrupo
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: 0.25,
+        gap: 1,
       }}
     >
-      {grupos.map((grupo) => (
-        <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={onAbrir} />
-      ))}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.25,
+        }}
+      >
+        {grupos.map((grupo) => (
+          <ListaDoGrupo key={grupo.grupo} grupo={grupo} aberto={aberto} onAbrir={onAbrir} />
+        ))}
+      </Box>
       {editar && (
         <Button
           startIcon={<AddIcon fontSize="small" />}
           onClick={onNovo}
           sx={{
-            mt: 'auto',
+            flexShrink: 0,
             justifyContent: 'center',
             borderWidth: 1,
             borderStyle: 'dashed',

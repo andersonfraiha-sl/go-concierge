@@ -238,8 +238,7 @@ function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
           control={control}
           name="texto"
           multiline
-          minRows={16}
-          maxRows={16}
+          rows={1}
           fullWidth
           variant="standard"
           slotProps={{
@@ -252,11 +251,13 @@ function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
             },
           }}
           sx={{
-            position: 'relative',
+            position: 'absolute',
+            inset: 0,
             zIndex: 1,
             bgcolor: 'transparent',
-            '& .MuiInputBase-root': { bgcolor: 'transparent', p: 0 },
-            '& .MuiInputBase-input': { overflowX: 'auto' },
+            '& .MuiInputBase-root': { bgcolor: 'transparent', p: 0, height: '100%' },
+            // O texto ocupa a área toda: as barras de rolagem ficam na borda do editor.
+            '& .MuiInputBase-input': { height: '100% !important', overflow: 'auto' },
           }}
         />
       </Box>
