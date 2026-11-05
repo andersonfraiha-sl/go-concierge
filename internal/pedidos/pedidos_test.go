@@ -359,7 +359,7 @@ func TestRotuloDataVisitaVirandaDeAnoEAnoBissexto(t *testing.T) {
 		{"29 fev de bissexto -> 1 mar é amanhã", "2028-02-29", "2028-03-01", "amanhã"},
 	} {
 		t.Run(teste.nome, func(t *testing.T) {
-			agora, err := time.ParseInLocation("2006-01-02", teste.agora, time.Local)
+			agora, err := time.ParseInLocation("2006-01-02", teste.agora, localidadeSaoPaulo)
 			if err != nil {
 				t.Fatal(err)
 			}
