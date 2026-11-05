@@ -31,3 +31,7 @@ Thumbs.db
 /studio/
 go.work
 go.work.sum
+web/studio/e2e-results/
+web/studio/playwright-report/
+web/studio/stryker-report/
+web/studio/.stryker-tmp/

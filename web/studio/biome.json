@@ -1,7 +1,16 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.4/schema.json",
   "files": {
-    "includes": ["**", "!dist", "!node_modules", "!coverage"]
+    "includes": [
+      "**",
+      "!dist",
+      "!node_modules",
+      "!coverage",
+      "!e2e-results",
+      "!playwright-report",
+      "!stryker-report",
+      "!.stryker-tmp"
+    ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "formatter": {

@@ -139,8 +139,13 @@ export const tokens = {
       primary: '#22252B',
       strong: '#323B49',
       secondary: '#536379',
-      tertiary: '#637792',
-      muted: '#7789A3',
+      // 5.12:1 em cima de background.default: o tom anterior (#637792) dava 4.24:1, abaixo do
+      // mínimo AA de 4.5:1 (achado pelo e2e de acessibilidade, nos títulos de grupo de Ferramentas).
+      tertiary: '#566A85',
+      // 5.4:1 sobre o fundo do editor (o mais claro que usa este tom): o anterior (#7789A3) dava
+      // 3.47:1, abaixo do mínimo AA de 4.5:1 (achado pelo e2e de acessibilidade, nos números de
+      // linha do editor de Avançado).
+      muted: '#56698A',
       faint: '#A7B1C2',
     },
     border: {
@@ -159,7 +164,9 @@ export const tokens = {
     warning: { text: '#8A5A00', background: '#FFF6DF' },
     danger: { main: '#D61D1E' },
     realceDoCopiloto: '#FFF7CC',
-    registra: { background: '#FFF3E6', text: '#C25E00' },
+    // text em 5.08:1 sobre background: o tom anterior (#C25E00) dava 3.93:1, abaixo do mínimo
+    // AA de 4.5:1 (achado pelo e2e de acessibilidade, no chip "Grava no sistema").
+    registra: { background: '#FFF3E6', text: '#A84F00' },
     conector: '#C1CAD6',
     scrollbar: { thumb: '#c1c1c1', thumbHover: '#a8a8a8' },
     studio: {
@@ -212,7 +219,9 @@ export const tokens = {
 /** Tokens novos da fase 2 (área Skill: lista, Fluxo, Copiloto). */
 export const TOKENS_DA_SKILL = {
   bordaDeAviso: '#F5DDAF',
-  textoMuitoSuave: '#8A93A6',
+  // 5.02:1 em cima de background.tint (#f5f6f8): o tom anterior (#8A93A6) dava 2.85:1, abaixo
+  // do mínimo AA de 4.5:1 (achado pelo e2e de acessibilidade).
+  textoMuitoSuave: '#5B6B82',
   erroFundoSuave: '#FDE8E8',
   pendenciaFundo: '#FFFDF5',
 } as const;
