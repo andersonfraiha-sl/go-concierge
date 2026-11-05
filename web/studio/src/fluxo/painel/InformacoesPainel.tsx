@@ -12,7 +12,8 @@ type Props = {
 };
 
 // '' e 'text' são o mesmo texto curto para o servidor; a tela mostra só 'text'.
-const TIPOS_DE_INFORMACAO: Record<string, string> = {
+// Exportado: a coluna "Esta skill" do Quando usar reaproveita o mesmo rótulo por tipo.
+export const TIPOS_DE_INFORMACAO: Record<string, string> = {
   text: 'Texto curto',
   textarea: 'Texto longo',
   number: 'Número',
@@ -23,7 +24,7 @@ const TIPOS_DE_INFORMACAO: Record<string, string> = {
   list: 'Lista',
 };
 
-const tipoMostrado = (tipo: string): string => tipo || 'text';
+export const tipoMostrado = (tipo: string): string => tipo || 'text';
 
 const TIPO_ESCOLHA = 'select';
 
@@ -37,7 +38,7 @@ function CabecalhoDasInformacoes(): ReactNode {
       <Typography variant="subtitle1" component="h2" sx={{ fontWeight: PESOS.negrito }}>
         Informações que a skill pede
       </Typography>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         O que a skill pode perguntar ao morador.
       </Typography>
     </Box>
@@ -162,7 +163,7 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
       }}
     >
       {editavel && (
-        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+        <Typography variant="caption" color="textSecondary" sx={{ fontFamily: 'monospace' }}>
           {info.nome}
         </Typography>
       )}

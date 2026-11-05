@@ -56,3 +56,15 @@ export function blocosRealcados(alvos: ReadonlySet<string>, nome: string): Reado
     [...alvos].filter((alvo) => alvo.startsWith(prefixo)).map((alvo) => alvo.slice(prefixo.length)),
   );
 }
+
+/** Blocos que perguntam ao morador têm `campos` apontando para informações pelo nome. */
+const TIPOS_QUE_PERGUNTAM = new Set<Bloco['tipo']>(['perguntar', 'reaproveitar']);
+
+/** Posição (1-based) do primeiro bloco que pergunta esta informação; sem bloco, não tem passo. */
+export function passoDaInformacao(blocos: readonly Bloco[], nome: string): number | undefined {
+  const indice = blocos.findIndex(
+    (bloco) =>
+      TIPOS_QUE_PERGUNTAM.has(bloco.tipo) && 'campos' in bloco && bloco.campos.includes(nome),
+  );
+  return indice === -1 ? undefined : indice + 1;
+}

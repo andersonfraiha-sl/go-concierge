@@ -3,6 +3,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
 import { LayoutDeDetalhe } from '@/app/detalhe/LayoutDeDetalhe';
+import { estadoFalso } from '@/condominios/estadoFalso';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { SkillEditorPage } from './SkillEditorPage';
@@ -40,6 +41,9 @@ function rotasDoEditor(eu: Eu, corpos: unknown[], textos = lidos()) {
     'GET /api/eu': () => json(eu),
     'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
     'GET /api/skills/agendar-mudanca': () => json(textos),
+    // Sem fluxo gravado ainda nestes testes: a coluna "Informações que a skill pede" some.
+    'GET /api/skills/agendar-mudanca/fluxo': () => json(null, 404),
+    'GET /api/admin/estado': () => json(estadoFalso),
     'PUT /api/skills/agendar-mudanca/textos': async (req: Request) => {
       corpos.push(await req.json());
       return json({ versao: 'v2' });

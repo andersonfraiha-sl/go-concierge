@@ -1,11 +1,16 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Link as MuiLink, Typography } from '@mui/material';
 import type { ComponentProps, ReactNode } from 'react';
 import { type Control, Controller, useWatch } from 'react-hook-form';
+import { Link as RouterLink } from 'react-router';
+import { type Estado, habilitacaoDe, useEstado } from '@/condominios/contratos';
 import { type EstiloDoRealce, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import type { Informacao } from '@/fluxo/modelo/tipos';
+import { TIPOS_DE_INFORMACAO, tipoMostrado } from '@/fluxo/painel/InformacoesPainel';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
 import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
-import { LIMITE_DO_RESUMO, ResumoSchema, type Textos, useSkills } from './contratos';
+import { passoDaInformacao } from './abas/fluxoDaSkill';
+import { LIMITE_DO_RESUMO, ResumoSchema, type Textos, useFluxo, useSkills } from './contratos';
 import { ListaDeChips } from './ListaDeChips';
 
 type Props = {
@@ -137,22 +142,133 @@ function ListaDoCopiloto({ nome, control, editavel, campo }: Props & { campo: Ca
   );
 }
 
+/** Rótulo overline das seções da coluna "Esta skill": maiúsculas, tamanho do overline, cor apagada. */
 const RotuloDoPainel = ({ children }: { children: ReactNode }) => (
-  <Typography
-    component="h2"
-    variant="overline"
-    sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
-  >
+  <Typography component="h2" variant="overline" sx={{ color: 'text.tertiary' }}>
     {children}
   </Typography>
 );
 
-/**
- * Coluna lateral "Esta skill": quem pode usar e se grava no sistema.
- * ponytail: o board também lista "Informações que a skill pede" aqui (dado real, já existe no
- * Fluxo via fluxo.informacoes) — fica de fora porque buscá-lo aqui também duplicaria o fetch do
- * fluxo em toda tela que monta esta aba; melhor reaproveitar quando essa busca subir um nível.
- */
+/** Subtítulo de uma informação pedida: as opções de Escolha, senão o tipo de campo. */
+function subtituloDaInformacao(info: Informacao): string {
+  const tipo = tipoMostrado(info.tipo);
+  if (tipo === 'select' && info.opcoes.length > 0) {
+    return info.opcoes.map((opcao) => opcao.rotulo).join(', ');
+  }
+  return TIPOS_DE_INFORMACAO[tipo] ?? tipo;
+}
+
+type PropsDasInformacoes = { nome: string };
+
+/** "Informações que a skill pede": as perguntas do Fluxo, com o passo em que cada uma aparece. */
+function InformacoesDoFluxo({ nome }: PropsDasInformacoes): ReactNode {
+  const fluxo = useFluxo(nome);
+  const informacoes = fluxo.data?.fluxo.informacoes ?? [];
+  if (informacoes.length === 0) return null;
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <RotuloDoPainel>Informações que a skill pede</RotuloDoPainel>
+      <Box sx={{ border: 1, borderColor: 'border.subtle', borderRadius: RAIO.campo }}>
+        {informacoes.map((info) => (
+          <LinhaDaInformacao
+            key={info.nome}
+            info={info}
+            passo={passoDaInformacao(fluxo.data?.fluxo.blocos ?? [], info.nome)}
+          />
+        ))}
+      </Box>
+      <Typography variant="caption" sx={{ color: 'text.muted' }}>
+        Vêm das perguntas do Fluxo. Para mudar,{' '}
+        <MuiLink component={RouterLink} to="../fluxo" sx={{ fontWeight: PESOS.semi }}>
+          abra o Fluxo
+        </MuiLink>
+        .
+      </Typography>
+    </Box>
+  );
+}
+
+function LinhaDaInformacao({ info, passo }: { info: Informacao; passo: number | undefined }) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.25,
+        px: 1.5,
+        py: 1.25,
+        '&:not(:last-of-type)': { borderBottom: 1, borderColor: 'border.subtle' },
+      }}
+    >
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: TIPOS.body1, fontWeight: PESOS.semi }}>
+          {info.titulo || info.nome}
+        </Typography>
+        <Typography sx={{ fontSize: TIPOS.caption, color: 'text.muted', mt: 0.25 }}>
+          {subtituloDaInformacao(info)}
+        </Typography>
+      </Box>
+      {passo !== undefined && (
+        <Box
+          component="span"
+          sx={{
+            fontSize: TIPOS.overline,
+            fontWeight: PESOS.medio,
+            py: 0.375,
+            px: 1,
+            borderRadius: RAIO.pilula,
+            bgcolor: 'background.neutralFill',
+            color: 'text.secondary',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          passo {passo}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** Quantos condomínios ligam esta skill (decisão própria ou herdada do Padrão). */
+function contarCondominiosLigados(
+  estado: Estado,
+  caso: string,
+): { ligados: number; total: number } {
+  const condominios = estado.mapeamento.condominios;
+  const ligados = condominios.filter(
+    (c) => habilitacaoDe(estado.mapeamento, c.id, caso).habilitacao.habilitado,
+  ).length;
+  return { ligados, total: condominios.length };
+}
+
+/** "Onde está ligada": em quantos condomínios a skill está ativa. */
+function OndeEstaLigada({ nome }: PropsDasInformacoes): ReactNode {
+  const estado = useEstado();
+  if (!estado.data) return null;
+  const { ligados, total } = contarCondominiosLigados(estado.data, nome);
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <RotuloDoPainel>Onde está ligada</RotuloDoPainel>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+        <Typography sx={{ fontSize: TIPOS.h4, fontWeight: PESOS.negrito, color: 'secondary.main' }}>
+          {ligados}
+        </Typography>
+        <Typography sx={{ fontSize: TIPOS.body2, color: 'text.secondary' }}>
+          de {total} condomínios
+        </Typography>
+      </Box>
+      <MuiLink
+        component={RouterLink}
+        to="/condominios"
+        sx={{ fontSize: TIPOS.body2, fontWeight: PESOS.semi }}
+      >
+        Ver por condomínio
+      </MuiLink>
+    </Box>
+  );
+}
+
+/** Coluna lateral "Esta skill": o que ela pede, quem pode usar, onde está ligada e se grava algo. */
 function PainelDaSkill({ nome, control }: Props): ReactNode {
   const visibilidade = useWatch({ control, name: 'visibilidade' });
   const skill = useSkills().data?.skills.find((s) => s.nome === nome);
@@ -164,10 +280,9 @@ function PainelDaSkill({ nome, control }: Props): ReactNode {
       sx={{ width: 331, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
     >
       <RotuloDoPainel>Esta skill</RotuloDoPainel>
+      <InformacoesDoFluxo nome={nome} />
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: PESOS.semi }}>
-          Quem pode usar
-        </Typography>
+        <RotuloDoPainel>Quem pode usar</RotuloDoPainel>
         <Box
           component="span"
           sx={{
@@ -184,6 +299,7 @@ function PainelDaSkill({ nome, control }: Props): ReactNode {
           {visivelParaTodos ? 'Qualquer contato' : 'Morador identificado'}
         </Box>
       </Box>
+      <OndeEstaLigada nome={nome} />
       {skill?.escrita && (
         <Box
           sx={{
@@ -193,10 +309,10 @@ function PainelDaSkill({ nome, control }: Props): ReactNode {
             p: 1.75,
           }}
         >
-          <Typography variant="caption" sx={{ fontWeight: PESOS.semi, display: 'block' }}>
-            Grava no sistema
+          <RotuloDoPainel>Grava no sistema</RotuloDoPainel>
+          <Typography sx={{ fontSize: TIPOS.body2, mt: 0.75 }}>
+            Esta skill registra algo no sistema ao final.
           </Typography>
-          <Typography variant="caption">Esta skill registra algo no sistema ao final.</Typography>
         </Box>
       )}
     </Box>

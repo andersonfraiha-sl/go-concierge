@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { Eu } from '@/acesso/eu';
+import { estadoFalso } from '@/condominios/estadoFalso';
 import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
 import { PainelDoCopiloto } from '@/copiloto/PainelDoCopiloto';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
@@ -457,6 +458,8 @@ describe('SkillsPage', () => {
         corposTextos.push(await req.json());
         return json({ versao: 'v2' });
       },
+      'GET /api/skills/reserva-do-salao/fluxo': () => json(null, 404),
+      'GET /api/admin/estado': () => json(estadoFalso),
     });
     const { user } = montarComEditor();
 
