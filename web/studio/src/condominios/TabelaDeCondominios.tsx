@@ -38,7 +38,9 @@ const BADGE_DA_SITUACAO: Record<Situacao, { rotulo: string; fundo: string; cor: 
   pronto: {
     rotulo: 'Pronto',
     fundo: 'success.soft',
-    cor: 'success.main',
+    // onSoft (não main): main dava 3.3:1 sobre o fundo suave, abaixo do mínimo AA de 4.5:1
+    // (achado pelo e2e de acessibilidade). onSoft já é o tom pensado para texto sobre soft.
+    cor: 'success.onSoft',
   },
   'faltam-ids': {
     rotulo: 'Faltam ids',
