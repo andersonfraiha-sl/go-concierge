@@ -1,4 +1,4 @@
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, Typography, useTheme } from '@mui/material';
 import { forwardRef, type ReactNode, type UIEvent, useRef, useState } from 'react';
 import { type Control, useForm, useWatch } from 'react-hook-form';
 import { excluirArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
@@ -7,11 +7,18 @@ import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
-import { SectionCard } from '@/shared/ui/SectionCard';
-import { PADDING_TOPO_DO_EDITOR } from '@/theme/tokens';
+import {
+  FUNDO_DO_EDITOR,
+  PADDING_TOPO_DO_EDITOR,
+  PERIGO_SUAVE,
+  PESOS,
+  RAIO,
+  TIPOS,
+} from '@/theme/tokens';
 import { mensagemDeErro, useRecarregarAvancado } from './contratos';
-import { ESTILO_DO_EDITOR } from './estilo';
+import { ESTILO_DE_CODIGO, ESTILO_DO_EDITOR } from './estilo';
 import { FalhaComTentarDeNovo } from './FalhaComTentarDeNovo';
+import { realcarYaml } from './realceYaml';
 
 type EditorProps = { agente: string; caminho: string; editar: boolean; onExcluido: () => void };
 
@@ -54,6 +61,8 @@ function useSincroniaDoArquivo(
   return { control, handleSubmit, sincronia };
 }
 
+const bytesDoTexto = (texto: string): number => new TextEncoder().encode(texto).length;
+
 function EditorCarregado({
   agente,
   caminho,
@@ -79,19 +88,26 @@ function EditorCarregado({
   });
 
   return (
-    <SectionCard
-      titulo={caminho}
-      ajuda="O texto exatamente como está gravado."
-      acao={
-        editar && (
-          <AcoesDoEditor
-            salvarBloqueado={sincronia.conflito !== null}
-            onExcluir={() => setExcluindo(true)}
-            onSalvar={() => void salvar()}
-          />
-        )
-      }
+    <Box
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        border: 1,
+        borderColor: 'border.default',
+        borderRadius: RAIO.cartao,
+        overflow: 'hidden',
+      }}
     >
+      <CabecalhoDoEditor
+        caminho={caminho}
+        bytes={bytesDoTexto(conteudoGravado)}
+        editar={editar}
+        salvarBloqueado={sincronia.conflito !== null}
+        onExcluir={() => setExcluindo(true)}
+        onSalvar={() => void salvar()}
+      />
       <AvisoDeConflito
         conflito={sincronia.conflito}
         onManterOMeu={sincronia.manterOMeu}
@@ -109,7 +125,7 @@ function EditorCarregado({
         }}
         onCancelar={() => setExcluindo(false)}
       />
-    </SectionCard>
+    </Box>
   );
 }
 
@@ -132,17 +148,71 @@ function useExcluirArquivo(
   };
 }
 
-type AcoesProps = { salvarBloqueado: boolean; onExcluir: () => void; onSalvar: () => void };
+type CabecalhoProps = {
+  caminho: string;
+  bytes: number;
+  editar: boolean;
+  salvarBloqueado: boolean;
+  onExcluir: () => void;
+  onSalvar: () => void;
+};
 
-function AcoesDoEditor({ salvarBloqueado, onExcluir, onSalvar }: AcoesProps): ReactNode {
+function CabecalhoDoEditor({
+  caminho,
+  bytes,
+  editar,
+  salvarBloqueado,
+  onExcluir,
+  onSalvar,
+}: CabecalhoProps): ReactNode {
   return (
-    <Box sx={{ display: 'flex', gap: 1 }}>
-      <Button color="error" onClick={onExcluir}>
-        Excluir
-      </Button>
-      <Button variant="contained" disabled={salvarBloqueado} onClick={onSalvar}>
-        Salvar
-      </Button>
+    <Box
+      sx={{
+        height: 50,
+        px: 3,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+        borderBottom: 1,
+        borderColor: 'border.subtle',
+      }}
+    >
+      <Typography sx={{ fontFamily: ESTILO_DE_CODIGO.fontFamily, fontSize: TIPOS.body2 }}>
+        {caminho}
+      </Typography>
+      <Typography
+        component="span"
+        sx={{
+          fontSize: TIPOS.overline,
+          px: 1,
+          py: 0.375,
+          borderRadius: RAIO.pilula,
+          bgcolor: 'background.neutralFill',
+          color: 'text.secondary',
+        }}
+      >
+        {bytes} bytes
+      </Typography>
+      <Box sx={{ flex: 1 }} />
+      {editar && (
+        <>
+          <Button
+            variant="outlined"
+            onClick={onExcluir}
+            sx={{ borderColor: PERIGO_SUAVE.borda, color: PERIGO_SUAVE.texto }}
+          >
+            Excluir
+          </Button>
+          <Button
+            variant="contained"
+            disabled={salvarBloqueado}
+            onClick={onSalvar}
+            sx={{ fontWeight: PESOS.semi }}
+          >
+            Salvar
+          </Button>
+        </>
+      )}
     </Box>
   );
 }
@@ -151,32 +221,76 @@ type AreaProps = { control: Control<TextoDoArquivo>; caminho: string; editar: bo
 
 function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
   const numerosRef = useRef<HTMLPreElement>(null);
+  const realceRef = useRef<HTMLPreElement>(null);
   const sincronizarScroll = (evento: UIEvent<HTMLTextAreaElement>): void => {
     if (numerosRef.current) numerosRef.current.scrollTop = evento.currentTarget.scrollTop;
+    if (realceRef.current) {
+      realceRef.current.scrollTop = evento.currentTarget.scrollTop;
+      realceRef.current.scrollLeft = evento.currentTarget.scrollLeft;
+    }
   };
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', flex: 1, minHeight: 0, bgcolor: FUNDO_DO_EDITOR }}>
       <NumerosDeLinha ref={numerosRef} control={control} />
-      <CampoTexto
-        control={control}
-        name="texto"
-        multiline
-        minRows={16}
-        maxRows={16}
-        fullWidth
-        sx={{ overflowX: 'auto' }}
-        slotProps={{
-          htmlInput: {
-            readOnly: !editar,
-            'aria-label': `Conteúdo de ${caminho}`,
-            style: ESTILO_DO_EDITOR,
-            onScroll: sincronizarScroll,
-          },
-        }}
-      />
+      <Box sx={{ position: 'relative', flex: 1, minWidth: 0 }}>
+        <RealceDoTexto ref={realceRef} control={control} />
+        <CampoTexto
+          control={control}
+          name="texto"
+          multiline
+          minRows={16}
+          maxRows={16}
+          fullWidth
+          variant="standard"
+          slotProps={{
+            input: { disableUnderline: true },
+            htmlInput: {
+              readOnly: !editar,
+              'aria-label': `Conteúdo de ${caminho}`,
+              style: { ...ESTILO_DO_EDITOR, color: 'transparent', caretColor: 'currentcolor' },
+              onScroll: sincronizarScroll,
+            },
+          }}
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            bgcolor: 'transparent',
+            '& .MuiInputBase-root': { bgcolor: 'transparent', p: 0 },
+            '& .MuiInputBase-input': { overflowX: 'auto' },
+          }}
+        />
+      </Box>
     </Box>
   );
 }
+
+// ponytail: realce raso por regex (chave/comentário), não um parser YAML completo;
+// cobre o que o desenho aprovado mostra. Upgrade: tokenizer de verdade se o YAML
+// real usar blocos mais ricos (listas aninhadas, âncoras).
+const RealceDoTexto = forwardRef<HTMLPreElement, { control: Control<TextoDoArquivo> }>(
+  function RealceDoTexto({ control }, ref): ReactNode {
+    const texto = useWatch({ control, name: 'texto' });
+    const corDeComentario = useTheme().palette.text.muted;
+    return (
+      <Typography
+        ref={ref}
+        aria-hidden
+        component="pre"
+        sx={{
+          ...ESTILO_DO_EDITOR,
+          position: 'absolute',
+          inset: 0,
+          pt: PADDING_TOPO_DO_EDITOR,
+          px: 1.75,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
+        {realcarYaml(texto ?? '', corDeComentario)}
+      </Typography>
+    );
+  },
+);
 
 type NumerosProps = { control: Control<TextoDoArquivo> };
 

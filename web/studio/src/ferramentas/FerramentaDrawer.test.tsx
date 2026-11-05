@@ -28,7 +28,7 @@ function abrirDrawer(inicial: Ferramenta) {
     },
   });
   const resultado = renderComProvedores(
-    <FerramentaDrawer ferramenta={inicial} podeEditar onFechar={() => {}} />,
+    <FerramentaDrawer ferramenta={inicial} skills={[]} podeEditar onFechar={() => {}} />,
   );
   return { ...resultado, chamadas };
 }

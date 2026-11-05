@@ -59,6 +59,7 @@ function abrirPagina(eu = euComEdicao, extras: Parameters<typeof responderCom>[0
   return responderCom({
     'GET /api/eu': () => json(eu),
     'GET /api/nexus/recursos': () => json(catalogo),
+    'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
     ...extras,
   });
 }
@@ -191,6 +192,7 @@ describe('FerramentasPage', () => {
     responderCom({
       'GET /api/eu': () => json(euComEdicao),
       'GET /api/nexus/recursos': () => json({ codigo: 'X', mensagem: 'caiu' }, 500),
+      'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
     });
     renderComProvedores(<FerramentasPage />);
     expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();

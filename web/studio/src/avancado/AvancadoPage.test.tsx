@@ -83,7 +83,7 @@ describe('AvancadoPage', () => {
       rotas(construtor, gravadorDe('PUT /api/arquivo', corpos, { salvo: 'rules/politicas.md' })),
     );
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
-    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     const editor = await screen.findByDisplayValue('Regra antiga');
     await user.clear(editor);
     await user.type(editor, 'Regra nova');
@@ -95,7 +95,6 @@ describe('AvancadoPage', () => {
       caminho: 'rules/politicas.md',
       conteudo: 'Regra nova',
     });
-    expect(screen.getByText('Está vazio.')).toBeInTheDocument();
   });
 
   it('showsProjectionReadOnly', async () => {
@@ -214,7 +213,7 @@ describe('AvancadoPage', () => {
       }),
     );
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
-    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await user.click(await screen.findByRole('button', { name: 'Excluir' }));
     expect(excluidos).toHaveLength(0);
     await user.click(
@@ -259,7 +258,7 @@ describe('AvancadoPage', () => {
   it('showsLineNumbers', async () => {
     responderCom(rotas(construtor));
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
-    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await screen.findByDisplayValue('Regra antiga');
     expect(screen.getByText('1')).toBeInTheDocument();
   });
@@ -273,7 +272,7 @@ describe('AvancadoPage', () => {
       }),
     );
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
-    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     await screen.findByLabelText('Conteúdo de rules/politicas.md');
     const numerosExibidos = (
       await screen.findByText(
@@ -286,7 +285,7 @@ describe('AvancadoPage', () => {
   it('gestorWithGrantReadsOnly', async () => {
     responderCom(rotas(gestorAvancado));
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
-    await user.click(await screen.findByRole('button', { name: /rules\/politicas\.md/ }));
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     expect(await screen.findByDisplayValue('Regra antiga')).toHaveAttribute('readonly');
     expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Novo arquivo' })).not.toBeInTheDocument();

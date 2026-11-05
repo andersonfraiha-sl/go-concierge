@@ -1,4 +1,5 @@
 import AddIcon from '@mui/icons-material/Add';
+import SearchIcon from '@mui/icons-material/Search';
 import {
   Alert,
   Box,
@@ -8,6 +9,7 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  InputAdornment,
   TextField,
   Typography,
 } from '@mui/material';
@@ -16,8 +18,17 @@ import { usePodeEditar } from '@/acesso/eu';
 import { type Ferramenta, useFerramentas } from '@/catalogo/contratos';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { LARGURA_MINIMA_DO_CARTAO } from '@/theme/tokens';
-import { CLASSES, type Classe, classeDe, GRUPOS, tituloDe } from './contratos';
+import { type SkillResumo, useSkills } from '@/skills/contratos';
+import { ICONES, LARGURA_DA_LISTA_ESTREITA, PESOS, RAIO, TIPOS } from '@/theme/tokens';
+import {
+  CLASSES,
+  type Classe,
+  classeDe,
+  contagemDeSkills,
+  GRUPOS,
+  rotuloDaContagem,
+  tituloDe,
+} from './contratos';
 import { FerramentaDrawer } from './FerramentaDrawer';
 
 /** `null` = ferramenta nova; `undefined` = drawer fechado. */
@@ -41,7 +52,7 @@ function CabecalhoDaPagina({ podeEditar, onNova }: CabecalhoProps): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
       <Box sx={{ flex: 1 }}>
-        <Typography variant="h5" component="h1">
+        <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
           Ferramentas
         </Typography>
         <Typography color="text.secondary">
@@ -59,12 +70,19 @@ function CabecalhoDaPagina({ podeEditar, onNova }: CabecalhoProps): ReactNode {
 
 type ResultadoProps = {
   consulta: ReturnType<typeof useFerramentas>;
+  skills: readonly SkillResumo[];
   filtro: string;
   podeEditar: boolean;
   onAbrir: (ferramenta: Ferramenta) => void;
 };
 
-function ResultadoDaConsulta({ consulta, filtro, podeEditar, onAbrir }: ResultadoProps): ReactNode {
+function ResultadoDaConsulta({
+  consulta,
+  skills,
+  filtro,
+  podeEditar,
+  onAbrir,
+}: ResultadoProps): ReactNode {
   if (consulta.isPending) {
     return <CircularProgress aria-label="Carregando ferramentas" sx={{ alignSelf: 'center' }} />;
   }
@@ -86,6 +104,7 @@ function ResultadoDaConsulta({ consulta, filtro, podeEditar, onAbrir }: Resultad
   return (
     <Grupos
       ferramentas={consulta.data.recursos.filter((ferramenta) => contemTexto(ferramenta, texto))}
+      skills={skills}
       temFiltro={filtro.trim() !== ''}
       podeEditar={podeEditar}
       onAbrir={onAbrir}
@@ -93,8 +112,31 @@ function ResultadoDaConsulta({ consulta, filtro, podeEditar, onAbrir }: Resultad
   );
 }
 
+function CampoDeFiltro({ filtro, onMudar }: { filtro: string; onMudar: (texto: string) => void }) {
+  return (
+    <TextField
+      placeholder="Filtrar por nome ou descrição"
+      size="small"
+      value={filtro}
+      onChange={(evento) => onMudar(evento.target.value)}
+      slotProps={{
+        htmlInput: { 'aria-label': 'Filtrar' },
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon sx={{ fontSize: ICONES.controle, color: 'text.muted' }} />
+            </InputAdornment>
+          ),
+        },
+      }}
+      sx={{ width: LARGURA_DA_LISTA_ESTREITA, '& .MuiInputBase-root': { height: 36 } }}
+    />
+  );
+}
+
 export function FerramentasPage(): ReactNode {
   const consulta = useFerramentas();
+  const skills = useSkills().data?.skills ?? [];
   const podeEditar = usePodeEditar('ferramentas.editar');
   const [filtro, setFiltro] = useState('');
   const [aberta, setAberta] = useState<Aberta>(undefined);
@@ -103,15 +145,10 @@ export function FerramentasPage(): ReactNode {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <CabecalhoDaPagina podeEditar={podeEditar} onNova={() => setAberta(null)} />
-      <TextField
-        label="Filtrar"
-        size="small"
-        value={filtro}
-        onChange={(evento) => setFiltro(evento.target.value)}
-        sx={{ maxWidth: 360 }}
-      />
+      <CampoDeFiltro filtro={filtro} onMudar={setFiltro} />
       <ResultadoDaConsulta
         consulta={consulta}
+        skills={skills}
         filtro={filtro}
         podeEditar={podeEditar}
         onAbrir={setAberta}
@@ -120,6 +157,7 @@ export function FerramentasPage(): ReactNode {
         <FerramentaDrawer
           key={aberta?.name ?? 'nova'}
           ferramenta={aberta}
+          skills={skills}
           podeEditar={podeEditar}
           onFechar={() => setAberta(undefined)}
         />
@@ -130,12 +168,13 @@ export function FerramentasPage(): ReactNode {
 
 type GruposProps = {
   ferramentas: readonly Ferramenta[];
+  skills: readonly SkillResumo[];
   temFiltro: boolean;
   podeEditar: boolean;
   onAbrir: (ferramenta: Ferramenta) => void;
 };
 
-function Grupos({ ferramentas, temFiltro, podeEditar, onAbrir }: GruposProps): ReactNode {
+function Grupos({ ferramentas, skills, temFiltro, podeEditar, onAbrir }: GruposProps): ReactNode {
   if (ferramentas.length === 0) {
     return (
       <EmptyState
@@ -148,36 +187,41 @@ function Grupos({ ferramentas, temFiltro, podeEditar, onAbrir }: GruposProps): R
       key={classe}
       classe={classe}
       grupo={grupo}
+      skills={skills}
       podeEditar={podeEditar}
       onAbrir={onAbrir}
     />
   ));
 }
 
+const ESTILO_DO_ROTULO_DE_SECAO = {
+  fontSize: TIPOS.overline,
+  fontWeight: PESOS.semi,
+  color: 'text.tertiary',
+  textTransform: 'uppercase',
+  letterSpacing: '.06em',
+} as const;
+
 type GrupoProps = {
   classe: Classe;
   grupo: readonly Ferramenta[];
+  skills: readonly SkillResumo[];
   podeEditar: boolean;
   onAbrir: (ferramenta: Ferramenta) => void;
 };
 
-function GrupoDeFerramentas({ classe, grupo, podeEditar, onAbrir }: GrupoProps): ReactNode {
+function GrupoDeFerramentas({ classe, grupo, skills, podeEditar, onAbrir }: GrupoProps): ReactNode {
   return (
     <Box component="section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Typography variant="subtitle1" component="h2">
+      <Typography component="h2" sx={ESTILO_DO_ROTULO_DE_SECAO}>
         {GRUPOS[classe]}
       </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: `repeat(auto-fill, minmax(${LARGURA_MINIMA_DO_CARTAO}px, 1fr))`,
-        }}
-      >
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
         {grupo.map((ferramenta) => (
           <CartaoDeFerramenta
             key={ferramenta.name}
             ferramenta={ferramenta}
+            quantidadeDeSkills={contagemDeSkills(skills, ferramenta.name)}
             clicavel={podeEditar}
             onAbrir={onAbrir}
           />
@@ -187,43 +231,73 @@ function GrupoDeFerramentas({ classe, grupo, podeEditar, onAbrir }: GrupoProps):
   );
 }
 
-type ConteudoProps = { ferramenta: Ferramenta; comDescricao: boolean };
+type RotuloProps = { tom: 'registra' | 'neutro'; children: ReactNode };
 
-function ConteudoDoCartao({ ferramenta, comDescricao }: ConteudoProps): ReactNode {
+function RotuloDoCartao({ tom, children }: RotuloProps): ReactNode {
+  return (
+    <Chip
+      size="small"
+      label={children}
+      sx={{
+        borderRadius: RAIO.pilula,
+        fontSize: TIPOS.overline,
+        fontWeight: PESOS.medio,
+        ...(tom === 'registra'
+          ? { bgcolor: 'studio.registra.soft', color: 'studio.registra.onSoft' }
+          : { bgcolor: 'background.neutralFill', color: 'text.secondary' }),
+      }}
+    />
+  );
+}
+
+type ConteudoProps = { ferramenta: Ferramenta; quantidadeDeSkills: number; comDescricao: boolean };
+
+function ConteudoDoCartao({ ferramenta, quantidadeDeSkills, comDescricao }: ConteudoProps) {
   return (
     <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, height: '100%' }}>
       <Typography variant="subtitle2" component="h3">
         {tituloDe(ferramenta, comDescricao)}
       </Typography>
       {comDescricao && (
-        <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
           {ferramenta.description}
         </Typography>
       )}
-      {ferramenta.write && (
-        <Chip
-          size="small"
-          color="warning"
-          variant="outlined"
-          label="Grava no sistema"
-          sx={{ alignSelf: 'flex-start' }}
-        />
-      )}
+      <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+        {ferramenta.write && <RotuloDoCartao tom="registra">Grava no sistema</RotuloDoCartao>}
+        <RotuloDoCartao tom="neutro">{rotuloDaContagem(quantidadeDeSkills)}</RotuloDoCartao>
+      </Box>
     </CardContent>
   );
 }
 
 type CartaoProps = {
   ferramenta: Ferramenta;
+  quantidadeDeSkills: number;
   clicavel: boolean;
   onAbrir: (ferramenta: Ferramenta) => void;
 };
 
-function CartaoDeFerramenta({ ferramenta, clicavel, onAbrir }: CartaoProps): ReactNode {
+function CartaoDeFerramenta({
+  ferramenta,
+  quantidadeDeSkills,
+  clicavel,
+  onAbrir,
+}: CartaoProps): ReactNode {
   // Quem não edita não vê a descrição técnica da ferramenta.
-  const conteudo = <ConteudoDoCartao ferramenta={ferramenta} comDescricao={clicavel} />;
+  const conteudo = (
+    <ConteudoDoCartao
+      ferramenta={ferramenta}
+      quantidadeDeSkills={quantidadeDeSkills}
+      comDescricao={clicavel}
+    />
+  );
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ borderRadius: RAIO.painel }}>
       {clicavel ? (
         <CardActionArea sx={{ height: '100%' }} onClick={() => onAbrir(ferramenta)}>
           {conteudo}

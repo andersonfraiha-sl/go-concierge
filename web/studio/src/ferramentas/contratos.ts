@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type Ferramenta, FerramentasSchema } from '@/catalogo/contratos';
 import { apiEnviar } from '@/shared/api/http';
+import type { SkillResumo } from '@/skills/contratos';
 
 export type Ferramentas = z.infer<typeof FerramentasSchema>;
 
@@ -58,6 +59,17 @@ export const tituloDe = (ferramenta: Ferramenta, editavel = true): string =>
   ferramenta.titulo || (editavel ? ferramenta.name : 'Ferramenta sem nome');
 
 export const mantidaFora = (ferramenta: Ferramenta): boolean => ferramenta.origem === 'mcp';
+
+/** Skills (já carregadas) que declaram usar a ferramenta pelo código dela. */
+export function skillsQueUsam(skills: readonly SkillResumo[], ferramenta: string): SkillResumo[] {
+  return skills.filter((skill) => skill.recursos.includes(ferramenta));
+}
+
+export const contagemDeSkills = (skills: readonly SkillResumo[], ferramenta: string): number =>
+  skillsQueUsam(skills, ferramenta).length;
+
+export const rotuloDaContagem = (quantidade: number): string =>
+  `${quantidade} skill${quantidade === 1 ? '' : 's'}`;
 
 export function ferramentaNova(): Ferramenta {
   return {
