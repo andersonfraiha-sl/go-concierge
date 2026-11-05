@@ -42,8 +42,10 @@ function GravaNoSistema({ control, travado }: CamposProps): ReactNode {
       render={({ field }) => (
         <FormControlLabel
           label="Grava no sistema"
+          labelPlacement="start"
           sx={{
             m: 0,
+            justifyContent: 'space-between',
             px: 1.625,
             py: 1.25,
             borderRadius: RAIO.menu,
