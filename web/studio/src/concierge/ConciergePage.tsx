@@ -138,9 +138,20 @@ function TestarNoConsole(): ReactNode {
   );
 }
 
+// Altura mínima do estado de carregamento: perto da grade real (dois cartões empilhados), pra
+// o conteúdo não empurrar a tela inteira ao chegar (CLS medido em 0.17, acima do orçamento de
+// 0.1 — achado pelo e2e de performance).
+const ALTURA_MINIMA_AO_CARREGAR = 560;
+
 function ConteudoDoConcierge(): ReactNode {
   const skills = useSkills();
-  if (skills.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
+  if (skills.isPending) {
+    return (
+      <Typography color="textSecondary" sx={{ minHeight: ALTURA_MINIMA_AO_CARREGAR }}>
+        Carregando…
+      </Typography>
+    );
+  }
   if (skills.isError) return <Falha aoTentar={() => void skills.refetch()} />;
   const assistente = skills.data.assistente;
   return (
