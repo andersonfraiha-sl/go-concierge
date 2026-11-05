@@ -99,6 +99,8 @@ export const CONCIERGE = {
   fonteDoCartao: 16,
   /** Pílula de tom/visibilidade: padding vertical do desenho (o horizontal já é ESPACOS[2]). */
   paddingYDaPilula: 6,
+  /** Altura fixa da pílula de tom e dos botões de ação dos cartões (board: 30px / 34px). */
+  alturaDaPilula: 30,
   /** Bolinha de "N mudança(s) esperando você", ainda sem proposta real para testar ao vivo. */
   pontoDePendencia: '#FFC02A',
 } as const;

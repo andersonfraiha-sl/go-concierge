@@ -1,6 +1,6 @@
 import { Box, Paper, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
-import { CONCIERGE } from '@/theme/tokens';
+import { CONCIERGE, RAIO } from '@/theme/tokens';
 
 type Props = { titulo: string; ajuda: string; acao?: ReactNode; children: ReactNode };
 
@@ -18,6 +18,7 @@ export function ConciergeCard({ titulo, ajuda, acao, children }: Props): ReactNo
         flexDirection: 'column',
         gap: 2,
         borderColor: 'border.default',
+        borderRadius: RAIO.cartao,
         fontSize: CONCIERGE.fonteDoCartao,
       }}
     >
