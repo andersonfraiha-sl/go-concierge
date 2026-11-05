@@ -18,6 +18,27 @@ import (
 // Tudo passa por ResolveAgente (nunca sai da raiz) e por caminhoSeguro (só os
 // arquivos da raiz do agente e as caixinhas; nunca agentes/ de outro).
 
+// escreverArquivoAtomico grava em um arquivo temporário no mesmo diretório e troca com
+// rename, para que um leitor concorrente nunca veja um arquivo truncado ou pela metade.
+func escreverArquivoAtomico(caminho string, conteudo []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(caminho), "."+filepath.Base(caminho)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // sobra se o rename abaixo não rodar; some se rodar
+	if _, err := tmp.Write(conteudo); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), perm); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), caminho)
+}
+
 var extPermitidas = map[string]bool{
 	".md": true, ".yaml": true, ".yml": true, ".json": true, ".txt": true, ".csv": true,
 	".png": true, ".jpg": true, ".jpeg": true, ".svg": true, ".gif": true, ".webp": true, ".pdf": true,
@@ -128,6 +149,9 @@ func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
 // caminhoSeguro valida um caminho de arquivo dentro do agente: agent.yaml, persona.md,
 // caso.yaml ou <caixinha>/…; nunca agentes/ (é dos filhos).
 func caminhoSeguro(rel string) (string, error) {
+	if strings.ContainsRune(rel, 0) {
+		return "", errors.New("caminho inválido")
+	}
 	rel = filepath.ToSlash(filepath.Clean("/" + rel))[1:]
 	if rel == "" || rel == "." {
 		return "", errors.New("caminho vazio")
@@ -201,7 +225,7 @@ func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(p, conteudo, 0o644)
+	return escreverArquivoAtomico(p, conteudo, 0o644)
 }
 
 // ExcluirArquivo remove um arquivo (nunca o agent.yaml).
@@ -565,7 +589,7 @@ func gravarConfig(dir string, cfg map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, AgentYAML), out, 0o644)
+	return escreverArquivoAtomico(filepath.Join(dir, AgentYAML), out, 0o644)
 }
 
 func copiarArquivo(origem, destino string) error {
