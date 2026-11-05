@@ -308,7 +308,7 @@ type LinhaProps = {
 const ESTILO_DA_LINHA_DO_PADRAO = {
   borderLeft: 4,
   borderColor: 'primary.main',
-  bgcolor: 'background.tint',
+  bgcolor: CONDOMINIOS.fundoDaLinhaPadrao,
 } as const;
 
 function LinhaDeCondominio(props: LinhaProps): ReactNode {

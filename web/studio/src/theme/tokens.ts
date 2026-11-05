@@ -204,4 +204,6 @@ export const CONDOMINIOS = {
   larguraMaximaDoPainel: 400,
   larguraDoCampoNumerico: 70,
   letterSpacingDoTitulo: '-0.01em',
+  // Mais claro que background.tint (fundo do badge "Base"), pra pílula não sumir na linha Padrão.
+  fundoDaLinhaPadrao: '#F7F9FF',
 } as const;
