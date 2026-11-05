@@ -5,8 +5,7 @@ export const componentOverrides: Components<Theme> = {
   MuiCssBaseline: {
     styleOverrides: {
       ':root': { colorScheme: 'light' },
-      // Sem cursor próprio a barra herda o do elemento: num campo de texto vira o I de digitar.
-      '*::-webkit-scrollbar': { width: '6px', height: '6px', cursor: 'default' },
+      '*::-webkit-scrollbar': { width: '6px', height: '6px' },
       '*::-webkit-scrollbar-track': { background: 'transparent' },
       '*::-webkit-scrollbar-thumb': {
         background: tokens.color.scrollbar.thumb,

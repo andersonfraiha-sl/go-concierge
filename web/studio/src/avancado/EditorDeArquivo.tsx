@@ -1,6 +1,6 @@
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { Box, Button, Typography, useTheme } from '@mui/material';
-import { forwardRef, type ReactNode, type UIEvent, useRef, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { type Control, useForm, useWatch } from 'react-hook-form';
 import { excluirArquivo, salvarArquivo, useArquivo } from '@/catalogo/contratos';
 import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
@@ -258,103 +258,79 @@ type AreaProps = { control: Control<TextoDoArquivo>; caminho: string; editar: bo
 function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
   // O texto é transparente (as cores vêm do realce por baixo); o cursor precisa de cor própria.
   const corDoCursor = useTheme().palette.text.primary;
-  const numerosRef = useRef<HTMLPreElement>(null);
-  const realceRef = useRef<HTMLPreElement>(null);
-  const sincronizarScroll = (evento: UIEvent<HTMLTextAreaElement>): void => {
-    if (numerosRef.current) numerosRef.current.scrollTop = evento.currentTarget.scrollTop;
-    if (realceRef.current) {
-      realceRef.current.scrollTop = evento.currentTarget.scrollTop;
-      realceRef.current.scrollLeft = evento.currentTarget.scrollLeft;
-    }
-  };
+  // Quem rola é esta caixa, não o textarea: no Chrome a barra de rolagem de um campo de texto
+  // herda o cursor de digitar e ignora `cursor` em ::-webkit-scrollbar.
   return (
-    <Box sx={{ display: 'flex', flex: 1, minHeight: 0, bgcolor: FUNDO_DO_EDITOR }}>
-      <NumerosDeLinha ref={numerosRef} control={control} />
-      <Box sx={{ position: 'relative', flex: 1, minWidth: 0 }}>
-        <RealceDoTexto ref={realceRef} control={control} />
-        <CampoTexto
-          control={control}
-          name="texto"
-          multiline
-          rows={1}
-          fullWidth
-          variant="standard"
-          slotProps={{
-            input: { disableUnderline: true },
-            htmlInput: {
-              readOnly: !editar,
-              'aria-label': `Conteúdo de ${caminho}`,
-              style: { ...ESTILO_DO_EDITOR, color: 'transparent', caretColor: corDoCursor },
-              onScroll: sincronizarScroll,
-            },
-          }}
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 1,
-            bgcolor: 'transparent',
-            '& .MuiInputBase-root': { bgcolor: 'transparent', p: 0, height: '100%' },
-            // O texto ocupa a área toda: as barras de rolagem ficam na borda do editor.
-            // !important vence o height/overflow inline do autosize do MUI. Mesmo recuo e
-            // entrelinha do realce, senão o texto digitado sai deslocado das cores.
-            '& .MuiInputBase-input': {
-              height: '100% !important',
-              overflow: 'auto !important',
-              boxSizing: 'border-box',
-              pt: PADDING_TOPO_DO_EDITOR,
-              px: 1.75,
-              pb: 2,
-            },
-          }}
-        />
+    <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', bgcolor: FUNDO_DO_EDITOR }}>
+      <Box sx={{ display: 'flex', width: 'max-content', minWidth: '100%', minHeight: '100%' }}>
+        <NumerosDeLinha control={control} />
+        <Box sx={{ position: 'relative', flex: 1 }}>
+          <RealceDoTexto control={control} />
+          <CampoTexto
+            control={control}
+            name="texto"
+            multiline
+            rows={1}
+            fullWidth
+            variant="standard"
+            slotProps={{
+              input: { disableUnderline: true },
+              htmlInput: {
+                readOnly: !editar,
+                'aria-label': `Conteúdo de ${caminho}`,
+                style: { ...ESTILO_DO_EDITOR, color: 'transparent', caretColor: corDoCursor },
+              },
+            }}
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 1,
+              '& .MuiInputBase-root': { bgcolor: 'transparent', p: 0, height: '100%' },
+              // Cobre o realce exato (mesmo recuo e entrelinha); !important vence o
+              // height/overflow inline do autosize do MUI.
+              '& .MuiInputBase-input': {
+                height: '100% !important',
+                overflow: 'hidden !important',
+                boxSizing: 'border-box',
+                ...RECUO_DO_TEXTO,
+              },
+            }}
+          />
+        </Box>
       </Box>
     </Box>
   );
 }
 
+const RECUO_DO_TEXTO = { pt: PADDING_TOPO_DO_EDITOR, px: 1.75, pb: 2 } as const;
+
 // ponytail: realce raso por regex (chave/comentário), não um parser YAML completo;
 // cobre o que o desenho aprovado mostra. Upgrade: tokenizer de verdade se o YAML
 // real usar blocos mais ricos (listas aninhadas, âncoras).
-const RealceDoTexto = forwardRef<HTMLPreElement, { control: Control<TextoDoArquivo> }>(
-  function RealceDoTexto({ control }, ref): ReactNode {
-    const texto = useWatch({ control, name: 'texto' });
-    const corDeComentario = useTheme().palette.text.muted;
-    return (
-      <Typography
-        ref={ref}
-        aria-hidden
-        component="pre"
-        sx={{
-          ...ESTILO_DO_EDITOR,
-          position: 'absolute',
-          inset: 0,
-          pt: PADDING_TOPO_DO_EDITOR,
-          px: 1.75,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
-        {realcarYaml(texto ?? '', corDeComentario)}
-      </Typography>
-    );
-  },
-);
+function RealceDoTexto({ control }: { control: Control<TextoDoArquivo> }): ReactNode {
+  const texto = useWatch({ control, name: 'texto' });
+  const corDeComentario = useTheme().palette.text.muted;
+  // No fluxo: é ele que dá largura e altura à área, o textarea só o cobre.
+  return (
+    <Typography
+      aria-hidden
+      component="pre"
+      sx={{ ...ESTILO_DO_EDITOR, ...RECUO_DO_TEXTO, pointerEvents: 'none' }}
+    >
+      {realcarYaml(texto ?? '', corDeComentario)}
+      {'\n'}
+    </Typography>
+  );
+}
 
-type NumerosProps = { control: Control<TextoDoArquivo> };
-
-// ponytail: uma linha lógica é uma linha visual (ESTILO_DO_EDITOR usa `pre`,
-// sem quebra), então contar por `\n` não desalinha com texto longo; o
-// scroll vertical é sincronizado por `sincronizarScroll` em AreaDoTexto.
-const NumerosDeLinha = forwardRef<HTMLPreElement, NumerosProps>(function NumerosDeLinha(
-  { control },
-  ref,
-): ReactNode {
+// ponytail: uma linha lógica é uma linha visual (ESTILO_DO_EDITOR usa `pre`, sem quebra),
+// então contar por `\n` não desalinha com texto longo. Fica grudada à esquerda na rolagem.
+function NumerosDeLinha({ control }: { control: Control<TextoDoArquivo> }): ReactNode {
   const texto = useWatch({ control, name: 'texto' });
   const total = (texto ?? '').split('\n').length;
   const numeros = Array.from({ length: total }, (_, indice) => indice + 1).join('\n');
   return (
     <Typography
-      ref={ref}
       aria-hidden
       component="pre"
       sx={{
@@ -365,11 +341,14 @@ const NumerosDeLinha = forwardRef<HTMLPreElement, NumerosProps>(function Numeros
         color: 'text.muted',
         borderRight: 1,
         borderColor: 'border.subtle',
-        overflowY: 'hidden',
         userSelect: 'none',
+        position: 'sticky',
+        left: 0,
+        zIndex: 2,
+        bgcolor: FUNDO_DO_EDITOR,
       }}
     >
       {numeros}
     </Typography>
   );
-});
+}
