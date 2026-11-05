@@ -489,8 +489,19 @@ describe('FluxoAba', () => {
 
     responderCom(rotas(gestor));
     montar();
-    await screen.findByDisplayValue('Data da mudança');
+    await screen.findByText('Data da mudança');
     expect(screen.queryByText('data_mudanca')).not.toBeInTheDocument();
+  });
+
+  it('showsSidebarInformationAsPlainTextForGestor', async () => {
+    responderCom(rotas(gestor));
+    montar();
+    expect(await screen.findByText('Data da mudança')).toBeInTheDocument();
+    expect(
+      screen.getByText('Para qual data você gostaria de agendar a mudança?'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Manhã (8h às 12h)').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('textbox', { name: 'Título' })).not.toBeInTheDocument();
   });
 
   it('hidesEditingControlsForGestor', async () => {

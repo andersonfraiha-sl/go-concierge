@@ -2,7 +2,7 @@ import { Box, MenuItem, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { ListaEditavel } from '@/ferramentas/ListaEditavel';
 import { type Informacao, InformacaoSchema } from '@/fluxo/modelo/tipos';
-import { PESOS, RAIO } from '@/theme/tokens';
+import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
 import { NovaInformacao } from './NovaInformacao';
 
 type Props = {
@@ -146,6 +146,46 @@ function OpcoesDaInformacao({ opcoes, editavel, onMudar }: OpcoesProps): ReactNo
   );
 }
 
+/** Sem edição (gestor): texto simples, sem caixa de formulário. */
+function LeituraDaInformacao({ info, tipo }: { info: Informacao; tipo: string }): ReactNode {
+  return (
+    <>
+      <Typography sx={{ fontSize: TIPOS.body1, fontWeight: PESOS.semi }}>
+        {info.titulo || info.nome}
+      </Typography>
+      {info.pergunta !== '' && (
+        <Typography sx={{ fontSize: TIPOS.body2, color: 'text.secondary' }}>
+          {info.pergunta}
+        </Typography>
+      )}
+      <Typography sx={{ fontSize: TIPOS.caption, color: 'text.muted' }}>
+        {TIPOS_DE_INFORMACAO[tipo] ?? tipo}
+      </Typography>
+      {info.opcoes.length > 0 && (
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {info.opcoes.map((opcao) => (
+            <Box
+              key={opcao.valor}
+              component="span"
+              sx={{
+                fontSize: TIPOS.caption,
+                py: 0.625,
+                px: 1.25,
+                borderRadius: RAIO.pilula,
+                border: 1,
+                borderColor: 'border.strong',
+                color: 'text.strong',
+              }}
+            >
+              {opcao.rotulo}
+            </Box>
+          ))}
+        </Box>
+      )}
+    </>
+  );
+}
+
 function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode {
   const tipo = tipoMostrado(info.tipo);
   return (
@@ -162,30 +202,31 @@ function CartaoDeInformacao({ info, editavel, onMudar }: CartaoProps): ReactNode
         borderRadius: RAIO.campo,
       }}
     >
+      {!editavel && <LeituraDaInformacao info={info} tipo={tipo} />}
       {editavel && (
-        <Typography variant="caption" color="textSecondary" sx={{ fontFamily: 'monospace' }}>
-          {info.nome}
-        </Typography>
-      )}
-      <TextField
-        size="small"
-        label="Título"
-        value={info.titulo}
-        disabled={!editavel}
-        onChange={(evento) => onMudar({ titulo: evento.target.value })}
-      />
-      <TextField
-        size="small"
-        label="Pergunta"
-        placeholder="Ex.: Para que dia é a reserva?"
-        value={info.pergunta}
-        disabled={!editavel}
-        multiline
-        onChange={(evento) => onMudar({ pergunta: evento.target.value })}
-      />
-      <TipoDaInformacao tipo={tipo} editavel={editavel} onMudar={onMudar} />
-      {tipo === TIPO_ESCOLHA && (
-        <OpcoesDaInformacao opcoes={info.opcoes} editavel={editavel} onMudar={onMudar} />
+        <>
+          <Typography variant="caption" color="textSecondary" sx={{ fontFamily: 'monospace' }}>
+            {info.nome}
+          </Typography>
+          <TextField
+            size="small"
+            label="Título"
+            value={info.titulo}
+            onChange={(evento) => onMudar({ titulo: evento.target.value })}
+          />
+          <TextField
+            size="small"
+            label="Pergunta"
+            placeholder="Ex.: Para que dia é a reserva?"
+            value={info.pergunta}
+            multiline
+            onChange={(evento) => onMudar({ pergunta: evento.target.value })}
+          />
+          <TipoDaInformacao tipo={tipo} editavel={editavel} onMudar={onMudar} />
+          {tipo === TIPO_ESCOLHA && (
+            <OpcoesDaInformacao opcoes={info.opcoes} editavel={editavel} onMudar={onMudar} />
+          )}
+        </>
       )}
     </Box>
   );
