@@ -1,10 +1,11 @@
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import type { ComponentProps, ReactNode } from 'react';
 import { type Control, Controller, useWatch } from 'react-hook-form';
 import { type EstiloDoRealce, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { SectionCard } from '@/shared/ui/SectionCard';
-import { LIMITE_DO_RESUMO, ResumoSchema, type Textos } from './contratos';
+import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
+import { LIMITE_DO_RESUMO, ResumoSchema, type Textos, useSkills } from './contratos';
 import { ListaDeChips } from './ListaDeChips';
 
 type Props = {
@@ -20,11 +21,14 @@ const naLista = (realce: EstiloDoRealce) => ({ '& > .MuiPaper-root': realce });
 
 export function QuandoUsarAba(props: Props): ReactNode {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <SecaoDoResumo {...props} />
-      <SecaoQuandoUsar {...props} />
-      <ListaDoCopiloto {...props} campo="palavrasChave" />
-      <ListaDoCopiloto {...props} campo="frasesDeExemplo" />
+    <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <SecaoDoResumo {...props} />
+        <SecaoQuandoUsar {...props} />
+        <ListaDoCopiloto {...props} campo="palavrasChave" />
+        <ListaDoCopiloto {...props} campo="frasesDeExemplo" />
+      </Box>
+      <PainelDaSkill {...props} />
     </Box>
   );
 }
@@ -45,7 +49,21 @@ function SecaoDoResumo({ nome, control, editavel }: Props): ReactNode {
         fullWidth
         disabled={!editavel}
         helperText={foraDaRegra ?? `${resumo.length}/${LIMITE_DO_RESUMO}`}
-        sx={noCampo(realce)}
+        sx={[
+          noCampo(realce),
+          foraDaRegra === undefined && {
+            position: 'relative',
+            '& .MuiFormHelperText-root': {
+              position: 'absolute',
+              right: 0,
+              bottom: 0,
+              m: 0,
+              px: 1.5,
+              py: 1,
+              pointerEvents: 'none',
+            },
+          },
+        ]}
         slotProps={{ htmlInput: { 'aria-label': 'Resumo', maxLength: LIMITE_DO_RESUMO } }}
       />
     </SectionCard>
@@ -57,7 +75,7 @@ function SecaoQuandoUsar({ nome, control, editavel }: Props): ReactNode {
   return (
     <SectionCard
       titulo="Como reconhecer o pedido"
-      ajuda="Para o concierge decidir quando usar esta skill: em que situação o morador pede isto. Ex.: o morador quer reservar churrasqueira, salão ou quadra para uma data."
+      ajuda="Para o concierge decidir quando usar esta skill: em que situação o morador pede isto."
     >
       <CampoTexto
         control={control}
@@ -77,19 +95,25 @@ type CampoDeLista = 'palavrasChave' | 'frasesDeExemplo';
 
 const TEXTOS_DAS_LISTAS: Record<
   CampoDeLista,
-  Pick<ComponentProps<typeof ListaDeChips>, 'titulo' | 'ajuda' | 'rotuloNovoItem' | 'mensagemVazia'>
+  Pick<
+    ComponentProps<typeof ListaDeChips>,
+    'titulo' | 'ajuda' | 'rotuloNovoItem' | 'placeholderNovoItem' | 'mensagemVazia' | 'comAspas'
+  >
 > = {
   palavrasChave: {
     titulo: 'Palavras-chave',
     ajuda: 'Palavras que ajudam a reconhecer o pedido.',
     rotuloNovoItem: 'Nova palavra-chave',
+    placeholderNovoItem: 'Adicionar palavra e apertar Enter',
     mensagemVazia: 'Nenhuma palavra-chave.',
   },
   frasesDeExemplo: {
     titulo: 'Frases de exemplo',
     ajuda: 'Frases que um morador diria para pedir isto.',
     rotuloNovoItem: 'Nova frase de exemplo',
+    placeholderNovoItem: 'Adicionar frase e apertar Enter',
     mensagemVazia: 'Nenhuma frase de exemplo.',
+    comAspas: true,
   },
 };
 
@@ -110,5 +134,71 @@ function ListaDoCopiloto({ nome, control, editavel, campo }: Props & { campo: Ca
         </Box>
       )}
     />
+  );
+}
+
+const RotuloDoPainel = ({ children }: { children: ReactNode }) => (
+  <Typography
+    component="h2"
+    variant="overline"
+    sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
+  >
+    {children}
+  </Typography>
+);
+
+/**
+ * Coluna lateral "Esta skill": quem pode usar e se grava no sistema.
+ * ponytail: o board também lista "Informações que a skill pede" aqui (dado real, já existe no
+ * Fluxo via fluxo.informacoes) — fica de fora porque buscá-lo aqui também duplicaria o fetch do
+ * fluxo em toda tela que monta esta aba; melhor reaproveitar quando essa busca subir um nível.
+ */
+function PainelDaSkill({ nome, control }: Props): ReactNode {
+  const visibilidade = useWatch({ control, name: 'visibilidade' });
+  const skill = useSkills().data?.skills.find((s) => s.nome === nome);
+  const visivelParaTodos = visibilidade === 'public';
+
+  return (
+    <Box
+      component="aside"
+      sx={{ width: 331, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
+    >
+      <RotuloDoPainel>Esta skill</RotuloDoPainel>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: PESOS.semi }}>
+          Quem pode usar
+        </Typography>
+        <Box
+          component="span"
+          sx={{
+            alignSelf: 'flex-start',
+            fontSize: TIPOS.caption,
+            fontWeight: PESOS.medio,
+            py: 0.5,
+            px: 1.25,
+            borderRadius: RAIO.pilula,
+            bgcolor: 'background.tint',
+            color: 'primary.main',
+          }}
+        >
+          {visivelParaTodos ? 'Qualquer contato' : 'Morador identificado'}
+        </Box>
+      </Box>
+      {skill?.escrita && (
+        <Box
+          sx={{
+            bgcolor: 'studio.registra.soft',
+            color: 'studio.registra.onSoft',
+            borderRadius: RAIO.menu,
+            p: 1.75,
+          }}
+        >
+          <Typography variant="caption" sx={{ fontWeight: PESOS.semi, display: 'block' }}>
+            Grava no sistema
+          </Typography>
+          <Typography variant="caption">Esta skill registra algo no sistema ao final.</Typography>
+        </Box>
+      )}
+    </Box>
   );
 }

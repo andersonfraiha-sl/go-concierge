@@ -267,7 +267,7 @@ describe('SkillEditorPage', () => {
     montar();
     const campo = await screen.findByRole('textbox', { name: 'Como reconhecer o pedido' });
     expect(campo).toBeDisabled();
-    expect(screen.getByText('Quero agendar uma mudança')).toBeInTheDocument();
+    expect(screen.getByText('“Quero agendar uma mudança”')).toBeInTheDocument();
     expect(
       screen.queryByRole('textbox', { name: 'Nova frase de exemplo' }),
     ).not.toBeInTheDocument();
