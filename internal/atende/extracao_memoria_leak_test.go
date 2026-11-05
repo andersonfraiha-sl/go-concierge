@@ -18,7 +18,13 @@ import (
 // essa goroutine terminar de verdade — se ela escapar do WaitGroup extracoes, o teste
 // a pega como vazamento.
 func TestExtracaoDeMemoriaNaoDeixaGoroutinePendente(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	// o pacote também tem testes com Postgres via testcontainers (bancotest); o Reaper
+	// deles fica de prontidão pelo resto do binário de teste, de propósito, para garantir
+	// o cleanup do contêiner — não é um vazamento desta goroutine aqui.
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreTopFunction("github.com/testcontainers/testcontainers-go.(*Reaper).connect.func1"),
+		goleak.IgnoreAnyFunction("github.com/Microsoft/go-winio.ioCompletionProcessor"),
+	)
 
 	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
 	if err != nil {
