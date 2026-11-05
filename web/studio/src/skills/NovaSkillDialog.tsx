@@ -162,7 +162,7 @@ function CamposDaNovaSkill({ control, identificador, textosFalharam }: PropsDosC
         label="Nome"
         disabled={textosFalharam}
       />
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         Identificador: {identificador}
       </Typography>
       <CampoDoResumo control={control} />

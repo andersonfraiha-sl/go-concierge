@@ -33,7 +33,7 @@ export function ListaDeChips({
   return (
     <SectionCard titulo={titulo} ajuda={ajuda}>
       {!editavel && itens.length === 0 && (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="textSecondary">
           {mensagemVazia}
         </Typography>
       )}

@@ -98,7 +98,7 @@ function TextosDoCartao({ skill, completo }: { skill: SkillResumo; completo: boo
       {skill.resumo !== '' && (
         <Typography
           variant={completo ? 'body2' : 'caption'}
-          color="text.tertiary"
+          color="textTertiary"
           sx={{ display: 'block', mt: 0.5 }}
         >
           {skill.resumo}

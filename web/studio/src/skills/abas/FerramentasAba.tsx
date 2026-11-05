@@ -168,7 +168,7 @@ function BlocoDeTipo({
       >
         {rotulo} · {quantidade}
       </Box>
-      <Typography variant="body2" color="text.tertiary">
+      <Typography variant="body2" color="textTertiary">
         {texto}
       </Typography>
     </Box>
@@ -202,7 +202,7 @@ function EstadoDasFerramentas({ agente, semRecursos }: PropsDoEstado): ReactNode
   }
   if (!semRecursos) return null;
   return (
-    <Typography color="text.secondary">Esta skill ainda não usa nenhuma ferramenta.</Typography>
+    <Typography color="textSecondary">Esta skill ainda não usa nenhuma ferramenta.</Typography>
   );
 }
 
@@ -257,7 +257,7 @@ function LinhaDeFerramenta({ recurso, editavel, onDesligar }: LinhaProps): React
         <TipoDeFerramenta
           rotulo="Usada no fluxo"
           bgcolor="background.neutralFill"
-          color="text.secondary"
+          color="textSecondary"
         />
       ) : (
         <Switch
@@ -317,7 +317,7 @@ function TextosDaFerramenta({ recurso, editavel }: Omit<LinhaProps, 'onDesligar'
           ))}
       </Box>
       {editavel && recurso.recurso && (
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="textSecondary">
           {recurso.recurso.description}
         </Typography>
       )}
@@ -365,7 +365,7 @@ function FerramentasDisponiveis({ jaLigadas, onEscolher }: BotaoProps): ReactNod
         />
       )}
       {ferramentas.isSuccess && disponiveis.length === 0 && (
-        <Typography color="text.secondary">Não há mais ferramentas para adicionar.</Typography>
+        <Typography color="textSecondary">Não há mais ferramentas para adicionar.</Typography>
       )}
       <List>
         {disponiveis.map((ferramenta) => (

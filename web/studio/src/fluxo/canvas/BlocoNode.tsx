@@ -145,7 +145,7 @@ export function BlocoNode({ data }: NodeProps<BlocoNodeTipo>): ReactNode {
         >
           {rotulo}
         </Typography>
-        <Typography variant="body2" color="text.primary" noWrap component="p">
+        <Typography variant="body2" color="textPrimary" noWrap component="p">
           {resumo}
         </Typography>
       </Box>

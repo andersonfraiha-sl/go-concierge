@@ -24,7 +24,7 @@ export function EstadoVazio() {
       >
         {TITULO}
       </Typography>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         {DESCRICAO}
       </Typography>
       {sugestoes.length > 0 && <ListaDeSugestoes sugestoes={sugestoes} onEscolher={enviar} />}
