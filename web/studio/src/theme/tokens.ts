@@ -194,3 +194,11 @@ export const tokens = {
     copiloto: 380,
   },
 } as const;
+
+// skill
+/** Tokens novos da fase 2 (área Skill: lista, Fluxo, Copiloto). */
+export const TOKENS_DA_SKILL = {
+  bordaDeAviso: '#F5DDAF',
+  textoMuitoSuave: '#8A93A6',
+  erroFundoSuave: '#FDE8E8',
+} as const;

@@ -1,9 +1,21 @@
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
-import { Box, Button, Card, CardActions, CardContent, Chip, Typography } from '@mui/material';
-import type { ReactNode } from 'react';
+import MoreVertOutlined from '@mui/icons-material/MoreVertOutlined';
+import {
+  Box,
+  Card,
+  CardActionArea,
+  CardContent,
+  IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Typography,
+} from '@mui/material';
+import { type ReactNode, useState } from 'react';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
-import { PESOS, RAIO } from '@/theme/tokens';
+import { PESOS, RAIO, TIPOS, TOKENS_DA_SKILL } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
 import type { Problemas } from './estatisticas';
 import { iconeDaSkill } from './icones';
@@ -27,24 +39,26 @@ const rotuloDeErros = (quantidade: number): string =>
 const rotuloDeAvisos = (quantidade: number): string =>
   quantidade === 1 ? '1 aviso' : `${quantidade} avisos`;
 
-export function SkillCard({ skill, variante, problemas, ...acoes }: Props): ReactNode {
+export function SkillCard({ skill, variante, problemas, onAbrir, ...acoes }: Props): ReactNode {
   const completo = variante === 'completo';
   const realce = useRealceDoCopiloto(`skill:${skill.nome}`);
+  const temMenu = acoes.onDuplicar !== undefined || acoes.onExcluir !== undefined;
   return (
-    <Card
-      component="article"
-      aria-label={skill.titulo}
-      variant="outlined"
-      sx={[{ display: 'flex', flexDirection: 'column' }, realce]}
-    >
-      <CardContent sx={{ flex: 1, pb: 0, display: 'flex', gap: completo ? 2 : 1.5 }}>
-        <IconeDoCartao icone={skill.icone} completo={completo} />
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <TextosDoCartao skill={skill} completo={completo} />
-          {completo && <ChipsDeProblemas problemas={problemas} />}
-        </Box>
-      </CardContent>
-      <AcoesDoCartao titulo={skill.titulo} {...acoes} />
+    <Card component="article" aria-label={skill.titulo} sx={[{ position: 'relative' }, realce]}>
+      <CardActionArea
+        onClick={onAbrir}
+        aria-label={`Abrir ${skill.titulo}`}
+        sx={{ borderRadius: 'inherit', height: '100%' }}
+      >
+        <CardContent sx={{ display: 'flex', gap: completo ? 2 : 1.5, pr: temMenu ? 5 : undefined }}>
+          <IconeDoCartao icone={skill.icone} completo={completo} />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <TextosDoCartao skill={skill} completo={completo} />
+            {completo && <ChipsDeProblemas problemas={problemas} />}
+          </Box>
+        </CardContent>
+      </CardActionArea>
+      {temMenu && <MenuDoCartao titulo={skill.titulo} {...acoes} />}
     </Card>
   );
 }
@@ -58,9 +72,9 @@ function IconeDoCartao({ icone, completo }: { icone: string; completo: boolean }
         width: tamanho,
         height: tamanho,
         flex: 'none',
-        borderRadius: completo ? RAIO.painel : RAIO.chip,
-        bgcolor: 'background.tint',
-        color: 'primary.main',
+        borderRadius: completo ? RAIO.menu : RAIO.chip,
+        bgcolor: completo ? 'studio.registra.soft' : 'background.tint',
+        color: completo ? 'studio.registra.onSoft' : 'primary.main',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -84,7 +98,7 @@ function TextosDoCartao({ skill, completo }: { skill: SkillResumo; completo: boo
       {skill.resumo !== '' && (
         <Typography
           variant={completo ? 'body2' : 'caption'}
-          color="text.secondary"
+          color="text.tertiary"
           sx={{ display: 'block', mt: 0.5 }}
         >
           {skill.resumo}
@@ -94,52 +108,99 @@ function TextosDoCartao({ skill, completo }: { skill: SkillResumo; completo: boo
   );
 }
 
+function BadgeDoCartao({
+  label,
+  bgcolor,
+  color,
+}: {
+  label: string;
+  bgcolor: string;
+  color: string;
+}) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        fontSize: TIPOS.overline,
+        fontWeight: PESOS.medio,
+        lineHeight: 1,
+        py: 0.5,
+        px: 1.25,
+        borderRadius: RAIO.pilula,
+        bgcolor,
+        color,
+      }}
+    >
+      {label}
+    </Box>
+  );
+}
+
 function ChipsDeProblemas({ problemas }: { problemas: Problemas | undefined }): ReactNode {
   const erros = problemas?.erros ?? 0;
   const avisos = problemas?.avisos ?? 0;
+  if (erros === 0 && avisos === 0) return null;
   return (
     <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-      {erros > 0 && <Chip size="small" color="error" label={rotuloDeErros(erros)} />}
+      {erros > 0 && (
+        <BadgeDoCartao
+          label={rotuloDeErros(erros)}
+          bgcolor={TOKENS_DA_SKILL.erroFundoSuave}
+          color="error.main"
+        />
+      )}
       {avisos > 0 && (
-        <Chip
-          size="small"
+        <BadgeDoCartao
           label={rotuloDeAvisos(avisos)}
-          sx={{ color: 'warning.onSoft', bgcolor: 'warning.soft' }}
+          bgcolor="studio.registra.soft"
+          color="studio.registra.onSoft"
         />
       )}
     </Box>
   );
 }
 
-type PropsDasAcoes = Pick<Props, 'onAbrir' | 'onDuplicar' | 'onExcluir'> & { titulo: string };
+type PropsDoMenu = Pick<Props, 'onDuplicar' | 'onExcluir'> & { titulo: string };
 
-function AcoesDoCartao({ titulo, onAbrir, onDuplicar, onExcluir }: PropsDasAcoes): ReactNode {
+/** Ações administrativas (Duplicar/Excluir) discretas: o board não as mostra, mas não somem. */
+function MenuDoCartao({ titulo, onDuplicar, onExcluir }: PropsDoMenu): ReactNode {
+  const [ancora, setAncora] = useState<HTMLElement | null>(null);
+  const fechar = () => setAncora(null);
+  const comFechar = (acao: () => void) => () => {
+    fechar();
+    acao();
+  };
   return (
-    <CardActions>
-      <Button size="small" aria-label={`Abrir ${titulo}`} onClick={onAbrir}>
-        Abrir
-      </Button>
-      {onDuplicar && (
-        <Button
-          size="small"
-          startIcon={<ContentCopyIcon fontSize="small" />}
-          aria-label={`Duplicar ${titulo}`}
-          onClick={onDuplicar}
-        >
-          Duplicar
-        </Button>
-      )}
-      {onExcluir && (
-        <Button
-          size="small"
-          color="error"
-          startIcon={<DeleteOutlinedIcon fontSize="small" />}
-          aria-label={`Excluir ${titulo}`}
-          onClick={onExcluir}
-        >
-          Excluir
-        </Button>
-      )}
-    </CardActions>
+    <>
+      <IconButton
+        aria-label={`Mais ações de ${titulo}`}
+        size="small"
+        onClick={(evento) => {
+          evento.stopPropagation();
+          setAncora(evento.currentTarget);
+        }}
+        sx={{ position: 'absolute', top: 8, right: 8, color: 'text.faint' }}
+      >
+        <MoreVertOutlined fontSize="small" />
+      </IconButton>
+      <Menu anchorEl={ancora} open={ancora !== null} onClose={fechar}>
+        {onDuplicar && (
+          <MenuItem onClick={comFechar(onDuplicar)} aria-label={`Duplicar ${titulo}`}>
+            <ListItemIcon>
+              <ContentCopyIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Duplicar</ListItemText>
+          </MenuItem>
+        )}
+        {onExcluir && (
+          <MenuItem onClick={comFechar(onExcluir)} aria-label={`Excluir ${titulo}`}>
+            <ListItemIcon>
+              <DeleteOutlinedIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText sx={{ color: 'error.main' }}>Excluir</ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
+    </>
   );
 }

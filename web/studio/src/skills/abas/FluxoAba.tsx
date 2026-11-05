@@ -16,7 +16,7 @@ import type { CatalogoDeFerramentas } from '@/fluxo/painel/camposPorTipo';
 import { ApiError } from '@/shared/api/http';
 import { useAutosave } from '@/shared/autosave/useAutosave';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { RAIO, tokens } from '@/theme/tokens';
+import { ESPACOS, RAIO } from '@/theme/tokens';
 import { chaveDoFluxo, salvarFluxo, useFluxo } from '../contratos';
 import { BarraDoFluxo } from './BarraDoFluxo';
 import {
@@ -30,9 +30,14 @@ import { PainelLateralDoFluxo } from './PainelLateralDoFluxo';
 
 type Props = { nome: string; caminho: string };
 
-// Título da skill, abas e margens do editor acima da aba; o resto da janela é do canvas.
-const ALTURA_DO_CABECALHO_DO_EDITOR = 160;
-const ALTURA_DA_AREA = `calc(100vh - ${tokens.layout.navbarHeight + ALTURA_DO_CABECALHO_DO_EDITOR}px)`;
+// A área acima do canvas não é mais o navbar global: é o CabecalhoDeDetalhe (faixa + abas) da
+// própria moldura de detalhe, mais o padding vertical de ESTILO_DO_CONTEUDO_DE_DETALHE.
+const ALTURA_DO_CABECALHO_DE_DETALHE = 59;
+const ALTURA_DAS_ABAS = 46;
+const ALTURA_DO_PADDING_DO_CONTEUDO = ESPACOS[4] * 2;
+const ALTURA_DA_AREA = `calc(100vh - ${
+  ALTURA_DO_CABECALHO_DE_DETALHE + ALTURA_DAS_ABAS + ALTURA_DO_PADDING_DO_CONTEUDO
+}px)`;
 const ALTURA_MINIMA_DA_AREA = 480;
 
 function ehSemFluxo(erro: Error): boolean {
@@ -93,6 +98,8 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
       />
       <BarraDoFluxo
         editavel={editavel}
+        totalDePassos={fluxo.blocos.length}
+        problemas={problemas}
         doFluxoTodo={problemas.filter((p) => p.blocoId === undefined)}
         salvamento={salvamento.estado}
         onTentarDeNovo={() => void salvamento.tentarDeNovo()}
@@ -197,6 +204,17 @@ function useTituloDaFerramenta(catalogo: CatalogoDeFerramentas) {
   }, [ferramentas]);
 }
 
+/** Nome amigável de uma informação pedida ao morador, pelo `titulo` gravado no fluxo. */
+function useTituloDaInformacao(fluxo: Fluxo) {
+  return useMemo(() => {
+    const titulos = new Map(fluxo.informacoes.map((info) => [info.nome, info.titulo]));
+    return (nome: string): string => {
+      const titulo = titulos.get(nome);
+      return titulo && titulo !== '' ? titulo : nome;
+    };
+  }, [fluxo.informacoes]);
+}
+
 type PropsDoCanvas = {
   nome: string;
   fluxo: Fluxo;
@@ -213,6 +231,7 @@ function CanvasEPainel(props: PropsDoCanvas): ReactNode {
   const { alvosRealcados } = useCopiloto();
   const realcados = useMemo(() => blocosRealcados(alvosRealcados, nome), [alvosRealcados, nome]);
   const tituloDaFerramenta = useTituloDaFerramenta(catalogo);
+  const tituloDaInformacao = useTituloDaInformacao(fluxo);
   const blocoSelecionado = fluxo.blocos.find((b) => b.id === edicao.selecionado);
 
   return (
@@ -234,6 +253,7 @@ function CanvasEPainel(props: PropsDoCanvas): ReactNode {
           selecionado={edicao.selecionado}
           editavel={editavel}
           tituloDaFerramenta={tituloDaFerramenta}
+          tituloDaInformacao={tituloDaInformacao}
           realcados={realcados}
           onSelecionar={edicao.setSelecionado}
           onInserir={edicao.inserir}

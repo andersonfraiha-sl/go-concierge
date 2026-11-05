@@ -1,5 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
+import { PESOS, TOKENS_DA_SKILL } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
 
 type Props = {
@@ -32,10 +33,14 @@ export function GrupoDeSkills({ skills, colunas, renderCartao, ...cabecalho }: P
 function CabecalhoDoGrupo({ titulo, subtitulo }: Pick<Props, 'titulo' | 'subtitulo'>): ReactNode {
   return (
     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-      <Typography component="h2" variant="overline" color="text.secondary">
+      <Typography
+        component="h2"
+        variant="overline"
+        sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
+      >
         {titulo}
       </Typography>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" sx={{ color: TOKENS_DA_SKILL.textoMuitoSuave }}>
         {subtitulo}
       </Typography>
     </Box>

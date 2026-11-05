@@ -442,9 +442,9 @@ describe('FluxoAba', () => {
   it('numbersBlocksInOrder', async () => {
     responderCom(rotas(construtor));
     montar();
-    expect(within(await bloco('Buscar dados')).getByText('1.')).toBeInTheDocument();
-    expect(within(await bloco('Pedir escolha')).getByText('2.')).toBeInTheDocument();
-    expect(within(await bloco('Responder')).getByText('6.')).toBeInTheDocument();
+    expect(within(await bloco('Buscar dados')).getByText('1')).toBeInTheDocument();
+    expect(within(await bloco('Pedir escolha')).getByText('2')).toBeInTheDocument();
+    expect(within(await bloco('Responder')).getByText('6')).toBeInTheDocument();
   });
 
   it('marksBlockTypeWithLeftBar', async () => {

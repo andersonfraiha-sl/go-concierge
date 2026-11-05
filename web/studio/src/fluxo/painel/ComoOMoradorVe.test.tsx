@@ -15,7 +15,7 @@ describe('ComoOMoradorVe', () => {
         bloco={bloco('pedir_escolha', { pergunta: 'Para qual unidade é a mudança?' })}
       />,
     );
-    expect(screen.getByText('Para qual unidade é a mudança?')).toBeInTheDocument();
+    expect(screen.getByText('“Para qual unidade é a mudança?”')).toBeInTheDocument();
     unmount();
 
     render(

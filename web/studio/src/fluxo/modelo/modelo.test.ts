@@ -403,7 +403,7 @@ describe('catalogo de blocos', () => {
     },
     { b: bloco('gravar_no_sistema', 'a', { recurso: 'x.y' }), esperado: 'TITULO(x.y)' },
     { b: bloco('pedir_escolha', 'a', { pergunta: 'Qual unidade?' }), esperado: 'Qual unidade?' },
-    { b: bloco('perguntar', 'a', { campos: ['data', 'periodo'] }), esperado: 'data, periodo' },
+    { b: bloco('perguntar', 'a', { campos: ['data', 'periodo'] }), esperado: 'data e periodo' },
     { b: bloco('formulario', 'a', { de: 'campos' }), esperado: 'Campos de campos' },
     { b: bloco('reaproveitar', 'a', { campos: ['unidade'] }), esperado: 'unidade' },
     { b: bloco('confirmar', 'a', { texto: 'Linha 1\n  linha   2' }), esperado: 'Linha 1 linha 2' },

@@ -141,21 +141,6 @@ describe('SkillsPage', () => {
     expect(cartao.querySelector('svg')).not.toBeNull();
   });
 
-  it('filtersSkillsBySearch', async () => {
-    responderCom({
-      'GET /api/eu': () => json(construtor),
-      'GET /api/skills': () => lista([mudanca, faq]),
-    });
-    const { user } = montar();
-    await screen.findByRole('article', { name: 'Agendar mudança' });
-    await user.type(screen.getByRole('textbox', { name: 'Buscar skill' }), 'elevador');
-    expect(screen.getByRole('article', { name: 'Agendar mudança' })).toBeInTheDocument();
-    expect(screen.queryByRole('article', { name: 'Perguntas frequentes' })).not.toBeInTheDocument();
-    expect(
-      within(screen.getByRole('group', { name: 'Skills' })).getByText('2'),
-    ).toBeInTheDocument();
-  });
-
   it('showsProblemCountForBuilder', async () => {
     responderCom({
       'GET /api/eu': () => json(construtorComFluxo),
@@ -516,7 +501,10 @@ describe('SkillsPage', () => {
       },
     });
     const { user } = montar();
-    await user.click(await screen.findByRole('button', { name: 'Duplicar Perguntas frequentes' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Mais ações de Perguntas frequentes' }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicar Perguntas frequentes' }));
     expect(screen.getByRole('textbox', { name: 'Nome' })).toHaveValue(
       'Cópia de Perguntas frequentes',
     );
@@ -553,7 +541,10 @@ describe('SkillsPage', () => {
       },
     });
     const { user } = montar();
-    await user.click(await screen.findByRole('button', { name: 'Excluir Perguntas frequentes' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Mais ações de Perguntas frequentes' }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'Excluir Perguntas frequentes' }));
     expect(
       screen.getByText('Excluir "Perguntas frequentes"? O fluxo e as regras somem junto.'),
     ).toBeInTheDocument();

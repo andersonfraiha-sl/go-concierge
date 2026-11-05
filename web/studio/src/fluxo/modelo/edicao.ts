@@ -1,7 +1,9 @@
 import type { Bloco, Fluxo } from './tipos';
 
 export const ALTURA_BLOCO = 72;
-export const ESPACO = 48;
+// Pitch do desenho aprovado (83 a 100 pixels): bloco mais o respiro da linha conectora (21
+// pixels) e o "+".
+export const ESPACO = 28;
 // Largura do desenho aprovado (docs/superpowers/design/studio-fase2/Fluxo.dc.html).
 export const LARGURA_BLOCO = 420;
 

@@ -48,7 +48,7 @@ function BolhaDaFala({ texto }: { texto: string }): ReactNode {
         py: 1,
       }}
     >
-      <Typography variant="body2">{texto}</Typography>
+      <Typography variant="body2">“{texto}”</Typography>
     </Box>
   );
 }

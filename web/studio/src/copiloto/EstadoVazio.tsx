@@ -37,6 +37,13 @@ type SugestoesProps = { sugestoes: string[]; onEscolher: (texto: string) => Prom
 function ListaDeSugestoes({ sugestoes, onEscolher }: SugestoesProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+      <Typography
+        component="h2"
+        variant="overline"
+        sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
+      >
+        Sugestões
+      </Typography>
       {sugestoes.map((texto) => (
         <Chip
           key={texto}
