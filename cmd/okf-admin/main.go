@@ -68,6 +68,9 @@ type servidor struct {
 	account string
 	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	log     *log.Logger
+	// prazoDoCatalogo é o teto de parede do trabalho do catálogo por pedido (comPrazo); o
+	// main põe prazoCatalogo, e zero (os testes de handler) deixa só o contexto do pedido.
+	prazoDoCatalogo time.Duration
 
 	// canal ATENDE (webhook + emulador no Console)
 	atende              *atende.Servico
@@ -163,6 +166,7 @@ func main() {
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
 	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
+		prazoDoCatalogo:   prazoCatalogo,
 		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
 		autenticador:      novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
 		authMode:          cfg.AuthMode,

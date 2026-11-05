@@ -141,7 +141,7 @@ type versaoGravada struct {
 }
 
 func (s *servidor) studioListar(w http.ResponseWriter, r *http.Request) {
-	casos, err := comPrazo(r, s.casosDeUso)
+	casos, err := comPrazo(r, s.prazoDoCatalogo, s.casosDeUso)
 	if err != nil {
 		s.responderErro(w, fmt.Errorf("listar skills: %w", err))
 		return
@@ -159,7 +159,7 @@ func (s *servidor) studioCriar(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	_, err = comPrazo(r, func() (string, error) { return s.cat.CriarSkill(s.atende.Agente, corpo.Nome, corpo.Titulo) })
+	_, err = comPrazo(r, s.prazoDoCatalogo, func() (string, error) { return s.cat.CriarSkill(s.atende.Agente, corpo.Nome, corpo.Titulo) })
 	if err != nil {
 		s.responderErro(w, err)
 		return
@@ -173,7 +173,7 @@ func (s *servidor) studioLerTextos(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	lidos, err := comPrazo(r, func() (textosLidos, error) {
+	lidos, err := comPrazo(r, s.prazoDoCatalogo, func() (textosLidos, error) {
 		t, v, err := s.cat.LerTextos(rel)
 		return textosLidos{Caminho: rel, Textos: t, Versao: v}, err
 	})
@@ -195,7 +195,7 @@ func (s *servidor) studioSalvarTextos(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	versao, err := comPrazo(r, func() (string, error) { return s.cat.SalvarTextos(rel, corpo.Versao, corpo.Textos) })
+	versao, err := comPrazo(r, s.prazoDoCatalogo, func() (string, error) { return s.cat.SalvarTextos(rel, corpo.Versao, corpo.Textos) })
 	if err != nil {
 		s.responderErro(w, err)
 		return
@@ -214,7 +214,7 @@ func (s *servidor) studioDuplicar(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	_, err = comPrazo(r, func() (string, error) { return s.cat.DuplicarSkill(rel, corpo.Nome, corpo.Titulo) })
+	_, err = comPrazo(r, s.prazoDoCatalogo, func() (string, error) { return s.cat.DuplicarSkill(rel, corpo.Nome, corpo.Titulo) })
 	if err != nil {
 		s.responderErro(w, err)
 		return
@@ -228,7 +228,7 @@ func (s *servidor) studioExcluir(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	if _, err := comPrazo(r, func() (struct{}, error) { return struct{}{}, s.cat.ExcluirSkill(rel) }); err != nil {
+	if _, err := comPrazo(r, s.prazoDoCatalogo, func() (struct{}, error) { return struct{}{}, s.cat.ExcluirSkill(rel) }); err != nil {
 		s.responderErro(w, err)
 		return
 	}
@@ -241,7 +241,7 @@ func (s *servidor) studioLerFluxo(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	lido, err := comPrazo(r, func() (okf.FluxoLido, error) { return s.cat.LerFluxo(rel) })
+	lido, err := comPrazo(r, s.prazoDoCatalogo, func() (okf.FluxoLido, error) { return s.cat.LerFluxo(rel) })
 	if err != nil {
 		s.responderErro(w, err)
 		return
@@ -260,7 +260,7 @@ func (s *servidor) studioSalvarFluxo(w http.ResponseWriter, r *http.Request) {
 		s.responderErro(w, err)
 		return
 	}
-	gravado, err := comPrazo(r, func() (okf.FluxoGravado, error) { return s.cat.SalvarFluxo(rel, corpo.Versao, corpo.Fluxo) })
+	gravado, err := comPrazo(r, s.prazoDoCatalogo, func() (okf.FluxoGravado, error) { return s.cat.SalvarFluxo(rel, corpo.Versao, corpo.Fluxo) })
 	if err != nil {
 		s.responderErro(w, err)
 		return
@@ -292,11 +292,16 @@ func lerCorpo[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 }
 
 // comPrazo roda o trabalho do catálogo (disco, às vezes o Nexus) com o prazo do pedido.
+// prazo zero = sem teto além do contexto do pedido (os testes de handler: com o teto de
+// parede, ler o catálogo recém-copiado numa máquina carregada estourava os 10 s).
 // ponytail: o catálogo não recebe context; no estouro o trabalho segue até o fim em segundo
 // plano e uma gravação pode valer mesmo com a resposta de erro (a versão protege a próxima).
 // Passar o ctx para o Catalogo quando ele aceitar.
-func comPrazo[T any](r *http.Request, fazer func() (T, error)) (T, error) {
-	ctx, cancel := context.WithTimeout(r.Context(), prazoCatalogo)
+func comPrazo[T any](r *http.Request, prazo time.Duration, fazer func() (T, error)) (T, error) {
+	ctx, cancel := r.Context(), context.CancelFunc(func() {})
+	if prazo > 0 {
+		ctx, cancel = context.WithTimeout(r.Context(), prazo)
+	}
 	defer cancel()
 	type resultado struct {
 		valor T
