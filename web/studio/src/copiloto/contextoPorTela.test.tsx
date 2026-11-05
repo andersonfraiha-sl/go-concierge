@@ -156,6 +156,8 @@ describe('contexto do Copiloto por tela', () => {
       rotas: {
         'GET /api/skills': () => json(skillsFalsas),
         'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')),
+        'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
+        'GET /api/admin/estado': () => json(estadoFalso),
       },
     });
     await screen.findByRole('textbox', { name: 'Resumo' });
@@ -324,6 +326,8 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
       rotas: {
         'GET /api/skills/agendar-mudanca': () => json(lido),
         'GET /api/skills': () => json(skillsFalsas),
+        'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
+        'GET /api/admin/estado': () => json(estadoFalso),
         'POST /api/copiloto': () => json(respostaCom(resumo, operacao)),
         'PUT /api/skills/agendar-mudanca/textos': () => {
           lido = textosLidos('Marca o dia da mudança.', 'v2');

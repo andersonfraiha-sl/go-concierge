@@ -62,7 +62,7 @@ function LinhaDeArquivo({ arquivo, selo }: { arquivo: Arquivo; selo?: string }):
         {nomeParaExibir(arquivo)}
       </Typography>
       {selo && <Chip size="small" variant="outlined" label={selo} />}
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         {formatarTamanho(arquivo.bytes)}
       </Typography>
     </Paper>

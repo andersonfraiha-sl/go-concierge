@@ -1,5 +1,4 @@
 import type { NoDaArvore } from '@/avancado/contratos';
-import { contemBusca } from '@/shared/busca';
 import type { SkillResumo } from './contratos';
 
 export type Problemas = { erros: number; avisos: number };
@@ -25,9 +24,4 @@ export function quartaEstatistica(
     return problema !== undefined && (problema.erros > 0 || problema.avisos > 0);
   });
   return { rotulo: 'Com problema', valor: comProblema.length, destaque: true };
-}
-
-/** Busca por título ou resumo; nunca pela descrição técnica. */
-export function filtrarPorBusca(skills: readonly SkillResumo[], busca: string): SkillResumo[] {
-  return skills.filter((skill) => contemBusca([skill.titulo, skill.resumo], busca));
 }

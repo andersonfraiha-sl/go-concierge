@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { caminhoDeRegra } from '@/catalogo/contratos';
+import { caminhoDeDocumento, caminhoDeRegra } from '@/catalogo/contratos';
 import { digitarNoFim } from '@/test/editorRico';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
@@ -40,6 +40,36 @@ const rotasBase = () => ({
 });
 
 describe('RegrasAba', () => {
+  it('showsKnowledgePanelFromTheSideTab', async () => {
+    responderCom({
+      'GET /api/eu': () => json(construtor),
+      'GET /api/agente': () =>
+        json(
+          agenteLido({
+            regras: [arquivo(politicas)],
+            documentos: [arquivo(caminhoDeDocumento('taxa.md'), 1024)],
+            herdados: [arquivo(caminhoDeDocumento('regimento.pdf'), 1_200_000)],
+          }),
+        ),
+      'GET /api/arquivo': () => json({ caminho: politicas, conteudo: 'Seja gentil.' }),
+    });
+    montar();
+    expect(await screen.findByText('Base de conhecimento')).toBeInTheDocument();
+    expect(screen.getByText('Taxa')).toBeInTheDocument();
+    expect(screen.getByText('Vem do Concierge')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'abra o Concierge' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('aba=conhecimento'),
+    );
+  });
+
+  it('hidesKnowledgePanelWithoutDocuments', async () => {
+    responderCom(rotasBase());
+    montar();
+    await screen.findByRole('textbox', { name: 'Politicas' });
+    expect(screen.queryByText('Base de conhecimento')).not.toBeInTheDocument();
+  });
+
   it('listsRulesWithReadableTitles', async () => {
     responderCom(rotasBase());
     montar();
@@ -217,5 +247,38 @@ describe('RegrasAba', () => {
     expect(await screen.findByRole('textbox', { name: 'Politicas' })).toHaveTextContent(
       'Seja gentil.',
     );
+  });
+
+  it('splitsOneFileIntoACardPerHeading', async () => {
+    const corpos: unknown[] = [];
+    responderCom({
+      'GET /api/eu': () => json(construtor),
+      'GET /api/agente': () => json(agenteLido({ regras: [arquivo(politicas)] })),
+      'GET /api/arquivo': () =>
+        json({
+          caminho: politicas,
+          conteudo: '## Horário\nSó liga de dia.\n\n## Tom\nSeja gentil.\n',
+        }),
+      'PUT /api/arquivo': async (req: Request) => {
+        corpos.push(await req.json());
+        return json({ salvo: politicas });
+      },
+    });
+    const { user } = montar();
+    const horario = await screen.findByRole('textbox', { name: 'Horário' });
+    const tom = screen.getByRole('textbox', { name: 'Tom' });
+    expect(horario).toHaveTextContent('Só liga de dia.');
+    expect(tom).toHaveTextContent('Seja gentil.');
+    expect(screen.queryByRole('textbox', { name: 'Politicas' })).not.toBeInTheDocument();
+
+    await digitarNoFim(user, tom, ' Sempre.');
+    await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
+    expect(corpos).toEqual([
+      {
+        agente: AGENTE,
+        caminho: politicas,
+        conteudo: '## Horário\nSó liga de dia.\n\n## Tom\nSeja gentil. Sempre.\n',
+      },
+    ]);
   });
 });

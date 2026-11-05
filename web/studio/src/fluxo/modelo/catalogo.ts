@@ -88,11 +88,26 @@ export function novoBloco(tipo: TipoBloco, id: string): Bloco {
 const SEM_CONFIGURAR = 'Clique para configurar';
 const LIMITE_DO_RESUMO = 60;
 
-export function resumoDoBloco(bloco: Bloco, tituloDaFerramenta: (nome: string) => string): string {
-  return resumoBruto(bloco, tituloDaFerramenta) || SEM_CONFIGURAR;
+const identidade = (nome: string): string => nome;
+
+/** "a" -> "a"; "a, b" -> "a e b"; "a, b, c" -> "a, b e c". */
+const juntarComE = (nomes: readonly string[]): string =>
+  nomes.length <= 1 ? (nomes[0] ?? '') : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)}`;
+
+export function resumoDoBloco(
+  bloco: Bloco,
+  tituloDaFerramenta: (nome: string) => string,
+  /** Nome amigável de uma informação pedida (campo do fluxo); sem lookup, cai no próprio nome. */
+  tituloDaInformacao: (nome: string) => string = identidade,
+): string {
+  return resumoBruto(bloco, tituloDaFerramenta, tituloDaInformacao) || SEM_CONFIGURAR;
 }
 
-function resumoBruto(bloco: Bloco, tituloDaFerramenta: (nome: string) => string): string {
+function resumoBruto(
+  bloco: Bloco,
+  tituloDaFerramenta: (nome: string) => string,
+  tituloDaInformacao: (nome: string) => string,
+): string {
   switch (bloco.tipo) {
     case 'buscar_dados':
     case 'gravar_no_sistema':
@@ -101,7 +116,7 @@ function resumoBruto(bloco: Bloco, tituloDaFerramenta: (nome: string) => string)
       return bloco.pergunta;
     case 'perguntar':
     case 'reaproveitar':
-      return bloco.campos.join(', ');
+      return juntarComE(bloco.campos.map(tituloDaInformacao));
     case 'formulario':
       return bloco.de && `Campos de ${bloco.de}`;
     case 'confirmar':

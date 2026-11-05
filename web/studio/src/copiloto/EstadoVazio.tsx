@@ -24,7 +24,7 @@ export function EstadoVazio() {
       >
         {TITULO}
       </Typography>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         {DESCRICAO}
       </Typography>
       {sugestoes.length > 0 && <ListaDeSugestoes sugestoes={sugestoes} onEscolher={enviar} />}
@@ -37,6 +37,13 @@ type SugestoesProps = { sugestoes: string[]; onEscolher: (texto: string) => Prom
 function ListaDeSugestoes({ sugestoes, onEscolher }: SugestoesProps) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+      <Typography
+        component="h2"
+        variant="overline"
+        sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
+      >
+        Sugestões
+      </Typography>
       {sugestoes.map((texto) => (
         <Chip
           key={texto}

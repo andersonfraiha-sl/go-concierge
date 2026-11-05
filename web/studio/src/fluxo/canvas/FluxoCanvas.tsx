@@ -33,6 +33,8 @@ type Props = {
   editavel: boolean;
   /** Título que o resumo do bloco mostra para uma ferramenta; precisa ser estável entre renders. */
   tituloDaFerramenta: (nome: string) => string;
+  /** Nome amigável de uma informação pedida (campo do Perguntar/Reaproveitar); idem. */
+  tituloDaInformacao: (nome: string) => string;
   /** Blocos que o Copiloto acabou de mudar; precisa ser estável entre renders. */
   realcados?: ReadonlySet<string>;
   onSelecionar: (id: string | null) => void;
@@ -61,13 +63,24 @@ const comMedidas = (
     return medido ? { ...no, measured: medido } : no;
   });
 
-type OpcoesDosNos = Pick<Props, 'problemas' | 'selecionado' | 'editavel' | 'tituloDaFerramenta'> & {
+type OpcoesDosNos = Pick<
+  Props,
+  'problemas' | 'selecionado' | 'editavel' | 'tituloDaFerramenta' | 'tituloDaInformacao'
+> & {
   blocos: Fluxo['blocos'];
   realcados: ReadonlySet<string>;
 };
 
 function nosDoFluxo(opcoes: OpcoesDosNos): BlocoNodeTipo[] {
-  const { blocos, problemas, selecionado, editavel, tituloDaFerramenta, realcados } = opcoes;
+  const {
+    blocos,
+    problemas,
+    selecionado,
+    editavel,
+    tituloDaFerramenta,
+    tituloDaInformacao,
+    realcados,
+  } = opcoes;
   const porBloco = problemasPorBloco(problemas);
   return blocos.map((bloco, indice) => ({
     id: bloco.id,
@@ -78,10 +91,11 @@ function nosDoFluxo(opcoes: OpcoesDosNos): BlocoNodeTipo[] {
     data: {
       bloco,
       indice,
-      resumo: resumoDoBloco(bloco, tituloDaFerramenta),
+      resumo: resumoDoBloco(bloco, tituloDaFerramenta, tituloDaInformacao),
       problemas: porBloco.get(bloco.id) ?? [],
       selecionado: bloco.id === selecionado,
       realcado: realcados.has(bloco.id),
+      ultimo: indice === blocos.length - 1,
     },
   }));
 }
@@ -122,6 +136,7 @@ export function FluxoCanvas({
   selecionado,
   editavel,
   tituloDaFerramenta,
+  tituloDaInformacao,
   realcados = NENHUM_REALCE,
   onSelecionar,
   onInserir,
@@ -135,9 +150,18 @@ export function FluxoCanvas({
         selecionado,
         editavel,
         tituloDaFerramenta,
+        tituloDaInformacao,
         realcados,
       }),
-    [fluxo.blocos, problemas, selecionado, editavel, tituloDaFerramenta, realcados],
+    [
+      fluxo.blocos,
+      problemas,
+      selecionado,
+      editavel,
+      tituloDaFerramenta,
+      tituloDaInformacao,
+      realcados,
+    ],
   );
   const arestas = useMemo(() => arestasDoFluxo(fluxo.blocos), [fluxo.blocos]);
   const { nos, aoMudarNos, remedir } = useNosArrastaveis(derivados);

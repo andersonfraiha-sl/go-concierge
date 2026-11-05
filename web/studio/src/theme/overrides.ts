@@ -22,7 +22,13 @@ export const componentOverrides: Components<Theme> = {
   },
   MuiCard: {
     defaultProps: { variant: 'outlined' },
-    styleOverrides: { root: { borderRadius: RAIOS.cartao, boxShadow: 'none' } },
+    styleOverrides: {
+      root: {
+        borderRadius: RAIOS.cartao,
+        borderColor: tokens.color.border.default,
+        boxShadow: 'none',
+      },
+    },
   },
   MuiPaper: {
     defaultProps: { elevation: 0 },
