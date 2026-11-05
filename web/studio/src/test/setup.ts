@@ -3,8 +3,9 @@ import { cleanup, configure } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { falharSeHouveRotaAusente } from './fetchFalso';
 
-// O primeiro render do React Flow passa de 1 s com a suíte inteira em paralelo.
-configure({ asyncUtilTimeout: 3000 });
+// O primeiro render do React Flow passa de 1 s com a suíte inteira em paralelo; em máquinas
+// mais carregadas (68 workers concorrentes) até 3 s estourava, gerando falhas instáveis.
+configure({ asyncUtilTimeout: 6000 });
 
 class ResizeObserverFalso {
   observe(): void {}

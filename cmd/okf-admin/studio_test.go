@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"go-concierge/internal/atende"
 	"go-concierge/internal/okf"
@@ -396,9 +398,37 @@ func TestStudioErroDoCliente(t *testing.T) {
 
 func TestComPrazoTransformaPanicoEmErro(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/skills", nil)
-	_, err := comPrazo(r, func() (string, error) { panic("catálogo quebrado") })
+	_, err := comPrazo(r, prazoCatalogo, func() (string, error) { panic("catálogo quebrado") })
 	if err == nil || !strings.Contains(err.Error(), "catálogo quebrado") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// O teto de parede vale só com prazo: sem ele (handler de teste) o trabalho lento termina e
+// responde, em vez de virar "prazo do catálogo" numa máquina carregada.
+func TestComPrazoSoCortaComPrazo(t *testing.T) {
+	tests := []struct {
+		nome    string
+		prazo   time.Duration
+		querErr error
+	}{
+		{"com prazo, trabalho preso estoura", time.Millisecond, context.DeadlineExceeded},
+		{"sem prazo, trabalho lento termina", 0, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			solta := make(chan struct{})
+			if tt.prazo == 0 {
+				time.AfterFunc(20*time.Millisecond, func() { close(solta) })
+			} else {
+				defer close(solta)
+			}
+			r := httptest.NewRequest("GET", "/api/skills", nil)
+			v, err := comPrazo(r, tt.prazo, func() (string, error) { <-solta; return "lido", nil })
+			if !errors.Is(err, tt.querErr) || (tt.querErr == nil && v != "lido") {
+				t.Fatalf("v, err = %q, %v; quer err %v", v, err, tt.querErr)
+			}
+		})
 	}
 }
 

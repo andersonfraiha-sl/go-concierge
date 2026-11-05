@@ -250,7 +250,7 @@ func (s *servidor) retratoParaCopiloto(r *http.Request, tela copiloto.Contexto, 
 	}
 	quem := quemDoCopiloto(a, recorte)
 	visao, _ := visaoPara(r, mapa, recorte)
-	return comPrazo(r, func() (retrato, error) {
+	return comPrazo(r, s.prazoDoCatalogo, func() (retrato, error) {
 		casos, err := s.casosDeUso()
 		if err != nil {
 			return retrato{}, fmt.Errorf("copiloto: listar skills: %w", err)

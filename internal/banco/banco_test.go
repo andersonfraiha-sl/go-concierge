@@ -42,6 +42,34 @@ func TestMigrarIdempotente(t *testing.T) {
 	}
 }
 
+// TestMigracoesReversiveis desce todas as migrations (Down, na ordem inversa) e sobe de
+// novo (Up): cada Down precisa deixar o banco exatamente como o Up anterior o encontrou,
+// senão um rollback em produção quebraria o esquema.
+func TestMigracoesReversiveis(t *testing.T) {
+	ctx := t.Context()
+	b := bancotest.Novo(t)
+
+	if err := banco.Migrar(ctx, b); err != nil {
+		t.Fatalf("Up inicial: %v", err)
+	}
+	maxima := versaoMaxima(t, b)
+
+	p := provedorGoose(t, b)
+	if _, err := p.DownTo(ctx, 0); err != nil {
+		t.Fatalf("Down até zero: %v", err)
+	}
+	if v := versaoDoBanco(t, b); v != 0 {
+		t.Fatalf("versão após Down até zero = %d, quero 0", v)
+	}
+
+	if _, err := p.Up(ctx); err != nil {
+		t.Fatalf("Up de novo após Down: %v", err)
+	}
+	if v := versaoDoBanco(t, b); v != maxima {
+		t.Fatalf("versão após Up de novo = %d, quero %d", v, maxima)
+	}
+}
+
 // TestEsquemaEmDia falha quando alguém muda o esquema do ent sem gerar a migration, ou põe
 // coluna ou índice à mão numa migration: o Atlas compara o banco migrado com o esquema do
 // ent, nos dois sentidos, e não pode sobrar diferença.

@@ -5,7 +5,9 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/ganchos"
@@ -474,5 +476,38 @@ func TestTurnoLevaAsConfirmadasEGuardaAsPerguntasFeitas(t *testing.T) {
 	}
 	if got := c.Turno().PerguntasFeitas(); len(got) != 0 {
 		t.Fatalf("cada turno tem as suas: %v", got)
+	}
+}
+
+// O prazo de cada gancho é medido pelo relógio do conjunto: o mesmo gancho estoura ou não
+// conforme o relógio injetado, sem depender do escalonador.
+func TestComRelogioMedeOPrazoDasRegras(t *testing.T) {
+	parado := func() time.Time { return time.Unix(0, 0) }
+	tests := []struct {
+		nome       string
+		anda       time.Duration
+		querFalhou bool
+		querTipo   ganchos.TipoDecisao
+	}{
+		{nome: "relógio parado: a regra decide", querTipo: ganchos.Confirmar},
+		{nome: "relógio que anda uma hora por leitura: prazo estourado", anda: time.Hour, querFalhou: true, querTipo: ganchos.Bloquear},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			var leituras atomic.Int64
+			relogio := func() time.Time { return parado().Add(time.Duration(leituras.Add(1)) * tt.anda) }
+			regra := ganchos.Gancho[ganchos.AntesDeResponder]{Nome: "regra", Avaliar: func(e ganchos.AntesDeResponder) (ganchos.AntesDeResponder, ganchos.Decisao) {
+				return e, ganchos.Decisao{Tipo: ganchos.Confirmar, Motivo: "posso?"}
+			}}
+			idx := &ganchos.Indice{AntesDeResponder: ganchos.Nivel[ganchos.AntesDeResponder]{Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{regra}}}
+			c := ganchos.NovoConjunto(ganchos.Fixos{}, func() *ganchos.Indice { return idx }, ganchos.ComRelogio(relogio))
+
+			r := c.Turno().AntesDeResponder(context.Background(), ganchos.AntesDeResponder{Texto: "oi"})
+
+			falhou := slices.ContainsFunc(r.Registros, func(g ganchos.Registro) bool { return g.Falhou && g.Causa == ganchos.CausaPrazo })
+			if falhou != tt.querFalhou || r.Decisao.Tipo != tt.querTipo {
+				t.Fatalf("falhou por prazo = %v, decisão = %q; quer %v e %q", falhou, r.Decisao.Tipo, tt.querFalhou, tt.querTipo)
+			}
+		})
 	}
 }

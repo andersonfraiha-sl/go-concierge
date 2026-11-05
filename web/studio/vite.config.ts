@@ -9,5 +9,11 @@ export default defineConfig({
   build: { outDir: 'dist', emptyOutDir: true },
   server: { proxy: { '/api': 'http://127.0.0.1:8090' } },
   // user-event + jsdom passam de 5 s por teste com a suíte inteira em paralelo.
-  test: { environment: 'jsdom', setupFiles: ['./src/test/setup.ts'], testTimeout: 15000 },
+  // e2e/ (Playwright) e stryker.conf.json têm runner e config próprios, fora deste comando.
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    testTimeout: 15000,
+    exclude: ['**/node_modules/**', 'e2e/**'],
+  },
 });

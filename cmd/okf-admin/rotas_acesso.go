@@ -268,15 +268,17 @@ func alvoDonaDoCorpo(r *http.Request) (acesso.Escopo, error) {
 // alvo conferido ser o mesmo que a escrita grava.
 func normalizarID(id string) string { return strings.ToLower(strings.TrimSpace(id)) }
 
-// limiteCorpoEspiado cobre os corpos JSON do Admin e do Console; o importar (zip) não é espiado.
-const limiteCorpoEspiado = 2 << 20
-
 // espiarCorpo decodifica o corpo JSON para resolver o alvo e o devolve intacto à requisição,
-// para o handler ler de novo.
+// para o handler ler de novo. Só espia corpos JSON do Admin e do Console (o importar, zip, não
+// passa aqui), então o teto é o mesmo de decodificarJSON: lê um byte a mais para recusar com
+// 413 em vez de entregar ao handler um corpo cortado.
 func espiarCorpo(r *http.Request, v any) error {
-	raw, err := io.ReadAll(io.LimitReader(r.Body, limiteCorpoEspiado))
+	raw, err := io.ReadAll(io.LimitReader(r.Body, limiteCorpoJSON+1))
 	if err != nil {
 		return erroDeAlvo{http.StatusBadRequest, "CORPO_INVALIDO", "corpo ilegível"}
+	}
+	if len(raw) > limiteCorpoJSON {
+		return erroDeAlvo{http.StatusRequestEntityTooLarge, "CORPO_GRANDE_DEMAIS", "corpo grande demais"}
 	}
 	r.Body = io.NopCloser(bytes.NewReader(raw))
 	if len(bytes.TrimSpace(raw)) == 0 {

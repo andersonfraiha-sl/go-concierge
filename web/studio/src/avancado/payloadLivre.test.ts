@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   errosDosPares,
@@ -96,5 +97,21 @@ describe('fidelidade do que já está gravado', () => {
 
   it.each(['10', '-2.5', '0'])('infersNumberFor %s', (texto) => {
     expect(tipoInferido(texto)).toBe('número');
+  });
+});
+
+describe('payloadEmPares/paresEmPayload (property-based)', () => {
+  // Chaves sem espaço nas pontas: pares "gravados" preservam a chave como veio, mas se ela
+  // tivesse espaço nas pontas o round-trip por paresEmPayload (que apara chave não-gravada em
+  // edição futura) deixaria de ser o foco aqui — a propriedade é sobre o que já está no servidor.
+  const chave = fc.string({ minLength: 1 }).filter((s) => s.trim() === s && s !== '');
+  const valorPrimitivo = fc.oneof(fc.string(), fc.integer(), fc.boolean());
+
+  it('roundTripsAnyRecordOfPrimitivesThroughParesAndBack', () => {
+    fc.assert(
+      fc.property(fc.dictionary(chave, valorPrimitivo), (payload) => {
+        expect(paresEmPayload(payloadEmPares(payload))).toEqual(payload);
+      }),
+    );
   });
 });

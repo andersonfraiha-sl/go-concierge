@@ -114,12 +114,12 @@ type Resultado[E Ocorrencia] struct {
 // assim mesmo (são puros e a máscara nunca pode ser pulada) e cada regra restante conta
 // como falha (CausaCancelado) sob a própria política.
 func Avaliar[E Ocorrencia](ctx context.Context, gs []Gancho[E], ev E) Resultado[E] {
-	inicio := time.Now()
-	return seguir(ctx, comecar(ev), gs).resultado(time.Since(inicio))
+	return seguir(ctx, comecar(ev, time.Now), gs).resultado()
 }
 
 // avaliacao é o acumulador da dobra sobre os ganchos. grava é o Grava() que a política
 // FechadaSeGrava lê: o do evento de entrada, ou o da saída da checagem no Conjunto.
+// relogio mede o prazo de cada gancho e a duração da avaliação.
 type avaliacao[E Ocorrencia] struct {
 	evento    E
 	decisao   Decisao
@@ -128,16 +128,18 @@ type avaliacao[E Ocorrencia] struct {
 	grava     bool
 	lentos    int
 	encerrada bool
+	relogio   func() time.Time
+	inicio    time.Time
 }
 
-func comecar[E Ocorrencia](ev E) avaliacao[E] {
-	return avaliacao[E]{evento: ev, decisao: Decisao{Tipo: Deixar}, grava: gravaDe(ev)}
+func comecar[E Ocorrencia](ev E, relogio func() time.Time) avaliacao[E] {
+	return avaliacao[E]{evento: ev, decisao: Decisao{Tipo: Deixar}, grava: gravaDe(ev), relogio: relogio, inicio: relogio()}
 }
 
-func (a avaliacao[E]) resultado(duracao time.Duration) Resultado[E] {
+func (a avaliacao[E]) resultado() Resultado[E] {
 	return Resultado[E]{
 		Evento: a.evento, Decisao: a.decisao, Perguntas: a.perguntas, Registros: a.registros,
-		Duracao: duracao, Lentos: a.lentos,
+		Duracao: a.relogio().Sub(a.inicio), Lentos: a.lentos,
 	}
 }
 
@@ -150,7 +152,7 @@ func seguir[E Ocorrencia](ctx context.Context, a avaliacao[E], gs []Gancho[E]) a
 			a = aplicarFalha(a, g, falha{causa: CausaCancelado})
 			continue
 		}
-		x := executar(g, a.evento)
+		x := executar(g, a.evento, a.relogio)
 		if x.lento {
 			a.lentos++
 		}
@@ -177,20 +179,20 @@ type execucao[E Ocorrencia] struct {
 
 // executar roda o gancho. Fixo que passa do prazo roda de novo uma vez (é puro): pausa de
 // GC ou de scheduler não deve fechar um turno. Só falha se passar do prazo de novo.
-func executar[E Ocorrencia](g Gancho[E], ev E) execucao[E] {
-	x := rodar(g, ev)
+func executar[E Ocorrencia](g Gancho[E], ev E, relogio func() time.Time) execucao[E] {
+	x := rodar(g, ev, relogio)
 	if x.falhou.causa != CausaPrazo || !g.Fixo {
 		return x
 	}
-	x = rodar(g, ev)
+	x = rodar(g, ev, relogio)
 	x.lento = true
 	return x
 }
 
-func rodar[E Ocorrencia](g Gancho[E], ev E) execucao[E] {
-	inicio := time.Now()
+func rodar[E Ocorrencia](g Gancho[E], ev E, relogio func() time.Time) execucao[E] {
+	inicio := relogio()
 	ajustado, d, detalhe := protegido(g.Avaliar, ev)
-	duracao := time.Since(inicio)
+	duracao := relogio().Sub(inicio)
 	if d.Tipo == "" {
 		d.Tipo = Deixar
 	}
