@@ -1,10 +1,11 @@
-import { Box, Button, Chip, MenuItem, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Box, Button, MenuItem, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
+import { type AbasDoDetalhe, CabecalhoDeDetalhe } from '@/app/detalhe/CabecalhoDeDetalhe';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
-import { PESOS } from '@/theme/tokens';
+import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
 import { AjustesTecnicosAba } from './AjustesTecnicosAba';
 import { ArquivosAba } from './ArquivosAba';
 import { achatar, type NoDaArvore, useArvore } from './contratos';
@@ -89,48 +90,62 @@ export function AvancadoPage(): ReactNode {
     });
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <CabecalhoDoAvancado />
-      <Tabs
-        value={aba.id}
-        onChange={(_, valor: string) => mudar('aba', valor)}
-        aria-label="Seções do Avançado"
-      >
-        {ABAS.map((candidata) => (
-          <Tab key={candidata.id} value={candidata.id} label={candidata.rotulo} />
-        ))}
-      </Tabs>
-      {aba.porItem && (
-        <>
-          <SeletorDeItem
-            nos={nos}
-            atual={noAtual}
-            onEscolher={(caminho) => mudar('item', caminho)}
-          />
-          <EstadoDaLista arvore={arvore} semItem={!noAtual} />
-        </>
-      )}
-      {aba.desenhar(noAtual ? { no: noAtual, editar } : null, editar)}
-    </Box>
+    <>
+      <CabecalhoDoAvancado
+        abas={{
+          rotulo: 'Seções do Avançado',
+          itens: ABAS,
+          atual: aba.id,
+          onTrocar: (valor) => mudar('aba', valor),
+        }}
+      />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, py: 3, px: 4 }}>
+        {aba.porItem && (
+          <>
+            <SeletorDeItem
+              nos={nos}
+              atual={noAtual}
+              onEscolher={(caminho) => mudar('item', caminho)}
+            />
+            <EstadoDaLista arvore={arvore} semItem={!noAtual} />
+          </>
+        )}
+        {aba.desenhar(noAtual ? { no: noAtual, editar } : null, editar)}
+      </Box>
+    </>
   );
 }
 
-function CabecalhoDoAvancado(): ReactNode {
+/** Cabeçalho do Avançado; sem abas, serve também às telas de acesso negado e de erro. */
+export function CabecalhoDoAvancado({ abas }: { abas?: AbasDoDetalhe<string> }): ReactNode {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-      <Typography variant="h5" component="h1" sx={{ flex: 1 }}>
-        Avançado
-      </Typography>
-      <Chip
-        size="small"
-        label="Mudanças aqui afetam todos os condomínios"
-        sx={{
-          bgcolor: 'warning.soft',
-          color: 'warning.onSoft',
-          fontWeight: PESOS.medio,
-        }}
-      />
-    </Box>
+    <CabecalhoDeDetalhe
+      voltar={{ para: '/skills', rotulo: 'Voltar para Skills' }}
+      titulo="Avançado"
+      subtitulo="Arquivos e configurações internas · só para quem constrói skills"
+      acoes={<AvisoDeAlcance />}
+      {...(abas && { abas })}
+    />
+  );
+}
+
+function AvisoDeAlcance(): ReactNode {
+  return (
+    <Typography
+      component="span"
+      sx={{
+        flexShrink: 0,
+        py: 0.5,
+        px: 1.25,
+        borderRadius: RAIO.pilula,
+        bgcolor: 'warning.soft',
+        color: 'warning.onSoft',
+        fontSize: TIPOS.caption,
+        fontWeight: PESOS.medio,
+      }}
+    >
+      Mudanças aqui afetam todos os condomínios
+    </Typography>
   );
 }
 

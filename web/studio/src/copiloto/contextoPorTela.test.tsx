@@ -153,7 +153,10 @@ describe('contexto do Copiloto por tela', () => {
       tela: <SkillEditorPage />,
       rota: '/skills/agendar-mudanca',
       caminho: '/skills/:nome',
-      rotas: { 'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')) },
+      rotas: {
+        'GET /api/skills': () => json(skillsFalsas),
+        'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')),
+      },
     });
     await screen.findByRole('textbox', { name: 'Resumo' });
 
@@ -169,6 +172,7 @@ describe('contexto do Copiloto por tela', () => {
       rota: '/skills/agendar-mudanca?aba=fluxo',
       caminho: '/skills/:nome',
       rotas: {
+        'GET /api/skills': () => json(skillsFalsas),
         'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')),
         'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
         'GET /api/nexus/recursos': () =>

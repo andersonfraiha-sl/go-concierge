@@ -4,7 +4,7 @@ import type { EstadoSalvamento } from './useAutosave';
 
 type Props = { estado: EstadoSalvamento; onTentarDeNovo: () => void };
 
-const formatarHora = (em: Date): string =>
+export const formatarHora = (em: Date): string =>
   em.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 export function SaveIndicator({ estado, onTentarDeNovo }: Props): ReactNode {

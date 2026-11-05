@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { lazy, Suspense } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
 import { json, responderCom } from '@/test/fetchFalso';
 import { criarTema } from '@/theme/theme';
 import { StudioLayout } from '../StudioLayout';
@@ -33,7 +34,11 @@ function renderizar(elemento: React.ReactNode) {
     [
       {
         path: '/',
-        element: <StudioLayout />,
+        element: (
+          <CopilotoProvider>
+            <StudioLayout />
+          </CopilotoProvider>
+        ),
         children: [{ element: <LimiteDeRota />, children: [{ path: 'x', element: elemento }] }],
       },
     ],

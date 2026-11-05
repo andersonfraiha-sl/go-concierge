@@ -49,6 +49,10 @@ export function pode(eu: Eu, permissao: Permissao): boolean {
   return eu.permissoes.includes(permissao);
 }
 
+export function podeVerCondominios(eu: Eu): boolean {
+  return pode(eu, 'condominios.habilitar') || pode(eu, 'condominios.editar');
+}
+
 /** O catálogo é global: quem pertence a uma administradora não o edita. */
 export function podeNoCatalogo(eu: Eu, permissao: Permissao): boolean {
   return pode(eu, permissao) && eu.administradoraId === null;

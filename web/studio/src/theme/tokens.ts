@@ -15,6 +15,7 @@ export const TIPOS = {
   body1: 14,
   subtitle1: 15,
   h6: 17,
+  marca: 16,
   h5: 21,
   tituloEditavel: 18,
   h4: 26,
@@ -44,7 +45,38 @@ export const RAIO = {
 export const PESOS = { regular: 400, medio: 500, semi: 600, negrito: 700 } as const;
 
 // Tamanhos de ícone, em px.
-export const ICONES = { minimo: 13, pequeno: 14, medio: 16, grande: 18, destaque: 20 } as const;
+export const ICONES = {
+  minimo: 13,
+  pequeno: 14,
+  controle: 15,
+  medio: 16,
+  entidade: 17,
+  grande: 18,
+  destaque: 20,
+} as const;
+
+/** Moldura do Studio (barra do topo, menu lateral, cabeçalho de detalhe, abas), em px. */
+export const SHELL = {
+  alturaDoControle: 34,
+  alturaDoBotaoDoDetalhe: 36,
+  paddingDoBotaoDeTeste: 16,
+  logo: 34,
+  avatar: 32,
+  divisorDaMarca: 21,
+  larguraDaBusca: 260,
+  alturaDoItemDoMenu: 40,
+  larguraMaximaDaLista: 1204,
+  larguraMaximaDaFicha: 980,
+  pontoDeSalvo: 7,
+  gapDasAbas: 26,
+  paddingDaAba: 13,
+  indicadorDaAba: 2,
+  /** Traço dos ícones de linha do desenho (o de voltar é mais grosso). */
+  traco: 2,
+  tracoDoVoltar: 2.2,
+  alturaDaLinha: 1.2,
+  alturaDaLinhaDoTitulo: 1.25,
+} as const;
 
 /** Alinhamento vertical da primeira linha, compartilhado pelo textarea e pela coluna de números. */
 export const PADDING_TOPO_DO_EDITOR = '16.5px';
@@ -96,6 +128,7 @@ export const tokens = {
       secondary: '#536379',
       tertiary: '#637792',
       muted: '#7789A3',
+      faint: '#A7B1C2',
     },
     border: {
       default: '#E4E7EC',
@@ -113,6 +146,7 @@ export const tokens = {
     warning: { text: '#8A5A00', background: '#FFF6DF' },
     danger: { main: '#D61D1E' },
     realceDoCopiloto: '#FFF7CC',
+    registra: { background: '#FFF3E6', text: '#C25E00' },
     conector: '#C1CAD6',
     scrollbar: { thumb: '#c1c1c1', thumbHover: '#a8a8a8' },
     studio: {

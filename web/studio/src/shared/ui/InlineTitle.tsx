@@ -10,9 +10,16 @@ type Props = {
   rotulo: string;
   /** Tag renderizada quando não editável; "h1" é o título da página (padrão), "span" para usos em lista. */
   component?: 'h1' | 'span';
+  /** "herdada" usa a fonte de quem envolve (ex.: o título do cabeçalho de detalhe). */
+  aparencia?: Aparencia;
 };
 
-const estiloTitulo = { fontSize: TIPOS.tituloEditavel, fontWeight: PESOS.semi } as const;
+type Aparencia = 'titulo' | 'herdada';
+
+const ESTILO_POR_APARENCIA = {
+  titulo: { fontSize: TIPOS.tituloEditavel, fontWeight: PESOS.semi },
+  herdada: { font: 'inherit', color: 'inherit', letterSpacing: 'inherit' },
+} as const satisfies Record<Aparencia, object>;
 
 export function InlineTitle({
   valor,
@@ -20,8 +27,10 @@ export function InlineTitle({
   onMudar,
   rotulo,
   component = 'h1',
+  aparencia = 'titulo',
 }: Props): ReactNode {
   const [editando, setEditando] = useState(false);
+  const estiloTitulo = ESTILO_POR_APARENCIA[aparencia];
 
   if (!editavel) {
     return (
@@ -35,7 +44,12 @@ export function InlineTitle({
       <ButtonBase
         aria-label={`Editar ${rotulo}`}
         onClick={() => setEditando(true)}
-        sx={{ ...estiloTitulo, justifyContent: 'flex-start', borderRadius: RAIO.campo, px: 0.5 }}
+        sx={{
+          ...estiloTitulo,
+          justifyContent: 'flex-start',
+          borderRadius: RAIO.campo,
+          px: aparencia === 'titulo' ? 0.5 : 0,
+        }}
       >
         {valor}
       </ButtonBase>
@@ -43,6 +57,7 @@ export function InlineTitle({
   }
   return (
     <CampoDoTitulo
+      estilo={estiloTitulo}
       valor={valor}
       rotulo={rotulo}
       onMudar={onMudar}
@@ -52,6 +67,7 @@ export function InlineTitle({
 }
 
 type PropsDoCampo = {
+  estilo: (typeof ESTILO_POR_APARENCIA)[Aparencia];
   valor: string;
   rotulo: string;
   onMudar: (v: string) => void;
@@ -59,7 +75,7 @@ type PropsDoCampo = {
 };
 
 /** Monte só enquanto edita: o rascunho nasce do valor atual. */
-function CampoDoTitulo({ valor, rotulo, onMudar, onEncerrar }: PropsDoCampo): ReactNode {
+function CampoDoTitulo({ estilo, valor, rotulo, onMudar, onEncerrar }: PropsDoCampo): ReactNode {
   const { control, getValues } = useForm({ defaultValues: { rascunho: valor } });
   const cancelado = useRef(false);
 
@@ -89,7 +105,7 @@ function CampoDoTitulo({ valor, rotulo, onMudar, onEncerrar }: PropsDoCampo): Re
           onChange={field.onChange}
           onBlur={confirmar}
           onKeyDown={aoTeclar}
-          sx={{ ...estiloTitulo, minWidth: 200 }}
+          sx={{ ...estilo, minWidth: 200 }}
         />
       )}
     />

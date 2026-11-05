@@ -2,6 +2,7 @@ import { focusManager } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Eu } from '@/acesso/eu';
+import { LayoutDeDetalhe } from '@/app/detalhe/LayoutDeDetalhe';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { SkillEditorPage } from './SkillEditorPage';
@@ -37,6 +38,7 @@ const montar = (rota = '/skills/agendar-mudanca') =>
 function rotasDoEditor(eu: Eu, corpos: unknown[], textos = lidos()) {
   return {
     'GET /api/eu': () => json(eu),
+    'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
     'GET /api/skills/agendar-mudanca': () => json(textos),
     'PUT /api/skills/agendar-mudanca/textos': async (req: Request) => {
       corpos.push(await req.json());
@@ -181,7 +183,12 @@ describe('SkillEditorPage', () => {
   it('renamesFromTitle', async () => {
     const corpos: unknown[] = [];
     responderCom(rotasDoEditor(construtor, corpos));
-    const { user } = montar();
+    // O "Salvo às" mora no cabeçalho de detalhe, que o layout de detalhe desenha.
+    const { user } = renderComProvedores(<SkillEditorPage />, {
+      rota: '/skills/agendar-mudanca',
+      caminho: '/skills/:nome',
+      layout: <LayoutDeDetalhe />,
+    });
     await user.click(await screen.findByRole('button', { name: 'Editar Nome da skill' }));
     const campo = screen.getByRole('textbox', { name: 'Nome da skill' });
     await user.clear(campo);

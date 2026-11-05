@@ -1,5 +1,7 @@
 import { lazy, type ReactNode, Suspense } from 'react';
-import { createBrowserRouter, type RouteObject } from 'react-router';
+import { createBrowserRouter, Outlet, type RouteObject } from 'react-router';
+import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
+import { LayoutDeDetalhe } from './detalhe/LayoutDeDetalhe';
 // Nome do arquivo difere de rotaInicial.ts por mais que o caso da letra:
 // Windows/macOS têm sistema de arquivos insensível a maiúsculas e os dois
 // nomes colidiriam, fazendo o TypeScript resolver o import errado.
@@ -32,17 +34,24 @@ const GuardaAvancado = lazy(() =>
 
 const tela = (pagina: ReactNode): ReactNode => <Suspense>{pagina}</Suspense>;
 
-const ROTAS_FILHAS: RouteObject[] = [
+const ROTAS_DE_LISTA: RouteObject[] = [
   { index: true, element: <RotaInicial /> },
   { path: 'skills', element: tela(<SkillsPage />) },
-  // A aba aberta fica em ?aba=
-  { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
   { path: 'concierge', element: tela(<ConciergePage />) },
   { path: 'ferramentas', element: tela(<FerramentasPage />) },
   { path: 'condominios', element: tela(<CondominiosPage />) },
+];
+
+// Detalhe: cabeçalho próprio no lugar da barra global e do menu. A aba aberta fica em ?aba=
+const ROTAS_DE_DETALHE: RouteObject[] = [
+  { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
   { path: 'condominios/:id', element: tela(<CondominioPage />) },
-  // A aba aberta fica em ?aba=
   { path: 'avancado', element: tela(<GuardaAvancado />) },
+];
+
+// Rota sem caminho só para isolar erros de tela: o layout continua de pé.
+const comLimite = (rotas: RouteObject[]): RouteObject[] => [
+  { element: <LimiteDeRota />, children: rotas },
 ];
 
 export function criarRotas() {
@@ -50,10 +59,17 @@ export function criarRotas() {
     [
       {
         path: '/',
-        element: <StudioLayout />,
+        // O Copiloto fica acima dos dois layouts: a conversa sobrevive à troca de tela.
+        element: (
+          <CopilotoProvider>
+            <Outlet />
+          </CopilotoProvider>
+        ),
         errorElement: <ErroDaRaiz />,
-        // Rota sem caminho só para isolar erros de tela: o layout continua de pé.
-        children: [{ element: <LimiteDeRota />, children: ROTAS_FILHAS }],
+        children: [
+          { element: <StudioLayout />, children: comLimite(ROTAS_DE_LISTA) },
+          { element: <LayoutDeDetalhe />, children: comLimite(ROTAS_DE_DETALHE) },
+        ],
       },
     ],
     { basename: '/studio' },

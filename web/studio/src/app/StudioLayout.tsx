@@ -1,19 +1,23 @@
-import { Box, Typography } from '@mui/material';
-import { useState } from 'react';
-import { Outlet } from 'react-router';
-import { naoReconhecido, useEu } from '@/acesso/eu';
-import { UsuarioNaoReconhecido } from '@/acesso/UsuarioNaoReconhecido';
-import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
-import { PainelDoCopiloto } from '@/copiloto/PainelDoCopiloto';
+import type { SxProps, Theme } from '@mui/material';
+import { type ReactNode, useState } from 'react';
+import { SHELL } from '@/theme/tokens';
+import { MolduraDoStudio } from './MolduraDoStudio';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
 
-export function StudioLayout() {
+// Telas de lista: 34 px em cima, 55 nas laterais e embaixo, até 1204 px de largura.
+const ESTILO_DO_CONTEUDO: SxProps<Theme> = {
+  pt: 4,
+  px: 5,
+  pb: 5,
+  maxWidth: SHELL.larguraMaximaDaLista,
+};
+
+/** Layout das telas de lista: barra global no topo e menu à esquerda. */
+export function StudioLayout(): ReactNode {
   const [recolhido, setRecolhido] = useState(lerMenuRecolhido);
-  const usuario = useEu();
-  const recusado = naoReconhecido(usuario.error);
 
   const alternarMenu = () => {
     const proximo = !recolhido;
@@ -21,28 +25,12 @@ export function StudioLayout() {
     gravarMenuRecolhido(proximo);
   };
 
-  if (recusado) return <UsuarioNaoReconhecido dev={recusado.dev} />;
-
   return (
-    <CopilotoProvider>
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <Topbar />
-        <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
-          <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />
-          <PainelDoCopiloto />
-          <AreaPrincipal carregando={usuario.isPending} />
-        </Box>
-      </Box>
-    </CopilotoProvider>
-  );
-}
-
-/** Sem o Eu, nenhuma tela: na troca de usuário a anterior some no mesmo clique. */
-function AreaPrincipal({ carregando }: { carregando: boolean }) {
-  return (
-    <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, bgcolor: 'background.default' }}>
-      {carregando ? <Typography color="text.secondary">Carregando…</Typography> : <Outlet />}
-    </Box>
+    <MolduraDoStudio
+      topo={<Topbar />}
+      lateral={<Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />}
+      estiloDoConteudo={ESTILO_DO_CONTEUDO}
+    />
   );
 }
 

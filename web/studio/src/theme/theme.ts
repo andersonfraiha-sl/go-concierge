@@ -15,6 +15,8 @@ interface StudioPalette {
   nodeSelected: string;
   conector: string;
   realceDoCopiloto: string;
+  /** Skill que registra no sistema: ícone laranja sobre fundo suave. */
+  registra: { soft: string; onSoft: string };
 }
 
 declare module '@mui/material/styles' {
@@ -22,6 +24,7 @@ declare module '@mui/material/styles' {
     strong: string;
     tertiary: string;
     muted: string;
+    faint: string;
   }
   interface TypeBackground {
     subtle: string;
@@ -70,6 +73,7 @@ const PALETA: PaletteOptions = {
     strong: tokens.color.text.strong,
     tertiary: tokens.color.text.tertiary,
     muted: tokens.color.text.muted,
+    faint: tokens.color.text.faint,
   },
   background: {
     default: tokens.color.background.default,
@@ -105,6 +109,7 @@ const PALETA: PaletteOptions = {
     nodeSelected: tokens.color.studio.nodeSelected,
     conector: tokens.color.conector,
     realceDoCopiloto: tokens.color.realceDoCopiloto,
+    registra: { soft: tokens.color.registra.background, onSoft: tokens.color.registra.text },
   },
 };
 

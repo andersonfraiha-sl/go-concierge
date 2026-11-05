@@ -67,10 +67,11 @@ export const TituloDaSkillSchema = z
 
 const caminhoDaSkill = (nome: string): string => `/api/skills/${encodeURIComponent(nome)}`;
 
-export function useSkills() {
+export function useSkills({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ['skills'],
     queryFn: () => apiGet('/api/skills', SkillsSchema),
+    enabled,
   });
 }
 

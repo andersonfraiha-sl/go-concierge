@@ -1,4 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/react';
+import type { UserEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { StudioLayout } from '@/app/StudioLayout';
 import { CHAVE_USUARIO_DEV } from '@/shared/api/http';
@@ -14,6 +15,12 @@ const base: Eu = {
   administradoraId: null,
   dev: true,
 };
+
+/** O "Ver como" mora no menu do avatar, só em dev. */
+async function abrirVerComo(user: UserEvent): Promise<HTMLElement> {
+  await user.click(await screen.findByRole('button', { name: 'Conta e Ver como' }));
+  return screen.findByRole('combobox', { name: 'Ver como' });
+}
 
 describe('acesso na barra lateral e no topo', () => {
   it('hidesAdvancedForGestor', async () => {
@@ -45,10 +52,10 @@ describe('acesso na barra lateral e no topo', () => {
   it('switchesDevUserAndSendsHeader', async () => {
     const falso = responderCom({ 'GET /api/eu': () => json(base) });
     const { user } = renderComProvedores(<StudioLayout />);
-    await screen.findByRole('combobox', { name: 'Ver como' });
+    const verComo = await abrirVerComo(user);
     const antes = falso.mock.calls.length;
 
-    await user.click(screen.getByRole('combobox', { name: 'Ver como' }));
+    await user.click(verComo);
     await user.click(within(screen.getByRole('listbox')).getByText('Administradora (gestor)'));
 
     expect(localStorage.getItem(CHAVE_USUARIO_DEV)).toBe('gestor-exemplo');
@@ -62,11 +69,9 @@ describe('acesso na barra lateral e no topo', () => {
     localStorage.setItem(CHAVE_USUARIO_DEV, 'admin-superlogica');
     responderCom({ 'GET /api/eu': () => json({ ...base, id: 'gestor-avancado' }) });
 
-    renderComProvedores(<StudioLayout />);
+    const { user } = renderComProvedores(<StudioLayout />);
 
-    expect(await screen.findByRole('combobox', { name: 'Ver como' })).toHaveTextContent(
-      'Administradora com Avançado',
-    );
+    expect(await abrirVerComo(user)).toHaveTextContent('Administradora com Avançado');
   });
 
   it('showsRetryInsteadOfNoAccessWhenEuFails', async () => {
@@ -119,6 +124,7 @@ describe('acesso na barra lateral e no topo', () => {
     renderComProvedores(<StudioLayout />);
 
     expect(await screen.findByText('Ana')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Conta e Ver como' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Ver como' })).not.toBeInTheDocument();
   });
 
@@ -143,7 +149,7 @@ describe('acesso na barra lateral e no topo', () => {
     });
     const { user } = renderComProvedores(<StudioLayout />);
     await screen.findByText('Ana');
-    await user.click(screen.getByRole('combobox', { name: 'Ver como' }));
+    await user.click(await abrirVerComo(user));
     const opcao = within(screen.getByRole('listbox')).getByText('Administradora (gestor)');
     const dadoDoAnteriorNaTela = () =>
       screen.queryByText('Ana') !== null ||

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { mensagemDe } from '@/shared/api/mensagemDe';
+import { useRegistrarSalvamento } from './registroDeSalvamento';
 import { useSingleFlight } from './useSingleFlight';
 
 export const ATRASO_SALVAMENTO_MS = 1000;
@@ -42,11 +43,14 @@ export function useAutosave<T>({
   const pendente = useRef(false);
   const falhou = useRef(false);
   const montado = useRef(true);
+  const registrar = useRegistrarSalvamento();
+  const registrarAtual = useRef(registrar);
 
   useEffect(() => {
     valorAtual.current = valor;
     salvarAtual.current = salvar;
     bloqueioAtual.current = bloqueio;
+    registrarAtual.current = registrar;
   });
 
   const gravarPendente = useCallback(async (): Promise<void> => {
@@ -56,7 +60,10 @@ export function useAutosave<T>({
     setInterno({ tipo: 'salvando' });
     try {
       await salvarAtual.current(enviado);
-      if (montado.current) setInterno({ tipo: 'salvo', em: new Date() });
+      if (!montado.current) return;
+      const em = new Date();
+      setInterno({ tipo: 'salvo', em });
+      registrarAtual.current(em);
     } catch (erro) {
       pendente.current = true;
       falhou.current = true;

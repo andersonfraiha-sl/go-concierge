@@ -174,12 +174,12 @@ export function buscarEstado(escopo: Escopo): Promise<Estado> {
   return apiGet(caminhoAdmin('estado', escopo), EstadoSchema);
 }
 
-export function useEstado() {
+export function useEstado({ enabled = true }: { enabled?: boolean } = {}) {
   const escopo = useEscopo();
   return useQuery({
     queryKey: chaveDoEstado(escopo),
     queryFn: () => buscarEstado(escopo ?? null),
-    enabled: escopo !== undefined,
+    enabled: enabled && escopo !== undefined,
   });
 }
 
