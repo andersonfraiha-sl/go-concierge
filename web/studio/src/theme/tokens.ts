@@ -194,3 +194,16 @@ export const tokens = {
     copiloto: 380,
   },
 } as const;
+
+// ferramentas
+/** Largura fixa da gaveta de edição de ferramenta (desenho aprovado: 460px). */
+export const GAVETA_DA_FERRAMENTA = 'min(460px, 100vw)';
+/** Largura e altura de listas/campos estreitos (filtro de ferramentas, árvore do Avançado). */
+export const LARGURA_DA_LISTA_ESTREITA = 320;
+export const ALTURA_DO_CAMPO_ESTREITO = 36;
+/** Texto do rótulo "Grava no sistema" dentro do destaque laranja do drawer da ferramenta. */
+export const REGISTRA_FORTE = '#8A4300';
+/** Cor da chave num par chave/valor do YAML realçado (Avançado). */
+export const COR_DA_CHAVE_YAML = '#7B1FA2';
+/** Botão perigoso contornado (Remover/Excluir): borda e texto mais suaves que `danger.main`. */
+export const PERIGO_SUAVE = { borda: '#F3C6C6', texto: '#B3191A' } as const;

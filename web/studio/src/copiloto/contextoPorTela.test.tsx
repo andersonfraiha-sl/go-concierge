@@ -228,6 +228,7 @@ describe('contexto do Copiloto por tela', () => {
       rotas: {
         'GET /api/nexus/recursos': () =>
           json({ account: 'a', origem: 'instantaneo', conferido: true, recursos: [] }),
+        'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
       },
     });
     await screen.findByRole('heading', { name: 'Ferramentas' });
