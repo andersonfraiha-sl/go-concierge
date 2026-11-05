@@ -41,7 +41,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.10.2",
     "@biomejs/biome": "2.6.4",
-    "@playwright/test": "1.56.1",
+    "@playwright/test": "1.63.0",
     "@stryker-mutator/core": "9.2.0",
     "@stryker-mutator/vitest-runner": "9.2.0",
     "@testing-library/dom": "10.4.2",

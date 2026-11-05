@@ -35,7 +35,9 @@ test('keyboardOnlyNavigationHasVisibleFocusAndEscClosesDialogs', async ({ page }
   await page.keyboard.press('Tab');
   await expect(page.locator(':focus')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Importar' }).click();
+  // "Importar" (na aba Importar e exportar) só habilita depois de escolher destino e zip; "Novo
+  // arquivo" abre diálogo sem pré-condição, e já está na aba atual (Arquivos).
+  await page.getByRole('button', { name: 'Novo arquivo' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();

@@ -22,25 +22,40 @@ test.describe('menu e navegação', () => {
 
 test.describe('skill: abrir, editar e salvar regra', () => {
   test('editsAndSavesARuleFile', async ({ page }) => {
+    // Digitar o texto inteiro da política de volta, tecla a tecla, é lento em WebKit (o editor
+    // rico reprocessa a cada toque); o timeout padrão de 30s corta no meio.
+    test.setTimeout(45_000);
     await entrarComo(page, 'construtor-superlogica');
     await page.goto('/studio/skills');
 
-    await page.getByRole('link', { name: 'Agendamento de Mudança' }).click();
+    // O cartão da skill é um CardActionArea (botão), não um link; o nome acessível é "Abrir <título>".
+    await page.getByRole('button', { name: 'Abrir Agendamento de Mudança' }).click();
     await page.getByRole('tab', { name: 'Regras' }).click();
 
     const editor = page.getByRole('textbox').first();
     await expect(editor).toBeVisible();
     const textoOriginal = (await editor.textContent()) ?? '';
+    // Não há botão Salvar: o editor autosalva (useAutosave, 1s de atraso) via PUT /api/arquivo.
+    // O indicador só tem resolução de minuto ("Salvo às HH:MM"), então esperar a resposta da
+    // gravação é mais confiável do que esperar o rótulo mudar de texto.
     await editor.click();
     await page.keyboard.type(' // ajuste do e2e');
-    await page.getByRole('button', { name: 'Salvar' }).click();
-    await expect(page.getByText('Salvo', { exact: false })).toBeVisible({ timeout: 10_000 });
+    await page.waitForResponse(
+      (resposta) =>
+        resposta.url().includes('/api/arquivo') && resposta.request().method() === 'PUT',
+    );
+    // O texto "Salvo às" aparece tanto no status (ponto + rótulo) quanto no span interno: o
+    // span é o alvo específico.
+    await expect(page.getByText(/^Salvo às/).last()).toBeVisible();
 
     // devolve o arquivo ao estado original pra não deixar lixo entre execuções.
     await editor.click();
     await page.keyboard.press('Control+A');
     await page.keyboard.type(textoOriginal);
-    await page.getByRole('button', { name: 'Salvar' }).click();
+    await page.waitForResponse(
+      (resposta) =>
+        resposta.url().includes('/api/arquivo') && resposta.request().method() === 'PUT',
+    );
   });
 });
 
@@ -88,7 +103,9 @@ test.describe('troca de papel (Ver como)', () => {
     await expect(page.getByRole('link', { name: 'Condomínios' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Conta e Ver como' }).click();
-    await page.getByLabel('Ver como').click();
+    // getByLabel('Ver como') também casa com o botão "Conta e Ver como" (nome contém o rótulo);
+    // o combobox é o alvo específico.
+    await page.getByRole('combobox', { name: 'Ver como' }).click();
     await page.getByRole('option', { name: 'Administradora com Avançado' }).click();
 
     await expect(page.getByRole('link', { name: 'Avançado' })).toBeVisible();

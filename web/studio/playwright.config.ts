@@ -31,6 +31,13 @@ export default defineConfig({
       name: 'desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 980 } },
     },
+    // Suíte inteira (não só o smoke) também em WebKit, pro requisito de cross-browser cobrir
+    // jornadas e a11y, não só "a tela carrega". visual.e2e.ts pula aqui (baseline é só 1440x980
+    // no projeto "desktop").
+    {
+      name: 'desktop-webkit',
+      use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 980 } },
+    },
     { name: 'smoke-chromium', use: { ...devices['Desktop Chrome'] }, testMatch: /smoke\.e2e\.ts/ },
     { name: 'smoke-webkit', use: { ...devices['Desktop Safari'] }, testMatch: /smoke\.e2e\.ts/ },
     { name: 'smoke-firefox', use: { ...devices['Desktop Firefox'] }, testMatch: /smoke\.e2e\.ts/ },

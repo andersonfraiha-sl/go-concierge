@@ -8,7 +8,7 @@ import { entrarComo } from './devUsuario';
 const ORCAMENTO_DO_MAIOR_CHUNK_BYTES = 750_000;
 
 test('noBuiltChunkExceedsTheMeasuredBudget', () => {
-  const pastaDeAssets = join(__dirname, '..', 'dist', 'assets');
+  const pastaDeAssets = join(import.meta.dirname, '..', 'dist', 'assets');
   const maiorAtual = readdirSync(pastaDeAssets)
     .filter((arquivo) => arquivo.endsWith('.js'))
     .map((arquivo) => statSync(join(pastaDeAssets, arquivo)).size)

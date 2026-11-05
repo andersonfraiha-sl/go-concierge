@@ -14,6 +14,8 @@ function mulberry32(seed: number): () => number {
 }
 
 test('sixtySecondsOfSeededRandomClicksProduceNoConsoleErrors', async ({ page }) => {
+  // O loop roda 60s por desenho; o timeout padrão da suíte é 30s (playwright.config.ts).
+  test.setTimeout(90_000);
   const aleatorio = mulberry32(42);
   const erros: string[] = [];
   page.on('console', (msg) => {
@@ -27,7 +29,9 @@ test('sixtySecondsOfSeededRandomClicksProduceNoConsoleErrors', async ({ page }) 
 
   const fim = Date.now() + 60_000;
   while (Date.now() < fim) {
-    const alvos = await page.locator('button, a, [role="tab"]').all();
+    // "a" só dentro do Studio: fora dele tem o Console legado (navegação de página inteira,
+    // sem basename), que é outro app e não faz parte desta suíte.
+    const alvos = await page.locator('button, a[href^="/studio"], [role="tab"]').all();
     if (alvos.length === 0) break;
     const alvo = alvos[Math.floor(aleatorio() * alvos.length)];
     try {
