@@ -85,6 +85,8 @@ describe('AvancadoPage', () => {
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
     await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
     const editor = await screen.findByDisplayValue('Regra antiga');
+    expect(editor).toHaveAttribute('readonly');
+    await user.click(screen.getByRole('button', { name: 'Editar' }));
     await user.clear(editor);
     await user.type(editor, 'Regra nova');
     expect(corpos).toHaveLength(0);
@@ -95,6 +97,21 @@ describe('AvancadoPage', () => {
       caminho: 'rules/politicas.md',
       conteudo: 'Regra nova',
     });
+  });
+
+  it('cancelsEditAndRestoresSavedText', async () => {
+    responderCom(rotas(construtor));
+    const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
+    await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
+    const editor = await screen.findByDisplayValue('Regra antiga');
+    await user.click(screen.getByRole('button', { name: 'Editar' }));
+    await user.type(editor, ' rascunho');
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(editor).toHaveValue('Regra antiga');
+    expect(editor).toHaveAttribute('readonly');
+    expect(screen.queryByRole('button', { name: 'Salvar' })).not.toBeInTheDocument();
   });
 
   it('showsProjectionReadOnly', async () => {
@@ -214,7 +231,8 @@ describe('AvancadoPage', () => {
     );
     const { user } = renderComProvedores(<AvancadoPage />, { rota: '/avancado?aba=arquivos' });
     await user.click(await screen.findByRole('button', { name: 'politicas.md' }));
-    await user.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await user.click(await screen.findByRole('button', { name: 'Editar' }));
+    await user.click(screen.getByRole('button', { name: 'Excluir' }));
     expect(excluidos).toHaveLength(0);
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Excluir' }),

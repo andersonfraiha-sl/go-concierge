@@ -246,3 +246,5 @@ export const PERIGO_SUAVE = { borda: '#F3C6C6', texto: '#B3191A' } as const;
 export const RAIO_DO_ITEM_DA_ARVORE = '7px';
 /** Fundo do bloco de código do editor de arquivo (Avançado), um tom abaixo do branco. */
 export const FUNDO_DO_EDITOR = '#FBFCFD';
+/** Lista e editor do Avançado vão até o pé da janela (topo, título, abas e seletor somam ~380 px). */
+export const ALTURA_DA_AREA_DE_ARQUIVOS = 'max(480px, calc(100vh - 380px))';

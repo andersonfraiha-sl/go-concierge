@@ -7,6 +7,7 @@ import { type EstiloDoRealce, useCopiloto, useRealceDoCopiloto } from '@/copilot
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import {
+  ALTURA_DA_AREA_DE_ARQUIVOS,
   LARGURA_DA_LISTA_ESTREITA,
   PESOS,
   RAIO,
@@ -41,9 +42,6 @@ function usePrimeiroArquivoAberto(
     if (primeiro) setAberto(primeiro.caminho);
   }, [grupos, aberto, setAberto]);
 }
-
-// Lista e editor vão até o pé da janela (topo, título, abas e seletor somam ~380 px).
-const ALTURA_DA_AREA = 'max(480px, calc(100vh - 380px))';
 
 export function ArquivosAba({ no, editar }: Props): ReactNode {
   const agente = useAgente(no.caminho);
@@ -80,7 +78,9 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   }
 
   return (
-    <Box sx={{ display: 'flex', gap: 3, alignItems: 'stretch', height: ALTURA_DA_AREA }}>
+    <Box
+      sx={{ display: 'flex', gap: 3, alignItems: 'stretch', height: ALTURA_DA_AREA_DE_ARQUIVOS }}
+    >
       <ListaDeGrupos
         grupos={grupos}
         aberto={aberto}

@@ -1,3 +1,4 @@
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { Box, Button, Typography, useTheme } from '@mui/material';
 import { forwardRef, type ReactNode, type UIEvent, useRef, useState } from 'react';
 import { type Control, useForm, useWatch } from 'react-hook-form';
@@ -58,7 +59,8 @@ function useSincroniaDoArquivo(
       return null;
     },
   });
-  return { control, handleSubmit, sincronia };
+  const descartar = () => reset({ texto: conteudoGravado });
+  return { control, handleSubmit, sincronia, descartar };
 }
 
 const bytesDoTexto = (texto: string): number => new TextEncoder().encode(texto).length;
@@ -72,7 +74,9 @@ function EditorCarregado({
 }: EditorProps & { conteudoGravado: string }): ReactNode {
   const { mostrar } = useSnackbar();
   const [excluindo, setExcluindo] = useState(false);
-  const { control, handleSubmit, sincronia } = useSincroniaDoArquivo(
+  // Abre só para leitura; Editar libera o texto e troca o botão por Salvar e Excluir.
+  const [editando, setEditando] = useState(false);
+  const { control, handleSubmit, sincronia, descartar } = useSincroniaDoArquivo(
     { agente, caminho },
     conteudoGravado,
   );
@@ -81,6 +85,7 @@ function EditorCarregado({
   const salvar = handleSubmit(async ({ texto }) => {
     try {
       await sincronia.salvar(texto);
+      setEditando(false);
       mostrar(`Arquivo ${caminho} salvo`);
     } catch (erro) {
       mostrar(mensagemDeErro(erro), 'error');
@@ -103,8 +108,13 @@ function EditorCarregado({
       <CabecalhoDoEditor
         caminho={caminho}
         bytes={bytesDoTexto(conteudoGravado)}
-        editar={editar}
+        modo={modoDoEditor(editar, editando)}
         salvarBloqueado={sincronia.conflito !== null}
+        onEditar={() => setEditando(true)}
+        onCancelar={() => {
+          descartar();
+          setEditando(false);
+        }}
         onExcluir={() => setExcluindo(true)}
         onSalvar={() => void salvar()}
       />
@@ -113,7 +123,7 @@ function EditorCarregado({
         onManterOMeu={sincronia.manterOMeu}
         onUsarONovo={sincronia.usarONovo}
       />
-      <AreaDoTexto control={control} caminho={caminho} editar={editar} />
+      <AreaDoTexto control={control} caminho={caminho} editar={editar && editando} />
       <ConfirmDialog
         aberto={excluindo}
         titulo={`Excluir ${caminho}?`}
@@ -148,23 +158,25 @@ function useExcluirArquivo(
   };
 }
 
+type ModoDoEditor = 'leitura' | 'pode-editar' | 'editando';
+
+const modoDoEditor = (editar: boolean, editando: boolean): ModoDoEditor => {
+  if (!editar) return 'leitura';
+  return editando ? 'editando' : 'pode-editar';
+};
+
 type CabecalhoProps = {
   caminho: string;
   bytes: number;
-  editar: boolean;
+  modo: ModoDoEditor;
   salvarBloqueado: boolean;
+  onEditar: () => void;
+  onCancelar: () => void;
   onExcluir: () => void;
   onSalvar: () => void;
 };
 
-function CabecalhoDoEditor({
-  caminho,
-  bytes,
-  editar,
-  salvarBloqueado,
-  onExcluir,
-  onSalvar,
-}: CabecalhoProps): ReactNode {
+function CabecalhoDoEditor({ caminho, bytes, modo, ...acoes }: CabecalhoProps): ReactNode {
   return (
     <Box
       sx={{
@@ -194,32 +206,58 @@ function CabecalhoDoEditor({
         {bytes} bytes
       </Typography>
       <Box sx={{ flex: 1 }} />
-      {editar && (
-        <>
-          <Button
-            variant="outlined"
-            onClick={onExcluir}
-            sx={{ borderColor: PERIGO_SUAVE.borda, color: PERIGO_SUAVE.texto }}
-          >
-            Excluir
-          </Button>
-          <Button
-            variant="contained"
-            disabled={salvarBloqueado}
-            onClick={onSalvar}
-            sx={{ fontWeight: PESOS.semi }}
-          >
-            Salvar
-          </Button>
-        </>
+      {modo === 'pode-editar' && (
+        <Button
+          variant="outlined"
+          startIcon={<EditOutlinedIcon fontSize="small" />}
+          onClick={acoes.onEditar}
+          sx={{ fontWeight: PESOS.semi }}
+        >
+          Editar
+        </Button>
       )}
+      {modo === 'editando' && <AcoesDaEdicao {...acoes} />}
     </Box>
+  );
+}
+
+type AcoesProps = Omit<CabecalhoProps, 'caminho' | 'bytes' | 'modo' | 'onEditar'>;
+
+function AcoesDaEdicao({
+  salvarBloqueado,
+  onCancelar,
+  onExcluir,
+  onSalvar,
+}: AcoesProps): ReactNode {
+  return (
+    <>
+      <Button onClick={onCancelar} sx={{ color: 'text.secondary' }}>
+        Cancelar
+      </Button>
+      <Button
+        variant="outlined"
+        onClick={onExcluir}
+        sx={{ borderColor: PERIGO_SUAVE.borda, color: PERIGO_SUAVE.texto }}
+      >
+        Excluir
+      </Button>
+      <Button
+        variant="contained"
+        disabled={salvarBloqueado}
+        onClick={onSalvar}
+        sx={{ fontWeight: PESOS.semi }}
+      >
+        Salvar
+      </Button>
+    </>
   );
 }
 
 type AreaProps = { control: Control<TextoDoArquivo>; caminho: string; editar: boolean };
 
 function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
+  // O texto é transparente (as cores vêm do realce por baixo); o cursor precisa de cor própria.
+  const corDoCursor = useTheme().palette.text.primary;
   const numerosRef = useRef<HTMLPreElement>(null);
   const realceRef = useRef<HTMLPreElement>(null);
   const sincronizarScroll = (evento: UIEvent<HTMLTextAreaElement>): void => {
@@ -246,7 +284,7 @@ function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
             htmlInput: {
               readOnly: !editar,
               'aria-label': `Conteúdo de ${caminho}`,
-              style: { ...ESTILO_DO_EDITOR, color: 'transparent', caretColor: 'currentcolor' },
+              style: { ...ESTILO_DO_EDITOR, color: 'transparent', caretColor: corDoCursor },
               onScroll: sincronizarScroll,
             },
           }}
