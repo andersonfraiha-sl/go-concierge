@@ -1,5 +1,6 @@
 import { Box, Switch, TableCell, TableRow, Tooltip } from '@mui/material';
 import type { ReactNode } from 'react';
+import { PESOS } from '@/theme/tokens';
 import { type Caso, habilitacaoDe, type Mapeamento, PADRAO } from './contratos';
 import type { LinhaDeSkill } from './listaDeSkills';
 
@@ -42,6 +43,11 @@ export function PontoDeDecisao(): ReactNode {
   );
 }
 
+const ESTILO_DO_TITULO = {
+  fontWeight: PESOS.semi,
+  borderColor: 'border.subtle',
+} as const;
+
 export function LinhaDaMatriz({
   contexto,
   linha,
@@ -51,7 +57,7 @@ export function LinhaDaMatriz({
 }): ReactNode {
   return (
     <TableRow>
-      <TableCell component="th" scope="row" sx={ESTILO_COLUNA_FIXA}>
+      <TableCell component="th" scope="row" sx={[ESTILO_COLUNA_FIXA, ESTILO_DO_TITULO]}>
         {linha.titulo}
       </TableCell>
       {contexto.colunas.map((coluna) => (
@@ -84,7 +90,7 @@ const ESTILO_DO_INTERRUPTOR = {
 
 function Celula({ contexto, linha, coluna }: CelulaProps): ReactNode {
   return (
-    <TableCell align="center" sx={{ position: 'relative' }}>
+    <TableCell align="center" sx={{ position: 'relative', borderColor: 'border.subtle' }}>
       <Box
         component="button"
         type="button"

@@ -1,7 +1,23 @@
 import { Box, ToggleButton, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
-import { RAIO } from '@/theme/tokens';
-import { rotuloDoPapel } from './listaDeSkills';
+import { PESOS, RAIO } from '@/theme/tokens';
+import { paraSentenceCase, rotuloDoPapel } from './listaDeSkills';
+
+const ESTILO_DA_OPCAO = {
+  borderRadius: RAIO.pilula,
+  textTransform: 'none',
+  fontWeight: PESOS.medio,
+  px: 1.625,
+  py: 0.75,
+  border: 1,
+  borderColor: 'border.default',
+  '&.Mui-selected': {
+    bgcolor: 'background.tint',
+    borderColor: 'primary.main',
+    color: 'primary.main',
+    '&:hover': { bgcolor: 'background.tint' },
+  },
+} as const;
 
 type Props = {
   papeis: readonly string[];
@@ -40,7 +56,7 @@ function OpcoesPorPapel({ papeis, escolhidos, travado, onMudar }: Props): ReactN
     <OpcaoDePapel
       key={papel}
       valor={papel}
-      rotulo={rotuloDoPapel(papel)}
+      rotulo={paraSentenceCase(rotuloDoPapel(papel))}
       selecionada={escolhidos.includes(papel)}
       travada={travado}
       onEscolher={() => onMudar(alternar(escolhidos, papel))}
@@ -62,7 +78,7 @@ function OpcaoDePapel({ valor, rotulo, selecionada, travada, onEscolher }: Opcao
       value={valor}
       selected={selecionada}
       disabled={travada}
-      sx={{ borderRadius: RAIO.chip }}
+      sx={ESTILO_DA_OPCAO}
       onClick={onEscolher}
     >
       {rotulo}

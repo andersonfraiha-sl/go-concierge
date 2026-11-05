@@ -95,10 +95,14 @@ describe('CondominiosPage', () => {
       rota: '/condominios?administradora=adm-exemplo',
     });
 
-    await screen.findByText('Administradora: Administradora Exemplo');
-    await user.click(screen.getByTestId('CancelIcon'));
+    const filtro = (await screen.findByRole('combobox', {
+      name: 'Administradora',
+    })) as HTMLSelectElement;
+    expect(filtro.value).toBe('adm-exemplo');
 
-    expect(screen.queryByText('Administradora: Administradora Exemplo')).not.toBeInTheDocument();
+    await user.selectOptions(filtro, 'Todas as administradoras');
+
+    expect(filtro.value).toBe('');
   });
 
   it('flagsMissingIntegrationIds', async () => {
