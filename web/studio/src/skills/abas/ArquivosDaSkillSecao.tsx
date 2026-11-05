@@ -8,6 +8,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { NomeDialog } from '@/shared/ui/NomeDialog';
 import { SectionCard } from '@/shared/ui/SectionCard';
+import { PESOS } from '@/theme/tokens';
 import { useGestaoDeArquivos } from './arquivosDaSkill';
 
 type AgenteCarregado = NonNullable<ReturnType<typeof useAgente>['data']>['agente'];
@@ -57,7 +58,19 @@ export function ArquivosDaSkillSecao({
   const [excluindo, setExcluindo] = useState<string | null>(null);
 
   const botaoNovo = editavel && (
-    <Button size="small" startIcon={<AddIcon />} onClick={() => setCriando(true)}>
+    <Button
+      size="small"
+      variant="outlined"
+      startIcon={<AddIcon />}
+      onClick={() => setCriando(true)}
+      sx={{
+        height: 34,
+        px: 1.75,
+        borderColor: 'border.default',
+        color: 'text.strong',
+        fontWeight: PESOS.medio,
+      }}
+    >
       {rotuloNovo}
     </Button>
   );

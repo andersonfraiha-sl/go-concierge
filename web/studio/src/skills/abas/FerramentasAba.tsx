@@ -2,7 +2,6 @@ import AddIcon from '@mui/icons-material/Add';
 import {
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,6 +15,7 @@ import {
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
+import { Link as RouterLink } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import {
   chaveDoAgente,
@@ -29,6 +29,7 @@ import { mensagemDe } from '@/shared/api/mensagemDe';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { SectionCard } from '@/shared/ui/SectionCard';
+import { PESOS, RAIO, TIPOS, TOKENS_DA_SKILL } from '@/theme/tokens';
 import { vemDoFluxo } from './arquivosDaSkill';
 
 type Props = { nome: string; caminho: string };
@@ -40,30 +41,137 @@ export function FerramentasAba({ caminho }: Props): ReactNode {
   const recursos = agente.data?.recursos ?? [];
 
   return (
-    <SectionCard
-      titulo="Ferramentas"
-      ajuda="Sistemas que a skill pode consultar. As que gravam entram pelo Fluxo."
-      acao={
-        editavel && (
-          <BotaoAdicionarFerramenta
-            jaLigadas={recursos.map((recurso) => recurso.nome)}
-            onEscolher={(nome) => void vincular(nome, true)}
-          />
-        )
-      }
-    >
-      <EstadoDasFerramentas agente={agente} semRecursos={recursos.length === 0} />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {recursos.map((recurso) => (
-          <LinhaDeFerramenta
-            key={recurso.nome}
-            recurso={recurso}
-            editavel={editavel}
-            onDesligar={() => void vincular(recurso.nome, false)}
-          />
-        ))}
+    <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <SectionCard
+          titulo="Ferramentas"
+          ajuda="Sistemas que a skill pode usar. As que só consultam você liga aqui; as que gravam entram por um passo do Fluxo."
+          acao={
+            editavel && (
+              <BotaoAdicionarFerramenta
+                jaLigadas={recursos.map((recurso) => recurso.nome)}
+                onEscolher={(nome) => void vincular(nome, true)}
+              />
+            )
+          }
+        >
+          <EstadoDasFerramentas agente={agente} semRecursos={recursos.length === 0} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {recursos.map((recurso) => (
+              <LinhaDeFerramenta
+                key={recurso.nome}
+                recurso={recurso}
+                editavel={editavel}
+                onDesligar={() => void vincular(recurso.nome, false)}
+              />
+            ))}
+          </Box>
+        </SectionCard>
       </Box>
-    </SectionCard>
+      <PainelComoFunciona recursos={recursos} />
+    </Box>
+  );
+}
+
+function PainelComoFunciona({ recursos }: { recursos: readonly RecursoDeclarado[] }): ReactNode {
+  const consultas = recursos.filter((r) => r.recurso && !r.recurso.write).length;
+  const gravacoes = recursos.filter((r) => r.recurso?.write).length;
+  return (
+    <Box
+      component="aside"
+      sx={{
+        width: 331,
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.5,
+      }}
+    >
+      <Typography
+        component="h2"
+        variant="overline"
+        sx={{ color: 'text.secondary', fontWeight: PESOS.negrito }}
+      >
+        Como funciona
+      </Typography>
+      <Typography variant="h6" component="p">
+        Consulta ou grava
+      </Typography>
+      <BlocoDeTipo
+        rotulo="Só consulta"
+        bgcolor="background.tint"
+        color="primary.main"
+        quantidade={consultas}
+        texto="Liga aqui, nesta aba: a skill lê o sistema quando precisa, sem pedir confirmação."
+      />
+      <BlocoDeTipo
+        rotulo="Grava no sistema"
+        bgcolor="studio.registra.soft"
+        color="studio.registra.onSoft"
+        quantidade={gravacoes}
+        texto="Entra por um passo do tipo Gravar no sistema, no Fluxo."
+      />
+      <Typography
+        component={RouterLink}
+        to="?aba=fluxo"
+        variant="body2"
+        sx={{ color: 'primary.main', textDecoration: 'none' }}
+      >
+        Abrir o Fluxo
+      </Typography>
+      <Typography
+        component="h2"
+        variant="overline"
+        sx={{ color: 'text.secondary', fontWeight: PESOS.negrito, mt: 1 }}
+      >
+        Todas as ferramentas
+      </Typography>
+      <Typography
+        component={RouterLink}
+        to="/ferramentas"
+        variant="body2"
+        sx={{ color: 'primary.main', textDecoration: 'none' }}
+      >
+        Ferramentas
+      </Typography>
+    </Box>
+  );
+}
+
+function BlocoDeTipo({
+  rotulo,
+  bgcolor,
+  color,
+  quantidade,
+  texto,
+}: {
+  rotulo: string;
+  bgcolor: string;
+  color: string;
+  quantidade: number;
+  texto: string;
+}): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <Box
+        component="span"
+        sx={{
+          alignSelf: 'flex-start',
+          fontSize: TIPOS.caption,
+          fontWeight: PESOS.medio,
+          py: 0.5,
+          px: 1.25,
+          borderRadius: RAIO.pilula,
+          bgcolor,
+          color,
+        }}
+      >
+        {rotulo} · {quantidade}
+      </Box>
+      <Typography variant="body2" color="text.tertiary">
+        {texto}
+      </Typography>
+    </Box>
   );
 }
 
@@ -104,7 +212,13 @@ function BotaoAdicionarFerramenta({ jaLigadas, onEscolher }: BotaoProps): ReactN
   const [adicionando, setAdicionando] = useState(false);
   return (
     <>
-      <Button size="small" startIcon={<AddIcon />} onClick={() => setAdicionando(true)}>
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<AddIcon />}
+        onClick={() => setAdicionando(true)}
+        sx={{ height: 34, px: 1.75, borderColor: 'border.default', color: 'text.strong' }}
+      >
         Adicionar ferramenta
       </Button>
       {adicionando && (
@@ -124,11 +238,27 @@ function BotaoAdicionarFerramenta({ jaLigadas, onEscolher }: BotaoProps): ReactN
 type LinhaProps = { recurso: RecursoDeclarado; editavel: boolean; onDesligar: () => void };
 
 function LinhaDeFerramenta({ recurso, editavel, onDesligar }: LinhaProps): ReactNode {
+  const pendente = !recurso.ok;
   return (
-    <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 1.5,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        borderRadius: RAIO.painel,
+        borderColor: pendente ? undefined : 'border.subtle',
+        bgcolor: pendente ? TOKENS_DA_SKILL.pendenciaFundo : undefined,
+      }}
+    >
       <TextosDaFerramenta recurso={recurso} editavel={editavel} />
       {vemDoFluxo(recurso) ? (
-        <Chip size="small" variant="outlined" label="Usada no fluxo" />
+        <TipoDeFerramenta
+          rotulo="Usada no fluxo"
+          bgcolor="background.neutralFill"
+          color="text.secondary"
+        />
       ) : (
         <Switch
           checked
@@ -141,10 +271,51 @@ function LinhaDeFerramenta({ recurso, editavel, onDesligar }: LinhaProps): React
   );
 }
 
-function TextosDaFerramenta({ recurso, editavel }: Omit<LinhaProps, 'onDesligar'>): ReactNode {
+function TipoDeFerramenta({
+  rotulo,
+  bgcolor,
+  color,
+}: {
+  rotulo: string;
+  bgcolor: string;
+  color: string;
+}): ReactNode {
   return (
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Typography variant="subtitle2">{recurso.recurso?.titulo ?? recurso.nome}</Typography>
+    <Box
+      component="span"
+      sx={{
+        fontSize: TIPOS.caption,
+        fontWeight: PESOS.medio,
+        py: 0.5,
+        px: 1.25,
+        borderRadius: RAIO.pilula,
+        bgcolor,
+        color,
+        flexShrink: 0,
+      }}
+    >
+      {rotulo}
+    </Box>
+  );
+}
+
+function TextosDaFerramenta({ recurso, editavel }: Omit<LinhaProps, 'onDesligar'>): ReactNode {
+  const write = recurso.recurso?.write ?? false;
+  return (
+    <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="subtitle2">{recurso.recurso?.titulo ?? recurso.nome}</Typography>
+        {recurso.recurso &&
+          (write ? (
+            <TipoDeFerramenta
+              rotulo="Grava no sistema"
+              bgcolor="studio.registra.soft"
+              color="studio.registra.onSoft"
+            />
+          ) : (
+            <TipoDeFerramenta rotulo="Só consulta" bgcolor="background.tint" color="primary.main" />
+          ))}
+      </Box>
       {editavel && recurso.recurso && (
         <Typography variant="caption" color="text.secondary">
           {recurso.recurso.description}

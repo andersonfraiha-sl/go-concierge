@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArquivosDaSkillSecao } from './ArquivosDaSkillSecao';
 import { regrasDe, tituloDaRegra } from './arquivosDaSkill';
-import { DocumentoEditavel } from './DocumentoEditavel';
+import { RegraArquivo } from './RegraArquivo';
 
 type Props = { nome?: string; caminho: string; titulo?: string };
 
@@ -21,7 +21,7 @@ export function RegrasAba({ caminho, titulo = 'Regras' }: Props): ReactNode {
       tipo="regra"
       selecionar={(agente) => ({ proprios: regrasDe(agente), herdados: [] })}
       renderArquivo={(regra, ctx) => (
-        <DocumentoEditavel
+        <RegraArquivo
           key={regra.caminho}
           agente={ctx.caminhoDoAgente}
           caminho={regra.caminho}

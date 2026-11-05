@@ -201,4 +201,5 @@ export const TOKENS_DA_SKILL = {
   bordaDeAviso: '#F5DDAF',
   textoMuitoSuave: '#8A93A6',
   erroFundoSuave: '#FDE8E8',
+  pendenciaFundo: '#FFFDF5',
 } as const;
