@@ -132,7 +132,7 @@ function LinhaDeDocumento({ documento, emExclusao, onExcluir }: PropsDaLinha): R
       <Typography variant="body1" sx={{ flex: 1, fontWeight: PESOS.semi }}>
         {nomeParaExibir(documento)}
       </Typography>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         {extensaoDe(documento.caminho)} · {formatarTamanho(documento.bytes)}
       </Typography>
       {onExcluir && (

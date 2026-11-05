@@ -66,7 +66,7 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
   );
   usePrimeiroArquivoAberto(grupos, aberto, setAberto);
 
-  if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (agente.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (agente.isError) {
     return (
       <FalhaComTentarDeNovo
@@ -95,7 +95,7 @@ export function ArquivosAba({ no, editar }: Props): ReactNode {
             onExcluido={() => setAberto(null)}
           />
         ) : (
-          <Typography color="text.secondary">Escolha um arquivo na lista para abrir.</Typography>
+          <Typography color="textSecondary">Escolha um arquivo na lista para abrir.</Typography>
         )}
       </Box>
       <NovoArquivoDialog aberto={criando} onCriar={criar} onFechar={() => setCriando(false)} />
@@ -242,7 +242,7 @@ type ItemProps = {
 function ItemDoGrupo({ arquivo, aberto, onAbrir }: ItemProps): ReactNode {
   if (arquivo.herdado_de) {
     return (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 0.5, px: 1.25 }}>
+      <Typography variant="body2" color="textSecondary" sx={{ py: 0.5, px: 1.25 }}>
         {rotuloDoArquivo(arquivo)}
       </Typography>
     );

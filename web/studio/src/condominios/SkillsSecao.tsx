@@ -92,7 +92,7 @@ function TituloEContagem({ ligadas, total, diferentes }: ContagemProps): ReactNo
       <Typography variant="h5" component="h2" color="secondary">
         O que o concierge faz aqui
       </Typography>
-      <Typography variant="body2" color="text.tertiary">
+      <Typography variant="body2" color="textTertiary">
         {resumo}
       </Typography>
     </Box>
@@ -186,7 +186,7 @@ function useContextoDaLista(
 
 function SemSkills(): ReactNode {
   return (
-    <Typography color="text.secondary" sx={{ p: 2 }}>
+    <Typography color="textSecondary" sx={{ p: 2 }}>
       Nenhuma skill encontrada.
     </Typography>
   );

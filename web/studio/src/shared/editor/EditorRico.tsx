@@ -75,7 +75,7 @@ function RodapeDoModo({ modo, cabeNoEditor, onAlternar }: PropsDoRodape): ReactN
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
       {!cabeNoEditor && (
-        <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+        <Typography variant="caption" color="textSecondary" sx={{ flex: 1 }}>
           Este texto tem formatação que o editor não mostra (tabela, HTML ou cabeçalho de
           metadados); edite como texto para não perder nada.
         </Typography>

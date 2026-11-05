@@ -59,7 +59,7 @@ const ajusteDe = (rascunho: Rascunho): Orquestracao => ({
 
 export function OrquestracaoAba({ editar }: { editar: boolean }): ReactNode {
   const orquestracao = useOrquestracao();
-  if (orquestracao.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (orquestracao.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (orquestracao.isError) {
     return (
       <FalhaComTentarDeNovo
@@ -170,10 +170,10 @@ function DescricaoDoModo({ modo, emUso }: { modo: Rascunho['modo']; emUso: boole
         {MODOS[modo].nome}
         {emUso && ' (em uso)'}
       </Typography>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         {MODOS[modo].descricao}
       </Typography>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+      <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
         Quando: {MODOS[modo].quando}
       </Typography>
     </Box>

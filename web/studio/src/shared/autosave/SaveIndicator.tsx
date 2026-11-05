@@ -17,7 +17,7 @@ export function SaveIndicator({ estado, onTentarDeNovo }: Props): ReactNode {
       return <Typography variant="caption">Salvo às {formatarHora(estado.em)}</Typography>;
     case 'bloqueado':
       return (
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="textSecondary">
           Não salvo: {estado.motivo}
         </Typography>
       );

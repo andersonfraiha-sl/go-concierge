@@ -120,7 +120,7 @@ function EscolhaDoZip({ control, seletor, nome }: EscolhaProps): ReactNode {
       <Button variant="outlined" onClick={() => seletor.current?.click()}>
         Escolher zip
       </Button>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         {nome ?? 'Nenhum arquivo escolhido'}
       </Typography>
       <Controller

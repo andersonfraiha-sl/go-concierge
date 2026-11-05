@@ -33,7 +33,7 @@ export function Cabecalho(props: Props): ReactNode {
   return (
     <>
       <LinhaDoTitulo {...props} />
-      <Typography variant="body2" color="text.secondary" sx={ESTILO_DO_CARTAO_DE_ORIGEM}>
+      <Typography variant="body2" color="textSecondary" sx={ESTILO_DO_CARTAO_DE_ORIGEM}>
         {FRASE_DE_ORIGEM[props.origem]}
       </Typography>
     </>
@@ -93,7 +93,7 @@ function TituloDaSkill({ caso, titulo }: Pick<Props, 'caso' | 'titulo'>): ReactN
         <Icone sx={{ fontSize: ICONES.grande }} />
       </Box>
       <Box sx={{ flex: 1 }}>
-        <Typography variant="overline" color="text.tertiary" component="p">
+        <Typography variant="overline" color="textTertiary" component="p">
           Neste condomínio
         </Typography>
         <Typography variant="h6" component="h2">

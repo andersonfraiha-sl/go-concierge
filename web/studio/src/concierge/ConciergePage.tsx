@@ -46,7 +46,7 @@ function Cabecalho({ salvoEm }: { salvoEm: Date | null }): ReactNode {
         >
           Concierge
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 520 }}>
+        <Typography variant="body1" color="textSecondary" sx={{ maxWidth: 520 }}>
           Quem conversa com o morador. O que você define aqui vale para todas as skills e
           condomínios.
         </Typography>
@@ -140,7 +140,7 @@ function TestarNoConsole(): ReactNode {
 
 function ConteudoDoConcierge(): ReactNode {
   const skills = useSkills();
-  if (skills.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (skills.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (skills.isError) return <Falha aoTentar={() => void skills.refetch()} />;
   const assistente = skills.data.assistente;
   return (

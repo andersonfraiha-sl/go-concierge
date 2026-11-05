@@ -123,7 +123,7 @@ function TituloEResumo({ linha }: { linha: LinhaDeSkill }): ReactNode {
     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, flex: 1, minWidth: 0 }}>
       <Typography sx={{ fontWeight: PESOS.semi, whiteSpace: 'nowrap' }}>{linha.titulo}</Typography>
       <Tooltip title={linha.caso.resumo}>
-        <Typography variant="body2" color="text.muted" noWrap sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" color="textMuted" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {linha.caso.resumo}
         </Typography>
       </Tooltip>

@@ -51,7 +51,7 @@ function tomAtualDe(persona: string): keyof typeof TONS | null {
 
 export function PersonaDoAgente({ assistente }: { assistente: string }): ReactNode {
   const agente = useAgente(assistente);
-  if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (agente.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (agente.isError) return <Falha aoTentar={() => void agente.refetch()} />;
   return <PersonaEditor assistente={assistente} personaGravada={agente.data.agente.persona} />;
 }

@@ -40,7 +40,7 @@ export function MolduraDoStudio({ topo, lateral, estiloDoConteudo }: Props): Rea
           <Box sx={estiloDoConteudo}>
             {/* Sem o Eu, nenhuma tela: na troca de usuário a anterior some no mesmo clique. */}
             {usuario.isPending ? (
-              <Typography color="text.secondary">Carregando…</Typography>
+              <Typography color="textSecondary">Carregando…</Typography>
             ) : (
               <Outlet />
             )}

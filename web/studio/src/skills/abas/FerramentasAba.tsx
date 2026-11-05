@@ -338,7 +338,7 @@ function TextosDaFerramenta({ recurso, editavel }: Omit<LinhaProps, 'onDesligar'
         </Typography>
       )}
       {!recurso.ok && recurso.problema && (
-        <Typography variant="caption" color="warning.main" sx={{ display: 'block' }} role="alert">
+        <Typography variant="caption" color="warning" sx={{ display: 'block' }} role="alert">
           {recurso.problema}
         </Typography>
       )}

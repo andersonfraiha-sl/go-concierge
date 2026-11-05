@@ -120,7 +120,7 @@ function CartaoDeRegra({ regra, editavel, emExclusao, onExcluir }: PropsDoCartao
           {titulo}
         </Typography>
         {regra.resumo && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             {regra.resumo}
           </Typography>
         )}

@@ -66,7 +66,7 @@ function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): Reac
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <SeletorDeCondominio opcoes={opcoes} valor={condominio} onMudar={setCondominio} />
       {estado.recursos.length === 0 && (
-        <Typography color="text.secondary">Ainda não há ferramentas cadastradas.</Typography>
+        <Typography color="textSecondary">Ainda não há ferramentas cadastradas.</Typography>
       )}
       <TabelaDeFerramentas
         recursos={estado.recursos}

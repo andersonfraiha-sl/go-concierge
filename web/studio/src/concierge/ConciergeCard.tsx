@@ -27,7 +27,7 @@ export function ConciergeCard({ titulo, ajuda, acao, children }: Props): ReactNo
           <Typography variant="subtitle1" component="h2">
             {titulo}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             {ajuda}
           </Typography>
         </Box>

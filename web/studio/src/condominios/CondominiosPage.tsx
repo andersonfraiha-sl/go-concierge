@@ -29,7 +29,7 @@ function TelasAntigas(): ReactNode {
       aria-label="Tela antiga"
       sx={{ display: 'flex', gap: 1.5, typography: 'caption' }}
     >
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         Tela antiga:
       </Typography>
       {TELAS_ANTIGAS.map((tela) => (
@@ -106,7 +106,7 @@ function CabecalhoDaPagina({ aba, onNovo }: { aba: Aba; onNovo: () => void }) {
         >
           Condomínios
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: PESOS.regular }}>
+        <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: PESOS.regular }}>
           Diga o que o concierge faz em cada condomínio.
         </Typography>
       </Box>

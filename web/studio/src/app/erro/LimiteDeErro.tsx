@@ -86,7 +86,7 @@ export function TelaDeErro({ erro, aoTentarDeNovo }: TelaProps): ReactNode {
       <Typography variant="h5" component="h1">
         Algo deu errado nesta tela
       </Typography>
-      <Typography color="text.secondary">
+      <Typography color="textSecondary">
         {chunk
           ? 'O Studio foi atualizado e esta tela precisa ser recarregada.'
           : 'Não conseguimos mostrar esta tela agora. Você pode tentar de novo ou voltar ao início.'}

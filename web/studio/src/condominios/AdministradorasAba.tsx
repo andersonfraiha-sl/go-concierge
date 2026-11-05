@@ -212,7 +212,7 @@ function NomeEId({ administradora, execucao: { executar, gravando } }: NomeEIdPr
 
 function IdDaAdministradora({ id }: { id: string }): ReactNode {
   return (
-    <Typography variant="caption" color="text.secondary">
+    <Typography variant="caption" color="textSecondary">
       {id}
     </Typography>
   );
@@ -225,7 +225,7 @@ function ResumoDeCondominios({ administradoraId, quantidade }: ResumoProps): Rea
     <>
       <LinkDosCondominios administradoraId={administradoraId} quantidade={quantidade} />
       {quantidade > 0 && (
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="textSecondary">
           Mova os condomínios dela antes de remover.
         </Typography>
       )}

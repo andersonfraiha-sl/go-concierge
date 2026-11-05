@@ -82,7 +82,7 @@ export function PayloadDoCondominioDrawer({
         <Typography variant="h6" component="h2">
           {titulo}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="textSecondary">
           Valores só de {nomeDoCondominio}. Número e true/false são gravados como tal.
         </Typography>
         <ListaDePares control={control} erros={formState.errors.pares} travado={travado} />

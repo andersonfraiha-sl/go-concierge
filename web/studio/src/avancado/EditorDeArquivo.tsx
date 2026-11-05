@@ -24,7 +24,7 @@ type EditorProps = { agente: string; caminho: string; editar: boolean; onExcluid
 
 export function EditorDeArquivo(props: EditorProps): ReactNode {
   const arquivo = useArquivo(props.agente, props.caminho);
-  if (arquivo.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (arquivo.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (arquivo.isError) {
     return (
       <FalhaComTentarDeNovo

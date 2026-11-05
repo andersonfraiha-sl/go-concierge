@@ -207,7 +207,7 @@ function FiltrosDaTabela({
         <OpcoesDeAdministradora administradoras={administradoras} />
       </TextField>
       <Box sx={{ flex: 1 }} />
-      <Typography variant="body2" color="text.tertiary">
+      <Typography variant="body2" color="textTertiary">
         {resumo}
       </Typography>
     </Box>
@@ -371,7 +371,7 @@ function CelulaDoNome({ destino, nome, legenda, ehPadrao }: NomeProps): ReactNod
 
 function Legenda({ texto }: { texto: string }): ReactNode {
   return (
-    <Typography variant="caption" color="text.secondary" component="div">
+    <Typography variant="caption" color="textSecondary" component="div">
       {texto}
     </Typography>
   );

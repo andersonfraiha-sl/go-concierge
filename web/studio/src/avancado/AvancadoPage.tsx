@@ -160,7 +160,7 @@ function AvisoDeAlcance(): ReactNode {
 }
 
 function EstadoDaLista({ arvore, semItem }: { arvore: Arvore; semItem: boolean }): ReactNode {
-  if (arvore.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (arvore.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (arvore.isError) {
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

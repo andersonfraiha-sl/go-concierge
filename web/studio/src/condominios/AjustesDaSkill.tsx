@@ -44,7 +44,7 @@ type FerramentaProps = { ferramenta: Ferramenta; ajustes: AjustesEmEdicao; edita
 function FerramentaDaSkill({ ferramenta, ajustes, editavel }: FerramentaProps): ReactNode {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="textSecondary">
         {tituloDe(ferramenta)}
       </Typography>
       <CamposDaFerramenta ferramenta={ferramenta} ajustes={ajustes} editavel={editavel} />

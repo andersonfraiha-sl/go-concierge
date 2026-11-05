@@ -12,7 +12,7 @@ import { Falha } from './PersonaAba';
  */
 export function IdentidadeCard({ assistente }: { assistente: string }): ReactNode {
   const agente = useAgente(assistente);
-  if (agente.isPending) return <Typography color="text.secondary">Carregando…</Typography>;
+  if (agente.isPending) return <Typography color="textSecondary">Carregando…</Typography>;
   if (agente.isError) return <Falha aoTentar={() => void agente.refetch()} />;
   return (
     <ConciergeCard

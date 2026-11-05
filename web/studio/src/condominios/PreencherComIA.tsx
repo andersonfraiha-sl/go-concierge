@@ -114,7 +114,7 @@ function LinhaDaFrase({ sugestao }: { sugestao: ReturnType<typeof useSugestao> }
 function AvisoDaSugestao({ aviso }: { aviso: string | null }): ReactNode {
   if (aviso === null) return null;
   return (
-    <Typography variant="caption" color="text.secondary" role="status">
+    <Typography variant="caption" color="textSecondary" role="status">
       {aviso}
     </Typography>
   );

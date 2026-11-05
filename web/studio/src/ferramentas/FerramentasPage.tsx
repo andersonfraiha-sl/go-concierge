@@ -55,7 +55,7 @@ function CabecalhoDaPagina({ podeEditar, onNova }: CabecalhoProps): ReactNode {
         <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
           Ferramentas
         </Typography>
-        <Typography color="text.secondary">
+        <Typography color="textSecondary">
           Sistemas que as skills consultam e onde gravam.
         </Typography>
       </Box>
@@ -261,7 +261,7 @@ function ConteudoDoCartao({ ferramenta, quantidadeDeSkills, comDescricao }: Cont
       {comDescricao && (
         <Typography
           variant="body2"
-          color="text.secondary"
+          color="textSecondary"
           sx={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {ferramenta.description}

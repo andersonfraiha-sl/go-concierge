@@ -7,7 +7,7 @@ type Props = { frase: string; acao?: ReactNode };
 export function EmptyState({ frase, acao }: Props): ReactNode {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 6 }}>
-      <Typography color="text.secondary">{frase}</Typography>
+      <Typography color="textSecondary">{frase}</Typography>
       {acao}
     </Box>
   );
