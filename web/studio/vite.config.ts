@@ -15,11 +15,5 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     testTimeout: 15000,
     exclude: ['**/node_modules/**', 'e2e/**'],
-    // isolate:true (padrão) sobe um processo por arquivo (68 aqui); sob carga do SO (Playwright,
-    // Go, Docker rodando junto) um worker atrasado estoura o timeout e o arquivo falha sozinho,
-    // sem relação com o teste em si. isolate:false reaproveita os workers entre arquivos: menos
-    // processos, menos exposto a contenção de CPU — a causa raiz da instabilidade, não só um
-    // timeout maior.
-    isolate: false,
   },
 });
