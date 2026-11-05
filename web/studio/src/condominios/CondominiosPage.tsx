@@ -101,7 +101,7 @@ function CabecalhoDaPagina({ aba, onNovo }: { aba: Aba; onNovo: () => void }) {
         <Typography
           variant="h4"
           component="h1"
-          color="secondary.main"
+          color="secondary"
           sx={{ letterSpacing: CONDOMINIOS.letterSpacingDoTitulo }}
         >
           Condomínios

@@ -89,7 +89,7 @@ function TituloEContagem({ ligadas, total, diferentes }: ContagemProps): ReactNo
       : `${ligadas} de ${total} ligadas · ${diferentes} diferentes do Padrão`;
   return (
     <Box sx={{ flex: `1 1 ${LARGURA_MINIMA_DO_CARTAO}px` }}>
-      <Typography variant="h5" component="h2" color="secondary.main">
+      <Typography variant="h5" component="h2" color="secondary">
         O que o concierge faz aqui
       </Typography>
       <Typography variant="body2" color="text.tertiary">
@@ -111,7 +111,7 @@ function CampoDeBusca({ busca, onMudar }: { busca: string; onMudar: (busca: stri
   return (
     <TextField
       size="small"
-      placeholder="Buscar…"
+      placeholder="Filtrar"
       value={busca}
       onChange={(evento) => onMudar(evento.target.value)}
       slotProps={{ input: ADORNO_DA_BUSCA, htmlInput: { 'aria-label': 'Buscar skill' } }}
