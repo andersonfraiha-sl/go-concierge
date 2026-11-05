@@ -18,5 +18,6 @@ export const ESTILO_DO_EDITOR = {
   fontFamily: FONTE_MONO,
   fontSize: TIPOS.body2,
   whiteSpace: 'pre',
+  lineHeight: 1.5,
   m: 0,
 } as const;

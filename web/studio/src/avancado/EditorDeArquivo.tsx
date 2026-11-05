@@ -257,7 +257,16 @@ function AreaDoTexto({ control, caminho, editar }: AreaProps): ReactNode {
             bgcolor: 'transparent',
             '& .MuiInputBase-root': { bgcolor: 'transparent', p: 0, height: '100%' },
             // O texto ocupa a área toda: as barras de rolagem ficam na borda do editor.
-            '& .MuiInputBase-input': { height: '100% !important', overflow: 'auto' },
+            // !important vence o height/overflow inline do autosize do MUI. Mesmo recuo e
+            // entrelinha do realce, senão o texto digitado sai deslocado das cores.
+            '& .MuiInputBase-input': {
+              height: '100% !important',
+              overflow: 'auto !important',
+              boxSizing: 'border-box',
+              pt: PADDING_TOPO_DO_EDITOR,
+              px: 1.75,
+              pb: 2,
+            },
           }}
         />
       </Box>
