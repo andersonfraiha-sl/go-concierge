@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -89,6 +90,9 @@ func iniciar() (*instancia, error) {
 	if atual != nil {
 		return atual, nil
 	}
+	if err := sessaoDoProcesso(); err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutInicio)
 	defer cancel()
 	inst, err := subir(ctx)
@@ -97,6 +101,27 @@ func iniciar() (*instancia, error) {
 	}
 	atual = inst
 	return inst, nil
+}
+
+// variavelSessao é a sessão do testcontainers, que dá nome e rótulo ao Ryuk (o reaper).
+const variavelSessao = "TESTCONTAINERS_SESSION_ID"
+
+// sessaoDoProcesso dá a este binário de teste uma sessão própria, a menos que quem roda já
+// tenha escolhido uma. Sem isso a sessão sai do PID do "go test": todos os pacotes de um
+// "go test ./..." disputam um Ryuk só, com o mesmo nome, e cada pacote adota o do anterior.
+// Com -p 1 o Ryuk do pacote anterior está morrendo (10 s sem conexão) quando o próximo
+// sobe; no Docker Desktop do Windows, lento para parar e remover, o próximo achava o
+// contêiner a meio caminho e o testcontainers desistia ("reaper: unexpected container
+// status 'created'"). Com uma sessão por processo cada pacote sobe o seu Ryuk e nunca adota
+// o de outro; a limpeza continua ligada em todo lugar, inclusive no CI Linux.
+func sessaoDoProcesso() error {
+	if os.Getenv(variavelSessao) != "" {
+		return nil
+	}
+	if err := os.Setenv(variavelSessao, "concierge-"+aleatorio()); err != nil {
+		return fmt.Errorf("definir %s: %w", variavelSessao, err)
+	}
+	return nil
 }
 
 func subir(ctx context.Context) (*instancia, error) {
