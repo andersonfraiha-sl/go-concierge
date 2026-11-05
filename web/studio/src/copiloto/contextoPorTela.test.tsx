@@ -215,6 +215,7 @@ describe('contexto do Copiloto por tela', () => {
       rotas: {
         'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
         'GET /api/agente': () => json(agente),
+        'GET /api/arquivo': () => json({ codigo: 'NAO_ENCONTRADO', mensagem: 'sem arquivo' }, 404),
       },
     });
     await screen.findByRole('textbox', { name: 'Texto da persona' });
