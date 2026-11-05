@@ -51,6 +51,23 @@ describe('StudioLayout', () => {
     expect(localStorage.getItem('studio.menuRecolhido')).toBe('true');
   });
 
+  it('showsLoadingTextWhileEuIsPending', () => {
+    responderCom({ 'GET /api/eu': () => new Promise(() => {}) });
+
+    renderComProvedores(<StudioLayout />);
+
+    expect(screen.getByText('Carregando…')).toBeInTheDocument();
+  });
+
+  it('showsUnrecognizedUserScreenOn401InsteadOfTheLayout', async () => {
+    responderCom({ 'GET /api/eu': () => json({ dev: false }, 401) });
+
+    renderComProvedores(<StudioLayout />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não reconhecemos seu usuário.');
+    expect(screen.queryByRole('navigation', { name: 'Menu principal' })).not.toBeInTheDocument();
+  });
+
   it('placesCopilotLeftOfContent', async () => {
     localStorage.setItem('studio.copilotoAberto', 'true');
     responderCom({
