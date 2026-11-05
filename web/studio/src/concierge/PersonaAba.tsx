@@ -15,7 +15,7 @@ import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { type EstadoSalvamento, useAutosave } from '@/shared/autosave/useAutosave';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { CONCIERGE, ESPACOS, PESOS, RAIO } from '@/theme/tokens';
+import { CONCIERGE, ESPACOS, PESOS, RAIO, SHELL } from '@/theme/tokens';
 import { CampoDeTextoSimples } from './CampoDeTextoSimples';
 import { ConciergeCard } from './ConciergeCard';
 
@@ -156,6 +156,8 @@ function AcoesDaPersona({ editavel, estado, onUsarModelo, onTentarDeNovo }: Prop
             fontWeight: PESOS.semi,
             px: `${ESPACOS[1]}px`,
             py: 0,
+            height: SHELL.alturaDoControle,
+            lineHeight: 'normal',
             borderRadius: RAIO.chip,
           }}
         >
@@ -205,6 +207,8 @@ function BotaoDeTom({
         borderRadius: RAIO.pilula,
         px: `${ESPACOS[2]}px`,
         py: `${CONCIERGE.paddingYDaPilula}px`,
+        height: CONCIERGE.alturaDaPilula,
+        lineHeight: 'normal',
         border: 1,
         borderColor: selecionado ? 'primary.main' : 'border.strong',
         bgcolor: selecionado ? 'background.tint' : 'background.paper',

@@ -11,7 +11,7 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
 import { NomeDialog } from '@/shared/ui/NomeDialog';
 import { regrasDe, tituloDaRegra, useGestaoDeArquivos } from '@/skills/abas/arquivosDaSkill';
-import { PESOS, RAIO } from '@/theme/tokens';
+import { ESPACOS, PESOS, RAIO, SHELL } from '@/theme/tokens';
 import { ConciergeCard } from './ConciergeCard';
 
 /**
@@ -27,7 +27,19 @@ export function RegrasGeraisCard({ assistente }: { assistente: string }): ReactN
   const [excluindo, setExcluindo] = useState<string | null>(null);
 
   const botaoNovo = editavel && (
-    <Button size="small" startIcon={<AddIcon />} onClick={() => setCriando(true)}>
+    <Button
+      size="small"
+      startIcon={<AddIcon />}
+      onClick={() => setCriando(true)}
+      sx={{
+        fontWeight: PESOS.semi,
+        px: `${ESPACOS[1]}px`,
+        py: 0,
+        height: SHELL.alturaDoControle,
+        lineHeight: 'normal',
+        borderRadius: RAIO.chip,
+      }}
+    >
       Nova regra
     </Button>
   );
