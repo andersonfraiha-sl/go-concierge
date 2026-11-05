@@ -2,7 +2,7 @@ import { Box, Button, MenuItem, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
-import { type AbasDoDetalhe, CabecalhoDeDetalhe } from '@/app/detalhe/CabecalhoDeDetalhe';
+import { AbasEmFaixa } from '@/app/detalhe/CabecalhoDeDetalhe';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { useSkills } from '@/skills/contratos';
 import { PESOS, RAIO, TIPOS } from '@/theme/tokens';
@@ -90,26 +90,16 @@ export function AvancadoPage(): ReactNode {
     });
 
   return (
-    <>
-      <CabecalhoDoAvancado
-        abas={{
-          rotulo: 'Seções do Avançado',
-          itens: ABAS,
-          atual: aba.id,
-          onTrocar: (valor) => mudar('aba', valor),
-        }}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <CabecalhoDoAvancado />
+      <AbasEmFaixa
+        rotulo="Seções do Avançado"
+        itens={ABAS}
+        atual={aba.id}
+        onTrocar={(valor) => mudar('aba', valor)}
+        sx={ABAS_NO_CONTEUDO}
       />
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 3,
-          py: 3,
-          px: 4,
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minHeight: 0 }}>
         {aba.porItem && (
           <>
             <SeletorDeItem
@@ -122,20 +112,27 @@ export function AvancadoPage(): ReactNode {
         )}
         {aba.desenhar(noAtual ? { no: noAtual, editar } : null, editar)}
       </Box>
-    </>
+    </Box>
   );
 }
 
-/** Cabeçalho do Avançado; sem abas, serve também às telas de acesso negado e de erro. */
-export function CabecalhoDoAvancado({ abas }: { abas?: AbasDoDetalhe<string> }): ReactNode {
+// No conteúdo da tela de lista a faixa não tem fundo nem recuo próprio: herda a moldura.
+const ABAS_NO_CONTEUDO = { px: 0, bgcolor: 'transparent', mt: -1 } as const;
+
+/** Título da seção, como nas outras telas do menu; serve também ao acesso negado e ao erro. */
+export function CabecalhoDoAvancado(): ReactNode {
   return (
-    <CabecalhoDeDetalhe
-      voltar={{ para: '/skills', rotulo: 'Voltar para Skills' }}
-      titulo="Avançado"
-      subtitulo="Arquivos e configurações internas · só para quem constrói skills"
-      acoes={<AvisoDeAlcance />}
-      {...(abas && { abas })}
-    />
+    <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 3 }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
+          Avançado
+        </Typography>
+        <Typography variant="subtitle1" sx={{ color: 'text.secondary', fontWeight: PESOS.regular }}>
+          Arquivos e configurações internas, só para quem constrói skills.
+        </Typography>
+      </Box>
+      <AvisoDeAlcance />
+    </Box>
   );
 }
 

@@ -40,13 +40,13 @@ const ROTAS_DE_LISTA: RouteObject[] = [
   { path: 'concierge', element: tela(<ConciergePage />) },
   { path: 'ferramentas', element: tela(<FerramentasPage />) },
   { path: 'condominios', element: tela(<CondominiosPage />) },
+  { path: 'avancado', element: tela(<GuardaAvancado />) },
 ];
 
-// Detalhe: cabeçalho próprio no lugar da barra global e do menu. A aba aberta fica em ?aba=
+// Detalhe: cabeçalho próprio no lugar da barra global. A aba aberta fica em ?aba=
 const ROTAS_DE_DETALHE: RouteObject[] = [
   { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
   { path: 'condominios/:id', element: tela(<CondominioPage />) },
-  { path: 'avancado', element: tela(<GuardaAvancado />) },
 ];
 
 // Rota sem caminho só para isolar erros de tela: o layout continua de pé.

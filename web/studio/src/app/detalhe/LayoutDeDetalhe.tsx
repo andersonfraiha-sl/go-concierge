@@ -22,7 +22,7 @@ export function useDetalhe(): Detalhe | undefined {
 type Salvamento = { caminho: string; em: Date };
 
 /**
- * Layout das telas de detalhe (skill, condomínio, Avançado): sem barra global, com o menu.
+ * Layout das telas de detalhe (skill, condomínio): sem barra global, com o menu.
  * A própria tela desenha o cabeçalho (CabecalhoDeDetalhe), que vai para a vaga do topo.
  */
 export function LayoutDeDetalhe(): ReactNode {
@@ -46,7 +46,7 @@ export function LayoutDeDetalhe(): ReactNode {
 
 /**
  * Moldura padrão do conteúdo de detalhe (34 px em cima e embaixo, 55 nas laterais, 21 entre
- * blocos). O layout não aplica sozinho: o Fluxo e o Avançado usam moldura própria.
+ * blocos). O layout não aplica sozinho: o Fluxo usa moldura própria.
  */
 export const ESTILO_DO_CONTEUDO_DE_DETALHE = {
   py: 4,

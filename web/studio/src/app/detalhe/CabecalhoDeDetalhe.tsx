@@ -268,7 +268,13 @@ const ESTILO_DA_ABA: SxProps<Theme> = {
   '&.Mui-selected': { color: 'primary.main', fontWeight: PESOS.semi },
 };
 
-function AbasEmFaixa<Id extends string>({ rotulo, itens, atual, onTrocar }: AbasDoDetalhe<Id>) {
+type PropsDasAbas<Id extends string> = AbasDoDetalhe<Id> & {
+  /** Ajuste de moldura, ex.: abas dentro do conteúdo de uma tela de lista. */
+  sx?: SxProps<Theme>;
+};
+
+export function AbasEmFaixa<Id extends string>(props: PropsDasAbas<Id>): ReactNode {
+  const { rotulo, itens, atual, onTrocar, sx } = props;
   return (
     <Tabs
       value={atual}
@@ -276,7 +282,7 @@ function AbasEmFaixa<Id extends string>({ rotulo, itens, atual, onTrocar }: Abas
       variant="scrollable"
       scrollButtons={false}
       aria-label={rotulo}
-      sx={ESTILO_DAS_ABAS}
+      sx={[ESTILO_DAS_ABAS, ...(Array.isArray(sx) ? sx : [sx])]}
     >
       {itens.map(({ id, rotulo: texto }) => (
         <Tab key={id} value={id} label={texto} disableRipple sx={ESTILO_DA_ABA} />

@@ -1,6 +1,5 @@
 import { Box } from '@mui/material';
 import type { ReactNode } from 'react';
-import { ESTILO_DO_CONTEUDO_DE_DETALHE } from '@/app/detalhe/LayoutDeDetalhe';
 import { AvancadoPage, CabecalhoDoAvancado } from '@/avancado/AvancadoPage';
 import { ErroAcesso } from './ErroAcesso';
 import { pode, useEu } from './eu';
@@ -14,12 +13,12 @@ export function GuardaAvancado(): ReactNode {
   return <AvancadoPage />;
 }
 
-/** Sem a página, o cabeçalho continua: é ele que leva de volta. */
+/** Sem a página, o título continua: a pessoa sabe onde está. */
 function ComCabecalho({ children }: { children: ReactNode }): ReactNode {
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <CabecalhoDoAvancado />
-      <Box sx={ESTILO_DO_CONTEUDO_DE_DETALHE}>{children}</Box>
-    </>
+      {children}
+    </Box>
   );
 }
