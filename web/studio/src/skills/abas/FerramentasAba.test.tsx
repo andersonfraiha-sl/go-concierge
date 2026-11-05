@@ -51,6 +51,27 @@ describe('FerramentasAba', () => {
     expect(screen.getByLabelText('Usar unidades.consultar')).toBeInTheDocument();
   });
 
+  it('dedupesToolDeclaredBothStandaloneAndInFlow', async () => {
+    responderCom(
+      rotas(construtor, {
+        'GET /api/agente': () =>
+          json(
+            agenteLido({
+              recursos: [
+                recursoDeclarado('mudancas.agendar', 'agent.yaml'),
+                recursoDeclarado('mudancas.agendar', 'caso.yaml'),
+                recursoDeclarado('unidades.consultar', 'agent.yaml'),
+              ],
+            }),
+          ),
+      }),
+    );
+    montar();
+    expect(await screen.findAllByText('mudancas.agendar')).toHaveLength(1);
+    expect(screen.getByText('Usada no fluxo')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Usar mudancas.agendar')).not.toBeInTheDocument();
+  });
+
   it('togglesDeclaredTool', async () => {
     const corpos: unknown[] = [];
     responderCom(

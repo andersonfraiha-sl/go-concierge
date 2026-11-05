@@ -34,11 +34,27 @@ import { vemDoFluxo } from './arquivosDaSkill';
 
 type Props = { nome: string; caminho: string };
 
+/**
+ * A mesma ferramenta pode voltar duas vezes: uma vez solta na lista da skill, outra pelo Fluxo
+ * que a usa num passo. O board mostra uma linha só, a do Fluxo (sem switch, já que o Fluxo decide).
+ */
+function semDuplicadosDoFluxo(recursos: readonly RecursoDeclarado[]): RecursoDeclarado[] {
+  const doFluxoPorNome = new Map(
+    recursos.filter(vemDoFluxo).map((recurso) => [recurso.nome, recurso]),
+  );
+  const vistos = new Set<string>();
+  return recursos.flatMap((recurso) => {
+    if (vistos.has(recurso.nome)) return [];
+    vistos.add(recurso.nome);
+    return [doFluxoPorNome.get(recurso.nome) ?? recurso];
+  });
+}
+
 export function FerramentasAba({ caminho }: Props): ReactNode {
   const agente = useAgente(caminho);
   const editavel = usePodeEditar('ferramentas.editar');
   const vincular = useVincularFerramenta(caminho);
-  const recursos = agente.data?.recursos ?? [];
+  const recursos = semDuplicadosDoFluxo(agente.data?.recursos ?? []);
 
   return (
     <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
