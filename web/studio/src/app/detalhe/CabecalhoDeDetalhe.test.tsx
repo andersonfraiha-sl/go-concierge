@@ -50,4 +50,20 @@ describe('CabecalhoDeDetalhe no LayoutDeDetalhe', () => {
     expect(screen.queryByRole('navigation', { name: 'Menu principal' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Salvo às/)).not.toBeInTheDocument();
   });
+
+  it('showsReadOnlyBadgeInsteadOfConsoleForViewers', async () => {
+    responderCom({ 'GET /api/eu': () => json(eu) });
+    renderComProvedores(
+      <CabecalhoDeDetalhe
+        voltar={{ para: '/skills', rotulo: 'Voltar para Skills' }}
+        titulo="Agendar mudança"
+        testarNoConsole
+        somenteLeitura
+      />,
+    );
+
+    const cabecalho = await screen.findByRole('banner');
+    expect(within(cabecalho).getByText('Só leitura')).toBeInTheDocument();
+    expect(within(cabecalho).queryByRole('link', { name: 'Testar no Console' })).toBeNull();
+  });
 });

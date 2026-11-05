@@ -113,6 +113,7 @@ function Editor(props: EditorProps): ReactNode {
     <>
       <CabecalhoDaSkill
         nome={nome}
+        somenteLeitura={!editavel}
         titulo={<TituloDaSkill control={control} editavel={editavel} />}
         // "Salvo às" vem do cabeçalho; aqui só o que pede atenção (salvando, falha, bloqueio).
         acoes={
@@ -145,7 +146,10 @@ function Editor(props: EditorProps): ReactNode {
   );
 }
 
-type PropsDoCabecalhoDaSkill = Pick<PropsDoCabecalho<AbaId>, 'titulo' | 'acoes' | 'abas'> & {
+type PropsDoCabecalhoDaSkill = Pick<
+  PropsDoCabecalho<AbaId>,
+  'titulo' | 'acoes' | 'abas' | 'somenteLeitura'
+> & {
   nome: string;
 };
 

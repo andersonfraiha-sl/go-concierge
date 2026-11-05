@@ -1,4 +1,5 @@
 import type { SvgIconComponent } from '@mui/icons-material';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import {
   Box,
   Button,
@@ -39,6 +40,8 @@ export type PropsDoCabecalho<Id extends string> = {
   acoes?: ReactNode;
   /** Mostra "Testar no Console", link para o Console legado. */
   testarNoConsole?: boolean;
+  /** Quem não pode editar vê o selo "Só leitura" no lugar de "Testar no Console". */
+  somenteLeitura?: boolean;
   /** Abas em largura total logo abaixo do cabeçalho. */
   abas?: AbasDoDetalhe<Id>;
 };
@@ -81,7 +84,7 @@ function Cabecalho<Id extends string>({
         <TituloESubtitulo titulo={props.titulo} subtitulo={props.subtitulo} />
         {props.acoes}
         {salvoEm && <SalvoAs em={salvoEm} />}
-        {props.testarNoConsole && <TestarNoConsole />}
+        {props.somenteLeitura ? <SeloSoLeitura /> : props.testarNoConsole && <TestarNoConsole />}
         <BotaoDoCopiloto variante="detalhe" />
       </Box>
       {props.abas && <AbasEmFaixa {...props.abas} />}
@@ -189,6 +192,30 @@ function SalvoAs({ em }: { em: Date }): ReactNode {
         }}
       />
       Salvo às {formatarHora(em)}
+    </Box>
+  );
+}
+
+function SeloSoLeitura(): ReactNode {
+  return (
+    <Box
+      component="span"
+      sx={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.75,
+        px: 1.25,
+        py: 0.5,
+        borderRadius: RAIO.pilula,
+        bgcolor: 'background.neutralFill',
+        color: 'text.secondary',
+        fontSize: TIPOS.caption,
+        fontWeight: PESOS.medio,
+      }}
+    >
+      <LockOutlinedIcon sx={{ fontSize: ICONES.minimo }} aria-hidden />
+      Só leitura
     </Box>
   );
 }
