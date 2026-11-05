@@ -91,6 +91,18 @@ export const GAVETA = {
 
 export const SOMBRA_DO_BLOCO_EM_EDICAO = '0 8px 21px rgba(16,52,242,.12)';
 
+// concierge
+export const CONCIERGE = {
+  /** H1 "Concierge" do desenho: 26px com leve aperto de letras. */
+  letterSpacingDoTitulo: '-0.26px',
+  /** Base de texto dos cartões da página (board usa 16px; o resto do Studio usa 14px). */
+  fonteDoCartao: 16,
+  /** Pílula de tom/visibilidade: padding vertical do desenho (o horizontal já é ESPACOS[2]). */
+  paddingYDaPilula: 6,
+  /** Bolinha de "N mudança(s) esperando você", ainda sem proposta real para testar ao vivo. */
+  pontoDePendencia: '#FFC02A',
+} as const;
+
 /** Anel interno que imita borda sem mexer no layout. */
 export const anel = (cor: string, largura = 1): string => `inset 0 0 0 ${largura}px ${cor}`;
 
