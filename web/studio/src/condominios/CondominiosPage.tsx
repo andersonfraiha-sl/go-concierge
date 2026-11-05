@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { usePodeEditarCondominio } from '@/acesso/eu';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
+import { useSkills } from '@/skills/contratos';
 import { CONDOMINIOS, PESOS, SHELL } from '@/theme/tokens';
 import { AdministradorasAba } from './AdministradorasAba';
 import { ComEstado } from './ComEstado';
@@ -109,7 +110,7 @@ function CabecalhoDaPagina({ aba, onNovo }: { aba: Aba; onNovo: () => void }) {
           Diga o que o concierge faz em cada condomínio.
         </Typography>
       </Box>
-      {podeCriar && aba === 'condominios' && (
+      {podeCriar && aba !== 'administradoras' && (
         <Button variant="contained" startIcon={<AddOutlined />} onClick={onNovo}>
           Novo condomínio
         </Button>
@@ -157,8 +158,7 @@ type ConteudoProps = { aba: Aba; estado: Estado; permitido: Permissoes };
 
 function ConteudoDaAba({ aba, estado, permitido }: ConteudoProps): ReactNode {
   if (aba === 'skills') {
-    const titulos = new Map(estado.casos.map((caso) => [caso.nome, caso.titulo]));
-    return <MatrizDeSkills estado={estado} titulos={titulos} editavel={permitido.matriz} />;
+    return <MatrizDeSkillsAba estado={estado} editavel={permitido.matriz} />;
   }
   if (aba === 'administradoras') {
     return (
@@ -169,4 +169,13 @@ function ConteudoDaAba({ aba, estado, permitido }: ConteudoProps): ReactNode {
     );
   }
   return <TabelaDeCondominios estado={estado} />;
+}
+
+type MatrizAbaProps = { estado: Estado; editavel: boolean };
+
+/** Os títulos vêm do catálogo de skills (tem nome amigável até para quem não é "caso", tipo faq/regimento). */
+function MatrizDeSkillsAba({ estado, editavel }: MatrizAbaProps): ReactNode {
+  const { data: skills } = useSkills();
+  const titulos = new Map((skills?.skills ?? []).map((skill) => [skill.nome, skill.titulo]));
+  return <MatrizDeSkills estado={estado} titulos={titulos} editavel={editavel} />;
 }

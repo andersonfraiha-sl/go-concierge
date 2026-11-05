@@ -61,7 +61,7 @@ function situacaoDoCondominio(condominio: Condominio): Situacao {
 
 const ESTILO_DO_BADGE = {
   height: 'auto',
-  borderRadius: RAIOS.chip,
+  borderRadius: `${RAIOS.chip}px`,
   px: 1,
   py: 0.375,
   '& .MuiChip-label': { px: 0, fontSize: `${TIPOS.overline}px`, lineHeight: 1 },
@@ -147,7 +147,7 @@ type CorpoProps = { estado: Estado; visiveis: Condominio[]; mostraAdministradora
 function GradeDeCondominios({ estado, visiveis }: Omit<CorpoProps, 'mostraAdministradora'>) {
   const mostraAdministradora = useEscopo() === null;
   return (
-    <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: RAIOS.cartao }}>
+    <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: `${RAIOS.cartao}px` }}>
       <Table size="small">
         <CabecalhoDaTabela mostraAdministradora={mostraAdministradora} />
         <CorpoDaTabela

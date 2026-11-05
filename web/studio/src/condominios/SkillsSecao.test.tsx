@@ -63,7 +63,7 @@ describe('SkillsSecao', () => {
     responderCom(rotasBase(gestor));
     abrirCondominio();
 
-    expect(await screen.findByText('Registra pedidos')).toBeInTheDocument();
+    expect(await screen.findByText('Registram no sistema')).toBeInTheDocument();
   });
 
   it('showsRoleChipOnlyWhenRestricted', async () => {
