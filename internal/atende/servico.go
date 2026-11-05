@@ -717,6 +717,12 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	defer sess.workMu.Unlock()
 	ctx = comAuditoria(ctx, sess, "")
 	sess.mu.Lock()
+	// o canal reenvia o webhook (timeout na confirmação, retry de rede); o mesmo evento não
+	// pode virar um segundo turno nem uma segunda resposta ao morador.
+	if sess.jaRegistrado(msg.ID, "morador") {
+		sess.mu.Unlock()
+		return sess, nil
+	}
 	if sess.Encerrada {
 		sess.mu.Unlock()
 		return sess, nil
