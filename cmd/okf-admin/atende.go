@@ -369,7 +369,7 @@ func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
 		Texto     string `json:"texto"`
 		Motivo    string `json:"motivo"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -517,7 +517,7 @@ func (s *servidor) pedidosAcao(w http.ResponseWriter, r *http.Request) {
 		Confirmar bool           `json:"confirmar"`
 		Motivo    string         `json:"motivo"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}

@@ -729,7 +729,7 @@ func (s *servidor) salvarArquivo(w http.ResponseWriter, r *http.Request) {
 		Caminho  string `json:"caminho"`
 		Conteudo string `json:"conteudo"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoArquivo); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -785,7 +785,7 @@ func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
 		Original string      `json:"original"`
 		Recurso  okf.Recurso `json:"recurso"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -821,7 +821,7 @@ func (s *servidor) vincular(w http.ResponseWriter, r *http.Request) {
 		Nome   string `json:"nome"`
 		Ligar  bool   `json:"ligar"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -844,11 +844,30 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// Tetos dos corpos JSON lidos por decodificarJSON. O maior arquivo de okf/ hoje tem 12,6 KB
+// (okf/nexus/cond-001.yaml) e o escape do JSON pode multiplicar o texto por até 6 (é):
+// 1 MiB deixa mais de 10x de folga. Os formulários administrativos (administradora,
+// condomínio, payload, orientação, orquestração) somam poucos KB; 256 KiB cobre o maior com folga.
+const (
+	limiteCorpoArquivo = 1 << 20
+	limiteCorpoJSON    = 256 << 10
+)
+
+// decodificarJSON lê o corpo JSON até limite bytes. Acima do limite o erro carrega um
+// *http.MaxBytesError, que writeErr responde como 413.
+func decodificarJSON(w http.ResponseWriter, r *http.Request, v any, limite int64) error {
+	return json.NewDecoder(http.MaxBytesReader(w, r.Body, limite)).Decode(v)
+}
+
 // writeErr responde o erro em JSON. Um 5xx é falha do servidor: vai para a linha de ERROR da
-// requisição, com a cadeia, a pilha (se capturada) e quem respondeu.
+// requisição, com a cadeia, a pilha (se capturada) e quem respondeu. Corpo acima do teto
+// (decodificarJSON) é sempre 413, seja qual for o code pedido.
 func writeErr(w http.ResponseWriter, code int, err error) {
 	if err == nil {
 		err = errors.New("erro")
+	}
+	if grande, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		code, err = http.StatusRequestEntityTooLarge, fmt.Errorf("corpo grande demais (máximo %d bytes)", grande.Limit)
 	}
 	if code >= http.StatusInternalServerError {
 		anotarFalha(context.Background(), w, err, 1)

@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -162,7 +161,7 @@ func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
 
 func (s *servidor) adminCriarAdministradora(w http.ResponseWriter, r *http.Request) {
 	var a admin.Administradora
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+	if err := decodificarJSON(w, r, &a, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -176,7 +175,7 @@ func (s *servidor) adminCriarAdministradora(w http.ResponseWriter, r *http.Reque
 
 func (s *servidor) adminEditarAdministradora(w http.ResponseWriter, r *http.Request) {
 	var a admin.Administradora
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+	if err := decodificarJSON(w, r, &a, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -198,7 +197,7 @@ func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Req
 
 func (s *servidor) adminCriarCondominio(w http.ResponseWriter, r *http.Request) {
 	var c admin.Condominio
-	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+	if err := decodificarJSON(w, r, &c, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -220,7 +219,7 @@ func (s *servidor) adminCriarCondominio(w http.ResponseWriter, r *http.Request) 
 // aqui vão para o repositório, que recusa se mudaram desde esta conferência.
 func (s *servidor) adminEditarCondominio(w http.ResponseWriter, r *http.Request) {
 	var c admin.Condominio
-	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+	if err := decodificarJSON(w, r, &c, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -265,7 +264,7 @@ func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
 		Papeis     []string `json:"papeis"`
 		Limpar     bool     `json:"limpar"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -282,7 +281,7 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 		Payload    map[string]any `json:"payload"`
 		Apagar     bool           `json:"apagar"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -306,7 +305,7 @@ func (s *servidor) adminSugerirPayload(w http.ResponseWriter, r *http.Request) {
 		Texto      string         `json:"texto"`
 		Atual      map[string]any `json:"atual"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -338,7 +337,7 @@ func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
 		Geral      string            `json:"geral"`
 		PorCaso    map[string]string `json:"por_caso"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -353,7 +352,7 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 		Condominio string                    `json:"condominio"`
 		Ajustes    map[string]map[string]any `json:"ajustes"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -484,7 +483,7 @@ func (s *servidor) adminOrquestracao(w http.ResponseWriter, r *http.Request) {
 
 func (s *servidor) adminSalvarOrquestracao(w http.ResponseWriter, r *http.Request) {
 	var corpo harness.Orquestracao
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
