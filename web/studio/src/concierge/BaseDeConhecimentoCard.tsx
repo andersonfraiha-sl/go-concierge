@@ -1,6 +1,7 @@
 import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
-import { Box, Button, Paper, Typography } from '@mui/material';
+import { Box, Button, IconButton, Paper, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { usePodeEditar } from '@/acesso/eu';
@@ -17,7 +18,7 @@ import {
   tituloDoDocumento,
   useGestaoDeArquivos,
 } from '@/skills/abas/arquivosDaSkill';
-import { ICONES, PESOS } from '@/theme/tokens';
+import { ESPACOS, ICONES, PESOS, RAIO, SHELL } from '@/theme/tokens';
 import { ConciergeCard } from './ConciergeCard';
 
 const extensaoDe = (caminho: string): string => {
@@ -38,7 +39,19 @@ export function BaseDeConhecimentoCard({ assistente }: { assistente: string }): 
   const [excluindo, setExcluindo] = useState<string | null>(null);
 
   const botaoNovo = editavel && (
-    <Button size="small" startIcon={<AddIcon />} onClick={() => setCriando(true)}>
+    <Button
+      size="small"
+      startIcon={<AddIcon />}
+      onClick={() => setCriando(true)}
+      sx={{
+        fontWeight: PESOS.semi,
+        px: `${ESPACOS[1]}px`,
+        py: 0,
+        height: SHELL.alturaDoControle,
+        lineHeight: 'normal',
+        borderRadius: RAIO.chip,
+      }}
+    >
       Novo documento
     </Button>
   );
@@ -123,9 +136,15 @@ function LinhaDeDocumento({ documento, emExclusao, onExcluir }: PropsDaLinha): R
         {extensaoDe(documento.caminho)} · {formatarTamanho(documento.bytes)}
       </Typography>
       {onExcluir && (
-        <Button size="small" color="error" onClick={onExcluir} disabled={emExclusao}>
-          Excluir
-        </Button>
+        <IconButton
+          size="small"
+          aria-label={`Excluir ${nomeParaExibir(documento)}`}
+          onClick={onExcluir}
+          disabled={emExclusao}
+          sx={{ borderRadius: RAIO.canto }}
+        >
+          <DeleteOutlinedIcon fontSize="small" />
+        </IconButton>
       )}
     </Paper>
   );
