@@ -5,13 +5,18 @@ export const CHAVE_USUARIO_DEV = 'studio.usuarioDev';
 const TIMEOUT_MS = 15_000;
 const MENSAGEM_ERRO_PADRAO = 'Não deu para falar com o servidor.';
 
-const STATUS_NAO_AUTENTICADO = 401;
 const MAX_FALHAS = 3;
+// 408 e 429 são passageiros mesmo sendo 4xx.
+const STATUS_4XX_PASSAGEIROS: ReadonlySet<number> = new Set([408, 429]);
 
-/** Sessão inválida não melhora com nova tentativa; o resto tenta até MAX_FALHAS. */
+/** Erro do cliente (4xx) não melhora com nova tentativa; rede e 5xx tentam até MAX_FALHAS. */
 export function deveTentarDeNovo(falhas: number, erro: unknown): boolean {
-  if (erro instanceof ApiError && erro.status === STATUS_NAO_AUTENTICADO) return false;
+  if (erro instanceof ApiError && ehErroDoCliente(erro.status)) return false;
   return falhas < MAX_FALHAS;
+}
+
+function ehErroDoCliente(status: number): boolean {
+  return status >= 400 && status < 500 && !STATUS_4XX_PASSAGEIROS.has(status);
 }
 
 type Metodo = 'GET' | 'POST' | 'PUT' | 'DELETE';
