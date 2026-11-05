@@ -91,7 +91,7 @@ describe('SkillsSecao', () => {
     });
     abrirCondominio();
 
-    expect(await screen.findByText('deste condomínio')).toBeInTheDocument();
+    expect(await screen.findByText('desligada aqui')).toBeInTheDocument();
   });
 
   it('opensDrawerOnRowClick', async () => {

@@ -1,14 +1,22 @@
 import { Box, Switch, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { iconeDaSkill } from '@/skills/icones';
+import { ICONES, RAIOS } from '@/theme/tokens';
 import type { Caso } from './contratos';
-import type { Origem } from './listaDeSkills';
+import { categoriaDe, type Origem, tomDaCategoria } from './listaDeSkills';
 
 const FRASE_DE_ORIGEM: Record<Origem, string> = {
   propria: 'Este condomínio tem decisão própria.',
   padrao: 'Sem decisão própria: vale o Padrão. Mudar aqui cria a decisão deste condomínio.',
   nenhuma: 'Sem decisão: ligada para todos.',
 };
+
+const ESTILO_DO_CARTAO_DE_ORIGEM = {
+  bgcolor: 'background.subtle',
+  borderRadius: `${RAIOS.menu}px`,
+  px: 2,
+  py: 1.625,
+} as const;
 
 type Props = {
   caso: Caso;
@@ -23,12 +31,17 @@ export function Cabecalho(props: Props): ReactNode {
   return (
     <>
       <LinhaDoTitulo {...props} />
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="body2" color="text.secondary" sx={ESTILO_DO_CARTAO_DE_ORIGEM}>
         {FRASE_DE_ORIGEM[props.origem]}
       </Typography>
     </>
   );
 }
+
+const CORES_DO_ICONE = {
+  registra: { bgcolor: 'studio.registra.soft', color: 'studio.registra.onSoft' },
+  consulta: { bgcolor: 'background.tint', color: 'primary.main' },
+} as const;
 
 function LinhaDoTitulo(props: Props): ReactNode {
   return (
@@ -44,20 +57,31 @@ function LinhaDoTitulo(props: Props): ReactNode {
   );
 }
 
+const ESTILO_DO_ICONE = {
+  width: 30,
+  height: 30,
+  borderRadius: `${RAIOS.campo}px`,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flex: 'none',
+} as const;
+
 function TituloDaSkill({ caso, titulo }: Pick<Props, 'caso' | 'titulo'>): ReactNode {
   const Icone = iconeDaSkill(caso.icone);
+  const tom = tomDaCategoria(categoriaDe(caso));
   return (
     <>
-      <Icone color="primary" />
+      <Box sx={[ESTILO_DO_ICONE, CORES_DO_ICONE[tom]]}>
+        <Icone sx={{ fontSize: ICONES.grande }} />
+      </Box>
       <Box sx={{ flex: 1 }}>
+        <Typography variant="overline" color="text.tertiary" component="p">
+          Neste condomínio
+        </Typography>
         <Typography variant="h6" component="h2">
           {titulo}
         </Typography>
-        {caso.resumo !== '' && (
-          <Typography variant="body2" color="text.secondary">
-            {caso.resumo}
-          </Typography>
-        )}
       </Box>
     </>
   );

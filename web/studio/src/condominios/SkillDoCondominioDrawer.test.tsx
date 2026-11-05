@@ -105,7 +105,7 @@ describe('SkillDoCondominioDrawer', () => {
     });
     const { user } = abrirDrawer();
 
-    await user.click(await screen.findByRole('button', { name: 'síndico' }));
+    await user.click(await screen.findByRole('button', { name: 'Síndico' }));
 
     await waitFor(() =>
       expect(corpos[0]).toMatchObject({
@@ -135,7 +135,7 @@ describe('SkillDoCondominioDrawer', () => {
     });
     const { user } = abrirDrawer();
 
-    await user.click(await screen.findByRole('button', { name: 'síndico' }));
+    await user.click(await screen.findByRole('button', { name: 'Síndico' }));
 
     await waitFor(() => expect(corpos[0]).toMatchObject({ papeis: [] }));
     expect(screen.getByRole('button', { name: 'Todos' })).toHaveAttribute('aria-pressed', 'true');
@@ -253,7 +253,7 @@ describe('SkillDoCondominioDrawer', () => {
 
     expect(await screen.findByRole('switch', { name: 'Ligada neste condomínio' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Todos' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'síndico' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Síndico' })).toBeDisabled();
     expect(screen.getByPlaceholderText(/^Ex\.:/)).toBeDisabled();
     expect(screen.getByLabelText('Antecedência mínima')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Voltar ao Padrão' })).not.toBeInTheDocument();

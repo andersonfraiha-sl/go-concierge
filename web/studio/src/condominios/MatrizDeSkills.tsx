@@ -19,7 +19,12 @@ import {
   salvarHabilitacao,
   useEscopo,
 } from './contratos';
-import { agruparPorCategoria, linhasDeSkills, ROTULO_DA_CATEGORIA } from './listaDeSkills';
+import {
+  agruparPorCategoria,
+  linhasDeSkills,
+  paraSentenceCase,
+  ROTULO_DA_CATEGORIA,
+} from './listaDeSkills';
 import {
   type CelulaAberta,
   type Coluna,
@@ -203,7 +208,7 @@ function SkillDaCelula({ celula, estado, titulos, contexto, onFechar }: SkillDaC
       estado={estado}
       condominio={celula.coluna.id}
       caso={celula.caso}
-      titulo={titulos.get(celula.caso.nome) ?? celula.caso.titulo}
+      titulo={paraSentenceCase(titulos.get(celula.caso.nome) ?? celula.caso.titulo)}
       editavel={contexto.editavelNaColuna(celula.coluna)}
       onFechar={onFechar}
     />
