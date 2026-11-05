@@ -25,7 +25,7 @@ func escreverArquivoAtomico(caminho string, conteudo []byte, perm os.FileMode) e
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name()) // sobra se o rename abaixo não rodar; some se rodar
+	defer func() { _ = os.Remove(tmp.Name()) }() // sobra se o rename abaixo não rodar; some se rodar
 	if _, err := tmp.Write(conteudo); err != nil {
 		tmp.Close()
 		return err
