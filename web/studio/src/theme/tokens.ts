@@ -115,13 +115,13 @@ export const INTERRUPTOR = {
   duracaoMs: 200,
 } as const;
 
-/** Caixa de texto: fundo suave, raio de 10 px, anel de 2 px no foco. */
+/** Caixa de texto: fundo branco, raio de 10 px, anel de 2 px no foco. */
 export const CAMPO = {
   raio: 10,
   paddingX: 14,
   paddingY: 12,
   larguraDoAnelNoFoco: 2,
-  bordaEmRepouso: '#D5DAE1',
+  bordaEmRepouso: '#DBDFE5',
   bordaNoHover: '#B7BFCB',
 } as const;
 
