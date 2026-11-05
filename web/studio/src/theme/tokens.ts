@@ -194,3 +194,14 @@ export const tokens = {
     copiloto: 380,
   },
 } as const;
+
+// condominios
+/** Medidas específicas das telas de Condomínios (lista, matriz e ficha), do desenho aprovado. */
+export const CONDOMINIOS = {
+  larguraDaBusca: 300,
+  larguraDoFiltro: 240,
+  larguraDaColunaDeAdministradora: 239,
+  larguraMaximaDoPainel: 400,
+  larguraDoCampoNumerico: 70,
+  letterSpacingDoTitulo: '-0.01em',
+} as const;

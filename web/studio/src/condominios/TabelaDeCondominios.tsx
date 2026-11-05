@@ -1,6 +1,9 @@
+import ChevronRightOutlined from '@mui/icons-material/ChevronRightOutlined';
+import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import {
   Box,
   Chip,
+  InputAdornment,
   Paper,
   Table,
   TableBody,
@@ -15,7 +18,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import { contemBusca } from '@/shared/busca';
 import { EmptyState } from '@/shared/ui/EmptyState';
-import { PESOS } from '@/theme/tokens';
+import { CONDOMINIOS, PESOS, RAIOS, TIPOS } from '@/theme/tokens';
 import {
   type Administradora,
   type Condominio,
@@ -25,6 +28,7 @@ import {
   useEscopo,
 } from './contratos';
 import { contarLigadas, linhasDeSkills } from './listaDeSkills';
+import { OpcoesDeAdministradora } from './SeletorDeAdministradora';
 
 type Situacao = 'base' | 'pronto' | 'faltam-ids' | 'sem-administradora';
 
@@ -55,13 +59,21 @@ function situacaoDoCondominio(condominio: Condominio): Situacao {
   return 'pronto';
 }
 
+const ESTILO_DO_BADGE = {
+  height: 'auto',
+  borderRadius: RAIOS.chip,
+  px: 1,
+  py: 0.375,
+  '& .MuiChip-label': { px: 0, fontSize: `${TIPOS.overline}px`, lineHeight: 1 },
+} as const;
+
 function SituacaoBadge({ situacao }: { situacao: Situacao }): ReactNode {
   const badge = BADGE_DA_SITUACAO[situacao];
   return (
     <Chip
       size="small"
       label={badge.rotulo}
-      sx={{ bgcolor: badge.fundo, color: badge.cor, fontWeight: PESOS.medio }}
+      sx={[ESTILO_DO_BADGE, { bgcolor: badge.fundo, color: badge.cor, fontWeight: PESOS.medio }]}
     />
   );
 }
@@ -77,29 +89,52 @@ function sem(atual: URLSearchParams, chave: string): URLSearchParams {
 
 function useCondominiosVisiveis(estado: Estado, busca: string) {
   const [params, setParams] = useSearchParams();
-  const idDaAdministradora = params.get('administradora');
+  const idDaAdministradora = params.get('administradora') ?? '';
   const visiveis = estado.mapeamento.condominios
-    .filter((c) => idDaAdministradora === null || c.administradora_id === idDaAdministradora)
+    .filter((c) => idDaAdministradora === '' || c.administradora_id === idDaAdministradora)
     .filter((c) => contemBusca([c.nome, nomeDaAdministradora(estado, c)], busca));
 
   return {
     visiveis,
-    administradoraFiltro: estado.administradoras.find((a) => a.id === idDaAdministradora),
-    limparFiltro: () => setParams((atual) => sem(atual, 'administradora'), { replace: true }),
+    idDaAdministradora,
+    escolherAdministradora: (id: string) =>
+      setParams((atual) => (id === '' ? sem(atual, 'administradora') : com(atual, id)), {
+        replace: true,
+      }),
   };
+}
+
+function com(atual: URLSearchParams, idDaAdministradora: string): URLSearchParams {
+  const proximos = new URLSearchParams(atual);
+  proximos.set('administradora', idDaAdministradora);
+  return proximos;
+}
+
+/** "6 condomínios · 2 precisam de atenção" (faltam ids ou administradora), alinhado à direita. */
+function resumoDosCondominios(condominios: readonly Condominio[]): string {
+  const comAtencao = condominios.filter((c) => faltamIds(c) || c.administradora_id === '').length;
+  const base = condominios.length === 1 ? '1 condomínio' : `${condominios.length} condomínios`;
+  if (comAtencao === 0) return base;
+  const atencao = comAtencao === 1 ? '1 precisa de atenção' : `${comAtencao} precisam de atenção`;
+  return `${base} · ${atencao}`;
 }
 
 export function TabelaDeCondominios({ estado }: { estado: Estado }): ReactNode {
   const [busca, setBusca] = useState('');
-  const { visiveis, administradoraFiltro, limparFiltro } = useCondominiosVisiveis(estado, busca);
+  const { visiveis, idDaAdministradora, escolherAdministradora } = useCondominiosVisiveis(
+    estado,
+    busca,
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <FiltrosDaTabela
         busca={busca}
         onBuscar={setBusca}
-        administradoraFiltro={administradoraFiltro}
-        onLimpar={limparFiltro}
+        administradoras={estado.administradoras}
+        idDaAdministradora={idDaAdministradora}
+        onEscolherAdministradora={escolherAdministradora}
+        resumo={resumoDosCondominios(estado.mapeamento.condominios)}
       />
       <GradeDeCondominios estado={estado} visiveis={visiveis} />
       <VaziosDaTabela total={estado.mapeamento.condominios.length} visiveis={visiveis.length} />
@@ -112,7 +147,7 @@ type CorpoProps = { estado: Estado; visiveis: Condominio[]; mostraAdministradora
 function GradeDeCondominios({ estado, visiveis }: Omit<CorpoProps, 'mostraAdministradora'>) {
   const mostraAdministradora = useEscopo() === null;
   return (
-    <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+    <Paper variant="outlined" sx={{ overflow: 'hidden', borderRadius: RAIOS.cartao }}>
       <Table size="small">
         <CabecalhoDaTabela mostraAdministradora={mostraAdministradora} />
         <CorpoDaTabela
@@ -128,35 +163,86 @@ function GradeDeCondominios({ estado, visiveis }: Omit<CorpoProps, 'mostraAdmini
 type FiltrosProps = {
   busca: string;
   onBuscar: (busca: string) => void;
-  administradoraFiltro: Administradora | undefined;
-  onLimpar: () => void;
+  administradoras: Administradora[];
+  idDaAdministradora: string;
+  onEscolherAdministradora: (id: string) => void;
+  resumo: string;
 };
 
-function FiltrosDaTabela({ busca, onBuscar, administradoraFiltro, onLimpar }: FiltrosProps) {
+const ADORNO_DA_BUSCA = {
+  startAdornment: (
+    <InputAdornment position="start">
+      <SearchOutlined fontSize="small" sx={{ color: 'text.faint' }} />
+    </InputAdornment>
+  ),
+};
+
+function FiltrosDaTabela({
+  busca,
+  onBuscar,
+  administradoras,
+  idDaAdministradora,
+  onEscolherAdministradora,
+  resumo,
+}: FiltrosProps) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
       <TextField
-        label="Buscar condomínio"
+        placeholder="Buscar condomínio"
         size="small"
         value={busca}
         onChange={(e) => onBuscar(e.target.value)}
-        sx={{ width: 300 }}
+        slotProps={{ input: ADORNO_DA_BUSCA, htmlInput: { 'aria-label': 'Buscar condomínio' } }}
+        sx={{ width: CONDOMINIOS.larguraDaBusca }}
       />
-      {administradoraFiltro && (
-        <Chip label={`Administradora: ${administradoraFiltro.nome}`} onDelete={onLimpar} />
-      )}
+      <TextField
+        select
+        size="small"
+        value={idDaAdministradora}
+        onChange={(e) => onEscolherAdministradora(e.target.value)}
+        sx={{ width: CONDOMINIOS.larguraDoFiltro }}
+        slotProps={{ select: { native: true, 'aria-label': 'Administradora' } }}
+      >
+        <option value="">Todas as administradoras</option>
+        <OpcoesDeAdministradora administradoras={administradoras} />
+      </TextField>
+      <Box sx={{ flex: 1 }} />
+      <Typography variant="body2" color="text.tertiary">
+        {resumo}
+      </Typography>
     </Box>
   );
 }
+
+const ESTILO_DO_CABECALHO = {
+  bgcolor: 'background.subtle',
+  color: 'text.tertiary',
+  typography: 'overline',
+  fontWeight: PESOS.semi,
+  textTransform: 'uppercase',
+  py: 1.25,
+  px: 3,
+} as const;
 
 function CabecalhoDaTabela({ mostraAdministradora }: { mostraAdministradora: boolean }) {
   return (
     <TableHead>
       <TableRow>
-        <TableCell scope="col">Condomínio</TableCell>
-        {mostraAdministradora && <TableCell scope="col">Administradora</TableCell>}
-        <TableCell scope="col">Skills ativas</TableCell>
-        <TableCell scope="col">Situação</TableCell>
+        <TableCell scope="col" sx={ESTILO_DO_CABECALHO}>
+          Condomínio
+        </TableCell>
+        {mostraAdministradora && (
+          <TableCell scope="col" sx={ESTILO_DO_CABECALHO}>
+            Administradora
+          </TableCell>
+        )}
+        <TableCell scope="col" sx={ESTILO_DO_CABECALHO}>
+          Skills ativas
+        </TableCell>
+        <TableCell scope="col" sx={ESTILO_DO_CABECALHO}>
+          Situação
+        </TableCell>
+        <TableCell scope="col" sx={ESTILO_DO_CABECALHO} aria-hidden />
       </TableRow>
     </TableHead>
   );
@@ -219,32 +305,65 @@ type LinhaProps = {
   skills: { ligadas: number; total: number };
 };
 
+const ESTILO_DA_LINHA_DO_PADRAO = {
+  borderLeft: 4,
+  borderColor: 'primary.main',
+  bgcolor: 'background.tint',
+} as const;
+
 function LinhaDeCondominio(props: LinhaProps): ReactNode {
   const { id, skills, situacao } = props;
+  const ehPadrao = id === PADRAO;
   const navegar = useNavigate();
   const destino = `/condominios/${encodeURIComponent(id)}`;
   const realce = useRealceDoCopiloto(`condominio:${id}`);
 
   return (
-    <TableRow hover onClick={() => navegar(destino)} sx={[{ cursor: 'pointer' }, realce]}>
-      <CelulaDoNome destino={destino} nome={props.nome} legenda={props.legenda} />
+    <TableRow
+      hover
+      onClick={() => navegar(destino)}
+      sx={[{ cursor: 'pointer' }, ehPadrao && ESTILO_DA_LINHA_DO_PADRAO, realce]}
+    >
+      <CelulaDoNome
+        destino={destino}
+        nome={props.nome}
+        legenda={props.legenda}
+        ehPadrao={ehPadrao}
+      />
       {props.mostraAdministradora && <CelulaDaAdministradora nome={props.administradora} />}
       <TableCell>{`${skills.ligadas} de ${skills.total}`}</TableCell>
       <TableCell>
         <SituacaoBadge situacao={situacao} />
       </TableCell>
+      <TableCell>
+        <ChevronRightOutlined fontSize="small" sx={{ color: 'text.muted', display: 'block' }} />
+      </TableCell>
     </TableRow>
   );
 }
 
-type NomeProps = { destino: string; nome: string; legenda: string | undefined };
+type NomeProps = {
+  destino: string;
+  nome: string;
+  legenda: string | undefined;
+  ehPadrao: boolean;
+};
 
-function CelulaDoNome({ destino, nome, legenda }: NomeProps): ReactNode {
+function CelulaDoNome({ destino, nome, legenda, ehPadrao }: NomeProps): ReactNode {
   return (
     <TableCell>
-      <Link to={destino} style={{ fontWeight: PESOS.semi }} onClick={(e) => e.stopPropagation()}>
+      <Typography
+        component={Link}
+        to={destino}
+        onClick={(e) => e.stopPropagation()}
+        sx={{
+          fontWeight: PESOS.semi,
+          textDecoration: 'none',
+          color: ehPadrao ? 'secondary.main' : 'text.primary',
+        }}
+      >
         {nome}
-      </Link>
+      </Typography>
       {legenda && <Legenda texto={legenda} />}
     </TableCell>
   );
