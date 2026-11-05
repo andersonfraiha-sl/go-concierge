@@ -347,6 +347,32 @@ func TestRotuloDataVisita(t *testing.T) {
 	}
 }
 
+// TestRotuloDataVisitaVirandaDeAnoEAnoBissexto: "amanhã" precisa atravessar virada de ano
+// e 29 de fevereiro de ano bissexto do mesmo jeito que qualquer outro dia.
+func TestRotuloDataVisitaVirandaDeAnoEAnoBissexto(t *testing.T) {
+	for _, teste := range []struct {
+		nome, agora, data, esperado string
+	}{
+		{"31 dez -> 1 jan é amanhã", "2026-12-31", "2027-01-01", "amanhã"},
+		{"1 jan -> 31 dez do ano anterior não é hoje nem amanhã", "2027-01-01", "2026-12-31", "31 de dezembro de 2026"},
+		{"28 fev de bissexto -> 29 fev é amanhã", "2028-02-28", "2028-02-29", "amanhã"},
+		{"29 fev de bissexto -> 1 mar é amanhã", "2028-02-29", "2028-03-01", "amanhã"},
+	} {
+		t.Run(teste.nome, func(t *testing.T) {
+			agora, err := time.ParseInLocation("2006-01-02", teste.agora, time.Local)
+			if err != nil {
+				t.Fatal(err)
+			}
+			Agora = func() time.Time { return agora }
+			defer func() { Agora = time.Now }()
+			got, err := Render("{{dateLabel .data}}", map[string]any{"data": teste.data})
+			if err != nil || got != teste.esperado {
+				t.Fatalf("dateLabel(%q) com agora=%q: %q, %v; queria %q", teste.data, teste.agora, got, err, teste.esperado)
+			}
+		})
+	}
+}
+
 func slots(ct *Contrato) []*Slot {
 	var out []*Slot
 	for _, n := range ct.Ordem {
