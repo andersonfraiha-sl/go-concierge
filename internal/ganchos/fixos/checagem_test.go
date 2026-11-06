@@ -200,6 +200,10 @@ func TestContextoB2C(t *testing.T) {
 		{"telefone do resident ausente", criar, map[string]any{}, map[string]any{"companyId": "c1"}, nil, "contexto B2C inválido para t: resident.mobile_number B2C ausente"},
 		{"resident não objeto", criar, map[string]any{"resident": "Ana"},
 			map[string]any{"companyId": "c1", "resident": map[string]any{"mobile_number": "5511"}}, nil, "contexto B2C inválido para t: resident deve ser objeto"},
+		{"cobrança fixa persona de morador", ferramentaCobrancas, map[string]any{"persona": "manager", "companyId": "outro"},
+			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1"}, ""},
+		{"detalhe da cobrança fixa persona de morador", ferramentaCobranca, map[string]any{"feeId": "f1"},
+			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1", "feeId": "f1"}, ""},
 		{"params nulos", motivos, nil, map[string]any{"companyId": "c1"}, map[string]any{"companyId": "c1"}, ""},
 	}
 	gancho := ganchoDeFerramenta(t, ContextoB2C)

@@ -96,6 +96,17 @@ func adicionarToolsMCP(cat *okf.Catalogo) {
 				{Name: "reason", Type: "number", Required: true},
 				{Name: "visitors", Type: "array", Required: true},
 			},
+			"gruvi.bff.mobile.fetch-fees-controller-handle-1": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "filter[only-open]", Type: "boolean"},
+				{Name: "filter[with-due-status]", Type: "boolean"},
+			},
+			"gruvi.bff.mobile.get-fee-by-id-controller-handle-2": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "feeId", Type: "string", Required: true},
+			},
 		}
 		for _, nome := range []string{
 			"gruvi.bff.building-operation.get-company-by-document-controller-handle",
@@ -103,6 +114,8 @@ func adicionarToolsMCP(cat *okf.Catalogo) {
 			"gruvi.bff.building-operation.get-package-delivery-code-controller-handle",
 			"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle",
 			"gruvi.bff.building-operation.create-visit-controller-handle",
+			"gruvi.bff.mobile.fetch-fees-controller-handle-1",
+			"gruvi.bff.mobile.get-fee-by-id-controller-handle-2",
 		} {
 			out = append(out, okf.Recurso{Name: nome, Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemMCP, Write: strings.HasSuffix(nome, "create-visit-controller-handle"), Params: parametros[nome]})
 		}

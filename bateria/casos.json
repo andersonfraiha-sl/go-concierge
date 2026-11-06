@@ -113,6 +113,7 @@
    "quando vence o boleto?"
   ],
   "rota": [
+   "boleto",
    "faq"
   ]
  },
@@ -126,7 +127,7 @@
    "onde pego a segunda via do boleto?"
   ],
   "rota": [
-   "faq"
+   "boleto"
   ]
  },
  {
@@ -2036,6 +2037,7 @@
    "quando vence o boleto? e também como faço pra reservar o salão?"
   ],
   "rota": [
+   "boleto",
    "faq",
    "reserva-area-comum"
   ]
@@ -2451,7 +2453,7 @@
    "quero pagar o boleto por pix"
   ],
   "rota": [
-   "faq",
+   "boleto",
    "self"
   ]
  },
@@ -4850,6 +4852,7 @@
    "quando vence o boleto? kkk"
   ],
   "rota": [
+   "boleto",
    "faq"
   ]
  },
@@ -4968,7 +4971,7 @@
    "bom dia, onde pego a segunda via do boleto?"
   ],
   "rota": [
-   "faq"
+   "boleto"
   ]
  },
  {
@@ -5623,7 +5626,7 @@
    "ei, nde pego a segunda via do boleto?"
   ],
   "rota": [
-   "faq"
+   "boleto"
   ]
  },
  {
@@ -6679,6 +6682,326 @@
   ],
   "descricao": "sem data: pergunta a data",
   "intencao": "acao-fluxo",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-seco",
+  "tipo": "consulta",
+  "nivel": 1,
+  "turnos": [
+   "boleto"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "nao_contem": [
+   "cpf",
+   "opção inválida"
+  ],
+  "descricao": "uma palavra só, sem menu",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-mes",
+  "tipo": "consulta",
+  "nivel": 1,
+  "turnos": [
+   "preciso do boleto desse mês"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "nao_contem": [
+   "cpf"
+  ],
+  "descricao": "2ª via com morador identificado pelo telefone",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-2via",
+  "tipo": "consulta",
+  "nivel": 2,
+  "turnos": [
+   "me manda a 2 via do condominio pfv"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "nao_contem": [
+   "cpf",
+   "aceite"
+  ],
+  "descricao": "abreviação e sem acento",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-linha",
+  "tipo": "consulta",
+  "nivel": 2,
+  "turnos": [
+   "qual a linha digitável pra eu pagar no app do banco?"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "descricao": "pede só a linha digitável",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-pix",
+  "tipo": "consulta",
+  "nivel": 2,
+  "turnos": [
+   "dá pra pagar o condomínio no pix?"
+  ],
+  "rota": [
+   "boleto",
+   "faq"
+  ],
+  "descricao": "pix do boleto",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-vencido",
+  "tipo": "consulta",
+  "nivel": 3,
+  "turnos": [
+   "meu boleto venceu semana passada, manda outro atualizado"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "descricao": "vencido recente",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-antigo",
+  "tipo": "consulta",
+  "nivel": 4,
+  "turnos": [
+   "preciso dos boletos de março e abril que ficaram em aberto"
+  ],
+  "rota": [
+   "boleto",
+   "transbordo"
+  ],
+  "nao_contem": [
+   "indisponível."
+  ],
+  "descricao": "vencido há mais de 30 dias: explica e oferece atendente",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-proprietario",
+  "tipo": "consulta",
+  "nivel": 4,
+  "turnos": [
+   "sou proprietário, o inquilino disse que não recebeu o boleto, pode me mandar?"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "descricao": "proprietário pedindo pelo inquilino",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-boleto-depois-oi",
+  "tipo": "consulta-fluxo",
+  "nivel": 2,
+  "turnos": [
+   "oi bom dia",
+   "queria a segunda via"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "nao_contem": [
+   "cpf"
+  ],
+  "descricao": "saudação e depois o pedido",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-comprovante",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "turnos": [
+   "já paguei, segue o comprovante"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ],
+  "nao_contem": [
+   "opção inválida"
+  ],
+  "descricao": "comprovante não vira opção inválida",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-acordo",
+  "tipo": "transbordo",
+  "nivel": 3,
+  "turnos": [
+   "quero parcelar as taxas atrasadas, como faço acordo?"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ],
+  "descricao": "acordo vai para humano",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-valor-errado",
+  "tipo": "transbordo",
+  "nivel": 4,
+  "turnos": [
+   "o valor do boleto veio errado, cobraram multa que eu não devo"
+  ],
+  "rota": [
+   "self",
+   "transbordo"
+  ],
+  "descricao": "contestação de valor é humano",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-pede-humano",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "turnos": [
+   "quero falar com um atendente"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "descricao": "pedido explícito de humano",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-emergencia",
+  "tipo": "transbordo",
+  "nivel": 5,
+  "turnos": [
+   "tem cheiro forte de gás no corredor do meu andar"
+  ],
+  "rota": [
+   "transbordo",
+   "self"
+  ],
+  "contem_qualquer": [
+   "193",
+   "bombeiro",
+   "emergência"
+  ],
+  "descricao": "emergência tem canal próprio, mesmo fora do horário",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-saudacao-vazia",
+  "tipo": "social",
+  "nivel": 1,
+  "turnos": [
+   "oi"
+  ],
+  "rota": [
+   "self"
+  ],
+  "contem_qualquer": [
+   "ajudar",
+   "posso"
+  ],
+  "descricao": "saudação sem pedido: pergunta como ajudar",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-auto-resposta",
+  "tipo": "fora",
+  "nivel": 3,
+  "turnos": [
+   "Olá! Recebemos sua mensagem e retornaremos em breve. Horário de atendimento: seg a sex."
+  ],
+  "rota": [
+   "self"
+  ],
+  "nao_contem": [
+   "boleto",
+   "unidade"
+  ],
+  "descricao": "eco de outro bot não abre atendimento",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-lead",
+  "tipo": "fora",
+  "nivel": 3,
+  "turnos": [
+   "vocês fazem administração de condomínio? queria um orçamento pro meu prédio"
+  ],
+  "rota": [
+   "self"
+  ],
+  "descricao": "lead comercial fora do fluxo de morador",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-mudanca-livre",
+  "tipo": "acao",
+  "nivel": 2,
+  "turnos": [
+   "vou me mudar dia 20, preciso reservar o elevador"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ],
+  "descricao": "assunto que hoje só o humano resolve",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-reserva-livre",
+  "tipo": "acao",
+  "nivel": 2,
+  "turnos": [
+   "quero usar o salão no aniversário do meu filho dia 15"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "descricao": "assunto que hoje só o humano resolve",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-cadastro-livre",
+  "tipo": "acao",
+  "nivel": 2,
+  "turnos": [
+   "mudei meu email, atualiza aí no cadastro"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ],
+  "descricao": "assunto que hoje só o humano resolve",
+  "intencao": "atende",
   "transformacao": "cenario"
  }
 ]
