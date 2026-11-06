@@ -204,6 +204,14 @@ func TestContextoB2C(t *testing.T) {
 			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1"}, ""},
 		{"detalhe da cobrança fixa persona de morador", ferramentaCobranca, map[string]any{"feeId": "f1"},
 			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1", "feeId": "f1"}, ""},
+		{"documentos fixam persona de morador", ferramentaDocumentos, map[string]any{"persona": "manager"},
+			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1"}, ""},
+		{"documento fixa persona de morador", ferramentaDocumento, map[string]any{"documentId": "d1", "companyId": "outro"},
+			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1", "documentId": "d1"}, ""},
+		{"tipos de chamado fixam persona de morador", ferramentaTiposDeChamado, map[string]any{"persona": "manager"},
+			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1"}, ""},
+		{"abrir chamado fixa persona e condomínio do canal", ferramentaAbrirChamado, map[string]any{"persona": "manager", "companyId": "outro", "type_id": "t1"},
+			map[string]any{"companyId": "c1"}, map[string]any{"persona": "resident", "companyId": "c1", "type_id": "t1"}, ""},
 		{"params nulos", motivos, nil, map[string]any{"companyId": "c1"}, map[string]any{"companyId": "c1"}, ""},
 	}
 	gancho := ganchoDeFerramenta(t, ContextoB2C)

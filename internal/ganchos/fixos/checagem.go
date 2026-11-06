@@ -41,6 +41,10 @@ const (
 	ferramentaMotivosVisita       = "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle"
 	ferramentaCobrancas           = "gruvi.bff.mobile.fetch-fees-controller-handle-1"
 	ferramentaCobranca            = "gruvi.bff.mobile.get-fee-by-id-controller-handle-2"
+	ferramentaDocumentos          = "gruvi.bff.mobile.fetch-documents-controller-handle-1"
+	ferramentaDocumento           = "gruvi.bff.mobile.get-document-by-id-controller-handle-1"
+	ferramentaTiposDeChamado      = "gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606"
+	ferramentaAbrirChamado        = "gruvi.bff.mobile.create-ticket-controller-handle"
 )
 
 // personaDoMorador: o BFF mobile também atende síndico (manager); pelo WhatsApp do morador é sempre resident.
@@ -165,6 +169,10 @@ var comContextoB2C = map[string]bool{
 	ferramentaCriarVisita:         true,
 	ferramentaCobrancas:           true,
 	ferramentaCobranca:            true,
+	ferramentaDocumentos:          true,
+	ferramentaDocumento:           true,
+	ferramentaTiposDeChamado:      true,
+	ferramentaAbrirChamado:        true,
 }
 
 // copiaDosParams clona o mapa e os mapas aninhados que o contexto B2C reescreve.
@@ -201,7 +209,7 @@ func fixarContextoB2C(nome string, params, contexto map[string]any) error {
 		}
 	case ferramentaCriarVisita:
 		return fixarMoradorDaVisita(params, contexto)
-	case ferramentaCobrancas, ferramentaCobranca:
+	case ferramentaCobrancas, ferramentaCobranca, ferramentaDocumentos, ferramentaDocumento, ferramentaTiposDeChamado, ferramentaAbrirChamado:
 		params["persona"] = personaDoMorador
 	}
 	return nil

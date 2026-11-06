@@ -36,13 +36,17 @@ type saida = map[string]any
 
 var toolsMCPObrigatorias = map[string]bool{
 	"unidades.listar": true,
-	"gruvi.bff.building-operation.get-company-by-document-controller-handle":   true,
-	"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":       true,
-	"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": true,
-	"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle":       true,
-	"gruvi.bff.building-operation.create-visit-controller-handle":              true,
-	"gruvi.bff.mobile.fetch-fees-controller-handle-1":                          true,
-	"gruvi.bff.mobile.get-fee-by-id-controller-handle-2":                       true,
+	"gruvi.bff.building-operation.get-company-by-document-controller-handle":             true,
+	"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":                 true,
+	"gruvi.bff.building-operation.get-package-delivery-code-controller-handle":           true,
+	"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle":                 true,
+	"gruvi.bff.building-operation.create-visit-controller-handle":                        true,
+	"gruvi.bff.mobile.fetch-fees-controller-handle-1":                                    true,
+	"gruvi.bff.mobile.get-fee-by-id-controller-handle-2":                                 true,
+	"gruvi.bff.mobile.fetch-documents-controller-handle-1":                               true,
+	"gruvi.bff.mobile.get-document-by-id-controller-handle-1":                            true,
+	"gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606": true,
+	"gruvi.bff.mobile.create-ticket-controller-handle":                                   true,
 }
 
 const ferramentaCriarVisita = "gruvi.bff.building-operation.create-visit-controller-handle"
