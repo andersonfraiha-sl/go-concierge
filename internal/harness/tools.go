@@ -306,8 +306,27 @@ func (ag *Agente) invocarAgente(ctx context.Context, in *argsAgente) (saida, err
 // ---- chamar_recurso -------------------------------------------------------
 
 type argsRecurso struct {
-	Nome   string         `json:"nome" jsonschema:"required" jsonschema_description:"nome do recurso, exatamente como declarado (ex.: faq.buscar)"`
-	Params map[string]any `json:"params" jsonschema_description:"parâmetros do recurso, pelo manual da projeção"`
+	Nome   string        `json:"nome" jsonschema:"required" jsonschema_description:"nome do recurso, exatamente como declarado (ex.: faq.buscar)"`
+	Params paramsRecurso `json:"params" jsonschema:"type=object" jsonschema_description:"parâmetros do recurso, pelo manual da projeção"`
+}
+
+// paramsRecurso aceita o objeto ou o objeto serializado como texto: modelos menores
+// mandam "{\"a\":1}", e o erro de parse derrubaria o turno antes de chegar à tool.
+type paramsRecurso map[string]any
+
+func (p *paramsRecurso) UnmarshalJSON(raw []byte) error {
+	var texto string
+	if json.Unmarshal(raw, &texto) != nil {
+		return json.Unmarshal(raw, (*map[string]any)(p))
+	}
+	if strings.TrimSpace(texto) == "" {
+		*p = nil
+		return nil
+	}
+	if err := json.Unmarshal([]byte(texto), (*map[string]any)(p)); err != nil {
+		return fmt.Errorf("params %q não é objeto JSON", texto)
+	}
+	return nil
 }
 
 type chaveExecucaoCaso struct{}
@@ -418,7 +437,7 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 func (ag *Agente) resolverChamada(in *argsRecurso) chamada {
 	nome := strings.TrimSpace(in.Nome)
 	nomeMCP, alias := nomeToolMCP(nome)
-	pedidos, _ := pii.DevolverEmValor(in.Params, ag.cfg.Turno.Cofre().Ler()).(map[string]any)
+	pedidos, _ := pii.DevolverEmValor(map[string]any(in.Params), ag.cfg.Turno.Cofre().Ler()).(map[string]any)
 	return chamada{
 		nome: nome, nomeMCP: nomeMCP, aliasMCP: alias, obrigatoriaMCP: toolsMCPObrigatorias[nome],
 		achado: ag.permissao(nome), pedidos: pedidos,

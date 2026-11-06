@@ -55,3 +55,47 @@ func TestSchemaDaPaginaContinuaInteiro(t *testing.T) {
 		t.Fatalf("schema da página deve continuar inteiro: %s", raw)
 	}
 }
+
+func TestParamsAceitaObjetoOuTexto(t *testing.T) {
+	casos := []struct {
+		json string
+		quer int
+	}{
+		{`{"nome":"r","params":{"a":1}}`, 1},
+		{`{"nome":"r","params":"{\"a\":1}"}`, 1},
+		{`{"nome":"r","params":""}`, 0},
+		{`{"nome":"r"}`, 0},
+	}
+	for _, c := range casos {
+		var in argsRecurso
+		if err := json.Unmarshal([]byte(c.json), &in); err != nil {
+			t.Fatalf("%s: %v", c.json, err)
+		}
+		if len(in.Params) != c.quer {
+			t.Errorf("%s: params = %v", c.json, in.Params)
+		}
+	}
+	var in argsRecurso
+	if err := json.Unmarshal([]byte(`{"nome":"r","params":"a=1"}`), &in); err == nil {
+		t.Error("texto que não é objeto deve falhar")
+	}
+}
+
+func TestSchemaDosParamsContinuaObjeto(t *testing.T) {
+	ferramenta, err := utils.InferTool("chamar_recurso", "d", func(context.Context, *argsRecurso) (saida, error) { return nil, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, _ := ferramenta.Info(context.Background())
+	schema, err := info.ParamsOneOf.ToJSONSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(schema)
+	var lido struct {
+		Properties map[string]struct{ Type string } `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &lido); err != nil || lido.Properties["params"].Type != "object" {
+		t.Fatalf("schema dos params deve continuar objeto: %s", raw)
+	}
+}
