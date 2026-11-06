@@ -110,7 +110,7 @@ CENARIOS = [
 ]
 
 # Padrões das conversas reais do Atende (out/2026), reescritos sem texto real. A meta mínima
-# é empatar com o bot atual: 2ª via resolvida em ≥57%, sem pedir CPF a quem o telefone já identifica.
+# é empatar com o bot atual, sem pedir CPF a quem o telefone já identifica.
 CENARIOS_ATENDE = [
     {"id": "atende-boleto-seco", "tipo": "consulta", "nivel": 1, "turnos": ["boleto"], "rota": ["boleto"], "nao_contem": ["cpf", "opção inválida"], "descricao": "uma palavra só, sem menu"},
     {"id": "atende-boleto-mes", "tipo": "consulta", "nivel": 1, "turnos": ["preciso do boleto desse mês"], "rota": ["boleto"], "nao_contem": ["cpf"], "descricao": "2ª via com morador identificado pelo telefone"},

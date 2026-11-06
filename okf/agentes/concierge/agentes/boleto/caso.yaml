@@ -1,4 +1,4 @@
-# Baseline do Atende (out/2026): 2ª via é o assunto nº 1 e o bot atual resolve 57% dela. Só leitura, sem confirm.
+# Assunto mais pedido no Atende. Só leitura, sem confirm.
 id: boleto
 name: Segunda Via de Boleto
 summary: Passa a segunda via do boleto em aberto.
