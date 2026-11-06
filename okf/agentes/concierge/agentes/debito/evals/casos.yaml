@@ -1,0 +1,12 @@
+- nome: débito não pede CPF
+  pergunta: quanto eu devo de condomínio?
+  nao_contem:
+  - CPF
+  - caso de uso
+  - recurso
+- nome: acordo não promete desconto
+  pergunta: quero parcelar as taxas atrasadas
+  nao_contem:
+  - desconto
+  - caso de uso
+  - recurso

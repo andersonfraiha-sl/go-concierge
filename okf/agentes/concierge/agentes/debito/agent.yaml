@@ -1,0 +1,5 @@
+nome: debito
+tipo: operador
+descricao: 'Resumo do débito do condomínio: lista as cobranças em aberto da unidade, inclusive as sem boleto disponível, e encaminha acordo ou parcelamento ao atendente. Caso de uso: Débito e Acordo.'
+recursos:
+- gruvi.bff.mobile.fetch-fees-controller-handle-1

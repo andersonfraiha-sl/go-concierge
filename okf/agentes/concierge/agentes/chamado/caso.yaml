@@ -1,0 +1,54 @@
+# Manutenção e ocorrência no Atende. Escrita: só depois do confirm. Emergência não passa por aqui.
+id: chamado
+name: Abertura de Chamado
+summary: Abre um chamado de manutenção ou ocorrência para a administração.
+visibility: private
+icon: wrench
+tags: [engenharia-reversa]
+description: >
+  Usado quando o morador relata um problema de manutenção ou uma ocorrência no condomínio (vazamento, lâmpada queimada, portão quebrado, elevador parado, barulho) e quer registrar para a administração.
+keywords: [manutenção, manutencao, conserto, quebrado, quebrou, vazamento, infiltração, lâmpada, portão, elevador, ocorrência, reclamação, chamado]
+examples:
+  - tem um vazamento na garagem
+  - o portão da garagem quebrou
+  - a lâmpada do corredor do 3º andar queimou
+  - quero registrar uma reclamação de barulho
+params:
+  - name: descricao
+    title: Descrição
+    ask: Me conta o problema e onde ele está.
+    type: textarea
+steps:
+  - resource: gruvi.bff.building-operation.get-company-by-document-controller-handle
+    save_as: condominio
+  - choose:
+      param: unidade_chamado
+      title: Unidade
+      from: condominio
+      label: unit
+      value: id
+      strict: true
+      ask: Para qual unidade é o chamado?
+      empty: Não encontrei unidades vinculadas ao seu cadastro.
+  - resource: gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606
+    with:
+      filter[unit.id]: "$unidade_chamado"
+    save_as: parametros
+  - choose:
+      param: tipo
+      title: Tipo de chamado
+      from: parametros
+      label: description
+      value: id
+      strict: true
+      ask: Qual o tipo do chamado?
+      empty: A administração não liberou abertura de chamado pelo WhatsApp para a sua unidade. Posso te passar para um atendente.
+  - collect: [descricao]
+  - confirm: 'Confirma a abertura do chamado de {{.tipo_label}} para {{.unidade_chamado_label}}: "{{.descricao}}"? (sim/não)'
+  - resource: gruvi.bff.mobile.create-ticket-controller-handle
+    with:
+      unit_id: "$unidade_chamado"
+      type_id: "$tipo"
+      description: "{{.descricao}}"
+    save_as: chamado
+output: "Chamado aberto{{if .chamado.id}}, protocolo {{.chamado.id}}{{end}}. A administração acompanha por lá e o andamento aparece no app."

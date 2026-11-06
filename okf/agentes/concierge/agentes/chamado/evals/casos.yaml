@@ -1,0 +1,12 @@
+- nome: vazamento não pede CPF
+  pergunta: tem um vazamento na garagem
+  nao_contem:
+  - CPF
+  - caso de uso
+  - recurso
+- nome: chamado não promete prazo
+  pergunta: o portão da garagem quebrou
+  nao_contem:
+  - em até
+  - prazo de
+  - caso de uso

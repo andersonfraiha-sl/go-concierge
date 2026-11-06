@@ -1,0 +1,7 @@
+nome: chamado
+tipo: operador
+descricao: 'Manutenção e ocorrência: abre um chamado para a administração com o tipo e a descrição do problema, depois de confirmar com o morador. Caso de uso: Abertura de Chamado.'
+recursos:
+- gruvi.bff.building-operation.get-company-by-document-controller-handle
+- gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606
+- gruvi.bff.mobile.create-ticket-controller-handle

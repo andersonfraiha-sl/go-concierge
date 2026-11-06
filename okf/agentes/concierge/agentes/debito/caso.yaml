@@ -1,0 +1,25 @@
+# Acordo e inadimplência no Atende. A API não tem acordo: o caso resume o débito e o atendente negocia.
+id: debito
+name: Débito e Acordo
+summary: Resume as cobranças em aberto e encaminha o acordo.
+visibility: private
+icon: wallet
+tags: [engenharia-reversa]
+description: >
+  Lista as cobranças em aberto do morador com vencimento, valor e situação, inclusive as que não têm boleto disponível. Acordo e parcelamento seguem com o atendente, com esse resumo.
+keywords: [débito, debito, dívida, divida, acordo, parcelar, parcelamento, negociar, inadimplência, quanto devo, quanto eu devo, em atraso, atrasadas]
+examples:
+  - quanto eu devo de condomínio?
+  - quero parcelar as taxas atrasadas
+  - como faço um acordo?
+  - tenho alguma conta em aberto?
+steps:
+  - resource: gruvi.bff.mobile.fetch-fees-controller-handle-1
+    with:
+      filter[only-open]: true
+      filter[with-due-status]: true
+    save_as: abertas
+output: |-
+  {{if .abertas}}Cobranças em aberto:
+  {{range .abertas}}- {{.due_date}}: R$ {{.value}}{{if .due_status_description}} ({{.due_status_description}}){{end}}{{if .billet_unavailable}}, sem boleto disponível{{end}}
+  {{end}}Para negociar ou parcelar, te passo para um atendente com esse resumo.{{else}}Não há cobrança em aberto na sua unidade.{{end}}

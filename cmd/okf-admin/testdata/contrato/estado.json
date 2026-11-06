@@ -8,6 +8,21 @@
   ],
   "casos": [
     {
+      "nome": "chamado",
+      "id": "chamado",
+      "titulo": "Abertura de Chamado",
+      "descricao": "Usado quando o morador relata um problema de manutenção ou uma ocorrência no condomínio (vazamento, lâmpada queimada, portão quebrado, elevador parado, barulho) e quer registrar para a administração.",
+      "resumo": "Abre um chamado de manutenção ou ocorrência para a administração.",
+      "icone": "wrench",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.building-operation.get-company-by-document-controller-handle",
+        "gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606",
+        "gruvi.bff.mobile.create-ticket-controller-handle"
+      ]
+    },
+    {
       "nome": "agendar-mudanca",
       "id": "agendar_mudanca",
       "titulo": "Agendamento de Mudança",
@@ -77,6 +92,33 @@
         "gruvi.bff.building-operation.get-company-by-document-controller-handle",
         "gruvi.bff.building-operation.fetch-unit-packages-controller-handle",
         "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
+      ]
+    },
+    {
+      "nome": "documentos",
+      "id": "documentos",
+      "titulo": "Documentos do Condomínio",
+      "descricao": "Lista os documentos publicados do condomínio (atas, convocações, prestação de contas, regulamentos) e passa o link do documento escolhido.",
+      "resumo": "Passa o link de atas, convocações e prestação de contas.",
+      "icone": "file-text",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.mobile.fetch-documents-controller-handle-1",
+        "gruvi.bff.mobile.get-document-by-id-controller-handle-1"
+      ]
+    },
+    {
+      "nome": "debito",
+      "id": "debito",
+      "titulo": "Débito e Acordo",
+      "descricao": "Lista as cobranças em aberto do morador com vencimento, valor e situação, inclusive as que não têm boleto disponível. Acordo e parcelamento seguem com o atendente, com esse resumo.",
+      "resumo": "Resume as cobranças em aberto e encaminha o acordo.",
+      "icone": "wallet",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.mobile.fetch-fees-controller-handle-1"
       ]
     },
     {
