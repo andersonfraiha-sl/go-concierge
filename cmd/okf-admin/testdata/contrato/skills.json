@@ -48,6 +48,21 @@
       "caminho": "agentes/concierge/agentes/comunicar-obra"
     },
     {
+      "nome": "pagamento",
+      "id": "pagamento",
+      "titulo": "Confirmação de Pagamento",
+      "descricao": "Lista as cobranças pagas do morador e passa data, forma e valor do pagamento escolhido. Sem registro, explica o prazo de compensação e oferece o atendente.",
+      "resumo": "Confere se o pagamento da cobrança foi registrado.",
+      "icone": "check-circle",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.mobile.fetch-fees-controller-handle-1",
+        "gruvi.bff.mobile.get-fee-by-id-controller-handle-2"
+      ],
+      "caminho": "agentes/concierge/agentes/pagamento"
+    },
+    {
       "nome": "codigo-retirada",
       "id": "codigo_retirada",
       "titulo": "Código de Retirada",

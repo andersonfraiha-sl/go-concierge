@@ -4,6 +4,7 @@ name: Segunda Via de Boleto
 summary: Passa a segunda via do boleto em aberto.
 visibility: private
 icon: receipt
+tags: [engenharia-reversa]
 description: >
   Lista as cobranças em aberto do morador e passa valor, vencimento, linha digitável, Pix e link do boleto escolhido.
 keywords: [boleto, segunda via, 2ª via, 2 via, linha digitável, código de barras, pix, taxa, condomínio atrasado, cobrança]

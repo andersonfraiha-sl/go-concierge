@@ -833,3 +833,24 @@ func TestExcluirSkill(t *testing.T) {
 		})
 	}
 }
+
+// A tag de origem não é editada no Studio: salvar os textos não pode apagá-la.
+func TestSalvarTextosPreservaTagDeOrigem(t *testing.T) {
+	c := catalogoDeTeste(t)
+	rel := "agentes/concierge/agentes/boleto"
+	textos, versao, err := c.LerTextos(rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	textos.Titulo = "Boleto"
+	if _, err := c.SalvarTextos(rel, versao, textos); err != nil {
+		t.Fatal(err)
+	}
+	caso, err := ParseCaso([]byte(lerArquivoDaSkill(t, c, rel, CasoYAML)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(caso.Tags, []string{"engenharia-reversa"}) {
+		t.Fatalf("tags = %v, want [engenharia-reversa]", caso.Tags)
+	}
+}

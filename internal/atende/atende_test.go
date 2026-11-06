@@ -101,6 +101,7 @@ func adicionarToolsMCP(cat *okf.Catalogo) {
 				{Name: "companyId", Type: "string", Required: true},
 				{Name: "filter[only-open]", Type: "boolean"},
 				{Name: "filter[with-due-status]", Type: "boolean"},
+				{Name: "filter[paid]", Type: "boolean"},
 			},
 			"gruvi.bff.mobile.get-fee-by-id-controller-handle-2": {
 				{Name: "persona", Type: "string", Required: true},

@@ -8,6 +8,8 @@ Escolha as rotas pelas linhas que melhor descrevem a mensagem do morador. Pode s
   endereço, contato da administradora, valor da taxa, dia de vencimento → rota `faq`.
 - Segunda Via de Boleto: boleto, segunda via, 2ª via, linha digitável, código de barras, pix
   do condomínio, boleto vencido ou atrasado que o morador quer pagar → rota `boleto`.
+- Confirmação de Pagamento: já paguei, paguei, comprovante, pagamento consta, baixa, ainda aparece
+  em aberto depois de pagar → rota `pagamento`.
 - Contestação ou "por quê?" sobre a resposta anterior: a MESMA rota da resposta anterior
   (faq ou regimento), nunca `self` nem atendente.
 - Liberar, autorizar ou avisar a entrada de visitante, amigo, parente, prestador ou

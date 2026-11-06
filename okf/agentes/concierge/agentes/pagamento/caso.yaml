@@ -1,0 +1,35 @@
+# Segundo assunto do Atende. Só leitura: a baixa manual continua com a equipe.
+id: pagamento
+name: Confirmação de Pagamento
+summary: Confere se o pagamento da cobrança foi registrado.
+visibility: private
+icon: check-circle
+tags: [engenharia-reversa]
+description: >
+  Lista as cobranças pagas do morador e passa data, forma e valor do pagamento escolhido. Sem registro, explica o prazo de compensação e oferece o atendente.
+keywords: [comprovante, paguei, já paguei, pagamento, baixa, compensação, consta em aberto, pago]
+examples:
+  - já paguei o condomínio, consta aí?
+  - segue o comprovante de pagamento
+  - paguei ontem e ainda aparece em aberto
+  - vocês receberam meu pagamento?
+steps:
+  - resource: gruvi.bff.mobile.fetch-fees-controller-handle-1
+    with:
+      filter[paid]: true
+    save_as: pagas
+  - choose:
+      param: cobranca
+      title: Cobrança
+      from: pagas
+      label: due_date
+      value: id
+      strict: true
+      ask: Qual vencimento você pagou?
+      empty: Ainda não aparece pagamento registrado na sua unidade. Boleto leva até 3 dias úteis para compensar; se já passou disso, me manda o comprovante que te passo para a equipe da administradora dar a baixa.
+  - resource: gruvi.bff.mobile.get-fee-by-id-controller-handle-2
+    with:
+      feeId: "$cobranca"
+    save_as: pagamento
+output: |-
+  Pagamento registrado: {{.pagamento.unit_description}}, vencimento {{.pagamento.due_date}}, valor R$ {{.pagamento.value}}{{if .pagamento.paid_date}}, pago em {{.pagamento.paid_date}}{{end}}{{if .pagamento.payment_method}} via {{.pagamento.payment_method}}{{end}}.

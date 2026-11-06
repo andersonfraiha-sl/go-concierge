@@ -6832,19 +6832,53 @@
  },
  {
   "id": "atende-comprovante",
-  "tipo": "transbordo",
-  "nivel": 3,
+  "tipo": "consulta",
+  "nivel": 2,
   "turnos": [
    "já paguei, segue o comprovante"
   ],
   "rota": [
-   "self",
-   "transbordo"
+   "pagamento"
   ],
   "nao_contem": [
-   "opção inválida"
+   "opção inválida",
+   "cpf"
   ],
-  "descricao": "comprovante não vira opção inválida",
+  "descricao": "comprovante confere o pagamento, não vira opção inválida",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-paguei-consta",
+  "tipo": "consulta",
+  "nivel": 1,
+  "turnos": [
+   "já paguei o condomínio, consta aí?"
+  ],
+  "rota": [
+   "pagamento"
+  ],
+  "nao_contem": [
+   "cpf"
+  ],
+  "descricao": "confirmação de pagamento sem pedir CPF",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-paguei-em-aberto",
+  "tipo": "consulta",
+  "nivel": 3,
+  "turnos": [
+   "paguei ontem e ainda aparece em aberto no app"
+  ],
+  "rota": [
+   "pagamento"
+  ],
+  "nao_contem": [
+   "dei baixa"
+  ],
+  "descricao": "não promete baixa, explica compensação",
   "intencao": "atende",
   "transformacao": "cenario"
  },
