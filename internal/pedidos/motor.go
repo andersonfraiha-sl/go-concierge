@@ -490,7 +490,7 @@ func localizarLista(value any, depth int) []any {
 	if !ok {
 		return nil
 	}
-	for _, key := range []string{"units", "packages", "reasons", "visit_reasons", "items", "itens", "data", "resultado", "result", "content"} {
+	for _, key := range []string{"units", "packages", "reasons", "visit_reasons", "types", "items", "itens", "data", "resultado", "result", "content"} {
 		if lista := localizarLista(m[key], depth+1); lista != nil {
 			return lista
 		}

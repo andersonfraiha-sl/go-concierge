@@ -405,3 +405,17 @@ func TestExtracaoComTrecho(t *testing.T) {
 		t.Fatalf("%+v", ex.Pedidos)
 	}
 }
+
+// Parâmetros de chamado trazem types e subjects juntos: as opções vêm sempre de types, nunca da ordem do mapa.
+func TestOpcoesDeDadosPreferemTypesASubjects(t *testing.T) {
+	dados := map[string]any{
+		"subjects": []any{map[string]any{"id": "s-1", "description": "Assunto"}},
+		"types":    []any{map[string]any{"id": "t-1", "description": "Manutenção"}},
+	}
+	for range 20 {
+		ops := OpcoesDeDados(dados, &Slot{Valor: "id", Rotulo: "description", Strict: true})
+		if len(ops) != 1 || ops[0].Valor != "t-1" {
+			t.Fatalf("opções = %+v, want só t-1", ops)
+		}
+	}
+}

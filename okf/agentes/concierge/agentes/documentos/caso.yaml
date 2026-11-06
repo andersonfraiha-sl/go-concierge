@@ -1,0 +1,34 @@
+# Assembleia e documentos no Atende. Só leitura.
+id: documentos
+name: Documentos do Condomínio
+summary: Passa o link de atas, convocações e prestação de contas.
+visibility: private
+icon: file-text
+tags: [engenharia-reversa]
+description: >
+  Lista os documentos publicados do condomínio (atas, convocações, prestação de contas, regulamentos) e passa o link do documento escolhido.
+keywords: [ata, assembleia, convocação, convocacao, edital, prestação de contas, balancete, documento, documentos]
+examples:
+  - me manda a ata da última assembleia
+  - onde vejo a prestação de contas?
+  - saiu a convocação da assembleia?
+  - quero o balancete do condomínio
+steps:
+  - resource: gruvi.bff.mobile.fetch-documents-controller-handle-1
+    with:
+      page[limit]: 10
+    save_as: documentos
+  - choose:
+      param: documento
+      title: Documento
+      from: documentos
+      label: file_name
+      value: id
+      strict: true
+      ask: Qual documento?
+      empty: Não achei documentos publicados para o seu condomínio. Posso te passar para um atendente.
+  - resource: gruvi.bff.mobile.get-document-by-id-controller-handle-1
+    with:
+      documentId: "$documento"
+    save_as: arquivo
+output: "{{.documento_label}}: {{.arquivo.link}}"
