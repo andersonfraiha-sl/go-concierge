@@ -131,7 +131,28 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 
 type argsLerDado struct {
 	Caminho string `json:"caminho" jsonschema:"required" jsonschema_description:"caminho exatamente como no índice (ex.: knowledge/regimento.md, assets/rodape.md)"`
-	Pagina  int    `json:"pagina" jsonschema_description:"página a partir de 1 (padrão 1)"`
+	Pagina  pagina `json:"pagina" jsonschema:"type=integer" jsonschema_description:"página a partir de 1 (padrão 1)"`
+}
+
+// pagina aceita 2 ou "2": modelos menores mandam número como texto, e o erro de parse
+// derrubaria o turno inteiro antes de chegar à tool.
+type pagina int
+
+func (p *pagina) UnmarshalJSON(raw []byte) error {
+	var texto string
+	if json.Unmarshal(raw, &texto) != nil {
+		return json.Unmarshal(raw, (*int)(p))
+	}
+	if strings.TrimSpace(texto) == "" {
+		*p = 0
+		return nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(texto))
+	if err != nil {
+		return fmt.Errorf("pagina %q não é número", texto)
+	}
+	*p = pagina(n)
+	return nil
 }
 
 func (ag *Agente) lerDado(_ context.Context, in *argsLerDado) (saida, error) {
@@ -139,7 +160,7 @@ func (ag *Agente) lerDado(_ context.Context, in *argsLerDado) (saida, error) {
 	if err != nil {
 		return erro("%v", err), nil
 	}
-	return paginar(in.Caminho, string(raw), in.Pagina), nil
+	return paginar(in.Caminho, string(raw), int(in.Pagina)), nil
 }
 
 // paginar corta o texto em páginas de PaginaChars caracteres (runas).
