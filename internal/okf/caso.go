@@ -15,18 +15,20 @@ import (
 // um recurso de escrita só é chamado por um passo `resource` de um caso, depois de
 // coletar e (recomendado) confirmar.
 type Caso struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Summary     string           `json:"summary"`
-	Icon        string           `json:"icon"`
-	Visibility  string           `json:"visibility"`
-	Fallback    bool             `json:"fallback,omitempty"`
-	Description string           `json:"description"`
-	Keywords    []string         `json:"keywords"`
-	Examples    []string         `json:"examples"`
-	Params      []CasoParam      `json:"params"`
-	Steps       []map[string]any `json:"steps"`
-	Output      string           `json:"output"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Summary     string   `json:"summary"`
+	Icon        string   `json:"icon"`
+	Visibility  string   `json:"visibility"`
+	Fallback    bool     `json:"fallback,omitempty"`
+	Description string   `json:"description"`
+	Keywords    []string `json:"keywords"`
+	Examples    []string `json:"examples"`
+	// Origem da skill, ex.: engenharia-reversa (derivada da análise das conversas do Atende).
+	Tags   []string         `json:"tags,omitempty"`
+	Params []CasoParam      `json:"params"`
+	Steps  []map[string]any `json:"steps"`
+	Output string           `json:"output"`
 	// Recursos citados pelos passos `resource`, na ordem.
 	Recursos []string `json:"recursos"`
 	// Confirma: há um passo `confirm` antes do último recurso.

@@ -4,6 +4,7 @@ name: Confirmação de Pagamento
 summary: Confere se o pagamento da cobrança foi registrado.
 visibility: private
 icon: check-circle
+tags: [engenharia-reversa]
 description: >
   Lista as cobranças pagas do morador e passa data, forma e valor do pagamento escolhido. Sem registro, explica o prazo de compensação e oferece o atendente.
 keywords: [comprovante, paguei, já paguei, pagamento, baixa, compensação, consta em aberto, pago]
