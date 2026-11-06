@@ -125,6 +125,21 @@
       "caminho": "agentes/concierge/agentes/reserva-area-comum"
     },
     {
+      "nome": "boleto",
+      "id": "boleto",
+      "titulo": "Segunda Via de Boleto",
+      "descricao": "Lista as cobranças em aberto do morador e passa valor, vencimento, linha digitável, Pix e link do boleto escolhido.",
+      "resumo": "Passa a segunda via do boleto em aberto.",
+      "icone": "receipt",
+      "escrita": false,
+      "tipo": "operador",
+      "recursos": [
+        "gruvi.bff.mobile.fetch-fees-controller-handle-1",
+        "gruvi.bff.mobile.get-fee-by-id-controller-handle-2"
+      ],
+      "caminho": "agentes/concierge/agentes/boleto"
+    },
+    {
       "nome": "faq",
       "id": "",
       "titulo": "faq",

@@ -1,0 +1,41 @@
+# Baseline do Atende (out/2026): 2ª via é o assunto nº 1 e o bot atual resolve 57% dela. Só leitura, sem confirm.
+id: boleto
+name: Segunda Via de Boleto
+summary: Passa a segunda via do boleto em aberto.
+visibility: private
+icon: receipt
+description: >
+  Lista as cobranças em aberto do morador e passa valor, vencimento, linha digitável, Pix e link do boleto escolhido.
+keywords: [boleto, segunda via, 2ª via, 2 via, linha digitável, código de barras, pix, taxa, condomínio atrasado, cobrança]
+examples:
+  - me manda a segunda via do boleto
+  - preciso do boleto desse mês
+  - qual a linha digitável do condomínio?
+  - tem como pagar o condomínio por pix?
+  - meu boleto venceu, consegue mandar outro?
+steps:
+  - resource: gruvi.bff.mobile.fetch-fees-controller-handle-1
+    with:
+      filter[only-open]: true
+      filter[with-due-status]: true
+    save_as: cobrancas
+  - choose:
+      param: cobranca
+      title: Cobrança
+      from: cobrancas
+      label: due_date
+      value: id
+      strict: true
+      filter:
+        billet_unavailable: "false"
+      ask: Qual vencimento?
+      empty: Não achei boleto em aberto disponível para emissão automática. Se a cobrança está vencida há mais tempo ou em negociação, a segunda via sai com a equipe da administradora; posso te passar para um atendente.
+  - resource: gruvi.bff.mobile.get-fee-by-id-controller-handle-2
+    with:
+      feeId: "$cobranca"
+    save_as: boleto
+output: |-
+  Boleto de {{.boleto.unit_description}}, vencimento {{.boleto.due_date}}, valor R$ {{.boleto.value}}{{if .boleto.due_status_description}} ({{.boleto.due_status_description}}){{end}}.
+  {{if .boleto.billet_code}}Linha digitável: {{.boleto.billet_code}}
+  {{end}}{{if .boleto.pix_code}}Pix copia e cola: {{.boleto.pix_code}}
+  {{end}}{{if .boleto.billet_view_url}}PDF: {{.boleto.billet_view_url}}{{else if .boleto.billet_url}}PDF: {{.boleto.billet_url}}{{end}}

@@ -70,6 +70,10 @@ func (m *mcpFluxoFalso) CallTool(_ context.Context, nome string, params map[stri
 		}
 		conteudo, _ := json.Marshal(map[string]any{"data": motivos})
 		return resultadoMCPFluxo(string(conteudo)), nil
+	case "gruvi.bff.mobile.fetch-fees-controller-handle-1":
+		return resultadoMCPFluxo(`{"links":{},"meta":{"count":2},"data":[{"id":"f-jurid","due_date":"2026-06-10","value":512.3,"billet_unavailable":true},{"id":"f-nov","due_date":"2026-11-10","value":498.7,"billet_unavailable":false}]}`), nil
+	case "gruvi.bff.mobile.get-fee-by-id-controller-handle-2":
+		return resultadoMCPFluxo(`{"data":{"id":"f-nov","unit_description":"A - 101","due_date":"2026-11-10","value":498.7,"billet_code":"23790.00009 00000.000000 00000.000000 1 00000000049870","pix_code":"PIX-SINTETICO"}}`), nil
 	case "gruvi.bff.building-operation.create-visit-controller-handle":
 		m.escritasVisita++
 		return resultadoMCPFluxo(`{"data":{"visit":{"clearance_status":"AUTHORIZED"}}}`), nil
@@ -310,5 +314,25 @@ func TestFalhaMCPDeEncomendasNaoUsaFallback(t *testing.T) {
 	}
 	if len(fake.chamadas) != 2 || fake.chamadas[0].nome != "gruvi.bff.building-operation.get-company-by-document-controller-handle" || fake.chamadas[1].nome != packages {
 		t.Fatalf("não deve executar fallback após falha MCP: %+v", fake.chamadas)
+	}
+}
+
+func TestCasoRealBoletoPulaCobrancaIndisponivelEFixaOMorador(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	sess := falar(t, svc, "mcp-boleto", "me manda a segunda via do boleto")
+	texto := ultimoConcierge(sess).Texto
+	for _, quer := range []string{"23790.00009", "PIX-SINTETICO", "2026-11-10"} {
+		if !strings.Contains(texto, quer) {
+			t.Fatalf("boleto sem %q: %q", quer, texto)
+		}
+	}
+	detalhe := fake.argsPorNome["gruvi.bff.mobile.get-fee-by-id-controller-handle-2"]
+	if detalhe["feeId"] != "f-nov" {
+		t.Fatalf("deve pular a cobrança sem boleto e usar a disponível sem perguntar: %+v", detalhe)
+	}
+	lista := fake.argsPorNome["gruvi.bff.mobile.fetch-fees-controller-handle-1"]
+	if lista["persona"] != "resident" || lista["companyId"] == nil {
+		t.Fatalf("lista de cobranças deve sair como morador do condomínio do canal: %+v", lista)
 	}
 }
