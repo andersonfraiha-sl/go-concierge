@@ -106,7 +106,7 @@ def rodar_caso(base, caso, cfg):
     try:
         for i, texto in enumerate(caso["turnos"]):
             antes = len(sess["turnos"]) if sess else 0
-            http("POST", f"{base}/webhook/atende", evento(protocolo, texto, i == 0, cfg["telefone"], cfg["nome"], cfg["tenant"]))
+            http("POST", f"{base}{cfg['webhook']}", evento(protocolo, texto, i == 0, cfg["telefone"], cfg["nome"], cfg["tenant"]))
             sess, lat = esperar(base, protocolo, antes)
             latencias.append(round(lat, 2))
             if sess is None:
@@ -141,8 +141,10 @@ def main():
     ap.add_argument("--telefone", default="5519981621916")
     ap.add_argument("--nome", default="Vanderlei Martins")
     ap.add_argument("--tenant", default="69a5a131e67bd8e2f54e5981")
+    # o webhook real exige HMAC e a conexão do ATENDE completa; local, o emulador (AUTH_MODE=dev)
+    ap.add_argument("--webhook", default="/emulador/atende/webhook")
     a = ap.parse_args()
-    cfg = {"telefone": a.telefone, "nome": a.nome, "tenant": a.tenant}
+    cfg = {"telefone": a.telefone, "nome": a.nome, "tenant": a.tenant, "webhook": a.webhook}
     casos = json.load(open(os.path.join(AQUI, "casos.json"), encoding="utf-8"))
     if a.so:
         casos = [c for c in casos if c["id"] == a.so or c["id"].startswith(a.so)]
