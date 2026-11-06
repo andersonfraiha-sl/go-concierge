@@ -1,0 +1,6 @@
+nome: pagamento
+tipo: operador
+descricao: 'Confere se o pagamento do condomínio foi registrado: lista as cobranças pagas da unidade e passa data e forma de pagamento. Caso de uso: Confirmação de Pagamento.'
+recursos:
+- gruvi.bff.mobile.fetch-fees-controller-handle-1
+- gruvi.bff.mobile.get-fee-by-id-controller-handle-2

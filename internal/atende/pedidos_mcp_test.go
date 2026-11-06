@@ -71,8 +71,14 @@ func (m *mcpFluxoFalso) CallTool(_ context.Context, nome string, params map[stri
 		conteudo, _ := json.Marshal(map[string]any{"data": motivos})
 		return resultadoMCPFluxo(string(conteudo)), nil
 	case "gruvi.bff.mobile.fetch-fees-controller-handle-1":
+		if params["filter[paid]"] == true {
+			return resultadoMCPFluxo(`{"data":[{"id":"f-pago","due_date":"2026-10-10","value":498.7}]}`), nil
+		}
 		return resultadoMCPFluxo(`{"links":{},"meta":{"count":2},"data":[{"id":"f-jurid","due_date":"2026-06-10","value":512.3,"billet_unavailable":true},{"id":"f-nov","due_date":"2026-11-10","value":498.7,"billet_unavailable":false}]}`), nil
 	case "gruvi.bff.mobile.get-fee-by-id-controller-handle-2":
+		if params["feeId"] == "f-pago" {
+			return resultadoMCPFluxo(`{"data":{"id":"f-pago","unit_description":"A - 101","due_date":"2026-10-10","value":498.7,"paid_date":"2026-10-08","payment_method":"Pix"}}`), nil
+		}
 		return resultadoMCPFluxo(`{"data":{"id":"f-nov","unit_description":"A - 101","due_date":"2026-11-10","value":498.7,"billet_code":"23790.00009 00000.000000 00000.000000 1 00000000049870","pix_code":"PIX-SINTETICO"}}`), nil
 	case "gruvi.bff.building-operation.create-visit-controller-handle":
 		m.escritasVisita++
@@ -334,5 +340,21 @@ func TestCasoRealBoletoPulaCobrancaIndisponivelEFixaOMorador(t *testing.T) {
 	lista := fake.argsPorNome["gruvi.bff.mobile.fetch-fees-controller-handle-1"]
 	if lista["persona"] != "resident" || lista["companyId"] == nil {
 		t.Fatalf("lista de cobranças deve sair como morador do condomínio do canal: %+v", lista)
+	}
+}
+
+func TestCasoRealPagamentoConfereARegistradaComoMorador(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	sess := falar(t, svc, "mcp-pagamento", "já paguei o condomínio, consta aí?")
+	texto := ultimoConcierge(sess).Texto
+	for _, quer := range []string{"Pagamento registrado", "2026-10-08", "Pix"} {
+		if !strings.Contains(texto, quer) {
+			t.Fatalf("confirmação sem %q: %q", quer, texto)
+		}
+	}
+	lista := fake.argsPorNome["gruvi.bff.mobile.fetch-fees-controller-handle-1"]
+	if lista["filter[paid]"] != true || lista["persona"] != "resident" || lista["companyId"] == nil {
+		t.Fatalf("deve listar só as pagas, como morador do condomínio do canal: %+v", lista)
 	}
 }
