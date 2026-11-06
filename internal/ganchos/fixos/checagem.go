@@ -39,7 +39,12 @@ const (
 	ferramentaPacotes             = "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
 	ferramentaCodigoRetirada      = "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
 	ferramentaMotivosVisita       = "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle"
+	ferramentaCobrancas           = "gruvi.bff.mobile.fetch-fees-controller-handle-1"
+	ferramentaCobranca            = "gruvi.bff.mobile.get-fee-by-id-controller-handle-2"
 )
+
+// personaDoMorador: o BFF mobile também atende síndico (manager); pelo WhatsApp do morador é sempre resident.
+const personaDoMorador = "resident"
 
 // Checagem devolve só os campos Checagem dos fixos; o saneamento vem de outro lugar.
 func Checagem() ganchos.Fixos {
@@ -158,6 +163,8 @@ var comContextoB2C = map[string]bool{
 	ferramentaCodigoRetirada:      true,
 	ferramentaMotivosVisita:       true,
 	ferramentaCriarVisita:         true,
+	ferramentaCobrancas:           true,
+	ferramentaCobranca:            true,
 }
 
 // copiaDosParams clona o mapa e os mapas aninhados que o contexto B2C reescreve.
@@ -194,6 +201,8 @@ func fixarContextoB2C(nome string, params, contexto map[string]any) error {
 		}
 	case ferramentaCriarVisita:
 		return fixarMoradorDaVisita(params, contexto)
+	case ferramentaCobrancas, ferramentaCobranca:
+		params["persona"] = personaDoMorador
 	}
 	return nil
 }

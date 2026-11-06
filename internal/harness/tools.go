@@ -41,6 +41,8 @@ var toolsMCPObrigatorias = map[string]bool{
 	"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": true,
 	"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle":       true,
 	"gruvi.bff.building-operation.create-visit-controller-handle":              true,
+	"gruvi.bff.mobile.fetch-fees-controller-handle-1":                          true,
+	"gruvi.bff.mobile.get-fee-by-id-controller-handle-2":                       true,
 }
 
 const ferramentaCriarVisita = "gruvi.bff.building-operation.create-visit-controller-handle"

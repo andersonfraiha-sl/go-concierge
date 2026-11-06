@@ -1864,7 +1864,8 @@ func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
 	packages := "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
 	code := "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
 	visit := "gruvi.bff.building-operation.create-visit-controller-handle"
-	nomes := []string{company, packages, code, "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle", visit}
+	nomes := []string{company, packages, code, "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle", visit,
+		"gruvi.bff.mobile.fetch-fees-controller-handle-1", "gruvi.bff.mobile.get-fee-by-id-controller-handle-2"}
 	for _, nome := range nomes {
 		if cfg.Payloads[nome] == nil {
 			cfg.Payloads[nome] = map[string]any{}
