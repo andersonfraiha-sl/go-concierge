@@ -18,13 +18,14 @@ import (
 //
 //	LLM_MODE=gemini      GEMINI_API_KEY, endpoint OpenAI-compatível do Google
 //	LLM_MODE=openrouter  OPENROUTER_API_KEY, https://openrouter.ai/api/v1
+//	LLM_MODE=local       modelo local OpenAI-compatível (Ollama), LLM_LOCAL_URL e LLM_LOCAL_MODEL, sem custo de token
 //	LLM_MODE=mock        modelo falso, sem rede
 //
 // Sem LLM_MODE: gemini se houver GEMINI_API_KEY, senão openrouter se houver
 // OPENROUTER_API_KEY, senão mock. O modelo padrão vem de MODEL_PLANNER, senão do
 // padrão do provedor.
 type Provedor struct {
-	Nome    string // gemini | openrouter | mock
+	Nome    string // gemini | openrouter | luna | local | mock
 	BaseURL string
 	Chave   string
 	Modelo  string // modelo padrão do provedor (quando nem Config nem agent.yaml dizem)
@@ -37,6 +38,10 @@ const (
 	ModeloOpenRouter  = "openai/gpt-4o-mini"
 	BaseURLLuna       = "https://kong-ai-gtw.idp.nexus.superlogica.net/v1"
 	ModeloLuna        = "gpt-6-luna"
+	BaseURLLocal      = "http://127.0.0.1:11434/v1"
+	ModeloLocal       = "llama3.1:8b"
+	// chaveLocal: o Ollama ignora a chave, mas sem chave o harness cai no mock.
+	chaveLocal = "local"
 )
 
 // ResolverProvedor lê o ambiente (env) e decide o provedor.
@@ -78,9 +83,25 @@ func ResolverProvedor(env func(string) string) Provedor {
 			padrao = ModeloLuna
 		}
 		return Provedor{Nome: "luna", BaseURL: base, Chave: strings.TrimSpace(env("LLM_LUNA_GATEWAY_TOKEN")), Modelo: padrao}
+	case "local":
+		return provedorLocal(env, padrao)
 	default:
 		return Provedor{Nome: "mock", Modelo: "mock"}
 	}
+}
+
+func provedorLocal(env func(string) string, padrao string) Provedor {
+	base := strings.TrimSpace(env("LLM_LOCAL_URL"))
+	if base == "" {
+		base = BaseURLLocal
+	}
+	if padrao == "" {
+		padrao = strings.TrimSpace(env("LLM_LOCAL_MODEL"))
+	}
+	if padrao == "" {
+		padrao = ModeloLocal
+	}
+	return Provedor{Nome: "local", BaseURL: base, Chave: chaveLocal, Modelo: padrao}
 }
 
 func novoModelo(ctx context.Context, prov Provedor, chave, base, nome string, timeout time.Duration) (model.ToolCallingChatModel, error) {

@@ -131,7 +131,28 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 
 type argsLerDado struct {
 	Caminho string `json:"caminho" jsonschema:"required" jsonschema_description:"caminho exatamente como no índice (ex.: knowledge/regimento.md, assets/rodape.md)"`
-	Pagina  int    `json:"pagina" jsonschema_description:"página a partir de 1 (padrão 1)"`
+	Pagina  pagina `json:"pagina" jsonschema:"type=integer" jsonschema_description:"página a partir de 1 (padrão 1)"`
+}
+
+// pagina aceita 2 ou "2": modelos menores mandam número como texto, e o erro de parse
+// derrubaria o turno inteiro antes de chegar à tool.
+type pagina int
+
+func (p *pagina) UnmarshalJSON(raw []byte) error {
+	var texto string
+	if json.Unmarshal(raw, &texto) != nil {
+		return json.Unmarshal(raw, (*int)(p))
+	}
+	if strings.TrimSpace(texto) == "" {
+		*p = 0
+		return nil
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(texto))
+	if err != nil {
+		return fmt.Errorf("pagina %q não é número", texto)
+	}
+	*p = pagina(n)
+	return nil
 }
 
 func (ag *Agente) lerDado(_ context.Context, in *argsLerDado) (saida, error) {
@@ -139,7 +160,7 @@ func (ag *Agente) lerDado(_ context.Context, in *argsLerDado) (saida, error) {
 	if err != nil {
 		return erro("%v", err), nil
 	}
-	return paginar(in.Caminho, string(raw), in.Pagina), nil
+	return paginar(in.Caminho, string(raw), int(in.Pagina)), nil
 }
 
 // paginar corta o texto em páginas de PaginaChars caracteres (runas).
@@ -285,8 +306,27 @@ func (ag *Agente) invocarAgente(ctx context.Context, in *argsAgente) (saida, err
 // ---- chamar_recurso -------------------------------------------------------
 
 type argsRecurso struct {
-	Nome   string         `json:"nome" jsonschema:"required" jsonschema_description:"nome do recurso, exatamente como declarado (ex.: faq.buscar)"`
-	Params map[string]any `json:"params" jsonschema_description:"parâmetros do recurso, pelo manual da projeção"`
+	Nome   string        `json:"nome" jsonschema:"required" jsonschema_description:"nome do recurso, exatamente como declarado (ex.: faq.buscar)"`
+	Params paramsRecurso `json:"params" jsonschema:"type=object" jsonschema_description:"parâmetros do recurso, pelo manual da projeção"`
+}
+
+// paramsRecurso aceita o objeto ou o objeto serializado como texto: modelos menores
+// mandam "{\"a\":1}", e o erro de parse derrubaria o turno antes de chegar à tool.
+type paramsRecurso map[string]any
+
+func (p *paramsRecurso) UnmarshalJSON(raw []byte) error {
+	var texto string
+	if json.Unmarshal(raw, &texto) != nil {
+		return json.Unmarshal(raw, (*map[string]any)(p))
+	}
+	if strings.TrimSpace(texto) == "" {
+		*p = nil
+		return nil
+	}
+	if err := json.Unmarshal([]byte(texto), (*map[string]any)(p)); err != nil {
+		return fmt.Errorf("params %q não é objeto JSON", texto)
+	}
+	return nil
 }
 
 type chaveExecucaoCaso struct{}
@@ -397,7 +437,7 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 func (ag *Agente) resolverChamada(in *argsRecurso) chamada {
 	nome := strings.TrimSpace(in.Nome)
 	nomeMCP, alias := nomeToolMCP(nome)
-	pedidos, _ := pii.DevolverEmValor(in.Params, ag.cfg.Turno.Cofre().Ler()).(map[string]any)
+	pedidos, _ := pii.DevolverEmValor(map[string]any(in.Params), ag.cfg.Turno.Cofre().Ler()).(map[string]any)
 	return chamada{
 		nome: nome, nomeMCP: nomeMCP, aliasMCP: alias, obrigatoriaMCP: toolsMCPObrigatorias[nome],
 		achado: ag.permissao(nome), pedidos: pedidos,
