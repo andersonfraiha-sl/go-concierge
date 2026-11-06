@@ -2423,6 +2423,7 @@
    "o elevador está quebrado"
   ],
   "rota": [
+   "chamado",
    "transbordo",
    "self",
    "faq"
@@ -2438,6 +2439,7 @@
    "tem vazamento no meu teto, vem do apê de cima"
   ],
   "rota": [
+   "chamado",
    "transbordo",
    "self",
    "comunicar-obra"
@@ -6884,16 +6886,98 @@
  },
  {
   "id": "atende-acordo",
-  "tipo": "transbordo",
+  "tipo": "consulta",
   "nivel": 3,
   "turnos": [
    "quero parcelar as taxas atrasadas, como faço acordo?"
   ],
   "rota": [
-   "self",
+   "debito",
    "transbordo"
   ],
-  "descricao": "acordo vai para humano",
+  "nao_contem": [
+   "desconto"
+  ],
+  "descricao": "acordo resume o débito e vai para humano",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-debito-quanto",
+  "tipo": "consulta",
+  "nivel": 1,
+  "turnos": [
+   "quanto eu devo de condomínio?"
+  ],
+  "rota": [
+   "debito"
+  ],
+  "nao_contem": [
+   "cpf"
+  ],
+  "descricao": "débito sem pedir CPF",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-documentos-ata",
+  "tipo": "consulta",
+  "nivel": 1,
+  "turnos": [
+   "me manda a ata da última assembleia"
+  ],
+  "rota": [
+   "documentos"
+  ],
+  "nao_contem": [
+   "cpf"
+  ],
+  "descricao": "ata publicada sai sem humano",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-documentos-contas",
+  "tipo": "consulta",
+  "nivel": 2,
+  "turnos": [
+   "onde vejo a prestação de contas do condomínio?"
+  ],
+  "rota": [
+   "documentos"
+  ],
+  "descricao": "prestação de contas é documento publicado",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-chamado-portao",
+  "tipo": "acao",
+  "nivel": 2,
+  "turnos": [
+   "o portão da garagem quebrou de novo"
+  ],
+  "rota": [
+   "chamado"
+  ],
+  "nao_contem": [
+   "cpf"
+  ],
+  "descricao": "manutenção vira chamado, não opção inválida",
+  "intencao": "atende",
+  "transformacao": "cenario"
+ },
+ {
+  "id": "atende-chamado-lampada",
+  "tipo": "acao",
+  "nivel": 2,
+  "turnos": [
+   "a lâmpada do corredor do 3º andar queimou"
+  ],
+  "rota": [
+   "chamado"
+  ],
+  "descricao": "ocorrência simples vira chamado",
   "intencao": "atende",
   "transformacao": "cenario"
  },
