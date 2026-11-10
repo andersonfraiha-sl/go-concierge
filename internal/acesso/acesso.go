@@ -13,30 +13,34 @@ import (
 type Permissao string
 
 const (
-	SkillsLer             Permissao = "skills.ler"
-	SkillsEditarTextos    Permissao = "skills.editar_textos"
-	SkillsEditarFluxo     Permissao = "skills.editar_fluxo"
-	SkillsCriar           Permissao = "skills.criar"
-	SkillsExcluir         Permissao = "skills.excluir"
-	FerramentasEditar     Permissao = "ferramentas.editar"
-	CondominiosHabilitar  Permissao = "condominios.habilitar"
-	CondominiosEditar     Permissao = "condominios.editar"
-	ConversasVer          Permissao = "conversas.ver"
-	ConversasAtender      Permissao = "conversas.atender"
-	PedidosVer            Permissao = "pedidos.ver"
-	PedidosEditar         Permissao = "pedidos.editar"
-	MemoriaVer            Permissao = "memoria.ver"
-	MemoriaEsquecer       Permissao = "memoria.esquecer"
-	AdministradorasEditar Permissao = "administradoras.editar"
-	UsuariosEditar        Permissao = "usuarios.editar"
-	StudioAvancado        Permissao = "studio.avancado"
-	GanchosEditar         Permissao = "ganchos.editar"
-	GanchosHistorico      Permissao = "ganchos.historico"
+	SkillsLer                Permissao = "skills.ler"
+	SkillsEditarTextos       Permissao = "skills.editar_textos"
+	SkillsEditarFluxo        Permissao = "skills.editar_fluxo"
+	SkillsCriar              Permissao = "skills.criar"
+	SkillsExcluir            Permissao = "skills.excluir"
+	SkillsEditarEtapas       Permissao = "skills.editar_etapas"
+	SkillsDecidirAtualizacao Permissao = "skills.decidir_atualizacao"
+	SkillsPublicarBase       Permissao = "skills.publicar_base"
+	FerramentasEditar        Permissao = "ferramentas.editar"
+	CondominiosHabilitar     Permissao = "condominios.habilitar"
+	CondominiosEditar        Permissao = "condominios.editar"
+	ConversasVer             Permissao = "conversas.ver"
+	ConversasAtender         Permissao = "conversas.atender"
+	PedidosVer               Permissao = "pedidos.ver"
+	PedidosEditar            Permissao = "pedidos.editar"
+	MemoriaVer               Permissao = "memoria.ver"
+	MemoriaEsquecer          Permissao = "memoria.esquecer"
+	AdministradorasEditar    Permissao = "administradoras.editar"
+	UsuariosEditar           Permissao = "usuarios.editar"
+	StudioAvancado           Permissao = "studio.avancado"
+	GanchosEditar            Permissao = "ganchos.editar"
+	GanchosHistorico         Permissao = "ganchos.historico"
 )
 
 // todasAsPermissoes lista as permissões na ordem das constantes.
 var todasAsPermissoes = []Permissao{
 	SkillsLer, SkillsEditarTextos, SkillsEditarFluxo, SkillsCriar, SkillsExcluir,
+	SkillsEditarEtapas, SkillsDecidirAtualizacao, SkillsPublicarBase,
 	FerramentasEditar, CondominiosHabilitar, CondominiosEditar, ConversasVer, ConversasAtender,
 	PedidosVer, PedidosEditar, MemoriaVer, MemoriaEsquecer, AdministradorasEditar,
 	UsuariosEditar, StudioAvancado,
@@ -92,8 +96,8 @@ var ErrCicloHeranca = errors.New("ciclo na herança de papéis")
 func PapeisIniciais() []Papel {
 	return []Papel{
 		{ID: "operador_administradora", Permissoes: []Permissao{SkillsLer, ConversasVer, ConversasAtender, PedidosVer, MemoriaVer}},
-		{ID: "gestor_administradora", HerdaDe: "operador_administradora", Permissoes: []Permissao{CondominiosHabilitar, SkillsEditarTextos, PedidosEditar, MemoriaEsquecer, GanchosHistorico}},
-		{ID: "construtor_superlogica", HerdaDe: "gestor_administradora", Permissoes: []Permissao{SkillsEditarFluxo, SkillsCriar, SkillsExcluir, FerramentasEditar, CondominiosEditar, StudioAvancado, GanchosEditar}},
+		{ID: "gestor_administradora", HerdaDe: "operador_administradora", Permissoes: []Permissao{CondominiosHabilitar, SkillsEditarTextos, SkillsEditarEtapas, SkillsDecidirAtualizacao, PedidosEditar, MemoriaEsquecer, GanchosHistorico}},
+		{ID: "construtor_superlogica", HerdaDe: "gestor_administradora", Permissoes: []Permissao{SkillsEditarFluxo, SkillsCriar, SkillsExcluir, SkillsPublicarBase, FerramentasEditar, CondominiosEditar, StudioAvancado, GanchosEditar}},
 		{ID: "admin_superlogica", HerdaDe: "construtor_superlogica", Permissoes: []Permissao{AdministradorasEditar, UsuariosEditar}},
 	}
 }
