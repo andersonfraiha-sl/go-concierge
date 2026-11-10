@@ -74,6 +74,17 @@ describe('acesso na barra lateral e no topo', () => {
     expect(await abrirVerComo(user)).toHaveTextContent('Administradora com Avançado');
   });
 
+  it('offersSingleCondominioLogins', async () => {
+    responderCom({ 'GET /api/eu': () => json(base) });
+    const { user } = renderComProvedores(<StudioLayout />);
+
+    await user.click(await abrirVerComo(user));
+    const opcoes = within(screen.getByRole('listbox'));
+
+    expect(opcoes.getByText('Só um condomínio')).toBeInTheDocument();
+    expect(opcoes.getByText('Administradora de um condomínio')).toBeInTheDocument();
+  });
+
   it('showsRetryInsteadOfNoAccessWhenEuFails', async () => {
     responderCom({ 'GET /api/eu': () => json({ codigo: 'X', mensagem: 'falhou' }, 500) });
 
