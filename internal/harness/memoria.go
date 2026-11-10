@@ -12,9 +12,9 @@ import (
 	"go-concierge/internal/memoria"
 )
 
-// Memória relacional no harness: o Contexto da Config leva os fatos conhecidos do
-// contato ao prompt de toda a família, e o ExtratorLLM captura fatos novos a cada
-// troca, com o modelo barato (MODEL_EXTRACT, senão MODEL_CHEAP, senão o do provedor).
+// Memória relacional no harness: o Contexto da Config leva as preferências conhecidas do
+// contato ao prompt de toda a família, e o ExtratorLLM captura preferências novas, só da
+// lista fechada, a cada troca, com o modelo barato (MODEL_EXTRACT, senão MODEL_CHEAP, senão o do provedor).
 
 // SecaoMemoria é o título da seção que entra na instrução de cada agente.
 const SecaoMemoria = "# Memória sobre o morador (fatos que ele mesmo informou em conversas anteriores; use sem perguntar de novo)"
@@ -64,15 +64,16 @@ func NovoExtrator(ctx context.Context, cfg Config) memoria.Extrator {
 	}}
 }
 
-const promptExtrator = `Você mantém a memória do concierge de um condomínio sobre um morador. Dada uma troca
-(mensagem do morador e resposta do concierge), extraia só FATOS DURÁVEIS que o próprio
-morador afirmou sobre si: quantas unidades tem e quais, como prefere ser chamado, pets,
-veículos, pessoas da casa, horários e preferências estáveis, restrições. NÃO extraia:
-pedidos pontuais, perguntas, o assunto da conversa, nada dito pelo concierge, nada incerto.
-Chaves estáveis em snake_case (unidades, nome_preferido, pets, veiculo, horario_preferido,
-familia, restricoes...). Se já existe um fato com a mesma chave e o morador o corrigiu, repita
-a chave com o texto novo. Responda SÓ com JSON: {"fatos":[{"chave":"...","texto":"...","confianca":0.0}]}
-ou {"fatos":[]} quando não houver nada durável.`
+const promptExtrator = `Você mantém as preferências de atendimento de um morador. Dada uma troca (mensagem do
+morador e resposta do concierge), extraia SÓ preferências que o próprio morador afirmou,
+desta lista fechada:
+- nome_preferido: como quer ser chamado (só o nome, até duas palavras)
+- tamanho_resposta: curta | detalhada
+- tratamento: informal | formal
+- formato_boleto: linha_digitavel | pix | link
+Qualquer outra coisa (unidade, pets, família, pedidos, assunto da conversa, o que o
+concierge disse, dado pessoal) NÃO é preferência. Responda SÓ com JSON:
+{"fatos":[{"chave":"...","texto":"...","confianca":0.0}]} ou {"fatos":[]}.`
 
 func (e *ExtratorLLM) Extrair(ctx context.Context, mensagem, resposta string, atual memoria.Memoria) ([]memoria.Fato, error) {
 	var b strings.Builder
@@ -94,8 +95,11 @@ func (e *ExtratorLLM) Extrair(ctx context.Context, mensagem, resposta string, at
 	}
 	var fatos []memoria.Fato
 	for _, f := range out.Fatos {
-		if f.Confianca == 0 || f.Confianca >= 0.6 {
-			fatos = append(fatos, f)
+		if f.Confianca != 0 && f.Confianca < 0.6 {
+			continue
+		}
+		if preferencia, ok := memoria.NormalizarPreferencia(f); ok {
+			fatos = append(fatos, preferencia)
 		}
 	}
 	return fatos, nil
