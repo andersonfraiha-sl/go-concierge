@@ -31,12 +31,14 @@ export function juntarProblemas(
   return [...locais, ...aindaValidos];
 }
 
-/** Primeiro `bN` livre: curto, legível e sem colidir com os IDs que vieram do servidor. */
+/** Aleatório, nunca `bN`: um bloco criado numa camada não colide com outro criado depois na base. */
 export function novoId(blocos: readonly Bloco[]): string {
   const usados = new Set(blocos.map((b) => b.id));
-  let numero = blocos.length + 1;
-  while (usados.has(`b${numero}`)) numero += 1;
-  return `b${numero}`;
+  let id: string;
+  do {
+    id = `e-${crypto.randomUUID().slice(0, 8)}`;
+  } while (usados.has(id));
+  return id;
 }
 
 export function useCatalogoDeFerramentas(): CatalogoDeFerramentas {
