@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// EmMemoria é o Repositorio dos testes: guarda um Mapeamento. Tudo que entra e sai passa por
+// EmMemoria é o Repositorio dos testes e do ensaio de lote da integração: guarda um Mapeamento. Tudo que entra e sai passa por
 // JSON, como no banco: ninguém compartilha mapa com o guardado e os números dos payloads
 // voltam como float64.
 type EmMemoria struct {
@@ -19,6 +19,16 @@ func NovaEmMemoria() *EmMemoria {
 	var m Mapeamento
 	m.normalizar()
 	return &EmMemoria{m: m}
+}
+
+// NovaEmMemoriaCom parte de uma cópia de m: serve ao ensaio de um lote de escritas contra as
+// mesmas regras do repositório real, sem gravar nada.
+func NovaEmMemoriaCom(m Mapeamento) (*EmMemoria, error) {
+	copia, err := clonar(m)
+	if err != nil {
+		return nil, err
+	}
+	return &EmMemoria{m: copia}, nil
 }
 
 func (e *EmMemoria) Ler(context.Context) (Mapeamento, error) {

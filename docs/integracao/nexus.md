@@ -1,13 +1,15 @@
 # Integração com o app concierge do Nexus
 
-O app concierge do Nexus é a tela de administração; o go-concierge é quem executa a conversa. Este documento descreve como o Nexus lê o que o go-concierge tem.
+O app concierge do Nexus é a tela de administração; o go-concierge é quem executa a conversa. Este documento descreve como o Nexus lê o que o go-concierge tem e envia o mapeamento de administradoras e condomínios.
 
 ## tltr
 
-- Uma rota só: `GET /integracao/v1/pacote`, com tudo que o Nexus precisa enxergar.
+- `GET /integracao/v1/pacote` traz tudo que o Nexus precisa enxergar.
+- `PUT /integracao/v1/mapeamento` grava administradoras, condomínios, habilitações, orientações e payloads.
+- Memória e pedidos de um morador saem por consulta, sempre de uma administradora (`/memorias`, `/memoria`, `/pedidos`).
 - Quem chama é o gateway do Nexus, não o navegador. O gateway autentica a pessoa e manda a chave de serviço; o go-concierge não fala com provedor de identidade.
-- Sem `INTEGRACAO_CHAVE` configurada, a rota não existe (404).
-- Dado de morador (conversas, memória, pedidos) fica fora do pacote.
+- Sem `INTEGRACAO_CHAVE` configurada, nenhuma rota existe (404).
+- Dado de morador não vai em lote nem no pacote.
 
 ## Fluxo
 
@@ -71,6 +73,54 @@ Arquivo em `arquivos`:
 
 Pastas e arquivos ocultos ficam fora.
 
+## Escrever o mapeamento
+
+```
+PUT /integracao/v1/mapeamento
+PUT /integracao/v1/mapeamento?administradora=<id>
+Authorization: Bearer <INTEGRACAO_CHAVE>
+```
+
+```json
+{
+  "administradoras": [{"id": "adm-x", "nome": "X"}],
+  "condominios": [{"id": "cond-1", "nome": "Um", "administradora_id": "adm-x", "account": "", "company_id": "", "tenant": ""}],
+  "habilitacoes": {"cond-1": {"boleto": {"habilitado": true, "papeis": []}}},
+  "orientacoes": {"cond-1": {"geral": "", "por_caso": {}}},
+  "payloads": {"cond-1": {"recurso.nome": {}}},
+  "remover": {"condominios": [], "administradoras": [], "habilitacoes": {"cond-1": ["boleto"]}}
+}
+```
+
+Os campos têm a forma do `mapeamento` do pacote: ler, editar e devolver funciona. Todos são opcionais. `"*"` em `habilitacoes`, `orientacoes` e `payloads` é o padrão de todos os condomínios. Payload `null` apaga o do recurso; orientação sem texto apaga a do condomínio. Campo desconhecido no corpo é recusado.
+
+| Resposta | Quando |
+|---|---|
+| 200 `{"aplicados": n}` | tudo gravado |
+| 400 | corpo ou campo inválido, id repetido no lote, mais de 500 itens |
+| 403 | item fora do recorte; nada foi gravado |
+| 409 | conflito de regra (ex.: remover administradora que ainda tem condomínio), id que apareceu no meio |
+| 413 | corpo acima de 1 MiB |
+| 503 | outra escrita do mapeamento aconteceu ao mesmo tempo; reenviar |
+
+- **Ordem.** Administradoras, condomínios, habilitações, orientações, payloads e, por último, remoções (habilitações, condomínios, administradoras).
+- **Validação antes de gravar.** O lote inteiro é conferido (formato, recorte e as regras do Studio contra uma cópia) antes do primeiro item. Erro previsível não deixa o lote pela metade.
+- **Sem transação única.** Cada item é uma escrita própria. Se um falha no meio, a resposta traz `aplicados` (quantos passaram) e `falhou` (qual item, ex.: `condominios[cond-1]`), e o erro vem no mesmo formato das demais rotas.
+- **Reenviar é seguro.** Os itens são upserts e remover o que já não existe não é erro: o mesmo lote duas vezes deixa o mesmo estado.
+- **Recorte.** Com `?administradora=<id>` (ou `ADMINISTRADORA_ID` fixo na implantação, que vence o parâmetro), só entram a própria administradora, condomínios dela e o que é deles. Fora do recorte: outra administradora, o padrão `*`, condomínio de outra (inclusive um existente que o corpo tentaria tomar) e `company_id`/`tenant`, que decidem o roteamento das mensagens e só mudam sem recorte, como no Studio. Sem recorte, vale tudo.
+- **Efeito no turno.** A escrita passa pelo mesmo repositório do Studio e atualiza o cache de mapeamento que o turno lê, sem reiniciar. A leitura seguinte do pacote já traz o novo estado.
+
+## Dado de morador
+
+| Rota | Traz |
+|---|---|
+| `GET /integracao/v1/memorias?administradora=` | contatos com memória |
+| `GET /integracao/v1/memoria?administradora=&phone=` | fatos de um contato |
+| `DELETE /integracao/v1/memoria?administradora=&phone=[&chave=]` | esquece um fato ou todos |
+| `GET /integracao/v1/pedidos?administradora=&phone=` | carteira de pedidos do contato |
+
+`administradora` é obrigatória (400 sem ela; com `ADMINISTRADORA_ID` fixo vale a fixa e outra dá 403). Memória e pedidos são guardados por administradora e telefone, então outra administradora não enxerga o contato. `DELETE` de uma `chave` que não existe responde 404. O telefone da consulta sai mascarado do log, como nas rotas `/api`.
+
 ## Configuração
 
 ```
@@ -81,7 +131,7 @@ O boot recusa chave com menos de 32 caracteres. Gerar: `openssl rand -hex 32`.
 
 ## Fora desta versão
 
-- **Escrita.** O pacote é só leitura. Editar skill, habilitar condomínio e criar regra seguem pelo Studio.
-- **Dado de morador.** Conversas, memória e pedidos saem por consulta recortada por administradora, não em lote.
+- **Escrita do catálogo.** Editar skill, caso de uso e arquivo segue pelo Studio.
+- **Conversas.** Sessões e transcrições não saem pela integração.
 - **Licença do Nexus.** A administradora daqui ainda não guarda o id da licença do Nexus; quem chama passa o id da administradora do go-concierge.
 - **Catálogo em arquivo.** As skills ainda moram em `okf/`. O pacote lê do disco; quando o catálogo for para o Postgres, o contrato não muda.
