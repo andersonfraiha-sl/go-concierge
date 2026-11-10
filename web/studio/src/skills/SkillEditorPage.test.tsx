@@ -85,6 +85,34 @@ describe('SkillEditorPage', () => {
     );
   });
 
+  it('showsPublishForWhoPublishesTheBase', async () => {
+    const quemPublica: Eu = {
+      ...construtor,
+      permissoes: [...construtor.permissoes, 'skills.publicar_base'],
+    };
+    responderCom(rotasDoEditor(quemPublica, []));
+    montar();
+    expect(await screen.findByRole('button', { name: 'Publicar versão' })).toBeInTheDocument();
+  });
+
+  it('hidesPublishWithoutPermission', async () => {
+    responderCom(rotasDoEditor(construtor, []));
+    montar();
+    await screen.findByRole('combobox', { name: 'Versão' });
+    expect(screen.queryByRole('button', { name: 'Publicar versão' })).not.toBeInTheDocument();
+  });
+
+  it('hidesPublishInsideAnAdministradora', async () => {
+    const gestorQuePublica: Eu = {
+      ...gestor,
+      permissoes: [...gestor.permissoes, 'skills.publicar_base'],
+    };
+    responderCom(rotasDoEditor(gestorQuePublica, []));
+    montar();
+    await screen.findByRole('combobox', { name: 'Versão' });
+    expect(screen.queryByRole('button', { name: 'Publicar versão' })).not.toBeInTheDocument();
+  });
+
   /** A janela volta ao foco: a consulta refaz a leitura, como quando um colega editou. */
   const voltarAoFoco = () =>
     act(() => {

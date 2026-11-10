@@ -95,6 +95,8 @@ export const PreviaDaBaseSchema = z.object({
   diferencas: listaDoGo(DiferencaSchema),
 });
 
+export type PreviaDaBase = z.infer<typeof PreviaDaBaseSchema>;
+
 /** `camadas` é quantas camadas receberam a atualização. */
 export const PublicacaoBaseSchema = z.object({ numero: z.number(), camadas: z.number() });
 

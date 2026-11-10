@@ -9,6 +9,7 @@ import {
   type PropsDoCabecalho,
 } from '@/app/detalhe/CabecalhoDeDetalhe';
 import { ESTILO_DO_CONTEUDO_DE_DETALHE } from '@/app/detalhe/LayoutDeDetalhe';
+import { PublicarBase } from '@/camadas/PublicarBase';
 import { SeletorDeCamada } from '@/camadas/SeletorDeCamada';
 import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
@@ -120,6 +121,7 @@ function Editor(props: EditorProps): ReactNode {
         acoes={
           <>
             <SeletorDeCamada skill={nome} />
+            <PublicarBase skill={nome} />
             {estado.tipo !== 'salvo' && (
               <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
             )}
