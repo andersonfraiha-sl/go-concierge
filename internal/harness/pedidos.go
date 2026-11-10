@@ -71,6 +71,11 @@ Regras:
 - só abra um pedido quando um caso de fato cobre o que o morador quer. Serviço que nenhum caso
   oferece (ex.: cadastrar um novo morador, se não há caso para isso) NÃO vira pedido do caso
   "parecido": vai em restante, com as palavras do morador, para o concierge explicar;
+- contestação de cobrança (valor que o morador acha errado, taxa que não reconhece, cobrança
+  indevida, aumento que não entendeu, pedido de discriminação das despesas) NÃO é pedido de
+  boleto nem de débito, mesmo que peça "o boleto correto": vai em restante, com as palavras
+  do morador, para o concierge passar ao atendente. Certidão, negativa, titularidade,
+  aluguel e IPTU também não são boleto nem documentos: vão em restante;
 - se existe um pedido ABERTO do mesmo caso, use o protocolo dele (não abra outro) e ponha em
   valores só o que a mensagem traz; a resposta a uma pergunta em aberto vai no slot da pergunta;
 - valores: use o nome EXATO do slot; datas em AAAA-MM-DD (hoje é %s, amanhã é %s); opções pelo valor ou rótulo;

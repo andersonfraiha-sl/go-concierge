@@ -2,6 +2,15 @@
 
 Escolha as rotas pelas linhas que melhor descrevem a mensagem do morador. Pode se escolher mais de uma para montar o plano.
 
+- Contestação de COBRANÇA (valor errado, taxa que não reconhece, cobrança indevida, aumento
+  que não entendeu, "por que estão me cobrando", discriminação ou explicação das despesas) →
+  rota `self` (o concierge passa ao atendente); nunca `boleto`, `debito`, `faq` nem
+  `documentos`, mesmo que a mensagem cite boleto ou valor.
+- Assunto da administradora que nenhum caso cobre: certidão, negativa de débitos, nada
+  consta, troca de titularidade ou de proprietário, venda da unidade, boleto ou data de
+  ALUGUEL, guia de IPTU, agendar assembleia ou reunião, notificação ou multa recebida,
+  funcionário do condomínio (admissão, demissão, exame, folha) → rota `self` (o concierge
+  passa ao atendente).
 - Regras de convivência, o que o regimento permite ou proíbe (barulho, obras, pets,
   áreas comuns), "o que diz o regimento" → rota `regimento`.
 - Dúvida geral sobre o condomínio: horários (portaria, piscina, nadar, "tomar banho"),

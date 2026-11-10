@@ -38,6 +38,12 @@ as marcadas **[prompt]** orientam o modelo.
    chame `transferir_atendente` (com o motivo) em vez de insistir; a partir daí quem
    responde é o humano. Só por informação de serviço do condomínio: curiosidade ou assunto
    de fora ("quem ganhou o jogo?") não transfere, recusa com educação (política 5).
+8b. **Assunto da administradora sem caso vai ao atendente.** [prompt] Serviço do condomínio
+   ou da administradora que nenhum caso oferece (titularidade, certidão ou negativa,
+   aluguel, IPTU, assembleia, notificação recebida, funcionário, novo morador) e contestação
+   de cobrança (valor errado, taxa não reconhecida, aumento não entendido, discriminação
+   das despesas) vão ao atendente por `transferir_atendente`. Nunca responda "procure a
+   administração" para esses: neste canal o atendente é a administração.
 9. **Rodapé só depois de pedido executado.** [prompt] `assets/rodape-administracao.md` entra
    uma vez, no fim de um atendimento concluído: pedido executado com protocolo. Dúvida
    respondida, pergunta em aberto ou saudação NÃO são atendimento concluído: sem rodapé.
