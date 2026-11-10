@@ -9,6 +9,11 @@ package harness
 //	           turno vai direto ao item pendente); no fim, uma resposta consolidada.
 //	react    — loop pensar → agir → observar com um checklist: uma ação por passo (caso,
 //	           recurso, perguntar, responder, encerrar), observação a cada ação.
+//	replan   — planning com um laço de refinamento (plan-and-execute / reflexão): monta o
+//	           TODO e executa como o planning; no fim, se algum item FALHOU ou ficou
+//	           BLOQUEADO e ainda há orçamento (max_iteracoes), re-planeja só o que ficou
+//	           aberto e tenta outras opções — nunca uma ação já tentada — até resolver,
+//	           esgotar as opções ou o orçamento; então consolida. Apelido aceito: "art".
 //
 // Diferença para o roteador: vários pedidos numa mensagem viram vários itens, e a
 // pendência (qual item espera o morador) fica no Plano, guardado pela sessão, em vez
@@ -17,10 +22,10 @@ package harness
 // Configuração no agent.yaml do orquestrador (ORQUESTRACAO_MODO no ambiente vence):
 //
 //	orquestracao:
-//	  modo: planning          # router | planning | react
+//	  modo: planning          # router | planning | react | replan
 //	  bind_confidence: 0.8    # abaixo disso o item vira pergunta ao morador
 //	  max_itens: 5
-//	  max_iteracoes: 6        # react
+//	  max_iteracoes: 6        # react e replan (teto de passos / rodadas de refinamento)
 
 import (
 	"context"
@@ -39,6 +44,7 @@ const (
 	ModoRouter   = "router"
 	ModoPlanning = "planning"
 	ModoReAct    = "react"
+	ModoReplan   = "replan"
 
 	AlvoSelf   = "self"
 	AlvoNenhum = "nenhum"
@@ -91,7 +97,10 @@ func OrquestracaoDe(a *okf.Agent, env func(string) string) Orquestracao {
 			o.Modo = v
 		}
 	}
-	if o.Modo != ModoPlanning && o.Modo != ModoReAct {
+	if o.Modo == "art" || o.Modo == "planning-loop" {
+		o.Modo = ModoReplan // apelidos do modo replan
+	}
+	if o.Modo != ModoPlanning && o.Modo != ModoReAct && o.Modo != ModoReplan {
 		o.Modo = ModoRouter
 	}
 	return o
@@ -349,6 +358,109 @@ func (ag *Agente) vincular(it *Item, bind float64) {
 	it.Status = StatusPendente
 }
 
+// ---- replan (refinamento) ----------------------------------------------------------
+
+const promptReplan = `Você é o ORQUESTRADOR do concierge de um condomínio (WhatsApp), em modo REPLAN (refinamento).
+O plano já rodou uma vez. Olhe o que foi FEITO, o que FALHOU e o que ficou BLOQUEADO e proponha SÓ os
+passos ADICIONAIS que ainda faltam para atender o morador. Responda SÓ com JSON:
+{"itens":[{"id":"r1","texto":"o que fazer","alvo":"nome de uma opção abaixo","confianca":0.0,"params":{}}]}
+Regras:
+- devolva "itens" VAZIO se não há mais nada possível ou necessário (o que falhou será explicado ao morador);
+- NÃO repita uma ação já tentada (as opções já usadas estão no estado abaixo); tente outra opção só se ajudar;
+- alvo é EXATAMENTE o nome de um caso de uso ou recurso abaixo; aqui não há "self" nem "nenhum";
+- casos de uso perguntam os próprios dados (unidade, data, período): não peça isso; não invente dados;
+- no máximo %d itens novos.
+
+## Opções (casos de uso e recursos de leitura)
+%s`
+
+// temItensAbertos diz se algum item falhou ou ficou bloqueado com um alvo — o gatilho do
+// laço de refinamento do replan. Item "nenhum" (nada atende) não conta: refinar não ajuda.
+func temItensAbertos(p *Plano) bool {
+	for _, it := range p.Itens {
+		if it.Status == StatusFalhou {
+			return true
+		}
+		if it.Status == StatusBloqueado && it.Alvo != AlvoNenhum {
+			return true
+		}
+	}
+	return false
+}
+
+// acoesTentadas são os vínculos (caso/recurso + alvo) que o plano já tentou, com qualquer
+// resultado. O replan nunca os repete: o conjunto de ações novas só diminui, então o laço
+// termina mesmo que o modelo insista — além do teto de max_iteracoes.
+func acoesTentadas(p *Plano) map[string]bool {
+	m := map[string]bool{}
+	for _, it := range p.Itens {
+		if (it.Tipo == TipoCaso || it.Tipo == TipoRecurso) && it.Alvo != "" {
+			m[it.Tipo+"|"+it.Alvo] = true
+		}
+	}
+	return m
+}
+
+// replanejar olha o estado do plano e propõe passos adicionais para o que ficou aberto.
+// Devolve só itens acionáveis (caso/recurso ainda não tentados), já vinculados e pendentes;
+// lista vazia encerra o laço. self, nenhum, alvo desconhecido ou ação repetida são descartados.
+func (ag *Agente) replanejar(ctx context.Context, o Orquestracao, p *Plano, historico []*schema.Message) ([]Item, Uso, error) {
+	var uso Uso
+	sys := ag.cabecalhoPersona() + fmt.Sprintf(promptReplan, o.MaxItens, opcoes(ag.candidatos()))
+	var b strings.Builder
+	fmt.Fprintf(&b, "Pedido do morador: %s\n\nEstado do plano:\n", p.Pedido)
+	for _, it := range p.Itens {
+		if it.Tipo == "pergunta" {
+			continue
+		}
+		fmt.Fprintf(&b, "- [%s] %s", it.Status, strings.TrimSpace(it.Texto))
+		if it.Alvo != "" && it.Alvo != AlvoNenhum && it.Alvo != AlvoSelf {
+			fmt.Fprintf(&b, " (via %s)", it.Alvo)
+		}
+		if det := strings.TrimSpace(it.Resultado); det != "" {
+			fmt.Fprintf(&b, " → %s", corta(det, 160))
+		}
+		b.WriteByte('\n')
+	}
+	if len(p.Observacoes) > 0 {
+		b.WriteString("\nObservações:\n- " + strings.Join(p.Observacoes, "\n- ") + "\n")
+	}
+	msgs := []*schema.Message{schema.SystemMessage(sys)}
+	msgs = append(msgs, ultimas(historico, 4)...)
+	msgs = append(msgs, schema.UserMessage(b.String()))
+	out, err := ag.modelo.Generate(ctx, msgs)
+	if err != nil {
+		return nil, uso, fmt.Errorf("harness: replan de %s: %w", ag.Def.Rel, err)
+	}
+	uso.registra(out)
+	var raw rawPlano
+	if err := json.Unmarshal([]byte(extrairJSON(out.Content)), &raw); err != nil {
+		return nil, uso, fmt.Errorf("harness: replan de %s: plano inválido: %w", ag.Def.Rel, err)
+	}
+	tentadas := acoesTentadas(p)
+	var novos []Item
+	for i, it := range raw.Itens {
+		if len(novos) >= o.MaxItens {
+			break
+		}
+		item := Item{ID: strings.TrimSpace(it.ID), Texto: strings.TrimSpace(it.Texto), Alvo: strings.TrimSpace(it.Alvo), Confianca: it.Confianca, Params: it.Params, Status: StatusPendente}
+		if item.ID == "" {
+			item.ID = fmt.Sprintf("r%d-%d", p.Iteracao, i+1)
+		}
+		ag.vincular(&item, 0) // no refinamento o modelo já escolheu; só conferimos o nome
+		if item.Tipo != TipoCaso && item.Tipo != TipoRecurso {
+			continue // self, nenhum ou alvo desconhecido não entram no laço
+		}
+		chave := item.Tipo + "|" + item.Alvo
+		if tentadas[chave] {
+			continue // ação já tentada: pular evita laço
+		}
+		tentadas[chave] = true // nem o próprio replan propõe a mesma ação duas vezes
+		novos = append(novos, item)
+	}
+	return novos, uso, nil
+}
+
 // ---- react -----------------------------------------------------------------------
 
 const promptReAct = `Você é o ORQUESTRADOR do concierge de um condomínio (WhatsApp), em modo ReAct.
@@ -580,11 +692,12 @@ func (ag *Agente) orquestrar(ctx context.Context, col *coletor, o Orquestracao, 
 	var uso Uso
 	var err error
 	switch o.Modo {
-	case ModoPlanning:
+	case ModoPlanning, ModoReplan:
 		p, uso, err = ag.planejar(ctx, o, mensagem, historico)
 		if err != nil {
 			return nil, err
 		}
+		p.Modo = o.Modo // planejar marca planning; replan guarda o laço de refinamento
 		col.uso.soma(uso)
 		col.passo(rel, "plano", fmt.Sprintf("TODO com %d item(ns), %d pergunta(s)", len(p.Itens), len(p.Perguntas)))
 	default:
@@ -602,9 +715,12 @@ func Continuar(ctx context.Context, ag *Agente, p *Plano, mensagem string, histo
 	col := &coletor{mensagem: mensagem, transbordo: new(string)}
 	ctx = context.WithValue(ctx, chaveColetor{}, col)
 	o := OrquestracaoDe(ag.Def, ag.cfg.env)
-	if p.Modo == ModoReAct {
+	switch p.Modo {
+	case ModoReAct:
 		o.Modo = ModoReAct
-	} else {
+	case ModoReplan:
+		o.Modo = ModoReplan
+	default:
 		o.Modo = ModoPlanning
 	}
 	rel := ag.Def.Rel
@@ -634,7 +750,7 @@ func Continuar(ctx context.Context, ag *Agente, p *Plano, mensagem string, histo
 // passos até encerrar. Para quando um item fica aguardando o morador.
 func (ag *Agente) avancar(ctx context.Context, col *coletor, o Orquestracao, p *Plano, mensagem string, historico []*schema.Message, continuacao bool) (*Resultado, error) {
 	rel := ag.Def.Rel
-	if o.Modo == ModoPlanning {
+	if o.Modo == ModoPlanning || o.Modo == ModoReplan {
 		// perguntas de escolha, todas de uma vez, antes de executar (ask once)
 		if len(p.Perguntas) > 0 && p.Iteracao == 0 {
 			p.Iteracao++
@@ -653,22 +769,45 @@ func (ag *Agente) avancar(ctx context.Context, col *coletor, o Orquestracao, p *
 			p.Pendente, p.Status = it.ID, PlanoAguardando
 			return ag.resultadoPendente(col, p, q, historico), nil
 		}
-		for i := range p.Itens {
-			it := &p.Itens[i]
-			if it.Status != StatusPendente {
-				continue
+		// planning executa os itens uma vez; replan repete executar → refinar enquanto algum
+		// item ficou aberto (falhou/bloqueado) e ainda há orçamento de iterações.
+		for {
+			for i := range p.Itens {
+				it := &p.Itens[i]
+				if it.Status != StatusPendente {
+					continue
+				}
+				texto := it.Texto
+				if texto == "" {
+					texto = mensagem
+				}
+				q, err := ag.executarItem(ctx, col, p, it, texto, historico)
+				if err != nil {
+					return nil, err
+				}
+				if q != "" {
+					return ag.resultadoPendente(col, p, q, historico), nil
+				}
 			}
-			texto := it.Texto
-			if texto == "" {
-				texto = mensagem
+			if o.Modo == ModoPlanning || !temItensAbertos(p) {
+				break
 			}
-			q, err := ag.executarItem(ctx, col, p, it, texto, historico)
+			if p.Iteracao >= o.MaxIteracoes {
+				col.passo(rel, "aviso", "replan: máximo de refinamentos atingido; consolidando o que há")
+				break
+			}
+			p.Iteracao++
+			novos, uso, err := ag.replanejar(ctx, o, p, historico)
 			if err != nil {
 				return nil, err
 			}
-			if q != "" {
-				return ag.resultadoPendente(col, p, q, historico), nil
+			col.uso.soma(uso)
+			if len(novos) == 0 {
+				col.passo(rel, "replan", fmt.Sprintf("refinamento %d: nada mais a tentar; consolidando", p.Iteracao))
+				break
 			}
+			p.Itens = append(p.Itens, novos...)
+			col.passo(rel, "replan", fmt.Sprintf("refinamento %d: %d novo(s) passo(s) para o que ficou aberto", p.Iteracao, len(novos)))
 		}
 		return ag.concluir(ctx, col, p, historico, continuacao)
 	}

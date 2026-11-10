@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -69,6 +70,12 @@ func TestOrquestracaoDe(t *testing.T) {
 	}
 	if o := OrquestracaoDe(a, envModo("react")); o.Modo != ModoReAct {
 		t.Fatalf("ORQUESTRACAO_MODO devia vencer o agent.yaml: %+v", o)
+	}
+	if o := OrquestracaoDe(a, envModo("replan")); o.Modo != ModoReplan {
+		t.Fatalf("modo replan devia valer: %+v", o)
+	}
+	if o := OrquestracaoDe(a, envModo("art")); o.Modo != ModoReplan {
+		t.Fatalf("apelido art devia virar replan: %+v", o)
 	}
 	if o := OrquestracaoDe(&okf.Agent{Config: map[string]any{"orquestracao": map[string]any{"modo": "xpto", "bind_confidence": 5}}}, semEnv); o.Modo != ModoRouter || o.BindConfidence != 0.8 {
 		t.Fatalf("modo desconhecido e valor fora da faixa caem no padrão: %+v", o)
@@ -221,6 +228,96 @@ func TestPlanningPerguntaAntesDeExecutar(t *testing.T) {
 	}
 	if it := r2.Plano.item("t1"); it == nil || !strings.Contains(it.Resultado, "João liberado") {
 		t.Fatalf("o caso devia ver a resposta do morador: %+v", r2.Plano.Itens)
+	}
+}
+
+// Replan: o planning monta o TODO, um item falha (recurso fora do ar); o laço de
+// refinamento re-planeja só o que ficou aberto, tenta outra opção (um caso de uso) e,
+// sem mais nada a tentar, consolida. Uma ação já tentada não se repete.
+func TestReplanRefina(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	replanN := 0
+	script := &roteiro{resposta: func(sistema, usuario, primeiroUsuario string) string {
+		switch {
+		case strings.Contains(sistema, "modo PLANNING"):
+			return `{"itens":[{"id":"t1","texto":"horário de obras pelo FAQ","alvo":"faq.buscar","confianca":0.95,"params":{"pergunta":"horário de obras"}}],"perguntas":[],"instrucao_final":"responda sobre obras"}`
+		case strings.Contains(sistema, "modo REPLAN"):
+			replanN++
+			if replanN == 1 {
+				if !strings.Contains(usuario, "[falhou] horário de obras") {
+					return `{"itens":[]}` // o estado do que falhou precisa chegar ao replan
+				}
+				return `{"itens":[{"id":"r1","texto":"consultar o regimento sobre obras","alvo":"regimento","confianca":1}]}`
+			}
+			return `{"itens":[]}` // nada mais a tentar: encerra o laço
+		case strings.Contains(sistema, "Redija a resposta final"):
+			return "CONSOLIDADO"
+		}
+		return "Obras só em dias úteis, das 8h às 18h (art. 12)."
+	}}
+	faq := func(_ context.Context, _ map[string]any) (any, error) {
+		return nil, fmt.Errorf("FAQ fora do ar")
+	}
+	cfg := Config{ChatModel: script, Env: envModo("replan"), Identidade: Identidade{Authenticated: true, AccountID: "cond-001"},
+		Locais: map[string]func(context.Context, map[string]any) (any, error){"faq.buscar": faq}}
+	ag, err := Build(context.Background(), cat, a, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Run(context.Background(), ag, "qual o horário de obras?", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Plano == nil || r.Plano.Status != PlanoConcluido {
+		t.Fatalf("replan devia concluir: %+v", r.Plano)
+	}
+	if t1 := r.Plano.item("t1"); t1 == nil || t1.Status != StatusFalhou {
+		t.Fatalf("t1 (faq) devia falhar: %+v", r.Plano.Itens)
+	}
+	r1 := r.Plano.item("r1")
+	if r1 == nil || r1.Status != StatusFeito || r1.Alvo != "regimento" || !strings.Contains(r1.Resultado, "dias úteis") {
+		t.Fatalf("o refinamento devia resolver pelo regimento: %+v", r.Plano.Itens)
+	}
+	if replanN < 2 {
+		t.Fatalf("o replan devia rodar de novo e então parar sem nova ação; rodadas=%d", replanN)
+	}
+	if !temPasso(r.Rota, "modo", "replan") || !temPasso(r.Rota, "replan", "novo(s) passo(s)") {
+		t.Fatalf("trace devia ter modo replan e um refinamento: %+v", r.Rota)
+	}
+	if r.Resposta != "CONSOLIDADO" {
+		t.Fatalf("resposta consolidada: %q", r.Resposta)
+	}
+}
+
+// Replan: nada falha — o laço não dispara e o modo se comporta como o planning (um ciclo).
+func TestReplanSemAbertosNaoLoopa(t *testing.T) {
+	cat, a := catalogoExemplo(t)
+	replanN := 0
+	script := &roteiro{resposta: func(sistema, usuario, primeiroUsuario string) string {
+		switch {
+		case strings.Contains(sistema, "modo PLANNING"):
+			return `{"itens":[{"id":"t1","texto":"pode churrasco?","alvo":"self","confianca":1}],"perguntas":[],"instrucao_final":"responda"}`
+		case strings.Contains(sistema, "modo REPLAN"):
+			replanN++
+			return `{"itens":[]}`
+		case strings.Contains(sistema, "Redija a resposta final"):
+			return "CONSOLIDADO"
+		}
+		return "?"
+	}}
+	ag, err := Build(context.Background(), cat, a, Config{ChatModel: script, Env: envModo("replan"), Identidade: Identidade{Authenticated: true, AccountID: "cond-001"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Run(context.Background(), ag, "pode churrasco?", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Plano == nil || r.Plano.Status != PlanoConcluido || r.Resposta != "CONSOLIDADO" {
+		t.Fatalf("replan sem abertos devia concluir num ciclo: %q %+v", r.Resposta, r.Plano)
+	}
+	if replanN != 0 {
+		t.Fatalf("sem item aberto o laço de refinamento não devia rodar; rodadas=%d", replanN)
 	}
 }
 
