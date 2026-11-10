@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>TechMeNow — Benchmark do concierge com conversas reais do ATENDE</title>
+<style>
+  :root{
+    --navy:#222C5E; --red:#E53D3E; --ink:#1f2937; --muted:#6b7280;
+    --hair:#e5e7eb; --green:#1a7f5a; --green-bg:#d7f0e4;
+    --pink-bg:#fdf0f0; --card-border:#e5e7eb; --term-bg:#0f1524;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  @page{size:Letter;margin:42px}
+  html,body{background:#fff}
+  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--ink);
+       font-size:10.5pt;line-height:1.48;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .mono{font-family:Consolas,"Courier New",monospace}
+  .page-pad{padding:0 36px}
+  b,strong{color:var(--navy)}
+  .cover{margin:0;background:var(--navy);color:#fff;padding:56px 40px 48px;
+         position:relative;overflow:hidden}
+  .cover .grid{position:absolute;inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:68px 68px}
+  .cover>*{position:relative}
+  .logo{font-size:20pt;font-weight:700;letter-spacing:-.5px}
+  .logo .now{color:var(--red)}
+  .cover .eyebrow{margin-top:48px;color:var(--red);font-weight:700;font-size:9pt;letter-spacing:3px}
+  .cover h1{margin-top:22px;font-size:29pt;line-height:1.15;font-weight:700;color:#fff}
+  .cover .sub{margin-top:26px;font-size:12.5pt;color:#cdd3ea;max-width:470px;line-height:1.55}
+  .cover .meta{margin-top:46px;display:flex;gap:44px}
+  .cover .meta .lb{color:#8f97c0;font-size:8pt;letter-spacing:2px}
+  .cover .meta .vl{color:#fff;font-weight:700;font-size:9pt;letter-spacing:1px;margin-top:8px}
+  .stats{display:flex;gap:18px;margin:36px 36px 0}
+  .stat{flex:1;border:1px solid var(--card-border);border-radius:10px;text-align:center;
+        padding:24px 10px 20px;background:#fff}
+  .stat .n{font-size:26pt;font-weight:700;color:var(--navy)}
+  .stat .l{font-size:7.5pt;letter-spacing:1.5px;color:var(--muted);margin-top:8px;line-height:1.6}
+  .stat.fill{background:var(--navy);border-color:var(--navy)}
+  .stat.fill .n,.stat.fill .l{color:#fff}
+  .stat .n.red{color:var(--red)}
+  .sect{break-before:page;padding-top:8px}
+  .eyebrow{color:var(--red);font-weight:700;font-size:9pt;letter-spacing:3px}
+  h2{color:var(--navy);font-size:17pt;margin-top:12px;line-height:1.25}
+  .sect .sub{color:var(--muted);margin-top:10px}
+  .card{border:1px solid var(--card-border);border-radius:14px;padding:20px 26px 12px;
+        margin-top:18px;box-shadow:0 1px 2px rgba(0,0,0,.03);break-inside:avoid;page-break-inside:avoid}
+  .card .head{display:flex;align-items:flex-start;gap:16px;padding-bottom:13px;
+              border-bottom:1px solid var(--hair)}
+  .badge{border:1.5px solid var(--red);color:var(--red);border-radius:8px;
+         font-size:8pt;font-weight:700;letter-spacing:.5px;padding:5px 10px;white-space:nowrap;
+         font-family:Consolas,monospace}
+  .card .title{font-weight:700;color:var(--navy);font-size:12pt;line-height:1.35;flex:1}
+  .pill{font-size:7.5pt;font-weight:700;letter-spacing:.5px;padding:5px 12px;border-radius:9px;
+        white-space:nowrap;font-family:Consolas,monospace}
+  .pill.ok{color:var(--green);background:var(--green-bg)}
+  .pill.warn{color:var(--red);background:var(--pink-bg)}
+  .row{display:flex;gap:16px;padding:10px 0;border-bottom:1px solid var(--hair)}
+  .row:last-child{border-bottom:none}
+  .row .lb{width:100px;flex:none;color:var(--muted);font-size:8pt;letter-spacing:.5px;
+           font-family:Consolas,monospace;padding-top:3px}
+  .row .tx{flex:1}
+  .num{font-family:Consolas,monospace;color:var(--green);font-weight:700;font-size:10.5pt}
+  .checks{display:grid;grid-template-columns:1fr 1fr;column-gap:36px;margin-top:26px}
+  .chk{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--hair);align-items:baseline}
+  .chk .ic{color:#18a05e;font-weight:700}
+  .chk .ic.diamond{color:var(--navy)}
+  .chk .no{font-family:Consolas,monospace;font-size:8.5pt;color:var(--muted)}
+  .ressalva{background:var(--pink-bg);border-left:4px solid var(--red);border-radius:0 12px 12px 0;
+            padding:16px 24px;margin-top:16px;break-inside:avoid}
+  .ressalva .rt{color:var(--red);font-weight:700;font-size:8.5pt;letter-spacing:2px;
+                font-family:Consolas,monospace}
+  .ressalva p{margin-top:8px}
+  table.idx{width:100%;border-collapse:collapse;margin-top:22px;font-size:9.5pt}
+  table.idx th{text-align:left;font-family:Consolas,monospace;font-size:7.5pt;letter-spacing:1.2px;
+               color:var(--muted);font-weight:700;padding:0 10px 9px 0;border-bottom:1px solid var(--hair)}
+  table.idx td{padding:7px 10px 7px 0;border-bottom:1px solid var(--hair);vertical-align:top}
+  table.idx td.n{font-family:Consolas,monospace;color:var(--muted);font-size:8.5pt}
+  table.idx td.v{font-family:Consolas,monospace;font-size:9pt;white-space:nowrap}
+  table.idx td.v.best{color:var(--green);font-weight:700}
+  table.idx td.v.bad{color:var(--red);font-weight:700}
+  table.idx tr.grp td{font-family:Consolas,monospace;font-size:7.5pt;letter-spacing:1.5px;color:var(--red);
+               font-weight:700;padding-top:14px}
+  table.cmp td,table.cmp th{padding-top:5px;padding-bottom:5px}
+  h3{color:var(--navy);font-size:14pt;margin-top:44px}
+  .next p{margin-top:14px}
+  .footer{margin:48px 0 0;background:var(--navy);color:#fff;padding:30px 40px;
+          display:flex;align-items:center;justify-content:space-between;break-inside:avoid}
+  .footer .fmeta{text-align:right;font-family:Consolas,monospace;font-size:8.5pt;
+                 letter-spacing:1.5px;color:#cdd3ea;line-height:2}
+  .footer .fmeta b{color:#fff}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="grid"></div>
+  <div class="logo">TechMe<span class="now">Now</span></div>
+  <div class="eyebrow mono">BENCHMARK · CONCIERGE × ATENDE</div>
+  <h1>100 pedidos reais de<br>moradores, três rodadas</h1>
+  <p class="sub">Simulação do concierge de condomínio com pedidos tirados das conversas do ATENDE
+  de outubro/2026: 50 que os agentes deveriam resolver e 50 que deveriam ir ao atendente.
+  Compara o modelo local, o Luna e o Luna com a política de transbordo corrigida.</p>
+  <div class="meta mono">
+    <div><div class="lb">AMBIENTE</div><div class="vl">BANCADA LOCAL</div></div>
+    <div><div class="lb">AMOSTRA</div><div class="vl">100 CASOS · OUT/2026</div></div>
+    <div><div class="lb">EMITIDO EM</div><div class="vl">10 / 11 / 2026</div></div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat fill"><div class="n">88%</div><div class="l mono">ACERTO TOTAL<br>LUNA, POLÍTICA NOVA</div></div>
+  <div class="stat"><div class="n">47/50</div><div class="l mono">TRANSBORDO<br>CERTO (ERA 35)</div></div>
+  <div class="stat"><div class="n">41/50</div><div class="l mono">RESOLVE NO<br>AGENTE CERTO</div></div>
+  <div class="stat"><div class="n red">12</div><div class="l mono">ERROS<br>RESTANTES</div></div>
+</div>
+
+<div class="page-pad">
+
+  <div class="sect">
+    <div class="eyebrow mono">PANORAMA</div>
+    <h2>A política nova levou o Luna de 75% para 88%</h2>
+    <p style="margin-top:14px">Rodamos os mesmos 100 casos em três configurações. O ganho veio quase todo do
+    grupo de <b>transbordo</b>: antes, o concierge recusava com "procure a administração" assuntos que
+    são da administradora (titularidade, certidão, aluguel, IPTU, contestação de cobrança). Agora passa
+    a conversa ao atendente. O transbordo certo subiu de <b>35 para 47 em 50</b>, e as 8 contestações de
+    cobrança foram todas ao atendente.</p>
+    <p style="margin-top:12px">No grupo <b>resolve</b>, 41 de 50 pedidos chegaram ao agente certo, mas
+    <b>37 deles sem o dado</b>: a bancada não tem a Gruvi, então nenhum morador é identificado e a consulta
+    privada (boleto, débito, cadastro) é barrada pelo gancho de privacidade. Isso mede o roteamento, não a
+    resposta final. O modelo local não serve para produção.</p>
+    <table class="idx cmp">
+      <tr><th>MEDIDA</th><th>LOCAL QWEN 7B</th><th>LUNA</th><th>LUNA, POLÍTICA NOVA</th></tr>
+      <tr><td>Resolve: chegou ao agente certo</td><td class="v">36/50</td><td class="v">40/50</td><td class="v best">41/50</td></tr>
+      <tr><td>↳ sem dado (morador não identificado)</td><td class="v">33</td><td class="v">36</td><td class="v">37</td></tr>
+      <tr><td>Transbordo: passou ao atendente</td><td class="v">30/50</td><td class="v">35/50</td><td class="v best">47/50</td></tr>
+      <tr><td>Total (rota certa)</td><td class="v">66%</td><td class="v">75%</td><td class="v best">88%</td></tr>
+      <tr><td>Acerto limpo (sem nenhum problema)</td><td class="v">45%</td><td class="v">39%</td><td class="v best">54%</td></tr>
+      <tr><td>Latência p50 / p95</td><td class="v">9,7 s / 59,9 s</td><td class="v">21,6 s / 51,2 s</td><td class="v best">15,8 s / 23,7 s</td></tr>
+      <tr><td>Termos internos vazados ao morador</td><td class="v bad">8</td><td class="v">0</td><td class="v">0</td></tr>
+      <tr><td>Erros de ferramenta</td><td class="v bad">6</td><td class="v">0</td><td class="v">0</td></tr>
+    </table>
+    <p style="margin-top:14px;color:var(--muted);font-size:9pt">Acerto limpo desconta os casos sem dado: o
+    concierge responde que não conseguiu consultar, o que conta como problema técnico.</p>
+  </div>
+
+  <div class="sect">
+    <div class="eyebrow mono">BLOCO 1 · CONCIERGE × ATENDE</div>
+    <h2>O que mudaria para o morador</h2>
+    <p class="sub">Cada caso aponta a conversa de origem no export do ATENDE e o desfecho dela lá.</p>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">GANHO 1</span>
+      <span class="title">Morador que o ATENDE deixou sem ninguém agora chega ao atendente</span>
+      <span class="pill ok">23 DE 23</span>
+    </div>
+    <div class="row"><div class="lb">SITUAÇÃO</div><div class="tx">Dos 50 pedidos que precisavam de humano, <b>23 fecharam no ATENDE sem
+      atendente</b>: o morador desistiu, ficou preso no menu ou a conversa encerrou por inatividade.
+      No export isso aparece como "bot resolveu".</div></div>
+    <div class="row"><div class="lb">MEDIDO</div><div class="tx">Concierge passou ao atendente: <span class="num">16 → 23 de 23</span> (Luna → Luna com política nova).</div></div>
+    <div class="row"><div class="lb">EFEITO</div><div class="tx">Nenhum desses pedidos ficaria sem resposta.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">GANHO 2</span>
+      <span class="title">Pedidos que no ATENDE ocuparam um atendente e o concierge resolve</span>
+      <span class="pill ok">17 DE 24</span>
+    </div>
+    <div class="row"><div class="lb">SITUAÇÃO</div><div class="tx">Dos 50 pedidos resolvíveis, <b>24 foram para um humano</b> no ATENDE
+      (boleto, comprovante, visitante, regimento, chamado).</div></div>
+    <div class="row"><div class="lb">MEDIDO</div><div class="tx">O concierge levou <span class="num">17 de 24</span> ao agente certo, sem
+      transbordo. Nos 26 que o ATENDE resolveu sem humano, acertou <span class="num">24 de 26</span>.</div></div>
+    <div class="row"><div class="lb">RESSALVA</div><div class="tx">"Resolver" aqui é rotear certo. A resposta com o dado do morador
+      depende da Gruvi, que a bancada não tem (Ressalva 1).</div></div>
+  </div>
+
+  <div class="sect">
+    <div class="eyebrow mono">BLOCO 2 · POLÍTICA DE TRANSBORDO</div>
+    <h2>O que mudou e o efeito em cada intenção</h2>
+    <p class="sub">Arquivos: okf/agentes/concierge (workflow, políticas, roteador) e o detector de pedidos.</p>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">POLÍTICA 8B</span>
+      <span class="title">Assunto da administradora sem caso vai ao atendente, não a "procure a administração"</span>
+      <span class="pill ok">IMPLEMENTADO</span>
+    </div>
+    <div class="row"><div class="lb">CAUSA-RAIZ</div><div class="tx">O fluxo do concierge mandava recusar "serviço que nenhum caso oferece" e indicar
+      a administração. Mas, neste canal, <b>o atendente é a administração</b>.</div></div>
+    <div class="row"><div class="lb">CORREÇÃO</div><div class="tx">O concierge passa ao atendente: titularidade, certidão ou negativa, aluguel,
+      IPTU, assembleia, notificação recebida, funcionário e novo morador. Curiosidade de fora do condomínio
+      continua sendo recusada.</div></div>
+    <div class="row"><div class="lb">CORREÇÃO</div><div class="tx"><b>Contestação de cobrança</b> (valor errado, taxa não reconhecida, discriminação das
+      despesas) vai ao atendente. O roteador não manda mais para boleto, débito, FAQ ou documentos, e o
+      detector de pedidos não abre pedido de boleto para ela.</div></div>
+  </div>
+
+  <table class="idx cmp">
+    <tr><th>INTENÇÃO (TRANSBORDO)</th><th>CASOS</th><th>LOCAL</th><th>LUNA</th><th>LUNA, POLÍTICA NOVA</th></tr>
+    <tr><td>Contestação de cobrança</td><td class="n">8</td><td class="v">4</td><td class="v">4</td><td class="v best">8</td></tr>
+    <tr><td>Titularidade / troca de dono</td><td class="n">6</td><td class="v">4</td><td class="v">3</td><td class="v best">5</td></tr>
+    <tr><td>Certidão / negativa</td><td class="n">5</td><td class="v">1</td><td class="v">3</td><td class="v best">5</td></tr>
+    <tr><td>Aluguel</td><td class="n">5</td><td class="v">3</td><td class="v">3</td><td class="v best">5</td></tr>
+    <tr><td>Falar com alguém</td><td class="n">5</td><td class="v">5</td><td class="v">5</td><td class="v best">5</td></tr>
+    <tr><td>Acesso ao app</td><td class="n">4</td><td class="v">4</td><td class="v">4</td><td class="v best">4</td></tr>
+    <tr><td>Acordo de débito</td><td class="n">4</td><td class="v">2</td><td class="v">4</td><td class="v best">4</td></tr>
+    <tr><td>Cancelar reserva</td><td class="n">3</td><td class="v">1</td><td class="v">3</td><td class="v bad">1</td></tr>
+    <tr><td>Assembleia / gestão</td><td class="n">3</td><td class="v">2</td><td class="v">2</td><td class="v best">3</td></tr>
+    <tr><td>Departamento pessoal / fiscal</td><td class="n">3</td><td class="v">2</td><td class="v">2</td><td class="v best">3</td></tr>
+    <tr><td>Notificação recebida</td><td class="n">2</td><td class="v">2</td><td class="v">1</td><td class="v best">2</td></tr>
+    <tr><td>Outras cobranças (IPTU)</td><td class="n">2</td><td class="v">0</td><td class="v">1</td><td class="v best">2</td></tr>
+  </table>
+
+  <div class="sect">
+    <div class="eyebrow mono">BLOCO 3 · GRUPO RESOLVE</div>
+    <h2>Roteamento por intenção</h2>
+    <p class="sub">Pedidos que os agentes do concierge cobrem. Acerto = chegou ao agente certo sem transbordar.</p>
+    <table class="idx cmp">
+      <tr><th>INTENÇÃO (RESOLVE)</th><th>CASOS</th><th>LOCAL</th><th>LUNA</th><th>LUNA, POLÍTICA NOVA</th></tr>
+      <tr><td>Segunda via de boleto</td><td class="n">12</td><td class="v">11</td><td class="v">12</td><td class="v best">12</td></tr>
+      <tr><td>Liberação de visitante</td><td class="n">5</td><td class="v">5</td><td class="v">5</td><td class="v best">5</td></tr>
+      <tr><td>Confirmação de pagamento</td><td class="n">4</td><td class="v">1</td><td class="v">4</td><td class="v best">4</td></tr>
+      <tr><td>Débito</td><td class="n">4</td><td class="v">3</td><td class="v">3</td><td class="v">3</td></tr>
+      <tr><td>Abertura de chamado</td><td class="n">4</td><td class="v">4</td><td class="v">4</td><td class="v best">4</td></tr>
+      <tr><td>Reserva de área comum</td><td class="n">4</td><td class="v">3</td><td class="v">2</td><td class="v">3</td></tr>
+      <tr><td>Agendar mudança</td><td class="n">4</td><td class="v">3</td><td class="v">3</td><td class="v">2</td></tr>
+      <tr><td>Documentos do condomínio</td><td class="n">3</td><td class="v">3</td><td class="v">2</td><td class="v best">3</td></tr>
+      <tr><td>Regimento</td><td class="n">3</td><td class="v bad">0</td><td class="v">3</td><td class="v best">3</td></tr>
+      <tr><td>FAQ</td><td class="n">3</td><td class="v bad">0</td><td class="v">2</td><td class="v">2</td></tr>
+      <tr><td>Atualização cadastral</td><td class="n">3</td><td class="v">3</td><td class="v bad">0</td><td class="v bad">0</td></tr>
+      <tr><td>Comunicar obra</td><td class="n">1</td><td class="v bad">0</td><td class="v bad">0</td><td class="v bad">0</td></tr>
+    </table>
+    <p style="margin-top:14px">Os erros do grupo resolve no Luna vêm quase todos da bancada: sem morador
+    identificado, o agente não acessa a unidade e passa ao atendente. É o caso de cadastro, mudança e
+    reserva. Com a Gruvi ligada, esses casos devem virar acerto, mas isso ainda não foi medido.</p>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">MEDIÇÃO</span>
+      <span class="title">A bateria contava errado: corrigido antes destas rodadas</span>
+      <span class="pill ok">CORRIGIDO</span>
+    </div>
+    <div class="row"><div class="lb">SINTOMA</div><div class="tx">Na primeira rodada, todos os pedidos de boleto, débito e cadastro
+      apareciam como "concierge respondeu sozinho".</div></div>
+    <div class="row"><div class="lb">CAUSA-RAIZ</div><div class="tx">O turno sai sempre como <b>concierge</b>. Quem atendeu está nos passos
+      (motor de pedidos ou roteador), e a bateria não lia esses passos. Além disso, todos os casos usavam
+      o mesmo telefone, e a <b>memória do morador vazava</b> de um caso para o outro.</div></div>
+    <div class="row"><div class="lb">CORREÇÃO</div><div class="tx">A rota agora vem dos passos, e cada caso usa um telefone próprio.
+      Todas as rodadas deste documento já foram feitas assim.</div></div>
+  </div>
+
+
+  <div class="sect">
+    <div class="eyebrow mono">ACHADOS</div>
+    <h2>12 erros restantes no Luna com política nova</h2>
+    <p class="sub">Fora daqui: os casos de rota certa em que só faltou o dado do morador.</p>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">8 CASOS</span>
+      <span class="title">Transbordo por falta de identidade na bancada</span>
+      <span class="pill warn">PENDENTE</span>
+    </div>
+    <div class="row"><div class="lb">CASOS</div><div class="tx">Atualização cadastral (3), agendar mudança (2), reserva com erro no app,
+      débito em aberto, documentos para reforma.</div></div>
+    <div class="row"><div class="lb">DIAGNÓSTICO</div><div class="tx">O agente explica que <b>não identificou o morador pelo telefone</b> e
+      passa ao atendente. É o comportamento esperado sem Gruvi.</div></div>
+    <div class="row"><div class="lb">PEDIDO</div><div class="tx">Uma rodada com a Gruvi real, só leitura, para medir a resposta final.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">4 CASOS</span>
+      <span class="title">Agente certo errou a decisão</span>
+      <span class="pill warn">PENDENTE</span>
+    </div>
+    <div class="row"><div class="lb">CANCELAR RESERVA</div><div class="tx">2 casos foram ao agente de reserva, que diz "fale com a administração" em
+      vez de transferir. A política nova está no concierge; <b>o agente de reserva precisa da mesma regra</b>.</div></div>
+    <div class="row"><div class="lb">VENCIMENTO</div><div class="tx">"O boleto vence que dia?" foi ao agente de boleto, e não ao FAQ.</div></div>
+    <div class="row"><div class="lb">INQUILINO</div><div class="tx">"O inquilino saiu" foi para atualização cadastral, e não para o atendente.</div></div>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <span class="badge">FORMATAÇÃO</span>
+      <span class="title">Respostas saem com títulos em markdown para o morador</span>
+      <span class="pill warn">PENDENTE</span>
+    </div>
+    <div class="row"><div class="lb">SINTOMA</div><div class="tx">"## Resposta" e "## Encaminhamento" aparecem no texto que vai ao WhatsApp.</div></div>
+    <div class="row"><div class="lb">MEDIDO</div><div class="tx"><span class="num" style="color:var(--red)">12 → 18 de 100</span> respostas (Luna → Luna com política nova).</div></div>
+    <div class="row"><div class="lb">CAUSA-RAIZ</div><div class="tx">O contrato de saída do concierge usa essas seções, e nem sempre elas são
+      removidas antes do envio. A bateria ainda não pegava isso.</div></div>
+  </div>
+
+  <div class="sect">
+    <div class="eyebrow mono">TRANSPARÊNCIA</div>
+    <h2>5 ressalvas honestas</h2>
+    <div class="ressalva">
+      <div class="rt">RESSALVA 1 · SEM DADO REAL</div>
+      <p>A bancada não tem a Gruvi. <b>37 dos 41 acertos do grupo resolve chegaram ao agente certo sem o dado</b>.
+      Medimos roteamento e decisão de transbordo, não a qualidade da resposta com boleto, débito ou cadastro.</p>
+    </div>
+    <div class="ressalva">
+      <div class="rt">RESSALVA 2 · UM TURNO, UMA RODADA</div>
+      <p>Cada caso é uma mensagem só, reescrita sem dados pessoais a partir da conversa real. Rodamos
+      uma vez por configuração; com modelo de linguagem, há variação de alguns pontos entre rodadas.</p>
+    </div>
+    <div class="ressalva">
+      <div class="rt">RESSALVA 3 · CASOS E GABARITO</div>
+      <p>A escolha dos 100 casos e do gabarito (resolver ou transferir) é nossa, feita a partir das
+      regras atuais dos agentes. Por exemplo, aluguel e IPTU ficaram como "transferir". A administradora
+      pode querer outra fronteira.</p>
+    </div>
+    <div class="ressalva">
+      <div class="rt">RESSALVA 4 · POLÍTICA SÓ NO LUNA</div>
+      <p>A política nova foi medida só com o Luna. O modelo local não foi rodado de novo, porque não tem
+      qualidade para produção.</p>
+    </div>
+    <div class="ressalva">
+      <div class="rt">RESSALVA 5 · MUDANÇA NÃO PUBLICADA</div>
+      <p>A política e a bateria estão na cópia local do go-concierge, <b>sem commit</b>. Precisam de revisão
+      e de PR antes de valer fora da bancada.</p>
+    </div>
+  </div>
+
+  <div class="sect next">
+    <h3 style="margin-top:0">Próximo passo sugerido</h3>
+    <p>Abrir o PR com a política de transbordo e a bateria corrigida. No mesmo ciclo, levar a regra de
+    transferir ao agente de reserva (cancelamento), remover os títulos em markdown antes do envio e
+    incluir essa checagem na bateria.</p>
+    <p>Depois, rodar o benchmark com a <b>Gruvi real em modo só leitura</b> para medir a resposta final ao
+    morador, que hoje é a maior lacuna desta medição.</p>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="logo">TechMe<span class="now">Now</span></div>
+  <div class="fmeta">BENCHMARK · CONCIERGE × ATENDE<br>
+  <b>CONTATO@TECHMENOW.COM.BR</b> · 10 / 11 / 2026</div>
+</div>
+
+</body>
+</html>

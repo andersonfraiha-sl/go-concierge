@@ -1,0 +1,1712 @@
+[
+ {
+  "id": "r01-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "consegue me enviar o boleto do condomínio do apartamento 11?"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ae3b638d235505609270750",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r02-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa noite me manda o boleto pfv"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ae3cc3dd235505609274128",
+  "atende": "bot-resolveu",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] CLONE"
+ },
+ {
+  "id": "r03-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "estou no exterior e não consegui acessar o boleto do condomínio de novembro. por favor, mande o boleto por aqui"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ae9bfb81deb938ca7c12bfd",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio  CLONE 2997295-"
+ },
+ {
+  "id": "r04-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "bom dia manda o boleto desse mês, esse que está comigo não consigo pagar"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ae5fdf453f8621cc893090d",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - VILLA NOVA 3441396"
+ },
+ {
+  "id": "r05-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso do boleto atualizado do apto 206 bloco 6b"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6acf7be95b082efa490f9364",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r06-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde, favor mandar minha fatura por aqui porque estou sem acesso ao aplicativo"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6aea3d520ea3972460b0f762",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio"
+ },
+ {
+  "id": "r07-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "me envia por favor o boleto de novembro. se já tiver o de dezembro também"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6aeb9078824096729ad825ef",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo único v3 - customizado CLONE 2970593"
+ },
+ {
+  "id": "r08-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "bom dia! não recebi o boleto para pagamento de novembro. solicito reemissão"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6aeb4dd7824096729ad6ea94",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio"
+ },
+ {
+  "id": "r09-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso do boleto de setembro do condomínio para pagar dia 20"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ad101b9d5cd88e0ea54c9d2",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r10-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "não recebi o boleto do condomínio"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ac8e7f0afb848720c0e5474",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - VILLA NOVA"
+ },
+ {
+  "id": "r11-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde! favor enviar o código de barras"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ac94adb34ce4e9d552baddc",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r12-boleto",
+  "grupo": "resolve",
+  "intencao": "boleto",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "tem como me passar o código do boleto pelo whats?"
+  ],
+  "rota": [
+   "boleto"
+  ],
+  "origem": "6ad141ba372a3e71e62db61c",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo único atualizado CLONE CLONE"
+ },
+ {
+  "id": "r13-pagamento",
+  "grupo": "resolve",
+  "intencao": "pagamento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "efetuei o pagamento via pix, já consta aí?"
+  ],
+  "rota": [
+   "pagamento"
+  ],
+  "origem": "6ad74e70c8957aed2b2999ad",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio - Ajuste de fluxo - CND-17903 CLONE 2 CLONE"
+ },
+ {
+  "id": "r14-pagamento",
+  "grupo": "resolve",
+  "intencao": "pagamento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "minha taxa do condomínio já foi paga?"
+  ],
+  "rota": [
+   "pagamento"
+  ],
+  "origem": "6ac7f10a6dd6aaf24cbadd5f",
+  "atende": "humano",
+  "bot_atende": "Fluxo único v3 [PDAT-1183]"
+ },
+ {
+  "id": "r15-pagamento",
+  "grupo": "resolve",
+  "intencao": "pagamento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "você pode verificar se os boletos que estavam em atraso já foram quitados?"
+  ],
+  "rota": [
+   "pagamento",
+   "debito"
+  ],
+  "origem": "6ac55d0eafb848720c6aab2c",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r16-pagamento",
+  "grupo": "resolve",
+  "intencao": "pagamento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "o boleto do mês 10 consta em aberto mas foi pago no dia 15/10"
+  ],
+  "rota": [
+   "pagamento"
+  ],
+  "origem": "6ae486fe712ac408491a85b8",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio"
+ },
+ {
+  "id": "r17-debito",
+  "grupo": "resolve",
+  "intencao": "debito",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria do levantamento dos meus débitos no condomínio"
+  ],
+  "rota": [
+   "debito"
+  ],
+  "origem": "6ace91155b082efa49f7ff70",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r18-debito",
+  "grupo": "resolve",
+  "intencao": "debito",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "eu gostaria de saber se tem boleto em aberto do meu apto"
+  ],
+  "rota": [
+   "debito",
+   "boleto"
+  ],
+  "origem": "6aea2c7e3709fe6516f6ced0",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação] CLONE"
+ },
+ {
+  "id": "r19-debito",
+  "grupo": "resolve",
+  "intencao": "debito",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde! estou com pendência em relação aos pagamentos do condomínio. quanto eu devo?"
+  ],
+  "rota": [
+   "debito"
+  ],
+  "origem": "6ace4eb4a0c52af8b4f5295c",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio"
+ },
+ {
+  "id": "r20-debito",
+  "grupo": "resolve",
+  "intencao": "debito",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "cara, eu acabei pulando um mês do condomínio e não percebi. quanto está em aberto?"
+  ],
+  "rota": [
+   "debito",
+   "boleto"
+  ],
+  "origem": "6ac53df390ad23ab71619701",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação - Condomínio - ATN215"
+ },
+ {
+  "id": "r21-documentos",
+  "grupo": "resolve",
+  "intencao": "documentos",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "favor enviar a ata da última assembleia"
+  ],
+  "rota": [
+   "documentos"
+  ],
+  "origem": "6ad0b94d58d452cb69346a0b",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio"
+ },
+ {
+  "id": "r22-documentos",
+  "grupo": "resolve",
+  "intencao": "documentos",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "faço parte do conselho e preciso da ata e do balancete, só tenho o de julho"
+  ],
+  "rota": [
+   "documentos"
+  ],
+  "origem": "6ac6350bafb848720c79810d",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação - Condomínio - V2"
+ },
+ {
+  "id": "r23-documentos",
+  "grupo": "resolve",
+  "intencao": "documentos",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "bom dia! preciso do demonstrativo de prestação de contas do condomínio referente ao mês de outubro"
+  ],
+  "rota": [
+   "documentos"
+  ],
+  "origem": "6ae1f44d85807463f22da79d",
+  "atende": "humano",
+  "bot_atende": "Fluxo único"
+ },
+ {
+  "id": "r24-regimento",
+  "grupo": "resolve",
+  "intencao": "regimento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "onde eu consigo o regimento interno do residencial?"
+  ],
+  "rota": [
+   "regimento",
+   "documentos"
+  ],
+  "origem": "6aea3d780ea3972460b0f7d2",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação] PDAT-1170 CLONE - ajuste suporte CLONE"
+ },
+ {
+  "id": "r25-regimento",
+  "grupo": "resolve",
+  "intencao": "regimento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "eu gostaria de solicitar o regulamento interno"
+  ],
+  "rota": [
+   "regimento",
+   "documentos"
+  ],
+  "origem": "6ac7fc22afb848720cf5c14e",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio (V2 - Só boleto)"
+ },
+ {
+  "id": "r26-regimento",
+  "grupo": "resolve",
+  "intencao": "regimento",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "posso colocar um lustre e dois suportes na parede do apartamento? o regimento deixa?"
+  ],
+  "rota": [
+   "regimento"
+  ],
+  "origem": "6ac9561934ce4e9d552dd77c",
+  "atende": "humano",
+  "bot_atende": "19 97403-5038 - [ERP] Assistente Imobiliário - v2.5 - Instalação [PROD] Fluxo sem IA  CLONE 3364964"
+ },
+ {
+  "id": "r27-faq",
+  "grupo": "resolve",
+  "intencao": "faq",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "qual horário de funcionamento da portaria?"
+  ],
+  "rota": [
+   "faq"
+  ],
+  "origem": "6ad141df0f72e4f759716418",
+  "atende": "bot-resolveu",
+  "bot_atende": ""
+ },
+ {
+  "id": "r28-faq",
+  "grupo": "resolve",
+  "intencao": "faq",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "qual o endereço do condomínio?"
+  ],
+  "rota": [
+   "faq"
+  ],
+  "origem": "6adf4dba7b941e1a6e7384f8",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação - Condomínio"
+ },
+ {
+  "id": "r29-faq",
+  "grupo": "resolve",
+  "intencao": "faq",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "o boleto do condomínio vence que dia?"
+  ],
+  "rota": [
+   "faq"
+  ],
+  "origem": "6adb89b563a62a6d94276263",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "r30-liberacao-visitante",
+  "grupo": "resolve",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "pode liberar o Bruno por favor"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "origem": "6acb1ad334ce4e9d5539e4ea",
+  "atende": "bot-resolveu",
+  "bot_atende": ""
+ },
+ {
+  "id": "r31-liberacao-visitante",
+  "grupo": "resolve",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "pode liberar meu cunhado pfvr"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "origem": "6acd316e34ce4e9d55420738",
+  "atende": "bot-resolveu",
+  "bot_atende": ""
+ },
+ {
+  "id": "r32-liberacao-visitante",
+  "grupo": "resolve",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde. amanhã na parte da tarde vai uma diarista limpar meu apartamento, peço liberação"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "origem": "6acfeb8696e6168c6c438113",
+  "atende": "humano",
+  "bot_atende": "Fluxo único Menu Customizado"
+ },
+ {
+  "id": "r33-liberacao-visitante",
+  "grupo": "resolve",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "uma empresa de comunicação visual vai aí hoje à tarde, pode liberar o acesso?"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "origem": "6ac4d001b7237f941d398fdb",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - condomínio e imob v1.82"
+ },
+ {
+  "id": "r34-liberacao-visitante",
+  "grupo": "resolve",
+  "intencao": "liberacao-visitante",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "poderia autorizar os mesmos prestadores para amanhã?"
+  ],
+  "rota": [
+   "liberacao-visitante"
+  ],
+  "origem": "6ac7a2d1afb848720ccf2df1",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio CLONE"
+ },
+ {
+  "id": "r35-reserva-area-comum",
+  "grupo": "resolve",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de alugar o salão do condomínio"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "origem": "6ace7425a0c52af8b410abad",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio"
+ },
+ {
+  "id": "r36-reserva-area-comum",
+  "grupo": "resolve",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de ver pra reservar o salão de festas para domingo"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "origem": "6ad27022a50d03e3aafc966a",
+  "atende": "humano",
+  "bot_atende": "Fluxo único"
+ },
+ {
+  "id": "r37-reserva-area-comum",
+  "grupo": "resolve",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "eu tentei fazer a reserva do salão e da churrasqueira no app mas dá erro e pede para entrar em contato com a administradora"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "origem": "6ac66838afb848720c93ccf6",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio CLONE"
+ },
+ {
+  "id": "r38-reserva-area-comum",
+  "grupo": "resolve",
+  "intencao": "reserva-area-comum",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "como faço pra alugar o salão de festa?"
+  ],
+  "rota": [
+   "reserva-area-comum"
+  ],
+  "origem": "6ae601a5d1ca2d546d7de554",
+  "atende": "humano",
+  "bot_atende": "Fluxo único v2"
+ },
+ {
+  "id": "r39-agendar-mudanca",
+  "grupo": "resolve",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde! eu gostaria de agendar uma mudança pra sábado"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ],
+  "origem": "6ad92eaae9f7f293330cde06",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação] PDAT-1170 CLONE - ajuste suporte CLONE"
+ },
+ {
+  "id": "r40-agendar-mudanca",
+  "grupo": "resolve",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso agendar uma mudança por favor"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ],
+  "origem": "6ac7f405afb848720cf2a3d6",
+  "atende": "humano",
+  "bot_atende": "Fluxo único atualizado CLONE CLONE"
+ },
+ {
+  "id": "r41-agendar-mudanca",
+  "grupo": "resolve",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "como faço para agendar uma mudança?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ],
+  "origem": "6acc028434ce4e9d553d18d3",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "r42-agendar-mudanca",
+  "grupo": "resolve",
+  "intencao": "agendar-mudanca",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "amanhã tem como fazer a mudança?"
+  ],
+  "rota": [
+   "agendar-mudanca"
+  ],
+  "origem": "6ad8d04d192e8d2f06b9c1f9",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "r43-atualizacao-cadastral",
+  "grupo": "resolve",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "olá, estou solicitando a atualização dos meus dados de cadastro, mudei de e-mail"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ],
+  "origem": "6ace303634ce4e9d555308b9",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "r44-atualizacao-cadastral",
+  "grupo": "resolve",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de alterar o e-mail de recebimento do boleto do condomínio"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ],
+  "origem": "6adb6d7263a62a6d942484d0",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio"
+ },
+ {
+  "id": "r45-atualizacao-cadastral",
+  "grupo": "resolve",
+  "intencao": "atualizacao-cadastral",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa noite! troquei de carro, a placa nova é QWE1R23"
+  ],
+  "rota": [
+   "atualizacao-cadastral"
+  ],
+  "origem": "6ae91666bbded75b5f6961c5",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "r46-chamado",
+  "grupo": "resolve",
+  "intencao": "chamado",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "meu interfone parou de funcionar com a chuva, como faço para vocês arrumarem?"
+  ],
+  "rota": [
+   "chamado"
+  ],
+  "origem": "6aeb10991f7deaebd2869846",
+  "atende": "bot-resolveu",
+  "bot_atende": ""
+ },
+ {
+  "id": "r47-chamado",
+  "grupo": "resolve",
+  "intencao": "chamado",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "nos últimos dias o elevador do bloco E está apresentando falhas frequentes e fica parado por longos períodos"
+  ],
+  "rota": [
+   "chamado"
+  ],
+  "origem": "6ae8aa287a0908a79cb77c52",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria"
+ },
+ {
+  "id": "r48-chamado",
+  "grupo": "resolve",
+  "intencao": "chamado",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde! o teto do banheiro começou a ficar úmido e acumular mofo, está piorando"
+  ],
+  "rota": [
+   "chamado"
+  ],
+  "origem": "6ac7d5f7afb848720ce4f3f6",
+  "atende": "humano",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD]  ATUALIZADO"
+ },
+ {
+  "id": "r49-chamado",
+  "grupo": "resolve",
+  "intencao": "chamado",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "as cercas do fundo do condomínio, perto das casas 07 a 10, estão deterioradas e ainda não foram arrumadas"
+  ],
+  "rota": [
+   "chamado"
+  ],
+  "origem": "6aeb625f824096729ad741f0",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "r50-comunicar-obra",
+  "grupo": "resolve",
+  "intencao": "comunicar-obra",
+  "tipo": "acao",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "referente à minha unidade, quero fazer uma reforma. o que preciso apresentar?"
+  ],
+  "rota": [
+   "comunicar-obra",
+   "regimento"
+  ],
+  "origem": "6ae9e74fe4b9632f81672397",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação - Condomínio"
+ },
+ {
+  "id": "t01-certidao",
+  "grupo": "transbordo",
+  "intencao": "certidao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "você teria como me mandar as certidões?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad7c8e2daa75ccfe52c8377",
+  "atende": "bot-resolveu",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] CLONE"
+ },
+ {
+  "id": "t02-certidao",
+  "grupo": "transbordo",
+  "intencao": "certidao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso de uma negativa de débitos do apartamento 103"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac6a9b76dd6aaf24c986991",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria ATUALIZADO"
+ },
+ {
+  "id": "t03-certidao",
+  "grupo": "transbordo",
+  "intencao": "certidao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso do nada consta do meu apartamento"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ace2f7d34ce4e9d555292fc",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t04-certidao",
+  "grupo": "transbordo",
+  "intencao": "certidao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde! preciso de uma declaração de quitação de condomínio para venda do imóvel"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad24514a50d03e3aaf2f7a1",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação] Ticket 3441002"
+ },
+ {
+  "id": "t05-certidao",
+  "grupo": "transbordo",
+  "intencao": "certidao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de uma certidão negativa de débitos"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae0bee45369b62a41781fff",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "t06-cancelar-reserva",
+  "grupo": "transbordo",
+  "intencao": "cancelar-reserva",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "vocês podem cancelar essa reserva ou me orientar como proceder para não ser cobrada a utilização?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6acfd49ca2b162845f30e183",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação] PDAT-1170 CLONE - ajuste suporte CLONE"
+ },
+ {
+  "id": "t07-cancelar-reserva",
+  "grupo": "transbordo",
+  "intencao": "cancelar-reserva",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "eu marquei no aplicativo o salão de festa pro dia 2 de janeiro, quero cancelar e marcar para o dia 18 de dezembro"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac7668aafb848720cb9c7a2",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio"
+ },
+ {
+  "id": "t08-cancelar-reserva",
+  "grupo": "transbordo",
+  "intencao": "cancelar-reserva",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "reservei a churrasqueira para o aniversário da minha filha, mas ela vai ter compromisso. tentei cancelar pelo aplicativo e não consegui"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6adf6ea37b941e1a6e74ae3f",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t09-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "vocês estão cobrando o boleto duas vezes esse mês"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad0c618d54964895f3bb838",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio (V2 - Só boleto)"
+ },
+ {
+  "id": "t10-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "veio uma cobrança estranha no meu boleto de condomínio"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6acff34e58d452cb69323c90",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t11-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "por que estão me cobrando uma taxa de 85?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac53f23331a37dbf01cdf96",
+  "atende": "humano",
+  "bot_atende": "Fluxo único Botão Interativo v08 ticket 3044654 CLONE 3228424"
+ },
+ {
+  "id": "t12-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "fui pagar o condomínio e o valor que aparece é de 196,61, mas o correto é 304,61. favor mandar o boleto correto"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac5223390ad23ab71536c11",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação - Condomínio - Ajuste de fluxo - CND-17903 CLONE 2 CLONE"
+ },
+ {
+  "id": "t13-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria que verificassem e retirassem a cobrança de aluguel de salão de festas da minha cota condominial"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac54f06afb848720c620d3a",
+  "atende": "humano",
+  "bot_atende": "5521984900233 Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t14-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "vi que colocaram a área de reservas dos espaços, mas teve um aumento de tarifa que eu não entendi"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae0c8f39ac37950755fef3e",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - condomínio e imob v1.82 - Ajuste transbordo  CLONE"
+ },
+ {
+  "id": "t15-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "verifiquei no banco que foram feitos dois pagamentos do condomínio, vocês conseguem conferir e devolver um?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad267c58c8cea878fbfedaa",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio CLONE 3085199"
+ },
+ {
+  "id": "t16-contestacao",
+  "grupo": "transbordo",
+  "intencao": "contestacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso que me envie a discriminação das despesas do condomínio do mês passado e desse mês que está em aberto"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae0d69862e1188a8c38b367",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação Condominio e Imobiliária - Customização -Rescisão/Entrega de chaves-395 ajustesuporte 3085265 CLONE"
+ },
+ {
+  "id": "t17-notificacao",
+  "grupo": "transbordo",
+  "intencao": "notificacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "chegou uma notificação no meu apartamento e queria saber do que se trata"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ace4a1f34ce4e9d55606760",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio"
+ },
+ {
+  "id": "t18-notificacao",
+  "grupo": "transbordo",
+  "intencao": "notificacao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria que fosse retirada essa notificação, pelas câmeras dá pra ver que o saco de lixo não era meu"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae0e86742b9cd8bf034fc19",
+  "atende": "humano",
+  "bot_atende": "Fluxo único v2"
+ },
+ {
+  "id": "t19-titularidade",
+  "grupo": "transbordo",
+  "intencao": "titularidade",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de fazer a troca de titularidade do condomínio pro meu nome"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6adb945a4c0266531067fe0b",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio"
+ },
+ {
+  "id": "t20-titularidade",
+  "grupo": "transbordo",
+  "intencao": "titularidade",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso realizar a mudança do proprietário da unidade"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac792acafb848720cc638b3",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação Condomínio (V2 - Só boleto)"
+ },
+ {
+  "id": "t21-titularidade",
+  "grupo": "transbordo",
+  "intencao": "titularidade",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "ontem enviei a certidão de óbito do meu esposo e meu RG para que o condomínio seja passado para o meu nome"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac4eb93097005d4d19a6e36",
+  "atende": "humano",
+  "bot_atende": "Fluxo único v3 - customizado CLONE 2970593"
+ },
+ {
+  "id": "t22-titularidade",
+  "grupo": "transbordo",
+  "intencao": "titularidade",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "vendi meu terreno no início do mês, gostaria de saber se já foi alterado para o nome do novo dono"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae229782cfde61e5f220e45",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio - ATN241"
+ },
+ {
+  "id": "t23-titularidade",
+  "grupo": "transbordo",
+  "intencao": "titularidade",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "o inquilino da unidade 143 não é mais o mesmo, ele saiu"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6aeb6834df52284e2d8f551b",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "t24-titularidade",
+  "grupo": "transbordo",
+  "intencao": "titularidade",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso cadastrar minha sogra como moradora"
+  ],
+  "rota": [
+   "transbordo",
+   "self"
+  ],
+  "origem": "6ad2323f39b7b7de91c7e02b",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo único - v4 -  outras unidades [PDAT-1194]"
+ },
+ {
+  "id": "t25-aluguel",
+  "grupo": "transbordo",
+  "intencao": "aluguel",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso do boleto de aluguel"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ace416f34ce4e9d555c6049",
+  "atende": "bot-resolveu",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] CLONE"
+ },
+ {
+  "id": "t26-aluguel",
+  "grupo": "transbordo",
+  "intencao": "aluguel",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de verificar se é possível alterar a data de pagamento do aluguel para o dia 10 de cada mês"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae51a8653f8621cc892aa50",
+  "atende": "bot-resolveu",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] CLONE"
+ },
+ {
+  "id": "t27-aluguel",
+  "grupo": "transbordo",
+  "intencao": "aluguel",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de saber onde vocês fizeram o pix do aluguel, que chave usaram? não estou achando"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac4e9be097005d4d1994812",
+  "atende": "humano",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] Personalizado"
+ },
+ {
+  "id": "t28-aluguel",
+  "grupo": "transbordo",
+  "intencao": "aluguel",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "recebi o boleto da loja que está locada, essa fatura já é de responsabilidade do inquilino"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad8bec9f0a50c69bc02c670",
+  "atende": "humano",
+  "bot_atende": "[ERP] Assistente Imobiliário - v2.5 - Instalação [PROD]  CLONE 3029477 CLONE"
+ },
+ {
+  "id": "t29-aluguel",
+  "grupo": "transbordo",
+  "intencao": "aluguel",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "eu queria uma cópia do meu contrato que tenho aí com vocês"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac933df34ce4e9d5523ae91",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t30-outras-cobrancas",
+  "grupo": "transbordo",
+  "intencao": "outras-cobrancas",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "poderia me encaminhar o boleto do IPTU de novembro?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ada6a06bacd2e2cd16c206d",
+  "atende": "humano",
+  "bot_atende": "Fluxo único Botão de atendimento"
+ },
+ {
+  "id": "t31-outras-cobrancas",
+  "grupo": "transbordo",
+  "intencao": "outras-cobrancas",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "o rateio da água da unidade 504 já está pronto?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ace665c6dd6aaf24cee85f9",
+  "atende": "humano",
+  "bot_atende": "Fluxo único Botão Interativo v08 ticket 3044654 CLONE 3228424"
+ },
+ {
+  "id": "t32-acordo",
+  "grupo": "transbordo",
+  "intencao": "acordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde! tenho boletos em atraso e gostaria de negociar"
+  ],
+  "rota": [
+   "transbordo",
+   "debito"
+  ],
+  "origem": "6ad27ef8a50d03e3aa00c005",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - Condominio v1.85"
+ },
+ {
+  "id": "t33-acordo",
+  "grupo": "transbordo",
+  "intencao": "acordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "boa tarde, eu preciso pagar uma parcela do meu acordo"
+  ],
+  "rota": [
+   "transbordo",
+   "boleto"
+  ],
+  "origem": "6ad133ba0f72e4f7596bb336",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalação - Condomínio - ATN215"
+ },
+ {
+  "id": "t34-acordo",
+  "grupo": "transbordo",
+  "intencao": "acordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "encaminhando o comprovante da 2ª parcela do acordo"
+  ],
+  "rota": [
+   "transbordo",
+   "pagamento"
+  ],
+  "origem": "6aca5a0a34ce4e9d553492c7",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]  CLONE 3018324 CLONE"
+ },
+ {
+  "id": "t35-acordo",
+  "grupo": "transbordo",
+  "intencao": "acordo",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "falei com o jurídico ontem, mas me falaram que o boleto com os valores não foi emitido para pagamento"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ada2b25872f9d660a2dc945",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria"
+ },
+ {
+  "id": "t36-acesso-app",
+  "grupo": "transbordo",
+  "intencao": "acesso-app",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "não consigo acessar o site porque esqueci meus dados de acesso"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6aebc5192a132ad23f55ab69",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio"
+ },
+ {
+  "id": "t37-acesso-app",
+  "grupo": "transbordo",
+  "intencao": "acesso-app",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "mesmo colocando para lembrar a senha ele não me manda o e-mail para fazer o reset"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ace7026a0c52af8b40d36ac",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "t38-acesso-app",
+  "grupo": "transbordo",
+  "intencao": "acesso-app",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "não estou conseguindo entrar no app"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6acf77b90d477242acdb6aa1",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [PDAT-1200]"
+ },
+ {
+  "id": "t39-acesso-app",
+  "grupo": "transbordo",
+  "intencao": "acesso-app",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "como faço pra adquirir a tag pra pôr na moto?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad294e460ceb58c6f531d99",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t40-falar-com-alguem",
+  "grupo": "transbordo",
+  "intencao": "falar-com-alguem",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "falar com um atendente"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac693726dd6aaf24c924c12",
+  "atende": "bot-resolveu",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] CLONE"
+ },
+ {
+  "id": "t41-falar-com-alguem",
+  "grupo": "transbordo",
+  "intencao": "falar-com-alguem",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "pode me passar contato de alguém que possa me ajudar?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad6550f4e8bedb608f2584e",
+  "atende": "bot-resolveu",
+  "bot_atende": "[ERP] Assistente com IA - v3.3 (Novo Fluxo) [PROD] CLONE"
+ },
+ {
+  "id": "t42-falar-com-alguem",
+  "grupo": "transbordo",
+  "intencao": "falar-com-alguem",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "preciso falar com a Ana Paula"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad138da0f72e4f7596e8e0e",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de instalação condominial"
+ },
+ {
+  "id": "t43-falar-com-alguem",
+  "grupo": "transbordo",
+  "intencao": "falar-com-alguem",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de falar com o financeiro!"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ac4d7e2b7237f941d3a1dd1",
+  "atende": "humano",
+  "bot_atende": "Fluxo de instalação - condomínio e imob v1.82"
+ },
+ {
+  "id": "t44-falar-com-alguem",
+  "grupo": "transbordo",
+  "intencao": "falar-com-alguem",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de saber sobre o andamento da nossa solicitação"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae3662cbd01921e180834e7",
+  "atende": "humano",
+  "bot_atende": "5521984900233 Fluxo de instalação - condomínio"
+ },
+ {
+  "id": "t45-gestao",
+  "grupo": "transbordo",
+  "intencao": "gestao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "me diga se podemos notificar uma unidade"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ada2861d8c3b8ef95bcf72b",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "t46-gestao",
+  "grupo": "transbordo",
+  "intencao": "gestao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "gostaria de deixar agendada nossa reunião de prestação de contas e eleição de síndico para o dia 09/12"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae0be6762e1188a8c386f15",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "t47-gestao",
+  "grupo": "transbordo",
+  "intencao": "gestao",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "favor acionar o novo síndico"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae239340e56875a9e99e65a",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação]"
+ },
+ {
+  "id": "t48-dp-fiscal",
+  "grupo": "transbordo",
+  "intencao": "dp-fiscal",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "quando vai me enviar a prévia da folha de pagamento?"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ad8aa73e03f60ef8926c49c",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação Condomínio PDAT-1206"
+ },
+ {
+  "id": "t49-dp-fiscal",
+  "grupo": "transbordo",
+  "intencao": "dp-fiscal",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "favor providenciar o exame demissional do funcionário"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae9dba2f9a42f721170c4db",
+  "atende": "humano",
+  "bot_atende": "Fluxo de Instalação Condomínio CLONE"
+ },
+ {
+  "id": "t50-dp-fiscal",
+  "grupo": "transbordo",
+  "intencao": "dp-fiscal",
+  "tipo": "transbordo",
+  "nivel": 1,
+  "transformacao": "atende-real",
+  "turnos": [
+   "eu queria saber dos contracheques que nunca mais recebi"
+  ],
+  "rota": [
+   "transbordo"
+  ],
+  "origem": "6ae9c28abbded75b5f699f01",
+  "atende": "bot-resolveu",
+  "bot_atende": "Fluxo de Instalacao Condominio e Imobiliaria - [Implantação] CLONE"
+ }
+]

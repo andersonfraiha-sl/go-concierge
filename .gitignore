@@ -5,6 +5,7 @@ bin/
 okf/**/.rag/
 okf/**/__pycache__/
 okf/**/var/
+bateria/**/__pycache__/
 okf/agentes/**/.*.novo/
 bateria/rodar.log
 mcp/.env
