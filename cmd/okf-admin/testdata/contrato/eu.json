@@ -14,5 +14,6 @@
     "memoria.esquecer"
   ],
   "administradoraId": "adm-a",
+  "condominioId": null,
   "dev": true
 }
