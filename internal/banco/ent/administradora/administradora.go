@@ -16,6 +16,8 @@ const (
 	FieldNome = "nome"
 	// EdgeCondominios holds the string denoting the condominios edge name in mutations.
 	EdgeCondominios = "condominios"
+	// EdgeSkillCamadas holds the string denoting the skill_camadas edge name in mutations.
+	EdgeSkillCamadas = "skill_camadas"
 	// Table holds the table name of the administradora in the database.
 	Table = "administradoras"
 	// CondominiosTable is the table that holds the condominios relation/edge.
@@ -25,6 +27,13 @@ const (
 	CondominiosInverseTable = "condominios"
 	// CondominiosColumn is the table column denoting the condominios relation/edge.
 	CondominiosColumn = "administradora_id"
+	// SkillCamadasTable is the table that holds the skill_camadas relation/edge.
+	SkillCamadasTable = "skill_camadas"
+	// SkillCamadasInverseTable is the table name for the SkillCamada entity.
+	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
+	SkillCamadasInverseTable = "skill_camadas"
+	// SkillCamadasColumn is the table column denoting the skill_camadas relation/edge.
+	SkillCamadasColumn = "administradora_id"
 )
 
 // Columns holds all SQL columns for administradora fields.
@@ -76,10 +85,31 @@ func ByCondominios(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newCondominiosStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// BySkillCamadasCount orders the results by skill_camadas count.
+func BySkillCamadasCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSkillCamadasStep(), opts...)
+	}
+}
+
+// BySkillCamadas orders the results by skill_camadas terms.
+func BySkillCamadas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSkillCamadasStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newCondominiosStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(CondominiosInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, CondominiosTable, CondominiosColumn),
+	)
+}
+func newSkillCamadasStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SkillCamadasInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SkillCamadasTable, SkillCamadasColumn),
 	)
 }

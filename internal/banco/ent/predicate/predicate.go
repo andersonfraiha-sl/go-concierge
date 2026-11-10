@@ -60,5 +60,17 @@ type PedidoEvento func(*sql.Selector)
 // Sessao is the predicate function for sessao builders.
 type Sessao func(*sql.Selector)
 
+// SkillAtualizacao is the predicate function for skillatualizacao builders.
+type SkillAtualizacao func(*sql.Selector)
+
+// SkillAviso is the predicate function for skillaviso builders.
+type SkillAviso func(*sql.Selector)
+
+// SkillCamada is the predicate function for skillcamada builders.
+type SkillCamada func(*sql.Selector)
+
+// SkillVersao is the predicate function for skillversao builders.
+type SkillVersao func(*sql.Selector)
+
 // Usuario is the predicate function for usuario builders.
 type Usuario func(*sql.Selector)

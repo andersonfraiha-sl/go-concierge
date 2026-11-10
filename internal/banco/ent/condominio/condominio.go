@@ -30,6 +30,8 @@ const (
 	EdgePayloads = "payloads"
 	// EdgeOrientacoes holds the string denoting the orientacoes edge name in mutations.
 	EdgeOrientacoes = "orientacoes"
+	// EdgeSkillCamadas holds the string denoting the skill_camadas edge name in mutations.
+	EdgeSkillCamadas = "skill_camadas"
 	// Table holds the table name of the condominio in the database.
 	Table = "condominios"
 	// AdministradoraTable is the table that holds the administradora relation/edge.
@@ -60,6 +62,13 @@ const (
 	OrientacoesInverseTable = "orientacoes"
 	// OrientacoesColumn is the table column denoting the orientacoes relation/edge.
 	OrientacoesColumn = "condominio_id"
+	// SkillCamadasTable is the table that holds the skill_camadas relation/edge.
+	SkillCamadasTable = "skill_camadas"
+	// SkillCamadasInverseTable is the table name for the SkillCamada entity.
+	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
+	SkillCamadasInverseTable = "skill_camadas"
+	// SkillCamadasColumn is the table column denoting the skill_camadas relation/edge.
+	SkillCamadasColumn = "condominio_id"
 )
 
 // Columns holds all SQL columns for condominio fields.
@@ -176,6 +185,20 @@ func ByOrientacoes(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newOrientacoesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// BySkillCamadasCount orders the results by skill_camadas count.
+func BySkillCamadasCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newSkillCamadasStep(), opts...)
+	}
+}
+
+// BySkillCamadas orders the results by skill_camadas terms.
+func BySkillCamadas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newSkillCamadasStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newAdministradoraStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -202,5 +225,12 @@ func newOrientacoesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(OrientacoesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, OrientacoesTable, OrientacoesColumn),
+	)
+}
+func newSkillCamadasStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(SkillCamadasInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, SkillCamadasTable, SkillCamadasColumn),
 	)
 }

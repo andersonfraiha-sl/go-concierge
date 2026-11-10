@@ -23,5 +23,6 @@ func (Administradora) Edges() []ent.Edge {
 	return []ent.Edge{
 		// RESTRICT: o domínio recusa remover administradora com condomínio; o banco garante.
 		edge.To("condominios", Condominio.Type).Annotations(entsql.OnDelete(entsql.Restrict)),
+		edge.To("skill_camadas", SkillCamada.Type).Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
