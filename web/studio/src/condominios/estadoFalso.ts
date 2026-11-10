@@ -1,4 +1,5 @@
 import type { Eu } from '@/acesso/eu';
+import fluxoFalso from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { json } from '@/test/fetchFalso';
 
 // Fixtures montadas pelos structs de internal/admin e cmd/okf-admin (slices nil viram null).
@@ -144,10 +145,45 @@ export const skillsFalsas = {
   ],
 };
 
+/** Camada do condomínio como o servidor a devolve, com o fluxo e os textos da skill. */
+export const camadaDoCondominioFalsa = (skill: string, condominio: string, orientacao = '') => {
+  const caso = estadoFalso.casos.find((c) => c.nome === skill);
+  return {
+    camada: { skill, tipo: 'condominio', id: condominio },
+    documento: {
+      textos: {
+        titulo: caso?.titulo ?? skill,
+        quandoUsar: 'Quando o morador pede.',
+        frasesDeExemplo: ['quero isso'],
+        palavrasChave: ['pedido'],
+        temFluxo: true,
+        resumo: caso?.resumo ?? '',
+        visibilidade: 'private',
+      },
+      fluxo: fluxoFalso.fluxo,
+      ferramentas: ['agenda-mudanca'],
+      orientacao,
+    },
+    versao: 'v1',
+    temRascunho: false,
+    publicada: { numero: 2, autor: 'Ana', criadoEm: '2026-11-04T10:00:00Z' },
+    ferramentasDaBase: ['agenda-mudanca'],
+    problemas: [],
+  };
+};
+
+const camadasDoVilaVerde = Object.fromEntries(
+  estadoFalso.casos.map((caso) => [
+    `GET /api/skills/${caso.nome}/condominios/vila-verde`,
+    () => json(camadaDoCondominioFalsa(caso.nome, 'vila-verde')),
+  ]),
+);
+
 export const rotasBase = (eu: Eu) => ({
   'GET /api/eu': () => json(eu),
   'GET /api/admin/estado': () => json(estadoFalso),
   'GET /api/skills': () => json(skillsFalsas),
+  ...camadasDoVilaVerde,
 });
 
 export const respostaMapeamento = {
