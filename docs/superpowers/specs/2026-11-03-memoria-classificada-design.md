@@ -1,266 +1,200 @@
 # Concierge: memória classificada
 
-Data: 2026-11-03
-Status: rascunho para revisão
+Data: 2026-11-03 · Revisão: 2026-11-10 · Autor: Felipe
+Status: decidido em 10/11/2026
 
 ## 1. Por que
 
-Hoje cada conversa começa do zero. O usuário repete CPF, unidade e condomínio toda vez, e um administrador com 5 condomínios precisa dizer qual é o condomínio em todo pedido. A ideia é que o concierge **lembre o que importa, adiante o próximo passo e esqueça o resto**.
+Hoje a memória do concierge é uma lista de fatos com chave livre, inventada pelo modelo a cada troca ("pets", "unidades", "familia"). Ela não sabe o que a pessoa costuma pedir, não tem prazo e cresce sem regra. A ideia é que o concierge **lembre o que importa, ofereça o próximo passo e esqueça o resto**.
 
 Exemplo do comportamento esperado:
 
-> **Usuário (administrador, 5 condomínios):** oi, preciso do boleto
-> **Concierge:** (memória: 5 condomínios; já pediu o boleto de novembro de 4 deles; falta o Residencial Ipê)
-> **Concierge:** Oi, Marcos! Segue o boleto de novembro do **Residencial Ipê**, que é o único que ainda faltava. Era esse? Se for outro, me fala qual.
+> **Morador:** oi
+> **Concierge:** (memória: pediu a segunda via do boleto da unidade 12 nos últimos três meses; nenhum pedido em aberto)
+> **Concierge:** Oi, Marcos! Quer a segunda via do boleto da unidade 12, como das outras vezes? Se for outra coisa, me fala.
+> **Morador:** sim
+> **Concierge:** (abre o pedido de segunda via para a unidade 12, pelo fluxo de sempre)
 
 ## 2. Objetivos, não objetivos e anti objetivos
 
 **Objetivos**
-- Não pedir de novo um dado que já sabemos (telefone, CPF, vínculo).
-- Resolver a ambiguidade "qual condomínio" usando o histórico.
-- Antecipar o próximo passo quando a confiança for alta.
-- Descartar ou consolidar o que não serve, para a memória não crescer sem limite.
+- Não pedir de novo o que a pessoa já disse sobre como quer ser atendida.
+- Oferecer o próximo passo quando o hábito é claro e a mensagem não diz o que a pessoa quer.
+- Esquecer sozinho: o que não é usado perde peso e some.
 
 **Não objetivos**
-- Substituir o cadastro do ERP. Vínculo oficial (quem é dono de qual unidade, quem administra qual condomínio) vem do sistema; a memória guarda **uso**, não **verdade cadastral**.
-- Memória "de personalidade" ou conversa social.
+- Substituir o cadastro. Identidade e vínculo (quem é, de qual condomínio e unidade, com qual papel) vêm do Gruvi/ERP a cada turno. A memória guarda **uso**, não **verdade cadastral**.
+- Memória de conversa social ou de personalidade.
 
 **Anti objetivos (falha mesmo funcionando)**
-- Enviar o boleto de um condomínio ao qual a pessoa não tem vínculo no ERP.
-- Guardar CPF ou dado sensível em texto livre.
-- Errar com confiança: chutar um condomínio errado sem perguntar quando há empate.
+- Oferecer ou executar algo numa unidade a que a pessoa não tem vínculo no turno atual.
+- Guardar CPF, telefone ou qualquer texto livre do morador.
+- Executar uma ação porque a memória achou que era isso.
+- Deixar o turno mais lento.
 
-## 3. Tipos de memória (a classificação)
+## 3. Tipos de memória
 
-Cada coisa que o concierge aprende vira um registro com **um tipo**. O tipo define onde a memória mora, quanto tempo vive e quando é usada.
+Cada coisa lembrada tem **um tipo**. O tipo define de onde vem, onde mora e quanto vive.
 
-| Tipo | O que é | Exemplo | Fonte de verdade | Vida útil |
+| Tipo | O que é | Exemplo | Fonte | Vida |
 |---|---|---|---|---|
-| `identidade` | quem é a pessoa | telefone do canal, nome, CPF (só referência) | canal + ERP | permanente, revalida no ERP |
-| `vinculo` | relação pessoa ↔ condomínio/unidade e o papel nela | administra 5 condos; morador da casa 12 | ERP (memória é cache) | enquanto o ERP confirmar |
-| `episodio` | algo que aconteceu numa conversa | "pediu boleto nov/2026 do Ipê, enviado" | conversa | 90 dias, depois vira `padrao` |
-| `pendencia` | pedido aberto, não concluído | "pediu 2ª via, faltou confirmar a unidade" | conversa | até resolver ou 7 dias |
-| `padrao` | estatística consolidada de uso | "pede boleto do Ipê todo mês, por volta do dia 5" | consolidação dos episódios | permanente, com decaimento |
-| `preferencia` | como a pessoa gosta de receber | prefere linha digitável a PDF | conversa (explícita) | permanente até mudar |
-| `descartavel` | nada a guardar | "bom dia", "obrigado", piada | conversa | não é gravado |
+| `padrao_de_uso` | contador com decaimento por caso de uso, condomínio e unidade | segunda via do boleto, Residencial Ipê, unidade 12 | pedido concluído no turno | decai com meia-vida de 45 dias; sai quando o valor cai abaixo de 0,1 |
+| `preferencia` | como a pessoa quer ser atendida, de uma lista fechada | prefere resposta curta | o que o morador disse, extraído em segundo plano | 180 dias sem reafirmar |
+| `pendencia` | pedido em aberto na carteira de pedidos | agendamento de mudança aguardando confirmação | carteira de pedidos (sem guarda própria) | enquanto o pedido estiver aberto |
+| contexto de sessão | o que a conversa atual já tem: histórico, plano, oferta feita | a oferta do turno anterior | sessão | a sessão |
 
-Regra de ouro: **identidade e vínculo nunca são inventados pelo modelo**. Se a conversa sugere um vínculo novo ("também cuido do Edifício Sol"), isso vira `pendencia` de verificação, não `vinculo`.
+Fora da memória, vindos da identidade do turno: **identidade** e **vínculo**. A memória guarda só referência (id do condomínio e da unidade) para contar padrão. Nada que um modelo extrai vira identidade, vínculo ou autorização.
+
+### Preferências da lista
+
+| Chave | Valores |
+|---|---|
+| `nome_preferido` | um nome curto: só letras, até duas palavras, até 30 caracteres |
+| `tamanho_resposta` | `curta`, `detalhada` |
+| `tratamento` | `informal` (você), `formal` (senhor, senhora) |
+| `formato_boleto` | `linha_digitavel`, `pix`, `link` |
+
+Chave fora da lista, ou valor fora dos permitidos, é descartado na extração. A lista cresce por decisão de produto, nunca pelo modelo.
 
 ## 4. Como classificar
 
-### O que é o Jev
+- **Caminho quente, por regra.** O turno já tem sinal estruturado: a skill que atendeu, o caso de uso do pedido, os recursos executados e o desfecho. Um pedido que termina **concluído** no turno é uma ocorrência de `padrao_de_uso` com o caso, o condomínio da conversa e a unidade do pedido. Nenhuma chamada de modelo a mais antes da resposta.
+- **Segundo plano, com o modelo barato que já existe.** Depois da resposta, o extrator lê a troca e devolve só preferências, num esquema fechado (chaves e valores da seção 3). O que vier fora é descartado.
+- **Jev depois.** A classificação de ocorrência fica atrás de uma interface. A primeira versão é a regra; o Jev pode entrar no lugar sem mudar leitura, ranking nem oferta.
 
-O Jev (`jev-1.13`, da TypeSafe AI) é um "System One Model": **não gera texto, só decide**. Recebe um estado (a mensagem, o histórico, um JSON) e perguntas tipadas, e devolve decisões com probabilidade. Tem três tipos de pergunta:
+Resumo: **a regra classifica, o código conta, o modelo barato só extrai preferência, o LLM escreve.**
 
-| Tipo | O que responde | Uso no concierge |
-|---|---|---|
-| **Noul** | sim/não, com probabilidade de sim | "esta mensagem é só cortesia?", "o usuário confirmou o condomínio sugerido?" |
-| **Choice** | uma opção entre até 255, com probabilidade de cada | intenção, tipo de memória, **qual dos condomínios da pessoa foi citado** |
-| **Score** | nota numa escala ordenada | quanto vale guardar esta memória (base para descartar) |
+## 5. Ranking
 
-O que pesa a favor: latência de 70 a 500 ms, custo de US$ 0,042 por milhão de tokens de entrada, saída sempre no tipo pedido (o fornecedor garante que não erra o schema) e probabilidade calibrada, que serve direto como limiar de confiança.
-
-O que pesa contra, e o desenho precisa respeitar:
-- **Não conta, não faz conta e lê data mal.** Isso está na documentação. Então "quantos boletos já pediu este mês" e "qual competência" **nunca** vão para o Jev: ficam em SQL (seções 5 e 6).
-- **Treinado em inglês.** Aceita português com precisão menor e sem números publicados. Antes de produção, precisamos medir com conversas reais nossas.
-- **Early access / beta** (waitlist ou OpenRouter como `typesafe/jev-1.13`). Sem data de disponibilidade geral nem SLA. Por isso fica atrás de uma interface com um LLM de reserva.
-- Não serve para conversar: a resposta ao usuário continua com o LLM.
-- Os números de desempenho são do próprio fornecedor.
-
-Resumo: **o Jev decide, o SQL conta e o LLM escreve.**
-
-### Recomendação: três camadas por mensagem
-
-1. **Regras determinísticas (custo zero)**
-   - CPF/CNPJ por regex + dígito verificador.
-   - Telefone vem do canal (WhatsApp), nunca é perguntado.
-   - Competência do boleto calculada pela data de hoje, não pelo modelo.
-2. **Jev (classificação e decisão)**, numa chamada só com várias perguntas:
-   - `Choice` intenção: `boleto | segunda_via | reserva | ocorrencia | outro`.
-   - `Choice` condomínio citado: as opções são **os condomínios vinculados à pessoa no ERP** + `nenhum`. Isso transforma uma extração de texto livre (que o Jev não faz) numa escolha (que ele faz bem), e nunca gera um condomínio que não existe.
-   - `Choice` tipo de memória (os 7 tipos da seção 3) e `Score` de importância.
-   - `Noul` "é só cortesia?" → se sim, `descartavel` e não grava.
-3. **LLM (só onde precisa de texto)**
-   - Escreve a resposta ao usuário com o que o Jev e o SQL decidiram.
-   - Reserva: se o Jev falhar, passar do tempo limite (timeout de 1 s) ou vier com confiança baixa, o LLM responde às mesmas perguntas com saída estruturada (schema). A interface é a mesma, então trocar de provedor não muda o resto.
-
-A ideia de treinar um classificador próprio sai do plano: o Jev ocupa esse lugar com custo menor. Só volta se o Jev em português não atingir a precisão necessária.
-
-### Exemplo de chamada
-
-Estado (o que o Jev recebe):
-
-```json
-{
-  "mensagem": "oi, preciso do boleto",
-  "pessoa": { "papel": "administrador" },
-  "condominios_vinculados": ["Residencial Ipê", "Edifício Sol", "Aurora", "Jardins", "Bela Vista"]
-}
-```
-
-Saída:
-
-```json
-{
-  "intencao":            { "escolha": "boleto",  "confianca": 0.97 },
-  "condominio_citado":   { "escolha": "nenhum",  "confianca": 0.93 },
-  "tipo_memoria":        { "escolha": "episodio","confianca": 0.88 },
-  "importancia":         { "nota": 3 },
-  "so_cortesia":         { "p_sim": 0.04 }
-}
-```
-
-O condomínio veio `nenhum`, e é aí que entra a seção 6: o SQL vê que 4 dos 5 já foram atendidos em novembro e sobra o Residencial Ipê.
-
-### Limiares de confiança (minha decisão, calibrar com dados)
-
-| Decisão | Age sozinho se | Senão |
-|---|---|---|
-| intenção | confiança ≥ 0,85 | pergunta "você quer o boleto?" |
-| condomínio citado | confiança ≥ 0,90 | trata como `nenhum` e usa o ranking |
-| cortesia (não grava) | p_sim ≥ 0,90 | grava como episódio |
-
-## 5. Ranking: o mais recorrente e o mais recente
-
-Para cada combinação **pessoa × intenção × condomínio** guardamos uma pontuação de *frecência* (frequência ponderada pela recência):
+Cada padrão guarda `(valor, atualizado_em)`. A cada ocorrência:
 
 ```
-score = Σ  peso(evento) × 0.5 ^ (idade_em_dias / meia_vida)
+valor = valor · 0,5^(Δdias / meia_vida) + 1
 ```
 
-- `meia_vida` por intenção: boleto = 30 dias (é mensal), reserva de salão = 90 dias.
-- Cada episódio novo soma ao score; o tempo vai decaindo sozinho.
-- Assim, "o mais frequente" e "o mais recente" viram um número só, e um condomínio que a pessoa deixou de administrar some naturalmente do topo.
+- Meia-vida de **45 dias**. Sem log de eventos: atualizar é O(1).
+- Para ler, o valor é decaído até agora com a mesma fórmula.
+- Duas ocorrências do mesmo padrão em menos de 12 horas contam uma.
+- **Oferecer** quando o primeiro candidato tem valor **≥ 2,0** e é **≥ 2×** o segundo.
+- **Recusa** da oferta divide o valor por 2 e suprime a oferta daquele padrão por **14 dias**.
+- **Limpeza diária** apaga padrão com valor decaído abaixo de **0,1** e preferência com mais de **180 dias** sem reafirmar.
 
-Além do score, o `padrao` guarda o **ciclo**: para boleto, quais condomínios já foram atendidos **na competência atual**.
+Todos os números são configuráveis e são ponto de partida, a calibrar com a taxa de aceite real.
 
-## 6. Onde cada memória é usada na conversa
+## 6. Onde aparece
 
-| Momento | Memória consultada | O que muda na resposta |
-|---|---|---|
-| Início da conversa | `identidade` (pelo telefone) | cumprimenta pelo nome, não pede CPF |
-| Intenção detectada | `vinculo` | lista de condomínios/unidades possíveis |
-| Entidade faltando | `padrao` (ciclo + score) | escolhe o candidato e adianta o passo |
-| Antes de responder | `pendencia` | "da última vez ficou faltando a unidade, é a casa 12?" |
-| Formato da entrega | `preferencia` | manda linha digitável em vez de PDF |
-| Fim da conversa | grava `episodio`, atualiza `padrao` | |
+| Lugar | O que mostra |
+|---|---|
+| Prompt do turno | um bloco curto, marcado como dado e não instrução: as preferências, até 3 padrões da unidade e do condomínio da conversa, e os pedidos em aberto |
+| Oferta | quando a mensagem é saudação ou vaga, não há pedido em aberto e há um padrão forte: o bloco pede ao concierge que pergunte e espere |
+| Aba Memória do Console | cada item com o tipo; no padrão, o valor e a data; esquecer uma preferência ou tudo |
+| Rotas de leitura (`/api/memoria`, `/api/memorias` e as mesmas da integração) | os mesmos itens com tipo, valor e data |
 
-### Regra de decisão para "qual condomínio"
+Sem tela nova no Studio.
 
-```
-candidatos = vinculos ativos no ERP para a intenção
-se 1 candidato                      → executa direto
-remove os já atendidos na competência atual
-se sobrou 1                         → executa e confirma ("era esse?")
-se sobraram vários e o 1º score ≥ 2× o 2º → executa o 1º e confirma
-senão                               → pergunta, listando em ordem de score
-se sobrou 0 (todos já atendidos)    → pergunta, sugerindo reenvio do mais recente
-```
+## 7. Antecipar é perguntar
 
-"Executa e confirma" é o comportamento do exemplo: adianta o passo, mas sempre deixa a porta aberta para corrigir.
+- Com padrão forte, o concierge **oferece** ("quer a segunda via do boleto da unidade 12?") e espera.
+- **Sim** curto logo depois da oferta abre o pedido daquele caso, com a unidade oferecida, e segue o fluxo normal do caso. Escrita continua pedindo a confirmação do próprio fluxo.
+- **Não** curto é recusa (seção 5). Qualquer outra resposta só deixa a oferta expirar, sem penalidade.
+- A oferta só cita unidade que está no vínculo do turno atual. Sem vínculo confirmado, só padrão sem unidade pode ser oferecido.
+- Executar sem perguntar fica fora da primeira versão.
 
 ### Exemplos
 
-**A. Administrador, sobrou 1** (o exemplo da seção 1).
+**A. Hábito claro, saudação.** O exemplo da seção 1.
 
-**B. Administrador, ainda faltam 3**
-> **Usuário:** boleto
-> **Concierge:** Faltam os boletos de novembro de 3 condomínios: Ipê, Sol e Aurora. Qual você quer? (Se quiser, mando os três.)
+**B. Dois hábitos parecidos.** Segunda via (valor 2,4) e reserva do salão (valor 1,8). 2,4 não é o dobro de 1,8: não oferece, responde a saudação normal.
 
-**C. Morador, um vínculo só**
-> **Usuário:** quero a segunda via
-> **Concierge:** Segue a segunda via de novembro da casa 12, Residencial Ipê.
+**C. Pedido em aberto.** "oi" com um agendamento aguardando confirmação: a pendência vem primeiro, não há oferta.
 
-**D. Vínculo novo citado**
-> **Usuário:** e do Edifício Sol também
-> **Concierge:** Não encontrei seu cadastro no Edifício Sol. Você pode pedir para a administradora incluir, ou me passar o número da unidade que eu verifico.
-> (grava `pendencia` de verificação; não grava `vinculo`)
+**D. Recusou.** "não, é outra coisa": a segunda via cai para metade e não é oferecida por 14 dias.
 
-## 7. Descarte e reciclagem
+**E. Unidade que saiu do vínculo.** O padrão da unidade 12 existe, mas o Gruvi hoje só devolve a unidade 15: o padrão não aparece no prompt nem vira oferta.
 
-A memória precisa encolher sozinha:
+## 8. Esquecer e limpeza
 
-| De | Para | Quando |
-|---|---|---|
-| `descartavel` | nada | nunca é gravado |
-| `episodio` | soma no `padrao` e apaga | após 90 dias (job diário) |
-| `pendencia` | `episodio` (resolvida) ou apaga | ao resolver, ou após 7 dias |
-| `padrao` com score < 0,05 | apaga | o decaimento zerou: a pessoa parou de usar |
-| `vinculo` | apaga | ERP não confirma mais |
-
-"Reciclar" é a consolidação: 30 episódios de "pediu boleto do Ipê" viram uma linha de padrão ("Ipê: score 4,2, ciclo mensal, último em 2026-11-05"). Mesma ideia do OptMem (comprimir o antigo e manter o recente detalhado), só que com estrutura em vez de texto livre.
-
-## 8. Modelo de dados (rascunho)
-
-```
-memoria
-  id, pessoa_id, tipo, intencao, condominio_id, unidade_id,
-  conteudo (jsonb), score, criado_em, atualizado_em, expira_em
-
-pessoa_canal
-  telefone (único), pessoa_id      -- identidade pelo canal
-```
-
-- Uma tabela só, com `tipo` como coluna: os tipos mudam o ciclo de vida, não o formato.
-- Índice em `(pessoa_id, intencao, score desc)` para o ranking.
-- CPF **não** fica em `memoria`; a pessoa é resolvida no ERP e guardamos só o `pessoa_id`.
+- **Esquecer tudo** (rota que já existe, inclusive a da integração) apaga preferências, padrões e o cache do contato numa chamada. A conversa em andamento não grava de volta o que foi esquecido.
+- **Esquecer uma preferência** pela chave continua.
+- Os fatos de chave livre de hoje fora da lista **somem da leitura** na hora e a limpeza os apaga. Nada é migrado para tipo novo por adivinhação.
 
 ## 9. LGPD e segurança
 
-- Dado pessoal fica no ERP; a memória guarda IDs e comportamento.
-- Toda memória tem `expira_em`; o pedido de exclusão do titular apaga por `pessoa_id`.
-- Logs nunca levam CPF nem conteúdo da conversa, só IDs e tipo de memória.
-- Antes de enviar qualquer boleto, o vínculo é revalidado no ERP. O cache da memória nunca autoriza sozinho.
+- Chave de tudo: administradora + telefone, como hoje. A leitura e o cache são por essa chave.
+- Nenhum texto livre novo é guardado: padrão é id e número; preferência é valor de lista (o nome preferido é a única exceção, curto e validado).
+- CPF e telefone continuam mascarados pelos ganchos antes de qualquer extração.
+- **Memória envenenada:** o modelo só preenche campos da lista; ocorrência só nasce de pedido concluído pelo motor; nada da memória autoriza ação nem vira vínculo; o bloco do prompt entra como dado.
+- Logs levam o contato mascarado, o tipo e o caso, nunca o conteúdo da conversa.
 
-## 10. Perguntas e respostas
+## 10. Latência (regra dura)
 
-**Por que não guardar tudo e deixar o LLM procurar?**
-Custa caro, cresce sem limite e o LLM erra ao contar "quantos já pediu este mês". Contagem e ciclo são estruturados; o LLM só classifica.
+- Padrões e preferências entram no mesmo cache por contato e no mesmo lote a frio de hoje.
+- A atualização do contador vai no lote depois do envio.
+- Contato quente: **0 idas ao banco antes da resposta**. Contato frio: **1**, como hoje.
+- Nenhuma chamada de modelo nova antes da resposta.
 
-**Por que tipos fixos e não tags livres?**
-Cada tipo tem uma regra de vida útil diferente. Com tags livres não dá para saber o que expirar.
+## 11. O que o mercado faz
 
-**E se o ranking errar?**
-Toda antecipação termina com "era esse?". A correção do usuário vira episódio com peso negativo para aquele candidato.
+Pesquisa completa em `docs/superpowers/pesquisas/2026-11-10-memoria-de-agentes.md`.
 
-**Por que o vínculo não vem da conversa?**
-Porque mandar o boleto de um condomínio errado é vazamento de dado. A conversa só sugere; o ERP decide.
+- Vertex Memory Bank, AgentCore, LangMem e Letta escrevem memória em segundo plano; escrever no caminho quente custa latência. Aqui só o contador vai no lote pós envio, sem modelo.
+- LangMem separa perfil (estado atual) de coleção (fatos soltos). Identidade e vínculo são perfil e vêm do ERP.
+- Decagon trata o CRM como verdade e a memória como complemento. É a regra 2 deste desenho.
+- MINJA e o OWASP (ASI06) mostram que filtro de conteúdo não segura memória envenenada; a defesa que sobra é arquitetural: esquema fechado e nada do modelo vira vínculo.
+- Generative Agents usa decaimento exponencial para recência. O contador com meia-vida é a mesma família, em O(1).
+- Benchmarks (LoCoMo, LongMemEval) medem pergunta e resposta em conversa longa, não antecipação. A métrica nossa é taxa de aceite e de recusa da oferta.
 
-**Quanto custa por mensagem?**
-Uma chamada ao Jev (uns 1.000 tokens: 1 milhão de mensagens sai por volta de US$ 42) + uma query indexada + a chamada de LLM que já existe para responder.
+## 12. Decisões de 10/11/2026
 
-**Por que não deixar o Jev decidir qual boleto falta?**
-Porque contar e comparar datas são exatamente os pontos fracos documentados dele. Qual competência já foi atendida é uma query; o Jev só diz se o usuário citou algum condomínio.
+1. **Sem Jev na primeira versão; regra no caminho quente, modelo barato em segundo plano só para preferência.** Porque o turno já tem sinal estruturado e qualquer chamada antes da resposta fere a regra de latência.
+2. **Identidade e vínculo nunca vêm da memória.** Porque memória envenenada não pode virar acesso a dado de outra unidade.
+3. **Antecipar é perguntar, não executar.** Porque oferecer errado custa uma frase; executar errado custa uma escrita ou um vazamento.
+4. **Tipos: `padrao_de_uso`, `preferencia`, `pendencia` derivada da carteira, contexto de sessão. Cortados: episódio em texto livre, grafo, vetor, agente que edita a própria memória.** Porque é o mínimo que a oferta precisa, sem texto livre.
+5. **Fatos soltos aceitam só chaves da lista; os antigos fora dela somem da leitura e são apagados.** Porque adivinhar o tipo de um fato antigo é o mesmo erro da chave livre.
+6. **Contador com decaimento exponencial, O(1), sem log de eventos, com os números da seção 5.** Porque responde "frequente e recente" num número só, sem crescer.
+7. **Padrões e preferências no cache e no lote de hoje; contador no lote pós envio.** Porque mantém 0 idas no contato quente.
+8. **Chave por administradora + telefone; esquecer apaga tudo; nenhum texto livre novo.** Porque LGPD pede apagar por titular e não guardar o que não precisa.
+9. **Bloco curto no prompt, oferta na saudação, itens com tipo no Console e nas rotas; sem tela no Studio.** Porque o valor está no atendimento, não numa tela nova.
 
-**E se a TypeSafe sair do ar ou mudar o preço?**
-O Jev fica atrás de uma interface `decidir(estado, perguntas)`. O LLM com saída estruturada responde às mesmas perguntas, mais devagar e mais caro, mas o concierge continua funcionando.
+## 13. Decisões do construtor
 
-## 11. Decisões que tomei sozinho (revisar)
+Pontos em que o código pediu uma escolha. Todas pela opção mais simples que respeita latência e identidade.
 
-- Jev para classificar e decidir, LLM como reserva atrás da mesma interface, SQL para contar.
-- Condomínio citado como `Choice` entre os vínculos do ERP, em vez de extração livre.
-- Limiares de confiança da seção 4 (0,85 / 0,90 / 0,90) e timeout de 1 s no Jev.
-- Meia-vida de 30 dias para boleto e 90 para o resto.
-- Episódios viram padrão em 90 dias; pendências expiram em 7.
-- Limiar "1º score ≥ 2× o 2º" para antecipar com vários candidatos.
-- Uma tabela única com `tipo` em vez de uma tabela por tipo.
+1. **O condomínio vem do canal, não da memória.** O turno resolve o condomínio pelo mapeamento antes de tudo. A pergunta "qual condomínio" do rascunho sai; o padrão conta dentro do condomínio da conversa e a oferta só olha esse condomínio.
+2. **Ocorrência = pedido concluído pelo motor de pedidos.** Os casos de uso do catálogo têm contrato de pedido; skill sem contrato (dúvidas, regimento) e conversa solta não contam. É o único sinal com desfecho estruturado.
+3. **Unidade do padrão = o parâmetro `unidade` do pedido.** Pedido sem esse parâmetro conta sem unidade. Na leitura, padrão de unidade fora do vínculo do turno é ignorado.
+4. **12 horas entre ocorrências do mesmo padrão.** Uma conversa sozinha não fabrica hábito (eventos independentes, recomendação da pesquisa contra envenenamento).
+5. **Recusa divide por 2** (a decisão deixava zerar ou dividir). Dividir mantém a linha com a supressão até a limpeza.
+6. **Saudação ou vaga por regra sobre o texto**, de uma lista fechada de frases curtas. Oferta só com o motor de pedidos ligado e sem pedido em aberto.
+7. **Sim e não curtos logo depois da oferta são lidos por regra.** O sim vira o pedido em código, sem depender do extrator inferir pelo histórico.
+8. **`nome_preferido` não cabe numa lista.** Fica como a única exceção: nome curto validado.
+9. **Revalidar preferência = o morador reafirmar.** Reafirmar renova a data. Sem pergunta ativa de revalidação na primeira versão.
+10. **Pendência não ganha item nas rotas de memória.** Ela aparece no prompt e já está na rota e na aba de pedidos.
+11. **Sem competência do boleto.** A oferta cita o caso e a unidade; o mês fica para quando o ERP der o sinal.
+12. **A limpeza não mexe no cache.** A leitura já esconde preferência vencida e padrão fraco; o cache de padrão abaixo de 0,1 nunca vira oferta.
+13. **A interface de classificador cobre só a ocorrência.** Sim e não da oferta são regra pura; trocar pelo Jev depois não muda essa parte.
 
-## 12. Em aberto (precisa de resposta)
+## 14. Metas
 
-1. Já temos acesso ao Jev (waitlist ou OpenRouter)? Precisamos de umas 200 conversas reais rotuladas para medir a precisão em português antes de confiar nos limiares.
-2. Onde o concierge roda hoje (stack, canal: só WhatsApp?) e qual API do ERP dá os vínculos?
-3. Pode mandar o boleto direto (exemplo A) ou sempre confirmar antes de enviar?
+- Contato quente: 0 idas ao banco antes da resposta; frio: 1. Guarda automática no teste de idas do turno.
+- Nenhuma chamada de modelo nova antes da resposta.
+- Esquecer tudo deixa a leitura seguinte vazia, inclusive com uma conversa em andamento.
+- Nenhuma oferta cita unidade fora do vínculo do turno.
+- Cada oferta e cada resposta a ela ficam em log de negócio (tipo, caso, aceite ou recusa), para medir taxa de aceite e de recusa.
 
-## 13. Estado em 04/11/2026
+## 15. Fora da primeira versão
 
-**Já pronto (Fundação e Ganchos, na `main` ou a caminho):**
-- A memória por telefone que já existia saiu do JSON e foi para o Postgres, com cache por contato e o mesmo comportamento de antes. Contato quente responde sem ida ao banco.
-- CPF e telefone nunca vão para memória nem histórico em texto livre: os ganchos mascaram na entrada e só devolvem o valor real na hora de responder (atende o anti objetivo "guardar CPF em texto livre").
+- Executar sem perguntar.
+- Episódio em texto livre, resumo de conversa, grafo, vetor e busca semântica.
+- Agente que edita a própria memória.
+- Resolução de conflito por modelo.
+- Jev (entra depois pela interface do classificador).
+- Competência e ciclo mensal do boleto.
+- Esquecer um padrão isolado pelo Console.
+- Tela no Studio.
 
-**Falta (o coração deste desenho, nada implementado):**
-- Os sete tipos de memória com vida útil própria (seção 3).
-- Classificação por mensagem com o Jev e o LLM como reserva (seção 4).
-- Ranking por frequência e recência (seção 5) e a antecipação do próximo passo (seção 6).
-- Descarte e consolidação: episódio vira padrão em 90 dias, pendência expira em 7 (seção 7).
+## 16. Estado em 10/11/2026
 
-**Travas:** as perguntas 1 e 2 da seção 12 (acesso ao Jev com ~200 conversas reais anonimizadas; API de vínculos, que depende da conversa com o Anderson sobre a Gruvi). A pergunta 3 (mandar o boleto direto ou confirmar) é decisão do Felipe e fecha o desenho.
+**Pronto na `main`:** memória por contato no Postgres com cache e lote a frio; extrator com modelo barato em segundo plano; carteira de pedidos; CPF e telefone mascarados pelos ganchos; esquecer pelas rotas e pela integração.
+
+**Falta:** tudo das seções 3 a 10. Plano em `docs/superpowers/plans/2026-11-10-memoria-classificada.md`.
