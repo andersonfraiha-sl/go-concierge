@@ -50,7 +50,7 @@ export function FluxoDaCamada(props: Props): ReactNode {
 
 // Filtrar o catálogo basta para travar: o seletor só oferece o que sobra, e uma ferramenta
 // de fora aparece como "não encontrada" no bloco.
-function useCatalogoDaBase(ferramentasDaBase: readonly string[]): CatalogoDeFerramentas {
+export function useCatalogoDaBase(ferramentasDaBase: readonly string[]): CatalogoDeFerramentas {
   const catalogo = useCatalogoDeFerramentas();
   return useMemo(() => {
     if (catalogo.estado !== 'pronto') return catalogo;

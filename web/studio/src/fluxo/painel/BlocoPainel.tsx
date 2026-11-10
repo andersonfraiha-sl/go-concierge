@@ -17,6 +17,8 @@ type Props = {
   editavel: boolean;
   onMudar: (bloco: Bloco) => void;
   onExcluir: (id: string) => void;
+  /** Falso esconde "Excluir bloco" (ex.: o bloco está num diálogo que só edita o conteúdo). */
+  permiteExcluir?: boolean;
 };
 
 function CabecalhoDoBloco({ bloco }: { bloco: Bloco }): ReactNode {
@@ -115,8 +117,9 @@ export function BlocoPainel({
   editavel,
   onMudar,
   onExcluir,
+  permiteExcluir = true,
 }: Props): ReactNode {
-  const podeExcluir = editavel && bloco.tipo !== 'responder';
+  const podeExcluir = editavel && permiteExcluir && bloco.tipo !== 'responder';
   return (
     <Box
       component="section"

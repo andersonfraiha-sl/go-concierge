@@ -22,6 +22,9 @@ const SkillEditorPage = lazy(() =>
 const EditorDaCamadaPage = lazy(() =>
   import('@/camadas/EditorDaCamadaPage').then((m) => ({ default: m.EditorDaCamadaPage })),
 );
+const ComparacaoPage = lazy(() =>
+  import('@/camadas/ComparacaoPage').then((m) => ({ default: m.ComparacaoPage })),
+);
 const FerramentasPage = lazy(() =>
   import('@/ferramentas/FerramentasPage').then((m) => ({ default: m.FerramentasPage })),
 );
@@ -54,6 +57,7 @@ const ROTAS_DE_LISTA: RouteObject[] = [
 const ROTAS_DE_DETALHE: RouteObject[] = [
   { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
   { path: 'skills/:nome/:tipo/:id', element: tela(<EditorDaCamadaPage />) },
+  { path: 'atualizacoes/:id', element: tela(<ComparacaoPage />) },
   { path: 'condominios/:id', element: tela(<CondominioPage />) },
 ];
 
