@@ -29,6 +29,10 @@ import (
 	"go-concierge/internal/banco/ent/pedido"
 	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/sessao"
+	"go-concierge/internal/banco/ent/skillatualizacao"
+	"go-concierge/internal/banco/ent/skillaviso"
+	"go-concierge/internal/banco/ent/skillcamada"
+	"go-concierge/internal/banco/ent/skillversao"
 	"go-concierge/internal/banco/ent/usuario"
 
 	"entgo.io/ent"
@@ -81,6 +85,14 @@ type Client struct {
 	PedidoEvento *PedidoEventoClient
 	// Sessao is the client for interacting with the Sessao builders.
 	Sessao *SessaoClient
+	// SkillAtualizacao is the client for interacting with the SkillAtualizacao builders.
+	SkillAtualizacao *SkillAtualizacaoClient
+	// SkillAviso is the client for interacting with the SkillAviso builders.
+	SkillAviso *SkillAvisoClient
+	// SkillCamada is the client for interacting with the SkillCamada builders.
+	SkillCamada *SkillCamadaClient
+	// SkillVersao is the client for interacting with the SkillVersao builders.
+	SkillVersao *SkillVersaoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 }
@@ -112,6 +124,10 @@ func (c *Client) init() {
 	c.Pedido = NewPedidoClient(c.config)
 	c.PedidoEvento = NewPedidoEventoClient(c.config)
 	c.Sessao = NewSessaoClient(c.config)
+	c.SkillAtualizacao = NewSkillAtualizacaoClient(c.config)
+	c.SkillAviso = NewSkillAvisoClient(c.config)
+	c.SkillCamada = NewSkillCamadaClient(c.config)
+	c.SkillVersao = NewSkillVersaoClient(c.config)
 	c.Usuario = NewUsuarioClient(c.config)
 }
 
@@ -223,6 +239,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Pedido:             NewPedidoClient(cfg),
 		PedidoEvento:       NewPedidoEventoClient(cfg),
 		Sessao:             NewSessaoClient(cfg),
+		SkillAtualizacao:   NewSkillAtualizacaoClient(cfg),
+		SkillAviso:         NewSkillAvisoClient(cfg),
+		SkillCamada:        NewSkillCamadaClient(cfg),
+		SkillVersao:        NewSkillVersaoClient(cfg),
 		Usuario:            NewUsuarioClient(cfg),
 	}, nil
 }
@@ -261,6 +281,10 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Pedido:             NewPedidoClient(cfg),
 		PedidoEvento:       NewPedidoEventoClient(cfg),
 		Sessao:             NewSessaoClient(cfg),
+		SkillAtualizacao:   NewSkillAtualizacaoClient(cfg),
+		SkillAviso:         NewSkillAvisoClient(cfg),
+		SkillCamada:        NewSkillCamadaClient(cfg),
+		SkillVersao:        NewSkillVersaoClient(cfg),
 		Usuario:            NewUsuarioClient(cfg),
 	}, nil
 }
@@ -294,7 +318,8 @@ func (c *Client) Use(hooks ...Hook) {
 		c.Administradora, c.Atribuicao, c.CatalogoArquivo, c.Concessao, c.Condominio,
 		c.GanchosAuditoria, c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao,
 		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.Usuario,
+		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.SkillAtualizacao,
+		c.SkillAviso, c.SkillCamada, c.SkillVersao, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -307,7 +332,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.Administradora, c.Atribuicao, c.CatalogoArquivo, c.Concessao, c.Condominio,
 		c.GanchosAuditoria, c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao,
 		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.Usuario,
+		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.SkillAtualizacao,
+		c.SkillAviso, c.SkillCamada, c.SkillVersao, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -352,6 +378,14 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.PedidoEvento.mutate(ctx, m)
 	case *SessaoMutation:
 		return c.Sessao.mutate(ctx, m)
+	case *SkillAtualizacaoMutation:
+		return c.SkillAtualizacao.mutate(ctx, m)
+	case *SkillAvisoMutation:
+		return c.SkillAviso.mutate(ctx, m)
+	case *SkillCamadaMutation:
+		return c.SkillCamada.mutate(ctx, m)
+	case *SkillVersaoMutation:
+		return c.SkillVersao.mutate(ctx, m)
 	case *UsuarioMutation:
 		return c.Usuario.mutate(ctx, m)
 	default:
@@ -476,6 +510,22 @@ func (c *AdministradoraClient) QueryCondominios(_m *Administradora) *CondominioQ
 			sqlgraph.From(administradora.Table, administradora.FieldID, id),
 			sqlgraph.To(condominio.Table, condominio.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, administradora.CondominiosTable, administradora.CondominiosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySkillCamadas queries the skill_camadas edge of a Administradora.
+func (c *AdministradoraClient) QuerySkillCamadas(_m *Administradora) *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(administradora.Table, administradora.FieldID, id),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, administradora.SkillCamadasTable, administradora.SkillCamadasColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -1152,6 +1202,22 @@ func (c *CondominioClient) QueryOrientacoes(_m *Condominio) *OrientacaoQuery {
 			sqlgraph.From(condominio.Table, condominio.FieldID, id),
 			sqlgraph.To(orientacao.Table, orientacao.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, condominio.OrientacoesTable, condominio.OrientacoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QuerySkillCamadas queries the skill_camadas edge of a Condominio.
+func (c *CondominioClient) QuerySkillCamadas(_m *Condominio) *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(condominio.Table, condominio.FieldID, id),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, condominio.SkillCamadasTable, condominio.SkillCamadasColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -3105,6 +3171,714 @@ func (c *SessaoClient) mutate(ctx context.Context, m *SessaoMutation) (Value, er
 	}
 }
 
+// SkillAtualizacaoClient is a client for the SkillAtualizacao schema.
+type SkillAtualizacaoClient struct {
+	config
+}
+
+// NewSkillAtualizacaoClient returns a client for the SkillAtualizacao from the given config.
+func NewSkillAtualizacaoClient(c config) *SkillAtualizacaoClient {
+	return &SkillAtualizacaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `skillatualizacao.Hooks(f(g(h())))`.
+func (c *SkillAtualizacaoClient) Use(hooks ...Hook) {
+	c.hooks.SkillAtualizacao = append(c.hooks.SkillAtualizacao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `skillatualizacao.Intercept(f(g(h())))`.
+func (c *SkillAtualizacaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SkillAtualizacao = append(c.inters.SkillAtualizacao, interceptors...)
+}
+
+// Create returns a builder for creating a SkillAtualizacao entity.
+func (c *SkillAtualizacaoClient) Create() *SkillAtualizacaoCreate {
+	mutation := newSkillAtualizacaoMutation(c.config, OpCreate)
+	return &SkillAtualizacaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SkillAtualizacao entities.
+func (c *SkillAtualizacaoClient) CreateBulk(builders ...*SkillAtualizacaoCreate) *SkillAtualizacaoCreateBulk {
+	return &SkillAtualizacaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SkillAtualizacaoClient) MapCreateBulk(slice any, setFunc func(*SkillAtualizacaoCreate, int)) *SkillAtualizacaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SkillAtualizacaoCreateBulk{err: fmt.Errorf("calling to SkillAtualizacaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SkillAtualizacaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SkillAtualizacaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SkillAtualizacao.
+func (c *SkillAtualizacaoClient) Update() *SkillAtualizacaoUpdate {
+	mutation := newSkillAtualizacaoMutation(c.config, OpUpdate)
+	return &SkillAtualizacaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SkillAtualizacaoClient) UpdateOne(_m *SkillAtualizacao) *SkillAtualizacaoUpdateOne {
+	mutation := newSkillAtualizacaoMutation(c.config, OpUpdateOne, withSkillAtualizacao(_m))
+	return &SkillAtualizacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SkillAtualizacaoClient) UpdateOneID(id int) *SkillAtualizacaoUpdateOne {
+	mutation := newSkillAtualizacaoMutation(c.config, OpUpdateOne, withSkillAtualizacaoID(id))
+	return &SkillAtualizacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SkillAtualizacao.
+func (c *SkillAtualizacaoClient) Delete() *SkillAtualizacaoDelete {
+	mutation := newSkillAtualizacaoMutation(c.config, OpDelete)
+	return &SkillAtualizacaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SkillAtualizacaoClient) DeleteOne(_m *SkillAtualizacao) *SkillAtualizacaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SkillAtualizacaoClient) DeleteOneID(id int) *SkillAtualizacaoDeleteOne {
+	builder := c.Delete().Where(skillatualizacao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SkillAtualizacaoDeleteOne{builder}
+}
+
+// Query returns a query builder for SkillAtualizacao.
+func (c *SkillAtualizacaoClient) Query() *SkillAtualizacaoQuery {
+	return &SkillAtualizacaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSkillAtualizacao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SkillAtualizacao entity by its id.
+func (c *SkillAtualizacaoClient) Get(ctx context.Context, id int) (*SkillAtualizacao, error) {
+	return c.Query().Where(skillatualizacao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SkillAtualizacaoClient) GetX(ctx context.Context, id int) *SkillAtualizacao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCamada queries the camada edge of a SkillAtualizacao.
+func (c *SkillAtualizacaoClient) QueryCamada(_m *SkillAtualizacao) *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillatualizacao.Table, skillatualizacao.FieldID, id),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, skillatualizacao.CamadaTable, skillatualizacao.CamadaColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDe queries the de edge of a SkillAtualizacao.
+func (c *SkillAtualizacaoClient) QueryDe(_m *SkillAtualizacao) *SkillVersaoQuery {
+	query := (&SkillVersaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillatualizacao.Table, skillatualizacao.FieldID, id),
+			sqlgraph.To(skillversao.Table, skillversao.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, skillatualizacao.DeTable, skillatualizacao.DeColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryPara queries the para edge of a SkillAtualizacao.
+func (c *SkillAtualizacaoClient) QueryPara(_m *SkillAtualizacao) *SkillVersaoQuery {
+	query := (&SkillVersaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillatualizacao.Table, skillatualizacao.FieldID, id),
+			sqlgraph.To(skillversao.Table, skillversao.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, skillatualizacao.ParaTable, skillatualizacao.ParaColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SkillAtualizacaoClient) Hooks() []Hook {
+	return c.hooks.SkillAtualizacao
+}
+
+// Interceptors returns the client interceptors.
+func (c *SkillAtualizacaoClient) Interceptors() []Interceptor {
+	return c.inters.SkillAtualizacao
+}
+
+func (c *SkillAtualizacaoClient) mutate(ctx context.Context, m *SkillAtualizacaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SkillAtualizacaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SkillAtualizacaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SkillAtualizacaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SkillAtualizacaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SkillAtualizacao mutation op: %q", m.Op())
+	}
+}
+
+// SkillAvisoClient is a client for the SkillAviso schema.
+type SkillAvisoClient struct {
+	config
+}
+
+// NewSkillAvisoClient returns a client for the SkillAviso from the given config.
+func NewSkillAvisoClient(c config) *SkillAvisoClient {
+	return &SkillAvisoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `skillaviso.Hooks(f(g(h())))`.
+func (c *SkillAvisoClient) Use(hooks ...Hook) {
+	c.hooks.SkillAviso = append(c.hooks.SkillAviso, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `skillaviso.Intercept(f(g(h())))`.
+func (c *SkillAvisoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SkillAviso = append(c.inters.SkillAviso, interceptors...)
+}
+
+// Create returns a builder for creating a SkillAviso entity.
+func (c *SkillAvisoClient) Create() *SkillAvisoCreate {
+	mutation := newSkillAvisoMutation(c.config, OpCreate)
+	return &SkillAvisoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SkillAviso entities.
+func (c *SkillAvisoClient) CreateBulk(builders ...*SkillAvisoCreate) *SkillAvisoCreateBulk {
+	return &SkillAvisoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SkillAvisoClient) MapCreateBulk(slice any, setFunc func(*SkillAvisoCreate, int)) *SkillAvisoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SkillAvisoCreateBulk{err: fmt.Errorf("calling to SkillAvisoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SkillAvisoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SkillAvisoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SkillAviso.
+func (c *SkillAvisoClient) Update() *SkillAvisoUpdate {
+	mutation := newSkillAvisoMutation(c.config, OpUpdate)
+	return &SkillAvisoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SkillAvisoClient) UpdateOne(_m *SkillAviso) *SkillAvisoUpdateOne {
+	mutation := newSkillAvisoMutation(c.config, OpUpdateOne, withSkillAviso(_m))
+	return &SkillAvisoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SkillAvisoClient) UpdateOneID(id int) *SkillAvisoUpdateOne {
+	mutation := newSkillAvisoMutation(c.config, OpUpdateOne, withSkillAvisoID(id))
+	return &SkillAvisoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SkillAviso.
+func (c *SkillAvisoClient) Delete() *SkillAvisoDelete {
+	mutation := newSkillAvisoMutation(c.config, OpDelete)
+	return &SkillAvisoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SkillAvisoClient) DeleteOne(_m *SkillAviso) *SkillAvisoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SkillAvisoClient) DeleteOneID(id int) *SkillAvisoDeleteOne {
+	builder := c.Delete().Where(skillaviso.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SkillAvisoDeleteOne{builder}
+}
+
+// Query returns a query builder for SkillAviso.
+func (c *SkillAvisoClient) Query() *SkillAvisoQuery {
+	return &SkillAvisoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSkillAviso},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SkillAviso entity by its id.
+func (c *SkillAvisoClient) Get(ctx context.Context, id int) (*SkillAviso, error) {
+	return c.Query().Where(skillaviso.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SkillAvisoClient) GetX(ctx context.Context, id int) *SkillAviso {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCamada queries the camada edge of a SkillAviso.
+func (c *SkillAvisoClient) QueryCamada(_m *SkillAviso) *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillaviso.Table, skillaviso.FieldID, id),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, skillaviso.CamadaTable, skillaviso.CamadaColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryVersao queries the versao edge of a SkillAviso.
+func (c *SkillAvisoClient) QueryVersao(_m *SkillAviso) *SkillVersaoQuery {
+	query := (&SkillVersaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillaviso.Table, skillaviso.FieldID, id),
+			sqlgraph.To(skillversao.Table, skillversao.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, skillaviso.VersaoTable, skillaviso.VersaoColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SkillAvisoClient) Hooks() []Hook {
+	return c.hooks.SkillAviso
+}
+
+// Interceptors returns the client interceptors.
+func (c *SkillAvisoClient) Interceptors() []Interceptor {
+	return c.inters.SkillAviso
+}
+
+func (c *SkillAvisoClient) mutate(ctx context.Context, m *SkillAvisoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SkillAvisoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SkillAvisoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SkillAvisoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SkillAvisoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SkillAviso mutation op: %q", m.Op())
+	}
+}
+
+// SkillCamadaClient is a client for the SkillCamada schema.
+type SkillCamadaClient struct {
+	config
+}
+
+// NewSkillCamadaClient returns a client for the SkillCamada from the given config.
+func NewSkillCamadaClient(c config) *SkillCamadaClient {
+	return &SkillCamadaClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `skillcamada.Hooks(f(g(h())))`.
+func (c *SkillCamadaClient) Use(hooks ...Hook) {
+	c.hooks.SkillCamada = append(c.hooks.SkillCamada, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `skillcamada.Intercept(f(g(h())))`.
+func (c *SkillCamadaClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SkillCamada = append(c.inters.SkillCamada, interceptors...)
+}
+
+// Create returns a builder for creating a SkillCamada entity.
+func (c *SkillCamadaClient) Create() *SkillCamadaCreate {
+	mutation := newSkillCamadaMutation(c.config, OpCreate)
+	return &SkillCamadaCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SkillCamada entities.
+func (c *SkillCamadaClient) CreateBulk(builders ...*SkillCamadaCreate) *SkillCamadaCreateBulk {
+	return &SkillCamadaCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SkillCamadaClient) MapCreateBulk(slice any, setFunc func(*SkillCamadaCreate, int)) *SkillCamadaCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SkillCamadaCreateBulk{err: fmt.Errorf("calling to SkillCamadaClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SkillCamadaCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SkillCamadaCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SkillCamada.
+func (c *SkillCamadaClient) Update() *SkillCamadaUpdate {
+	mutation := newSkillCamadaMutation(c.config, OpUpdate)
+	return &SkillCamadaUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SkillCamadaClient) UpdateOne(_m *SkillCamada) *SkillCamadaUpdateOne {
+	mutation := newSkillCamadaMutation(c.config, OpUpdateOne, withSkillCamada(_m))
+	return &SkillCamadaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SkillCamadaClient) UpdateOneID(id int) *SkillCamadaUpdateOne {
+	mutation := newSkillCamadaMutation(c.config, OpUpdateOne, withSkillCamadaID(id))
+	return &SkillCamadaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SkillCamada.
+func (c *SkillCamadaClient) Delete() *SkillCamadaDelete {
+	mutation := newSkillCamadaMutation(c.config, OpDelete)
+	return &SkillCamadaDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SkillCamadaClient) DeleteOne(_m *SkillCamada) *SkillCamadaDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SkillCamadaClient) DeleteOneID(id int) *SkillCamadaDeleteOne {
+	builder := c.Delete().Where(skillcamada.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SkillCamadaDeleteOne{builder}
+}
+
+// Query returns a query builder for SkillCamada.
+func (c *SkillCamadaClient) Query() *SkillCamadaQuery {
+	return &SkillCamadaQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSkillCamada},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SkillCamada entity by its id.
+func (c *SkillCamadaClient) Get(ctx context.Context, id int) (*SkillCamada, error) {
+	return c.Query().Where(skillcamada.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SkillCamadaClient) GetX(ctx context.Context, id int) *SkillCamada {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAdministradora queries the administradora edge of a SkillCamada.
+func (c *SkillCamadaClient) QueryAdministradora(_m *SkillCamada) *AdministradoraQuery {
+	query := (&AdministradoraClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillcamada.Table, skillcamada.FieldID, id),
+			sqlgraph.To(administradora.Table, administradora.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, skillcamada.AdministradoraTable, skillcamada.AdministradoraColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCondominio queries the condominio edge of a SkillCamada.
+func (c *SkillCamadaClient) QueryCondominio(_m *SkillCamada) *CondominioQuery {
+	query := (&CondominioClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillcamada.Table, skillcamada.FieldID, id),
+			sqlgraph.To(condominio.Table, condominio.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, skillcamada.CondominioTable, skillcamada.CondominioColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryVersoes queries the versoes edge of a SkillCamada.
+func (c *SkillCamadaClient) QueryVersoes(_m *SkillCamada) *SkillVersaoQuery {
+	query := (&SkillVersaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillcamada.Table, skillcamada.FieldID, id),
+			sqlgraph.To(skillversao.Table, skillversao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, skillcamada.VersoesTable, skillcamada.VersoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAtualizacoes queries the atualizacoes edge of a SkillCamada.
+func (c *SkillCamadaClient) QueryAtualizacoes(_m *SkillCamada) *SkillAtualizacaoQuery {
+	query := (&SkillAtualizacaoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillcamada.Table, skillcamada.FieldID, id),
+			sqlgraph.To(skillatualizacao.Table, skillatualizacao.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, skillcamada.AtualizacoesTable, skillcamada.AtualizacoesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAvisos queries the avisos edge of a SkillCamada.
+func (c *SkillCamadaClient) QueryAvisos(_m *SkillCamada) *SkillAvisoQuery {
+	query := (&SkillAvisoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillcamada.Table, skillcamada.FieldID, id),
+			sqlgraph.To(skillaviso.Table, skillaviso.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, skillcamada.AvisosTable, skillcamada.AvisosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SkillCamadaClient) Hooks() []Hook {
+	return c.hooks.SkillCamada
+}
+
+// Interceptors returns the client interceptors.
+func (c *SkillCamadaClient) Interceptors() []Interceptor {
+	return c.inters.SkillCamada
+}
+
+func (c *SkillCamadaClient) mutate(ctx context.Context, m *SkillCamadaMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SkillCamadaCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SkillCamadaUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SkillCamadaUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SkillCamadaDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SkillCamada mutation op: %q", m.Op())
+	}
+}
+
+// SkillVersaoClient is a client for the SkillVersao schema.
+type SkillVersaoClient struct {
+	config
+}
+
+// NewSkillVersaoClient returns a client for the SkillVersao from the given config.
+func NewSkillVersaoClient(c config) *SkillVersaoClient {
+	return &SkillVersaoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `skillversao.Hooks(f(g(h())))`.
+func (c *SkillVersaoClient) Use(hooks ...Hook) {
+	c.hooks.SkillVersao = append(c.hooks.SkillVersao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `skillversao.Intercept(f(g(h())))`.
+func (c *SkillVersaoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SkillVersao = append(c.inters.SkillVersao, interceptors...)
+}
+
+// Create returns a builder for creating a SkillVersao entity.
+func (c *SkillVersaoClient) Create() *SkillVersaoCreate {
+	mutation := newSkillVersaoMutation(c.config, OpCreate)
+	return &SkillVersaoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SkillVersao entities.
+func (c *SkillVersaoClient) CreateBulk(builders ...*SkillVersaoCreate) *SkillVersaoCreateBulk {
+	return &SkillVersaoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SkillVersaoClient) MapCreateBulk(slice any, setFunc func(*SkillVersaoCreate, int)) *SkillVersaoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SkillVersaoCreateBulk{err: fmt.Errorf("calling to SkillVersaoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SkillVersaoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SkillVersaoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SkillVersao.
+func (c *SkillVersaoClient) Update() *SkillVersaoUpdate {
+	mutation := newSkillVersaoMutation(c.config, OpUpdate)
+	return &SkillVersaoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SkillVersaoClient) UpdateOne(_m *SkillVersao) *SkillVersaoUpdateOne {
+	mutation := newSkillVersaoMutation(c.config, OpUpdateOne, withSkillVersao(_m))
+	return &SkillVersaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SkillVersaoClient) UpdateOneID(id int) *SkillVersaoUpdateOne {
+	mutation := newSkillVersaoMutation(c.config, OpUpdateOne, withSkillVersaoID(id))
+	return &SkillVersaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SkillVersao.
+func (c *SkillVersaoClient) Delete() *SkillVersaoDelete {
+	mutation := newSkillVersaoMutation(c.config, OpDelete)
+	return &SkillVersaoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SkillVersaoClient) DeleteOne(_m *SkillVersao) *SkillVersaoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SkillVersaoClient) DeleteOneID(id int) *SkillVersaoDeleteOne {
+	builder := c.Delete().Where(skillversao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SkillVersaoDeleteOne{builder}
+}
+
+// Query returns a query builder for SkillVersao.
+func (c *SkillVersaoClient) Query() *SkillVersaoQuery {
+	return &SkillVersaoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSkillVersao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SkillVersao entity by its id.
+func (c *SkillVersaoClient) Get(ctx context.Context, id int) (*SkillVersao, error) {
+	return c.Query().Where(skillversao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SkillVersaoClient) GetX(ctx context.Context, id int) *SkillVersao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCamada queries the camada edge of a SkillVersao.
+func (c *SkillVersaoClient) QueryCamada(_m *SkillVersao) *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(skillversao.Table, skillversao.FieldID, id),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, skillversao.CamadaTable, skillversao.CamadaColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *SkillVersaoClient) Hooks() []Hook {
+	return c.hooks.SkillVersao
+}
+
+// Interceptors returns the client interceptors.
+func (c *SkillVersaoClient) Interceptors() []Interceptor {
+	return c.inters.SkillVersao
+}
+
+func (c *SkillVersaoClient) mutate(ctx context.Context, m *SkillVersaoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SkillVersaoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SkillVersaoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SkillVersaoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SkillVersaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SkillVersao mutation op: %q", m.Op())
+	}
+}
+
 // UsuarioClient is a client for the Usuario schema.
 type UsuarioClient struct {
 	config
@@ -3260,13 +4034,15 @@ type (
 		Administradora, Atribuicao, CatalogoArquivo, Concessao, Condominio,
 		GanchosAuditoria, GanchosRegra, GanchosRegraVersao, Habilitacao,
 		MemoriaContato, MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
-		Pedido, PedidoEvento, Sessao, Usuario []ent.Hook
+		Pedido, PedidoEvento, Sessao, SkillAtualizacao, SkillAviso, SkillCamada,
+		SkillVersao, Usuario []ent.Hook
 	}
 	inters struct {
 		Administradora, Atribuicao, CatalogoArquivo, Concessao, Condominio,
 		GanchosAuditoria, GanchosRegra, GanchosRegraVersao, Habilitacao,
 		MemoriaContato, MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
-		Pedido, PedidoEvento, Sessao, Usuario []ent.Interceptor
+		Pedido, PedidoEvento, Sessao, SkillAtualizacao, SkillAviso, SkillCamada,
+		SkillVersao, Usuario []ent.Interceptor
 	}
 )
 

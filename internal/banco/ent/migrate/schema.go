@@ -526,6 +526,193 @@ var (
 			},
 		},
 	}
+	// SkillAtualizacoesColumns holds the columns for the "skill_atualizacoes" table.
+	SkillAtualizacoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "estado", Type: field.TypeEnum, Enums: []string{"pendente", "aceita", "recusada", "parcial", "substituida"}, Default: "pendente"},
+		{Name: "prazo_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "prazo_aplicado", Type: field.TypeBool, Default: false},
+		{Name: "decisoes", Type: field.TypeJSON, Nullable: true},
+		{Name: "decidida_por", Type: field.TypeString, Default: ""},
+		{Name: "decidida_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "de_id", Type: field.TypeInt},
+		{Name: "para_id", Type: field.TypeInt},
+		{Name: "camada_id", Type: field.TypeInt},
+	}
+	// SkillAtualizacoesTable holds the schema information for the "skill_atualizacoes" table.
+	SkillAtualizacoesTable = &schema.Table{
+		Name:       "skill_atualizacoes",
+		Columns:    SkillAtualizacoesColumns,
+		PrimaryKey: []*schema.Column{SkillAtualizacoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "skill_atualizacoes_skill_versoes_de",
+				Columns:    []*schema.Column{SkillAtualizacoesColumns[8]},
+				RefColumns: []*schema.Column{SkillVersoesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "skill_atualizacoes_skill_versoes_para",
+				Columns:    []*schema.Column{SkillAtualizacoesColumns[9]},
+				RefColumns: []*schema.Column{SkillVersoesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "skill_atualizacoes_skill_camadas_atualizacoes",
+				Columns:    []*schema.Column{SkillAtualizacoesColumns[10]},
+				RefColumns: []*schema.Column{SkillCamadasColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "skillatualizacao_camada_id_estado",
+				Unique:  false,
+				Columns: []*schema.Column{SkillAtualizacoesColumns[10], SkillAtualizacoesColumns[1]},
+			},
+			{
+				Name:    "skillatualizacao_estado_prazo_em",
+				Unique:  false,
+				Columns: []*schema.Column{SkillAtualizacoesColumns[1], SkillAtualizacoesColumns[2]},
+			},
+		},
+	}
+	// SkillAvisosColumns holds the columns for the "skill_avisos" table.
+	SkillAvisosColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "motivo", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "trechos", Type: field.TypeJSON},
+		{Name: "encerra_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "ciente_por", Type: field.TypeString, Default: ""},
+		{Name: "ciente_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "versao_id", Type: field.TypeInt},
+		{Name: "camada_id", Type: field.TypeInt},
+	}
+	// SkillAvisosTable holds the schema information for the "skill_avisos" table.
+	SkillAvisosTable = &schema.Table{
+		Name:       "skill_avisos",
+		Columns:    SkillAvisosColumns,
+		PrimaryKey: []*schema.Column{SkillAvisosColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "skill_avisos_skill_versoes_versao",
+				Columns:    []*schema.Column{SkillAvisosColumns[7]},
+				RefColumns: []*schema.Column{SkillVersoesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "skill_avisos_skill_camadas_avisos",
+				Columns:    []*schema.Column{SkillAvisosColumns[8]},
+				RefColumns: []*schema.Column{SkillCamadasColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "skillaviso_camada_id_ciente_em",
+				Unique:  false,
+				Columns: []*schema.Column{SkillAvisosColumns[8], SkillAvisosColumns[5]},
+			},
+		},
+	}
+	// SkillCamadasColumns holds the columns for the "skill_camadas" table.
+	SkillCamadasColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "skill", Type: field.TypeString},
+		{Name: "tipo", Type: field.TypeEnum, Enums: []string{"base", "administradora", "condominio"}},
+		{Name: "cabeca_id", Type: field.TypeInt, Nullable: true},
+		{Name: "acima_id", Type: field.TypeInt, Nullable: true},
+		{Name: "rascunho", Type: field.TypeJSON, Nullable: true},
+		{Name: "rascunho_versao", Type: field.TypeString, Default: ""},
+		{Name: "administradora_id", Type: field.TypeString, Nullable: true},
+		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+	}
+	// SkillCamadasTable holds the schema information for the "skill_camadas" table.
+	SkillCamadasTable = &schema.Table{
+		Name:       "skill_camadas",
+		Columns:    SkillCamadasColumns,
+		PrimaryKey: []*schema.Column{SkillCamadasColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "skill_camadas_administradoras_skill_camadas",
+				Columns:    []*schema.Column{SkillCamadasColumns[7]},
+				RefColumns: []*schema.Column{AdministradorasColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "skill_camadas_condominios_skill_camadas",
+				Columns:    []*schema.Column{SkillCamadasColumns[8]},
+				RefColumns: []*schema.Column{CondominiosColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "skillcamada_skill",
+				Unique:  true,
+				Columns: []*schema.Column{SkillCamadasColumns[1]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "(tipo)::text = 'base'::text",
+				},
+			},
+			{
+				Name:    "skillcamada_skill_administradora_id",
+				Unique:  true,
+				Columns: []*schema.Column{SkillCamadasColumns[1], SkillCamadasColumns[7]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "(tipo)::text = 'administradora'::text",
+				},
+			},
+			{
+				Name:    "skillcamada_skill_condominio_id",
+				Unique:  true,
+				Columns: []*schema.Column{SkillCamadasColumns[1], SkillCamadasColumns[8]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "(tipo)::text = 'condominio'::text",
+				},
+			},
+		},
+	}
+	// SkillVersoesColumns holds the columns for the "skill_versoes" table.
+	SkillVersoesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "numero", Type: field.TypeInt},
+		{Name: "documento", Type: field.TypeJSON},
+		{Name: "caso_yaml", Type: field.TypeBytes, Nullable: true},
+		{Name: "acima_id", Type: field.TypeInt, Nullable: true},
+		{Name: "atualizacao_id", Type: field.TypeInt, Nullable: true},
+		{Name: "origem", Type: field.TypeEnum, Enums: []string{"importacao", "inicial", "publicacao", "decisao", "obrigatorio", "prazo", "volta"}},
+		{Name: "autor", Type: field.TypeString},
+		{Name: "resumo", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "motivo", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "obrigatorios", Type: field.TypeJSON},
+		{Name: "encerra_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "camada_id", Type: field.TypeInt},
+	}
+	// SkillVersoesTable holds the schema information for the "skill_versoes" table.
+	SkillVersoesTable = &schema.Table{
+		Name:       "skill_versoes",
+		Columns:    SkillVersoesColumns,
+		PrimaryKey: []*schema.Column{SkillVersoesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "skill_versoes_skill_camadas_versoes",
+				Columns:    []*schema.Column{SkillVersoesColumns[13]},
+				RefColumns: []*schema.Column{SkillCamadasColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "skillversao_camada_id_numero",
+				Unique:  true,
+				Columns: []*schema.Column{SkillVersoesColumns[13], SkillVersoesColumns[1]},
+			},
+		},
+	}
 	// UsuariosColumns holds the columns for the "usuarios" table.
 	UsuariosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
@@ -557,6 +744,10 @@ var (
 		PedidosTable,
 		PedidoEventosTable,
 		SessoesTable,
+		SkillAtualizacoesTable,
+		SkillAvisosTable,
+		SkillCamadasTable,
+		SkillVersoesTable,
 		UsuariosTable,
 	}
 )
@@ -636,5 +827,28 @@ func init() {
 	}
 	SessoesTable.Annotation = &entsql.Annotation{
 		Table: "sessoes",
+	}
+	SkillAtualizacoesTable.ForeignKeys[0].RefTable = SkillVersoesTable
+	SkillAtualizacoesTable.ForeignKeys[1].RefTable = SkillVersoesTable
+	SkillAtualizacoesTable.ForeignKeys[2].RefTable = SkillCamadasTable
+	SkillAtualizacoesTable.Annotation = &entsql.Annotation{
+		Table: "skill_atualizacoes",
+	}
+	SkillAvisosTable.ForeignKeys[0].RefTable = SkillVersoesTable
+	SkillAvisosTable.ForeignKeys[1].RefTable = SkillCamadasTable
+	SkillAvisosTable.Annotation = &entsql.Annotation{
+		Table: "skill_avisos",
+	}
+	SkillCamadasTable.ForeignKeys[0].RefTable = AdministradorasTable
+	SkillCamadasTable.ForeignKeys[1].RefTable = CondominiosTable
+	SkillCamadasTable.Annotation = &entsql.Annotation{
+		Table: "skill_camadas",
+	}
+	SkillCamadasTable.Annotation.Checks = map[string]string{
+		"skill_camadas_dono_do_tipo": "(tipo = 'base' AND administradora_id IS NULL AND condominio_id IS NULL) OR (tipo = 'administradora' AND administradora_id IS NOT NULL AND condominio_id IS NULL) OR (tipo = 'condominio' AND condominio_id IS NOT NULL AND administradora_id IS NULL)",
+	}
+	SkillVersoesTable.ForeignKeys[0].RefTable = SkillCamadasTable
+	SkillVersoesTable.Annotation = &entsql.Annotation{
+		Table: "skill_versoes",
 	}
 }

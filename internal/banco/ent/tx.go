@@ -50,6 +50,14 @@ type Tx struct {
 	PedidoEvento *PedidoEventoClient
 	// Sessao is the client for interacting with the Sessao builders.
 	Sessao *SessaoClient
+	// SkillAtualizacao is the client for interacting with the SkillAtualizacao builders.
+	SkillAtualizacao *SkillAtualizacaoClient
+	// SkillAviso is the client for interacting with the SkillAviso builders.
+	SkillAviso *SkillAvisoClient
+	// SkillCamada is the client for interacting with the SkillCamada builders.
+	SkillCamada *SkillCamadaClient
+	// SkillVersao is the client for interacting with the SkillVersao builders.
+	SkillVersao *SkillVersaoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 
@@ -201,6 +209,10 @@ func (tx *Tx) init() {
 	tx.Pedido = NewPedidoClient(tx.config)
 	tx.PedidoEvento = NewPedidoEventoClient(tx.config)
 	tx.Sessao = NewSessaoClient(tx.config)
+	tx.SkillAtualizacao = NewSkillAtualizacaoClient(tx.config)
+	tx.SkillAviso = NewSkillAvisoClient(tx.config)
+	tx.SkillCamada = NewSkillCamadaClient(tx.config)
+	tx.SkillVersao = NewSkillVersaoClient(tx.config)
 	tx.Usuario = NewUsuarioClient(tx.config)
 }
 

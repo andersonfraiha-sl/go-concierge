@@ -22,7 +22,12 @@ import (
 	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/banco/ent/sessao"
+	"go-concierge/internal/banco/ent/skillatualizacao"
+	"go-concierge/internal/banco/ent/skillaviso"
+	"go-concierge/internal/banco/ent/skillcamada"
+	"go-concierge/internal/banco/ent/skillversao"
 	"go-concierge/internal/banco/ent/usuario"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -323,6 +328,62 @@ func init() {
 	sessaoDescID := sessaoFields[0].Descriptor()
 	// sessao.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	sessao.IDValidator = sessaoDescID.Validators[0].(func(string) error)
+	skillatualizacaoFields := schema.SkillAtualizacao{}.Fields()
+	_ = skillatualizacaoFields
+	// skillatualizacaoDescPrazoAplicado is the schema descriptor for prazo_aplicado field.
+	skillatualizacaoDescPrazoAplicado := skillatualizacaoFields[5].Descriptor()
+	// skillatualizacao.DefaultPrazoAplicado holds the default value on creation for the prazo_aplicado field.
+	skillatualizacao.DefaultPrazoAplicado = skillatualizacaoDescPrazoAplicado.Default.(bool)
+	// skillatualizacaoDescDecididaPor is the schema descriptor for decidida_por field.
+	skillatualizacaoDescDecididaPor := skillatualizacaoFields[7].Descriptor()
+	// skillatualizacao.DefaultDecididaPor holds the default value on creation for the decidida_por field.
+	skillatualizacao.DefaultDecididaPor = skillatualizacaoDescDecididaPor.Default.(string)
+	// skillatualizacaoDescCriadoEm is the schema descriptor for criado_em field.
+	skillatualizacaoDescCriadoEm := skillatualizacaoFields[9].Descriptor()
+	// skillatualizacao.DefaultCriadoEm holds the default value on creation for the criado_em field.
+	skillatualizacao.DefaultCriadoEm = skillatualizacaoDescCriadoEm.Default.(func() time.Time)
+	skillavisoFields := schema.SkillAviso{}.Fields()
+	_ = skillavisoFields
+	// skillavisoDescMotivo is the schema descriptor for motivo field.
+	skillavisoDescMotivo := skillavisoFields[2].Descriptor()
+	// skillaviso.DefaultMotivo holds the default value on creation for the motivo field.
+	skillaviso.DefaultMotivo = skillavisoDescMotivo.Default.(string)
+	// skillavisoDescCientePor is the schema descriptor for ciente_por field.
+	skillavisoDescCientePor := skillavisoFields[5].Descriptor()
+	// skillaviso.DefaultCientePor holds the default value on creation for the ciente_por field.
+	skillaviso.DefaultCientePor = skillavisoDescCientePor.Default.(string)
+	// skillavisoDescCriadoEm is the schema descriptor for criado_em field.
+	skillavisoDescCriadoEm := skillavisoFields[7].Descriptor()
+	// skillaviso.DefaultCriadoEm holds the default value on creation for the criado_em field.
+	skillaviso.DefaultCriadoEm = skillavisoDescCriadoEm.Default.(func() time.Time)
+	skillcamadaFields := schema.SkillCamada{}.Fields()
+	_ = skillcamadaFields
+	// skillcamadaDescSkill is the schema descriptor for skill field.
+	skillcamadaDescSkill := skillcamadaFields[0].Descriptor()
+	// skillcamada.SkillValidator is a validator for the "skill" field. It is called by the builders before save.
+	skillcamada.SkillValidator = skillcamadaDescSkill.Validators[0].(func(string) error)
+	// skillcamadaDescRascunhoVersao is the schema descriptor for rascunho_versao field.
+	skillcamadaDescRascunhoVersao := skillcamadaFields[7].Descriptor()
+	// skillcamada.DefaultRascunhoVersao holds the default value on creation for the rascunho_versao field.
+	skillcamada.DefaultRascunhoVersao = skillcamadaDescRascunhoVersao.Default.(string)
+	skillversaoFields := schema.SkillVersao{}.Fields()
+	_ = skillversaoFields
+	// skillversaoDescAutor is the schema descriptor for autor field.
+	skillversaoDescAutor := skillversaoFields[7].Descriptor()
+	// skillversao.AutorValidator is a validator for the "autor" field. It is called by the builders before save.
+	skillversao.AutorValidator = skillversaoDescAutor.Validators[0].(func(string) error)
+	// skillversaoDescResumo is the schema descriptor for resumo field.
+	skillversaoDescResumo := skillversaoFields[8].Descriptor()
+	// skillversao.DefaultResumo holds the default value on creation for the resumo field.
+	skillversao.DefaultResumo = skillversaoDescResumo.Default.(string)
+	// skillversaoDescMotivo is the schema descriptor for motivo field.
+	skillversaoDescMotivo := skillversaoFields[9].Descriptor()
+	// skillversao.DefaultMotivo holds the default value on creation for the motivo field.
+	skillversao.DefaultMotivo = skillversaoDescMotivo.Default.(string)
+	// skillversaoDescCriadoEm is the schema descriptor for criado_em field.
+	skillversaoDescCriadoEm := skillversaoFields[12].Descriptor()
+	// skillversao.DefaultCriadoEm holds the default value on creation for the criado_em field.
+	skillversao.DefaultCriadoEm = skillversaoDescCriadoEm.Default.(func() time.Time)
 	usuarioFields := schema.Usuario{}.Fields()
 	_ = usuarioFields
 	// usuarioDescNome is the schema descriptor for nome field.
