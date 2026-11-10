@@ -9,6 +9,7 @@ import {
   type PropsDoCabecalho,
 } from '@/app/detalhe/CabecalhoDeDetalhe';
 import { ESTILO_DO_CONTEUDO_DE_DETALHE } from '@/app/detalhe/LayoutDeDetalhe';
+import { SeletorDeCamada } from '@/camadas/SeletorDeCamada';
 import { AvisoDeConflito } from '@/copiloto/AvisoDeConflito';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useEdicaoSobOServidor } from '@/copiloto/useEdicaoSobOServidor';
@@ -117,9 +118,12 @@ function Editor(props: EditorProps): ReactNode {
         titulo={<TituloDaSkill control={control} editavel={editavel} />}
         // "Salvo às" vem do cabeçalho; aqui só o que pede atenção (salvando, falha, bloqueio).
         acoes={
-          estado.tipo !== 'salvo' && (
-            <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
-          )
+          <>
+            <SeletorDeCamada skill={nome} />
+            {estado.tipo !== 'salvo' && (
+              <SaveIndicator estado={estado} onTentarDeNovo={() => void tentarDeNovo()} />
+            )}
+          </>
         }
         abas={{
           rotulo: 'Abas da skill',

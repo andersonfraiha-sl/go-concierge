@@ -77,6 +77,14 @@ describe('SkillEditorPage', () => {
     ]);
   });
 
+  it('offersLayerSelectorOnTheBaseWithBaseSelected', async () => {
+    responderCom(rotasDoEditor(gestor, []));
+    montar();
+    expect(await screen.findByRole('combobox', { name: 'Versão' })).toHaveTextContent(
+      'Superlógica',
+    );
+  });
+
   /** A janela volta ao foco: a consulta refaz a leitura, como quando um colega editou. */
   const voltarAoFoco = () =>
     act(() => {

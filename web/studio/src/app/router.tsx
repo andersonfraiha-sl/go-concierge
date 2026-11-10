@@ -19,6 +19,9 @@ const SkillsPage = lazy(() =>
 const SkillEditorPage = lazy(() =>
   import('@/skills/SkillEditorPage').then((m) => ({ default: m.SkillEditorPage })),
 );
+const EditorDaCamadaPage = lazy(() =>
+  import('@/camadas/EditorDaCamadaPage').then((m) => ({ default: m.EditorDaCamadaPage })),
+);
 const FerramentasPage = lazy(() =>
   import('@/ferramentas/FerramentasPage').then((m) => ({ default: m.FerramentasPage })),
 );
@@ -50,6 +53,7 @@ const ROTAS_DE_LISTA: RouteObject[] = [
 // Detalhe: cabeçalho próprio no lugar da barra global. A aba aberta fica em ?aba=
 const ROTAS_DE_DETALHE: RouteObject[] = [
   { path: 'skills/:nome', element: tela(<SkillEditorPage />) },
+  { path: 'skills/:nome/:tipo/:id', element: tela(<EditorDaCamadaPage />) },
   { path: 'condominios/:id', element: tela(<CondominioPage />) },
 ];
 

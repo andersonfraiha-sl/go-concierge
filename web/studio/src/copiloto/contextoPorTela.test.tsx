@@ -177,6 +177,7 @@ describe('contexto do Copiloto por tela', () => {
         'GET /api/skills': () => json(skillsFalsas),
         'GET /api/skills/agendar-mudanca': () => json(textosLidos('Agenda.')),
         'GET /api/skills/agendar-mudanca/fluxo': () => json(fixtureDoFluxo),
+        'GET /api/admin/estado': () => json(estadoFalso),
         'GET /api/nexus/recursos': () =>
           json({ account: 'a', origem: 'instantaneo', conferido: true, recursos: [] }),
       },
