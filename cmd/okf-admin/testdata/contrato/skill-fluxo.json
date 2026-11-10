@@ -53,7 +53,7 @@
         "guardarEm": "agendamento"
       },
       {
-        "id": "b6",
+        "id": "responder",
         "tipo": "responder",
         "texto": "Sua mudança para {{.unidade_label}} em {{.data_mudanca_label}}, {{.periodo_mudanca_label}}, foi agendada com sucesso! Protocolo: {{.agendamento.protocolo}}. O elevador de serviço estará reservado para você."
       }
@@ -84,6 +84,6 @@
       }
     ]
   },
-  "versao": "9ce3572ec7d65b47",
+  "versao": "5f858b8659567710",
   "problemas": []
 }

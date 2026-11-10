@@ -77,6 +77,9 @@ type Fluxo struct {
 	Informacoes []Informacao `json:"informacoes"`
 }
 
+// IDDaResposta é o id fixo do bloco Responder: o `output` do caso não tem lugar para um id.
+const IDDaResposta = "responder"
+
 // chaveNo troca (ou remove, se No for nil) uma chave do mapa raiz do caso.
 type chaveNo struct {
 	Chave string
@@ -114,7 +117,22 @@ func FluxoDeYAML(raw []byte, escrita func(recurso string) bool) (Fluxo, error) {
 	if err != nil {
 		return Fluxo{}, err
 	}
-	return Fluxo{Blocos: numerar(append(blocos, resposta...)), Informacoes: informacoes}, nil
+	numerados := numerar(append(blocos, resposta...))
+	if id, repetido := idRepetido(numerados); repetido {
+		return Fluxo{}, fmt.Errorf("ler caso: id %q repetido nos passos", id)
+	}
+	return Fluxo{Blocos: numerados, Informacoes: informacoes}, nil
+}
+
+func idRepetido(blocos []Bloco) (string, bool) {
+	vistos := make(map[string]bool, len(blocos))
+	for _, b := range blocos {
+		if vistos[b.ID] {
+			return b.ID, true
+		}
+		vistos[b.ID] = true
+	}
+	return "", false
 }
 
 func blocosDe(passos *yaml.Node, escrita func(string) bool) ([]Bloco, error) {
@@ -140,6 +158,23 @@ func blocoDe(passo *yaml.Node, escrita func(string) bool) (Bloco, error) {
 	if err != nil {
 		return Bloco{}, err
 	}
+	id, es := idDoPasso(es)
+	bloco, err := blocoDoPrincipal(es, escrita)
+	bloco.ID = id
+	return bloco, err
+}
+
+// idDoPasso tira a chave `id` do passo quando é texto não vazio; qualquer outra forma segue
+// nas entradas e é recusada ou vai para o Extra como qualquer chave desconhecida.
+func idDoPasso(es []entrada) (string, []entrada) {
+	id, ok := textoDe(buscar(es, "id"))
+	if !ok || id == "" {
+		return "", es
+	}
+	return id, semChave(es, "id")
+}
+
+func blocoDoPrincipal(es []entrada, escrita func(string) bool) (Bloco, error) {
 	principal, resto, ok := separarPrincipal(es)
 	if !ok {
 		return Bloco{}, fmt.Errorf("nenhuma chave conhecida (esperava %v)", chavesDePasso)
@@ -292,7 +327,7 @@ func respostaDe(output *yaml.Node) ([]Bloco, error) {
 	if !ok {
 		return nil, errors.New("output deve ser texto")
 	}
-	return []Bloco{{Tipo: BlocoResponder, Texto: texto}}, nil
+	return []Bloco{{ID: IDDaResposta, Tipo: BlocoResponder, Texto: texto}}, nil
 }
 
 func informacoesDe(params *yaml.Node) ([]Informacao, error) {
@@ -426,7 +461,7 @@ func passosEResposta(blocos []Bloco) (steps, output *yaml.Node, err error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("bloco %d: %w", i+1, err)
 		}
-		passo, err := noDe(pares)
+		passo, err := noDe(slices.Concat(opc("id", b.ID), pares))
 		if err != nil {
 			return nil, nil, fmt.Errorf("bloco %d: %w", i+1, err)
 		}
@@ -750,11 +785,56 @@ func separar(es []entrada, conhecidas ...string) (map[string]string, map[string]
 	return textos, extra, nil
 }
 
+// numerar dá o id posicional (b1, b2…) só ao bloco que veio sem id.
 func numerar(blocos []Bloco) []Bloco {
 	numerados := make([]Bloco, len(blocos))
 	for i, b := range blocos {
-		b.ID = fmt.Sprintf("b%d", i+1)
+		if b.ID == "" {
+			b.ID = fmt.Sprintf("b%d", i+1)
+		}
 		numerados[i] = b
 	}
 	return numerados
+}
+
+// FixarIDsNoCaso grava, em cada passo sem `id`, o id posicional que a leitura já lhe dá, e
+// diz se mudou algo. A chave entra primeiro no passo.
+func FixarIDsNoCaso(raw []byte) ([]byte, bool, error) {
+	fluxo, err := FluxoDeYAML(raw, func(string) bool { return false })
+	if err != nil {
+		return nil, false, err
+	}
+	doc, raiz, err := lerDocumento(raw)
+	if err != nil {
+		return nil, false, fmt.Errorf("ler caso: %w", err)
+	}
+	es, err := entradasDe(raiz)
+	if err != nil {
+		return nil, false, fmt.Errorf("ler caso: %w", err)
+	}
+	passos := buscar(es, "steps")
+	if passos == nil || !prefixarIDs(passos, fluxo.Blocos) {
+		return raw, false, nil
+	}
+	novo, err := codificarCaso(doc)
+	if err != nil {
+		return nil, false, err
+	}
+	return novo, true, nil
+}
+
+// prefixarIDs põe o id de cada bloco no passo que não tem e diz se pôs algum. Os passos são
+// os primeiros blocos do fluxo, na mesma ordem.
+func prefixarIDs(passos *yaml.Node, blocos []Bloco) bool {
+	mudou := false
+	for i, passo := range passos.Content {
+		if indiceDaChave(passo.Content, "id") >= 0 {
+			continue
+		}
+		chave := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "id"}
+		valor := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: blocos[i].ID}
+		passo.Content = append([]*yaml.Node{chave, valor}, passo.Content...)
+		mudou = true
+	}
+	return mudou
 }

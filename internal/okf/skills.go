@@ -282,16 +282,26 @@ func mudaRoteamento(atual, novo Textos) bool {
 	return atual.QuandoUsar != novo.QuandoUsar || !slices.Equal(atual.PalavrasChave, novo.PalavrasChave)
 }
 
-// gravarTextosNoCaso grava os textos no caso.yaml; visibilidade vazia mantém a atual, e fora
-// de private|public é recusada antes de qualquer gravação.
+// gravarTextosNoCaso grava os textos no caso.yaml (ver TextosNoCaso).
 func gravarTextosNoCaso(dir string, atual, t Textos, cl classificar) error {
-	visibilidade := primeiroNaoVazio(t.Visibilidade, atual.Visibilidade)
-	if visibilidade != "private" && visibilidade != "public" {
-		return ErrVisibilidadeInvalida
-	}
 	raw, err := lerCaso(dir)
 	if err != nil {
 		return err
+	}
+	novo, err := TextosNoCaso(raw, atual, t)
+	if err != nil {
+		return err
+	}
+	_, err = gravarCaso(dir, novo, cl)
+	return err
+}
+
+// TextosNoCaso devolve o caso.yaml com os campos de texto trocados e o resto (passos, params,
+// ids) como estava. Visibilidade vazia mantém a atual, e fora de private|public é recusada.
+func TextosNoCaso(raw []byte, atual, t Textos) ([]byte, error) {
+	visibilidade := primeiroNaoVazio(t.Visibilidade, atual.Visibilidade)
+	if visibilidade != "private" && visibilidade != "public" {
+		return nil, ErrVisibilidadeInvalida
 	}
 	frases := make(seq, len(t.FrasesDeExemplo))
 	for i, frase := range t.FrasesDeExemplo {
@@ -302,14 +312,50 @@ func gravarTextosNoCaso(dir string, atual, t Textos, cl classificar) error {
 		{"summary", resumoOuApagar(t.Resumo)}, {"visibility", visibilidade},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	novo, err := substituirChaves(raw, chaves)
+	return substituirChaves(raw, chaves)
+}
+
+// FixarIDs grava o id posicional nos passos do caso.yaml que ainda não têm, e diz se gravou.
+// Skill sem fluxo não tem o que fixar.
+func (c *Catalogo) FixarIDs(rel string) (bool, error) {
+	cl := c.classificador()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	gravou, err := c.fixarIDs(rel, cl)
 	if err != nil {
-		return err
+		return false, fmt.Errorf("fixar ids %s: %w", rel, err)
 	}
-	_, err = gravarCaso(dir, novo, cl)
-	return err
+	if !gravou {
+		return false, nil
+	}
+	if err := c.persistir(); err != nil {
+		return false, fmt.Errorf("fixar ids %s: %w", rel, err)
+	}
+	return true, nil
+}
+
+func (c *Catalogo) fixarIDs(rel string, cl classificar) (bool, error) {
+	dir, err := c.resolverSkill(rel)
+	if err != nil {
+		return false, err
+	}
+	raw, err := lerCaso(dir)
+	if errors.Is(err, ErrSemFluxo) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	novo, mudou, err := FixarIDsNoCaso(raw)
+	if err != nil || !mudou {
+		return false, err
+	}
+	if _, err := gravarCaso(dir, novo, cl); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // resumoOuApagar devolve o resumo como está, ou um *yaml.Node nil (que definirChave apaga)
