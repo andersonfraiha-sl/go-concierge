@@ -17,13 +17,13 @@ const ITENS_SPA = [
     visivelPara: (eu) => pode(eu, 'skills.ler'),
   },
   {
-    rotulo: 'Skills',
+    rotulo: 'Casos de uso',
     destino: '/skills',
     icone: 'skills',
     visivelPara: (eu) => pode(eu, 'skills.ler'),
   },
   {
-    rotulo: 'Ferramentas',
+    rotulo: 'Recursos',
     destino: '/ferramentas',
     icone: 'ferramentas',
     visivelPara: (eu) => pode(eu, 'skills.ler'),
@@ -33,6 +33,12 @@ const ITENS_SPA = [
     destino: '/condominios',
     icone: 'condominios',
     visivelPara: podeVerCondominios,
+  },
+  {
+    rotulo: 'Administradoras',
+    destino: '/administradoras',
+    icone: 'administradoras',
+    visivelPara: (eu) => pode(eu, 'administradoras.editar'),
   },
   {
     rotulo: 'Avançado',
