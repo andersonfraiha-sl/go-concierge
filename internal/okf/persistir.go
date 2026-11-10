@@ -1,6 +1,13 @@
 package okf
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrPersistir marca o erro do gancho Persistir: a escrita foi para o disco, mas o catálogo
+// não chegou ao banco. Quem responde ao cliente trata como falha do servidor.
+var ErrPersistir = errors.New("persistir catálogo")
 
 // Os métodos públicos de escrita ficam aqui: cada um segura c.mu, faz a escrita no disco e,
 // se deu certo, chama Persistir ainda sob a trava, para duas escritas não se misturarem na
@@ -13,7 +20,7 @@ func (c *Catalogo) persistir() error {
 		return nil
 	}
 	if err := c.Persistir(); err != nil {
-		return fmt.Errorf("persistir catálogo: %w", err)
+		return fmt.Errorf("%w: %w", ErrPersistir, err)
 	}
 	return nil
 }
