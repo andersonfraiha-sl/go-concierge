@@ -56,7 +56,7 @@ func (s *servidor) integracaoMapeamento(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var lote loteDeMapeamento
-	if err := decodificarLoteEstrito(w, r, &lote); err != nil {
+	if err := decodificarEstrito(w, r, &lote, tetoDoLoteDeMapeamento); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -78,12 +78,12 @@ func (s *servidor) integracaoMapeamento(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]int{"aplicados": aplicados})
 }
 
-// decodificarLoteEstrito recusa campo desconhecido: num PUT de sincronização, um campo com
+// decodificarEstrito recusa campo desconhecido: num PUT de sincronização, um campo com
 // erro de digitação seria um pedaço do lote ignorado em silêncio.
-func decodificarLoteEstrito(w http.ResponseWriter, r *http.Request, lote *loteDeMapeamento) error {
-	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, tetoDoLoteDeMapeamento))
+func decodificarEstrito(w http.ResponseWriter, r *http.Request, destino any, teto int64) error {
+	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, teto))
 	d.DisallowUnknownFields()
-	return d.Decode(lote)
+	return d.Decode(destino)
 }
 
 // ---- validação do lote (sem I/O) -------------------------------------------
