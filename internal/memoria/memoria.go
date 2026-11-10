@@ -1,8 +1,8 @@
 // Package memoria é a memória relacional entre o concierge e cada contato
-// (telefone): fatos duráveis que os agentes vão capturando sobre a pessoa ao longo das
-// conversas ("só tem um apartamento", "prefere ser chamado de Van", "tem um cachorro").
-// Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
-// volta ao prompt em toda conversa seguinte daquele telefone.
+// (telefone): preferências de atendimento de uma lista fechada ("prefere ser chamado de
+// Van", "resposta curta") que o morador afirma ao longo das conversas, comuns à família
+// inteira, e que voltam ao prompt em toda conversa seguinte daquele telefone. Nada fora
+// da lista entra: o que um modelo extrai nunca vira identidade, vínculo ou autorização.
 //
 // O armazenamento é o Postgres, em duas tabelas: memoria_contatos (nome e quando mudou)
 // e memoria_fatos (um fato por linha).
@@ -20,9 +20,8 @@ import (
 	"go-concierge/internal/escopo"
 )
 
-// Fato é uma coisa durável sobre a pessoa, identificada por uma chave estável
-// (unidades, nome_preferido, pets, veiculo, horario_preferido…). A mesma chave
-// substitui o fato anterior.
+// Fato é uma preferência durável sobre a pessoa, identificada por uma chave da lista
+// fechada (ChavesDePreferencia). A mesma chave substitui o fato anterior.
 type Fato struct {
 	Chave string `json:"chave"`
 	Texto string `json:"texto"`
@@ -42,17 +41,18 @@ type Memoria struct {
 	AtualizadaEm     time.Time `json:"atualizada_em"`
 }
 
-// Upsert devolve a memória com o fato posto ou substituído pela chave, e true se algo
-// mudou. Não altera o receptor: o fato sem Quando entra com o instante zero, quem chama
-// decide o relógio.
+// Upsert devolve a memória com a preferência posta ou substituída pela chave, e true se
+// algo mudou. Só entra preferência da lista fechada (NormalizarPreferencia); o resto é
+// recusado. O mesmo valor com Quando mais novo renova a data: reafirmar renova a
+// preferência. Não altera o receptor: o fato sem Quando entra com o instante zero, quem
+// chama decide o relógio.
 func (m Memoria) Upsert(f Fato) (Memoria, bool) {
-	f.Chave = NormalizarChave(f.Chave)
-	f.Texto = strings.TrimSpace(f.Texto)
-	if f.Chave == "" || f.Texto == "" {
+	f, ok := NormalizarPreferencia(f)
+	if !ok {
 		return m, false
 	}
 	i := slices.IndexFunc(m.Fatos, func(atual Fato) bool { return atual.Chave == f.Chave })
-	if i >= 0 && m.Fatos[i].Texto == f.Texto {
+	if i >= 0 && m.Fatos[i].Texto == f.Texto && !f.Quando.After(m.Fatos[i].Quando) {
 		return m, false
 	}
 	fatos := slices.Clone(m.Fatos)
@@ -175,24 +175,29 @@ type Extrator interface {
 	Extrair(ctx context.Context, mensagem, resposta string, atual Memoria) ([]Fato, error)
 }
 
-// Regras é um extrator por padrões, para rodar sem modelo (mock e testes).
+// Regras é um extrator por padrões, para rodar sem modelo (mock e testes). Só extrai
+// preferências da lista fechada.
 type Regras struct{}
 
 var padroes = []struct {
 	re    *regexp.Regexp
 	chave string
-	texto func(m []string) string
+	valor func(m []string) string
 }{
-	{regexp.MustCompile(`(?i)\b(s[oó] tenho|tenho s[oó]|tenho apenas|moro em)\s+(um|uma|1)\s+(ap(?:artamento|ê|to)?|unidade|casa|sala)\b`), "unidades", func(m []string) string { return "tem só uma unidade (" + strings.ToLower(m[3]) + ")" }},
-	{regexp.MustCompile(`(?i)\b(?:pode|podem) me chamar de\s+([A-Za-zÀ-ú]+)`), "nome_preferido", func(m []string) string { return "prefere ser chamado de " + m[1] }},
-	{regexp.MustCompile(`(?i)\btenho (um|uma|dois|duas|\d+)\s+(cachorros?|gatos?|pets?|animais?)\b`), "pets", func(m []string) string { return "tem " + strings.ToLower(m[1]+" "+m[2]) }},
+	{regexp.MustCompile(`(?i)\b(?:pode|podem) me chamar de\s+([A-Za-zÀ-ú]+)`), chaveNomePreferido, func(m []string) string { return m[1] }},
+	{regexp.MustCompile(`(?i)\bpode ser (?:mais )?(?:curto|direto|resumido)\b`), chaveTamanhoResposta, func([]string) string { return "curta" }},
+	{regexp.MustCompile(`(?i)\b(?:com|mais) detalhes?\b`), chaveTamanhoResposta, func([]string) string { return "detalhada" }},
 }
 
 func (Regras) Extrair(_ context.Context, mensagem, _ string, _ Memoria) ([]Fato, error) {
 	var out []Fato
 	for _, p := range padroes {
-		if m := p.re.FindStringSubmatch(mensagem); m != nil {
-			out = append(out, Fato{Chave: p.chave, Texto: p.texto(m), Confianca: 0.8})
+		m := p.re.FindStringSubmatch(mensagem)
+		if m == nil {
+			continue
+		}
+		if f, ok := NormalizarPreferencia(Fato{Chave: p.chave, Texto: p.valor(m), Confianca: 0.8}); ok {
+			out = append(out, f)
 		}
 	}
 	return out, nil

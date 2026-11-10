@@ -8,10 +8,21 @@ import (
 )
 
 func gerarFato(t *rapid.T) Fato {
-	return Fato{
-		Chave: rapid.SampledFrom([]string{"nome_preferido", "unidades", "pets", "veiculo", "horario"}).Draw(t, "chave"),
-		Texto: rapid.StringMatching(`[a-zA-Z0-9 ]{1,20}`).Draw(t, "texto"),
+	chave := rapid.SampledFrom(ChavesDePreferencia()).Draw(t, "chave")
+	return Fato{Chave: chave, Texto: rapid.SampledFrom(valoresValidos(chave)).Draw(t, "texto")}
+}
+
+// valoresValidos são valores aceitos por NormalizarPreferencia para a chave da lista.
+func valoresValidos(chave string) []string {
+	switch chave {
+	case "tamanho_resposta":
+		return []string{"curta", "detalhada"}
+	case "tratamento":
+		return []string{"informal", "formal"}
+	case "formato_boleto":
+		return []string{"linha_digitavel", "pix", "link"}
 	}
+	return []string{"Van", "Ana Paula", "Zé"}
 }
 
 // TestUpsertNuncaDuplicaChaveENuncaMutaOReceptor: para qualquer sequência de fatos

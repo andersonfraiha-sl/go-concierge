@@ -152,7 +152,7 @@ func cenarioEsquecer(t *testing.T, st Store) {
 	gravar(t, st, c, fatosDeTeste())
 
 	m, _ := ler(t, st, c).Esquecer("unidades")
-	m, _ = m.Upsert(Fato{Chave: "pets", Texto: "tem dois cachorros", Quando: dia.Add(2 * time.Hour)})
+	m.Fatos[0] = Fato{Chave: "pets", Texto: "tem dois cachorros", Quando: dia.Add(2 * time.Hour)} // Upsert só aceita a lista fechada; a Task 6 migra o contrato
 	gravar(t, st, c, m.Fatos)
 
 	got := ler(t, st, c)

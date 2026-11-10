@@ -9,13 +9,13 @@ import (
 // Propriedades de Upsert/Esquecer/NormalizarChave: invariantes que valem para
 // qualquer fato, não só os exemplos fixos de nucleo_test.go.
 
-// upsertMantemNoMaximoUmaOcorrenciaPorChave: depois de Upsert com chave e texto
-// não vazios, a memória tem exatamente um fato daquela chave, com o texto novo.
-func upsertMantemNoMaximoUmaOcorrenciaPorChave(chave, texto string, confianca float64) bool {
-	chave, texto = NormalizarChave(chave), texto+"x" // garante não-vazio após trim
-	if chave == "" {
-		return true // entrada degenerada: Upsert recusa, testado em outro lugar
-	}
+// upsertMantemNoMaximoUmaOcorrenciaPorChave: depois de Upsert com preferência válida, a
+// memória tem exatamente um fato daquela chave, com o valor novo.
+func upsertMantemNoMaximoUmaOcorrenciaPorChave(indiceDaChave, indiceDoValor uint8, confianca float64) bool {
+	chaves := ChavesDePreferencia()
+	chave := chaves[int(indiceDaChave)%len(chaves)]
+	valores := valoresValidos(chave)
+	texto := valores[int(indiceDoValor)%len(valores)]
 	base := Memoria{Fatos: []Fato{
 		{Chave: chave, Texto: "valor antigo"},
 		{Chave: "outra_chave_fixa", Texto: "intacto"},
@@ -43,12 +43,11 @@ func TestPropriedadeUpsertSemDuplicarChave(t *testing.T) {
 
 // upsertEhIdempotente: aplicar o mesmo fato duas vezes dá o mesmo resultado da
 // primeira vez (a segunda não muda nada).
-func upsertEhIdempotente(chave, texto string) bool {
-	chave, texto = NormalizarChave(chave), texto+"x"
-	if chave == "" {
-		return true
-	}
-	f := Fato{Chave: chave, Texto: texto, Quando: time.Now()}
+func upsertEhIdempotente(indiceDaChave, indiceDoValor uint8) bool {
+	chaves := ChavesDePreferencia()
+	chave := chaves[int(indiceDaChave)%len(chaves)]
+	valores := valoresValidos(chave)
+	f := Fato{Chave: chave, Texto: valores[int(indiceDoValor)%len(valores)], Quando: time.Now()}
 	uma, mudouUma := Memoria{}.Upsert(f)
 	duas, mudouDuas := uma.Upsert(f)
 	return mudouUma && !mudouDuas && len(duas.Fatos) == len(uma.Fatos)
