@@ -12,6 +12,7 @@ import (
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/predicate"
+	"go-concierge/internal/banco/ent/skillcamada"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -157,6 +158,21 @@ func (_u *CondominioUpdate) AddOrientacoes(v ...*Orientacao) *CondominioUpdate {
 	return _u.AddOrientacoIDs(ids...)
 }
 
+// AddSkillCamadaIDs adds the "skill_camadas" edge to the SkillCamada entity by IDs.
+func (_u *CondominioUpdate) AddSkillCamadaIDs(ids ...int) *CondominioUpdate {
+	_u.mutation.AddSkillCamadaIDs(ids...)
+	return _u
+}
+
+// AddSkillCamadas adds the "skill_camadas" edges to the SkillCamada entity.
+func (_u *CondominioUpdate) AddSkillCamadas(v ...*SkillCamada) *CondominioUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSkillCamadaIDs(ids...)
+}
+
 // Mutation returns the CondominioMutation object of the builder.
 func (_u *CondominioUpdate) Mutation() *CondominioMutation {
 	return _u.mutation
@@ -229,6 +245,27 @@ func (_u *CondominioUpdate) RemoveOrientacoes(v ...*Orientacao) *CondominioUpdat
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveOrientacoIDs(ids...)
+}
+
+// ClearSkillCamadas clears all "skill_camadas" edges to the SkillCamada entity.
+func (_u *CondominioUpdate) ClearSkillCamadas() *CondominioUpdate {
+	_u.mutation.ClearSkillCamadas()
+	return _u
+}
+
+// RemoveSkillCamadaIDs removes the "skill_camadas" edge to SkillCamada entities by IDs.
+func (_u *CondominioUpdate) RemoveSkillCamadaIDs(ids ...int) *CondominioUpdate {
+	_u.mutation.RemoveSkillCamadaIDs(ids...)
+	return _u
+}
+
+// RemoveSkillCamadas removes "skill_camadas" edges to SkillCamada entities.
+func (_u *CondominioUpdate) RemoveSkillCamadas(v ...*SkillCamada) *CondominioUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSkillCamadaIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -456,6 +493,51 @@ func (_u *CondominioUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.SkillCamadasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   condominio.SkillCamadasTable,
+			Columns: []string{condominio.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSkillCamadasIDs(); len(nodes) > 0 && !_u.mutation.SkillCamadasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   condominio.SkillCamadasTable,
+			Columns: []string{condominio.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SkillCamadasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   condominio.SkillCamadasTable,
+			Columns: []string{condominio.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{condominio.Label}
@@ -602,6 +684,21 @@ func (_u *CondominioUpdateOne) AddOrientacoes(v ...*Orientacao) *CondominioUpdat
 	return _u.AddOrientacoIDs(ids...)
 }
 
+// AddSkillCamadaIDs adds the "skill_camadas" edge to the SkillCamada entity by IDs.
+func (_u *CondominioUpdateOne) AddSkillCamadaIDs(ids ...int) *CondominioUpdateOne {
+	_u.mutation.AddSkillCamadaIDs(ids...)
+	return _u
+}
+
+// AddSkillCamadas adds the "skill_camadas" edges to the SkillCamada entity.
+func (_u *CondominioUpdateOne) AddSkillCamadas(v ...*SkillCamada) *CondominioUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSkillCamadaIDs(ids...)
+}
+
 // Mutation returns the CondominioMutation object of the builder.
 func (_u *CondominioUpdateOne) Mutation() *CondominioMutation {
 	return _u.mutation
@@ -674,6 +771,27 @@ func (_u *CondominioUpdateOne) RemoveOrientacoes(v ...*Orientacao) *CondominioUp
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveOrientacoIDs(ids...)
+}
+
+// ClearSkillCamadas clears all "skill_camadas" edges to the SkillCamada entity.
+func (_u *CondominioUpdateOne) ClearSkillCamadas() *CondominioUpdateOne {
+	_u.mutation.ClearSkillCamadas()
+	return _u
+}
+
+// RemoveSkillCamadaIDs removes the "skill_camadas" edge to SkillCamada entities by IDs.
+func (_u *CondominioUpdateOne) RemoveSkillCamadaIDs(ids ...int) *CondominioUpdateOne {
+	_u.mutation.RemoveSkillCamadaIDs(ids...)
+	return _u
+}
+
+// RemoveSkillCamadas removes "skill_camadas" edges to SkillCamada entities.
+func (_u *CondominioUpdateOne) RemoveSkillCamadas(v ...*SkillCamada) *CondominioUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSkillCamadaIDs(ids...)
 }
 
 // Where appends a list predicates to the CondominioUpdate builder.
@@ -924,6 +1042,51 @@ func (_u *CondominioUpdateOne) sqlSave(ctx context.Context) (_node *Condominio, 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(orientacao.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SkillCamadasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   condominio.SkillCamadasTable,
+			Columns: []string{condominio.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSkillCamadasIDs(); len(nodes) > 0 && !_u.mutation.SkillCamadasCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   condominio.SkillCamadasTable,
+			Columns: []string{condominio.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SkillCamadasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   condominio.SkillCamadasTable,
+			Columns: []string{condominio.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

@@ -175,6 +175,7 @@ func TestSalvarFluxoMudaSoALinhaDoCampo(t *testing.T) {
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
 			cat := catalogoDeTeste(t)
+			fixarIDsDeTeste(t, cat, relMudanca)
 			antes := lerArquivoDaSkill(t, cat, relMudanca, CasoYAML)
 			lido, err := cat.LerFluxo(relMudanca)
 			if err != nil {
@@ -754,6 +755,7 @@ func TestSkillsReaisSalvamSemMudarOCaso(t *testing.T) {
 	c := catalogoDeTeste(t)
 	for _, rel := range casosReais(t) {
 		t.Run(filepath.Base(rel), func(t *testing.T) {
+			fixarIDsDeTeste(t, c, rel)
 			var antes, depois any
 			if err := yaml.Unmarshal([]byte(lerArquivoDaSkill(t, c, rel, CasoYAML)), &antes); err != nil {
 				t.Fatal(err)
@@ -852,5 +854,94 @@ func TestSalvarTextosPreservaTagDeOrigem(t *testing.T) {
 	}
 	if !slices.Equal(caso.Tags, []string{"engenharia-reversa"}) {
 		t.Fatalf("tags = %v, want [engenharia-reversa]", caso.Tags)
+	}
+}
+
+func TestTextosNoCasoTrocaSoOsCamposDeTexto(t *testing.T) {
+	c := catalogoDeTeste(t)
+	raw := []byte(lerArquivoDaSkill(t, c, relMudanca, CasoYAML))
+	antes, _, err := c.LerTextos(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	depois := antes
+	depois.Titulo = "Mudança agendada"
+	depois.Resumo = "Agenda a mudança."
+
+	novo, err := TextosNoCaso(raw, antes, depois)
+	if err != nil {
+		t.Fatal(err)
+	}
+	casoAntes, casoDepois := mustParseCaso(t, raw), mustParseCaso(t, novo)
+	if casoDepois.Name != depois.Titulo || casoDepois.Summary != depois.Resumo {
+		t.Errorf("textos não gravados: %q / %q", casoDepois.Name, casoDepois.Summary)
+	}
+	if !reflect.DeepEqual(casoAntes.Steps, casoDepois.Steps) || !reflect.DeepEqual(casoAntes.Params, casoDepois.Params) {
+		t.Error("passos e params deveriam ficar intactos")
+	}
+	if _, err := TextosNoCaso(raw, antes, Textos{Titulo: "x", Visibilidade: "secreta"}); !errors.Is(err, ErrVisibilidadeInvalida) {
+		t.Errorf("visibilidade inválida: err = %v", err)
+	}
+}
+
+func mustParseCaso(t *testing.T, raw []byte) *Caso {
+	t.Helper()
+	caso, err := ParseCaso(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return caso
+}
+
+func TestFixarIDsGravaUmaVez(t *testing.T) {
+	c := catalogoDeTeste(t)
+	gravou, err := c.FixarIDs(relMudanca)
+	if err != nil || !gravou {
+		t.Fatalf("primeira chamada: gravou=%v err=%v", gravou, err)
+	}
+	f, err := c.LerFluxo(relMudanca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(lerArquivoDaSkill(t, c, relMudanca, CasoYAML), "id: b1") || f.Fluxo.Blocos[0].ID != "b1" {
+		t.Error("o id posicional deveria estar no arquivo")
+	}
+	if got, want := lerArquivoDaSkill(t, c, relMudanca, "workflows/principal.md"), principalEsperado(t, c, relMudanca); got != want {
+		t.Errorf("principal.md fora de dia com o caso:\n%s", got)
+	}
+	gravou, err = c.FixarIDs(relMudanca)
+	if err != nil || gravou {
+		t.Errorf("segunda chamada: gravou=%v err=%v, quer false", gravou, err)
+	}
+}
+
+func TestFixarIDsDeSkillSemFluxoNaoGrava(t *testing.T) {
+	gravou, err := catalogoDeTeste(t).FixarIDs("agentes/concierge/agentes/faq")
+	if err != nil || gravou {
+		t.Errorf("gravou=%v err=%v, quer false, nil", gravou, err)
+	}
+}
+
+func TestFixarIDsPersisteNoGancho(t *testing.T) {
+	c := catalogoDeTeste(t)
+	chamadas := 0
+	c.Persistir = func() error { chamadas++; return nil }
+	if _, err := c.FixarIDs(relMudanca); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.FixarIDs(relMudanca); err != nil {
+		t.Fatal(err)
+	}
+	if chamadas != 1 {
+		t.Errorf("Persistir chamado %d vezes, quer 1 (só quando gravou)", chamadas)
+	}
+}
+
+// fixarIDsDeTeste leva o caso ao estado em que o Studio o deixa no primeiro salvamento, para
+// os testes de "gravar sem mudar" medirem só o que a gravação altera.
+func fixarIDsDeTeste(t *testing.T, c *Catalogo, rel string) {
+	t.Helper()
+	if _, err := c.FixarIDs(rel); err != nil {
+		t.Fatal(err)
 	}
 }

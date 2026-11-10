@@ -516,6 +516,29 @@ func HasOrientacoesWith(preds ...predicate.Orientacao) predicate.Condominio {
 	})
 }
 
+// HasSkillCamadas applies the HasEdge predicate on the "skill_camadas" edge.
+func HasSkillCamadas() predicate.Condominio {
+	return predicate.Condominio(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, SkillCamadasTable, SkillCamadasColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasSkillCamadasWith applies the HasEdge predicate on the "skill_camadas" edge with a given conditions (other predicates).
+func HasSkillCamadasWith(preds ...predicate.SkillCamada) predicate.Condominio {
+	return predicate.Condominio(func(s *sql.Selector) {
+		step := newSkillCamadasStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Condominio) predicate.Condominio {
 	return predicate.Condominio(sql.AndPredicates(predicates...))

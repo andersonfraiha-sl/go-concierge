@@ -32,5 +32,6 @@ func (Condominio) Edges() []ent.Edge {
 		edge.To("habilitacoes", Habilitacao.Type).Annotations(cascata),
 		edge.To("payloads", Payload.Type).Annotations(cascata),
 		edge.To("orientacoes", Orientacao.Type).Annotations(cascata),
+		edge.To("skill_camadas", SkillCamada.Type).Annotations(cascata),
 	}
 }

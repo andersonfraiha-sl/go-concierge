@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/skillcamada"
 
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
@@ -48,6 +49,21 @@ func (_c *AdministradoraCreate) AddCondominios(v ...*Condominio) *Administradora
 		ids[i] = v[i].ID
 	}
 	return _c.AddCondominioIDs(ids...)
+}
+
+// AddSkillCamadaIDs adds the "skill_camadas" edge to the SkillCamada entity by IDs.
+func (_c *AdministradoraCreate) AddSkillCamadaIDs(ids ...int) *AdministradoraCreate {
+	_c.mutation.AddSkillCamadaIDs(ids...)
+	return _c
+}
+
+// AddSkillCamadas adds the "skill_camadas" edges to the SkillCamada entity.
+func (_c *AdministradoraCreate) AddSkillCamadas(v ...*SkillCamada) *AdministradoraCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSkillCamadaIDs(ids...)
 }
 
 // Mutation returns the AdministradoraMutation object of the builder.
@@ -146,6 +162,22 @@ func (_c *AdministradoraCreate) createSpec() (*Administradora, *sqlgraph.CreateS
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(condominio.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SkillCamadasIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   administradora.SkillCamadasTable,
+			Columns: []string{administradora.SkillCamadasColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(skillcamada.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

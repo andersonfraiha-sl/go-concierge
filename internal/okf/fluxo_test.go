@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -88,7 +89,7 @@ func TestFluxoDeYAMLMapeiaPassos(t *testing.T) {
 		{
 			name: "responder vem por ultimo",
 			yaml: "output: Pronto\nsteps:\n  - confirm: a\n",
-			want: Bloco{ID: "b2", Tipo: BlocoResponder, Texto: "Pronto"},
+			want: Bloco{ID: "responder", Tipo: BlocoResponder, Texto: "Pronto"},
 		},
 		{
 			name: "texto vazio vai para o extra sem se perder",
@@ -173,7 +174,21 @@ func TestFluxoDeYAMLRecusaFormaInvalida(t *testing.T) {
 	}
 }
 
+// casosDoCatalogo devolve os casos com ids, como o Studio os grava; as ida e volta valem a partir daí.
 func casosDoCatalogo(t *testing.T) map[string][]byte {
+	t.Helper()
+	casos := casosCrusDoCatalogo(t)
+	for p, raw := range casos {
+		comIDs, _, err := FixarIDsNoCaso(raw)
+		if err != nil {
+			t.Fatalf("fixar ids de %s: %v", p, err)
+		}
+		casos[p] = comIDs
+	}
+	return casos
+}
+
+func casosCrusDoCatalogo(t *testing.T) map[string][]byte {
 	t.Helper()
 	casos := map[string][]byte{}
 	err := filepath.WalkDir(filepath.Join("..", "..", "okf", "agentes"), func(p string, d fs.DirEntry, err error) error {
@@ -365,5 +380,145 @@ func TestAplicarFluxoRecusaTipoDesconhecido(t *testing.T) {
 	_, err := AplicarFluxo([]byte("id: x\n"), Fluxo{Blocos: []Bloco{{Tipo: "voar"}}})
 	if err == nil || !strings.Contains(err.Error(), "bloco 1") {
 		t.Fatalf("erro = %v, quer mencionar \"bloco 1\"", err)
+	}
+}
+
+const casoComIDs = `id: x
+name: X
+steps:
+  - id: e-aaaa0001
+    confirm: "Confirma?"
+  - id: e-bbbb0002
+    compose: "Olá"
+output: Pronto
+`
+
+func idsDoFluxo(f Fluxo) []string {
+	ids := make([]string, len(f.Blocos))
+	for i, b := range f.Blocos {
+		ids[i] = b.ID
+	}
+	return ids
+}
+
+func TestFluxoMantemIDDoPassoAoReordenar(t *testing.T) {
+	f, err := FluxoDeYAML([]byte(casoComIDs), escritaNunca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := idsDoFluxo(f), []string{"e-aaaa0001", "e-bbbb0002", "responder"}; !slices.Equal(got, want) {
+		t.Fatalf("ids = %v, quer %v", got, want)
+	}
+	f.Blocos[0], f.Blocos[1] = f.Blocos[1], f.Blocos[0]
+	saida, err := AplicarFluxo([]byte(casoComIDs), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relido, err := FluxoDeYAML(saida, escritaNunca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := idsDoFluxo(relido), []string{"e-bbbb0002", "e-aaaa0001", "responder"}; !slices.Equal(got, want) {
+		t.Errorf("ids depois de reordenar = %v, quer %v", got, want)
+	}
+}
+
+func TestFluxoSemIDRecebePosicionalEGravaNoSalvar(t *testing.T) {
+	raw := []byte("id: x\nname: X\nsteps:\n  - confirm: a\n")
+	f, err := FluxoDeYAML(raw, escritaNunca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Blocos[0].ID != "b1" {
+		t.Fatalf("id = %q, quer b1", f.Blocos[0].ID)
+	}
+	saida, err := AplicarFluxo(raw, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(saida), "id: b1") {
+		t.Errorf("o id posicional não foi gravado:\n%s", saida)
+	}
+}
+
+func TestFluxoAceitaIDEmPassoQueNaoEhRecurso(t *testing.T) {
+	f, err := FluxoDeYAML([]byte("steps:\n  - id: e-1\n    confirm: \"Confirma?\"\n"), escritaNunca)
+	if err != nil {
+		t.Fatalf("FluxoDeYAML: %v", err)
+	}
+	if want := (Bloco{ID: "e-1", Tipo: BlocoConfirmar, Texto: "Confirma?"}); !reflect.DeepEqual(f.Blocos[0], want) {
+		t.Errorf("bloco = %#v, quer %#v", f.Blocos[0], want)
+	}
+}
+
+func TestFluxoAceitaIDEmPassoDeRecurso(t *testing.T) {
+	f, err := FluxoDeYAML([]byte("steps:\n  - id: e-2\n    resource: x.get\n    save_as: r\n"), escritaNunca)
+	if err != nil {
+		t.Fatalf("FluxoDeYAML: %v", err)
+	}
+	if want := (Bloco{ID: "e-2", Tipo: BlocoBuscar, Recurso: "x.get", GuardarEm: "r"}); !reflect.DeepEqual(f.Blocos[0], want) {
+		t.Errorf("bloco = %#v, quer %#v", f.Blocos[0], want)
+	}
+}
+
+func TestRespostaTemIDResponder(t *testing.T) {
+	f, err := FluxoDeYAML([]byte("steps:\n  - confirm: a\noutput: Pronto\n"), escritaNunca)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Blocos[len(f.Blocos)-1]; got.Tipo != BlocoResponder || got.ID != "responder" {
+		t.Errorf("resposta = %#v, quer id responder", got)
+	}
+}
+
+func TestFluxoRecusaIDRepetido(t *testing.T) {
+	tests := []struct{ name, yaml string }{
+		{"dois ids iguais", "steps:\n  - id: e-1\n    confirm: a\n  - id: e-1\n    compose: b\n"},
+		{"explicito colide com posicional", "steps:\n  - id: b2\n    confirm: a\n  - compose: b\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := FluxoDeYAML([]byte(tt.yaml), escritaNunca)
+			if err == nil || !strings.Contains(err.Error(), "repetido") {
+				t.Fatalf("erro = %v, quer mencionar \"repetido\"", err)
+			}
+		})
+	}
+}
+
+func TestIdaEVoltaComIDsNaoMudaOArquivo(t *testing.T) {
+	for p, raw := range casosCrusDoCatalogo(t) {
+		t.Run(p, func(t *testing.T) {
+			comIDs, mudou, err := FixarIDsNoCaso(raw)
+			if err != nil {
+				t.Fatalf("FixarIDsNoCaso: %v", err)
+			}
+			if !mudou {
+				t.Fatal("o catálogo de hoje não tem ids; deveria gravar")
+			}
+			f, err := FluxoDeYAML(comIDs, escritaNunca)
+			if err != nil {
+				t.Fatal(err)
+			}
+			saida, err := AplicarFluxo(comIDs, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(decodificar(t, comIDs), decodificar(t, saida)) {
+				t.Errorf("ida e volta mudou o caso\n--- com ids\n%s\n--- saída\n%s", comIDs, saida)
+			}
+			f2, err := FluxoDeYAML(saida, escritaNunca)
+			if err != nil {
+				t.Fatal(err)
+			}
+			de2, err := AplicarFluxo(saida, f2)
+			if err != nil || !bytes.Equal(saida, de2) {
+				t.Errorf("a segunda ida e volta mudou os bytes (err=%v)", err)
+			}
+			refixado, mudou, err := FixarIDsNoCaso(comIDs)
+			if err != nil || mudou || !bytes.Equal(refixado, comIDs) {
+				t.Errorf("segunda fixação: mudou=%v err=%v", mudou, err)
+			}
+		})
 	}
 }

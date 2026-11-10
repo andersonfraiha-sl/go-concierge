@@ -27,6 +27,10 @@ import (
 	"go-concierge/internal/banco/ent/predicate"
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/banco/ent/sessao"
+	"go-concierge/internal/banco/ent/skillatualizacao"
+	"go-concierge/internal/banco/ent/skillaviso"
+	"go-concierge/internal/banco/ent/skillcamada"
+	"go-concierge/internal/banco/ent/skillversao"
 	"go-concierge/internal/banco/ent/usuario"
 	"sync"
 	"time"
@@ -63,23 +67,30 @@ const (
 	TypePedido             = "Pedido"
 	TypePedidoEvento       = "PedidoEvento"
 	TypeSessao             = "Sessao"
+	TypeSkillAtualizacao   = "SkillAtualizacao"
+	TypeSkillAviso         = "SkillAviso"
+	TypeSkillCamada        = "SkillCamada"
+	TypeSkillVersao        = "SkillVersao"
 	TypeUsuario            = "Usuario"
 )
 
 // AdministradoraMutation represents an operation that mutates the Administradora nodes in the graph.
 type AdministradoraMutation struct {
 	config
-	op                 Op
-	typ                string
-	id                 *string
-	nome               *string
-	clearedFields      map[string]struct{}
-	condominios        map[string]struct{}
-	removedcondominios map[string]struct{}
-	clearedcondominios bool
-	done               bool
-	oldValue           func(context.Context) (*Administradora, error)
-	predicates         []predicate.Administradora
+	op                   Op
+	typ                  string
+	id                   *string
+	nome                 *string
+	clearedFields        map[string]struct{}
+	condominios          map[string]struct{}
+	removedcondominios   map[string]struct{}
+	clearedcondominios   bool
+	skill_camadas        map[int]struct{}
+	removedskill_camadas map[int]struct{}
+	clearedskill_camadas bool
+	done                 bool
+	oldValue             func(context.Context) (*Administradora, error)
+	predicates           []predicate.Administradora
 }
 
 var _ ent.Mutation = (*AdministradoraMutation)(nil)
@@ -276,6 +287,60 @@ func (m *AdministradoraMutation) ResetCondominios() {
 	m.removedcondominios = nil
 }
 
+// AddSkillCamadaIDs adds the "skill_camadas" edge to the SkillCamada entity by ids.
+func (m *AdministradoraMutation) AddSkillCamadaIDs(ids ...int) {
+	if m.skill_camadas == nil {
+		m.skill_camadas = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.skill_camadas[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSkillCamadas clears the "skill_camadas" edge to the SkillCamada entity.
+func (m *AdministradoraMutation) ClearSkillCamadas() {
+	m.clearedskill_camadas = true
+}
+
+// SkillCamadasCleared reports if the "skill_camadas" edge to the SkillCamada entity was cleared.
+func (m *AdministradoraMutation) SkillCamadasCleared() bool {
+	return m.clearedskill_camadas
+}
+
+// RemoveSkillCamadaIDs removes the "skill_camadas" edge to the SkillCamada entity by IDs.
+func (m *AdministradoraMutation) RemoveSkillCamadaIDs(ids ...int) {
+	if m.removedskill_camadas == nil {
+		m.removedskill_camadas = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.skill_camadas, ids[i])
+		m.removedskill_camadas[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSkillCamadas returns the removed IDs of the "skill_camadas" edge to the SkillCamada entity.
+func (m *AdministradoraMutation) RemovedSkillCamadasIDs() (ids []int) {
+	for id := range m.removedskill_camadas {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SkillCamadasIDs returns the "skill_camadas" edge IDs in the mutation.
+func (m *AdministradoraMutation) SkillCamadasIDs() (ids []int) {
+	for id := range m.skill_camadas {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSkillCamadas resets all changes to the "skill_camadas" edge.
+func (m *AdministradoraMutation) ResetSkillCamadas() {
+	m.skill_camadas = nil
+	m.clearedskill_camadas = false
+	m.removedskill_camadas = nil
+}
+
 // Where appends a list predicates to the AdministradoraMutation builder.
 func (m *AdministradoraMutation) Where(ps ...predicate.Administradora) {
 	m.predicates = append(m.predicates, ps...)
@@ -409,9 +474,12 @@ func (m *AdministradoraMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *AdministradoraMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.condominios != nil {
 		edges = append(edges, administradora.EdgeCondominios)
+	}
+	if m.skill_camadas != nil {
+		edges = append(edges, administradora.EdgeSkillCamadas)
 	}
 	return edges
 }
@@ -426,15 +494,24 @@ func (m *AdministradoraMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case administradora.EdgeSkillCamadas:
+		ids := make([]ent.Value, 0, len(m.skill_camadas))
+		for id := range m.skill_camadas {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *AdministradoraMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.removedcondominios != nil {
 		edges = append(edges, administradora.EdgeCondominios)
+	}
+	if m.removedskill_camadas != nil {
+		edges = append(edges, administradora.EdgeSkillCamadas)
 	}
 	return edges
 }
@@ -449,15 +526,24 @@ func (m *AdministradoraMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case administradora.EdgeSkillCamadas:
+		ids := make([]ent.Value, 0, len(m.removedskill_camadas))
+		for id := range m.removedskill_camadas {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *AdministradoraMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
+	edges := make([]string, 0, 2)
 	if m.clearedcondominios {
 		edges = append(edges, administradora.EdgeCondominios)
+	}
+	if m.clearedskill_camadas {
+		edges = append(edges, administradora.EdgeSkillCamadas)
 	}
 	return edges
 }
@@ -468,6 +554,8 @@ func (m *AdministradoraMutation) EdgeCleared(name string) bool {
 	switch name {
 	case administradora.EdgeCondominios:
 		return m.clearedcondominios
+	case administradora.EdgeSkillCamadas:
+		return m.clearedskill_camadas
 	}
 	return false
 }
@@ -486,6 +574,9 @@ func (m *AdministradoraMutation) ResetEdge(name string) error {
 	switch name {
 	case administradora.EdgeCondominios:
 		m.ResetCondominios()
+		return nil
+	case administradora.EdgeSkillCamadas:
+		m.ResetSkillCamadas()
 		return nil
 	}
 	return fmt.Errorf("unknown Administradora edge %s", name)
@@ -2197,6 +2288,9 @@ type CondominioMutation struct {
 	orientacoes           map[int]struct{}
 	removedorientacoes    map[int]struct{}
 	clearedorientacoes    bool
+	skill_camadas         map[int]struct{}
+	removedskill_camadas  map[int]struct{}
+	clearedskill_camadas  bool
 	done                  bool
 	oldValue              func(context.Context) (*Condominio, error)
 	predicates            []predicate.Condominio
@@ -2688,6 +2782,60 @@ func (m *CondominioMutation) ResetOrientacoes() {
 	m.removedorientacoes = nil
 }
 
+// AddSkillCamadaIDs adds the "skill_camadas" edge to the SkillCamada entity by ids.
+func (m *CondominioMutation) AddSkillCamadaIDs(ids ...int) {
+	if m.skill_camadas == nil {
+		m.skill_camadas = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.skill_camadas[ids[i]] = struct{}{}
+	}
+}
+
+// ClearSkillCamadas clears the "skill_camadas" edge to the SkillCamada entity.
+func (m *CondominioMutation) ClearSkillCamadas() {
+	m.clearedskill_camadas = true
+}
+
+// SkillCamadasCleared reports if the "skill_camadas" edge to the SkillCamada entity was cleared.
+func (m *CondominioMutation) SkillCamadasCleared() bool {
+	return m.clearedskill_camadas
+}
+
+// RemoveSkillCamadaIDs removes the "skill_camadas" edge to the SkillCamada entity by IDs.
+func (m *CondominioMutation) RemoveSkillCamadaIDs(ids ...int) {
+	if m.removedskill_camadas == nil {
+		m.removedskill_camadas = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.skill_camadas, ids[i])
+		m.removedskill_camadas[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedSkillCamadas returns the removed IDs of the "skill_camadas" edge to the SkillCamada entity.
+func (m *CondominioMutation) RemovedSkillCamadasIDs() (ids []int) {
+	for id := range m.removedskill_camadas {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// SkillCamadasIDs returns the "skill_camadas" edge IDs in the mutation.
+func (m *CondominioMutation) SkillCamadasIDs() (ids []int) {
+	for id := range m.skill_camadas {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetSkillCamadas resets all changes to the "skill_camadas" edge.
+func (m *CondominioMutation) ResetSkillCamadas() {
+	m.skill_camadas = nil
+	m.clearedskill_camadas = false
+	m.removedskill_camadas = nil
+}
+
 // Where appends a list predicates to the CondominioMutation builder.
 func (m *CondominioMutation) Where(ps ...predicate.Condominio) {
 	m.predicates = append(m.predicates, ps...)
@@ -2898,7 +3046,7 @@ func (m *CondominioMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *CondominioMutation) AddedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.administradora != nil {
 		edges = append(edges, condominio.EdgeAdministradora)
 	}
@@ -2910,6 +3058,9 @@ func (m *CondominioMutation) AddedEdges() []string {
 	}
 	if m.orientacoes != nil {
 		edges = append(edges, condominio.EdgeOrientacoes)
+	}
+	if m.skill_camadas != nil {
+		edges = append(edges, condominio.EdgeSkillCamadas)
 	}
 	return edges
 }
@@ -2940,13 +3091,19 @@ func (m *CondominioMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case condominio.EdgeSkillCamadas:
+		ids := make([]ent.Value, 0, len(m.skill_camadas))
+		for id := range m.skill_camadas {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *CondominioMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.removedhabilitacoes != nil {
 		edges = append(edges, condominio.EdgeHabilitacoes)
 	}
@@ -2955,6 +3112,9 @@ func (m *CondominioMutation) RemovedEdges() []string {
 	}
 	if m.removedorientacoes != nil {
 		edges = append(edges, condominio.EdgeOrientacoes)
+	}
+	if m.removedskill_camadas != nil {
+		edges = append(edges, condominio.EdgeSkillCamadas)
 	}
 	return edges
 }
@@ -2981,13 +3141,19 @@ func (m *CondominioMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case condominio.EdgeSkillCamadas:
+		ids := make([]ent.Value, 0, len(m.removedskill_camadas))
+		for id := range m.removedskill_camadas {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *CondominioMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 4)
+	edges := make([]string, 0, 5)
 	if m.clearedadministradora {
 		edges = append(edges, condominio.EdgeAdministradora)
 	}
@@ -2999,6 +3165,9 @@ func (m *CondominioMutation) ClearedEdges() []string {
 	}
 	if m.clearedorientacoes {
 		edges = append(edges, condominio.EdgeOrientacoes)
+	}
+	if m.clearedskill_camadas {
+		edges = append(edges, condominio.EdgeSkillCamadas)
 	}
 	return edges
 }
@@ -3015,6 +3184,8 @@ func (m *CondominioMutation) EdgeCleared(name string) bool {
 		return m.clearedpayloads
 	case condominio.EdgeOrientacoes:
 		return m.clearedorientacoes
+	case condominio.EdgeSkillCamadas:
+		return m.clearedskill_camadas
 	}
 	return false
 }
@@ -3045,6 +3216,9 @@ func (m *CondominioMutation) ResetEdge(name string) error {
 		return nil
 	case condominio.EdgeOrientacoes:
 		m.ResetOrientacoes()
+		return nil
+	case condominio.EdgeSkillCamadas:
+		m.ResetSkillCamadas()
 		return nil
 	}
 	return fmt.Errorf("unknown Condominio edge %s", name)
@@ -11816,6 +11990,4373 @@ func (m *SessaoMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *SessaoMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown Sessao edge %s", name)
+}
+
+// SkillAtualizacaoMutation represents an operation that mutates the SkillAtualizacao nodes in the graph.
+type SkillAtualizacaoMutation struct {
+	config
+	op             Op
+	typ            string
+	id             *int
+	estado         *skillatualizacao.Estado
+	prazo_em       *time.Time
+	prazo_aplicado *bool
+	decisoes       *jsontext.Value
+	appenddecisoes jsontext.Value
+	decidida_por   *string
+	decidida_em    *time.Time
+	criado_em      *time.Time
+	clearedFields  map[string]struct{}
+	camada         *int
+	clearedcamada  bool
+	de             *int
+	clearedde      bool
+	para           *int
+	clearedpara    bool
+	done           bool
+	oldValue       func(context.Context) (*SkillAtualizacao, error)
+	predicates     []predicate.SkillAtualizacao
+}
+
+var _ ent.Mutation = (*SkillAtualizacaoMutation)(nil)
+
+// skillatualizacaoOption allows management of the mutation configuration using functional options.
+type skillatualizacaoOption func(*SkillAtualizacaoMutation)
+
+// newSkillAtualizacaoMutation creates new mutation for the SkillAtualizacao entity.
+func newSkillAtualizacaoMutation(c config, op Op, opts ...skillatualizacaoOption) *SkillAtualizacaoMutation {
+	m := &SkillAtualizacaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSkillAtualizacao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSkillAtualizacaoID sets the ID field of the mutation.
+func withSkillAtualizacaoID(id int) skillatualizacaoOption {
+	return func(m *SkillAtualizacaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SkillAtualizacao
+		)
+		m.oldValue = func(ctx context.Context) (*SkillAtualizacao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SkillAtualizacao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSkillAtualizacao sets the old SkillAtualizacao of the mutation.
+func withSkillAtualizacao(node *SkillAtualizacao) skillatualizacaoOption {
+	return func(m *SkillAtualizacaoMutation) {
+		m.oldValue = func(context.Context) (*SkillAtualizacao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SkillAtualizacaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SkillAtualizacaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SkillAtualizacaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SkillAtualizacaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SkillAtualizacao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCamadaID sets the "camada_id" field.
+func (m *SkillAtualizacaoMutation) SetCamadaID(i int) {
+	m.camada = &i
+}
+
+// CamadaID returns the value of the "camada_id" field in the mutation.
+func (m *SkillAtualizacaoMutation) CamadaID() (r int, exists bool) {
+	v := m.camada
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCamadaID returns the old "camada_id" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldCamadaID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCamadaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCamadaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCamadaID: %w", err)
+	}
+	return oldValue.CamadaID, nil
+}
+
+// ResetCamadaID resets all changes to the "camada_id" field.
+func (m *SkillAtualizacaoMutation) ResetCamadaID() {
+	m.camada = nil
+}
+
+// SetDeID sets the "de_id" field.
+func (m *SkillAtualizacaoMutation) SetDeID(i int) {
+	m.de = &i
+}
+
+// DeID returns the value of the "de_id" field in the mutation.
+func (m *SkillAtualizacaoMutation) DeID() (r int, exists bool) {
+	v := m.de
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDeID returns the old "de_id" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldDeID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDeID: %w", err)
+	}
+	return oldValue.DeID, nil
+}
+
+// ResetDeID resets all changes to the "de_id" field.
+func (m *SkillAtualizacaoMutation) ResetDeID() {
+	m.de = nil
+}
+
+// SetParaID sets the "para_id" field.
+func (m *SkillAtualizacaoMutation) SetParaID(i int) {
+	m.para = &i
+}
+
+// ParaID returns the value of the "para_id" field in the mutation.
+func (m *SkillAtualizacaoMutation) ParaID() (r int, exists bool) {
+	v := m.para
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldParaID returns the old "para_id" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldParaID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldParaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldParaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldParaID: %w", err)
+	}
+	return oldValue.ParaID, nil
+}
+
+// ResetParaID resets all changes to the "para_id" field.
+func (m *SkillAtualizacaoMutation) ResetParaID() {
+	m.para = nil
+}
+
+// SetEstado sets the "estado" field.
+func (m *SkillAtualizacaoMutation) SetEstado(s skillatualizacao.Estado) {
+	m.estado = &s
+}
+
+// Estado returns the value of the "estado" field in the mutation.
+func (m *SkillAtualizacaoMutation) Estado() (r skillatualizacao.Estado, exists bool) {
+	v := m.estado
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEstado returns the old "estado" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldEstado(ctx context.Context) (v skillatualizacao.Estado, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEstado is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEstado requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEstado: %w", err)
+	}
+	return oldValue.Estado, nil
+}
+
+// ResetEstado resets all changes to the "estado" field.
+func (m *SkillAtualizacaoMutation) ResetEstado() {
+	m.estado = nil
+}
+
+// SetPrazoEm sets the "prazo_em" field.
+func (m *SkillAtualizacaoMutation) SetPrazoEm(t time.Time) {
+	m.prazo_em = &t
+}
+
+// PrazoEm returns the value of the "prazo_em" field in the mutation.
+func (m *SkillAtualizacaoMutation) PrazoEm() (r time.Time, exists bool) {
+	v := m.prazo_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrazoEm returns the old "prazo_em" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldPrazoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrazoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrazoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrazoEm: %w", err)
+	}
+	return oldValue.PrazoEm, nil
+}
+
+// ResetPrazoEm resets all changes to the "prazo_em" field.
+func (m *SkillAtualizacaoMutation) ResetPrazoEm() {
+	m.prazo_em = nil
+}
+
+// SetPrazoAplicado sets the "prazo_aplicado" field.
+func (m *SkillAtualizacaoMutation) SetPrazoAplicado(b bool) {
+	m.prazo_aplicado = &b
+}
+
+// PrazoAplicado returns the value of the "prazo_aplicado" field in the mutation.
+func (m *SkillAtualizacaoMutation) PrazoAplicado() (r bool, exists bool) {
+	v := m.prazo_aplicado
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrazoAplicado returns the old "prazo_aplicado" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldPrazoAplicado(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrazoAplicado is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrazoAplicado requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrazoAplicado: %w", err)
+	}
+	return oldValue.PrazoAplicado, nil
+}
+
+// ResetPrazoAplicado resets all changes to the "prazo_aplicado" field.
+func (m *SkillAtualizacaoMutation) ResetPrazoAplicado() {
+	m.prazo_aplicado = nil
+}
+
+// SetDecisoes sets the "decisoes" field.
+func (m *SkillAtualizacaoMutation) SetDecisoes(j jsontext.Value) {
+	m.decisoes = &j
+	m.appenddecisoes = nil
+}
+
+// Decisoes returns the value of the "decisoes" field in the mutation.
+func (m *SkillAtualizacaoMutation) Decisoes() (r jsontext.Value, exists bool) {
+	v := m.decisoes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDecisoes returns the old "decisoes" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldDecisoes(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDecisoes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDecisoes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDecisoes: %w", err)
+	}
+	return oldValue.Decisoes, nil
+}
+
+// AppendDecisoes adds j to the "decisoes" field.
+func (m *SkillAtualizacaoMutation) AppendDecisoes(j jsontext.Value) {
+	m.appenddecisoes = append(m.appenddecisoes, j...)
+}
+
+// AppendedDecisoes returns the list of values that were appended to the "decisoes" field in this mutation.
+func (m *SkillAtualizacaoMutation) AppendedDecisoes() (jsontext.Value, bool) {
+	if len(m.appenddecisoes) == 0 {
+		return nil, false
+	}
+	return m.appenddecisoes, true
+}
+
+// ClearDecisoes clears the value of the "decisoes" field.
+func (m *SkillAtualizacaoMutation) ClearDecisoes() {
+	m.decisoes = nil
+	m.appenddecisoes = nil
+	m.clearedFields[skillatualizacao.FieldDecisoes] = struct{}{}
+}
+
+// DecisoesCleared returns if the "decisoes" field was cleared in this mutation.
+func (m *SkillAtualizacaoMutation) DecisoesCleared() bool {
+	_, ok := m.clearedFields[skillatualizacao.FieldDecisoes]
+	return ok
+}
+
+// ResetDecisoes resets all changes to the "decisoes" field.
+func (m *SkillAtualizacaoMutation) ResetDecisoes() {
+	m.decisoes = nil
+	m.appenddecisoes = nil
+	delete(m.clearedFields, skillatualizacao.FieldDecisoes)
+}
+
+// SetDecididaPor sets the "decidida_por" field.
+func (m *SkillAtualizacaoMutation) SetDecididaPor(s string) {
+	m.decidida_por = &s
+}
+
+// DecididaPor returns the value of the "decidida_por" field in the mutation.
+func (m *SkillAtualizacaoMutation) DecididaPor() (r string, exists bool) {
+	v := m.decidida_por
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDecididaPor returns the old "decidida_por" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldDecididaPor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDecididaPor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDecididaPor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDecididaPor: %w", err)
+	}
+	return oldValue.DecididaPor, nil
+}
+
+// ResetDecididaPor resets all changes to the "decidida_por" field.
+func (m *SkillAtualizacaoMutation) ResetDecididaPor() {
+	m.decidida_por = nil
+}
+
+// SetDecididaEm sets the "decidida_em" field.
+func (m *SkillAtualizacaoMutation) SetDecididaEm(t time.Time) {
+	m.decidida_em = &t
+}
+
+// DecididaEm returns the value of the "decidida_em" field in the mutation.
+func (m *SkillAtualizacaoMutation) DecididaEm() (r time.Time, exists bool) {
+	v := m.decidida_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDecididaEm returns the old "decidida_em" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldDecididaEm(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDecididaEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDecididaEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDecididaEm: %w", err)
+	}
+	return oldValue.DecididaEm, nil
+}
+
+// ClearDecididaEm clears the value of the "decidida_em" field.
+func (m *SkillAtualizacaoMutation) ClearDecididaEm() {
+	m.decidida_em = nil
+	m.clearedFields[skillatualizacao.FieldDecididaEm] = struct{}{}
+}
+
+// DecididaEmCleared returns if the "decidida_em" field was cleared in this mutation.
+func (m *SkillAtualizacaoMutation) DecididaEmCleared() bool {
+	_, ok := m.clearedFields[skillatualizacao.FieldDecididaEm]
+	return ok
+}
+
+// ResetDecididaEm resets all changes to the "decidida_em" field.
+func (m *SkillAtualizacaoMutation) ResetDecididaEm() {
+	m.decidida_em = nil
+	delete(m.clearedFields, skillatualizacao.FieldDecididaEm)
+}
+
+// SetCriadoEm sets the "criado_em" field.
+func (m *SkillAtualizacaoMutation) SetCriadoEm(t time.Time) {
+	m.criado_em = &t
+}
+
+// CriadoEm returns the value of the "criado_em" field in the mutation.
+func (m *SkillAtualizacaoMutation) CriadoEm() (r time.Time, exists bool) {
+	v := m.criado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCriadoEm returns the old "criado_em" field's value of the SkillAtualizacao entity.
+// If the SkillAtualizacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAtualizacaoMutation) OldCriadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCriadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCriadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCriadoEm: %w", err)
+	}
+	return oldValue.CriadoEm, nil
+}
+
+// ResetCriadoEm resets all changes to the "criado_em" field.
+func (m *SkillAtualizacaoMutation) ResetCriadoEm() {
+	m.criado_em = nil
+}
+
+// ClearCamada clears the "camada" edge to the SkillCamada entity.
+func (m *SkillAtualizacaoMutation) ClearCamada() {
+	m.clearedcamada = true
+	m.clearedFields[skillatualizacao.FieldCamadaID] = struct{}{}
+}
+
+// CamadaCleared reports if the "camada" edge to the SkillCamada entity was cleared.
+func (m *SkillAtualizacaoMutation) CamadaCleared() bool {
+	return m.clearedcamada
+}
+
+// CamadaIDs returns the "camada" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CamadaID instead. It exists only for internal usage by the builders.
+func (m *SkillAtualizacaoMutation) CamadaIDs() (ids []int) {
+	if id := m.camada; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCamada resets all changes to the "camada" edge.
+func (m *SkillAtualizacaoMutation) ResetCamada() {
+	m.camada = nil
+	m.clearedcamada = false
+}
+
+// ClearDe clears the "de" edge to the SkillVersao entity.
+func (m *SkillAtualizacaoMutation) ClearDe() {
+	m.clearedde = true
+	m.clearedFields[skillatualizacao.FieldDeID] = struct{}{}
+}
+
+// DeCleared reports if the "de" edge to the SkillVersao entity was cleared.
+func (m *SkillAtualizacaoMutation) DeCleared() bool {
+	return m.clearedde
+}
+
+// DeIDs returns the "de" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// DeID instead. It exists only for internal usage by the builders.
+func (m *SkillAtualizacaoMutation) DeIDs() (ids []int) {
+	if id := m.de; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetDe resets all changes to the "de" edge.
+func (m *SkillAtualizacaoMutation) ResetDe() {
+	m.de = nil
+	m.clearedde = false
+}
+
+// ClearPara clears the "para" edge to the SkillVersao entity.
+func (m *SkillAtualizacaoMutation) ClearPara() {
+	m.clearedpara = true
+	m.clearedFields[skillatualizacao.FieldParaID] = struct{}{}
+}
+
+// ParaCleared reports if the "para" edge to the SkillVersao entity was cleared.
+func (m *SkillAtualizacaoMutation) ParaCleared() bool {
+	return m.clearedpara
+}
+
+// ParaIDs returns the "para" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ParaID instead. It exists only for internal usage by the builders.
+func (m *SkillAtualizacaoMutation) ParaIDs() (ids []int) {
+	if id := m.para; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetPara resets all changes to the "para" edge.
+func (m *SkillAtualizacaoMutation) ResetPara() {
+	m.para = nil
+	m.clearedpara = false
+}
+
+// Where appends a list predicates to the SkillAtualizacaoMutation builder.
+func (m *SkillAtualizacaoMutation) Where(ps ...predicate.SkillAtualizacao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SkillAtualizacaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SkillAtualizacaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SkillAtualizacao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SkillAtualizacaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SkillAtualizacaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SkillAtualizacao).
+func (m *SkillAtualizacaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SkillAtualizacaoMutation) Fields() []string {
+	fields := make([]string, 0, 10)
+	if m.camada != nil {
+		fields = append(fields, skillatualizacao.FieldCamadaID)
+	}
+	if m.de != nil {
+		fields = append(fields, skillatualizacao.FieldDeID)
+	}
+	if m.para != nil {
+		fields = append(fields, skillatualizacao.FieldParaID)
+	}
+	if m.estado != nil {
+		fields = append(fields, skillatualizacao.FieldEstado)
+	}
+	if m.prazo_em != nil {
+		fields = append(fields, skillatualizacao.FieldPrazoEm)
+	}
+	if m.prazo_aplicado != nil {
+		fields = append(fields, skillatualizacao.FieldPrazoAplicado)
+	}
+	if m.decisoes != nil {
+		fields = append(fields, skillatualizacao.FieldDecisoes)
+	}
+	if m.decidida_por != nil {
+		fields = append(fields, skillatualizacao.FieldDecididaPor)
+	}
+	if m.decidida_em != nil {
+		fields = append(fields, skillatualizacao.FieldDecididaEm)
+	}
+	if m.criado_em != nil {
+		fields = append(fields, skillatualizacao.FieldCriadoEm)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SkillAtualizacaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case skillatualizacao.FieldCamadaID:
+		return m.CamadaID()
+	case skillatualizacao.FieldDeID:
+		return m.DeID()
+	case skillatualizacao.FieldParaID:
+		return m.ParaID()
+	case skillatualizacao.FieldEstado:
+		return m.Estado()
+	case skillatualizacao.FieldPrazoEm:
+		return m.PrazoEm()
+	case skillatualizacao.FieldPrazoAplicado:
+		return m.PrazoAplicado()
+	case skillatualizacao.FieldDecisoes:
+		return m.Decisoes()
+	case skillatualizacao.FieldDecididaPor:
+		return m.DecididaPor()
+	case skillatualizacao.FieldDecididaEm:
+		return m.DecididaEm()
+	case skillatualizacao.FieldCriadoEm:
+		return m.CriadoEm()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SkillAtualizacaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case skillatualizacao.FieldCamadaID:
+		return m.OldCamadaID(ctx)
+	case skillatualizacao.FieldDeID:
+		return m.OldDeID(ctx)
+	case skillatualizacao.FieldParaID:
+		return m.OldParaID(ctx)
+	case skillatualizacao.FieldEstado:
+		return m.OldEstado(ctx)
+	case skillatualizacao.FieldPrazoEm:
+		return m.OldPrazoEm(ctx)
+	case skillatualizacao.FieldPrazoAplicado:
+		return m.OldPrazoAplicado(ctx)
+	case skillatualizacao.FieldDecisoes:
+		return m.OldDecisoes(ctx)
+	case skillatualizacao.FieldDecididaPor:
+		return m.OldDecididaPor(ctx)
+	case skillatualizacao.FieldDecididaEm:
+		return m.OldDecididaEm(ctx)
+	case skillatualizacao.FieldCriadoEm:
+		return m.OldCriadoEm(ctx)
+	}
+	return nil, fmt.Errorf("unknown SkillAtualizacao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillAtualizacaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case skillatualizacao.FieldCamadaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCamadaID(v)
+		return nil
+	case skillatualizacao.FieldDeID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeID(v)
+		return nil
+	case skillatualizacao.FieldParaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetParaID(v)
+		return nil
+	case skillatualizacao.FieldEstado:
+		v, ok := value.(skillatualizacao.Estado)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEstado(v)
+		return nil
+	case skillatualizacao.FieldPrazoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrazoEm(v)
+		return nil
+	case skillatualizacao.FieldPrazoAplicado:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrazoAplicado(v)
+		return nil
+	case skillatualizacao.FieldDecisoes:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDecisoes(v)
+		return nil
+	case skillatualizacao.FieldDecididaPor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDecididaPor(v)
+		return nil
+	case skillatualizacao.FieldDecididaEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDecididaEm(v)
+		return nil
+	case skillatualizacao.FieldCriadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCriadoEm(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAtualizacao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SkillAtualizacaoMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SkillAtualizacaoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillAtualizacaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown SkillAtualizacao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SkillAtualizacaoMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(skillatualizacao.FieldDecisoes) {
+		fields = append(fields, skillatualizacao.FieldDecisoes)
+	}
+	if m.FieldCleared(skillatualizacao.FieldDecididaEm) {
+		fields = append(fields, skillatualizacao.FieldDecididaEm)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SkillAtualizacaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SkillAtualizacaoMutation) ClearField(name string) error {
+	switch name {
+	case skillatualizacao.FieldDecisoes:
+		m.ClearDecisoes()
+		return nil
+	case skillatualizacao.FieldDecididaEm:
+		m.ClearDecididaEm()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAtualizacao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SkillAtualizacaoMutation) ResetField(name string) error {
+	switch name {
+	case skillatualizacao.FieldCamadaID:
+		m.ResetCamadaID()
+		return nil
+	case skillatualizacao.FieldDeID:
+		m.ResetDeID()
+		return nil
+	case skillatualizacao.FieldParaID:
+		m.ResetParaID()
+		return nil
+	case skillatualizacao.FieldEstado:
+		m.ResetEstado()
+		return nil
+	case skillatualizacao.FieldPrazoEm:
+		m.ResetPrazoEm()
+		return nil
+	case skillatualizacao.FieldPrazoAplicado:
+		m.ResetPrazoAplicado()
+		return nil
+	case skillatualizacao.FieldDecisoes:
+		m.ResetDecisoes()
+		return nil
+	case skillatualizacao.FieldDecididaPor:
+		m.ResetDecididaPor()
+		return nil
+	case skillatualizacao.FieldDecididaEm:
+		m.ResetDecididaEm()
+		return nil
+	case skillatualizacao.FieldCriadoEm:
+		m.ResetCriadoEm()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAtualizacao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SkillAtualizacaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.camada != nil {
+		edges = append(edges, skillatualizacao.EdgeCamada)
+	}
+	if m.de != nil {
+		edges = append(edges, skillatualizacao.EdgeDe)
+	}
+	if m.para != nil {
+		edges = append(edges, skillatualizacao.EdgePara)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SkillAtualizacaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case skillatualizacao.EdgeCamada:
+		if id := m.camada; id != nil {
+			return []ent.Value{*id}
+		}
+	case skillatualizacao.EdgeDe:
+		if id := m.de; id != nil {
+			return []ent.Value{*id}
+		}
+	case skillatualizacao.EdgePara:
+		if id := m.para; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SkillAtualizacaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SkillAtualizacaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SkillAtualizacaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedcamada {
+		edges = append(edges, skillatualizacao.EdgeCamada)
+	}
+	if m.clearedde {
+		edges = append(edges, skillatualizacao.EdgeDe)
+	}
+	if m.clearedpara {
+		edges = append(edges, skillatualizacao.EdgePara)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SkillAtualizacaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case skillatualizacao.EdgeCamada:
+		return m.clearedcamada
+	case skillatualizacao.EdgeDe:
+		return m.clearedde
+	case skillatualizacao.EdgePara:
+		return m.clearedpara
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SkillAtualizacaoMutation) ClearEdge(name string) error {
+	switch name {
+	case skillatualizacao.EdgeCamada:
+		m.ClearCamada()
+		return nil
+	case skillatualizacao.EdgeDe:
+		m.ClearDe()
+		return nil
+	case skillatualizacao.EdgePara:
+		m.ClearPara()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAtualizacao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SkillAtualizacaoMutation) ResetEdge(name string) error {
+	switch name {
+	case skillatualizacao.EdgeCamada:
+		m.ResetCamada()
+		return nil
+	case skillatualizacao.EdgeDe:
+		m.ResetDe()
+		return nil
+	case skillatualizacao.EdgePara:
+		m.ResetPara()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAtualizacao edge %s", name)
+}
+
+// SkillAvisoMutation represents an operation that mutates the SkillAviso nodes in the graph.
+type SkillAvisoMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *int
+	motivo        *string
+	trechos       *[]string
+	appendtrechos []string
+	encerra_em    *time.Time
+	ciente_por    *string
+	ciente_em     *time.Time
+	criado_em     *time.Time
+	clearedFields map[string]struct{}
+	camada        *int
+	clearedcamada bool
+	versao        *int
+	clearedversao bool
+	done          bool
+	oldValue      func(context.Context) (*SkillAviso, error)
+	predicates    []predicate.SkillAviso
+}
+
+var _ ent.Mutation = (*SkillAvisoMutation)(nil)
+
+// skillavisoOption allows management of the mutation configuration using functional options.
+type skillavisoOption func(*SkillAvisoMutation)
+
+// newSkillAvisoMutation creates new mutation for the SkillAviso entity.
+func newSkillAvisoMutation(c config, op Op, opts ...skillavisoOption) *SkillAvisoMutation {
+	m := &SkillAvisoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSkillAviso,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSkillAvisoID sets the ID field of the mutation.
+func withSkillAvisoID(id int) skillavisoOption {
+	return func(m *SkillAvisoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SkillAviso
+		)
+		m.oldValue = func(ctx context.Context) (*SkillAviso, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SkillAviso.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSkillAviso sets the old SkillAviso of the mutation.
+func withSkillAviso(node *SkillAviso) skillavisoOption {
+	return func(m *SkillAvisoMutation) {
+		m.oldValue = func(context.Context) (*SkillAviso, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SkillAvisoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SkillAvisoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SkillAvisoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SkillAvisoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SkillAviso.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCamadaID sets the "camada_id" field.
+func (m *SkillAvisoMutation) SetCamadaID(i int) {
+	m.camada = &i
+}
+
+// CamadaID returns the value of the "camada_id" field in the mutation.
+func (m *SkillAvisoMutation) CamadaID() (r int, exists bool) {
+	v := m.camada
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCamadaID returns the old "camada_id" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldCamadaID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCamadaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCamadaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCamadaID: %w", err)
+	}
+	return oldValue.CamadaID, nil
+}
+
+// ResetCamadaID resets all changes to the "camada_id" field.
+func (m *SkillAvisoMutation) ResetCamadaID() {
+	m.camada = nil
+}
+
+// SetVersaoID sets the "versao_id" field.
+func (m *SkillAvisoMutation) SetVersaoID(i int) {
+	m.versao = &i
+}
+
+// VersaoID returns the value of the "versao_id" field in the mutation.
+func (m *SkillAvisoMutation) VersaoID() (r int, exists bool) {
+	v := m.versao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersaoID returns the old "versao_id" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldVersaoID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersaoID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersaoID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersaoID: %w", err)
+	}
+	return oldValue.VersaoID, nil
+}
+
+// ResetVersaoID resets all changes to the "versao_id" field.
+func (m *SkillAvisoMutation) ResetVersaoID() {
+	m.versao = nil
+}
+
+// SetMotivo sets the "motivo" field.
+func (m *SkillAvisoMutation) SetMotivo(s string) {
+	m.motivo = &s
+}
+
+// Motivo returns the value of the "motivo" field in the mutation.
+func (m *SkillAvisoMutation) Motivo() (r string, exists bool) {
+	v := m.motivo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMotivo returns the old "motivo" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldMotivo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMotivo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMotivo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMotivo: %w", err)
+	}
+	return oldValue.Motivo, nil
+}
+
+// ResetMotivo resets all changes to the "motivo" field.
+func (m *SkillAvisoMutation) ResetMotivo() {
+	m.motivo = nil
+}
+
+// SetTrechos sets the "trechos" field.
+func (m *SkillAvisoMutation) SetTrechos(s []string) {
+	m.trechos = &s
+	m.appendtrechos = nil
+}
+
+// Trechos returns the value of the "trechos" field in the mutation.
+func (m *SkillAvisoMutation) Trechos() (r []string, exists bool) {
+	v := m.trechos
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTrechos returns the old "trechos" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldTrechos(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTrechos is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTrechos requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTrechos: %w", err)
+	}
+	return oldValue.Trechos, nil
+}
+
+// AppendTrechos adds s to the "trechos" field.
+func (m *SkillAvisoMutation) AppendTrechos(s []string) {
+	m.appendtrechos = append(m.appendtrechos, s...)
+}
+
+// AppendedTrechos returns the list of values that were appended to the "trechos" field in this mutation.
+func (m *SkillAvisoMutation) AppendedTrechos() ([]string, bool) {
+	if len(m.appendtrechos) == 0 {
+		return nil, false
+	}
+	return m.appendtrechos, true
+}
+
+// ResetTrechos resets all changes to the "trechos" field.
+func (m *SkillAvisoMutation) ResetTrechos() {
+	m.trechos = nil
+	m.appendtrechos = nil
+}
+
+// SetEncerraEm sets the "encerra_em" field.
+func (m *SkillAvisoMutation) SetEncerraEm(t time.Time) {
+	m.encerra_em = &t
+}
+
+// EncerraEm returns the value of the "encerra_em" field in the mutation.
+func (m *SkillAvisoMutation) EncerraEm() (r time.Time, exists bool) {
+	v := m.encerra_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEncerraEm returns the old "encerra_em" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldEncerraEm(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEncerraEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEncerraEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEncerraEm: %w", err)
+	}
+	return oldValue.EncerraEm, nil
+}
+
+// ClearEncerraEm clears the value of the "encerra_em" field.
+func (m *SkillAvisoMutation) ClearEncerraEm() {
+	m.encerra_em = nil
+	m.clearedFields[skillaviso.FieldEncerraEm] = struct{}{}
+}
+
+// EncerraEmCleared returns if the "encerra_em" field was cleared in this mutation.
+func (m *SkillAvisoMutation) EncerraEmCleared() bool {
+	_, ok := m.clearedFields[skillaviso.FieldEncerraEm]
+	return ok
+}
+
+// ResetEncerraEm resets all changes to the "encerra_em" field.
+func (m *SkillAvisoMutation) ResetEncerraEm() {
+	m.encerra_em = nil
+	delete(m.clearedFields, skillaviso.FieldEncerraEm)
+}
+
+// SetCientePor sets the "ciente_por" field.
+func (m *SkillAvisoMutation) SetCientePor(s string) {
+	m.ciente_por = &s
+}
+
+// CientePor returns the value of the "ciente_por" field in the mutation.
+func (m *SkillAvisoMutation) CientePor() (r string, exists bool) {
+	v := m.ciente_por
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCientePor returns the old "ciente_por" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldCientePor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCientePor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCientePor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCientePor: %w", err)
+	}
+	return oldValue.CientePor, nil
+}
+
+// ResetCientePor resets all changes to the "ciente_por" field.
+func (m *SkillAvisoMutation) ResetCientePor() {
+	m.ciente_por = nil
+}
+
+// SetCienteEm sets the "ciente_em" field.
+func (m *SkillAvisoMutation) SetCienteEm(t time.Time) {
+	m.ciente_em = &t
+}
+
+// CienteEm returns the value of the "ciente_em" field in the mutation.
+func (m *SkillAvisoMutation) CienteEm() (r time.Time, exists bool) {
+	v := m.ciente_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCienteEm returns the old "ciente_em" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldCienteEm(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCienteEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCienteEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCienteEm: %w", err)
+	}
+	return oldValue.CienteEm, nil
+}
+
+// ClearCienteEm clears the value of the "ciente_em" field.
+func (m *SkillAvisoMutation) ClearCienteEm() {
+	m.ciente_em = nil
+	m.clearedFields[skillaviso.FieldCienteEm] = struct{}{}
+}
+
+// CienteEmCleared returns if the "ciente_em" field was cleared in this mutation.
+func (m *SkillAvisoMutation) CienteEmCleared() bool {
+	_, ok := m.clearedFields[skillaviso.FieldCienteEm]
+	return ok
+}
+
+// ResetCienteEm resets all changes to the "ciente_em" field.
+func (m *SkillAvisoMutation) ResetCienteEm() {
+	m.ciente_em = nil
+	delete(m.clearedFields, skillaviso.FieldCienteEm)
+}
+
+// SetCriadoEm sets the "criado_em" field.
+func (m *SkillAvisoMutation) SetCriadoEm(t time.Time) {
+	m.criado_em = &t
+}
+
+// CriadoEm returns the value of the "criado_em" field in the mutation.
+func (m *SkillAvisoMutation) CriadoEm() (r time.Time, exists bool) {
+	v := m.criado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCriadoEm returns the old "criado_em" field's value of the SkillAviso entity.
+// If the SkillAviso object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillAvisoMutation) OldCriadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCriadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCriadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCriadoEm: %w", err)
+	}
+	return oldValue.CriadoEm, nil
+}
+
+// ResetCriadoEm resets all changes to the "criado_em" field.
+func (m *SkillAvisoMutation) ResetCriadoEm() {
+	m.criado_em = nil
+}
+
+// ClearCamada clears the "camada" edge to the SkillCamada entity.
+func (m *SkillAvisoMutation) ClearCamada() {
+	m.clearedcamada = true
+	m.clearedFields[skillaviso.FieldCamadaID] = struct{}{}
+}
+
+// CamadaCleared reports if the "camada" edge to the SkillCamada entity was cleared.
+func (m *SkillAvisoMutation) CamadaCleared() bool {
+	return m.clearedcamada
+}
+
+// CamadaIDs returns the "camada" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CamadaID instead. It exists only for internal usage by the builders.
+func (m *SkillAvisoMutation) CamadaIDs() (ids []int) {
+	if id := m.camada; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCamada resets all changes to the "camada" edge.
+func (m *SkillAvisoMutation) ResetCamada() {
+	m.camada = nil
+	m.clearedcamada = false
+}
+
+// ClearVersao clears the "versao" edge to the SkillVersao entity.
+func (m *SkillAvisoMutation) ClearVersao() {
+	m.clearedversao = true
+	m.clearedFields[skillaviso.FieldVersaoID] = struct{}{}
+}
+
+// VersaoCleared reports if the "versao" edge to the SkillVersao entity was cleared.
+func (m *SkillAvisoMutation) VersaoCleared() bool {
+	return m.clearedversao
+}
+
+// VersaoIDs returns the "versao" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// VersaoID instead. It exists only for internal usage by the builders.
+func (m *SkillAvisoMutation) VersaoIDs() (ids []int) {
+	if id := m.versao; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetVersao resets all changes to the "versao" edge.
+func (m *SkillAvisoMutation) ResetVersao() {
+	m.versao = nil
+	m.clearedversao = false
+}
+
+// Where appends a list predicates to the SkillAvisoMutation builder.
+func (m *SkillAvisoMutation) Where(ps ...predicate.SkillAviso) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SkillAvisoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SkillAvisoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SkillAviso, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SkillAvisoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SkillAvisoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SkillAviso).
+func (m *SkillAvisoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SkillAvisoMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.camada != nil {
+		fields = append(fields, skillaviso.FieldCamadaID)
+	}
+	if m.versao != nil {
+		fields = append(fields, skillaviso.FieldVersaoID)
+	}
+	if m.motivo != nil {
+		fields = append(fields, skillaviso.FieldMotivo)
+	}
+	if m.trechos != nil {
+		fields = append(fields, skillaviso.FieldTrechos)
+	}
+	if m.encerra_em != nil {
+		fields = append(fields, skillaviso.FieldEncerraEm)
+	}
+	if m.ciente_por != nil {
+		fields = append(fields, skillaviso.FieldCientePor)
+	}
+	if m.ciente_em != nil {
+		fields = append(fields, skillaviso.FieldCienteEm)
+	}
+	if m.criado_em != nil {
+		fields = append(fields, skillaviso.FieldCriadoEm)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SkillAvisoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case skillaviso.FieldCamadaID:
+		return m.CamadaID()
+	case skillaviso.FieldVersaoID:
+		return m.VersaoID()
+	case skillaviso.FieldMotivo:
+		return m.Motivo()
+	case skillaviso.FieldTrechos:
+		return m.Trechos()
+	case skillaviso.FieldEncerraEm:
+		return m.EncerraEm()
+	case skillaviso.FieldCientePor:
+		return m.CientePor()
+	case skillaviso.FieldCienteEm:
+		return m.CienteEm()
+	case skillaviso.FieldCriadoEm:
+		return m.CriadoEm()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SkillAvisoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case skillaviso.FieldCamadaID:
+		return m.OldCamadaID(ctx)
+	case skillaviso.FieldVersaoID:
+		return m.OldVersaoID(ctx)
+	case skillaviso.FieldMotivo:
+		return m.OldMotivo(ctx)
+	case skillaviso.FieldTrechos:
+		return m.OldTrechos(ctx)
+	case skillaviso.FieldEncerraEm:
+		return m.OldEncerraEm(ctx)
+	case skillaviso.FieldCientePor:
+		return m.OldCientePor(ctx)
+	case skillaviso.FieldCienteEm:
+		return m.OldCienteEm(ctx)
+	case skillaviso.FieldCriadoEm:
+		return m.OldCriadoEm(ctx)
+	}
+	return nil, fmt.Errorf("unknown SkillAviso field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillAvisoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case skillaviso.FieldCamadaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCamadaID(v)
+		return nil
+	case skillaviso.FieldVersaoID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersaoID(v)
+		return nil
+	case skillaviso.FieldMotivo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMotivo(v)
+		return nil
+	case skillaviso.FieldTrechos:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTrechos(v)
+		return nil
+	case skillaviso.FieldEncerraEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEncerraEm(v)
+		return nil
+	case skillaviso.FieldCientePor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCientePor(v)
+		return nil
+	case skillaviso.FieldCienteEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCienteEm(v)
+		return nil
+	case skillaviso.FieldCriadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCriadoEm(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAviso field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SkillAvisoMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SkillAvisoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillAvisoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown SkillAviso numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SkillAvisoMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(skillaviso.FieldEncerraEm) {
+		fields = append(fields, skillaviso.FieldEncerraEm)
+	}
+	if m.FieldCleared(skillaviso.FieldCienteEm) {
+		fields = append(fields, skillaviso.FieldCienteEm)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SkillAvisoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SkillAvisoMutation) ClearField(name string) error {
+	switch name {
+	case skillaviso.FieldEncerraEm:
+		m.ClearEncerraEm()
+		return nil
+	case skillaviso.FieldCienteEm:
+		m.ClearCienteEm()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAviso nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SkillAvisoMutation) ResetField(name string) error {
+	switch name {
+	case skillaviso.FieldCamadaID:
+		m.ResetCamadaID()
+		return nil
+	case skillaviso.FieldVersaoID:
+		m.ResetVersaoID()
+		return nil
+	case skillaviso.FieldMotivo:
+		m.ResetMotivo()
+		return nil
+	case skillaviso.FieldTrechos:
+		m.ResetTrechos()
+		return nil
+	case skillaviso.FieldEncerraEm:
+		m.ResetEncerraEm()
+		return nil
+	case skillaviso.FieldCientePor:
+		m.ResetCientePor()
+		return nil
+	case skillaviso.FieldCienteEm:
+		m.ResetCienteEm()
+		return nil
+	case skillaviso.FieldCriadoEm:
+		m.ResetCriadoEm()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAviso field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SkillAvisoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.camada != nil {
+		edges = append(edges, skillaviso.EdgeCamada)
+	}
+	if m.versao != nil {
+		edges = append(edges, skillaviso.EdgeVersao)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SkillAvisoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case skillaviso.EdgeCamada:
+		if id := m.camada; id != nil {
+			return []ent.Value{*id}
+		}
+	case skillaviso.EdgeVersao:
+		if id := m.versao; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SkillAvisoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SkillAvisoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SkillAvisoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedcamada {
+		edges = append(edges, skillaviso.EdgeCamada)
+	}
+	if m.clearedversao {
+		edges = append(edges, skillaviso.EdgeVersao)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SkillAvisoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case skillaviso.EdgeCamada:
+		return m.clearedcamada
+	case skillaviso.EdgeVersao:
+		return m.clearedversao
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SkillAvisoMutation) ClearEdge(name string) error {
+	switch name {
+	case skillaviso.EdgeCamada:
+		m.ClearCamada()
+		return nil
+	case skillaviso.EdgeVersao:
+		m.ClearVersao()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAviso unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SkillAvisoMutation) ResetEdge(name string) error {
+	switch name {
+	case skillaviso.EdgeCamada:
+		m.ResetCamada()
+		return nil
+	case skillaviso.EdgeVersao:
+		m.ResetVersao()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillAviso edge %s", name)
+}
+
+// SkillCamadaMutation represents an operation that mutates the SkillCamada nodes in the graph.
+type SkillCamadaMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *int
+	skill                 *string
+	tipo                  *skillcamada.Tipo
+	cabeca_id             *int
+	addcabeca_id          *int
+	acima_id              *int
+	addacima_id           *int
+	rascunho              *jsontext.Value
+	appendrascunho        jsontext.Value
+	rascunho_versao       *string
+	clearedFields         map[string]struct{}
+	administradora        *string
+	clearedadministradora bool
+	condominio            *string
+	clearedcondominio     bool
+	versoes               map[int]struct{}
+	removedversoes        map[int]struct{}
+	clearedversoes        bool
+	atualizacoes          map[int]struct{}
+	removedatualizacoes   map[int]struct{}
+	clearedatualizacoes   bool
+	avisos                map[int]struct{}
+	removedavisos         map[int]struct{}
+	clearedavisos         bool
+	done                  bool
+	oldValue              func(context.Context) (*SkillCamada, error)
+	predicates            []predicate.SkillCamada
+}
+
+var _ ent.Mutation = (*SkillCamadaMutation)(nil)
+
+// skillcamadaOption allows management of the mutation configuration using functional options.
+type skillcamadaOption func(*SkillCamadaMutation)
+
+// newSkillCamadaMutation creates new mutation for the SkillCamada entity.
+func newSkillCamadaMutation(c config, op Op, opts ...skillcamadaOption) *SkillCamadaMutation {
+	m := &SkillCamadaMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSkillCamada,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSkillCamadaID sets the ID field of the mutation.
+func withSkillCamadaID(id int) skillcamadaOption {
+	return func(m *SkillCamadaMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SkillCamada
+		)
+		m.oldValue = func(ctx context.Context) (*SkillCamada, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SkillCamada.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSkillCamada sets the old SkillCamada of the mutation.
+func withSkillCamada(node *SkillCamada) skillcamadaOption {
+	return func(m *SkillCamadaMutation) {
+		m.oldValue = func(context.Context) (*SkillCamada, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SkillCamadaMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SkillCamadaMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SkillCamadaMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SkillCamadaMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SkillCamada.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetSkill sets the "skill" field.
+func (m *SkillCamadaMutation) SetSkill(s string) {
+	m.skill = &s
+}
+
+// Skill returns the value of the "skill" field in the mutation.
+func (m *SkillCamadaMutation) Skill() (r string, exists bool) {
+	v := m.skill
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSkill returns the old "skill" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldSkill(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSkill is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSkill requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSkill: %w", err)
+	}
+	return oldValue.Skill, nil
+}
+
+// ResetSkill resets all changes to the "skill" field.
+func (m *SkillCamadaMutation) ResetSkill() {
+	m.skill = nil
+}
+
+// SetTipo sets the "tipo" field.
+func (m *SkillCamadaMutation) SetTipo(s skillcamada.Tipo) {
+	m.tipo = &s
+}
+
+// Tipo returns the value of the "tipo" field in the mutation.
+func (m *SkillCamadaMutation) Tipo() (r skillcamada.Tipo, exists bool) {
+	v := m.tipo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTipo returns the old "tipo" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldTipo(ctx context.Context) (v skillcamada.Tipo, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTipo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTipo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTipo: %w", err)
+	}
+	return oldValue.Tipo, nil
+}
+
+// ResetTipo resets all changes to the "tipo" field.
+func (m *SkillCamadaMutation) ResetTipo() {
+	m.tipo = nil
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *SkillCamadaMutation) SetAdministradoraID(s string) {
+	m.administradora = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *SkillCamadaMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldAdministradoraID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (m *SkillCamadaMutation) ClearAdministradoraID() {
+	m.administradora = nil
+	m.clearedFields[skillcamada.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraIDCleared returns if the "administradora_id" field was cleared in this mutation.
+func (m *SkillCamadaMutation) AdministradoraIDCleared() bool {
+	_, ok := m.clearedFields[skillcamada.FieldAdministradoraID]
+	return ok
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *SkillCamadaMutation) ResetAdministradoraID() {
+	m.administradora = nil
+	delete(m.clearedFields, skillcamada.FieldAdministradoraID)
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *SkillCamadaMutation) SetCondominioID(s string) {
+	m.condominio = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *SkillCamadaMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldCondominioID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ClearCondominioID clears the value of the "condominio_id" field.
+func (m *SkillCamadaMutation) ClearCondominioID() {
+	m.condominio = nil
+	m.clearedFields[skillcamada.FieldCondominioID] = struct{}{}
+}
+
+// CondominioIDCleared returns if the "condominio_id" field was cleared in this mutation.
+func (m *SkillCamadaMutation) CondominioIDCleared() bool {
+	_, ok := m.clearedFields[skillcamada.FieldCondominioID]
+	return ok
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *SkillCamadaMutation) ResetCondominioID() {
+	m.condominio = nil
+	delete(m.clearedFields, skillcamada.FieldCondominioID)
+}
+
+// SetCabecaID sets the "cabeca_id" field.
+func (m *SkillCamadaMutation) SetCabecaID(i int) {
+	m.cabeca_id = &i
+	m.addcabeca_id = nil
+}
+
+// CabecaID returns the value of the "cabeca_id" field in the mutation.
+func (m *SkillCamadaMutation) CabecaID() (r int, exists bool) {
+	v := m.cabeca_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCabecaID returns the old "cabeca_id" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldCabecaID(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCabecaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCabecaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCabecaID: %w", err)
+	}
+	return oldValue.CabecaID, nil
+}
+
+// AddCabecaID adds i to the "cabeca_id" field.
+func (m *SkillCamadaMutation) AddCabecaID(i int) {
+	if m.addcabeca_id != nil {
+		*m.addcabeca_id += i
+	} else {
+		m.addcabeca_id = &i
+	}
+}
+
+// AddedCabecaID returns the value that was added to the "cabeca_id" field in this mutation.
+func (m *SkillCamadaMutation) AddedCabecaID() (r int, exists bool) {
+	v := m.addcabeca_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCabecaID clears the value of the "cabeca_id" field.
+func (m *SkillCamadaMutation) ClearCabecaID() {
+	m.cabeca_id = nil
+	m.addcabeca_id = nil
+	m.clearedFields[skillcamada.FieldCabecaID] = struct{}{}
+}
+
+// CabecaIDCleared returns if the "cabeca_id" field was cleared in this mutation.
+func (m *SkillCamadaMutation) CabecaIDCleared() bool {
+	_, ok := m.clearedFields[skillcamada.FieldCabecaID]
+	return ok
+}
+
+// ResetCabecaID resets all changes to the "cabeca_id" field.
+func (m *SkillCamadaMutation) ResetCabecaID() {
+	m.cabeca_id = nil
+	m.addcabeca_id = nil
+	delete(m.clearedFields, skillcamada.FieldCabecaID)
+}
+
+// SetAcimaID sets the "acima_id" field.
+func (m *SkillCamadaMutation) SetAcimaID(i int) {
+	m.acima_id = &i
+	m.addacima_id = nil
+}
+
+// AcimaID returns the value of the "acima_id" field in the mutation.
+func (m *SkillCamadaMutation) AcimaID() (r int, exists bool) {
+	v := m.acima_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAcimaID returns the old "acima_id" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldAcimaID(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAcimaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAcimaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAcimaID: %w", err)
+	}
+	return oldValue.AcimaID, nil
+}
+
+// AddAcimaID adds i to the "acima_id" field.
+func (m *SkillCamadaMutation) AddAcimaID(i int) {
+	if m.addacima_id != nil {
+		*m.addacima_id += i
+	} else {
+		m.addacima_id = &i
+	}
+}
+
+// AddedAcimaID returns the value that was added to the "acima_id" field in this mutation.
+func (m *SkillCamadaMutation) AddedAcimaID() (r int, exists bool) {
+	v := m.addacima_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAcimaID clears the value of the "acima_id" field.
+func (m *SkillCamadaMutation) ClearAcimaID() {
+	m.acima_id = nil
+	m.addacima_id = nil
+	m.clearedFields[skillcamada.FieldAcimaID] = struct{}{}
+}
+
+// AcimaIDCleared returns if the "acima_id" field was cleared in this mutation.
+func (m *SkillCamadaMutation) AcimaIDCleared() bool {
+	_, ok := m.clearedFields[skillcamada.FieldAcimaID]
+	return ok
+}
+
+// ResetAcimaID resets all changes to the "acima_id" field.
+func (m *SkillCamadaMutation) ResetAcimaID() {
+	m.acima_id = nil
+	m.addacima_id = nil
+	delete(m.clearedFields, skillcamada.FieldAcimaID)
+}
+
+// SetRascunho sets the "rascunho" field.
+func (m *SkillCamadaMutation) SetRascunho(j jsontext.Value) {
+	m.rascunho = &j
+	m.appendrascunho = nil
+}
+
+// Rascunho returns the value of the "rascunho" field in the mutation.
+func (m *SkillCamadaMutation) Rascunho() (r jsontext.Value, exists bool) {
+	v := m.rascunho
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRascunho returns the old "rascunho" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldRascunho(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRascunho is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRascunho requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRascunho: %w", err)
+	}
+	return oldValue.Rascunho, nil
+}
+
+// AppendRascunho adds j to the "rascunho" field.
+func (m *SkillCamadaMutation) AppendRascunho(j jsontext.Value) {
+	m.appendrascunho = append(m.appendrascunho, j...)
+}
+
+// AppendedRascunho returns the list of values that were appended to the "rascunho" field in this mutation.
+func (m *SkillCamadaMutation) AppendedRascunho() (jsontext.Value, bool) {
+	if len(m.appendrascunho) == 0 {
+		return nil, false
+	}
+	return m.appendrascunho, true
+}
+
+// ClearRascunho clears the value of the "rascunho" field.
+func (m *SkillCamadaMutation) ClearRascunho() {
+	m.rascunho = nil
+	m.appendrascunho = nil
+	m.clearedFields[skillcamada.FieldRascunho] = struct{}{}
+}
+
+// RascunhoCleared returns if the "rascunho" field was cleared in this mutation.
+func (m *SkillCamadaMutation) RascunhoCleared() bool {
+	_, ok := m.clearedFields[skillcamada.FieldRascunho]
+	return ok
+}
+
+// ResetRascunho resets all changes to the "rascunho" field.
+func (m *SkillCamadaMutation) ResetRascunho() {
+	m.rascunho = nil
+	m.appendrascunho = nil
+	delete(m.clearedFields, skillcamada.FieldRascunho)
+}
+
+// SetRascunhoVersao sets the "rascunho_versao" field.
+func (m *SkillCamadaMutation) SetRascunhoVersao(s string) {
+	m.rascunho_versao = &s
+}
+
+// RascunhoVersao returns the value of the "rascunho_versao" field in the mutation.
+func (m *SkillCamadaMutation) RascunhoVersao() (r string, exists bool) {
+	v := m.rascunho_versao
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRascunhoVersao returns the old "rascunho_versao" field's value of the SkillCamada entity.
+// If the SkillCamada object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillCamadaMutation) OldRascunhoVersao(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRascunhoVersao is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRascunhoVersao requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRascunhoVersao: %w", err)
+	}
+	return oldValue.RascunhoVersao, nil
+}
+
+// ResetRascunhoVersao resets all changes to the "rascunho_versao" field.
+func (m *SkillCamadaMutation) ResetRascunhoVersao() {
+	m.rascunho_versao = nil
+}
+
+// ClearAdministradora clears the "administradora" edge to the Administradora entity.
+func (m *SkillCamadaMutation) ClearAdministradora() {
+	m.clearedadministradora = true
+	m.clearedFields[skillcamada.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraCleared reports if the "administradora" edge to the Administradora entity was cleared.
+func (m *SkillCamadaMutation) AdministradoraCleared() bool {
+	return m.AdministradoraIDCleared() || m.clearedadministradora
+}
+
+// AdministradoraIDs returns the "administradora" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AdministradoraID instead. It exists only for internal usage by the builders.
+func (m *SkillCamadaMutation) AdministradoraIDs() (ids []string) {
+	if id := m.administradora; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAdministradora resets all changes to the "administradora" edge.
+func (m *SkillCamadaMutation) ResetAdministradora() {
+	m.administradora = nil
+	m.clearedadministradora = false
+}
+
+// ClearCondominio clears the "condominio" edge to the Condominio entity.
+func (m *SkillCamadaMutation) ClearCondominio() {
+	m.clearedcondominio = true
+	m.clearedFields[skillcamada.FieldCondominioID] = struct{}{}
+}
+
+// CondominioCleared reports if the "condominio" edge to the Condominio entity was cleared.
+func (m *SkillCamadaMutation) CondominioCleared() bool {
+	return m.CondominioIDCleared() || m.clearedcondominio
+}
+
+// CondominioIDs returns the "condominio" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CondominioID instead. It exists only for internal usage by the builders.
+func (m *SkillCamadaMutation) CondominioIDs() (ids []string) {
+	if id := m.condominio; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCondominio resets all changes to the "condominio" edge.
+func (m *SkillCamadaMutation) ResetCondominio() {
+	m.condominio = nil
+	m.clearedcondominio = false
+}
+
+// AddVersoIDs adds the "versoes" edge to the SkillVersao entity by ids.
+func (m *SkillCamadaMutation) AddVersoIDs(ids ...int) {
+	if m.versoes == nil {
+		m.versoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.versoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearVersoes clears the "versoes" edge to the SkillVersao entity.
+func (m *SkillCamadaMutation) ClearVersoes() {
+	m.clearedversoes = true
+}
+
+// VersoesCleared reports if the "versoes" edge to the SkillVersao entity was cleared.
+func (m *SkillCamadaMutation) VersoesCleared() bool {
+	return m.clearedversoes
+}
+
+// RemoveVersoIDs removes the "versoes" edge to the SkillVersao entity by IDs.
+func (m *SkillCamadaMutation) RemoveVersoIDs(ids ...int) {
+	if m.removedversoes == nil {
+		m.removedversoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.versoes, ids[i])
+		m.removedversoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedVersoes returns the removed IDs of the "versoes" edge to the SkillVersao entity.
+func (m *SkillCamadaMutation) RemovedVersoesIDs() (ids []int) {
+	for id := range m.removedversoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// VersoesIDs returns the "versoes" edge IDs in the mutation.
+func (m *SkillCamadaMutation) VersoesIDs() (ids []int) {
+	for id := range m.versoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetVersoes resets all changes to the "versoes" edge.
+func (m *SkillCamadaMutation) ResetVersoes() {
+	m.versoes = nil
+	m.clearedversoes = false
+	m.removedversoes = nil
+}
+
+// AddAtualizacoIDs adds the "atualizacoes" edge to the SkillAtualizacao entity by ids.
+func (m *SkillCamadaMutation) AddAtualizacoIDs(ids ...int) {
+	if m.atualizacoes == nil {
+		m.atualizacoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.atualizacoes[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAtualizacoes clears the "atualizacoes" edge to the SkillAtualizacao entity.
+func (m *SkillCamadaMutation) ClearAtualizacoes() {
+	m.clearedatualizacoes = true
+}
+
+// AtualizacoesCleared reports if the "atualizacoes" edge to the SkillAtualizacao entity was cleared.
+func (m *SkillCamadaMutation) AtualizacoesCleared() bool {
+	return m.clearedatualizacoes
+}
+
+// RemoveAtualizacoIDs removes the "atualizacoes" edge to the SkillAtualizacao entity by IDs.
+func (m *SkillCamadaMutation) RemoveAtualizacoIDs(ids ...int) {
+	if m.removedatualizacoes == nil {
+		m.removedatualizacoes = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.atualizacoes, ids[i])
+		m.removedatualizacoes[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAtualizacoes returns the removed IDs of the "atualizacoes" edge to the SkillAtualizacao entity.
+func (m *SkillCamadaMutation) RemovedAtualizacoesIDs() (ids []int) {
+	for id := range m.removedatualizacoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// AtualizacoesIDs returns the "atualizacoes" edge IDs in the mutation.
+func (m *SkillCamadaMutation) AtualizacoesIDs() (ids []int) {
+	for id := range m.atualizacoes {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAtualizacoes resets all changes to the "atualizacoes" edge.
+func (m *SkillCamadaMutation) ResetAtualizacoes() {
+	m.atualizacoes = nil
+	m.clearedatualizacoes = false
+	m.removedatualizacoes = nil
+}
+
+// AddAvisoIDs adds the "avisos" edge to the SkillAviso entity by ids.
+func (m *SkillCamadaMutation) AddAvisoIDs(ids ...int) {
+	if m.avisos == nil {
+		m.avisos = make(map[int]struct{})
+	}
+	for i := range ids {
+		m.avisos[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAvisos clears the "avisos" edge to the SkillAviso entity.
+func (m *SkillCamadaMutation) ClearAvisos() {
+	m.clearedavisos = true
+}
+
+// AvisosCleared reports if the "avisos" edge to the SkillAviso entity was cleared.
+func (m *SkillCamadaMutation) AvisosCleared() bool {
+	return m.clearedavisos
+}
+
+// RemoveAvisoIDs removes the "avisos" edge to the SkillAviso entity by IDs.
+func (m *SkillCamadaMutation) RemoveAvisoIDs(ids ...int) {
+	if m.removedavisos == nil {
+		m.removedavisos = make(map[int]struct{})
+	}
+	for i := range ids {
+		delete(m.avisos, ids[i])
+		m.removedavisos[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAvisos returns the removed IDs of the "avisos" edge to the SkillAviso entity.
+func (m *SkillCamadaMutation) RemovedAvisosIDs() (ids []int) {
+	for id := range m.removedavisos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// AvisosIDs returns the "avisos" edge IDs in the mutation.
+func (m *SkillCamadaMutation) AvisosIDs() (ids []int) {
+	for id := range m.avisos {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAvisos resets all changes to the "avisos" edge.
+func (m *SkillCamadaMutation) ResetAvisos() {
+	m.avisos = nil
+	m.clearedavisos = false
+	m.removedavisos = nil
+}
+
+// Where appends a list predicates to the SkillCamadaMutation builder.
+func (m *SkillCamadaMutation) Where(ps ...predicate.SkillCamada) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SkillCamadaMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SkillCamadaMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SkillCamada, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SkillCamadaMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SkillCamadaMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SkillCamada).
+func (m *SkillCamadaMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SkillCamadaMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.skill != nil {
+		fields = append(fields, skillcamada.FieldSkill)
+	}
+	if m.tipo != nil {
+		fields = append(fields, skillcamada.FieldTipo)
+	}
+	if m.administradora != nil {
+		fields = append(fields, skillcamada.FieldAdministradoraID)
+	}
+	if m.condominio != nil {
+		fields = append(fields, skillcamada.FieldCondominioID)
+	}
+	if m.cabeca_id != nil {
+		fields = append(fields, skillcamada.FieldCabecaID)
+	}
+	if m.acima_id != nil {
+		fields = append(fields, skillcamada.FieldAcimaID)
+	}
+	if m.rascunho != nil {
+		fields = append(fields, skillcamada.FieldRascunho)
+	}
+	if m.rascunho_versao != nil {
+		fields = append(fields, skillcamada.FieldRascunhoVersao)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SkillCamadaMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case skillcamada.FieldSkill:
+		return m.Skill()
+	case skillcamada.FieldTipo:
+		return m.Tipo()
+	case skillcamada.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case skillcamada.FieldCondominioID:
+		return m.CondominioID()
+	case skillcamada.FieldCabecaID:
+		return m.CabecaID()
+	case skillcamada.FieldAcimaID:
+		return m.AcimaID()
+	case skillcamada.FieldRascunho:
+		return m.Rascunho()
+	case skillcamada.FieldRascunhoVersao:
+		return m.RascunhoVersao()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SkillCamadaMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case skillcamada.FieldSkill:
+		return m.OldSkill(ctx)
+	case skillcamada.FieldTipo:
+		return m.OldTipo(ctx)
+	case skillcamada.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case skillcamada.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case skillcamada.FieldCabecaID:
+		return m.OldCabecaID(ctx)
+	case skillcamada.FieldAcimaID:
+		return m.OldAcimaID(ctx)
+	case skillcamada.FieldRascunho:
+		return m.OldRascunho(ctx)
+	case skillcamada.FieldRascunhoVersao:
+		return m.OldRascunhoVersao(ctx)
+	}
+	return nil, fmt.Errorf("unknown SkillCamada field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillCamadaMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case skillcamada.FieldSkill:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSkill(v)
+		return nil
+	case skillcamada.FieldTipo:
+		v, ok := value.(skillcamada.Tipo)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTipo(v)
+		return nil
+	case skillcamada.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case skillcamada.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case skillcamada.FieldCabecaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCabecaID(v)
+		return nil
+	case skillcamada.FieldAcimaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAcimaID(v)
+		return nil
+	case skillcamada.FieldRascunho:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRascunho(v)
+		return nil
+	case skillcamada.FieldRascunhoVersao:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRascunhoVersao(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SkillCamada field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SkillCamadaMutation) AddedFields() []string {
+	var fields []string
+	if m.addcabeca_id != nil {
+		fields = append(fields, skillcamada.FieldCabecaID)
+	}
+	if m.addacima_id != nil {
+		fields = append(fields, skillcamada.FieldAcimaID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SkillCamadaMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case skillcamada.FieldCabecaID:
+		return m.AddedCabecaID()
+	case skillcamada.FieldAcimaID:
+		return m.AddedAcimaID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillCamadaMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case skillcamada.FieldCabecaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCabecaID(v)
+		return nil
+	case skillcamada.FieldAcimaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAcimaID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SkillCamada numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SkillCamadaMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(skillcamada.FieldAdministradoraID) {
+		fields = append(fields, skillcamada.FieldAdministradoraID)
+	}
+	if m.FieldCleared(skillcamada.FieldCondominioID) {
+		fields = append(fields, skillcamada.FieldCondominioID)
+	}
+	if m.FieldCleared(skillcamada.FieldCabecaID) {
+		fields = append(fields, skillcamada.FieldCabecaID)
+	}
+	if m.FieldCleared(skillcamada.FieldAcimaID) {
+		fields = append(fields, skillcamada.FieldAcimaID)
+	}
+	if m.FieldCleared(skillcamada.FieldRascunho) {
+		fields = append(fields, skillcamada.FieldRascunho)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SkillCamadaMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SkillCamadaMutation) ClearField(name string) error {
+	switch name {
+	case skillcamada.FieldAdministradoraID:
+		m.ClearAdministradoraID()
+		return nil
+	case skillcamada.FieldCondominioID:
+		m.ClearCondominioID()
+		return nil
+	case skillcamada.FieldCabecaID:
+		m.ClearCabecaID()
+		return nil
+	case skillcamada.FieldAcimaID:
+		m.ClearAcimaID()
+		return nil
+	case skillcamada.FieldRascunho:
+		m.ClearRascunho()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillCamada nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SkillCamadaMutation) ResetField(name string) error {
+	switch name {
+	case skillcamada.FieldSkill:
+		m.ResetSkill()
+		return nil
+	case skillcamada.FieldTipo:
+		m.ResetTipo()
+		return nil
+	case skillcamada.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case skillcamada.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case skillcamada.FieldCabecaID:
+		m.ResetCabecaID()
+		return nil
+	case skillcamada.FieldAcimaID:
+		m.ResetAcimaID()
+		return nil
+	case skillcamada.FieldRascunho:
+		m.ResetRascunho()
+		return nil
+	case skillcamada.FieldRascunhoVersao:
+		m.ResetRascunhoVersao()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillCamada field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SkillCamadaMutation) AddedEdges() []string {
+	edges := make([]string, 0, 5)
+	if m.administradora != nil {
+		edges = append(edges, skillcamada.EdgeAdministradora)
+	}
+	if m.condominio != nil {
+		edges = append(edges, skillcamada.EdgeCondominio)
+	}
+	if m.versoes != nil {
+		edges = append(edges, skillcamada.EdgeVersoes)
+	}
+	if m.atualizacoes != nil {
+		edges = append(edges, skillcamada.EdgeAtualizacoes)
+	}
+	if m.avisos != nil {
+		edges = append(edges, skillcamada.EdgeAvisos)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SkillCamadaMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case skillcamada.EdgeAdministradora:
+		if id := m.administradora; id != nil {
+			return []ent.Value{*id}
+		}
+	case skillcamada.EdgeCondominio:
+		if id := m.condominio; id != nil {
+			return []ent.Value{*id}
+		}
+	case skillcamada.EdgeVersoes:
+		ids := make([]ent.Value, 0, len(m.versoes))
+		for id := range m.versoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case skillcamada.EdgeAtualizacoes:
+		ids := make([]ent.Value, 0, len(m.atualizacoes))
+		for id := range m.atualizacoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case skillcamada.EdgeAvisos:
+		ids := make([]ent.Value, 0, len(m.avisos))
+		for id := range m.avisos {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SkillCamadaMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 5)
+	if m.removedversoes != nil {
+		edges = append(edges, skillcamada.EdgeVersoes)
+	}
+	if m.removedatualizacoes != nil {
+		edges = append(edges, skillcamada.EdgeAtualizacoes)
+	}
+	if m.removedavisos != nil {
+		edges = append(edges, skillcamada.EdgeAvisos)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SkillCamadaMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case skillcamada.EdgeVersoes:
+		ids := make([]ent.Value, 0, len(m.removedversoes))
+		for id := range m.removedversoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case skillcamada.EdgeAtualizacoes:
+		ids := make([]ent.Value, 0, len(m.removedatualizacoes))
+		for id := range m.removedatualizacoes {
+			ids = append(ids, id)
+		}
+		return ids
+	case skillcamada.EdgeAvisos:
+		ids := make([]ent.Value, 0, len(m.removedavisos))
+		for id := range m.removedavisos {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SkillCamadaMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 5)
+	if m.clearedadministradora {
+		edges = append(edges, skillcamada.EdgeAdministradora)
+	}
+	if m.clearedcondominio {
+		edges = append(edges, skillcamada.EdgeCondominio)
+	}
+	if m.clearedversoes {
+		edges = append(edges, skillcamada.EdgeVersoes)
+	}
+	if m.clearedatualizacoes {
+		edges = append(edges, skillcamada.EdgeAtualizacoes)
+	}
+	if m.clearedavisos {
+		edges = append(edges, skillcamada.EdgeAvisos)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SkillCamadaMutation) EdgeCleared(name string) bool {
+	switch name {
+	case skillcamada.EdgeAdministradora:
+		return m.clearedadministradora
+	case skillcamada.EdgeCondominio:
+		return m.clearedcondominio
+	case skillcamada.EdgeVersoes:
+		return m.clearedversoes
+	case skillcamada.EdgeAtualizacoes:
+		return m.clearedatualizacoes
+	case skillcamada.EdgeAvisos:
+		return m.clearedavisos
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SkillCamadaMutation) ClearEdge(name string) error {
+	switch name {
+	case skillcamada.EdgeAdministradora:
+		m.ClearAdministradora()
+		return nil
+	case skillcamada.EdgeCondominio:
+		m.ClearCondominio()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillCamada unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SkillCamadaMutation) ResetEdge(name string) error {
+	switch name {
+	case skillcamada.EdgeAdministradora:
+		m.ResetAdministradora()
+		return nil
+	case skillcamada.EdgeCondominio:
+		m.ResetCondominio()
+		return nil
+	case skillcamada.EdgeVersoes:
+		m.ResetVersoes()
+		return nil
+	case skillcamada.EdgeAtualizacoes:
+		m.ResetAtualizacoes()
+		return nil
+	case skillcamada.EdgeAvisos:
+		m.ResetAvisos()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillCamada edge %s", name)
+}
+
+// SkillVersaoMutation represents an operation that mutates the SkillVersao nodes in the graph.
+type SkillVersaoMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int
+	numero             *int
+	addnumero          *int
+	documento          *jsontext.Value
+	appenddocumento    jsontext.Value
+	caso_yaml          *[]byte
+	acima_id           *int
+	addacima_id        *int
+	atualizacao_id     *int
+	addatualizacao_id  *int
+	origem             *skillversao.Origem
+	autor              *string
+	resumo             *string
+	motivo             *string
+	obrigatorios       *[]string
+	appendobrigatorios []string
+	encerra_em         *time.Time
+	criado_em          *time.Time
+	clearedFields      map[string]struct{}
+	camada             *int
+	clearedcamada      bool
+	done               bool
+	oldValue           func(context.Context) (*SkillVersao, error)
+	predicates         []predicate.SkillVersao
+}
+
+var _ ent.Mutation = (*SkillVersaoMutation)(nil)
+
+// skillversaoOption allows management of the mutation configuration using functional options.
+type skillversaoOption func(*SkillVersaoMutation)
+
+// newSkillVersaoMutation creates new mutation for the SkillVersao entity.
+func newSkillVersaoMutation(c config, op Op, opts ...skillversaoOption) *SkillVersaoMutation {
+	m := &SkillVersaoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeSkillVersao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withSkillVersaoID sets the ID field of the mutation.
+func withSkillVersaoID(id int) skillversaoOption {
+	return func(m *SkillVersaoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *SkillVersao
+		)
+		m.oldValue = func(ctx context.Context) (*SkillVersao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().SkillVersao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withSkillVersao sets the old SkillVersao of the mutation.
+func withSkillVersao(node *SkillVersao) skillversaoOption {
+	return func(m *SkillVersaoMutation) {
+		m.oldValue = func(context.Context) (*SkillVersao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m SkillVersaoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m SkillVersaoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *SkillVersaoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *SkillVersaoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().SkillVersao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCamadaID sets the "camada_id" field.
+func (m *SkillVersaoMutation) SetCamadaID(i int) {
+	m.camada = &i
+}
+
+// CamadaID returns the value of the "camada_id" field in the mutation.
+func (m *SkillVersaoMutation) CamadaID() (r int, exists bool) {
+	v := m.camada
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCamadaID returns the old "camada_id" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldCamadaID(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCamadaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCamadaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCamadaID: %w", err)
+	}
+	return oldValue.CamadaID, nil
+}
+
+// ResetCamadaID resets all changes to the "camada_id" field.
+func (m *SkillVersaoMutation) ResetCamadaID() {
+	m.camada = nil
+}
+
+// SetNumero sets the "numero" field.
+func (m *SkillVersaoMutation) SetNumero(i int) {
+	m.numero = &i
+	m.addnumero = nil
+}
+
+// Numero returns the value of the "numero" field in the mutation.
+func (m *SkillVersaoMutation) Numero() (r int, exists bool) {
+	v := m.numero
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNumero returns the old "numero" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldNumero(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNumero is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNumero requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNumero: %w", err)
+	}
+	return oldValue.Numero, nil
+}
+
+// AddNumero adds i to the "numero" field.
+func (m *SkillVersaoMutation) AddNumero(i int) {
+	if m.addnumero != nil {
+		*m.addnumero += i
+	} else {
+		m.addnumero = &i
+	}
+}
+
+// AddedNumero returns the value that was added to the "numero" field in this mutation.
+func (m *SkillVersaoMutation) AddedNumero() (r int, exists bool) {
+	v := m.addnumero
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetNumero resets all changes to the "numero" field.
+func (m *SkillVersaoMutation) ResetNumero() {
+	m.numero = nil
+	m.addnumero = nil
+}
+
+// SetDocumento sets the "documento" field.
+func (m *SkillVersaoMutation) SetDocumento(j jsontext.Value) {
+	m.documento = &j
+	m.appenddocumento = nil
+}
+
+// Documento returns the value of the "documento" field in the mutation.
+func (m *SkillVersaoMutation) Documento() (r jsontext.Value, exists bool) {
+	v := m.documento
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDocumento returns the old "documento" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldDocumento(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDocumento is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDocumento requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDocumento: %w", err)
+	}
+	return oldValue.Documento, nil
+}
+
+// AppendDocumento adds j to the "documento" field.
+func (m *SkillVersaoMutation) AppendDocumento(j jsontext.Value) {
+	m.appenddocumento = append(m.appenddocumento, j...)
+}
+
+// AppendedDocumento returns the list of values that were appended to the "documento" field in this mutation.
+func (m *SkillVersaoMutation) AppendedDocumento() (jsontext.Value, bool) {
+	if len(m.appenddocumento) == 0 {
+		return nil, false
+	}
+	return m.appenddocumento, true
+}
+
+// ResetDocumento resets all changes to the "documento" field.
+func (m *SkillVersaoMutation) ResetDocumento() {
+	m.documento = nil
+	m.appenddocumento = nil
+}
+
+// SetCasoYaml sets the "caso_yaml" field.
+func (m *SkillVersaoMutation) SetCasoYaml(b []byte) {
+	m.caso_yaml = &b
+}
+
+// CasoYaml returns the value of the "caso_yaml" field in the mutation.
+func (m *SkillVersaoMutation) CasoYaml() (r []byte, exists bool) {
+	v := m.caso_yaml
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCasoYaml returns the old "caso_yaml" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldCasoYaml(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCasoYaml is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCasoYaml requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCasoYaml: %w", err)
+	}
+	return oldValue.CasoYaml, nil
+}
+
+// ClearCasoYaml clears the value of the "caso_yaml" field.
+func (m *SkillVersaoMutation) ClearCasoYaml() {
+	m.caso_yaml = nil
+	m.clearedFields[skillversao.FieldCasoYaml] = struct{}{}
+}
+
+// CasoYamlCleared returns if the "caso_yaml" field was cleared in this mutation.
+func (m *SkillVersaoMutation) CasoYamlCleared() bool {
+	_, ok := m.clearedFields[skillversao.FieldCasoYaml]
+	return ok
+}
+
+// ResetCasoYaml resets all changes to the "caso_yaml" field.
+func (m *SkillVersaoMutation) ResetCasoYaml() {
+	m.caso_yaml = nil
+	delete(m.clearedFields, skillversao.FieldCasoYaml)
+}
+
+// SetAcimaID sets the "acima_id" field.
+func (m *SkillVersaoMutation) SetAcimaID(i int) {
+	m.acima_id = &i
+	m.addacima_id = nil
+}
+
+// AcimaID returns the value of the "acima_id" field in the mutation.
+func (m *SkillVersaoMutation) AcimaID() (r int, exists bool) {
+	v := m.acima_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAcimaID returns the old "acima_id" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldAcimaID(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAcimaID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAcimaID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAcimaID: %w", err)
+	}
+	return oldValue.AcimaID, nil
+}
+
+// AddAcimaID adds i to the "acima_id" field.
+func (m *SkillVersaoMutation) AddAcimaID(i int) {
+	if m.addacima_id != nil {
+		*m.addacima_id += i
+	} else {
+		m.addacima_id = &i
+	}
+}
+
+// AddedAcimaID returns the value that was added to the "acima_id" field in this mutation.
+func (m *SkillVersaoMutation) AddedAcimaID() (r int, exists bool) {
+	v := m.addacima_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAcimaID clears the value of the "acima_id" field.
+func (m *SkillVersaoMutation) ClearAcimaID() {
+	m.acima_id = nil
+	m.addacima_id = nil
+	m.clearedFields[skillversao.FieldAcimaID] = struct{}{}
+}
+
+// AcimaIDCleared returns if the "acima_id" field was cleared in this mutation.
+func (m *SkillVersaoMutation) AcimaIDCleared() bool {
+	_, ok := m.clearedFields[skillversao.FieldAcimaID]
+	return ok
+}
+
+// ResetAcimaID resets all changes to the "acima_id" field.
+func (m *SkillVersaoMutation) ResetAcimaID() {
+	m.acima_id = nil
+	m.addacima_id = nil
+	delete(m.clearedFields, skillversao.FieldAcimaID)
+}
+
+// SetAtualizacaoID sets the "atualizacao_id" field.
+func (m *SkillVersaoMutation) SetAtualizacaoID(i int) {
+	m.atualizacao_id = &i
+	m.addatualizacao_id = nil
+}
+
+// AtualizacaoID returns the value of the "atualizacao_id" field in the mutation.
+func (m *SkillVersaoMutation) AtualizacaoID() (r int, exists bool) {
+	v := m.atualizacao_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAtualizacaoID returns the old "atualizacao_id" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldAtualizacaoID(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAtualizacaoID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAtualizacaoID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAtualizacaoID: %w", err)
+	}
+	return oldValue.AtualizacaoID, nil
+}
+
+// AddAtualizacaoID adds i to the "atualizacao_id" field.
+func (m *SkillVersaoMutation) AddAtualizacaoID(i int) {
+	if m.addatualizacao_id != nil {
+		*m.addatualizacao_id += i
+	} else {
+		m.addatualizacao_id = &i
+	}
+}
+
+// AddedAtualizacaoID returns the value that was added to the "atualizacao_id" field in this mutation.
+func (m *SkillVersaoMutation) AddedAtualizacaoID() (r int, exists bool) {
+	v := m.addatualizacao_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAtualizacaoID clears the value of the "atualizacao_id" field.
+func (m *SkillVersaoMutation) ClearAtualizacaoID() {
+	m.atualizacao_id = nil
+	m.addatualizacao_id = nil
+	m.clearedFields[skillversao.FieldAtualizacaoID] = struct{}{}
+}
+
+// AtualizacaoIDCleared returns if the "atualizacao_id" field was cleared in this mutation.
+func (m *SkillVersaoMutation) AtualizacaoIDCleared() bool {
+	_, ok := m.clearedFields[skillversao.FieldAtualizacaoID]
+	return ok
+}
+
+// ResetAtualizacaoID resets all changes to the "atualizacao_id" field.
+func (m *SkillVersaoMutation) ResetAtualizacaoID() {
+	m.atualizacao_id = nil
+	m.addatualizacao_id = nil
+	delete(m.clearedFields, skillversao.FieldAtualizacaoID)
+}
+
+// SetOrigem sets the "origem" field.
+func (m *SkillVersaoMutation) SetOrigem(s skillversao.Origem) {
+	m.origem = &s
+}
+
+// Origem returns the value of the "origem" field in the mutation.
+func (m *SkillVersaoMutation) Origem() (r skillversao.Origem, exists bool) {
+	v := m.origem
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOrigem returns the old "origem" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldOrigem(ctx context.Context) (v skillversao.Origem, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOrigem is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOrigem requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOrigem: %w", err)
+	}
+	return oldValue.Origem, nil
+}
+
+// ResetOrigem resets all changes to the "origem" field.
+func (m *SkillVersaoMutation) ResetOrigem() {
+	m.origem = nil
+}
+
+// SetAutor sets the "autor" field.
+func (m *SkillVersaoMutation) SetAutor(s string) {
+	m.autor = &s
+}
+
+// Autor returns the value of the "autor" field in the mutation.
+func (m *SkillVersaoMutation) Autor() (r string, exists bool) {
+	v := m.autor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAutor returns the old "autor" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldAutor(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAutor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAutor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAutor: %w", err)
+	}
+	return oldValue.Autor, nil
+}
+
+// ResetAutor resets all changes to the "autor" field.
+func (m *SkillVersaoMutation) ResetAutor() {
+	m.autor = nil
+}
+
+// SetResumo sets the "resumo" field.
+func (m *SkillVersaoMutation) SetResumo(s string) {
+	m.resumo = &s
+}
+
+// Resumo returns the value of the "resumo" field in the mutation.
+func (m *SkillVersaoMutation) Resumo() (r string, exists bool) {
+	v := m.resumo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResumo returns the old "resumo" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldResumo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResumo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResumo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResumo: %w", err)
+	}
+	return oldValue.Resumo, nil
+}
+
+// ResetResumo resets all changes to the "resumo" field.
+func (m *SkillVersaoMutation) ResetResumo() {
+	m.resumo = nil
+}
+
+// SetMotivo sets the "motivo" field.
+func (m *SkillVersaoMutation) SetMotivo(s string) {
+	m.motivo = &s
+}
+
+// Motivo returns the value of the "motivo" field in the mutation.
+func (m *SkillVersaoMutation) Motivo() (r string, exists bool) {
+	v := m.motivo
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMotivo returns the old "motivo" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldMotivo(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMotivo is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMotivo requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMotivo: %w", err)
+	}
+	return oldValue.Motivo, nil
+}
+
+// ResetMotivo resets all changes to the "motivo" field.
+func (m *SkillVersaoMutation) ResetMotivo() {
+	m.motivo = nil
+}
+
+// SetObrigatorios sets the "obrigatorios" field.
+func (m *SkillVersaoMutation) SetObrigatorios(s []string) {
+	m.obrigatorios = &s
+	m.appendobrigatorios = nil
+}
+
+// Obrigatorios returns the value of the "obrigatorios" field in the mutation.
+func (m *SkillVersaoMutation) Obrigatorios() (r []string, exists bool) {
+	v := m.obrigatorios
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldObrigatorios returns the old "obrigatorios" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldObrigatorios(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldObrigatorios is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldObrigatorios requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldObrigatorios: %w", err)
+	}
+	return oldValue.Obrigatorios, nil
+}
+
+// AppendObrigatorios adds s to the "obrigatorios" field.
+func (m *SkillVersaoMutation) AppendObrigatorios(s []string) {
+	m.appendobrigatorios = append(m.appendobrigatorios, s...)
+}
+
+// AppendedObrigatorios returns the list of values that were appended to the "obrigatorios" field in this mutation.
+func (m *SkillVersaoMutation) AppendedObrigatorios() ([]string, bool) {
+	if len(m.appendobrigatorios) == 0 {
+		return nil, false
+	}
+	return m.appendobrigatorios, true
+}
+
+// ResetObrigatorios resets all changes to the "obrigatorios" field.
+func (m *SkillVersaoMutation) ResetObrigatorios() {
+	m.obrigatorios = nil
+	m.appendobrigatorios = nil
+}
+
+// SetEncerraEm sets the "encerra_em" field.
+func (m *SkillVersaoMutation) SetEncerraEm(t time.Time) {
+	m.encerra_em = &t
+}
+
+// EncerraEm returns the value of the "encerra_em" field in the mutation.
+func (m *SkillVersaoMutation) EncerraEm() (r time.Time, exists bool) {
+	v := m.encerra_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEncerraEm returns the old "encerra_em" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldEncerraEm(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEncerraEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEncerraEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEncerraEm: %w", err)
+	}
+	return oldValue.EncerraEm, nil
+}
+
+// ClearEncerraEm clears the value of the "encerra_em" field.
+func (m *SkillVersaoMutation) ClearEncerraEm() {
+	m.encerra_em = nil
+	m.clearedFields[skillversao.FieldEncerraEm] = struct{}{}
+}
+
+// EncerraEmCleared returns if the "encerra_em" field was cleared in this mutation.
+func (m *SkillVersaoMutation) EncerraEmCleared() bool {
+	_, ok := m.clearedFields[skillversao.FieldEncerraEm]
+	return ok
+}
+
+// ResetEncerraEm resets all changes to the "encerra_em" field.
+func (m *SkillVersaoMutation) ResetEncerraEm() {
+	m.encerra_em = nil
+	delete(m.clearedFields, skillversao.FieldEncerraEm)
+}
+
+// SetCriadoEm sets the "criado_em" field.
+func (m *SkillVersaoMutation) SetCriadoEm(t time.Time) {
+	m.criado_em = &t
+}
+
+// CriadoEm returns the value of the "criado_em" field in the mutation.
+func (m *SkillVersaoMutation) CriadoEm() (r time.Time, exists bool) {
+	v := m.criado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCriadoEm returns the old "criado_em" field's value of the SkillVersao entity.
+// If the SkillVersao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SkillVersaoMutation) OldCriadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCriadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCriadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCriadoEm: %w", err)
+	}
+	return oldValue.CriadoEm, nil
+}
+
+// ResetCriadoEm resets all changes to the "criado_em" field.
+func (m *SkillVersaoMutation) ResetCriadoEm() {
+	m.criado_em = nil
+}
+
+// ClearCamada clears the "camada" edge to the SkillCamada entity.
+func (m *SkillVersaoMutation) ClearCamada() {
+	m.clearedcamada = true
+	m.clearedFields[skillversao.FieldCamadaID] = struct{}{}
+}
+
+// CamadaCleared reports if the "camada" edge to the SkillCamada entity was cleared.
+func (m *SkillVersaoMutation) CamadaCleared() bool {
+	return m.clearedcamada
+}
+
+// CamadaIDs returns the "camada" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// CamadaID instead. It exists only for internal usage by the builders.
+func (m *SkillVersaoMutation) CamadaIDs() (ids []int) {
+	if id := m.camada; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetCamada resets all changes to the "camada" edge.
+func (m *SkillVersaoMutation) ResetCamada() {
+	m.camada = nil
+	m.clearedcamada = false
+}
+
+// Where appends a list predicates to the SkillVersaoMutation builder.
+func (m *SkillVersaoMutation) Where(ps ...predicate.SkillVersao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the SkillVersaoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *SkillVersaoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.SkillVersao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *SkillVersaoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *SkillVersaoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (SkillVersao).
+func (m *SkillVersaoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *SkillVersaoMutation) Fields() []string {
+	fields := make([]string, 0, 13)
+	if m.camada != nil {
+		fields = append(fields, skillversao.FieldCamadaID)
+	}
+	if m.numero != nil {
+		fields = append(fields, skillversao.FieldNumero)
+	}
+	if m.documento != nil {
+		fields = append(fields, skillversao.FieldDocumento)
+	}
+	if m.caso_yaml != nil {
+		fields = append(fields, skillversao.FieldCasoYaml)
+	}
+	if m.acima_id != nil {
+		fields = append(fields, skillversao.FieldAcimaID)
+	}
+	if m.atualizacao_id != nil {
+		fields = append(fields, skillversao.FieldAtualizacaoID)
+	}
+	if m.origem != nil {
+		fields = append(fields, skillversao.FieldOrigem)
+	}
+	if m.autor != nil {
+		fields = append(fields, skillversao.FieldAutor)
+	}
+	if m.resumo != nil {
+		fields = append(fields, skillversao.FieldResumo)
+	}
+	if m.motivo != nil {
+		fields = append(fields, skillversao.FieldMotivo)
+	}
+	if m.obrigatorios != nil {
+		fields = append(fields, skillversao.FieldObrigatorios)
+	}
+	if m.encerra_em != nil {
+		fields = append(fields, skillversao.FieldEncerraEm)
+	}
+	if m.criado_em != nil {
+		fields = append(fields, skillversao.FieldCriadoEm)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *SkillVersaoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case skillversao.FieldCamadaID:
+		return m.CamadaID()
+	case skillversao.FieldNumero:
+		return m.Numero()
+	case skillversao.FieldDocumento:
+		return m.Documento()
+	case skillversao.FieldCasoYaml:
+		return m.CasoYaml()
+	case skillversao.FieldAcimaID:
+		return m.AcimaID()
+	case skillversao.FieldAtualizacaoID:
+		return m.AtualizacaoID()
+	case skillversao.FieldOrigem:
+		return m.Origem()
+	case skillversao.FieldAutor:
+		return m.Autor()
+	case skillversao.FieldResumo:
+		return m.Resumo()
+	case skillversao.FieldMotivo:
+		return m.Motivo()
+	case skillversao.FieldObrigatorios:
+		return m.Obrigatorios()
+	case skillversao.FieldEncerraEm:
+		return m.EncerraEm()
+	case skillversao.FieldCriadoEm:
+		return m.CriadoEm()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *SkillVersaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case skillversao.FieldCamadaID:
+		return m.OldCamadaID(ctx)
+	case skillversao.FieldNumero:
+		return m.OldNumero(ctx)
+	case skillversao.FieldDocumento:
+		return m.OldDocumento(ctx)
+	case skillversao.FieldCasoYaml:
+		return m.OldCasoYaml(ctx)
+	case skillversao.FieldAcimaID:
+		return m.OldAcimaID(ctx)
+	case skillversao.FieldAtualizacaoID:
+		return m.OldAtualizacaoID(ctx)
+	case skillversao.FieldOrigem:
+		return m.OldOrigem(ctx)
+	case skillversao.FieldAutor:
+		return m.OldAutor(ctx)
+	case skillversao.FieldResumo:
+		return m.OldResumo(ctx)
+	case skillversao.FieldMotivo:
+		return m.OldMotivo(ctx)
+	case skillversao.FieldObrigatorios:
+		return m.OldObrigatorios(ctx)
+	case skillversao.FieldEncerraEm:
+		return m.OldEncerraEm(ctx)
+	case skillversao.FieldCriadoEm:
+		return m.OldCriadoEm(ctx)
+	}
+	return nil, fmt.Errorf("unknown SkillVersao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillVersaoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case skillversao.FieldCamadaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCamadaID(v)
+		return nil
+	case skillversao.FieldNumero:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNumero(v)
+		return nil
+	case skillversao.FieldDocumento:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDocumento(v)
+		return nil
+	case skillversao.FieldCasoYaml:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCasoYaml(v)
+		return nil
+	case skillversao.FieldAcimaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAcimaID(v)
+		return nil
+	case skillversao.FieldAtualizacaoID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAtualizacaoID(v)
+		return nil
+	case skillversao.FieldOrigem:
+		v, ok := value.(skillversao.Origem)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOrigem(v)
+		return nil
+	case skillversao.FieldAutor:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAutor(v)
+		return nil
+	case skillversao.FieldResumo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResumo(v)
+		return nil
+	case skillversao.FieldMotivo:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMotivo(v)
+		return nil
+	case skillversao.FieldObrigatorios:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetObrigatorios(v)
+		return nil
+	case skillversao.FieldEncerraEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEncerraEm(v)
+		return nil
+	case skillversao.FieldCriadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCriadoEm(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SkillVersao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *SkillVersaoMutation) AddedFields() []string {
+	var fields []string
+	if m.addnumero != nil {
+		fields = append(fields, skillversao.FieldNumero)
+	}
+	if m.addacima_id != nil {
+		fields = append(fields, skillversao.FieldAcimaID)
+	}
+	if m.addatualizacao_id != nil {
+		fields = append(fields, skillversao.FieldAtualizacaoID)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *SkillVersaoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case skillversao.FieldNumero:
+		return m.AddedNumero()
+	case skillversao.FieldAcimaID:
+		return m.AddedAcimaID()
+	case skillversao.FieldAtualizacaoID:
+		return m.AddedAtualizacaoID()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *SkillVersaoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case skillversao.FieldNumero:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddNumero(v)
+		return nil
+	case skillversao.FieldAcimaID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAcimaID(v)
+		return nil
+	case skillversao.FieldAtualizacaoID:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAtualizacaoID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown SkillVersao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *SkillVersaoMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(skillversao.FieldCasoYaml) {
+		fields = append(fields, skillversao.FieldCasoYaml)
+	}
+	if m.FieldCleared(skillversao.FieldAcimaID) {
+		fields = append(fields, skillversao.FieldAcimaID)
+	}
+	if m.FieldCleared(skillversao.FieldAtualizacaoID) {
+		fields = append(fields, skillversao.FieldAtualizacaoID)
+	}
+	if m.FieldCleared(skillversao.FieldEncerraEm) {
+		fields = append(fields, skillversao.FieldEncerraEm)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *SkillVersaoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *SkillVersaoMutation) ClearField(name string) error {
+	switch name {
+	case skillversao.FieldCasoYaml:
+		m.ClearCasoYaml()
+		return nil
+	case skillversao.FieldAcimaID:
+		m.ClearAcimaID()
+		return nil
+	case skillversao.FieldAtualizacaoID:
+		m.ClearAtualizacaoID()
+		return nil
+	case skillversao.FieldEncerraEm:
+		m.ClearEncerraEm()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillVersao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *SkillVersaoMutation) ResetField(name string) error {
+	switch name {
+	case skillversao.FieldCamadaID:
+		m.ResetCamadaID()
+		return nil
+	case skillversao.FieldNumero:
+		m.ResetNumero()
+		return nil
+	case skillversao.FieldDocumento:
+		m.ResetDocumento()
+		return nil
+	case skillversao.FieldCasoYaml:
+		m.ResetCasoYaml()
+		return nil
+	case skillversao.FieldAcimaID:
+		m.ResetAcimaID()
+		return nil
+	case skillversao.FieldAtualizacaoID:
+		m.ResetAtualizacaoID()
+		return nil
+	case skillversao.FieldOrigem:
+		m.ResetOrigem()
+		return nil
+	case skillversao.FieldAutor:
+		m.ResetAutor()
+		return nil
+	case skillversao.FieldResumo:
+		m.ResetResumo()
+		return nil
+	case skillversao.FieldMotivo:
+		m.ResetMotivo()
+		return nil
+	case skillversao.FieldObrigatorios:
+		m.ResetObrigatorios()
+		return nil
+	case skillversao.FieldEncerraEm:
+		m.ResetEncerraEm()
+		return nil
+	case skillversao.FieldCriadoEm:
+		m.ResetCriadoEm()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillVersao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *SkillVersaoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.camada != nil {
+		edges = append(edges, skillversao.EdgeCamada)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *SkillVersaoMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case skillversao.EdgeCamada:
+		if id := m.camada; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *SkillVersaoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *SkillVersaoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *SkillVersaoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedcamada {
+		edges = append(edges, skillversao.EdgeCamada)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *SkillVersaoMutation) EdgeCleared(name string) bool {
+	switch name {
+	case skillversao.EdgeCamada:
+		return m.clearedcamada
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *SkillVersaoMutation) ClearEdge(name string) error {
+	switch name {
+	case skillversao.EdgeCamada:
+		m.ClearCamada()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillVersao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *SkillVersaoMutation) ResetEdge(name string) error {
+	switch name {
+	case skillversao.EdgeCamada:
+		m.ResetCamada()
+		return nil
+	}
+	return fmt.Errorf("unknown SkillVersao edge %s", name)
 }
 
 // UsuarioMutation represents an operation that mutates the Usuario nodes in the graph.
