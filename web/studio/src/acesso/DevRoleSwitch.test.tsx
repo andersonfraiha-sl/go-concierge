@@ -34,7 +34,7 @@ describe('acesso na barra lateral e no topo', () => {
 
     renderComProvedores(<StudioLayout />);
 
-    expect(await screen.findByRole('link', { name: 'Skills' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Casos de uso' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Avançado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
   });

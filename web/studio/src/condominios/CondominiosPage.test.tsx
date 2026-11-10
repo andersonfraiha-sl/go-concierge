@@ -134,16 +134,6 @@ describe('CondominiosPage', () => {
     expect(screen.queryByRole('columnheader', { name: 'Administradora' })).not.toBeInTheDocument();
   });
 
-  it('opensTabFromQuery', async () => {
-    responderCom(rotasBase(construtor));
-    renderComProvedores(<CondominiosPage />, { rota: '/condominios?aba=administradoras' });
-
-    expect(
-      await screen.findByRole('textbox', { name: 'Nome da administradora' }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText('Nenhum condomínio ainda.')).not.toBeInTheDocument();
-  });
-
   it('opensMatrixTabFromQuery', async () => {
     responderCom(rotasBase(construtor));
     renderComProvedores(<CondominiosPage />, { rota: '/condominios?aba=skills' });
@@ -170,47 +160,7 @@ describe('CondominiosPage', () => {
     const destinos = within(telas)
       .getAllByRole('link')
       .map((link) => link.getAttribute('href'));
-    expect(destinos).toEqual(['/admin', '/backdoor/administradoras', '/backdoor/payloads']);
-  });
-
-  it('removesAdministradoraAfterConfirmation', async () => {
-    let removida = '';
-    const comVazia = structuredClone(estadoFalso);
-    comVazia.administradoras.push({ id: 'adm-vazia', nome: 'Administradora Vazia' });
-    responderCom({
-      ...rotasBase(construtor),
-      'GET /api/admin/estado': () => json(comVazia),
-      'DELETE /api/admin/administradora': (req) => {
-        removida = new URL(req.url).searchParams.get('id') ?? '';
-        return json({
-          mapeamento: estadoFalso.mapeamento,
-          administradoras: estadoFalso.administradoras,
-        });
-      },
-    });
-    const { user } = renderComProvedores(<CondominiosPage />);
-
-    await user.click(await screen.findByRole('tab', { name: 'Administradoras' }));
-    await user.click(await screen.findByRole('button', { name: 'Remover Administradora Vazia' }));
-    expect(
-      screen.getByText('Remover "Administradora Vazia"? Não dá para desfazer.'),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Remover' }));
-
-    await screen.findByText('Administradora removida.');
-    expect(removida).toBe('adm-vazia');
-  });
-
-  it('blocksRemovingAdministradoraWithCondominios', async () => {
-    responderCom(rotasBase(construtor));
-    const { user } = renderComProvedores(<CondominiosPage />);
-
-    await user.click(await screen.findByRole('tab', { name: 'Administradoras' }));
-
-    expect(
-      await screen.findByRole('button', { name: 'Remover Administradora Exemplo' }),
-    ).toBeDisabled();
-    expect(screen.getByText('Mova os condomínios dela antes de remover.')).toBeInTheDocument();
+    expect(destinos).toEqual(['/admin', '/backdoor/payloads']);
   });
 
   it('rejectsDuplicateCondominioName', async () => {

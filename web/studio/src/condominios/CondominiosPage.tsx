@@ -6,19 +6,17 @@ import { usePodeEditarCondominio } from '@/acesso/eu';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { useSkills } from '@/skills/contratos';
 import { CONDOMINIOS, PESOS, SHELL } from '@/theme/tokens';
-import { AdministradorasAba } from './AdministradorasAba';
 import { ComEstado } from './ComEstado';
 import { type Estado, useEstado } from './contratos';
 import { MatrizDeSkills } from './MatrizDeSkills';
 import { NovoCondominio } from './NovoCondominio';
 import { TabelaDeCondominios } from './TabelaDeCondominios';
 
-type Aba = 'condominios' | 'skills' | 'administradoras';
+type Aba = 'condominios' | 'skills';
 
 // Temporário: o que o Studio ainda não faz fica nas telas antigas (fora do SPA).
 const TELAS_ANTIGAS = [
   { rotulo: 'Skills × condomínios', destino: '/admin' },
-  { rotulo: 'Renomear administradora', destino: '/backdoor/administradoras' },
   { rotulo: 'Definições livres', destino: '/backdoor/payloads' },
 ] as const;
 
@@ -41,12 +39,10 @@ function TelasAntigas(): ReactNode {
   );
 }
 
-type Permissoes = { matriz: boolean; administradoras: boolean };
+type Permissoes = { matriz: boolean; telasAntigas: boolean };
 
 function abaPermitida(pedida: string | null, permitido: Permissoes): Aba {
-  if (pedida === 'skills' && permitido.matriz) return 'skills';
-  if (pedida === 'administradoras' && permitido.administradoras) return 'administradoras';
-  return 'condominios';
+  return pedida === 'skills' && permitido.matriz ? 'skills' : 'condominios';
 }
 
 function comAba(atual: URLSearchParams, aba: Aba): URLSearchParams {
@@ -58,7 +54,7 @@ function comAba(atual: URLSearchParams, aba: Aba): URLSearchParams {
 function usePermissoesDaPagina(): Permissoes {
   return {
     matriz: usePodeEditarCondominio('condominios.habilitar'),
-    administradoras: usePodeEditarCondominio('administradoras.editar'),
+    telasAntigas: usePodeEditarCondominio('administradoras.editar'),
   };
 }
 
@@ -84,7 +80,7 @@ export function CondominiosPage(): ReactNode {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <CabecalhoDaPagina aba={aba} onNovo={novo.abrir} />
+      <CabecalhoDaPagina onNovo={novo.abrir} />
       <AbasDaPagina aba={aba} permitido={permitido} onTrocar={trocarAba} />
       <ComEstado consulta={consulta}>
         {(estado) => <CorpoDaPagina estado={estado} aba={aba} permitido={permitido} novo={novo} />}
@@ -93,7 +89,7 @@ export function CondominiosPage(): ReactNode {
   );
 }
 
-function CabecalhoDaPagina({ aba, onNovo }: { aba: Aba; onNovo: () => void }) {
+function CabecalhoDaPagina({ onNovo }: { onNovo: () => void }) {
   const podeCriar = usePodeEditarCondominio('condominios.editar');
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
@@ -110,7 +106,7 @@ function CabecalhoDaPagina({ aba, onNovo }: { aba: Aba; onNovo: () => void }) {
           Diga o que o concierge faz em cada condomínio.
         </Typography>
       </Box>
-      {podeCriar && aba !== 'administradoras' && (
+      {podeCriar && (
         <Button variant="contained" startIcon={<AddOutlined />} onClick={onNovo}>
           Novo condomínio
         </Button>
@@ -122,7 +118,7 @@ function CabecalhoDaPagina({ aba, onNovo }: { aba: Aba; onNovo: () => void }) {
 type AbasProps = { aba: Aba; permitido: Permissoes; onTrocar: (aba: Aba) => void };
 
 function AbasDaPagina({ aba, permitido, onTrocar }: AbasProps): ReactNode {
-  if (!permitido.matriz && !permitido.administradoras) return null;
+  if (!permitido.matriz) return null;
 
   return (
     <Tabs
@@ -136,8 +132,7 @@ function AbasDaPagina({ aba, permitido, onTrocar }: AbasProps): ReactNode {
       }}
     >
       <Tab value="condominios" label="Condomínios" />
-      {permitido.matriz && <Tab value="skills" label="Visão por skill" />}
-      {permitido.administradoras && <Tab value="administradoras" label="Administradoras" />}
+      <Tab value="skills" label="Visão por skill" />
     </Tabs>
   );
 }
@@ -149,7 +144,7 @@ function CorpoDaPagina({ estado, aba, permitido, novo }: CorpoProps): ReactNode 
     <>
       <ConteudoDaAba aba={aba} estado={estado} permitido={permitido} />
       <NovoCondominio aberto={novo.aberto} estado={estado} onFechar={novo.fechar} />
-      {permitido.administradoras && <TelasAntigas />}
+      {permitido.telasAntigas && <TelasAntigas />}
     </>
   );
 }
@@ -159,14 +154,6 @@ type ConteudoProps = { aba: Aba; estado: Estado; permitido: Permissoes };
 function ConteudoDaAba({ aba, estado, permitido }: ConteudoProps): ReactNode {
   if (aba === 'skills') {
     return <MatrizDeSkillsAba estado={estado} editavel={permitido.matriz} />;
-  }
-  if (aba === 'administradoras') {
-    return (
-      <AdministradorasAba
-        administradoras={estado.administradoras}
-        condominios={estado.mapeamento.condominios}
-      />
-    );
   }
   return <TabelaDeCondominios estado={estado} />;
 }

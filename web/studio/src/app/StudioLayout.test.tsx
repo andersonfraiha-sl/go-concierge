@@ -22,11 +22,36 @@ describe('StudioLayout', () => {
     renderComProvedores(<StudioLayout />);
 
     expect(screen.getByText('Studio')).toBeInTheDocument();
-    await screen.findByRole('link', { name: 'Skills' });
-    const rotulos = ['Concierge', 'Skills', 'Ferramentas', 'Condomínios', 'Avançado', 'Atendente'];
+    await screen.findByRole('link', { name: 'Casos de uso' });
+    const rotulos = [
+      'Concierge',
+      'Casos de uso',
+      'Recursos',
+      'Condomínios',
+      'Avançado',
+      'Atendente',
+    ];
     for (const rotulo of rotulos) {
       expect(screen.getByRole('link', { name: rotulo })).toBeInTheDocument();
     }
+  });
+
+  it('escondeAdministradorasSemPermissao', async () => {
+    renderComProvedores(<StudioLayout />);
+
+    await screen.findByRole('link', { name: 'Condomínios' });
+    expect(screen.queryByRole('link', { name: 'Administradoras' })).not.toBeInTheDocument();
+  });
+
+  it('mostraAdministradorasComPermissaoDeEditar', async () => {
+    const admin = { ...eu, permissoes: [...eu.permissoes, 'administradoras.editar'] };
+    responderCom({ 'GET /api/eu': () => json(admin) });
+    renderComProvedores(<StudioLayout />);
+
+    expect(await screen.findByRole('link', { name: 'Administradoras' })).toHaveAttribute(
+      'href',
+      '/administradoras',
+    );
   });
 
   it('apontaAtendenteParaOConsoleForaDoSpa', () => {

@@ -53,7 +53,7 @@ function CabecalhoDaPagina({ podeEditar, onNova }: CabecalhoProps): ReactNode {
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
       <Box sx={{ flex: 1 }}>
         <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
-          Ferramentas
+          Recursos
         </Typography>
         <Typography color="textSecondary">
           Sistemas que as skills consultam e onde gravam.
