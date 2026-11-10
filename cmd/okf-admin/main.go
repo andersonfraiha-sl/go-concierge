@@ -4,6 +4,10 @@
 //
 //	okf-admin -root ./okf -addr 127.0.0.1:8090
 //	okf-admin importar-json -dir okf/var   (leva os JSON antigos para o Postgres)
+//	okf-admin importar-catalogo -dir okf   (deixa o catálogo do Postgres igual à pasta)
+//
+// O catálogo (agentes/ e nexus/) mora no Postgres. -root é a semente: com a tabela vazia ela é
+// importada; depois o banco vale e a pasta vira cópia de trabalho em <root>/var/catalogo.
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
 // sem Nexus, do instantâneo okf/nexus/<account>.yaml. DEFAULT_ACCOUNT_ID é a account desse
@@ -124,10 +128,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarJSON {
 		os.Exit(importarJSON(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarCatalogo {
+		os.Exit(importarCatalogo(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == subcomandoSaude {
 		os.Exit(saude(os.Args[2:], os.Stderr))
 	}
-	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
+	root := flag.String("root", "okf", "semente do catálogo (agentes/, nexus/); a cópia de trabalho fica em <root>/var/catalogo")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
@@ -153,7 +160,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cat, err := okf.NewCatalogo(*root)
+	cat, err := abrirCatalogo(*root, db)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -802,7 +809,8 @@ func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 409, err)
 		return
 	}
-	if err := okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso); err != nil {
+	err = s.cat.Escrever(func() error { return okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso) })
+	if err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -816,7 +824,8 @@ func (s *servidor) removerRecurso(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 409, err)
 		return
 	}
-	if err := okf.RemoverRecursoFixture(p, nome); err != nil {
+	err = s.cat.Escrever(func() error { return okf.RemoverRecursoFixture(p, nome) })
+	if err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -877,10 +886,14 @@ func writeErr(w http.ResponseWriter, code int, err error) {
 	if grande, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		code, err = http.StatusRequestEntityTooLarge, fmt.Errorf("corpo grande demais (máximo %d bytes)", grande.Limit)
 	}
+	mensagem := err.Error()
+	if errors.Is(err, okf.ErrPersistir) { // o texto do banco fica no log, não na resposta
+		code, mensagem = http.StatusInternalServerError, "não deu para salvar o catálogo no banco; tente de novo"
+	}
 	if code >= http.StatusInternalServerError {
 		anotarFalha(context.Background(), w, err, 1)
 	}
-	writeJSON(w, code, map[string]string{"error": err.Error()})
+	writeJSON(w, code, map[string]string{"error": mensagem})
 }
 
 func semCache(h http.Handler) http.Handler {

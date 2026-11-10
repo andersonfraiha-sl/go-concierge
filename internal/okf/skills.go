@@ -144,6 +144,9 @@ func (c *Catalogo) SalvarFluxo(rel, versao string, f Fluxo) (FluxoGravado, error
 	if err != nil {
 		return FluxoGravado{}, fmt.Errorf("salvar fluxo %s: %w", rel, err)
 	}
+	if err := c.persistir(); err != nil {
+		return FluxoGravado{}, fmt.Errorf("salvar fluxo %s: %w", rel, err)
+	}
 	return gravado, nil
 }
 
@@ -235,6 +238,9 @@ func (c *Catalogo) SalvarTextos(rel, versao string, t Textos) (string, error) {
 	defer c.mu.Unlock()
 	nova, err := c.salvarTextos(rel, versao, t, cl)
 	if err != nil {
+		return "", fmt.Errorf("salvar textos %s: %w", rel, err)
+	}
+	if err := c.persistir(); err != nil {
 		return "", fmt.Errorf("salvar textos %s: %w", rel, err)
 	}
 	return nova, nil
@@ -346,7 +352,7 @@ func definirListaOuApagar(cfg map[string]any, chave string, valores []string) {
 
 // atualizarRoteamento grava a descrição do agente e reescreve, no mesmo lugar, a linha da skill no rotas.md do pai.
 func (c *Catalogo) atualizarRoteamento(rel, dir string, t Textos) error {
-	if err := c.SalvarConfig(rel, map[string]any{"descricao": t.QuandoUsar}); err != nil {
+	if err := c.salvarConfig(rel, map[string]any{"descricao": t.QuandoUsar}); err != nil {
 		return err
 	}
 	pai := Pai(dir)
@@ -381,6 +387,9 @@ func (c *Catalogo) CriarSkill(paiRel, nome, titulo string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("criar skill %s: %w", nome, err)
 	}
+	if err := c.persistir(); err != nil {
+		return "", fmt.Errorf("criar skill %s: %w", nome, err)
+	}
 	return rel, nil
 }
 
@@ -399,7 +408,7 @@ func (c *Catalogo) criarSkill(paiRel, nome, titulo string, cl classificar) (stri
 	var rel string
 	err = criarComVolta(dir, func() error {
 		var err error
-		if rel, _, err = c.CriarAgente(NovoAgente{Pai: paiRel, Nome: nome, Descricao: titulo}); err != nil {
+		if rel, _, err = c.criarAgente(NovoAgente{Pai: paiRel, Nome: nome, Descricao: titulo}); err != nil {
 			return err
 		}
 		raw, err := casoNovo(nome, titulo)
@@ -436,6 +445,9 @@ func (c *Catalogo) DuplicarSkill(rel, novoNome, novoTitulo string) (string, erro
 	defer c.mu.Unlock()
 	novoRel, err := c.duplicarSkill(rel, novoNome, novoTitulo, cl)
 	if err != nil {
+		return "", fmt.Errorf("duplicar skill %s: %w", rel, err)
+	}
+	if err := c.persistir(); err != nil {
 		return "", fmt.Errorf("duplicar skill %s: %w", rel, err)
 	}
 	return novoRel, nil
@@ -542,6 +554,9 @@ func (c *Catalogo) ExcluirSkill(rel string) error {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
 	if _, err := c.excluirAgente(rel); err != nil {
+		return fmt.Errorf("excluir skill %s: %w", rel, err)
+	}
+	if err := c.persistir(); err != nil {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
 	return nil

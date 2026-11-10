@@ -5,16 +5,14 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
-	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
+	"go-concierge/internal/catalogo"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/okf"
@@ -170,56 +168,31 @@ func regrasDoPacote(gravadas []regras.RegraGravada, adm string) []regraVisao {
 	return out
 }
 
-// arquivosDoCatalogo lê okf/agentes inteiro, na ordem do WalkDir (alfabética). Pastas e
-// arquivos ocultos ficam fora.
+// arquivosDoCatalogo lê agentes/ inteiro da cópia de trabalho, em ordem alfabética. Pastas
+// e arquivos ocultos ficam fora; nexus/ não vai no pacote (os recursos já vão em Recursos).
 func arquivosDoCatalogo(raiz string) ([]arquivoDoPacote, error) {
+	lidos, err := catalogo.LerDisco(raiz)
+	if err != nil {
+		return nil, err
+	}
 	out := []arquivoDoPacote{}
-	base := filepath.Join(raiz, okf.DirAgentes)
-	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	for _, a := range lidos {
+		if strings.HasPrefix(a.Caminho, okf.DirAgentes+"/") {
+			out = append(out, arquivoParaOPacote(a))
 		}
-		if strings.HasPrefix(d.Name(), ".") && p != base {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		arquivo, err := lerArquivoDoPacote(raiz, p, d)
-		if err != nil {
-			return err
-		}
-		out = append(out, arquivo)
-		return nil
-	})
-	return out, err
+	}
+	return out, nil
 }
 
-func lerArquivoDoPacote(raiz, p string, d fs.DirEntry) (arquivoDoPacote, error) {
-	rel, err := filepath.Rel(raiz, p)
-	if err != nil {
-		return arquivoDoPacote{}, err
-	}
-	arquivo := arquivoDoPacote{Caminho: filepath.ToSlash(rel)}
-	info, err := d.Info()
-	if err != nil {
-		return arquivoDoPacote{}, err
-	}
-	if info.Size() > tetoDoArquivo {
+func arquivoParaOPacote(a catalogo.Arquivo) arquivoDoPacote {
+	arquivo := arquivoDoPacote{Caminho: a.Caminho}
+	switch {
+	case len(a.Conteudo) > tetoDoArquivo:
 		arquivo.Omitido = motivoArquivoGrande
-		return arquivo, nil
+	case utf8.Valid(a.Conteudo):
+		arquivo.Conteudo = string(a.Conteudo)
+	default:
+		arquivo.Conteudo, arquivo.Codificacao = base64.StdEncoding.EncodeToString(a.Conteudo), codificacaoBase64
 	}
-	raw, err := os.ReadFile(p)
-	if err != nil {
-		return arquivoDoPacote{}, err
-	}
-	if utf8.Valid(raw) {
-		arquivo.Conteudo = string(raw)
-		return arquivo, nil
-	}
-	arquivo.Conteudo, arquivo.Codificacao = base64.StdEncoding.EncodeToString(raw), codificacaoBase64
-	return arquivo, nil
+	return arquivo
 }

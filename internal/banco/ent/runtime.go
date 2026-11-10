@@ -5,6 +5,7 @@ package ent
 import (
 	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/catalogoarquivo"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
@@ -58,6 +59,16 @@ func init() {
 	atribuicaoDescEscopoID := atribuicaoFields[3].Descriptor()
 	// atribuicao.DefaultEscopoID holds the default value on creation for the escopo_id field.
 	atribuicao.DefaultEscopoID = atribuicaoDescEscopoID.Default.(string)
+	catalogoarquivoFields := schema.CatalogoArquivo{}.Fields()
+	_ = catalogoarquivoFields
+	// catalogoarquivoDescSha256 is the schema descriptor for sha256 field.
+	catalogoarquivoDescSha256 := catalogoarquivoFields[2].Descriptor()
+	// catalogoarquivo.Sha256Validator is a validator for the "sha256" field. It is called by the builders before save.
+	catalogoarquivo.Sha256Validator = catalogoarquivoDescSha256.Validators[0].(func(string) error)
+	// catalogoarquivoDescID is the schema descriptor for id field.
+	catalogoarquivoDescID := catalogoarquivoFields[0].Descriptor()
+	// catalogoarquivo.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	catalogoarquivo.IDValidator = catalogoarquivoDescID.Validators[0].(func(string) error)
 	concessaoFields := schema.Concessao{}.Fields()
 	_ = concessaoFields
 	// concessaoDescAdministradoraID is the schema descriptor for administradora_id field.

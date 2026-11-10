@@ -171,6 +171,7 @@ Caches e locks por contato são em processo. Com duas réplicas nada corrompe o 
 - trocas simultâneas do mesmo telefone em réplicas diferentes podem perder um fato ou um pedido;
 - o cache de sessões (`Sessoes`) e os de memória e pedidos não revalidam contra o banco;
 - o cache do mapeamento só vê escrita do Admin desta réplica; `importar-json` com o servidor no ar só aparece depois de reiniciar;
+- o catálogo (skills, regras, instantâneo) mora no Postgres, mas cada réplica lê a sua cópia em disco, refeita no boot: uma edição só chega às outras réplicas quando elas reiniciam;
 - a sessão e as mudanças menores da carteira (valores, eventos) vão depois da resposta: se o processo cair nesse intervalo, elas se perdem.
 
 Pra escalar: invalidação entre réplicas (LISTEN/NOTIFY ou versão com prazo curto) e locks por contato no banco.
@@ -212,7 +213,13 @@ docker compose up -d --build
 
 # fora de dev o boot não semeia nada: leve os JSON da versão anterior antes do primeiro boot
 ./bin/okf-admin.exe importar-json -dir okf/var -env .env
+
+# o catálogo (agentes/, nexus/) mora no Postgres; -root é a semente do primeiro boot.
+# Para levar ao banco uma skill que chegou como arquivo (o banco passa a ser igual à pasta):
+./bin/okf-admin.exe importar-catalogo -dir okf -env .env
 ```
+
+O catálogo vive na tabela `catalogo_arquivos`. No boot, tabela vazia recebe a pasta de `-root`; com dado, o banco vale (e um WARN avisa se a pasta difere). O disco vira cópia de trabalho em `okf/var/catalogo`, refeita do banco a cada boot, e toda edição do Studio grava nos dois. `okf/` do repositório é só a semente.
 
 Em dev, um banco sem mapeamento ganha uma administradora e um condomínio de exemplo (ligado ao `DEFAULT_ACCOUNT_ID`). Sem `DATABASE_URL` o boot falha dizendo como subir o Postgres. `/studio/` sem compilar responde 503 `STUDIO_NAO_COMPILADO`.
 
@@ -273,7 +280,7 @@ Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome no
 
 | Pasta | O que tem |
 |---|---|
-| `cmd/okf-admin` | servidor HTTP: webhook, `/api`, Studio embutido, telas antigas, subcomandos `importar-json` e `saude` |
+| `cmd/okf-admin` | servidor HTTP: webhook, `/api`, Studio embutido, telas antigas, subcomandos `importar-json`, `importar-catalogo` e `saude` |
 | `cmd/okf-run` | roda um agente pela linha de comando (harness Eino) |
 | `internal/atende` | turno, sessão, envio ao ATENDE, emulador |
 | `internal/pedidos` | motor do caso, carteira por contato, cache |
@@ -283,13 +290,14 @@ Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome no
 | `internal/memoria` | fatos por contato, cache |
 | `internal/admin` | mapeamento de administradoras e condomínios, cache |
 | `internal/okf` | pasta de agente: carga, herança, fronteira, projeção, conhecimento OKF |
+| `internal/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/, diferença, cópia de trabalho |
 | `internal/banco` | migrations, sqlc, ent, `Lote` (vários `:batch*` numa ida) |
 | `internal/falha` | pilha de erro onde nasce |
 | `internal/gruvi`, `nexus`, `mcp`, `responses` | clientes externos |
 | `internal/copiloto` | quais propostas a pessoa pode aplicar na tela, sem side effect |
 | `web/studio` | Studio em React + MUI, compilado em `dist` e embutido no binário |
 | `web/okf` | Console e telas antigas, HTML e JS sem build |
-| `okf/` | catálogo de exemplo: agentes, instantâneo do Nexus, `var/` |
+| `okf/` | semente do catálogo: agentes, instantâneo do Nexus; `var/catalogo` é a cópia de trabalho |
 | `mcp/` | servidor MCP do catálogo Gruvi, Node (legado) |
 | `docs/superpowers` | specs, planos, medições, auditorias |
 

@@ -18,6 +18,8 @@ type Tx struct {
 	Administradora *AdministradoraClient
 	// Atribuicao is the client for interacting with the Atribuicao builders.
 	Atribuicao *AtribuicaoClient
+	// CatalogoArquivo is the client for interacting with the CatalogoArquivo builders.
+	CatalogoArquivo *CatalogoArquivoClient
 	// Concessao is the client for interacting with the Concessao builders.
 	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
@@ -183,6 +185,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.Administradora = NewAdministradoraClient(tx.config)
 	tx.Atribuicao = NewAtribuicaoClient(tx.config)
+	tx.CatalogoArquivo = NewCatalogoArquivoClient(tx.config)
 	tx.Concessao = NewConcessaoClient(tx.config)
 	tx.Condominio = NewCondominioClient(tx.config)
 	tx.GanchosAuditoria = NewGanchosAuditoriaClient(tx.config)
