@@ -76,6 +76,8 @@ func (s *servidor) rotasIntegracao(mux *http.ServeMux) {
 		return
 	}
 	mux.HandleFunc(padraoPacote, s.comChaveDeIntegracao(s.integracaoPacote))
+	s.rotasIntegracaoMapeamento(mux)
+	s.rotasIntegracaoMorador(mux)
 }
 
 // comChaveDeIntegracao exige Authorization: Bearer <INTEGRACAO_CHAVE>. Compara os resumos em
