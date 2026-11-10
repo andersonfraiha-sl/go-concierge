@@ -426,7 +426,7 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 | Grupo | Rotas |
 |---|---|
 | Público | `POST /webhook/atende` (HMAC), `GET /healthz`, `GET /readyz` |
-| Serviço | `GET /integracao/v1/pacote`, `PUT /integracao/v1/mapeamento`, `GET /integracao/v1/memorias`, `GET\|DELETE /integracao/v1/memoria`, `GET /integracao/v1/pedidos` (chave de serviço, sem usuário) |
+| Serviço | `GET /integracao/v1/pacote`, `PUT /integracao/v1/mapeamento`, `PUT /integracao/v1/arquivos`, `GET /integracao/v1/memorias`, `GET\|DELETE /integracao/v1/memoria`, `GET /integracao/v1/pedidos` (chave de serviço, sem usuário) |
 | Studio | `GET /studio/`, `GET /api/eu`, `GET\|POST /api/skills`, `GET\|DELETE /api/skills/{nome}`, `PUT /api/skills/{nome}/textos`, `GET\|PUT /api/skills/{nome}/fluxo`, `POST /api/skills/{nome}/duplicar` |
 | Copiloto | `GET /api/copiloto/estado`, `POST /api/copiloto` |
 | Agentes OKF | `GET\|POST /api/agentes`, `GET\|DELETE /api/agente`, `PUT /api/agente/config`, `POST /api/agente/recursos`, `POST /api/agentes/importar`, `GET /api/agentes/exportar`, `POST /api/agentes/mover` (410), `GET\|PUT\|DELETE /api/arquivo`, `GET /api/arquivo/modelo`, `GET /api/projecao`, `GET /api/anatomia` |
