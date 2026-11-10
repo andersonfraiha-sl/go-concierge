@@ -236,6 +236,7 @@ find okf -type d -exec setfacl -m d:u:10001:rwx {} +
 | Modelo | `LLM_MODE` (`gemini` \| `openrouter` \| `luna` \| `mock`), `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `LLM_LUNA_OPENAI_URL`, `LLM_LUNA_GATEWAY_TOKEN`, `LLM_LUNA_MODEL`, `MODEL_EXTRACT`, `MODEL_PLANNER`, `MODEL_COMPOSE`, `MODEL_CHEAP` |
 | Gruvi | `GRUVI_BFF_URL`, `GRUVI_COMPANY_ID` |
 | Ganchos | `GANCHOS_SEGREDO_EXPORTACAO` (HMAC da exportação; fora de dev é obrigatório) |
+| Integração | `INTEGRACAO_CHAVE` (chave de serviço de `/integracao/v1/pacote`; vazia desliga a rota) |
 | ATENDE | `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`, `ATENDE_API_SECRET`, `ATENDE_TENANT_ID`, `ATENDE_TENANT_TELEFONE`, `ATENDE_AGENTE`; legado: `ATENDE_WEBHOOK_TOKEN` (só emulador), `ATENDE_REPLY_URL`, `ATENDE_REPLY_TOKEN` |
 | Recursos | `NEXUS_BASE_URL`, `NEXUS_TOKEN`, `DEFAULT_ACCOUNT_ID`, `MCP_URL`, `MCP_AUTH` (`b2c` \| `file` \| `bearer` \| `keycloak` \| `none`), `MCP_B2C_MOBILE`, `MCP_TOKEN_FILE` |
 | Turno | `PEDIDOS=off` desliga o motor de pedidos, `ORQUESTRACAO_MODO` força `router` \| `planning` \| `react`, `DESLIGAMENTO_PRAZO` (padrão 30s) |
@@ -417,6 +418,7 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 | Grupo | Rotas |
 |---|---|
 | Público | `POST /webhook/atende` (HMAC), `GET /healthz`, `GET /readyz` |
+| Serviço | `GET /integracao/v1/pacote` (chave de serviço, sem usuário) |
 | Studio | `GET /studio/`, `GET /api/eu`, `GET\|POST /api/skills`, `GET\|DELETE /api/skills/{nome}`, `PUT /api/skills/{nome}/textos`, `GET\|PUT /api/skills/{nome}/fluxo`, `POST /api/skills/{nome}/duplicar` |
 | Copiloto | `GET /api/copiloto/estado`, `POST /api/copiloto` |
 | Agentes OKF | `GET\|POST /api/agentes`, `GET\|DELETE /api/agente`, `PUT /api/agente/config`, `POST /api/agente/recursos`, `POST /api/agentes/importar`, `GET /api/agentes/exportar`, `POST /api/agentes/mover` (410), `GET\|PUT\|DELETE /api/arquivo`, `GET /api/arquivo/modelo`, `GET /api/projecao`, `GET /api/anatomia` |
@@ -468,5 +470,7 @@ cd mcp && npm ci && npm run start:mcp:catalog-agent        # fora do Docker, pra
 | Studio | [spec](docs/superpowers/specs/2026-11-03-studio-design.md) | [plano](docs/superpowers/plans/2026-11-03-studio.md), [fase 2](docs/superpowers/plans/2026-11-03-studio-fase2.md), [na Fundação](docs/superpowers/plans/2026-11-04-studio-na-fundacao.md) | [smoke por papel](docs/superpowers/medicoes/2026-11-04-smoke-studio-na-fundacao.md) |
 | Skills base | [spec](docs/superpowers/specs/2026-11-04-skills-base-design.md) | [plano](docs/superpowers/plans/2026-11-04-skills-base.md) | |
 | Memória classificada | [spec](docs/superpowers/specs/2026-11-03-memoria-classificada-design.md) | | |
+
+Integração com o app concierge do Nexus: [contrato do pacote](docs/integracao/nexus.md).
 
 Princípios do projeto: [constituição](docs/superpowers/constitution.md). Definições de partida: [DEFINICOES.md](DEFINICOES.md). Regras de código do front: [web/studio/README.md](web/studio/README.md).

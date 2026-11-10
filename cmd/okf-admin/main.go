@@ -96,6 +96,7 @@ type servidor struct {
 	banco               banco.Banco
 	regras              *regras.Postgres
 	segredoExportacao   []byte           // GANCHOS_SEGREDO_EXPORTACAO; vazio só em dev, e aí exportar e importar recusam
+	chaveDeIntegracao   []byte           // INTEGRACAO_CHAVE; vazia: a rota de integração não é registrada
 	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
 	limiteCopiloto      *limiteDoCopiloto
 	turnos              sync.WaitGroup // turnos do webhook em segundo plano; o desligamento espera
@@ -137,7 +138,8 @@ func main() {
 	registro := novoRegistro(os.Stderr)
 	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
 	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET"),
-		SegredoExportacao: os.Getenv("GANCHOS_SEGREDO_EXPORTACAO")})
+		SegredoExportacao: os.Getenv("GANCHOS_SEGREDO_EXPORTACAO"),
+		IntegracaoChave:   strings.TrimSpace(os.Getenv("INTEGRACAO_CHAVE"))})
 	if err := validarConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
@@ -174,6 +176,7 @@ func main() {
 		registro:          registro,
 		regras:            regras.NovoPostgres(db.Ent),
 		segredoExportacao: []byte(cfg.SegredoExportacao),
+		chaveDeIntegracao: []byte(cfg.IntegracaoChave),
 	}
 	var origens []string
 	if mcpCli != nil {
