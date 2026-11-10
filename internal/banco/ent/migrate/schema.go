@@ -62,6 +62,19 @@ var (
 			},
 		},
 	}
+	// CatalogoArquivosColumns holds the columns for the "catalogo_arquivos" table.
+	CatalogoArquivosColumns = []*schema.Column{
+		{Name: "caminho", Type: field.TypeString},
+		{Name: "conteudo", Type: field.TypeBytes},
+		{Name: "sha256", Type: field.TypeString},
+		{Name: "atualizado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// CatalogoArquivosTable holds the schema information for the "catalogo_arquivos" table.
+	CatalogoArquivosTable = &schema.Table{
+		Name:       "catalogo_arquivos",
+		Columns:    CatalogoArquivosColumns,
+		PrimaryKey: []*schema.Column{CatalogoArquivosColumns[0]},
+	}
 	// ConcessoesColumns holds the columns for the "concessoes" table.
 	ConcessoesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -528,6 +541,7 @@ var (
 	Tables = []*schema.Table{
 		AdministradorasTable,
 		AtribuicoesTable,
+		CatalogoArquivosTable,
 		ConcessoesTable,
 		CondominiosTable,
 		GanchosAuditoriaTable,
@@ -558,6 +572,12 @@ func init() {
 		"atribuicoes_administradora_id": "(escopo_tipo = 'condominio') = (administradora_id IS NOT NULL)",
 		"atribuicoes_escopo_id":         "(escopo_tipo = 'superlogica') = (escopo_id = '')",
 		"atribuicoes_escopo_tipo":       "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
+	}
+	CatalogoArquivosTable.Annotation = &entsql.Annotation{
+		Table: "catalogo_arquivos",
+	}
+	CatalogoArquivosTable.Annotation.Checks = map[string]string{
+		"catalogo_arquivos_caminho_na_raiz": "caminho LIKE 'agentes/%' OR caminho LIKE 'nexus/%'",
 	}
 	ConcessoesTable.ForeignKeys[0].RefTable = AdministradorasTable
 	ConcessoesTable.ForeignKeys[1].RefTable = PapeisTable

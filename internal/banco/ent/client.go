@@ -13,6 +13,7 @@ import (
 
 	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/catalogoarquivo"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
@@ -48,6 +49,8 @@ type Client struct {
 	Administradora *AdministradoraClient
 	// Atribuicao is the client for interacting with the Atribuicao builders.
 	Atribuicao *AtribuicaoClient
+	// CatalogoArquivo is the client for interacting with the CatalogoArquivo builders.
+	CatalogoArquivo *CatalogoArquivoClient
 	// Concessao is the client for interacting with the Concessao builders.
 	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
@@ -93,6 +96,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Administradora = NewAdministradoraClient(c.config)
 	c.Atribuicao = NewAtribuicaoClient(c.config)
+	c.CatalogoArquivo = NewCatalogoArquivoClient(c.config)
 	c.Concessao = NewConcessaoClient(c.config)
 	c.Condominio = NewCondominioClient(c.config)
 	c.GanchosAuditoria = NewGanchosAuditoriaClient(c.config)
@@ -203,6 +207,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		config:             cfg,
 		Administradora:     NewAdministradoraClient(cfg),
 		Atribuicao:         NewAtribuicaoClient(cfg),
+		CatalogoArquivo:    NewCatalogoArquivoClient(cfg),
 		Concessao:          NewConcessaoClient(cfg),
 		Condominio:         NewCondominioClient(cfg),
 		GanchosAuditoria:   NewGanchosAuditoriaClient(cfg),
@@ -240,6 +245,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		config:             cfg,
 		Administradora:     NewAdministradoraClient(cfg),
 		Atribuicao:         NewAtribuicaoClient(cfg),
+		CatalogoArquivo:    NewCatalogoArquivoClient(cfg),
 		Concessao:          NewConcessaoClient(cfg),
 		Condominio:         NewCondominioClient(cfg),
 		GanchosAuditoria:   NewGanchosAuditoriaClient(cfg),
@@ -285,10 +291,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.GanchosAuditoria,
-		c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao, c.MemoriaContato,
-		c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Pedido,
-		c.PedidoEvento, c.Sessao, c.Usuario,
+		c.Administradora, c.Atribuicao, c.CatalogoArquivo, c.Concessao, c.Condominio,
+		c.GanchosAuditoria, c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao,
+		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
+		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -298,10 +304,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Administradora, c.Atribuicao, c.Concessao, c.Condominio, c.GanchosAuditoria,
-		c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao, c.MemoriaContato,
-		c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao, c.Payload, c.Pedido,
-		c.PedidoEvento, c.Sessao, c.Usuario,
+		c.Administradora, c.Atribuicao, c.CatalogoArquivo, c.Concessao, c.Condominio,
+		c.GanchosAuditoria, c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao,
+		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
+		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -314,6 +320,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Administradora.mutate(ctx, m)
 	case *AtribuicaoMutation:
 		return c.Atribuicao.mutate(ctx, m)
+	case *CatalogoArquivoMutation:
+		return c.CatalogoArquivo.mutate(ctx, m)
 	case *ConcessaoMutation:
 		return c.Concessao.mutate(ctx, m)
 	case *CondominioMutation:
@@ -678,6 +686,139 @@ func (c *AtribuicaoClient) mutate(ctx context.Context, m *AtribuicaoMutation) (V
 		return (&AtribuicaoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Atribuicao mutation op: %q", m.Op())
+	}
+}
+
+// CatalogoArquivoClient is a client for the CatalogoArquivo schema.
+type CatalogoArquivoClient struct {
+	config
+}
+
+// NewCatalogoArquivoClient returns a client for the CatalogoArquivo from the given config.
+func NewCatalogoArquivoClient(c config) *CatalogoArquivoClient {
+	return &CatalogoArquivoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `catalogoarquivo.Hooks(f(g(h())))`.
+func (c *CatalogoArquivoClient) Use(hooks ...Hook) {
+	c.hooks.CatalogoArquivo = append(c.hooks.CatalogoArquivo, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `catalogoarquivo.Intercept(f(g(h())))`.
+func (c *CatalogoArquivoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CatalogoArquivo = append(c.inters.CatalogoArquivo, interceptors...)
+}
+
+// Create returns a builder for creating a CatalogoArquivo entity.
+func (c *CatalogoArquivoClient) Create() *CatalogoArquivoCreate {
+	mutation := newCatalogoArquivoMutation(c.config, OpCreate)
+	return &CatalogoArquivoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CatalogoArquivo entities.
+func (c *CatalogoArquivoClient) CreateBulk(builders ...*CatalogoArquivoCreate) *CatalogoArquivoCreateBulk {
+	return &CatalogoArquivoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CatalogoArquivoClient) MapCreateBulk(slice any, setFunc func(*CatalogoArquivoCreate, int)) *CatalogoArquivoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CatalogoArquivoCreateBulk{err: fmt.Errorf("calling to CatalogoArquivoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CatalogoArquivoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CatalogoArquivoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CatalogoArquivo.
+func (c *CatalogoArquivoClient) Update() *CatalogoArquivoUpdate {
+	mutation := newCatalogoArquivoMutation(c.config, OpUpdate)
+	return &CatalogoArquivoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CatalogoArquivoClient) UpdateOne(_m *CatalogoArquivo) *CatalogoArquivoUpdateOne {
+	mutation := newCatalogoArquivoMutation(c.config, OpUpdateOne, withCatalogoArquivo(_m))
+	return &CatalogoArquivoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CatalogoArquivoClient) UpdateOneID(id string) *CatalogoArquivoUpdateOne {
+	mutation := newCatalogoArquivoMutation(c.config, OpUpdateOne, withCatalogoArquivoID(id))
+	return &CatalogoArquivoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CatalogoArquivo.
+func (c *CatalogoArquivoClient) Delete() *CatalogoArquivoDelete {
+	mutation := newCatalogoArquivoMutation(c.config, OpDelete)
+	return &CatalogoArquivoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CatalogoArquivoClient) DeleteOne(_m *CatalogoArquivo) *CatalogoArquivoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CatalogoArquivoClient) DeleteOneID(id string) *CatalogoArquivoDeleteOne {
+	builder := c.Delete().Where(catalogoarquivo.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CatalogoArquivoDeleteOne{builder}
+}
+
+// Query returns a query builder for CatalogoArquivo.
+func (c *CatalogoArquivoClient) Query() *CatalogoArquivoQuery {
+	return &CatalogoArquivoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCatalogoArquivo},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CatalogoArquivo entity by its id.
+func (c *CatalogoArquivoClient) Get(ctx context.Context, id string) (*CatalogoArquivo, error) {
+	return c.Query().Where(catalogoarquivo.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CatalogoArquivoClient) GetX(ctx context.Context, id string) *CatalogoArquivo {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *CatalogoArquivoClient) Hooks() []Hook {
+	return c.hooks.CatalogoArquivo
+}
+
+// Interceptors returns the client interceptors.
+func (c *CatalogoArquivoClient) Interceptors() []Interceptor {
+	return c.inters.CatalogoArquivo
+}
+
+func (c *CatalogoArquivoClient) mutate(ctx context.Context, m *CatalogoArquivoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CatalogoArquivoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CatalogoArquivoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CatalogoArquivoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CatalogoArquivoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CatalogoArquivo mutation op: %q", m.Op())
 	}
 }
 
@@ -3116,16 +3257,16 @@ func (c *UsuarioClient) mutate(ctx context.Context, m *UsuarioMutation) (Value, 
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Administradora, Atribuicao, Concessao, Condominio, GanchosAuditoria,
-		GanchosRegra, GanchosRegraVersao, Habilitacao, MemoriaContato, MemoriaFato,
-		Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento, Sessao,
-		Usuario []ent.Hook
+		Administradora, Atribuicao, CatalogoArquivo, Concessao, Condominio,
+		GanchosAuditoria, GanchosRegra, GanchosRegraVersao, Habilitacao,
+		MemoriaContato, MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
+		Pedido, PedidoEvento, Sessao, Usuario []ent.Hook
 	}
 	inters struct {
-		Administradora, Atribuicao, Concessao, Condominio, GanchosAuditoria,
-		GanchosRegra, GanchosRegraVersao, Habilitacao, MemoriaContato, MemoriaFato,
-		Orientacao, Papel, PapelPermissao, Payload, Pedido, PedidoEvento, Sessao,
-		Usuario []ent.Interceptor
+		Administradora, Atribuicao, CatalogoArquivo, Concessao, Condominio,
+		GanchosAuditoria, GanchosRegra, GanchosRegraVersao, Habilitacao,
+		MemoriaContato, MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
+		Pedido, PedidoEvento, Sessao, Usuario []ent.Interceptor
 	}
 )
 
