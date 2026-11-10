@@ -109,15 +109,7 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
   const edicao = useEdicaoDosBlocos(fluxo, setFluxo);
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1,
-        height: ALTURA_DA_AREA,
-        minHeight: ALTURA_MINIMA_DA_AREA,
-      }}
-    >
+    <AreaDoFluxo>
       <AvisoDeConflito
         conflito={salvamento.sincronia.conflito}
         onManterOMeu={salvamento.sincronia.manterOMeu}
@@ -140,6 +132,23 @@ function EditorDeFluxo({ nome, lido }: EditorProps): ReactNode {
         edicao={edicao}
         onMudarFluxo={setFluxo}
       />
+    </AreaDoFluxo>
+  );
+}
+
+/** Moldura do editor de fluxo, a mesma na aba da skill e no editor da camada. */
+export function AreaDoFluxo({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+        height: ALTURA_DA_AREA,
+        minHeight: ALTURA_MINIMA_DA_AREA,
+      }}
+    >
+      {children}
     </Box>
   );
 }
@@ -209,7 +218,7 @@ async function gravarFluxo({ nome, valor, versao, cliente, aoMudarProblemas }: G
   }
 }
 
-function useEdicaoDosBlocos(fluxo: Fluxo, setFluxo: Dispatch<SetStateAction<Fluxo>>) {
+export function useEdicaoDosBlocos(fluxo: Fluxo, setFluxo: Dispatch<SetStateAction<Fluxo>>) {
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const inserir = (indice: number, tipo: TipoBloco) => {
     const id = novoId(fluxo.blocos);
@@ -253,7 +262,7 @@ type PropsDoCanvas = {
 };
 
 // por que: monta canvas e painel lado a lado; o que tem de lógica já saiu para os hooks acima.
-function CanvasEPainel(props: PropsDoCanvas): ReactNode {
+export function CanvasEPainel(props: PropsDoCanvas): ReactNode {
   const { nome, fluxo, problemas, catalogo, editavel, edicao, onMudarFluxo } = props;
   const { alvosRealcados } = useCopiloto();
   const realcados = useMemo(() => blocosRealcados(alvosRealcados, nome), [alvosRealcados, nome]);

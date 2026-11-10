@@ -24,7 +24,12 @@ const noCampo = (realce: EstiloDoRealce) => ({ '& .MuiInputBase-root': realce })
 /** Realce na lista: o cartão inteiro, já que a mudança pode ser qualquer chip. */
 const naLista = (realce: EstiloDoRealce) => ({ '& > .MuiPaper-root': realce });
 
-export function QuandoUsarAba(props: Props): ReactNode {
+type PropsDaAba = Props & {
+  /** O painel "Esta skill" descreve a base (onde está ligada, o que pede): a camada não o mostra. */
+  comPainel?: boolean;
+};
+
+export function QuandoUsarAba({ comPainel = true, ...props }: PropsDaAba): ReactNode {
   return (
     <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -33,7 +38,7 @@ export function QuandoUsarAba(props: Props): ReactNode {
         <ListaDoCopiloto {...props} campo="palavrasChave" />
         <ListaDoCopiloto {...props} campo="frasesDeExemplo" />
       </Box>
-      <PainelDaSkill {...props} />
+      {comPainel && <PainelDaSkill {...props} />}
     </Box>
   );
 }

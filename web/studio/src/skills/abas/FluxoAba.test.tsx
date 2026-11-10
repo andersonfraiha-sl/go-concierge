@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { Eu } from '@/acesso/eu';
 import fixture from '@/fluxo/modelo/agendar-mudanca.fixture.json';
 import { json, responderCom } from '@/test/fetchFalso';
+import { medirNoJsdom } from '@/test/medirNoJsdom';
 import { renderComProvedores } from '@/test/render';
 import { SOMBRA_DO_BLOCO_EM_EDICAO, tokens } from '@/theme/tokens';
 import { FluxoAba } from './FluxoAba';
@@ -109,45 +110,6 @@ const selecionar = async (rotulo: string): Promise<void> => {
 
 /** Avança o relógio falso além do atraso de 1s do autosave, sem depender do relógio real. */
 const esperarUmSegundoESobra = () => vi.advanceTimersByTimeAsync(1300);
-
-/** O React Flow só mede os nós no callback do ResizeObserver; sem medida, nem nós visíveis nem arestas. */
-function medirNoJsdom(): void {
-  class ResizeObserverQueMede {
-    constructor(private readonly callback: ResizeObserverCallback) {}
-    observe(target: Element): void {
-      const contentRect = {
-        x: 0,
-        y: 0,
-        top: 0,
-        left: 0,
-        width: 800,
-        height: 600,
-        bottom: 600,
-        right: 800,
-      };
-      // Depois do commit: o React Flow só guarda o DOM do canvas no efeito do pai, que roda após o dos nós.
-      setTimeout(() => {
-        if (target.isConnected)
-          this.callback(
-            [{ target, contentRect } as ResizeObserverEntry],
-            this as unknown as ResizeObserver,
-          );
-      }, 0);
-    }
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-  for (const alvo of [globalThis, window]) {
-    Object.defineProperty(alvo, 'ResizeObserver', {
-      value: ResizeObserverQueMede,
-      configurable: true,
-    });
-  }
-  Object.defineProperties(HTMLElement.prototype, {
-    offsetHeight: { configurable: true, get: () => 600 },
-    offsetWidth: { configurable: true, get: () => 800 },
-  });
-}
 
 describe('FluxoAba', () => {
   beforeAll(medirNoJsdom);
