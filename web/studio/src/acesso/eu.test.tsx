@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { StudioLayout } from '@/app/StudioLayout';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { type Eu, pode, podeNoCatalogo, useEu, usePodeEditar } from './eu';
+import { type Eu, PERMISSOES, pode, podeNoCatalogo, useEu, usePodeEditar } from './eu';
 
 const construtor: Eu = {
   id: 'u1',
@@ -24,6 +24,17 @@ const gestorAvancado: Eu = {
   papel: 'gestor_avancado',
   permissoes: [...gestor.permissoes, 'studio.avancado'],
 };
+
+describe('permissões das camadas', () => {
+  it('listsLayerPermissionsRightAfterSkillsExcluir', () => {
+    const depoisDeExcluir = PERMISSOES.slice(PERMISSOES.indexOf('skills.excluir') + 1);
+    expect(depoisDeExcluir.slice(0, 3)).toEqual([
+      'skills.editar_etapas',
+      'skills.decidir_atualizacao',
+      'skills.publicar_base',
+    ]);
+  });
+});
 
 describe('permissões', () => {
   it.each([
