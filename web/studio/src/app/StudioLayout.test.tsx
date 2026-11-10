@@ -54,6 +54,20 @@ describe('StudioLayout', () => {
     );
   });
 
+  it('escondeCondominiosEAdministradorasPelaChaveELembra', async () => {
+    const admin = { ...eu, permissoes: [...eu.permissoes, 'administradoras.editar'] };
+    responderCom({ 'GET /api/eu': () => json(admin) });
+    const { user } = renderComProvedores(<StudioLayout />);
+    await screen.findByRole('link', { name: 'Administradoras' });
+
+    await user.click(screen.getByRole('switch', { name: 'Condomínios e administradoras' }));
+
+    expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Administradoras' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Recursos' })).toBeInTheDocument();
+    expect(localStorage.getItem('studio.semCondominios')).toBe('true');
+  });
+
   it('apontaAtendenteParaOConsoleForaDoSpa', () => {
     renderComProvedores(<StudioLayout />);
     expect(screen.getByRole('link', { name: 'Atendente' })).toHaveAttribute('href', '/console');

@@ -1,4 +1,13 @@
-import { Box, IconButton, ListItemButton, type SxProps, type Theme, Tooltip } from '@mui/material';
+import {
+  Box,
+  FormControlLabel,
+  IconButton,
+  ListItemButton,
+  Switch,
+  type SxProps,
+  type Theme,
+  Tooltip,
+} from '@mui/material';
 import type { ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import { ErroAcesso } from '@/acesso/ErroAcesso';
@@ -7,7 +16,8 @@ import { ICONES, RAIO, SHELL, TIPOS, tokens } from '@/theme/tokens';
 import { IconeDeLinha, type NomeDoIcone } from './iconesDoShell';
 
 type ItemMenu = { rotulo: string; destino: string; icone: NomeDoIcone };
-type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean };
+// ocultavel: some do menu quando a chave "Condomínios e administradoras" está desligada.
+type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean; ocultavel?: boolean };
 
 const ITENS_SPA = [
   {
@@ -33,12 +43,14 @@ const ITENS_SPA = [
     destino: '/condominios',
     icone: 'condominios',
     visivelPara: podeVerCondominios,
+    ocultavel: true,
   },
   {
     rotulo: 'Administradoras',
     destino: '/administradoras',
     icone: 'administradoras',
     visivelPara: (eu) => pode(eu, 'administradoras.editar'),
+    ocultavel: true,
   },
   {
     rotulo: 'Avançado',
@@ -55,7 +67,14 @@ const ITEM_ATENDENTE = {
   icone: 'atendente',
 } satisfies ItemMenu;
 
-type Props = { recolhido: boolean; aoAlternar: () => void };
+type Props = {
+  recolhido: boolean;
+  aoAlternar: () => void;
+  semCondominios: boolean;
+  aoAlternarCondominios: () => void;
+};
+
+type RecolherProps = Pick<Props, 'recolhido' | 'aoAlternar'>;
 
 const estiloDaSidebar = (recolhido: boolean): SxProps<Theme> => ({
   width: recolhido ? tokens.layout.sidebarCollapsedWidth : tokens.layout.sidebarWidth,
@@ -73,10 +92,11 @@ const estiloDaSidebar = (recolhido: boolean): SxProps<Theme> => ({
     tema.transitions.create('width', { duration: tema.transitions.duration.shorter }),
 });
 
-export function Sidebar({ recolhido, aoAlternar }: Props): ReactNode {
+export function Sidebar(props: Props): ReactNode {
+  const { recolhido, aoAlternar, semCondominios, aoAlternarCondominios } = props;
   return (
     <Box component="nav" aria-label="Menu principal" sx={estiloDaSidebar(recolhido)}>
-      <ItensDoSpa recolhido={recolhido} />
+      <ItensDoSpa recolhido={recolhido} semCondominios={semCondominios} />
       <Box sx={{ my: 2, mx: 1, borderTop: 1, borderColor: 'border.subtle' }} />
       <ItemDoMenu
         item={ITEM_ATENDENTE}
@@ -84,15 +104,24 @@ export function Sidebar({ recolhido, aoAlternar }: Props): ReactNode {
         selecionado={false}
         aoNavegar={{ component: 'a', href: ITEM_ATENDENTE.destino }}
       />
+      {!recolhido && (
+        <ChaveDeCondominios semCondominios={semCondominios} aoAlternar={aoAlternarCondominios} />
+      )}
       <BotaoDeRecolher recolhido={recolhido} aoAlternar={aoAlternar} />
     </Box>
   );
 }
 
-function ItensDoSpa({ recolhido }: { recolhido: boolean }): ReactNode {
+type ItensProps = { recolhido: boolean; semCondominios: boolean };
+
+const itemVisivel = (eu: Eu, item: ItemSpa, semCondominios: boolean): boolean =>
+  item.visivelPara(eu) && !(semCondominios && item.ocultavel);
+
+function ItensDoSpa({ recolhido, semCondominios }: ItensProps): ReactNode {
   const { pathname } = useLocation();
   const { data: eu, isError, refetch } = useEu();
-  const itensVisiveis = eu ? ITENS_SPA.filter((item) => item.visivelPara(eu)) : [];
+  const itens: readonly ItemSpa[] = ITENS_SPA;
+  const itensVisiveis = eu ? itens.filter((item) => itemVisivel(eu, item, semCondominios)) : [];
 
   return (
     <>
@@ -110,11 +139,31 @@ function ItensDoSpa({ recolhido }: { recolhido: boolean }): ReactNode {
   );
 }
 
+type ChaveProps = { semCondominios: boolean; aoAlternar: () => void };
+
+/** Esconde Condomínios e Administradoras do menu para quem só mexe no catálogo. */
+function ChaveDeCondominios({ semCondominios, aoAlternar }: ChaveProps): ReactNode {
+  return (
+    <FormControlLabel
+      control={<Switch size="small" checked={!semCondominios} onChange={aoAlternar} />}
+      label="Condomínios e administradoras"
+      slotProps={{ typography: { variant: 'caption', color: 'textSecondary' } }}
+      sx={{ mt: 'auto', mx: 1 }}
+    />
+  );
+}
+
 /** Fora do desenho aprovado, mas é uma função que já existia: fica discreta, no pé do menu. */
-function BotaoDeRecolher({ recolhido, aoAlternar }: Props): ReactNode {
+function BotaoDeRecolher({ recolhido, aoAlternar }: RecolherProps): ReactNode {
   const rotulo = recolhido ? 'Expandir menu' : 'Recolher menu';
   return (
-    <Box sx={{ mt: 'auto', display: 'flex', justifyContent: recolhido ? 'center' : 'flex-end' }}>
+    <Box
+      sx={{
+        mt: recolhido ? 'auto' : 0,
+        display: 'flex',
+        justifyContent: recolhido ? 'center' : 'flex-end',
+      }}
+    >
       <IconButton
         size="small"
         onClick={aoAlternar}
