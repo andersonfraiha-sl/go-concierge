@@ -5,6 +5,8 @@
   "permissoes": [
     "skills.ler",
     "skills.editar_textos",
+    "skills.editar_etapas",
+    "skills.decidir_atualizacao",
     "condominios.habilitar",
     "conversas.ver",
     "conversas.atender",
