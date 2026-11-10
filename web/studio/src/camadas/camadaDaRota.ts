@@ -1,4 +1,4 @@
-import { type Camada, TIPOS_DE_CAMADA } from './contratos';
+import { type Camada, TIPOS_DE_CAMADA, type TipoCamada } from './contratos';
 
 type ParametrosDaRota = {
   nome?: string | undefined;
@@ -11,4 +11,15 @@ export function camadaDaRota({ nome, tipo, id }: ParametrosDaRota): Camada | nul
   if (!nome || !id) return null;
   const tipoConhecido = TIPOS_DE_CAMADA.find((conhecido) => conhecido === tipo);
   return tipoConhecido ? { skill: nome, tipo: tipoConhecido, id } : null;
+}
+
+const SEGMENTO_DA_ROTA = { administradora: 'administradoras', condominio: 'condominios' } as const;
+
+/** Segmento `:tipo` da URL (plural) para o tipo da camada; segmento desconhecido não é camada. */
+export function tipoDoSegmento(segmento: string | undefined): TipoCamada | undefined {
+  return TIPOS_DE_CAMADA.find((tipo) => SEGMENTO_DA_ROTA[tipo] === segmento);
+}
+
+export function rotaDaCamada({ skill, tipo, id }: Camada): string {
+  return `/skills/${encodeURIComponent(skill)}/${SEGMENTO_DA_ROTA[tipo]}/${encodeURIComponent(id)}`;
 }
