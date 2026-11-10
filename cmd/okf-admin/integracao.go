@@ -75,6 +75,7 @@ func (s *servidor) rotasIntegracao(mux *http.ServeMux) {
 	}
 	mux.HandleFunc(padraoPacote, s.comChaveDeIntegracao(s.integracaoPacote))
 	s.rotasIntegracaoMapeamento(mux)
+	s.rotasIntegracaoArquivos(mux)
 	s.rotasIntegracaoMorador(mux)
 }
 
