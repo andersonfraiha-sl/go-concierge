@@ -280,7 +280,8 @@ func main() {
 		log.Fatal(err)
 	}
 	if ehDesenvolvimento(cfg.Ambiente) && cfg.AuthMode == authModeDev {
-		if err := semearAcessoDev(context.Background(), adminPG, acesso.NovoPostgres(db.Ent).Conceder); err != nil {
+		rbac := acesso.NovoPostgres(db.Ent)
+		if err := semearAcessoDev(context.Background(), adminPG, acessoDev{conceder: rbac.Conceder, atribuir: rbac.Atribuir}, exemplo.ID); err != nil {
 			log.Fatal(err)
 		}
 	}

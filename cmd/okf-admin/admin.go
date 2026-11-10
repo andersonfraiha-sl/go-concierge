@@ -132,13 +132,13 @@ func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
 		s.responderErroInterno(w, r, "ler mapeamento", err)
 		return
 	}
-	// RLS: cada um vê só as administradoras que pode ler (a Superlógica, todas)
-	recorte, err := recorteDoUsuario(r, m.Administradoras)
+	// RLS: cada um vê só as administradoras que pode ler (a Superlógica, todas); quem só tem
+	// condomínios atribuídos vê esses condomínios.
+	m, visiveis, err := visaoDoEstado(r, m)
 	if err != nil {
 		responderErroDeAlvo(w, r, err)
 		return
 	}
-	m, visiveis := visaoPara(r, m, recorte)
 	casos, err := s.casosDeUso()
 	if err != nil {
 		s.responderErroInterno(w, r, "casos de uso", err)

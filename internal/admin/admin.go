@@ -148,33 +148,49 @@ func (m Mapeamento) Visao(admID string) Mapeamento {
 	if admID == "" {
 		return m
 	}
-	v := Mapeamento{Administradoras: []Administradora{}, Condominios: []Condominio{}, Habilitacoes: map[string]map[string]Habilitacao{}, Payloads: map[string]map[string]map[string]any{}, Orientacoes: map[string]Orientacao{}, AtualizadoEm: m.AtualizadoEm}
-	if a, ok := m.Administradora(admID); ok {
+	v := m.recortar(func(c Condominio) bool { return c.Administradora == admID })
+	// administradora sem condomínio também aparece para ela mesma
+	if a, ok := m.Administradora(admID); ok && len(v.Administradoras) == 0 {
 		v.Administradoras = append(v.Administradoras, a)
 	}
-	meus := map[string]bool{Padrao: true}
-	for _, c := range m.Condominios {
-		if c.Administradora == admID {
-			v.Condominios = append(v.Condominios, c)
-			meus[c.ID] = true
-		}
-	}
-	for k, h := range m.Habilitacoes {
-		if meus[k] {
-			v.Habilitacoes[k] = h
-		}
-	}
-	for k, p := range m.Payloads {
-		if meus[k] {
-			v.Payloads[k] = p
-		}
-	}
-	for k, o := range m.Orientacoes {
-		if meus[k] {
-			v.Orientacoes[k] = o
-		}
-	}
 	return v
+}
+
+// VisaoDosCondominios é o RLS de quem só tem condomínios atribuídos: esses condomínios, as
+// administradoras donas deles e o mapeamento deles (mais o padrão "*").
+func (m Mapeamento) VisaoDosCondominios(ids []string) Mapeamento {
+	return m.recortar(func(c Condominio) bool { return slices.Contains(ids, c.ID) })
+}
+
+func (m Mapeamento) recortar(meu func(Condominio) bool) Mapeamento {
+	v := Mapeamento{Administradoras: []Administradora{}, Condominios: []Condominio{}, AtualizadoEm: m.AtualizadoEm}
+	meus := map[string]bool{Padrao: true}
+	donas := map[string]bool{}
+	for _, c := range m.Condominios {
+		if meu(c) {
+			v.Condominios = append(v.Condominios, c)
+			meus[c.ID], donas[c.Administradora] = true, true
+		}
+	}
+	for _, a := range m.Administradoras {
+		if donas[a.ID] {
+			v.Administradoras = append(v.Administradoras, a)
+		}
+	}
+	v.Habilitacoes = filtrarChaves(m.Habilitacoes, meus)
+	v.Payloads = filtrarChaves(m.Payloads, meus)
+	v.Orientacoes = filtrarChaves(m.Orientacoes, meus)
+	return v
+}
+
+func filtrarChaves[V any](m map[string]V, manter map[string]bool) map[string]V {
+	out := make(map[string]V, len(m))
+	for k, v := range m {
+		if manter[k] {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // OrientacaoDe junta o padrão e o do condomínio: o geral concatena (padrão primeiro);
