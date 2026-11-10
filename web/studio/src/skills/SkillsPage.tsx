@@ -4,6 +4,8 @@ import { type ComponentProps, type ReactNode, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { usePodeEditar } from '@/acesso/eu';
 import { useArvore } from '@/avancado/contratos';
+import { skillsComAtualizacao } from '@/camadas/atualizacoesAbertas';
+import { useAtualizacoes } from '@/camadas/contratos';
 import { PecaAoCopiloto } from '@/copiloto/PecaAoCopiloto';
 import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { EmptyState } from '@/shared/ui/EmptyState';
@@ -20,6 +22,7 @@ const FRASE_VAZIA =
   'Uma skill é algo que o concierge sabe fazer pelo morador, como reservar o salão ou mandar a 2ª via do boleto.';
 
 const SEM_PROBLEMAS: ReadonlyMap<string, Problemas> = new Map();
+const SEM_ATUALIZACAO: ReadonlySet<string> = new Set();
 
 type AbrirDialogo = (dialogo: Dialogo) => void;
 
@@ -98,6 +101,9 @@ type PropsDasEncontradas = Pick<
 
 function SkillsEncontradas({ onDialogo, ...numeros }: PropsDasEncontradas): ReactNode {
   const { skills, problemas } = numeros;
+  // O selo é complemento: sem a lista de atualizações a página segue sem ele.
+  const { data: atualizacoes } = useAtualizacoes();
+  const comAtualizacao = atualizacoes ? skillsComAtualizacao(atualizacoes) : SEM_ATUALIZACAO;
   const escreventes = skills.filter((skill) => skill.escrita);
   const consultivas = skills.filter((skill) => !skill.escrita);
   const cartao = (variante: 'completo' | 'compacto') => (skill: SkillResumo) => (
@@ -106,6 +112,7 @@ function SkillsEncontradas({ onDialogo, ...numeros }: PropsDasEncontradas): Reac
       skill={skill}
       variante={variante}
       problemas={problemas.get(skill.caminho)}
+      temAtualizacao={comAtualizacao.has(skill.nome)}
       onDialogo={onDialogo}
     />
   );
@@ -138,10 +145,17 @@ type PropsDoCartao = {
   skill: SkillResumo;
   variante: 'completo' | 'compacto';
   problemas: Problemas | undefined;
+  temAtualizacao: boolean;
   onDialogo: AbrirDialogo;
 };
 
-function CartaoDaSkill({ skill, variante, problemas, onDialogo }: PropsDoCartao): ReactNode {
+function CartaoDaSkill({
+  skill,
+  variante,
+  problemas,
+  temAtualizacao,
+  onDialogo,
+}: PropsDoCartao): ReactNode {
   const navegar = useNavigate();
   const podeCriar = usePodeEditar('skills.criar');
   const podeExcluir = usePodeEditar('skills.excluir');
@@ -150,6 +164,7 @@ function CartaoDaSkill({ skill, variante, problemas, onDialogo }: PropsDoCartao)
       skill={skill}
       variante={variante}
       problemas={problemas}
+      temAtualizacao={temAtualizacao}
       onAbrir={() => void navegar(caminhoDoEditor(skill.nome))}
       {...(podeCriar && { onDuplicar: () => onDialogo({ tipo: 'duplicar', origem: skill }) })}
       {...(podeExcluir && { onExcluir: () => onDialogo({ tipo: 'excluir', skill }) })}

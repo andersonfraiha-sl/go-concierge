@@ -15,10 +15,11 @@ import {
 } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
-import { PESOS, RAIO, TIPOS, TOKENS_DA_SKILL } from '@/theme/tokens';
+import { PESOS, RAIO } from '@/theme/tokens';
 import type { SkillResumo } from './contratos';
 import type { Problemas } from './estatisticas';
 import { iconeDaSkill } from './icones';
+import { ChipsDeProblemas, SeloDeAtualizacao } from './SelosDoCartao';
 
 type Props = {
   skill: SkillResumo;
@@ -31,15 +32,18 @@ type Props = {
   onExcluir?: () => void;
   /** Ausente ou undefined não mostra chip: skill sem problema ou pessoa sem permissão de ver fluxo. */
   problemas?: Problemas | undefined;
+  /** Há atualização da versão de cima esperando decisão em alguma camada da pessoa. */
+  temAtualizacao: boolean;
 };
 
-const rotuloDeErros = (quantidade: number): string =>
-  quantidade === 1 ? '1 erro' : `${quantidade} erros`;
-
-const rotuloDeAvisos = (quantidade: number): string =>
-  quantidade === 1 ? '1 aviso' : `${quantidade} avisos`;
-
-export function SkillCard({ skill, variante, problemas, onAbrir, ...acoes }: Props): ReactNode {
+export function SkillCard({
+  skill,
+  variante,
+  problemas,
+  temAtualizacao,
+  onAbrir,
+  ...acoes
+}: Props): ReactNode {
   const completo = variante === 'completo';
   const realce = useRealceDoCopiloto(`skill:${skill.nome}`);
   const temMenu = acoes.onDuplicar !== undefined || acoes.onExcluir !== undefined;
@@ -54,6 +58,7 @@ export function SkillCard({ skill, variante, problemas, onAbrir, ...acoes }: Pro
           <IconeDoCartao icone={skill.icone} completo={completo} />
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <TextosDoCartao skill={skill} completo={completo} />
+            {temAtualizacao && <SeloDeAtualizacao />}
             {completo && <ChipsDeProblemas problemas={problemas} />}
           </Box>
         </CardContent>
@@ -105,58 +110,6 @@ function TextosDoCartao({ skill, completo }: { skill: SkillResumo; completo: boo
         </Typography>
       )}
     </>
-  );
-}
-
-function BadgeDoCartao({
-  label,
-  bgcolor,
-  color,
-}: {
-  label: string;
-  bgcolor: string;
-  color: string;
-}) {
-  return (
-    <Box
-      component="span"
-      sx={{
-        fontSize: TIPOS.overline,
-        fontWeight: PESOS.medio,
-        lineHeight: 1,
-        py: 0.5,
-        px: 1.25,
-        borderRadius: RAIO.pilula,
-        bgcolor,
-        color,
-      }}
-    >
-      {label}
-    </Box>
-  );
-}
-
-function ChipsDeProblemas({ problemas }: { problemas: Problemas | undefined }): ReactNode {
-  const erros = problemas?.erros ?? 0;
-  const avisos = problemas?.avisos ?? 0;
-  if (erros === 0 && avisos === 0) return null;
-  return (
-    <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-      {erros > 0 && (
-        <BadgeDoCartao
-          label={rotuloDeErros(erros)}
-          bgcolor={TOKENS_DA_SKILL.erroFundoSuave}
-          color="error.main"
-        />
-      )}
-      {avisos > 0 && (
-        <BadgeDoCartao
-          label={rotuloDeAvisos(avisos)}
-          bgcolor="studio.registra.soft"
-          color="studio.registra.onSoft"
-        />
-      )}
-    </Box>
   );
 }
 

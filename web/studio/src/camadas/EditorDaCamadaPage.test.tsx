@@ -63,6 +63,7 @@ function rotas(eu: Eu, extras: Record<string, Rota> = {}): Record<string, Rota> 
   return {
     'GET /api/eu': () => json(eu),
     'GET /api/admin/estado': () => json({ mapeamento: {}, administradoras: [], casos: [] }),
+    'GET /api/atualizacoes': () => json({ atualizacoes: [], avisos: [] }),
     [`GET ${DA_ADMINISTRADORA}`]: () => json(camadaLida),
     [`GET ${DO_CONDOMINIO}`]: () => json(camadaDoCondominio),
     'GET /api/nexus/recursos': () =>
@@ -271,5 +272,65 @@ describe('EditorDaCamadaPage', () => {
       caminho: '/skills/:nome/:tipo/:id',
     });
     expect(await screen.findByText('Não encontramos esta versão.')).toBeInTheDocument();
+  });
+
+  it('showsUpdateBannerAboveTheTabs', async () => {
+    const pendente = {
+      id: 'at-1',
+      camada: camadaLida.camada,
+      estado: 'pendente',
+      para: { numero: 3, resumo: '' },
+      prazoEm: null,
+      trechos: 2,
+      conflitos: 0,
+    };
+    responderCom(
+      rotas(gestor, {
+        'GET /api/atualizacoes': () => json({ atualizacoes: [pendente], avisos: [] }),
+      }),
+    );
+    montar();
+    expect(await screen.findByText('Essa skill tem atualizações')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Revisar' })).toHaveAttribute(
+      'href',
+      '/atualizacoes/at-1',
+    );
+  });
+
+  it('reloadsTheEditorAfterRestoringAVersion', async () => {
+    let tituloNoServidor = 'Agendar mudança';
+    const versao = (numero: number) => ({
+      numero,
+      origem: 'publicacao',
+      autor: 'Ana',
+      resumo: '',
+      motivo: '',
+      criadoEm: `2026-11-0${numero}T12:00:00Z`,
+      decisao: null,
+    });
+    responderCom(
+      rotas(gestor, {
+        [`GET ${DA_ADMINISTRADORA}`]: () =>
+          json({
+            ...camadaLida,
+            documento: {
+              ...camadaLida.documento,
+              textos: { ...camadaLida.documento.textos, titulo: tituloNoServidor },
+            },
+          }),
+        [`GET ${DA_ADMINISTRADORA}/historico`]: () => json({ versoes: [versao(2), versao(1)] }),
+        [`POST ${DA_ADMINISTRADORA}/voltar`]: () => {
+          tituloNoServidor = 'Agendar mudança antiga';
+          return json({ numero: 3 }, 201);
+        },
+      }),
+    );
+    const { user } = montar();
+    await user.click(await screen.findByRole('tab', { name: 'Histórico' }));
+    const antiga = within(await screen.findByRole('listitem', { name: 'Versão 1' }));
+    await user.click(await antiga.findByRole('button', { name: 'Voltar para esta versão' }));
+    await user.click(screen.getByRole('button', { name: 'Voltar' }));
+
+    expect(await screen.findByText('Personalizar · Agendar mudança antiga')).toBeInTheDocument();
   });
 });

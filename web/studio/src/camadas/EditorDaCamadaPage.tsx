@@ -1,19 +1,20 @@
 import { Box, CircularProgress } from '@mui/material';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { usePodeEditarCondominio } from '@/acesso/eu';
 import { CabecalhoDeDetalhe } from '@/app/detalhe/CabecalhoDeDetalhe';
 import { ESTILO_DO_CONTEUDO_DE_DETALHE } from '@/app/detalhe/LayoutDeDetalhe';
 import { SaveIndicator } from '@/shared/autosave/SaveIndicator';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { CampoTexto } from '@/shared/ui/CampoTexto';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErroComRetry } from '@/shared/ui/ErroComRetry';
-import { SectionCard } from '@/shared/ui/SectionCard';
 import { QuandoUsarAba } from '@/skills/QuandoUsarAba';
+import { AvisoDeAtualizacoes } from './AvisoDeAtualizacoes';
 import { camadaDaRota, rotaDaCamada, tipoDoSegmento } from './camadaDaRota';
 import { type Camada, type CamadaLida, useCamada } from './contratos';
 import { FluxoDaCamada } from './FluxoDaCamada';
+import { HistoricoDaCamada } from './HistoricoDaCamada';
+import { OrientacaoDoCondominio } from './OrientacaoDoCondominio';
 import { PublicarCamada } from './PublicarCamada';
 import { SeletorDeCamada, useOpcoesDeCamada } from './SeletorDeCamada';
 import { type RascunhoDaCamada, useRascunhoDaCamada } from './useRascunhoDaCamada';
@@ -40,6 +41,8 @@ export function EditorDaCamadaPage(): ReactNode {
 
 function CarregadorDaCamada({ camada }: { camada: Camada }): ReactNode {
   const lida = useCamada(camada.skill, camada.tipo, camada.id);
+  // Voltar a uma versão troca o que o servidor guarda: o editor recomeça dele, com o rascunho novo.
+  const [geracao, setGeracao] = useState(0);
   if (lida.isPending) {
     return (
       <Box sx={ESTILO_DO_CONTEUDO_DE_DETALHE}>
@@ -54,10 +57,19 @@ function CarregadorDaCamada({ camada }: { camada: Camada }): ReactNode {
       </Box>
     );
   }
-  return <EditorDaCamada camada={camada} lida={lida.data} />;
+  return (
+    <EditorDaCamada
+      key={geracao}
+      camada={camada}
+      lida={lida.data}
+      onRecarregar={() => setGeracao((atual) => atual + 1)}
+    />
+  );
 }
 
-function EditorDaCamada({ camada, lida }: { camada: Camada; lida: CamadaLida }): ReactNode {
+type PropsDoEditor = { camada: Camada; lida: CamadaLida; onRecarregar: () => void };
+
+function EditorDaCamada({ camada, lida, onRecarregar }: PropsDoEditor): ReactNode {
   const rascunho = useRascunhoDaCamada(camada, lida);
   const { mostrar } = useSnackbar();
   const podeEditarTextos = usePodeEditarCondominio('skills.editar_textos');
@@ -107,11 +119,13 @@ function EditorDaCamada({ camada, lida }: { camada: Camada; lida: CamadaLida }):
         }}
       />
       <Box sx={ESTILO_DO_CONTEUDO_DE_DETALHE}>
+        <AvisoDeAtualizacoes camada={camada} />
         <ConteudoDaAba
           aba={aba}
           camada={camada}
           lida={lida}
           rascunho={rascunho}
+          onRecarregar={onRecarregar}
           podeEditarTextos={podeEditarTextos}
           podeEditarEtapas={podeEditarEtapas}
         />
@@ -125,11 +139,19 @@ type ConteudoProps = {
   camada: Camada;
   lida: CamadaLida;
   rascunho: RascunhoDaCamada;
+  onRecarregar: () => void;
   podeEditarTextos: boolean;
   podeEditarEtapas: boolean;
 };
 
-function ConteudoDaAba({ aba, camada, lida, rascunho, ...pode }: ConteudoProps): ReactNode {
+function ConteudoDaAba({
+  aba,
+  camada,
+  lida,
+  rascunho,
+  onRecarregar,
+  ...pode
+}: ConteudoProps): ReactNode {
   switch (aba) {
     case 'quando-usar':
       return (
@@ -158,35 +180,10 @@ function ConteudoDaAba({ aba, camada, lida, rascunho, ...pode }: ConteudoProps):
     case 'orientacao':
       return <OrientacaoDoCondominio rascunho={rascunho} editavel={pode.podeEditarEtapas} />;
     case 'historico':
-      return <EmptyState frase="O histórico desta versão aparece aqui." />;
+      return <HistoricoDaCamada camada={camada} onVoltou={onRecarregar} />;
     default:
       return assertNever(aba);
   }
-}
-
-function OrientacaoDoCondominio({
-  rascunho,
-  editavel,
-}: {
-  rascunho: RascunhoDaCamada;
-  editavel: boolean;
-}): ReactNode {
-  return (
-    <SectionCard
-      titulo="Orientação para este condomínio"
-      ajuda="Um recado do condomínio para o concierge seguir nesta versão."
-    >
-      <CampoTexto
-        control={rascunho.controlDaOrientacao}
-        name="orientacao"
-        multiline
-        minRows={3}
-        fullWidth
-        disabled={!editavel}
-        slotProps={{ htmlInput: { 'aria-label': 'Orientação para este condomínio' } }}
-      />
-    </SectionCard>
-  );
 }
 
 function assertNever(valor: never): never {

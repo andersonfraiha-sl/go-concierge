@@ -9,7 +9,7 @@ import { estadoFalso } from '@/condominios/estadoFalso';
 import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
 import { PainelDoCopiloto } from '@/copiloto/PainelDoCopiloto';
 import { SnackbarProvider } from '@/shared/snackbar/SnackbarContext';
-import { json, responderCom } from '@/test/fetchFalso';
+import { json, responderCom as responderComRotas } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
 import { criarTema } from '@/theme/theme';
 import { SkillEditorPage } from './SkillEditorPage';
@@ -68,6 +68,15 @@ const noDaArvore = (caminho: string, erros: number, avisos: number) => ({
   subagentes: [],
 });
 
+type Rotas = Parameters<typeof responderComRotas>[0];
+
+// A página sempre pede as atualizações abertas, para marcar os cartões.
+const responderCom = (rotas: Rotas) =>
+  responderComRotas({
+    'GET /api/atualizacoes': () => json({ atualizacoes: [], avisos: [] }),
+    ...rotas,
+  });
+
 const lista = (skills: (typeof mudanca)[]) => json({ assistente: 'concierge', skills });
 
 function Local() {
@@ -85,6 +94,28 @@ function montar() {
 }
 
 describe('SkillsPage', () => {
+  it('marksCardWithPendingUpdate', async () => {
+    const pendente = {
+      id: 'at-1',
+      camada: { skill: 'agendar-mudanca', tipo: 'administradora', id: 'adm-1' },
+      estado: 'pendente',
+      para: { numero: 2, resumo: '' },
+      prazoEm: null,
+      trechos: 1,
+      conflitos: 0,
+    };
+    responderCom({
+      'GET /api/eu': () => json(construtor),
+      'GET /api/skills': () => lista([mudanca, faq]),
+      'GET /api/atualizacoes': () => json({ atualizacoes: [pendente], avisos: [] }),
+    });
+    montar();
+    const comAtualizacao = await screen.findByRole('article', { name: 'Agendar mudança' });
+    expect(await within(comAtualizacao).findByText('Atualização')).toBeInTheDocument();
+    const semAtualizacao = screen.getByRole('article', { name: 'Perguntas frequentes' });
+    expect(within(semAtualizacao).queryByText('Atualização')).not.toBeInTheDocument();
+  });
+
   it('listsSkillCards', async () => {
     responderCom({
       'GET /api/eu': () => json(construtor),

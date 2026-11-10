@@ -141,7 +141,10 @@ describe('contexto do Copiloto por tela', () => {
   it('sendsSkillsHubContext', async () => {
     const { user, pedidos } = montar({
       tela: <SkillsPage />,
-      rotas: { 'GET /api/skills': () => json(skillsFalsas) },
+      rotas: {
+        'GET /api/skills': () => json(skillsFalsas),
+        'GET /api/atualizacoes': () => json({ atualizacoes: [], avisos: [] }),
+      },
     });
     await screen.findByRole('article', { name: 'Agendar mudança' });
 
