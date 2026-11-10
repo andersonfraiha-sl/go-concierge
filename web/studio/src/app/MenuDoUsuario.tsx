@@ -13,6 +13,12 @@ const ROTULO_DO_PAPEL: Record<string, string> = {
 /** Papel sem rótulo conhecido mostra o próprio valor. */
 export const rotuloDoPapel = (papel: string): string => ROTULO_DO_PAPEL[papel] ?? papel;
 
+/** Gestor que só tem um condomínio é gestor do condomínio, não da administradora. */
+export const rotuloDoUsuario = (eu: Eu): string =>
+  eu.condominioId && eu.papel === 'gestor_administradora'
+    ? 'Gestor · Condomínio'
+    : rotuloDoPapel(eu.papel);
+
 /** Iniciais das duas primeiras palavras do nome, ignorando o que vem entre parênteses. */
 export function iniciaisDe(nome: string): string {
   const palavras = nome
@@ -61,7 +67,7 @@ function Identidade({ eu }: { eu: Eu }): ReactNode {
           component="span"
           sx={{ fontSize: TIPOS.overline, color: 'text.tertiary', lineHeight: 'inherit' }}
         >
-          {rotuloDoPapel(eu.papel)}
+          {rotuloDoUsuario(eu)}
         </Typography>
       </Box>
     </>

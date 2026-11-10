@@ -19,6 +19,8 @@ type ItemMenu = { rotulo: string; destino: string; icone: NomeDoIcone };
 // ocultavel: some do menu quando a chave "Condomínios e administradoras" está desligada.
 type ItemSpa = ItemMenu & { visivelPara: (eu: Eu) => boolean; ocultavel?: boolean };
 
+const DESTINO_DOS_CONDOMINIOS = '/condominios';
+
 const ITENS_SPA = [
   {
     rotulo: 'Concierge',
@@ -40,7 +42,7 @@ const ITENS_SPA = [
   },
   {
     rotulo: 'Condomínios',
-    destino: '/condominios',
+    destino: DESTINO_DOS_CONDOMINIOS,
     icone: 'condominios',
     visivelPara: podeVerCondominios,
     ocultavel: true,
@@ -117,11 +119,25 @@ type ItensProps = { recolhido: boolean; semCondominios: boolean };
 const itemVisivel = (eu: Eu, item: ItemSpa, semCondominios: boolean): boolean =>
   item.visivelPara(eu) && !(semCondominios && item.ocultavel);
 
+/** Quem só tem um condomínio vê o item no singular e abre direto nele, sem passar pela lista. */
+function itemParaOUsuario(eu: Eu, item: ItemSpa): ItemSpa {
+  if (item.destino !== DESTINO_DOS_CONDOMINIOS || !eu.condominioId) return item;
+  return {
+    ...item,
+    rotulo: 'Condomínio',
+    destino: `${DESTINO_DOS_CONDOMINIOS}/${encodeURIComponent(eu.condominioId)}`,
+  };
+}
+
 function ItensDoSpa({ recolhido, semCondominios }: ItensProps): ReactNode {
   const { pathname } = useLocation();
   const { data: eu, isError, refetch } = useEu();
   const itens: readonly ItemSpa[] = ITENS_SPA;
-  const itensVisiveis = eu ? itens.filter((item) => itemVisivel(eu, item, semCondominios)) : [];
+  const itensVisiveis = eu
+    ? itens
+        .filter((item) => itemVisivel(eu, item, semCondominios))
+        .map((item) => itemParaOUsuario(eu, item))
+    : [];
 
   return (
     <>

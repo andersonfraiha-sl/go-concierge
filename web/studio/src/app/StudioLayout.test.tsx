@@ -68,6 +68,37 @@ describe('StudioLayout', () => {
     expect(localStorage.getItem('studio.semCondominios')).toBe('true');
   });
 
+  it('mostraCondominioNoSingularEAbreDiretoNeleParaQuemSoTemUm', async () => {
+    const gestorDoCondominio = {
+      ...eu,
+      papel: 'gestor_administradora',
+      permissoes: ['skills.ler', 'condominios.habilitar'],
+      administradoraId: 'adm-a',
+      condominioId: 'vila verde',
+    };
+    responderCom({ 'GET /api/eu': () => json(gestorDoCondominio) });
+    renderComProvedores(<StudioLayout />);
+
+    expect(await screen.findByRole('link', { name: 'Condomínio' })).toHaveAttribute(
+      'href',
+      '/condominios/vila%20verde',
+    );
+    expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
+    expect(screen.getByText('Gestor · Condomínio')).toBeInTheDocument();
+  });
+
+  it('mantemCondominiosNoPluralParaQuemVeAAdministradoraInteira', async () => {
+    const gestor = { ...eu, papel: 'gestor_administradora', administradoraId: 'adm-a' };
+    responderCom({ 'GET /api/eu': () => json(gestor) });
+    renderComProvedores(<StudioLayout />);
+
+    expect(await screen.findByRole('link', { name: 'Condomínios' })).toHaveAttribute(
+      'href',
+      '/condominios',
+    );
+    expect(screen.getByText('Gestor · Administradora')).toBeInTheDocument();
+  });
+
   it('apontaAtendenteParaOConsoleForaDoSpa', () => {
     renderComProvedores(<StudioLayout />);
     expect(screen.getByRole('link', { name: 'Atendente' })).toHaveAttribute('href', '/console');

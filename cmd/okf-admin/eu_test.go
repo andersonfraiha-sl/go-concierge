@@ -16,12 +16,14 @@ func TestEu(t *testing.T) {
 		status           int
 		papel            string
 		administradoraID *string
+		condominioID     *string
 		tem, naoTem      []string
 	}{
 		{usuario: "admin", status: 200, papel: "admin_superlogica", administradoraID: nil, tem: []string{"skills.criar", "studio.avancado", "administradoras.editar"}},
 		{usuario: "construtor-a", status: 200, papel: "construtor_superlogica", administradoraID: ptr("adm-a"), tem: []string{"skills.editar_fluxo", "studio.avancado"}},
 		{usuario: "gestor-a", status: 200, papel: "gestor_administradora", administradoraID: ptr("adm-a"), tem: []string{"condominios.habilitar"}, naoTem: []string{"studio.avancado", "skills.criar"}},
 		{usuario: "sem-papel", status: 200, papel: "", administradoraID: nil, naoTem: []string{"skills.ler"}},
+		{usuario: gestorDeCondominioDev, status: 200, papel: "gestor_administradora", administradoraID: ptr("adm-a"), condominioID: ptr("cond-a"), tem: []string{"condominios.habilitar"}, naoTem: []string{"skills.criar"}},
 		{usuario: "gestor-ab", status: 409},
 	}
 	for _, c := range casos {
@@ -48,6 +50,9 @@ func TestEu(t *testing.T) {
 			}
 			if (got.AdministradoraID == nil) != (c.administradoraID == nil) || (got.AdministradoraID != nil && *got.AdministradoraID != *c.administradoraID) {
 				t.Fatalf("administradoraId = %v, quer %v", got.AdministradoraID, c.administradoraID)
+			}
+			if (got.CondominioID == nil) != (c.condominioID == nil) || (got.CondominioID != nil && *got.CondominioID != *c.condominioID) {
+				t.Fatalf("condominioId = %v, quer %v", got.CondominioID, c.condominioID)
 			}
 			for _, p := range c.tem {
 				if !slices.Contains(got.Permissoes, p) {
