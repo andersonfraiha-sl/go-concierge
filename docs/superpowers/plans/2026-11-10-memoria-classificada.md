@@ -605,7 +605,8 @@ git commit -m "feat: put classified memory and greeting offer in the prompt"
   - `TestIncluirOfertaAceita` (tabela): `sim` sem pedido extraído → acrescenta o caso com a unidade; `não` → igual; `quero a reserva do salão` → igual; `sim` com o pedido do caso já extraído → igual (`TestOfertaAceitaNaoDuplicaPedidoQueOExtratorAbriu`); `sim` com unidade fora de `alvo.Unidades` → acrescenta sem `unidade` (`TestOfertaAceitaSemVinculoNaoPreencheUnidade`).
   - `TestPadroesDoTurno` (tabela): ocorrência nova → padrão de valor 1; recusa → valor ÷ 2 e suprimido; sem nada → lista vazia.
   - `TestTurnoConcluidoRegistraPadrao`: um turno que conclui um pedido → depois de `Processar`, `Memorias.Ler` traz o padrão com valor 1.
-  - `TestTurnoSimDepoisDaOfertaAbrePedido`: turno 1 `oi` com padrão forte (grava `sess.Oferta`); turno 2 `sim` → carteira com pedido do caso oferecido e a unidade.
+  - `TestTurnoSimDepoisDaOfertaAbrePedido`: turno 1 `oi` com padrão forte (grava `sess.Oferta`); turno 2 `sim` → carteira com pedido do caso oferecido e a unidade. O caso é o agendamento de mudança (escrita): o pedido termina o turno em `coletando` ou `aguardando_confirmacao`, e nenhum recurso de escrita foi chamado (o "sim" da oferta não vale como confirmação do fluxo; princípio III).
+  - `TestTurnoSimSemOfertaAnteriorNaoAbrePedido`: `sim` sem `sess.Oferta` → nenhum pedido acrescentado pela memória (a oferta não sobrevive a um turno).
   - `TestTurnoNaoDepoisDaOfertaRecusa`: turno 2 `não` → padrão com metade do valor e `SuprimidoAte = agora + 14 dias`; turno 3 `oi` não oferece.
   - `TestTurnoOutraCoisaDepoisDaOfertaNaoPenaliza`: turno 2 `quero reservar o salão` → valor do padrão igual.
 - [ ] **Step 2: Rodar e ver falhar**
@@ -613,7 +614,7 @@ git commit -m "feat: put classified memory and greeting offer in the prompt"
 Run: `go test -p 1 -run 'TestSinalDoTurno|TestIncluirOfertaAceita|TestOfertaAceita|TestPadroesDoTurno|TestTurnoConcluido|TestTurnoSim|TestTurnoNao|TestTurnoOutraCoisa' ./internal/atende/`
 Expected: FAIL de compilação.
 
-- [ ] **Step 3: Implementar** (`incluirOfertaAceita` e `padroesDoTurno` puras em `memoria_turno.go`; o resto é casca em `servico.go`).
+- [ ] **Step 3: Implementar** (`incluirOfertaAceita` e `padroesDoTurno` puras em `memoria_turno.go`; o resto é casca em `servico.go`). Antes, conferir no recurso `unidades.listar` (o `from` do parâmetro `unidade` em `okf/agentes/concierge/agentes/agendar-mudanca/caso.yaml`) que o valor do parâmetro é o mesmo id de `gruvi.Unidade.ID`. Se for outro id, o padrão com unidade nunca casa com o vínculo: falha segura (só perde a oferta), mas vai para a revisão da task com a sugestão de mapear pelo id do Gruvi.
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `go test -p 1 ./internal/atende/`
