@@ -11,7 +11,17 @@ const base: Eu = {
   dev: false,
 };
 
-const casos: { eu: Eu; esperado: '/condominios' | '/concierge' }[] = [
+const casos: { eu: Eu; esperado: string }[] = [
+  {
+    eu: {
+      ...base,
+      papel: 'gestor',
+      administradoraId: 'adm-exemplo',
+      condominioId: 'vila-verde',
+      permissoes: ['condominios.habilitar'],
+    },
+    esperado: '/condominios/vila-verde',
+  },
   {
     eu: {
       ...base,

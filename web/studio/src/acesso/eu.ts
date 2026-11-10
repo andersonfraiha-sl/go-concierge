@@ -25,6 +25,8 @@ export const EuSchema = z.object({
   papel: z.string(),
   permissoes: z.array(z.string()),
   administradoraId: z.string().nullable(),
+  // o único condomínio de quem só tem acesso por condomínio; ausente ou null nos demais
+  condominioId: z.string().nullable().optional(),
   dev: z.boolean(),
 });
 

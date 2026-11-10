@@ -34,7 +34,7 @@ describe('acesso na barra lateral e no topo', () => {
 
     renderComProvedores(<StudioLayout />);
 
-    expect(await screen.findByRole('link', { name: 'Skills' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Casos de uso' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Avançado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
   });
@@ -72,6 +72,17 @@ describe('acesso na barra lateral e no topo', () => {
     const { user } = renderComProvedores(<StudioLayout />);
 
     expect(await abrirVerComo(user)).toHaveTextContent('Administradora com Avançado');
+  });
+
+  it('offersSingleCondominioLogins', async () => {
+    responderCom({ 'GET /api/eu': () => json(base) });
+    const { user } = renderComProvedores(<StudioLayout />);
+
+    await user.click(await abrirVerComo(user));
+    const opcoes = within(screen.getByRole('listbox'));
+
+    expect(opcoes.getByText('Só um condomínio')).toBeInTheDocument();
+    expect(opcoes.getByText('Administradora de um condomínio')).toBeInTheDocument();
   });
 
   it('showsRetryInsteadOfNoAccessWhenEuFails', async () => {

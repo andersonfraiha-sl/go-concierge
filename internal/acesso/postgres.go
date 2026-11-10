@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go-concierge/internal/banco/ent"
+	"go-concierge/internal/banco/ent/atribuicao"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/usuario"
 	"go-concierge/internal/escopo"
@@ -130,6 +131,29 @@ func (p *Postgres) Conceder(ctx context.Context, c Concessao) error {
 	// o ent devolve sql.ErrNoRows quando o DoNothing não insere nada
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return falha.ComPilha(fmt.Errorf("conceder %s a %s em %s: %w", c.Permissao, c.PapelID, c.AdministradoraID, err))
+	}
+	return nil
+}
+
+// Atribuir garante o usuário e lhe dá o papel no escopo. Repetir não faz nada: o usuário e a
+// atribuição só são gravados se faltam. Em escopo de condomínio, AdministradoraID é obrigatório.
+func (p *Postgres) Atribuir(ctx context.Context, u Usuario, at Atribuicao) error {
+	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
+	defer cancel()
+	err := p.cli.Usuario.Create().SetID(u.ID).SetNome(u.Nome).
+		OnConflictColumns(usuario.FieldID).DoNothing().Exec(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return falha.ComPilha(fmt.Errorf("criar usuário %s: %w", u.ID, err))
+	}
+	criar := p.cli.Atribuicao.Create().SetUsuarioID(u.ID).SetPapelID(at.PapelID).
+		SetEscopoTipo(string(at.Escopo.Tipo)).SetEscopoID(at.Escopo.ID)
+	if at.AdministradoraID != "" {
+		criar.SetAdministradoraID(at.AdministradoraID)
+	}
+	err = criar.OnConflictColumns(atribuicao.FieldUsuarioID, atribuicao.FieldPapelID, atribuicao.FieldEscopoTipo, atribuicao.FieldEscopoID).
+		DoNothing().Exec(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return falha.ComPilha(fmt.Errorf("atribuir %s a %s: %w", at.PapelID, u.ID, err))
 	}
 	return nil
 }

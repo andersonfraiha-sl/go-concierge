@@ -46,14 +46,18 @@ type eu struct {
 	Papel            string   `json:"papel"`
 	Permissoes       []string `json:"permissoes"`
 	AdministradoraID *string  `json:"administradoraId"` // null = Superlógica
-	Dev              bool     `json:"dev"`
+	// CondominioID: o único condomínio de quem só tem acesso por condomínio; null nos demais.
+	CondominioID *string `json:"condominioId"`
+	Dev          bool    `json:"dev"`
 }
 
 var errAdministradoraAmbigua = errors.New("usuário vê mais de uma administradora")
 
-// montarEu descreve o usuário carregado. Só consulta as administradoras quando ele não é da
-// Superlógica.
-func montarEu(a acesso.Acesso, adms []admin.Administradora, dev bool) (eu, error) {
+// montarEu descreve o usuário carregado. Só consulta o mapeamento quando ele não é da
+// Superlógica. Quem só tem condomínio atribuído pertence à administradora dona dele: sem isso
+// o Studio o confundiria com a Superlógica (administradoraId null).
+func montarEu(a acesso.Acesso, m admin.Mapeamento, dev bool) (eu, error) {
+	adms := m.Administradoras
 	quem := eu{
 		ID: a.UsuarioID, Nome: a.Nome, Papel: acesso.PapelPrincipal(a), Dev: dev,
 		Permissoes: make([]string, 0),
@@ -70,6 +74,29 @@ func montarEu(a acesso.Acesso, adms []admin.Administradora, dev bool) (eu, error
 	}
 	if len(visiveis) == 1 {
 		quem.AdministradoraID = &visiveis[0].ID
+		return quem, nil
+	}
+	return comCondominios(quem, a, m)
+}
+
+// comCondominios preenche a administradora e o condomínio de quem não lê nenhuma
+// administradora inteira: a dona dos condomínios dele e, se for um só, o condomínio.
+func comCondominios(quem eu, a acesso.Acesso, m admin.Mapeamento) (eu, error) {
+	ids := condominiosVisiveis(a, m.Condominios)
+	donas := map[string]bool{}
+	for _, id := range ids {
+		if dona := a.AdministradoraDe[id]; dona != "" {
+			donas[dona] = true
+		}
+	}
+	if len(donas) > 1 {
+		return eu{}, errAdministradoraAmbigua
+	}
+	for dona := range donas {
+		quem.AdministradoraID = &dona
+	}
+	if len(ids) == 1 {
+		quem.CondominioID = &ids[0]
 	}
 	return quem, nil
 }
@@ -80,16 +107,16 @@ func (s *servidor) studioEu(w http.ResponseWriter, r *http.Request) {
 		responderNaoAutenticado(w)
 		return
 	}
-	var adms []admin.Administradora
+	var m admin.Mapeamento
 	if !acesso.Permitido(a, acesso.SkillsLer, acesso.Escopo{Tipo: acesso.TipoSuperlogica}) {
-		m, err := s.admin.Ler(r.Context())
+		lido, err := s.admin.Ler(r.Context())
 		if err != nil {
 			s.responderErroInterno(w, r, "ler administradoras do usuário", err)
 			return
 		}
-		adms = m.Administradoras
+		m = lido
 	}
-	quem, err := montarEu(a, adms, s.authMode == authModeDev)
+	quem, err := montarEu(a, m, s.authMode == authModeDev)
 	if errors.Is(err, errAdministradoraAmbigua) {
 		writeJSON(w, http.StatusConflict, erroAPI{Codigo: "ADMINISTRADORA_AMBIGUA", Mensagem: "Seu usuário está em mais de uma administradora. Peça para a Superlógica ajustar seu acesso."})
 		return

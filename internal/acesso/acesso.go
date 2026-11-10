@@ -68,6 +68,9 @@ type Atribuicao struct {
 	AdministradoraID string
 }
 
+// Usuario é quem entra no Studio; o acesso vem das atribuições.
+type Usuario struct{ ID, Nome string }
+
 type Concessao struct {
 	AdministradoraID, PapelID string
 	Permissao                 Permissao

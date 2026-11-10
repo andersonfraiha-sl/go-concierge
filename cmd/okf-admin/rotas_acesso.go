@@ -33,6 +33,7 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 	s.rotasGanchos(mux)
 	s.rotasStudio(mux)
 	s.rotasCopiloto(mux)
+	s.rotasIntegracao(mux)
 	if mcp != nil {
 		// por método: um "/mcp/" sem método conflitaria com o "GET /" da interface
 		protegido := s.protegida(acesso.StudioAvancado, alvoSuperlogica, mcp.ServeHTTP)
@@ -328,6 +329,32 @@ func visaoPara(r *http.Request, m admin.Mapeamento, recorte string) (admin.Mapea
 		return admin.Mapeamento{}, []admin.Administradora{}
 	}
 	return m.Visao(recorte), administradorasVisiveis(a, m.Administradoras)
+}
+
+// visaoDoEstado recorta o mapeamento do /api/admin/estado. Quem não lê nenhuma administradora
+// inteira mas tem condomínios atribuídos recebe só esses condomínios.
+func visaoDoEstado(r *http.Request, m admin.Mapeamento) (admin.Mapeamento, []admin.Administradora, error) {
+	a, _ := acessoDe(r.Context())
+	if soCondominios := condominiosVisiveis(a, m.Condominios); len(soCondominios) > 0 && len(administradorasVisiveis(a, m.Administradoras)) == 0 {
+		v := m.VisaoDosCondominios(soCondominios)
+		return v, v.Administradoras, nil
+	}
+	recorte, err := recorteDoUsuario(r, m.Administradoras)
+	if err != nil {
+		return admin.Mapeamento{}, nil, err
+	}
+	v, visiveis := visaoPara(r, m, recorte)
+	return v, visiveis, nil
+}
+
+func condominiosVisiveis(a acesso.Acesso, conds []admin.Condominio) []string {
+	var ids []string
+	for _, c := range conds {
+		if acesso.Permitido(a, acesso.SkillsLer, acesso.Escopo{Tipo: acesso.TipoCondominio, ID: c.ID}) {
+			ids = append(ids, c.ID)
+		}
+	}
+	return ids
 }
 
 func administradorasVisiveis(a acesso.Acesso, adms []admin.Administradora) []admin.Administradora {

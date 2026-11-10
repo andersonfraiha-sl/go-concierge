@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
+const CHAVE_SEM_CONDOMINIOS = 'studio.semCondominios';
 
 // Telas de lista: 34 px em cima, 55 nas laterais e embaixo, na largura toda da janela.
 const ESTILO_DO_CONTEUDO: SxProps<Theme> = { pt: 4, px: 5, pb: 5 };
@@ -20,31 +21,42 @@ export function StudioLayout(): ReactNode {
   );
 }
 
-/** Menu à esquerda com a preferência de recolhido lembrada entre telas e sessões. */
+/** Menu à esquerda com as preferências lembradas entre telas e sessões. */
 export function MenuLateral(): ReactNode {
-  const [recolhido, setRecolhido] = useState(lerMenuRecolhido);
-
-  const alternarMenu = () => {
-    const proximo = !recolhido;
-    setRecolhido(proximo);
-    gravarMenuRecolhido(proximo);
-  };
-
-  return <Sidebar recolhido={recolhido} aoAlternar={alternarMenu} />;
+  const recolhido = usePreferencia(CHAVE_MENU_RECOLHIDO);
+  const semCondominios = usePreferencia(CHAVE_SEM_CONDOMINIOS);
+  return (
+    <Sidebar
+      recolhido={recolhido.ligada}
+      aoAlternar={recolhido.alternar}
+      semCondominios={semCondominios.ligada}
+      aoAlternarCondominios={semCondominios.alternar}
+    />
+  );
 }
 
-function lerMenuRecolhido(): boolean {
+function usePreferencia(chave: string): { ligada: boolean; alternar: () => void } {
+  const [ligada, setLigada] = useState(() => lerPreferencia(chave));
+  const alternar = () => {
+    const proxima = !ligada;
+    setLigada(proxima);
+    gravarPreferencia(chave, proxima);
+  };
+  return { ligada, alternar };
+}
+
+function lerPreferencia(chave: string): boolean {
   try {
-    return localStorage.getItem(CHAVE_MENU_RECOLHIDO) === 'true';
+    return localStorage.getItem(chave) === 'true';
   } catch (cause) {
     console.warn('ler preferência do menu:', cause);
     return false;
   }
 }
 
-function gravarMenuRecolhido(recolhido: boolean): void {
+function gravarPreferencia(chave: string, ligada: boolean): void {
   try {
-    localStorage.setItem(CHAVE_MENU_RECOLHIDO, String(recolhido));
+    localStorage.setItem(chave, String(ligada));
   } catch (cause) {
     console.warn('gravar preferência do menu:', cause);
   }

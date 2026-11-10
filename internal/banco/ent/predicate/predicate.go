@@ -12,6 +12,9 @@ type Administradora func(*sql.Selector)
 // Atribuicao is the predicate function for atribuicao builders.
 type Atribuicao func(*sql.Selector)
 
+// CatalogoArquivo is the predicate function for catalogoarquivo builders.
+type CatalogoArquivo func(*sql.Selector)
+
 // Concessao is the predicate function for concessao builders.
 type Concessao func(*sql.Selector)
 

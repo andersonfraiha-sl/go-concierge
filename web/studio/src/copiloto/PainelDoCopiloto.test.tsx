@@ -284,7 +284,7 @@ describe('PainelDoCopiloto', () => {
     expect(
       await screen.findByText('O Copiloto teve um problema. Feche e abra de novo.'),
     ).toBeInTheDocument();
-    expect(await screen.findByRole('link', { name: 'Skills' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Casos de uso' })).toBeInTheDocument();
 
     quebra.ativa = false;
     const botao = screen.getByRole('button', { name: 'Copiloto' });

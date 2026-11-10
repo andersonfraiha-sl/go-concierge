@@ -171,6 +171,7 @@ Caches e locks por contato são em processo. Com duas réplicas nada corrompe o 
 - trocas simultâneas do mesmo telefone em réplicas diferentes podem perder um fato ou um pedido;
 - o cache de sessões (`Sessoes`) e os de memória e pedidos não revalidam contra o banco;
 - o cache do mapeamento só vê escrita do Admin desta réplica; `importar-json` com o servidor no ar só aparece depois de reiniciar;
+- o catálogo (skills, regras, instantâneo) mora no Postgres, mas cada réplica lê a sua cópia em disco, refeita no boot: uma edição só chega às outras réplicas quando elas reiniciam;
 - a sessão e as mudanças menores da carteira (valores, eventos) vão depois da resposta: se o processo cair nesse intervalo, elas se perdem.
 
 Pra escalar: invalidação entre réplicas (LISTEN/NOTIFY ou versão com prazo curto) e locks por contato no banco.
@@ -212,7 +213,13 @@ docker compose up -d --build
 
 # fora de dev o boot não semeia nada: leve os JSON da versão anterior antes do primeiro boot
 ./bin/okf-admin.exe importar-json -dir okf/var -env .env
+
+# o catálogo (agentes/, nexus/) mora no Postgres; -root é a semente do primeiro boot.
+# Para levar ao banco uma skill que chegou como arquivo (o banco passa a ser igual à pasta):
+./bin/okf-admin.exe importar-catalogo -dir okf -env .env
 ```
+
+O catálogo vive na tabela `catalogo_arquivos`. No boot, tabela vazia recebe a pasta de `-root`; com dado, o banco vale (e um WARN avisa se a pasta difere). O disco vira cópia de trabalho em `okf/var/catalogo`, refeita do banco a cada boot, e toda edição do Studio grava nos dois. `okf/` do repositório é só a semente.
 
 Em dev, um banco sem mapeamento ganha uma administradora e um condomínio de exemplo (ligado ao `DEFAULT_ACCOUNT_ID`). Sem `DATABASE_URL` o boot falha dizendo como subir o Postgres. `/studio/` sem compilar responde 503 `STUDIO_NAO_COMPILADO`.
 
@@ -236,6 +243,7 @@ find okf -type d -exec setfacl -m d:u:10001:rwx {} +
 | Modelo | `LLM_MODE` (`gemini` \| `openrouter` \| `luna` \| `mock`), `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `LLM_LUNA_OPENAI_URL`, `LLM_LUNA_GATEWAY_TOKEN`, `LLM_LUNA_MODEL`, `MODEL_EXTRACT`, `MODEL_PLANNER`, `MODEL_COMPOSE`, `MODEL_CHEAP` |
 | Gruvi | `GRUVI_BFF_URL`, `GRUVI_COMPANY_ID` |
 | Ganchos | `GANCHOS_SEGREDO_EXPORTACAO` (HMAC da exportação; fora de dev é obrigatório) |
+| Integração | `INTEGRACAO_CHAVE` (chave de serviço das rotas `/integracao/v1`; vazia desliga a rota) |
 | ATENDE | `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`, `ATENDE_API_SECRET`, `ATENDE_TENANT_ID`, `ATENDE_TENANT_TELEFONE`, `ATENDE_AGENTE`; legado: `ATENDE_WEBHOOK_TOKEN` (só emulador), `ATENDE_REPLY_URL`, `ATENDE_REPLY_TOKEN` |
 | Recursos | `NEXUS_BASE_URL`, `NEXUS_TOKEN`, `DEFAULT_ACCOUNT_ID`, `MCP_URL`, `MCP_AUTH` (`b2c` \| `file` \| `bearer` \| `keycloak` \| `none`), `MCP_B2C_MOBILE`, `MCP_TOKEN_FILE` |
 | Turno | `PEDIDOS=off` desliga o motor de pedidos, `ORQUESTRACAO_MODO` força `router` \| `planning` \| `react`, `DESLIGAMENTO_PRAZO` (padrão 30s) |
@@ -272,7 +280,7 @@ Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome no
 
 | Pasta | O que tem |
 |---|---|
-| `cmd/okf-admin` | servidor HTTP: webhook, `/api`, Studio embutido, telas antigas, subcomandos `importar-json` e `saude` |
+| `cmd/okf-admin` | servidor HTTP: webhook, `/api`, Studio embutido, telas antigas, subcomandos `importar-json`, `importar-catalogo` e `saude` |
 | `cmd/okf-run` | roda um agente pela linha de comando (harness Eino) |
 | `internal/atende` | turno, sessão, envio ao ATENDE, emulador |
 | `internal/pedidos` | motor do caso, carteira por contato, cache |
@@ -282,13 +290,14 @@ Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome no
 | `internal/memoria` | fatos por contato, cache |
 | `internal/admin` | mapeamento de administradoras e condomínios, cache |
 | `internal/okf` | pasta de agente: carga, herança, fronteira, projeção, conhecimento OKF |
+| `internal/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/, diferença, cópia de trabalho |
 | `internal/banco` | migrations, sqlc, ent, `Lote` (vários `:batch*` numa ida) |
 | `internal/falha` | pilha de erro onde nasce |
 | `internal/gruvi`, `nexus`, `mcp`, `responses` | clientes externos |
 | `internal/copiloto` | quais propostas a pessoa pode aplicar na tela, sem side effect |
 | `web/studio` | Studio em React + MUI, compilado em `dist` e embutido no binário |
 | `web/okf` | Console e telas antigas, HTML e JS sem build |
-| `okf/` | catálogo de exemplo: agentes, instantâneo do Nexus, `var/` |
+| `okf/` | semente do catálogo: agentes, instantâneo do Nexus; `var/catalogo` é a cópia de trabalho |
 | `mcp/` | servidor MCP do catálogo Gruvi, Node (legado) |
 | `docs/superpowers` | specs, planos, medições, auditorias |
 
@@ -417,6 +426,7 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 | Grupo | Rotas |
 |---|---|
 | Público | `POST /webhook/atende` (HMAC), `GET /healthz`, `GET /readyz` |
+| Serviço | `GET /integracao/v1/pacote`, `PUT /integracao/v1/mapeamento`, `PUT /integracao/v1/arquivos`, `GET /integracao/v1/memorias`, `GET\|DELETE /integracao/v1/memoria`, `GET /integracao/v1/pedidos` (chave de serviço, sem usuário) |
 | Studio | `GET /studio/`, `GET /api/eu`, `GET\|POST /api/skills`, `GET\|DELETE /api/skills/{nome}`, `PUT /api/skills/{nome}/textos`, `GET\|PUT /api/skills/{nome}/fluxo`, `POST /api/skills/{nome}/duplicar` |
 | Copiloto | `GET /api/copiloto/estado`, `POST /api/copiloto` |
 | Agentes OKF | `GET\|POST /api/agentes`, `GET\|DELETE /api/agente`, `PUT /api/agente/config`, `POST /api/agente/recursos`, `POST /api/agentes/importar`, `GET /api/agentes/exportar`, `POST /api/agentes/mover` (410), `GET\|PUT\|DELETE /api/arquivo`, `GET /api/arquivo/modelo`, `GET /api/projecao`, `GET /api/anatomia` |
@@ -468,5 +478,7 @@ cd mcp && npm ci && npm run start:mcp:catalog-agent        # fora do Docker, pra
 | Studio | [spec](docs/superpowers/specs/2026-11-03-studio-design.md) | [plano](docs/superpowers/plans/2026-11-03-studio.md), [fase 2](docs/superpowers/plans/2026-11-03-studio-fase2.md), [na Fundação](docs/superpowers/plans/2026-11-04-studio-na-fundacao.md) | [smoke por papel](docs/superpowers/medicoes/2026-11-04-smoke-studio-na-fundacao.md) |
 | Skills base | [spec](docs/superpowers/specs/2026-11-04-skills-base-design.md) | [plano](docs/superpowers/plans/2026-11-04-skills-base.md) | |
 | Memória classificada | [spec](docs/superpowers/specs/2026-11-03-memoria-classificada-design.md) | | |
+
+Integração com o app concierge do Nexus: [contrato do pacote](docs/integracao/nexus.md).
 
 Princípios do projeto: [constituição](docs/superpowers/constitution.md). Definições de partida: [DEFINICOES.md](DEFINICOES.md). Regras de código do front: [web/studio/README.md](web/studio/README.md).

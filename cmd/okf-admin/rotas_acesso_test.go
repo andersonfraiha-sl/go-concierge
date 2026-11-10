@@ -75,6 +75,8 @@ func usuariosTeste() map[string][]acesso.Atribuicao {
 		"construtor-superlogica": {{PapelID: "construtor_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
 		"gestor-exemplo":         naAdministradora("gestor_administradora", "adm-exemplo"),
 		"gestor-avancado":        naAdministradora("gestor_administradora", "adm-avancado"),
+		gestorDeUmCondominioDev:  naAdministradora("gestor_administradora", administradoraUnicaDev),
+		gestorDeCondominioDev:    {{PapelID: "gestor_administradora", Escopo: acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "cond-a"}, AdministradoraID: "adm-a"}},
 	}
 }
 
@@ -407,6 +409,27 @@ func TestEstadoMostraSoAsAdministradorasVisiveis(t *testing.T) {
 	}
 	if len(corpo.Administradoras) != 2 || len(corpo.Mapeamento.Condominios) != 2 {
 		t.Fatalf("admin da Superlógica vê tudo: %+v", corpo)
+	}
+}
+
+func TestEstadoDeQuemSoTemUmCondominio(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	var corpo struct {
+		Mapeamento      admin.Mapeamento       `json:"mapeamento"`
+		Administradoras []admin.Administradora `json:"administradoras"`
+	}
+	w := amb.pedir(t, gestorDeCondominioDev, "GET", "/api/admin/estado", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "cond-a" {
+		t.Fatalf("quer só cond-a, veio %+v", corpo.Mapeamento.Condominios)
+	}
+	if len(corpo.Administradoras) != 1 || corpo.Administradoras[0].ID != "adm-a" {
+		t.Fatalf("quer só a dona adm-a, veio %+v", corpo.Administradoras)
 	}
 }
 

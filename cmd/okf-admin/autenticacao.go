@@ -27,6 +27,7 @@ const (
 // AUTH_MODE=dev ninguém entra com eles, venha de que autenticador vier. Só lido, nunca escrito.
 var usuariosSemeadosDev = map[string]bool{
 	usuarioSemeadoDev: true, "construtor-superlogica": true, "gestor-exemplo": true, "gestor-avancado": true,
+	gestorDeCondominioDev: true, gestorDeUmCondominioDev: true,
 }
 
 func semeadoDev(id string) bool { return usuariosSemeadosDev[id] }

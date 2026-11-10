@@ -8,6 +8,7 @@ const TRACOS = {
   skills: <path d="M4 7h16M4 12h16M4 17h10" />,
   ferramentas: <path d="M14 7l3-3 3 3-3 3M17 4v9a4 4 0 0 1-4 4H4" />,
   condominios: <path d="M4 21V5l8-2v18M12 9l8 2v10M8 9h1M8 13h1M8 17h1M16 14h1M16 18h1" />,
+  administradoras: <path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6M9 12h.01M15 12h.01" />,
   avancado: (
     <>
       <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />

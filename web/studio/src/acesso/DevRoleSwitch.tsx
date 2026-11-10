@@ -7,6 +7,8 @@ const USUARIOS_DEV = [
   { valor: 'construtor-superlogica', rotulo: 'Superlógica (construtor)' },
   { valor: 'gestor-exemplo', rotulo: 'Administradora (gestor)' },
   { valor: 'gestor-avancado', rotulo: 'Administradora com Avançado' },
+  { valor: 'gestor-um-condominio', rotulo: 'Administradora de um condomínio' },
+  { valor: 'gestor-condominio', rotulo: 'Só um condomínio' },
 ] as const;
 
 type UsuarioDev = (typeof USUARIOS_DEV)[number]['valor'];

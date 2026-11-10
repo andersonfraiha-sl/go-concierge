@@ -12,6 +12,8 @@ type Config struct {
 	AtendeSecret string // ATENDE_API_SECRET: segredo do HMAC do webhook real
 	// GANCHOS_SEGREDO_EXPORTACAO: segredo do HMAC que assina a exportação de regras
 	SegredoExportacao string
+	// INTEGRACAO_CHAVE: chave de serviço da rota de integração com o Nexus; vazia desliga a rota
+	IntegracaoChave string
 }
 
 const authModeDev = "dev"
@@ -45,6 +47,9 @@ func validarConfig(c Config) error {
 	}
 	if !ehDesenvolvimento(c.Ambiente) && c.SegredoExportacao == "" {
 		return errSegredoExportacao
+	}
+	if c.IntegracaoChave != "" && len(c.IntegracaoChave) < minimoDaChave {
+		return errChaveDeIntegracaoCurta
 	}
 	return nil
 }

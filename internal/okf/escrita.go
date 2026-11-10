@@ -57,8 +57,8 @@ type NovoAgente struct {
 	Recursos  []string `json:"recursos"`  // nomes do Nexus declarados
 }
 
-// CriarAgente monta a pasta com os arquivos-modelo e registra a rota no pai.
-func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
+// criarAgente monta a pasta com os arquivos-modelo e registra a rota no pai.
+func (c *Catalogo) criarAgente(n NovoAgente) (string, []string, error) {
 	if !SlugOK(n.Nome) {
 		return "", nil, fmt.Errorf("nome inválido: %q (letras minúsculas, dígitos e hífen)", n.Nome)
 	}
@@ -193,8 +193,8 @@ func (c *Catalogo) LerArquivo(agenteRel, rel string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
 }
 
-// SalvarArquivo grava (cria ou substitui). agent.yaml e caso.yaml precisam ser válidos.
-func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
+// salvarArquivo grava (cria ou substitui). agent.yaml e caso.yaml precisam ser válidos.
+func (c *Catalogo) salvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return err
@@ -228,8 +228,8 @@ func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	return escreverArquivoAtomico(p, conteudo, 0o644)
 }
 
-// ExcluirArquivo remove um arquivo (nunca o agent.yaml).
-func (c *Catalogo) ExcluirArquivo(agenteRel, rel string) error {
+// excluirArquivo remove um arquivo (nunca o agent.yaml).
+func (c *Catalogo) excluirArquivo(agenteRel, rel string) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return err
@@ -251,8 +251,8 @@ func (c *Catalogo) ExcluirArquivo(agenteRel, rel string) error {
 	return nil
 }
 
-// SalvarConfig atualiza os campos principais do agent.yaml preservando o resto.
-func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
+// salvarConfig atualiza os campos principais do agent.yaml preservando o resto.
+func (c *Catalogo) salvarConfig(agenteRel string, campos map[string]any) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return err
@@ -296,8 +296,8 @@ func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
 	return gravarConfig(dir, cfg)
 }
 
-// VincularRecurso liga ou desliga um recurso do Nexus em agent.yaml → recursos.
-func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string, error) {
+// vincularRecurso liga ou desliga um recurso do Nexus em agent.yaml → recursos.
+func (c *Catalogo) vincularRecurso(agenteRel, nome string, ligar bool) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err
@@ -395,8 +395,8 @@ func copiarPasta(origem, destino string) error {
 	})
 }
 
-// ImportarZip instala (ou substitui) um agente a partir do zip da pasta.
-func (c *Catalogo) ImportarZip(agenteRel string, dados []byte) ([]string, error) {
+// importarZip instala (ou substitui) um agente a partir do zip da pasta.
+func (c *Catalogo) importarZip(agenteRel string, dados []byte) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err

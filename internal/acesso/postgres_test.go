@@ -263,3 +263,40 @@ func TestCarregarTrazNome(t *testing.T) {
 		t.Fatalf("Nome = %q, quer Ana", a.Nome)
 	}
 }
+
+func TestAtribuirRestringeAoCondominioEIdempotente(t *testing.T) {
+	b := bancotest.Novo(t)
+	semear(t, b.Ent)
+	pg := acesso.NovoPostgres(b.Ent)
+	u := acesso.Usuario{ID: "sindico", Nome: "Síndico do C1"}
+	at := acesso.Atribuicao{PapelID: "gestor_administradora", Escopo: acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "c1"}, AdministradoraID: "A"}
+	for range 2 {
+		if err := pg.Atribuir(t.Context(), u, at); err != nil {
+			t.Fatalf("Atribuir: %v", err)
+		}
+	}
+
+	a, err := pg.Carregar(t.Context(), "sindico", escopo.Implantacao{})
+	if err != nil {
+		t.Fatalf("Carregar: %v", err)
+	}
+	if len(a.Atribuicoes) != 1 {
+		t.Fatalf("atribuições %+v, quer 1", a.Atribuicoes)
+	}
+	tests := []struct {
+		name string
+		alvo acesso.Escopo
+		want bool
+	}{
+		{"habilita o proprio condominio", acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "c1"}, true},
+		{"negado em condominio de outra administradora", acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "c9"}, false},
+		{"negado na administradora inteira", acesso.Escopo{Tipo: acesso.TipoAdministradora, ID: "A"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := acesso.Permitido(a, acesso.CondominiosHabilitar, tt.alvo); got != tt.want {
+				t.Errorf("Permitido(%v) = %v, quer %v", tt.alvo, got, tt.want)
+			}
+		})
+	}
+}

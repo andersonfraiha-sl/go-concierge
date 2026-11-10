@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/catalogoarquivo"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
@@ -92,6 +93,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			administradora.Table:     administradora.ValidColumn,
 			atribuicao.Table:         atribuicao.ValidColumn,
+			catalogoarquivo.Table:    catalogoarquivo.ValidColumn,
 			concessao.Table:          concessao.ValidColumn,
 			condominio.Table:         condominio.ValidColumn,
 			ganchosauditoria.Table:   ganchosauditoria.ValidColumn,

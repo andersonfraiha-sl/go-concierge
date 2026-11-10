@@ -28,6 +28,9 @@ const CondominiosPage = lazy(() =>
 const CondominioPage = lazy(() =>
   import('@/condominios/CondominioPage').then((m) => ({ default: m.CondominioPage })),
 );
+const AdministradorasPage = lazy(() =>
+  import('@/condominios/AdministradorasPage').then((m) => ({ default: m.AdministradorasPage })),
+);
 const GuardaAvancado = lazy(() =>
   import('@/acesso/GuardaAvancado').then((m) => ({ default: m.GuardaAvancado })),
 );
@@ -40,6 +43,7 @@ const ROTAS_DE_LISTA: RouteObject[] = [
   { path: 'concierge', element: tela(<ConciergePage />) },
   { path: 'ferramentas', element: tela(<FerramentasPage />) },
   { path: 'condominios', element: tela(<CondominiosPage />) },
+  { path: 'administradoras', element: tela(<AdministradorasPage />) },
   { path: 'avancado', element: tela(<GuardaAvancado />) },
 ];
 

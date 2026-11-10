@@ -30,7 +30,8 @@
   // o seletor vem do mapeamento (GET /api/admin/estado); o condomínio vai ao emulador e
   // a administradora dele às rotas de memória e pedidos
   const condominioEscolhido = () => $('#formContato').condominio.value;
-  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || '';
+  // sem condomínio no seletor, vale a administradora que o turno resolveu para a conversa aberta
+  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || estado.sessao?.administradora_id || '';
   const comAdministradora = (caminho) => caminho + (caminho.includes('?') ? '&' : '?') + 'administradora=' + encodeURIComponent(administradora());
   async function carregarCondominios() {
     try {
@@ -357,7 +358,11 @@
     try {
       const r = await api(comAdministradora('/api/memoria?phone=' + encodeURIComponent(phone)));
       desenharMemoria(r.memoria);
-    } catch (err) { /* silencioso */ }
+    } catch (err) {
+      estado.chaveMemoria = '';
+      $('#memoriaTabela').innerHTML = `<div class="empty-state" style="padding:14px"><i data-lucide="circle-alert"></i>memória indisponível: ${esc(err.message)}</div>`;
+      icons();
+    }
   }
   function desenharMemoria(m) {
     const chave = JSON.stringify(m);
@@ -413,6 +418,8 @@
         estado.chaveId = estado.chaveRota = estado.chaveSaidas = '';
         desenharSessao(r2.sessao, r2.saidas, true);
         carregarSessoes();
+        estado.chaveMemoria = estado.chavePedidos = '';
+        carregarMemoria(); carregarPedidos();
       }));
       icons();
     } catch (err) { /* silencioso */ }

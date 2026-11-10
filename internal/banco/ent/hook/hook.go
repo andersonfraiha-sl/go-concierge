@@ -32,6 +32,18 @@ func (f AtribuicaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AtribuicaoMutation", m)
 }
 
+// The CatalogoArquivoFunc type is an adapter to allow the use of ordinary
+// function as CatalogoArquivo mutator.
+type CatalogoArquivoFunc func(context.Context, *ent.CatalogoArquivoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CatalogoArquivoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CatalogoArquivoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CatalogoArquivoMutation", m)
+}
+
 // The ConcessaoFunc type is an adapter to allow the use of ordinary
 // function as Concessao mutator.
 type ConcessaoFunc func(context.Context, *ent.ConcessaoMutation) (ent.Value, error)

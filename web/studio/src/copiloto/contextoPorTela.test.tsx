@@ -234,7 +234,7 @@ describe('contexto do Copiloto por tela', () => {
         'GET /api/skills': () => json({ assistente: 'concierge', skills: [] }),
       },
     });
-    await screen.findByRole('heading', { name: 'Ferramentas' });
+    await screen.findByRole('heading', { name: 'Recursos' });
 
     expect(await contextoEnviado(user, pedidos)).toEqual({ tela: 'ferramentas' });
   });
