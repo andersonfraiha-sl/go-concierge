@@ -475,6 +475,7 @@ func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
 	}{
 		{nome: "modo dev aceita", authMode: authModeDev, quer: http.StatusOK},
 		{nome: "fora de dev recusa", authMode: "", quer: http.StatusUnauthorized},
+		{nome: "modo proxy recusa", authMode: authModeProxy, quer: http.StatusUnauthorized},
 	}
 	for id := range usuariosSemeadosDev {
 		for _, m := range modos {
