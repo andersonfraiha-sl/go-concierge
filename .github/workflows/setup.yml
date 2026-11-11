@@ -1,0 +1,326 @@
+name: Setup Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        # staging e prod ficam para depois: ver docs/deploy/idp-nexus.md
+        options:
+          - dev
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  PROJECT_NAME: go-concierge
+  GITOPS_REPO: ${{ vars.GITOPS_REPO || 'gitops-apps' }}
+  GITOPS_OWNER: ${{ vars.GITOPS_OWNER || github.repository_owner }}
+
+# A guarda de dono existe porque o repositório ainda mora em outra conta: sem ela este
+# workflow falharia no fork. Remover quando o repositório migrar para a org idp-nexusapps.
+jobs:
+  setup:
+    name: Create ECR, Build & Push Image
+    if: github.repository_owner == 'idp-nexusapps'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Validate required configuration
+        env:
+          CHECK_AWS_ROLE: ${{ vars.AWS_ROLE_ARN }}
+          CHECK_GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          FAILED=false
+          [ -z "$CHECK_AWS_ROLE" ]     && { echo "::error::Missing var: AWS_ROLE_ARN"; FAILED=true; }
+          [ -z "$CHECK_GITOPS_TOKEN" ] && { echo "::error::Missing secret: GITOPS_TOKEN"; FAILED=true; }
+          if [ "$FAILED" = "true" ]; then
+            echo "Configure missing items in: Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          echo "All required configuration is present"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create ECR repository (idempotent)
+        run: |
+          aws ecr create-repository \
+            --repository-name ${{ env.PROJECT_NAME }} \
+            --image-scanning-configuration scanOnPush=true \
+            2>/dev/null || echo "Repository already exists"
+
+      - name: Configure ECR lifecycle policy
+        run: |
+          aws ecr put-lifecycle-policy \
+            --repository-name ${{ env.PROJECT_NAME }} \
+            --lifecycle-policy-text '{
+              "rules": [
+                {
+                  "rulePriority": 1,
+                  "description": "Expire untagged images after 1 day",
+                  "selection": {
+                    "tagStatus": "untagged",
+                    "countType": "sinceImagePushed",
+                    "countUnit": "days",
+                    "countNumber": 1
+                  },
+                  "action": { "type": "expire" }
+                },
+                {
+                  "rulePriority": 2,
+                  "description": "Keep last 20 images for rollback",
+                  "selection": {
+                    "tagStatus": "any",
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 20
+                  },
+                  "action": { "type": "expire" }
+                }
+              ]
+            }'
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get ECR Repository URL
+        id: ecr
+        run: |
+          ECR_URL=$(aws ecr describe-repositories \
+            --repository-names ${{ env.PROJECT_NAME }} \
+            --query 'repositories[0].repositoryUri' --output text)
+          echo "repository_url=$ECR_URL" >> $GITHUB_OUTPUT
+
+      - name: Build, tag, and push image (v1.0.0)
+        env:
+          ECR_REPOSITORY: ${{ steps.ecr.outputs.repository_url }}
+        run: |
+          docker build -t $ECR_REPOSITORY:1.0.0 .
+          docker push $ECR_REPOSITORY:1.0.0
+
+      - name: Push base manifests to GitOps repo
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          API="https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}"
+          AUTH="Authorization: Bearer $GITOPS_TOKEN"
+          ACCEPT="Accept: application/vnd.github+json"
+          BASE_PATH="apps/${{ env.PROJECT_NAME }}/base"
+
+          for FILE in .github/k8s/base/*; do
+            FILENAME=$(basename "$FILE")
+            GITOPS_FILE_PATH="$BASE_PATH/$FILENAME"
+
+            EXISTING=$(curl -s -H "$AUTH" -H "$ACCEPT" "$API/contents/$GITOPS_FILE_PATH" || echo "{}")
+            SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+
+            ENCODED=$(base64 -w 0 < "$FILE")
+            BODY="{\"message\":\"chore: sync base manifest $FILENAME for ${{ env.PROJECT_NAME }}\",\"content\":\"$ENCODED\",\"branch\":\"main\""
+            if [ -n "$SHA" ]; then
+              BODY="$BODY,\"sha\":\"$SHA\""
+            fi
+            BODY="$BODY}"
+
+            curl -s --fail-with-body -X PUT \
+              -H "$AUTH" -H "$ACCEPT" \
+              "$API/contents/$GITOPS_FILE_PATH" \
+              -d "$BODY"
+            echo "Synced: $GITOPS_FILE_PATH"
+          done
+
+      - name: Update image tag in GitOps repo
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          ECR_REPOSITORY: ${{ steps.ecr.outputs.repository_url }}
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          OVERLAY_PATH="apps/${{ env.PROJECT_NAME }}/overlays/$ENVIRONMENT/kustomization.yaml"
+
+          if [ "$ENVIRONMENT" = "dev" ]; then
+            OVERLAY_NS="go-concierge"
+          else
+            OVERLAY_NS="go-concierge-$ENVIRONMENT"
+          fi
+
+          EXISTING=$(curl -s -H "Authorization: Bearer $GITOPS_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}/contents/$OVERLAY_PATH" || echo "{}")
+          SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+
+          CONTENT=$(cat << KUSTOMIZE
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+
+          namespace: $OVERLAY_NS
+
+          resources:
+            - ../../base
+
+          images:
+            - name: PLACEHOLDER_IMAGE
+              newName: $ECR_REPOSITORY
+              newTag: "1.0.0"
+          KUSTOMIZE
+          )
+
+          ENCODED=$(echo "$CONTENT" | base64 -w 0)
+          BODY="{\"message\":\"deploy: go-concierge $ENVIRONMENT -> 1.0.0\",\"content\":\"$ENCODED\",\"branch\":\"main\""
+          if [ -n "$SHA" ]; then
+            BODY="$BODY,\"sha\":\"$SHA\""
+          fi
+          BODY="$BODY}"
+
+          curl -s --fail-with-body -X PUT \
+            -H "Authorization: Bearer $GITOPS_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}/contents/$OVERLAY_PATH" \
+            -d "$BODY"
+
+      - name: Ensure ArgoCD AppProject for namespace
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          API="https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}"
+          AUTH="Authorization: Bearer $GITOPS_TOKEN"
+          ACCEPT="Accept: application/vnd.github+json"
+          PROJECT_PATH="argocd/project-go-concierge.yaml"
+
+          EXISTING=$(curl -s -H "$AUTH" -H "$ACCEPT" "$API/contents/$PROJECT_PATH" || echo "{}")
+          SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+
+          if [ -n "$SHA" ]; then
+            echo "AppProject already exists: go-concierge (skipping)"
+            exit 0
+          fi
+
+          PROJECT_CONTENT=$(cat <<APPPROJECT
+          apiVersion: argoproj.io/v1alpha1
+          kind: AppProject
+          metadata:
+            name: go-concierge
+            namespace: argocd
+            annotations:
+              argocd.argoproj.io/sync-wave: "-1"
+          spec:
+            description: Namespace go-concierge (managed by IDP control-plane)
+            sourceRepos:
+              - https://github.com/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}.git
+            destinations:
+              - server: https://kubernetes.default.svc
+                namespace: go-concierge
+              - server: https://kubernetes.default.svc
+                namespace: go-concierge-*
+            clusterResourceWhitelist:
+              - group: ""
+                kind: Namespace
+            namespaceResourceWhitelist:
+              - group: "*"
+                kind: "*"
+          APPPROJECT
+          )
+
+          ENCODED=$(echo "$PROJECT_CONTENT" | base64 -w 0)
+          BODY="{\"message\":\"feat: add AppProject go-concierge\",\"content\":\"$ENCODED\",\"branch\":\"main\"}"
+
+          curl -s --fail-with-body -X PUT \
+            -H "$AUTH" -H "$ACCEPT" \
+            "$API/contents/$PROJECT_PATH" \
+            -d "$BODY"
+
+          echo "AppProject created: go-concierge"
+
+      - name: Create ArgoCD Application for environment
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          if [ "$ENVIRONMENT" = "dev" ]; then
+            APP_NS="go-concierge"
+          else
+            APP_NS="go-concierge-$ENVIRONMENT"
+          fi
+
+          ARGO_PATH="argocd/go-concierge-$ENVIRONMENT.yaml"
+
+          EXISTING=$(curl -s -H "Authorization: Bearer $GITOPS_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}/contents/$ARGO_PATH" || echo "{}")
+          SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+
+          ARGO_CONTENT=$(cat << ARGOAPP
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: go-concierge-$ENVIRONMENT
+            namespace: argocd
+            finalizers:
+              - resources-finalizer.argocd.argoproj.io
+          spec:
+            project: go-concierge
+            source:
+              repoURL: https://github.com/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}.git
+              targetRevision: main
+              path: apps/go-concierge/overlays/$ENVIRONMENT
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: $APP_NS
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true
+          ARGOAPP
+          )
+
+          ENCODED=$(echo "$ARGO_CONTENT" | base64 -w 0)
+          BODY="{\"message\":\"feat: add go-concierge $ENVIRONMENT ArgoCD application\",\"content\":\"$ENCODED\",\"branch\":\"main\""
+          if [ -n "$SHA" ]; then
+            BODY="$BODY,\"sha\":\"$SHA\""
+          fi
+          BODY="$BODY}"
+
+          curl -s --fail-with-body -X PUT \
+            -H "Authorization: Bearer $GITOPS_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}/contents/$ARGO_PATH" \
+            -d "$BODY"
+
+          echo "ArgoCD Application created/updated: go-concierge-$ENVIRONMENT (namespace: $APP_NS)"
+
+      - name: Tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags --force
+          if git rev-parse "v1.0.0" >/dev/null 2>&1; then
+            echo "Tag v1.0.0 already exists, skipping"
+          else
+            git tag "v1.0.0"
+            git push origin "v1.0.0"
+          fi
+
+      - name: Summary
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "## Setup Successful :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v1.0.0" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** $ENVIRONMENT" >> $GITHUB_STEP_SUMMARY
+          echo "**GitOps Repo:** ${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}" >> $GITHUB_STEP_SUMMARY

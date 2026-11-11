@@ -1,0 +1,111 @@
+name: Destroy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to destroy (ignored if branch is set)'
+        required: true
+        default: 'dev'
+        type: choice
+        # staging e prod ficam para depois: ver docs/deploy/idp-nexus.md
+        options:
+          - dev
+      branch:
+        description: 'Preview branch to destroy (e.g. feat-login). Leave empty to destroy environment.'
+        required: false
+        default: ''
+
+env:
+  PROJECT_NAME: go-concierge
+  GITOPS_REPO: ${{ vars.GITOPS_REPO || 'gitops-apps' }}
+  GITOPS_OWNER: ${{ vars.GITOPS_OWNER || github.repository_owner }}
+
+# A guarda de dono existe porque o repositório ainda mora em outra conta: sem ela este
+# workflow falharia no fork. Remover quando o repositório migrar para a org idp-nexusapps.
+jobs:
+  validate:
+    name: Validate
+    if: github.repository_owner == 'idp-nexusapps'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: github.event.inputs.confirm != 'destroy'
+        run: |
+          echo "::error::Type 'destroy' to confirm."
+          exit 1
+
+  destroy:
+    name: Destroy Application
+    if: github.repository_owner == 'idp-nexusapps'
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Determine target
+        id: target
+        run: |
+          BRANCH_INPUT="${{ github.event.inputs.branch }}"
+          if [ -n "$BRANCH_INPUT" ]; then
+            SAFE_BRANCH=$(echo "$BRANCH_INPUT" | tr '[:upper:]' '[:lower:]' | tr '/._' '-' | tr -cd 'a-z0-9-' | cut -c1-20)
+            echo "overlay=preview-$SAFE_BRANCH" >> $GITHUB_OUTPUT
+            echo "argo_file=${{ env.PROJECT_NAME }}-preview-$SAFE_BRANCH.yaml" >> $GITHUB_OUTPUT
+            echo "label=preview-$SAFE_BRANCH" >> $GITHUB_OUTPUT
+          else
+            ENV="${{ github.event.inputs.environment }}"
+            echo "overlay=$ENV" >> $GITHUB_OUTPUT
+            echo "argo_file=${{ env.PROJECT_NAME }}-$ENV.yaml" >> $GITHUB_OUTPUT
+            echo "label=$ENV" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Remove app from GitOps repo
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          TARGET_OVERLAY: ${{ steps.target.outputs.overlay }}
+          TARGET_ARGO_FILE: ${{ steps.target.outputs.argo_file }}
+        run: |
+          API="https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}"
+          AUTH="Authorization: Bearer $GITOPS_TOKEN"
+          ACCEPT="Accept: application/vnd.github+json"
+          APP_NAME="${{ env.PROJECT_NAME }}"
+
+          MAIN_SHA=$(curl -sf -H "$AUTH" -H "$ACCEPT" "$API/git/ref/heads/main" | jq -r '.object.sha')
+          TREE=$(curl -sf -H "$AUTH" -H "$ACCEPT" "$API/git/trees/$MAIN_SHA?recursive=1" | jq -r '.tree')
+
+          FILES_TO_DELETE=$(echo "$TREE" | jq -r \
+            --arg argo_file "argocd/$TARGET_ARGO_FILE" \
+            --arg overlay_prefix "apps/$APP_NAME/overlays/$TARGET_OVERLAY/" '
+            [.[] | select(.type == "blob") |
+              select(.path == $argo_file or (.path | startswith($overlay_prefix)))
+            ] | .[].path')
+
+          if [ -z "$FILES_TO_DELETE" ]; then
+            echo "No files found to delete"
+          else
+            echo "$FILES_TO_DELETE" | while read -r FILE_PATH; do
+              [ -z "$FILE_PATH" ] && continue
+              EXISTING=$(curl -s -H "$AUTH" -H "$ACCEPT" "$API/contents/$FILE_PATH" || echo "{}")
+              SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+              if [ -n "$SHA" ]; then
+                curl -s --fail-with-body -X DELETE -H "$AUTH" -H "$ACCEPT" \
+                  "$API/contents/$FILE_PATH" \
+                  -d "{\"message\":\"cleanup: remove $APP_NAME ($TARGET_OVERLAY) - $FILE_PATH\",\"sha\":\"$SHA\",\"branch\":\"main\"}"
+                echo "Deleted: $FILE_PATH"
+              fi
+            done
+          fi
+
+      - name: Summary
+        env:
+          TARGET_LABEL: ${{ steps.target.outputs.label }}
+        run: |
+          echo "## Application Destroyed :wastebasket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Project:** ${{ env.PROJECT_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** $TARGET_LABEL" >> $GITHUB_STEP_SUMMARY
+          echo "**Destroyed at:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
