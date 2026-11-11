@@ -9,14 +9,17 @@ import (
 )
 
 var (
-	ErrVersaoDesatualizada    = errors.New("versão desatualizada")
-	ErrNadaAPublicar          = errors.New("nada a publicar")
-	ErrVersaoNaoEncontrada    = errors.New("versão não encontrada")
-	ErrAtualizacaoSubstituida = errors.New("atualização substituída por outra mais nova")
-	ErrCamadaNaoEncontrada    = errors.New("camada não encontrada")
-	ErrMotivoObrigatorio      = errors.New("motivo obrigatório ao marcar trecho como obrigatório")
-	ErrDecisaoInvalida        = errors.New("decisão inválida")
-	ErrConflitoConcorrente    = errors.New("conflito de escrita concorrente")
+	ErrVersaoDesatualizada      = errors.New("versão desatualizada")
+	ErrNadaAPublicar            = errors.New("nada a publicar")
+	ErrVersaoNaoEncontrada      = errors.New("versão não encontrada")
+	ErrAtualizacaoSubstituida   = errors.New("atualização substituída por outra mais nova")
+	ErrCamadaNaoEncontrada      = errors.New("camada não encontrada")
+	ErrCamadaInvalida           = errors.New("camada inválida")
+	ErrAtualizacaoNaoEncontrada = errors.New("atualização não encontrada")
+	ErrAvisoNaoEncontrado       = errors.New("aviso não encontrado")
+	ErrMotivoObrigatorio        = errors.New("motivo obrigatório ao marcar trecho como obrigatório")
+	ErrDecisaoInvalida          = errors.New("decisão inválida")
+	ErrConflitoConcorrente      = errors.New("conflito de escrita concorrente")
 )
 
 // ErrConflitoSemEscolha recusa uma decisão que deixou conflito sem escolha: o servidor nunca
