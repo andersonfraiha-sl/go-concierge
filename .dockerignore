@@ -11,3 +11,5 @@ okf/**/__pycache__
 web/studio/node_modules
 web/studio/dist
 .pnpm-store
+.github
+docs

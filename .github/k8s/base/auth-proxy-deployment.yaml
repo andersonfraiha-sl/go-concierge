@@ -1,0 +1,89 @@
+# Proxy de autenticacao do go-concierge (Ory Oathkeeper em proxy mode).
+# O Ingress aponta para este Deployment (porta 4455), que valida o JWT e
+# repassa para o Service `go-concierge` com X-Authenticated-User-Email (AUTH_MODE=proxy).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-concierge-auth
+  labels:
+    app: go-concierge-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: go-concierge-auth
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: go-concierge-auth
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: go-concierge-auth
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: go-concierge-auth
+      containers:
+        - name: oathkeeper
+          # Mesma versao do Oathkeeper central do cluster (namespace ory).
+          image: oryd/oathkeeper:v25.4.0
+          args:
+            - serve
+            - --config
+            - /etc/oathkeeper/oathkeeper.yaml
+          ports:
+            - name: proxy
+              containerPort: 4455
+            - name: api
+              containerPort: 4456
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: api
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/oathkeeper
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: go-concierge-auth-config
