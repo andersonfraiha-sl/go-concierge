@@ -71,6 +71,87 @@ func (b *CarregarSessaoBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const gravarPadroes = `-- name: GravarPadroes :batchexec
+WITH contato AS (
+    INSERT INTO memoria_contatos (administradora_id, telefone, atualizada_em)
+    VALUES ($1::text, $2::text, $10::timestamptz)
+    ON CONFLICT (administradora_id, telefone) DO UPDATE
+    SET atualizada_em = GREATEST(memoria_contatos.atualizada_em, EXCLUDED.atualizada_em)
+)
+INSERT INTO memoria_padroes (administradora_id, telefone, caso, caso_nome, condominio_id, unidade_id, valor, atualizado_em, suprimido_ate)
+SELECT $1::text, $2::text,
+       unnest($3::text[]), unnest($4::text[]), unnest($5::text[]), unnest($6::text[]),
+       unnest($7::float8[]), unnest($8::timestamptz[]), unnest($9::timestamptz[])
+ON CONFLICT (administradora_id, telefone, caso, condominio_id, unidade_id) DO UPDATE
+SET caso_nome = EXCLUDED.caso_nome,
+    valor = EXCLUDED.valor,
+    atualizado_em = EXCLUDED.atualizado_em,
+    suprimido_ate = EXCLUDED.suprimido_ate
+`
+
+type GravarPadroesBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type GravarPadroesParams struct {
+	AdministradoraID string
+	Telefone         string
+	Casos            []string
+	Nomes            []string
+	Condominios      []string
+	Unidades         []string
+	Valores          []float64
+	Atualizados      []pgtype.Timestamptz
+	Suprimidos       []pgtype.Timestamptz
+	AtualizadaEm     pgtype.Timestamptz
+}
+
+// por que não ent: vários padrões num comando, no lote pós envio junto com a sessão e a carteira (uma ida); o contato é garantido na mesma ida para o Listar enxergá-lo.
+// várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
+func (q *Queries) GravarPadroes(ctx context.Context, arg []GravarPadroesParams) *GravarPadroesBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.AdministradoraID,
+			a.Telefone,
+			a.Casos,
+			a.Nomes,
+			a.Condominios,
+			a.Unidades,
+			a.Valores,
+			a.Atualizados,
+			a.Suprimidos,
+			a.AtualizadaEm,
+		}
+		batch.Queue(gravarPadroes, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &GravarPadroesBatchResults{br, len(arg), false}
+}
+
+func (b *GravarPadroesBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *GravarPadroesBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const gravarPedidos = `-- name: GravarPedidos :batchone
 WITH alheios AS (
     SELECT protocolo FROM pedidos
@@ -378,6 +459,92 @@ func (b *LerMemoriaBatchResults) Query(f func(int, []LerMemoriaRow, error)) {
 }
 
 func (b *LerMemoriaBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const lerPadroes = `-- name: LerPadroes :batchmany
+SELECT caso, caso_nome, condominio_id, unidade_id, valor, atualizado_em, suprimido_ate
+FROM memoria_padroes
+WHERE administradora_id = $1::text AND telefone = $2::text
+ORDER BY id
+`
+
+type LerPadroesBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type LerPadroesParams struct {
+	AdministradoraID string
+	Telefone         string
+}
+
+type LerPadroesRow struct {
+	Caso         string
+	CasoNome     string
+	CondominioID string
+	UnidadeID    string
+	Valor        float64
+	AtualizadoEm pgtype.Timestamptz
+	SuprimidoAte pgtype.Timestamptz
+}
+
+// por que não ent: entra no lote do turno a frio junto com LerMemoria (uma ida).
+func (q *Queries) LerPadroes(ctx context.Context, arg []LerPadroesParams) *LerPadroesBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.AdministradoraID,
+			a.Telefone,
+		}
+		batch.Queue(lerPadroes, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &LerPadroesBatchResults{br, len(arg), false}
+}
+
+func (b *LerPadroesBatchResults) Query(f func(int, []LerPadroesRow, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var items []LerPadroesRow
+		if b.closed {
+			if f != nil {
+				f(t, items, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		err := func() error {
+			rows, err := b.br.Query()
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var i LerPadroesRow
+				if err := rows.Scan(
+					&i.Caso,
+					&i.CasoNome,
+					&i.CondominioID,
+					&i.UnidadeID,
+					&i.Valor,
+					&i.AtualizadoEm,
+					&i.SuprimidoAte,
+				); err != nil {
+					return err
+				}
+				items = append(items, i)
+			}
+			return rows.Err()
+		}()
+		if f != nil {
+			f(t, items, err)
+		}
+	}
+}
+
+func (b *LerPadroesBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

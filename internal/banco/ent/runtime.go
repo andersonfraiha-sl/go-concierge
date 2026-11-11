@@ -14,6 +14,7 @@ import (
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
+	"go-concierge/internal/banco/ent/memoriapadrao"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
@@ -254,6 +255,32 @@ func init() {
 	memoriafatoDescConfianca := memoriafatoFields[7].Descriptor()
 	// memoriafato.DefaultConfianca holds the default value on creation for the confianca field.
 	memoriafato.DefaultConfianca = memoriafatoDescConfianca.Default.(float32)
+	memoriapadraoFields := schema.MemoriaPadrao{}.Fields()
+	_ = memoriapadraoFields
+	// memoriapadraoDescAdministradoraID is the schema descriptor for administradora_id field.
+	memoriapadraoDescAdministradoraID := memoriapadraoFields[0].Descriptor()
+	// memoriapadrao.AdministradoraIDValidator is a validator for the "administradora_id" field. It is called by the builders before save.
+	memoriapadrao.AdministradoraIDValidator = memoriapadraoDescAdministradoraID.Validators[0].(func(string) error)
+	// memoriapadraoDescTelefone is the schema descriptor for telefone field.
+	memoriapadraoDescTelefone := memoriapadraoFields[1].Descriptor()
+	// memoriapadrao.TelefoneValidator is a validator for the "telefone" field. It is called by the builders before save.
+	memoriapadrao.TelefoneValidator = memoriapadraoDescTelefone.Validators[0].(func(string) error)
+	// memoriapadraoDescCaso is the schema descriptor for caso field.
+	memoriapadraoDescCaso := memoriapadraoFields[2].Descriptor()
+	// memoriapadrao.CasoValidator is a validator for the "caso" field. It is called by the builders before save.
+	memoriapadrao.CasoValidator = memoriapadraoDescCaso.Validators[0].(func(string) error)
+	// memoriapadraoDescCasoNome is the schema descriptor for caso_nome field.
+	memoriapadraoDescCasoNome := memoriapadraoFields[3].Descriptor()
+	// memoriapadrao.DefaultCasoNome holds the default value on creation for the caso_nome field.
+	memoriapadrao.DefaultCasoNome = memoriapadraoDescCasoNome.Default.(string)
+	// memoriapadraoDescCondominioID is the schema descriptor for condominio_id field.
+	memoriapadraoDescCondominioID := memoriapadraoFields[4].Descriptor()
+	// memoriapadrao.CondominioIDValidator is a validator for the "condominio_id" field. It is called by the builders before save.
+	memoriapadrao.CondominioIDValidator = memoriapadraoDescCondominioID.Validators[0].(func(string) error)
+	// memoriapadraoDescUnidadeID is the schema descriptor for unidade_id field.
+	memoriapadraoDescUnidadeID := memoriapadraoFields[5].Descriptor()
+	// memoriapadrao.DefaultUnidadeID holds the default value on creation for the unidade_id field.
+	memoriapadrao.DefaultUnidadeID = memoriapadraoDescUnidadeID.Default.(string)
 	orientacaoFields := schema.Orientacao{}.Fields()
 	_ = orientacaoFields
 	// orientacaoDescGeral is the schema descriptor for geral field.

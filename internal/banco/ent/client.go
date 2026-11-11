@@ -22,6 +22,7 @@ import (
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
+	"go-concierge/internal/banco/ent/memoriapadrao"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
@@ -71,6 +72,8 @@ type Client struct {
 	MemoriaContato *MemoriaContatoClient
 	// MemoriaFato is the client for interacting with the MemoriaFato builders.
 	MemoriaFato *MemoriaFatoClient
+	// MemoriaPadrao is the client for interacting with the MemoriaPadrao builders.
+	MemoriaPadrao *MemoriaPadraoClient
 	// Orientacao is the client for interacting with the Orientacao builders.
 	Orientacao *OrientacaoClient
 	// Papel is the client for interacting with the Papel builders.
@@ -117,6 +120,7 @@ func (c *Client) init() {
 	c.Habilitacao = NewHabilitacaoClient(c.config)
 	c.MemoriaContato = NewMemoriaContatoClient(c.config)
 	c.MemoriaFato = NewMemoriaFatoClient(c.config)
+	c.MemoriaPadrao = NewMemoriaPadraoClient(c.config)
 	c.Orientacao = NewOrientacaoClient(c.config)
 	c.Papel = NewPapelClient(c.config)
 	c.PapelPermissao = NewPapelPermissaoClient(c.config)
@@ -232,6 +236,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Habilitacao:        NewHabilitacaoClient(cfg),
 		MemoriaContato:     NewMemoriaContatoClient(cfg),
 		MemoriaFato:        NewMemoriaFatoClient(cfg),
+		MemoriaPadrao:      NewMemoriaPadraoClient(cfg),
 		Orientacao:         NewOrientacaoClient(cfg),
 		Papel:              NewPapelClient(cfg),
 		PapelPermissao:     NewPapelPermissaoClient(cfg),
@@ -274,6 +279,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Habilitacao:        NewHabilitacaoClient(cfg),
 		MemoriaContato:     NewMemoriaContatoClient(cfg),
 		MemoriaFato:        NewMemoriaFatoClient(cfg),
+		MemoriaPadrao:      NewMemoriaPadraoClient(cfg),
 		Orientacao:         NewOrientacaoClient(cfg),
 		Papel:              NewPapelClient(cfg),
 		PapelPermissao:     NewPapelPermissaoClient(cfg),
@@ -317,9 +323,9 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.Administradora, c.Atribuicao, c.CatalogoArquivo, c.Concessao, c.Condominio,
 		c.GanchosAuditoria, c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao,
-		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.SkillAtualizacao,
-		c.SkillAviso, c.SkillCamada, c.SkillVersao, c.Usuario,
+		c.MemoriaContato, c.MemoriaFato, c.MemoriaPadrao, c.Orientacao, c.Papel,
+		c.PapelPermissao, c.Payload, c.Pedido, c.PedidoEvento, c.Sessao,
+		c.SkillAtualizacao, c.SkillAviso, c.SkillCamada, c.SkillVersao, c.Usuario,
 	} {
 		n.Use(hooks...)
 	}
@@ -331,9 +337,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.Administradora, c.Atribuicao, c.CatalogoArquivo, c.Concessao, c.Condominio,
 		c.GanchosAuditoria, c.GanchosRegra, c.GanchosRegraVersao, c.Habilitacao,
-		c.MemoriaContato, c.MemoriaFato, c.Orientacao, c.Papel, c.PapelPermissao,
-		c.Payload, c.Pedido, c.PedidoEvento, c.Sessao, c.SkillAtualizacao,
-		c.SkillAviso, c.SkillCamada, c.SkillVersao, c.Usuario,
+		c.MemoriaContato, c.MemoriaFato, c.MemoriaPadrao, c.Orientacao, c.Papel,
+		c.PapelPermissao, c.Payload, c.Pedido, c.PedidoEvento, c.Sessao,
+		c.SkillAtualizacao, c.SkillAviso, c.SkillCamada, c.SkillVersao, c.Usuario,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -364,6 +370,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.MemoriaContato.mutate(ctx, m)
 	case *MemoriaFatoMutation:
 		return c.MemoriaFato.mutate(ctx, m)
+	case *MemoriaPadraoMutation:
+		return c.MemoriaPadrao.mutate(ctx, m)
 	case *OrientacaoMutation:
 		return c.Orientacao.mutate(ctx, m)
 	case *PapelMutation:
@@ -2093,6 +2101,139 @@ func (c *MemoriaFatoClient) mutate(ctx context.Context, m *MemoriaFatoMutation) 
 		return (&MemoriaFatoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown MemoriaFato mutation op: %q", m.Op())
+	}
+}
+
+// MemoriaPadraoClient is a client for the MemoriaPadrao schema.
+type MemoriaPadraoClient struct {
+	config
+}
+
+// NewMemoriaPadraoClient returns a client for the MemoriaPadrao from the given config.
+func NewMemoriaPadraoClient(c config) *MemoriaPadraoClient {
+	return &MemoriaPadraoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `memoriapadrao.Hooks(f(g(h())))`.
+func (c *MemoriaPadraoClient) Use(hooks ...Hook) {
+	c.hooks.MemoriaPadrao = append(c.hooks.MemoriaPadrao, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `memoriapadrao.Intercept(f(g(h())))`.
+func (c *MemoriaPadraoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MemoriaPadrao = append(c.inters.MemoriaPadrao, interceptors...)
+}
+
+// Create returns a builder for creating a MemoriaPadrao entity.
+func (c *MemoriaPadraoClient) Create() *MemoriaPadraoCreate {
+	mutation := newMemoriaPadraoMutation(c.config, OpCreate)
+	return &MemoriaPadraoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MemoriaPadrao entities.
+func (c *MemoriaPadraoClient) CreateBulk(builders ...*MemoriaPadraoCreate) *MemoriaPadraoCreateBulk {
+	return &MemoriaPadraoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MemoriaPadraoClient) MapCreateBulk(slice any, setFunc func(*MemoriaPadraoCreate, int)) *MemoriaPadraoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MemoriaPadraoCreateBulk{err: fmt.Errorf("calling to MemoriaPadraoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MemoriaPadraoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MemoriaPadraoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MemoriaPadrao.
+func (c *MemoriaPadraoClient) Update() *MemoriaPadraoUpdate {
+	mutation := newMemoriaPadraoMutation(c.config, OpUpdate)
+	return &MemoriaPadraoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MemoriaPadraoClient) UpdateOne(_m *MemoriaPadrao) *MemoriaPadraoUpdateOne {
+	mutation := newMemoriaPadraoMutation(c.config, OpUpdateOne, withMemoriaPadrao(_m))
+	return &MemoriaPadraoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MemoriaPadraoClient) UpdateOneID(id int) *MemoriaPadraoUpdateOne {
+	mutation := newMemoriaPadraoMutation(c.config, OpUpdateOne, withMemoriaPadraoID(id))
+	return &MemoriaPadraoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MemoriaPadrao.
+func (c *MemoriaPadraoClient) Delete() *MemoriaPadraoDelete {
+	mutation := newMemoriaPadraoMutation(c.config, OpDelete)
+	return &MemoriaPadraoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MemoriaPadraoClient) DeleteOne(_m *MemoriaPadrao) *MemoriaPadraoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MemoriaPadraoClient) DeleteOneID(id int) *MemoriaPadraoDeleteOne {
+	builder := c.Delete().Where(memoriapadrao.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MemoriaPadraoDeleteOne{builder}
+}
+
+// Query returns a query builder for MemoriaPadrao.
+func (c *MemoriaPadraoClient) Query() *MemoriaPadraoQuery {
+	return &MemoriaPadraoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMemoriaPadrao},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MemoriaPadrao entity by its id.
+func (c *MemoriaPadraoClient) Get(ctx context.Context, id int) (*MemoriaPadrao, error) {
+	return c.Query().Where(memoriapadrao.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MemoriaPadraoClient) GetX(ctx context.Context, id int) *MemoriaPadrao {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MemoriaPadraoClient) Hooks() []Hook {
+	return c.hooks.MemoriaPadrao
+}
+
+// Interceptors returns the client interceptors.
+func (c *MemoriaPadraoClient) Interceptors() []Interceptor {
+	return c.inters.MemoriaPadrao
+}
+
+func (c *MemoriaPadraoClient) mutate(ctx context.Context, m *MemoriaPadraoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MemoriaPadraoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MemoriaPadraoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MemoriaPadraoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MemoriaPadraoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MemoriaPadrao mutation op: %q", m.Op())
 	}
 }
 
@@ -4033,16 +4174,16 @@ type (
 	hooks struct {
 		Administradora, Atribuicao, CatalogoArquivo, Concessao, Condominio,
 		GanchosAuditoria, GanchosRegra, GanchosRegraVersao, Habilitacao,
-		MemoriaContato, MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
-		Pedido, PedidoEvento, Sessao, SkillAtualizacao, SkillAviso, SkillCamada,
-		SkillVersao, Usuario []ent.Hook
+		MemoriaContato, MemoriaFato, MemoriaPadrao, Orientacao, Papel, PapelPermissao,
+		Payload, Pedido, PedidoEvento, Sessao, SkillAtualizacao, SkillAviso,
+		SkillCamada, SkillVersao, Usuario []ent.Hook
 	}
 	inters struct {
 		Administradora, Atribuicao, CatalogoArquivo, Concessao, Condominio,
 		GanchosAuditoria, GanchosRegra, GanchosRegraVersao, Habilitacao,
-		MemoriaContato, MemoriaFato, Orientacao, Papel, PapelPermissao, Payload,
-		Pedido, PedidoEvento, Sessao, SkillAtualizacao, SkillAviso, SkillCamada,
-		SkillVersao, Usuario []ent.Interceptor
+		MemoriaContato, MemoriaFato, MemoriaPadrao, Orientacao, Papel, PapelPermissao,
+		Payload, Pedido, PedidoEvento, Sessao, SkillAtualizacao, SkillAviso,
+		SkillCamada, SkillVersao, Usuario []ent.Interceptor
 	}
 )
 

@@ -327,6 +327,32 @@ var (
 			},
 		},
 	}
+	// MemoriaPadroesColumns holds the columns for the "memoria_padroes" table.
+	MemoriaPadroesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "administradora_id", Type: field.TypeString},
+		{Name: "telefone", Type: field.TypeString},
+		{Name: "caso", Type: field.TypeString},
+		{Name: "caso_nome", Type: field.TypeString, Default: ""},
+		{Name: "condominio_id", Type: field.TypeString},
+		{Name: "unidade_id", Type: field.TypeString, Default: ""},
+		{Name: "valor", Type: field.TypeFloat64},
+		{Name: "atualizado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "suprimido_ate", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// MemoriaPadroesTable holds the schema information for the "memoria_padroes" table.
+	MemoriaPadroesTable = &schema.Table{
+		Name:       "memoria_padroes",
+		Columns:    MemoriaPadroesColumns,
+		PrimaryKey: []*schema.Column{MemoriaPadroesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "memoriapadrao_administradora_id_telefone_caso_condominio_id_unidade_id",
+				Unique:  true,
+				Columns: []*schema.Column{MemoriaPadroesColumns[1], MemoriaPadroesColumns[2], MemoriaPadroesColumns[3], MemoriaPadroesColumns[5], MemoriaPadroesColumns[6]},
+			},
+		},
+	}
 	// OrientacoesColumns holds the columns for the "orientacoes" table.
 	OrientacoesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -737,6 +763,7 @@ var (
 		HabilitacoesTable,
 		MemoriaContatosTable,
 		MemoriaFatosTable,
+		MemoriaPadroesTable,
 		OrientacoesTable,
 		PapeisTable,
 		PapelPermissoesTable,
@@ -804,6 +831,15 @@ func init() {
 		"memoria_fatos_administradora_preenchida": "administradora_id <> ''",
 		"memoria_fatos_chave_preenchida":          "chave <> ''",
 		"memoria_fatos_telefone_preenchido":       "telefone <> ''",
+	}
+	MemoriaPadroesTable.Annotation = &entsql.Annotation{
+		Table: "memoria_padroes",
+	}
+	MemoriaPadroesTable.Annotation.Checks = map[string]string{
+		"memoria_padroes_administradora_preenchida": "administradora_id <> ''",
+		"memoria_padroes_caso_preenchido":           "caso <> ''",
+		"memoria_padroes_condominio_preenchido":     "condominio_id <> ''",
+		"memoria_padroes_telefone_preenchido":       "telefone <> ''",
 	}
 	OrientacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	OrientacoesTable.Annotation = &entsql.Annotation{

@@ -18,6 +18,7 @@ import (
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
+	"go-concierge/internal/banco/ent/memoriapadrao"
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/papel"
 	"go-concierge/internal/banco/ent/papelpermissao"
@@ -60,6 +61,7 @@ const (
 	TypeHabilitacao        = "Habilitacao"
 	TypeMemoriaContato     = "MemoriaContato"
 	TypeMemoriaFato        = "MemoriaFato"
+	TypeMemoriaPadrao      = "MemoriaPadrao"
 	TypeOrientacao         = "Orientacao"
 	TypePapel              = "Papel"
 	TypePapelPermissao     = "PapelPermissao"
@@ -7782,6 +7784,822 @@ func (m *MemoriaFatoMutation) ClearEdge(name string) error {
 // It returns an error if the edge is not defined in the schema.
 func (m *MemoriaFatoMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown MemoriaFato edge %s", name)
+}
+
+// MemoriaPadraoMutation represents an operation that mutates the MemoriaPadrao nodes in the graph.
+type MemoriaPadraoMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	administradora_id *string
+	telefone          *string
+	caso              *string
+	caso_nome         *string
+	condominio_id     *string
+	unidade_id        *string
+	valor             *float64
+	addvalor          *float64
+	atualizado_em     *time.Time
+	suprimido_ate     *time.Time
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*MemoriaPadrao, error)
+	predicates        []predicate.MemoriaPadrao
+}
+
+var _ ent.Mutation = (*MemoriaPadraoMutation)(nil)
+
+// memoriapadraoOption allows management of the mutation configuration using functional options.
+type memoriapadraoOption func(*MemoriaPadraoMutation)
+
+// newMemoriaPadraoMutation creates new mutation for the MemoriaPadrao entity.
+func newMemoriaPadraoMutation(c config, op Op, opts ...memoriapadraoOption) *MemoriaPadraoMutation {
+	m := &MemoriaPadraoMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMemoriaPadrao,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMemoriaPadraoID sets the ID field of the mutation.
+func withMemoriaPadraoID(id int) memoriapadraoOption {
+	return func(m *MemoriaPadraoMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MemoriaPadrao
+		)
+		m.oldValue = func(ctx context.Context) (*MemoriaPadrao, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MemoriaPadrao.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMemoriaPadrao sets the old MemoriaPadrao of the mutation.
+func withMemoriaPadrao(node *MemoriaPadrao) memoriapadraoOption {
+	return func(m *MemoriaPadraoMutation) {
+		m.oldValue = func(context.Context) (*MemoriaPadrao, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MemoriaPadraoMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MemoriaPadraoMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MemoriaPadraoMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MemoriaPadraoMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MemoriaPadrao.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAdministradoraID sets the "administradora_id" field.
+func (m *MemoriaPadraoMutation) SetAdministradoraID(s string) {
+	m.administradora_id = &s
+}
+
+// AdministradoraID returns the value of the "administradora_id" field in the mutation.
+func (m *MemoriaPadraoMutation) AdministradoraID() (r string, exists bool) {
+	v := m.administradora_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAdministradoraID returns the old "administradora_id" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldAdministradoraID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAdministradoraID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAdministradoraID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAdministradoraID: %w", err)
+	}
+	return oldValue.AdministradoraID, nil
+}
+
+// ResetAdministradoraID resets all changes to the "administradora_id" field.
+func (m *MemoriaPadraoMutation) ResetAdministradoraID() {
+	m.administradora_id = nil
+}
+
+// SetTelefone sets the "telefone" field.
+func (m *MemoriaPadraoMutation) SetTelefone(s string) {
+	m.telefone = &s
+}
+
+// Telefone returns the value of the "telefone" field in the mutation.
+func (m *MemoriaPadraoMutation) Telefone() (r string, exists bool) {
+	v := m.telefone
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTelefone returns the old "telefone" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldTelefone(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTelefone is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTelefone requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTelefone: %w", err)
+	}
+	return oldValue.Telefone, nil
+}
+
+// ResetTelefone resets all changes to the "telefone" field.
+func (m *MemoriaPadraoMutation) ResetTelefone() {
+	m.telefone = nil
+}
+
+// SetCaso sets the "caso" field.
+func (m *MemoriaPadraoMutation) SetCaso(s string) {
+	m.caso = &s
+}
+
+// Caso returns the value of the "caso" field in the mutation.
+func (m *MemoriaPadraoMutation) Caso() (r string, exists bool) {
+	v := m.caso
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCaso returns the old "caso" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldCaso(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCaso is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCaso requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCaso: %w", err)
+	}
+	return oldValue.Caso, nil
+}
+
+// ResetCaso resets all changes to the "caso" field.
+func (m *MemoriaPadraoMutation) ResetCaso() {
+	m.caso = nil
+}
+
+// SetCasoNome sets the "caso_nome" field.
+func (m *MemoriaPadraoMutation) SetCasoNome(s string) {
+	m.caso_nome = &s
+}
+
+// CasoNome returns the value of the "caso_nome" field in the mutation.
+func (m *MemoriaPadraoMutation) CasoNome() (r string, exists bool) {
+	v := m.caso_nome
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCasoNome returns the old "caso_nome" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldCasoNome(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCasoNome is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCasoNome requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCasoNome: %w", err)
+	}
+	return oldValue.CasoNome, nil
+}
+
+// ResetCasoNome resets all changes to the "caso_nome" field.
+func (m *MemoriaPadraoMutation) ResetCasoNome() {
+	m.caso_nome = nil
+}
+
+// SetCondominioID sets the "condominio_id" field.
+func (m *MemoriaPadraoMutation) SetCondominioID(s string) {
+	m.condominio_id = &s
+}
+
+// CondominioID returns the value of the "condominio_id" field in the mutation.
+func (m *MemoriaPadraoMutation) CondominioID() (r string, exists bool) {
+	v := m.condominio_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCondominioID returns the old "condominio_id" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldCondominioID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCondominioID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCondominioID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCondominioID: %w", err)
+	}
+	return oldValue.CondominioID, nil
+}
+
+// ResetCondominioID resets all changes to the "condominio_id" field.
+func (m *MemoriaPadraoMutation) ResetCondominioID() {
+	m.condominio_id = nil
+}
+
+// SetUnidadeID sets the "unidade_id" field.
+func (m *MemoriaPadraoMutation) SetUnidadeID(s string) {
+	m.unidade_id = &s
+}
+
+// UnidadeID returns the value of the "unidade_id" field in the mutation.
+func (m *MemoriaPadraoMutation) UnidadeID() (r string, exists bool) {
+	v := m.unidade_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUnidadeID returns the old "unidade_id" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldUnidadeID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUnidadeID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUnidadeID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUnidadeID: %w", err)
+	}
+	return oldValue.UnidadeID, nil
+}
+
+// ResetUnidadeID resets all changes to the "unidade_id" field.
+func (m *MemoriaPadraoMutation) ResetUnidadeID() {
+	m.unidade_id = nil
+}
+
+// SetValor sets the "valor" field.
+func (m *MemoriaPadraoMutation) SetValor(f float64) {
+	m.valor = &f
+	m.addvalor = nil
+}
+
+// Valor returns the value of the "valor" field in the mutation.
+func (m *MemoriaPadraoMutation) Valor() (r float64, exists bool) {
+	v := m.valor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldValor returns the old "valor" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldValor(ctx context.Context) (v float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldValor is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldValor requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldValor: %w", err)
+	}
+	return oldValue.Valor, nil
+}
+
+// AddValor adds f to the "valor" field.
+func (m *MemoriaPadraoMutation) AddValor(f float64) {
+	if m.addvalor != nil {
+		*m.addvalor += f
+	} else {
+		m.addvalor = &f
+	}
+}
+
+// AddedValor returns the value that was added to the "valor" field in this mutation.
+func (m *MemoriaPadraoMutation) AddedValor() (r float64, exists bool) {
+	v := m.addvalor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetValor resets all changes to the "valor" field.
+func (m *MemoriaPadraoMutation) ResetValor() {
+	m.valor = nil
+	m.addvalor = nil
+}
+
+// SetAtualizadoEm sets the "atualizado_em" field.
+func (m *MemoriaPadraoMutation) SetAtualizadoEm(t time.Time) {
+	m.atualizado_em = &t
+}
+
+// AtualizadoEm returns the value of the "atualizado_em" field in the mutation.
+func (m *MemoriaPadraoMutation) AtualizadoEm() (r time.Time, exists bool) {
+	v := m.atualizado_em
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAtualizadoEm returns the old "atualizado_em" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldAtualizadoEm(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAtualizadoEm is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAtualizadoEm requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAtualizadoEm: %w", err)
+	}
+	return oldValue.AtualizadoEm, nil
+}
+
+// ResetAtualizadoEm resets all changes to the "atualizado_em" field.
+func (m *MemoriaPadraoMutation) ResetAtualizadoEm() {
+	m.atualizado_em = nil
+}
+
+// SetSuprimidoAte sets the "suprimido_ate" field.
+func (m *MemoriaPadraoMutation) SetSuprimidoAte(t time.Time) {
+	m.suprimido_ate = &t
+}
+
+// SuprimidoAte returns the value of the "suprimido_ate" field in the mutation.
+func (m *MemoriaPadraoMutation) SuprimidoAte() (r time.Time, exists bool) {
+	v := m.suprimido_ate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSuprimidoAte returns the old "suprimido_ate" field's value of the MemoriaPadrao entity.
+// If the MemoriaPadrao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MemoriaPadraoMutation) OldSuprimidoAte(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSuprimidoAte is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSuprimidoAte requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSuprimidoAte: %w", err)
+	}
+	return oldValue.SuprimidoAte, nil
+}
+
+// ClearSuprimidoAte clears the value of the "suprimido_ate" field.
+func (m *MemoriaPadraoMutation) ClearSuprimidoAte() {
+	m.suprimido_ate = nil
+	m.clearedFields[memoriapadrao.FieldSuprimidoAte] = struct{}{}
+}
+
+// SuprimidoAteCleared returns if the "suprimido_ate" field was cleared in this mutation.
+func (m *MemoriaPadraoMutation) SuprimidoAteCleared() bool {
+	_, ok := m.clearedFields[memoriapadrao.FieldSuprimidoAte]
+	return ok
+}
+
+// ResetSuprimidoAte resets all changes to the "suprimido_ate" field.
+func (m *MemoriaPadraoMutation) ResetSuprimidoAte() {
+	m.suprimido_ate = nil
+	delete(m.clearedFields, memoriapadrao.FieldSuprimidoAte)
+}
+
+// Where appends a list predicates to the MemoriaPadraoMutation builder.
+func (m *MemoriaPadraoMutation) Where(ps ...predicate.MemoriaPadrao) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MemoriaPadraoMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MemoriaPadraoMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MemoriaPadrao, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MemoriaPadraoMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MemoriaPadraoMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MemoriaPadrao).
+func (m *MemoriaPadraoMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MemoriaPadraoMutation) Fields() []string {
+	fields := make([]string, 0, 9)
+	if m.administradora_id != nil {
+		fields = append(fields, memoriapadrao.FieldAdministradoraID)
+	}
+	if m.telefone != nil {
+		fields = append(fields, memoriapadrao.FieldTelefone)
+	}
+	if m.caso != nil {
+		fields = append(fields, memoriapadrao.FieldCaso)
+	}
+	if m.caso_nome != nil {
+		fields = append(fields, memoriapadrao.FieldCasoNome)
+	}
+	if m.condominio_id != nil {
+		fields = append(fields, memoriapadrao.FieldCondominioID)
+	}
+	if m.unidade_id != nil {
+		fields = append(fields, memoriapadrao.FieldUnidadeID)
+	}
+	if m.valor != nil {
+		fields = append(fields, memoriapadrao.FieldValor)
+	}
+	if m.atualizado_em != nil {
+		fields = append(fields, memoriapadrao.FieldAtualizadoEm)
+	}
+	if m.suprimido_ate != nil {
+		fields = append(fields, memoriapadrao.FieldSuprimidoAte)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MemoriaPadraoMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case memoriapadrao.FieldAdministradoraID:
+		return m.AdministradoraID()
+	case memoriapadrao.FieldTelefone:
+		return m.Telefone()
+	case memoriapadrao.FieldCaso:
+		return m.Caso()
+	case memoriapadrao.FieldCasoNome:
+		return m.CasoNome()
+	case memoriapadrao.FieldCondominioID:
+		return m.CondominioID()
+	case memoriapadrao.FieldUnidadeID:
+		return m.UnidadeID()
+	case memoriapadrao.FieldValor:
+		return m.Valor()
+	case memoriapadrao.FieldAtualizadoEm:
+		return m.AtualizadoEm()
+	case memoriapadrao.FieldSuprimidoAte:
+		return m.SuprimidoAte()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MemoriaPadraoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case memoriapadrao.FieldAdministradoraID:
+		return m.OldAdministradoraID(ctx)
+	case memoriapadrao.FieldTelefone:
+		return m.OldTelefone(ctx)
+	case memoriapadrao.FieldCaso:
+		return m.OldCaso(ctx)
+	case memoriapadrao.FieldCasoNome:
+		return m.OldCasoNome(ctx)
+	case memoriapadrao.FieldCondominioID:
+		return m.OldCondominioID(ctx)
+	case memoriapadrao.FieldUnidadeID:
+		return m.OldUnidadeID(ctx)
+	case memoriapadrao.FieldValor:
+		return m.OldValor(ctx)
+	case memoriapadrao.FieldAtualizadoEm:
+		return m.OldAtualizadoEm(ctx)
+	case memoriapadrao.FieldSuprimidoAte:
+		return m.OldSuprimidoAte(ctx)
+	}
+	return nil, fmt.Errorf("unknown MemoriaPadrao field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MemoriaPadraoMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case memoriapadrao.FieldAdministradoraID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAdministradoraID(v)
+		return nil
+	case memoriapadrao.FieldTelefone:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTelefone(v)
+		return nil
+	case memoriapadrao.FieldCaso:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCaso(v)
+		return nil
+	case memoriapadrao.FieldCasoNome:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCasoNome(v)
+		return nil
+	case memoriapadrao.FieldCondominioID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCondominioID(v)
+		return nil
+	case memoriapadrao.FieldUnidadeID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUnidadeID(v)
+		return nil
+	case memoriapadrao.FieldValor:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetValor(v)
+		return nil
+	case memoriapadrao.FieldAtualizadoEm:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAtualizadoEm(v)
+		return nil
+	case memoriapadrao.FieldSuprimidoAte:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSuprimidoAte(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaPadrao field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MemoriaPadraoMutation) AddedFields() []string {
+	var fields []string
+	if m.addvalor != nil {
+		fields = append(fields, memoriapadrao.FieldValor)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MemoriaPadraoMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case memoriapadrao.FieldValor:
+		return m.AddedValor()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MemoriaPadraoMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case memoriapadrao.FieldValor:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddValor(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaPadrao numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MemoriaPadraoMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(memoriapadrao.FieldSuprimidoAte) {
+		fields = append(fields, memoriapadrao.FieldSuprimidoAte)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MemoriaPadraoMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MemoriaPadraoMutation) ClearField(name string) error {
+	switch name {
+	case memoriapadrao.FieldSuprimidoAte:
+		m.ClearSuprimidoAte()
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaPadrao nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MemoriaPadraoMutation) ResetField(name string) error {
+	switch name {
+	case memoriapadrao.FieldAdministradoraID:
+		m.ResetAdministradoraID()
+		return nil
+	case memoriapadrao.FieldTelefone:
+		m.ResetTelefone()
+		return nil
+	case memoriapadrao.FieldCaso:
+		m.ResetCaso()
+		return nil
+	case memoriapadrao.FieldCasoNome:
+		m.ResetCasoNome()
+		return nil
+	case memoriapadrao.FieldCondominioID:
+		m.ResetCondominioID()
+		return nil
+	case memoriapadrao.FieldUnidadeID:
+		m.ResetUnidadeID()
+		return nil
+	case memoriapadrao.FieldValor:
+		m.ResetValor()
+		return nil
+	case memoriapadrao.FieldAtualizadoEm:
+		m.ResetAtualizadoEm()
+		return nil
+	case memoriapadrao.FieldSuprimidoAte:
+		m.ResetSuprimidoAte()
+		return nil
+	}
+	return fmt.Errorf("unknown MemoriaPadrao field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MemoriaPadraoMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MemoriaPadraoMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MemoriaPadraoMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MemoriaPadraoMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MemoriaPadraoMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MemoriaPadraoMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MemoriaPadraoMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown MemoriaPadrao unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MemoriaPadraoMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown MemoriaPadrao edge %s", name)
 }
 
 // OrientacaoMutation represents an operation that mutates the Orientacao nodes in the graph.

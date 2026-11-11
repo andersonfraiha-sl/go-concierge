@@ -67,3 +67,23 @@ func (q *Queries) GravarFatos(ctx context.Context, arg GravarFatosParams) error 
 	)
 	return err
 }
+
+const limparPadroes = `-- name: LimparPadroes :execrows
+DELETE FROM memoria_padroes
+WHERE valor * power(0.5, extract(epoch FROM ($1::timestamptz - atualizado_em)) / $2::float8) < $3::float8
+`
+
+type LimparPadroesParams struct {
+	Agora            pgtype.Timestamptz
+	MeiaVidaSegundos float64
+	Piso             float64
+}
+
+// por que não ent: o decaimento é calculado por linha (power), que o ent não expressa.
+func (q *Queries) LimparPadroes(ctx context.Context, arg LimparPadroesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, limparPadroes, arg.Agora, arg.MeiaVidaSegundos, arg.Piso)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

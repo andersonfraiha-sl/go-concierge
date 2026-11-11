@@ -39,6 +39,9 @@ type MemoriaContato func(*sql.Selector)
 // MemoriaFato is the predicate function for memoriafato builders.
 type MemoriaFato func(*sql.Selector)
 
+// MemoriaPadrao is the predicate function for memoriapadrao builders.
+type MemoriaPadrao func(*sql.Selector)
+
 // Orientacao is the predicate function for orientacao builders.
 type Orientacao func(*sql.Selector)
 
