@@ -146,7 +146,7 @@ func main() {
 	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
 	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET"),
 		SegredoExportacao: os.Getenv("GANCHOS_SEGREDO_EXPORTACAO"),
-		IntegracaoChave:   strings.TrimSpace(os.Getenv("INTEGRACAO_CHAVE"))})
+		IntegracaoChave:   strings.TrimSpace(os.Getenv("INTEGRACAO_CHAVE")), AdminInicial: os.Getenv("ACESSO_ADMIN_INICIAL")})
 	if err := validarConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
@@ -287,6 +287,9 @@ func main() {
 	s.admin = adminPG
 	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
 	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
+		log.Fatal(err)
+	}
+	if err := garantirAdminInicial(context.Background(), cfg.AdminInicial, acesso.NovoPostgres(db.Ent).Atribuir); err != nil {
 		log.Fatal(err)
 	}
 	if ehDesenvolvimento(cfg.Ambiente) && cfg.AuthMode == authModeDev {

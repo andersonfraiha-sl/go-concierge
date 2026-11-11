@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-concierge
+  labels:
+    app: go-concierge
+spec:
+  # Uma réplica só, de propósito: o serviço guarda cache em processo (regras dos ganchos,
+  # memória, pedidos, mapeamento) e uma segunda réplica serviria dado desatualizado após uma
+  # escrita na outra. Recreate evita duas instâncias ao mesmo tempo durante o rollout.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: go-concierge
+  template:
+    metadata:
+      labels:
+        app: go-concierge
+      annotations:
+        # Com uma réplica, a consolidação de nós derrubaria o serviço sem aviso.
+        karpenter.sh/do-not-disrupt: "true"
+    spec:
+      serviceAccountName: go-concierge
+      # O desligamento espera até 30 s pelos turnos em andamento (DESLIGAMENTO_PRAZO).
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: go-concierge
+          image: PLACEHOLDER_IMAGE
+          # O ENTRYPOINT da imagem é /app/okf-admin e o CMD traz -addr 0.0.0.0:8090 e
+          # -env /app/.env; args substitui o CMD inteiro. -migrar aplica as migrations no
+          # boot (com AMBIENTE=prd o padrão seria não aplicar). Sem -env o binário lê .env
+          # do diretório de trabalho, que não existe na imagem: tudo vem do ConfigMap e do Secret.
+          args:
+            - -root
+            - /app/okf
+            - -addr
+            - 0.0.0.0:8080
+            - -migrar
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: go-concierge
+            - secretRef:
+                name: go-concierge
+          # O boot aplica migrations e refaz a cópia de trabalho do catálogo: dá até 5 min.
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          # O binário só escreve em /app/okf/var (cópia de trabalho do catálogo e arquivo do
+          # token B2C); /tmp fica por segurança de bibliotecas.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            # A cópia de trabalho do catálogo é refeita do banco a cada boot: não precisa
+            # sobreviver ao pod.
+            - name: var
+              mountPath: /app/okf/var
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: var
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

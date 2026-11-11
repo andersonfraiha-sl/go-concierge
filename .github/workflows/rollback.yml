@@ -1,0 +1,169 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to roll back'
+        required: true
+        default: 'dev'
+        type: choice
+        # staging e prod ficam para depois: ver docs/deploy/idp-nexus.md
+        options:
+          - dev
+      confirm:
+        description: 'Type "ROLLBACK" to confirm'
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  PROJECT_NAME: go-concierge
+  GITOPS_REPO: ${{ vars.GITOPS_REPO || 'gitops-apps' }}
+  GITOPS_OWNER: ${{ vars.GITOPS_OWNER || github.repository_owner }}
+
+# A guarda de dono existe porque o repositório ainda mora em outra conta: sem ela este
+# workflow falharia no fork. Remover quando o repositório migrar para a org idp-nexusapps.
+jobs:
+  rollback:
+    name: Restore Previous Image
+    if: github.repository_owner == 'idp-nexusapps'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Validate rollback request
+        env:
+          CHECK_AWS_ROLE: ${{ vars.AWS_ROLE_ARN }}
+          CHECK_GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          [ "$CONFIRM" = "ROLLBACK" ] || { echo "::error::Type 'ROLLBACK' to confirm."; exit 1; }
+          [ -n "$CHECK_AWS_ROLE" ] || { echo "::error::Missing var: AWS_ROLE_ARN"; exit 1; }
+          [ -n "$CHECK_GITOPS_TOKEN" ] || { echo "::error::Missing secret: GITOPS_TOKEN"; exit 1; }
+
+      - name: Find previous image in GitOps history
+        id: target
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          API="https://api.github.com/repos/${GITOPS_OWNER}/${GITOPS_REPO}"
+          AUTH="Authorization: Bearer $GITOPS_TOKEN"
+          ACCEPT="Accept: application/vnd.github+json"
+          OVERLAY_PATH="apps/${PROJECT_NAME}/overlays/${ENVIRONMENT}/kustomization.yaml"
+          CURRENT_FILE=$(mktemp)
+
+          cleanup() { rm -f "$CURRENT_FILE" "${HISTORY_FILE:-}"; }
+          trap cleanup EXIT
+
+          CURRENT=$(curl -sf -H "$AUTH" -H "$ACCEPT" "$API/contents/$OVERLAY_PATH?ref=main")
+          CURRENT_SHA=$(echo "$CURRENT" | jq -r '.sha // empty')
+          CURRENT_CONTENT=$(echo "$CURRENT" | jq -r '.content // empty' | tr -d '\n')
+          [ -n "$CURRENT_SHA" ] && [ -n "$CURRENT_CONTENT" ] || { echo "::error::GitOps overlay not found: $OVERLAY_PATH"; exit 1; }
+          printf '%s' "$CURRENT_CONTENT" | base64 --decode > "$CURRENT_FILE"
+
+          extract_tag() {
+            local file="$1"
+            local tags
+            tags=$(sed -nE 's/^[[:space:]]*newTag:[[:space:]]*"?([^"#[:space:]]+)"?.*$/\1/p' "$file")
+            [ "$(printf '%s\n' "$tags" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1 ] || return 1
+            printf '%s' "$tags"
+          }
+
+          CURRENT_TAG=$(extract_tag "$CURRENT_FILE") || { echo "::error::Expected exactly one newTag in $OVERLAY_PATH"; exit 1; }
+          HISTORY_FILE=$(mktemp)
+          curl -sf -H "$AUTH" -H "$ACCEPT" "$API/commits?sha=main&path=$OVERLAY_PATH&per_page=100" > "$HISTORY_FILE"
+
+          TARGET_TAG=""
+          while read -r COMMIT_SHA; do
+            [ -n "$COMMIT_SHA" ] || continue
+            HISTORICAL=$(curl -sf -H "$AUTH" -H "$ACCEPT" "$API/contents/$OVERLAY_PATH?ref=$COMMIT_SHA")
+            HISTORICAL_CONTENT=$(echo "$HISTORICAL" | jq -r '.content // empty' | tr -d '\n')
+            [ -n "$HISTORICAL_CONTENT" ] || continue
+            HISTORICAL_FILE=$(mktemp)
+            printf '%s' "$HISTORICAL_CONTENT" | base64 --decode > "$HISTORICAL_FILE"
+            HISTORICAL_TAG=$(extract_tag "$HISTORICAL_FILE" || true)
+            rm -f "$HISTORICAL_FILE"
+            if [ -n "$HISTORICAL_TAG" ] && [ "$HISTORICAL_TAG" != "$CURRENT_TAG" ]; then
+              TARGET_TAG="$HISTORICAL_TAG"
+              break
+            fi
+          done < <(jq -r '.[].sha' "$HISTORY_FILE")
+
+          [ -n "$TARGET_TAG" ] || { echo "::error::No previous image tag found in GitOps history for $OVERLAY_PATH"; exit 1; }
+          [[ "$TARGET_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "::error::Invalid image tag found in GitOps history: $TARGET_TAG"; exit 1; }
+
+          echo "overlay_path=$OVERLAY_PATH" >> "$GITHUB_OUTPUT"
+          echo "overlay_sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
+          echo "current_tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
+          echo "target_tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify rollback image exists in ECR
+        env:
+          TARGET_TAG: ${{ steps.target.outputs.target_tag }}
+        run: |
+          aws ecr describe-images \
+            --repository-name "$PROJECT_NAME" \
+            --image-ids imageTag="$TARGET_TAG" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text >/dev/null
+
+      - name: Update image tag in GitOps repo
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          OVERLAY_PATH: ${{ steps.target.outputs.overlay_path }}
+          OVERLAY_SHA: ${{ steps.target.outputs.overlay_sha }}
+          CURRENT_TAG: ${{ steps.target.outputs.current_tag }}
+          TARGET_TAG: ${{ steps.target.outputs.target_tag }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          API="https://api.github.com/repos/${GITOPS_OWNER}/${GITOPS_REPO}"
+          AUTH="Authorization: Bearer $GITOPS_TOKEN"
+          ACCEPT="Accept: application/vnd.github+json"
+          CURRENT_FILE=$(mktemp)
+          UPDATED_FILE=$(mktemp)
+          trap 'rm -f "$CURRENT_FILE" "$UPDATED_FILE"' EXIT
+
+          CURRENT=$(curl -sf -H "$AUTH" -H "$ACCEPT" "$API/contents/$OVERLAY_PATH?ref=main")
+          LATEST_SHA=$(echo "$CURRENT" | jq -r '.sha // empty')
+          [ "$LATEST_SHA" = "$OVERLAY_SHA" ] || { echo "::error::GitOps overlay changed while rollback was being prepared; rerun the workflow."; exit 1; }
+          CONTENT=$(echo "$CURRENT" | jq -r '.content // empty' | tr -d '\n')
+          printf '%s' "$CONTENT" | base64 --decode > "$CURRENT_FILE"
+          [ "$(sed -nE 's/^[[:space:]]*newTag:[[:space:]]*.*/newTag/p' "$CURRENT_FILE" | wc -l | tr -d ' ')" -eq 1 ] || { echo "::error::Expected exactly one newTag in $OVERLAY_PATH"; exit 1; }
+          sed -E "0,/^([[:space:]]*newTag:[[:space:]]*).*/s//\\1\"$TARGET_TAG\"/" "$CURRENT_FILE" > "$UPDATED_FILE"
+
+          ENCODED=$(base64 -w 0 < "$UPDATED_FILE")
+          BODY=$(jq -n --arg message "rollback: $PROJECT_NAME $ENVIRONMENT $CURRENT_TAG -> $TARGET_TAG" --arg content "$ENCODED" --arg branch main --arg sha "$OVERLAY_SHA" '{message: $message, content: $content, branch: $branch, sha: $sha}')
+          curl --fail-with-body -sS -X PUT \
+            -H "$AUTH" -H "$ACCEPT" \
+            "$API/contents/$OVERLAY_PATH" \
+            -d "$BODY"
+
+      - name: Summary
+        env:
+          CURRENT_TAG: ${{ steps.target.outputs.current_tag }}
+          TARGET_TAG: ${{ steps.target.outputs.target_tag }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "## Rollback Requested :rewind:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Environment:** $ENVIRONMENT" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image:** $CURRENT_TAG → $TARGET_TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "**GitOps Repo:** $GITOPS_OWNER/$GITOPS_REPO" >> "$GITHUB_STEP_SUMMARY"
