@@ -439,6 +439,7 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 | Ganchos | `GET /api/ganchos/fixos`, `GET\|POST /api/ganchos/regras`, `GET\|PUT /api/ganchos/regras/{id}`, `GET /api/ganchos/regras/{id}/versoes/{versao}`, `GET /api/ganchos/regras/exportar`, `POST /api/ganchos/regras/importar`, `GET /api/ganchos/historico` |
 | Emulador | `POST /emulador/atende/webhook`, `POST /emulador/atende/messages` |
 | MCP | `GET\|POST\|DELETE\|OPTIONS /mcp/...` (repasse, `studio.avancado`) |
+| Manual UTCP | `GET /utcp` (manual), `GET /utcp/` (índice), repasse com `studio.avancado` |
 
 </details>
 
@@ -470,6 +471,28 @@ cd mcp && npm ci && npm run start:mcp:catalog-agent        # fora do Docker, pra
 - **401 do MCP?** `MCP_B2C_MOBILE` sem acesso, ou o `concierge` recriado sem recriar o `mcp`. `docker compose up -d --build` recria os dois.
 
 </details>
+
+### Manual UTCP
+
+O serviço `utcp` publica o manual importado da POC `agent-utcp` de `superlogica-estudo-pocs/mcp-server-with-agent`. Reutiliza o pacote Node e as OpenAPIs de `mcp/`. O Docker Compose o inicia na rede do Concierge, em `127.0.0.1:3345`, com a porta interna, como o MCP. O Concierge repassa `GET http://127.0.0.1:8090/utcp` (manual) e `GET /utcp/` (índice de fontes e operações omitidas), exigindo usuário com `studio.avancado` no escopo Superlógica.
+
+```bash
+docker compose up -d --build concierge mcp utcp
+```
+
+Com o catálogo montado do host, configure `CONCIERGE_UID` e `CONCIERGE_GID` no `.env` local com o UID/GID do dono de `okf/var` (consulte `id -u` e `id -g`). Sem essas variáveis, o Compose mantém o usuário `65532:65532` da imagem. O usuário do container precisa escrever a cópia de trabalho do catálogo nesse diretório.
+
+Para rodar somente o publicador fora do Docker:
+
+```bash
+cd mcp
+npm ci
+npm run manual:utcp
+```
+
+Nesse modo, o manual fica em `http://127.0.0.1:3345/utcp` e o índice em `http://127.0.0.1:3345/`. Configure `UTCP_MANUAL_URL` no Concierge para habilitar o repasse fora do Compose. O publicador usa as variáveis de fontes `MCP_VIEWS_*` e `UPSTREAM_BASE_URL` de `mcp/.env`; [configuração e limites](mcp/utcp/README.md).
+
+Esta etapa publica definições UTCP. O cliente UTCP e a migração dos casos de uso serão tratados depois; os casos existentes continuam executando pelo MCP.
 
 ## Docs
 

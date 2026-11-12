@@ -41,6 +41,11 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 			mux.Handle(m+" /mcp/", protegido)
 		}
 	}
+	if s.utcp != nil {
+		protegido := s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.utcp.ServeHTTP)
+		mux.Handle("GET /utcp", protegido)
+		mux.Handle("GET /utcp/{$}", protegido)
+	}
 	return s.registrar(comCabecalhosDeSeguranca(mux))
 }
 

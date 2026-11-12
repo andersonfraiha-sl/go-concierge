@@ -72,6 +72,7 @@ type servidor struct {
 	account string
 	nexus   string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	log     *log.Logger
+	utcp    http.Handler
 	// prazoDoCatalogo é o teto de parede do trabalho do catálogo por pedido (comPrazo); o
 	// main põe prazoCatalogo, e zero (os testes de handler) deixa só o contexto do pedido.
 	prazoDoCatalogo time.Duration
@@ -322,6 +323,13 @@ func main() {
 			proxy = semPrazoDeEscrita(p) // SSE: a resposta dura o quanto o MCP quiser
 			log.Printf("okf-admin: MCP exposto em http://%s%s (repassa a %s; Authorization do cliente)", *addr, mcpPath(mcpCli.URL), base)
 		}
+	}
+	if endpoint := strings.TrimSpace(os.Getenv("UTCP_MANUAL_URL")); endpoint != "" {
+		s.utcp, err = proxyManualUTCP(endpoint)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("okf-admin: manual UTCP exposto em http://%s/utcp", *addr)
 	}
 	handler := s.rotear(proxy)
 
