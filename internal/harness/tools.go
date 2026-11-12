@@ -659,23 +659,23 @@ func saidaMCP(c chamada, res *mcp.CallResult, err error) saida {
 func (ag *Agente) executarExecutor(ctx context.Context, c chamada, origem string) (saida, error) {
 	executor := ag.cfg.Executores[origem]
 	if executor == nil {
-		return erro("executor %s indisponível para %s", origem, c.nome), nil
+		return falhaDeRecurso("executor %s indisponível para %s", origem, c.nome)
 	}
 	validar := ag.cfg.ValidarParametros[c.nome]
 	transformar := ag.cfg.TransformarResultados[c.nome]
 	if origem == okf.OrigemUTCP && (validar == nil || transformar == nil) {
-		return erro("política de privacidade indisponível para %s", c.nome), nil
+		return falhaDeRecurso("política de privacidade indisponível para %s", c.nome)
 	}
 	definition, err := executor.Descrever(ctx, c.nome)
 	if err != nil {
-		return erro("não foi possível resolver o contrato de %s", c.nome), nil
+		return falhaDeRecurso("não foi possível resolver o contrato de %s", c.nome)
 	}
 	if err := validarJSONSchema(definition.Schema, c.params); err != nil {
-		return erro("params inválidos para %s: %v", c.nome, err), nil
+		return falhaDeRecurso("params inválidos para %s: %v", c.nome, err)
 	}
 	if validar != nil {
 		if err := validar(c.params); err != nil {
-			return erro("params inválidos para %s: %v", c.nome, err), nil
+			return falhaDeRecurso("params inválidos para %s: %v", c.nome, err)
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -683,15 +683,19 @@ func (ag *Agente) executarExecutor(ctx context.Context, c chamada, origem string
 	}
 	resultado, err := executor.Executar(ctx, c.nome, c.params)
 	if err != nil {
-		return erro("falha ao chamar %s", c.nome), nil
+		return falhaDeRecurso("falha ao chamar %s", c.nome)
 	}
 	if transformar != nil {
 		resultado, err = transformar(resultado)
 		if err != nil {
-			return erro("resultado indisponível para %s", c.nome), nil
+			return falhaDeRecurso("resultado indisponível para %s", c.nome)
 		}
 	}
 	return saida{"recurso": c.nome, "resultado": resultado, "origem": origem}, nil
+}
+
+func falhaDeRecurso(formato string, args ...any) (saida, error) {
+	return erro(formato, args...), nil
 }
 
 func validarJSONSchema(raw json.RawMessage, params map[string]any) error {
