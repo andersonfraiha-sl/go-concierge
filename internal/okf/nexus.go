@@ -41,6 +41,7 @@ var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", 
 // OrigemMCP marca um recurso que veio do catálogo MCP (tools/list), não do Nexus nem do
 // instantâneo: o harness o executa por tools/call e o Backdoor não o edita.
 const OrigemMCP = "mcp"
+const OrigemUTCP = "utcp"
 
 type Recurso struct {
 	Name        string      `json:"name" yaml:"name"`

@@ -265,7 +265,7 @@ func TestChamarRecursoPrivadoParaContatoPublico(t *testing.T) {
 		t.Fatal(err)
 	}
 	encomendas := ag.Subagentes["encomendas"]
-	out := chama(t, encomendas, "chamar_recurso", map[string]any{"nome": "gruvi.bff.building-operation.get-company-by-document-controller-handle"})
+	out := chama(t, encomendas, "chamar_recurso", map[string]any{"nome": "agent_utcp.building-operation.GetCompanyByDocumentController_handle"})
 	if !strings.Contains(erroDe(out), "privado") {
 		t.Errorf("recurso private deveria ser recusado para contato público; veio %v", out)
 	}

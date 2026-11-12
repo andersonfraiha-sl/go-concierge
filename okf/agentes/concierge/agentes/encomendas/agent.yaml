@@ -2,5 +2,5 @@ nome: encomendas
 tipo: operador
 descricao: 'Mostra as encomendas da unidade, aguardando retirada por padrão ou entregues/canceladas quando solicitadas. Caso de uso: Minhas Encomendas.'
 recursos:
-- gruvi.bff.building-operation.get-company-by-document-controller-handle
-- gruvi.bff.building-operation.fetch-unit-packages-controller-handle
+- agent_utcp.building-operation.GetCompanyByDocumentController_handle
+- agent_utcp.building-operation.FetchUnitPackagesController_handle

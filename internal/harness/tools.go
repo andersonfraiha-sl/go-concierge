@@ -17,6 +17,7 @@ import (
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+	"github.com/google/jsonschema-go/jsonschema"
 
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/pii"
@@ -114,7 +115,7 @@ func (ag *Agente) toolsNativas() ([]tool.BaseTool, error) {
 		return nil, err
 	}
 	if len(ag.Cat.RecursosDoAgente(a)) > 0 {
-		desc := "Chama um recurso do Nexus declarado pelo agente, com os params do manual. Um recurso de ESCRITA só roda se for passo do caso.yaml deste agente e a mensagem atual do morador for a confirmação explícita (sim); antes disso, pergunte a confirmação em uma frase e pare."
+		desc := "Chama um recurso declarado pelo agente, com os params do manual. Um recurso de ESCRITA só roda se for passo do caso.yaml deste agente e a mensagem atual do morador for a confirmação explícita (sim); antes disso, pergunte a confirmação em uma frase e pare."
 		if perm := ag.recursosPermitidos(); len(perm) > 0 {
 			desc += " Permitidos agora: " + strings.Join(perm, ", ") + "."
 		} else {
@@ -570,6 +571,9 @@ func (ag *Agente) executar(ctx context.Context, c chamada) (saida, error) {
 	if c.achado == nil { // inalcançável: o Build exige ferramenta_permitida, que barra antes
 		return erro("recurso %q não está declarado por este agente", c.nome), nil
 	}
+	if c.achado.Recurso != nil && c.achado.Recurso.Origem == okf.OrigemUTCP {
+		return ag.executarExecutor(ctx, c, okf.OrigemUTCP)
+	}
 	// recurso resolvido pelo canal (identidade do morador): não depende do Nexus
 	if local := ag.cfg.Locais[c.nome]; local != nil && !c.obrigatoriaMCP {
 		return executarLocal(ctx, c, local), nil
@@ -650,6 +654,81 @@ func saidaMCP(c chamada, res *mcp.CallResult, err error) saida {
 		return erro("falha funcional ao chamar %s: %v", c.nomeMCP, err)
 	}
 	return saida{"recurso": c.nome, "resultado": resultado, "origem": "mcp"}
+}
+
+func (ag *Agente) executarExecutor(ctx context.Context, c chamada, origem string) (saida, error) {
+	executor := ag.cfg.Executores[origem]
+	if executor == nil {
+		return erro("executor %s indisponível para %s", origem, c.nome), nil
+	}
+	validar := ag.cfg.ValidarParametros[c.nome]
+	transformar := ag.cfg.TransformarResultados[c.nome]
+	if origem == okf.OrigemUTCP && (validar == nil || transformar == nil) {
+		return erro("política de privacidade indisponível para %s", c.nome), nil
+	}
+	definition, err := executor.Descrever(ctx, c.nome)
+	if err != nil {
+		return erro("não foi possível resolver o contrato de %s", c.nome), nil
+	}
+	if err := validarJSONSchema(definition.Schema, c.params); err != nil {
+		return erro("params inválidos para %s: %v", c.nome, err), nil
+	}
+	if validar != nil {
+		if err := validar(c.params); err != nil {
+			return erro("params inválidos para %s: %v", c.nome, err), nil
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	resultado, err := executor.Executar(ctx, c.nome, c.params)
+	if err != nil {
+		return erro("falha ao chamar %s", c.nome), nil
+	}
+	if transformar != nil {
+		resultado, err = transformar(resultado)
+		if err != nil {
+			return erro("resultado indisponível para %s", c.nome), nil
+		}
+	}
+	return saida{"recurso": c.nome, "resultado": resultado, "origem": origem}, nil
+}
+
+func validarJSONSchema(raw json.RawMessage, params map[string]any) error {
+	if len(raw) == 0 {
+		return errors.New("schema de entrada ausente")
+	}
+	var top struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return errors.New("schema de entrada inválido")
+	}
+	for name, property := range top.Properties {
+		var shape struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(property, &shape) != nil || shape.Type != "string" {
+			continue
+		}
+		if value, exists := params[name]; exists {
+			if normalized, ok := numeroInteiroComoTexto(value); ok {
+				params[name] = normalized
+			}
+		}
+	}
+	var schemaJSON jsonschema.Schema
+	if err := json.Unmarshal(raw, &schemaJSON); err != nil {
+		return errors.New("schema de entrada inválido")
+	}
+	resolved, err := schemaJSON.Resolve(nil)
+	if err != nil {
+		return errors.New("schema de entrada inválido")
+	}
+	if err := resolved.Validate(params); err != nil {
+		return err
+	}
+	return nil
 }
 
 // executarMock: sem Nexus no ar, o mock do concierge responde pela amostra do catálogo.
@@ -842,8 +921,36 @@ func valorMCP(nome string, res *mcp.CallResult) (any, error) {
 	return value, nil
 }
 
+func numeroInteiroComoTexto(value any) (string, bool) {
+	switch n := value.(type) {
+	case int:
+		return strconv.Itoa(n), true
+	case int64:
+		return strconv.FormatInt(n, 10), true
+	case float64:
+		if math.Trunc(n) != n || math.Abs(n) > 9007199254740991 {
+			return "", false
+		}
+		return strconv.FormatFloat(n, 'f', 0, 64), true
+	default:
+		return "", false
+	}
+}
+
 func NormalizarResultadoMCP(nome string, res *mcp.CallResult) (any, error) {
 	return valorMCP(nome, res)
+}
+
+func NormalizarResultadoUTCP(value any) (any, error) {
+	if falhaFuncionalMCP(value) != "" {
+		return nil, errors.New("resposta UTCP indica falha funcional")
+	}
+	if object, ok := value.(map[string]any); ok {
+		if data, exists := object["data"]; exists {
+			return data, nil
+		}
+	}
+	return value, nil
 }
 
 func normalizarValorMCP(value any) (any, error) {

@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1360,7 +1362,7 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	if c := admin.ContextoDoCondominio(condo, cfg.Payloads, orient.Geral); c != "" {
 		contexto = append(contexto, c)
 	}
-	s.injetarParametrosMCP(&cfg, sess)
+	s.injetarContextoRecursos(&cfg, sess)
 
 	// data e hora de agora: sem isso o modelo chuta o ano ao converter "sábado" em data
 	contexto = append(contexto, contextoDeAgora(time.Now()))
@@ -1860,7 +1862,7 @@ func (s *Servico) identidade(ctx context.Context, phone, companyID string) (gruv
 	return id, dadosVinculados, nil
 }
 
-func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
+func (s *Servico) injetarContextoRecursos(cfg *harness.Config, sess *Sessao) {
 	if cfg.Payloads == nil {
 		cfg.Payloads = map[string]map[string]any{}
 	}
@@ -1868,13 +1870,15 @@ func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
 	telefone := gruvi.NormalizarTelefone(sess.Contato.Phone)
 	company := "gruvi.bff.building-operation.get-company-by-document-controller-handle"
 	packages := "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
+	companyUTCP := "agent_utcp.building-operation.GetCompanyByDocumentController_handle"
+	packagesUTCP := "agent_utcp.building-operation.FetchUnitPackagesController_handle"
 	code := "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
 	visit := "gruvi.bff.building-operation.create-visit-controller-handle"
 	nomes := []string{company, packages, code, "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle", visit,
 		"gruvi.bff.mobile.fetch-fees-controller-handle-1", "gruvi.bff.mobile.get-fee-by-id-controller-handle-2",
 		"gruvi.bff.mobile.fetch-documents-controller-handle-1", "gruvi.bff.mobile.get-document-by-id-controller-handle-1",
 		"gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606", "gruvi.bff.mobile.create-ticket-controller-handle"}
-	for _, nome := range nomes {
+	for _, nome := range append(nomes, companyUTCP, packagesUTCP) {
 		if cfg.Payloads[nome] == nil {
 			cfg.Payloads[nome] = map[string]any{}
 		}
@@ -1885,7 +1889,108 @@ func (s *Servico) injetarParametrosMCP(cfg *harness.Config, sess *Sessao) {
 	for _, nome := range []string{company, packages, code} {
 		cfg.Payloads[nome]["filter_mobile_number"] = telefone
 	}
+	for _, nome := range []string{companyUTCP, packagesUTCP} {
+		cfg.Payloads[nome]["filter_mobile_number"] = telefone
+	}
 	cfg.Payloads[visit]["resident"] = map[string]any{"mobile_number": telefone}
+
+	validadores := make(map[string]func(map[string]any) error, len(cfg.ValidarParametros)+2)
+	for name, validar := range cfg.ValidarParametros {
+		validadores[name] = validar
+	}
+	cfg.ValidarParametros = validadores
+	transformadores := make(map[string]func(any) (any, error), len(cfg.TransformarResultados)+2)
+	for name, transformar := range cfg.TransformarResultados {
+		transformadores[name] = transformar
+	}
+	cfg.TransformarResultados = transformadores
+	resultados := sess.resultadosMCP()
+	bootstrap := resultados[company]
+	permitidas := sess.unidadesUTCP(companyID, telefone, idsFastpassVinculados(bootstrap))
+	var mu sync.RWMutex
+	cfg.ValidarParametros[companyUTCP] = func(map[string]any) error { return nil }
+	cfg.ValidarParametros[packagesUTCP] = func(params map[string]any) error {
+		unitID := strings.TrimSpace(fmt.Sprint(params["unitId"]))
+		if unitID == "" || unitID == "<nil>" {
+			return errors.New("unitId ausente")
+		}
+		mu.RLock()
+		_, ok := permitidas[unitID]
+		mu.RUnlock()
+		if !ok {
+			return errors.New("unitId não está entre as unidades vinculadas do morador")
+		}
+		return nil
+	}
+	cfg.TransformarResultados[companyUTCP] = func(value any) (any, error) {
+		data, err := harness.NormalizarResultadoUTCP(value)
+		if err != nil {
+			return nil, err
+		}
+		id, vinculados := gruvi.IdentidadeComDadosVinculados(telefone, companyID, data)
+		novas := idsFastpassVinculados(vinculados)
+		mu.Lock()
+		permitidas = novas
+		mu.Unlock()
+		sess.guardarUTCPUnidades(companyID, telefone, novas)
+		if !id.Authenticated {
+			return nil, errors.New("o telefone não tem unidades vinculadas")
+		}
+		return vinculados, nil
+	}
+	cfg.TransformarResultados[packagesUTCP] = harness.NormalizarResultadoUTCP
+}
+
+func idsFastpassVinculados(value any) map[string]struct{} {
+	units := map[string]struct{}{}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return units
+	}
+	add := func(unit map[string]any) {
+		id, ok := idFastpassString(unit["id_fastpass"])
+		if ok {
+			units[id] = struct{}{}
+		}
+	}
+	switch items := object["units"].(type) {
+	case []any:
+		for _, item := range items {
+			if unit, ok := item.(map[string]any); ok {
+				add(unit)
+			}
+		}
+	case []map[string]any:
+		for _, unit := range items {
+			add(unit)
+		}
+	}
+	return units
+}
+
+func idFastpassString(value any) (string, bool) {
+	switch id := value.(type) {
+	case string:
+		id = strings.TrimSpace(id)
+		return id, id != ""
+	case int:
+		if id < 0 {
+			return "", false
+		}
+		return strconv.Itoa(id), true
+	case int64:
+		if id < 0 {
+			return "", false
+		}
+		return strconv.FormatInt(id, 10), true
+	case float64:
+		if id < 0 || math.Trunc(id) != id || math.IsInf(id, 0) || math.IsNaN(id) || id > 9007199254740991 {
+			return "", false
+		}
+		return strconv.FormatFloat(id, 'f', 0, 64), true
+	default:
+		return "", false
+	}
 }
 
 var diasSemana = []string{"domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"}
@@ -1913,5 +2018,5 @@ func contextoDeIdentidade(id gruvi.Identidade) string {
 	if papel == "" {
 		papel = "morador"
 	}
-	return fmt.Sprintf("# Morador identificado\n\n- Nome: %s\n- Papel: %s\n\nConsulte as unidades pela tool MCP antes de qualquer operação dependente delas.", nome, papel)
+	return fmt.Sprintf("# Morador identificado\n\n- Nome: %s\n- Papel: %s\n\nConsulte as unidades pelos recursos disponíveis antes de qualquer operação dependente delas.", nome, papel)
 }

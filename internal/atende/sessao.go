@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,24 +29,28 @@ import (
 // e os turnos (mensagens do morador e respostas do concierge). Sessoes a grava no
 // SessaoStore ao fim de cada operação.
 type Sessao struct {
-	ID                string            `json:"id"`
-	Origem            entrada.Origem    `json:"origem"`
-	Destino           entrada.Destino   `json:"destino"`
-	Protocolo         string            `json:"protocolo"`
-	Tenant            string            `json:"tenant"`
-	Contato           entrada.Contato   `json:"contato"`
-	Canal             map[string]string `json:"canal"`
-	Identidade        gruvi.Identidade  `json:"identidade"`
-	IdentErro         string            `json:"identidade_erro,omitempty"`
-	Condominio        string            `json:"condominio,omitempty"` // id no Admin, resolvido pela mensagem
-	AdministradoraID  string            `json:"administradora_id,omitempty"`
-	CompanyID         string            `json:"company_id,omitempty"` // company do Gruvi do condomínio resolvido
-	Turnos            []Turno           `json:"turnos"`
-	CriadaEm          time.Time         `json:"criada_em"`
-	AtualizadaEm      time.Time         `json:"atualizada_em"`
-	Processando       bool              `json:"processando"`
-	Encerrada         bool              `json:"encerrada"`
-	AtendimentoHumano bool              `json:"atendimento_humano"`
+	ID                   string            `json:"id"`
+	Origem               entrada.Origem    `json:"origem"`
+	Destino              entrada.Destino   `json:"destino"`
+	Protocolo            string            `json:"protocolo"`
+	Tenant               string            `json:"tenant"`
+	Contato              entrada.Contato   `json:"contato"`
+	Canal                map[string]string `json:"canal"`
+	Identidade           gruvi.Identidade  `json:"identidade"`
+	IdentErro            string            `json:"identidade_erro,omitempty"`
+	UTCPCompanyID        string            `json:"utcp_company_id,omitempty"`
+	UTCPPhone            string            `json:"utcp_phone,omitempty"`
+	UTCPVinculoResolvido bool              `json:"utcp_vinculo_resolvido,omitempty"`
+	UTCPUnidades         []string          `json:"utcp_unidades_permitidas,omitempty"`
+	Condominio           string            `json:"condominio,omitempty"` // id no Admin, resolvido pela mensagem
+	AdministradoraID     string            `json:"administradora_id,omitempty"`
+	CompanyID            string            `json:"company_id,omitempty"` // company do Gruvi do condomínio resolvido
+	Turnos               []Turno           `json:"turnos"`
+	CriadaEm             time.Time         `json:"criada_em"`
+	AtualizadaEm         time.Time         `json:"atualizada_em"`
+	Processando          bool              `json:"processando"`
+	Encerrada            bool              `json:"encerrada"`
+	AtendimentoHumano    bool              `json:"atendimento_humano"`
 	// Transbordo: o protocolo passou a um atendente humano (o concierge para de
 	// responder até ser devolvido).
 	Transbordo *Transbordo `json:"transbordo,omitempty"`
@@ -497,6 +503,46 @@ func (sess *Sessao) anotarMemorias(idx int, fatos []memoria.Fato) {
 	if idx >= 0 && idx < len(sess.Turnos) && len(fatos) > 0 {
 		sess.Turnos[idx].Memorias = fatos
 	}
+}
+
+func (sess *Sessao) unidadesUTCP(companyID, phone string, bootstrap map[string]struct{}) map[string]struct{} {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.UTCPVinculoResolvido {
+		out := map[string]struct{}{}
+		if sess.UTCPCompanyID != companyID || sess.UTCPPhone != phone || gruvi.NormalizarTelefone(sess.Contato.Phone) != phone {
+			return out
+		}
+		for _, id := range sess.UTCPUnidades {
+			if strings.TrimSpace(id) != "" {
+				out[id] = struct{}{}
+			}
+		}
+		return out
+	}
+	out := make(map[string]struct{}, len(bootstrap))
+	for id := range bootstrap {
+		out[id] = struct{}{}
+	}
+	return out
+}
+
+func (sess *Sessao) guardarUTCPUnidades(companyID, phone string, units map[string]struct{}) {
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if gruvi.NormalizarTelefone(sess.Contato.Phone) != phone {
+		return
+	}
+	sess.UTCPCompanyID = companyID
+	sess.UTCPPhone = phone
+	sess.UTCPVinculoResolvido = true
+	sess.UTCPUnidades = make([]string, 0, len(units))
+	for id := range units {
+		if strings.TrimSpace(id) != "" {
+			sess.UTCPUnidades = append(sess.UTCPUnidades, id)
+		}
+	}
+	sort.Strings(sess.UTCPUnidades)
 }
 
 func (sess *Sessao) guardarMCPResultado(nome string, resultado any) {

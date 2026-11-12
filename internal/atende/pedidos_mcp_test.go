@@ -9,8 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/mcp"
+	"go-concierge/internal/okf"
 	"go-concierge/internal/pedidos"
+	"go-concierge/internal/recursos"
 )
 
 type chamadaMCPFluxo struct {
@@ -28,6 +31,7 @@ type mcpFluxoFalso struct {
 	tentativasVisita int
 	escritasVisita   int
 	escritasChamado  int
+	utcp             *utcpFluxoFalso
 }
 
 func (m *mcpFluxoFalso) ValidarToken(context.Context) error { return nil }
@@ -98,6 +102,65 @@ func (m *mcpFluxoFalso) CallTool(_ context.Context, nome string, params map[stri
 	}
 }
 
+type utcpFluxoFalso struct {
+	bootstrap        *mcpFluxoFalso
+	chamadas         []string
+	argsPorNome      map[string]map[string]any
+	resultadoEmpresa any
+}
+
+const (
+	ferramentaEmpresaUTCPFluxo = "agent_utcp.building-operation.GetCompanyByDocumentController_handle"
+	ferramentaPacotesUTCPFluxo = "agent_utcp.building-operation.FetchUnitPackagesController_handle"
+)
+
+func (f *utcpFluxoFalso) Descrever(_ context.Context, name string) (recursos.Definicao, error) {
+	var schema string
+	switch name {
+	case ferramentaEmpresaUTCPFluxo:
+		schema = `{"type":"object","properties":{"companyId":{"type":"string","pattern":"^[0-9]+$"},"filter[mobile-number]":{"type":"string","pattern":"^55\\d{10,11}$"}},"required":["companyId","filter[mobile-number]"],"additionalProperties":false}`
+	case ferramentaPacotesUTCPFluxo:
+		schema = `{"type":"object","properties":{"companyId":{"type":"string","pattern":"^[0-9]+$"},"unitId":{"type":"string","pattern":"^[0-9]+$"},"filter[mobile-number]":{"type":"string","pattern":"^55\\d{10,11}$"},"filter[status]":{"type":"string","enum":["waiting","WAITING","delivered","DELIVERED","canceled","CANCELED"]}},"required":["companyId","unitId","filter[mobile-number]"],"additionalProperties":false}`
+	default:
+		return recursos.Definicao{}, fmt.Errorf("recurso UTCP desconhecido")
+	}
+	return recursos.Definicao{Nome: name, Schema: json.RawMessage(schema)}, nil
+}
+
+func (f *utcpFluxoFalso) Executar(_ context.Context, name string, params map[string]any) (any, error) {
+	if f.argsPorNome == nil {
+		f.argsPorNome = map[string]map[string]any{}
+	}
+	args := map[string]any{}
+	for key, value := range params {
+		args[key] = value
+	}
+	f.argsPorNome[name] = args
+	f.chamadas = append(f.chamadas, name)
+	switch name {
+	case ferramentaEmpresaUTCPFluxo:
+		if f.resultadoEmpresa != nil {
+			return f.resultadoEmpresa, nil
+		}
+		if f.bootstrap.resultadoEmpresa != nil {
+			return f.bootstrap.resultadoEmpresa.Valor(), nil
+		}
+		return map[string]any{"data": map[string]any{"units": []any{map[string]any{"id": "unit-109", "id_fastpass": "109", "unit": "A - 101", "resident": map[string]any{"mobile_number": "5519981621916"}}}}}, nil
+	case ferramentaPacotesUTCPFluxo:
+		if err := f.bootstrap.falhas["gruvi.bff.building-operation.fetch-unit-packages-controller-handle"]; err != nil {
+			return nil, err
+		}
+		status := strings.ToLower(strings.TrimSpace(fmt.Sprint(params["filter[status]"])))
+		packages, exists := f.bootstrap.pacotesStatus[status]
+		if !exists {
+			packages = []any{map[string]any{"id": 42, "description": "Encomenda teste"}}
+		}
+		return map[string]any{"data": packages}, nil
+	default:
+		return nil, fmt.Errorf("recurso UTCP desconhecido")
+	}
+}
+
 func resultadoMCPFluxo(texto string) *mcp.CallResult {
 	return &mcp.CallResult{Content: []mcp.Content{{Type: "text", Text: texto}}}
 }
@@ -123,7 +186,9 @@ func servicoComMCPFluxo(t *testing.T) (*Servico, *mcpFluxoFalso) {
 	t.Helper()
 	svc, _, _ := servicoComPedidos(t)
 	fake := &mcpFluxoFalso{falhas: map[string]error{}, pacotesStatus: map[string][]any{}}
+	fake.utcp = &utcpFluxoFalso{bootstrap: fake}
 	svc.Config.MCP = fake
+	svc.Config.Executores = map[string]recursos.Cliente{okf.OrigemUTCP: fake.utcp}
 	return svc, fake
 }
 
@@ -134,7 +199,7 @@ func fixarAgoraDoFluxo(t *testing.T) {
 	t.Cleanup(func() { pedidos.Agora = original })
 }
 
-func TestCasoRealListaUnidadesPeloMCP(t *testing.T) {
+func TestCasoRealListaUnidadesPeloUTCP(t *testing.T) {
 	fixarAgoraDoFluxo(t)
 	svc, fake := servicoComMCPFluxo(t)
 	fake.resultadoEmpresa = resultadoMCPFluxo(`{"data":{"name":"Residencial Exemplo","units":[{"id":"unit-109","id_external_gruvi":"op-109","id_fastpass":"109","block":"A","unit":"A - 101","resident":{"name":"Vanderlei Martins","mobile_number":"5519981621916"}},{"id":"unit-110","id_external_gruvi":"op-110","id_fastpass":"110","block":"B","unit":"B - 202","resident":{"name":"Outra pessoa","mobile_number":"5511999999999"}}]}}`)
@@ -143,8 +208,8 @@ func TestCasoRealListaUnidadesPeloMCP(t *testing.T) {
 	if !strings.Contains(texto, "A - 101") || strings.Contains(texto, "B - 202") {
 		t.Fatalf("resposta deve incluir só a unidade vinculada ao telefone: %q", texto)
 	}
-	if len(fake.chamadas) != 1 || fake.chamadas[0].nome != "gruvi.bff.building-operation.get-company-by-document-controller-handle" {
-		t.Fatalf("listagem de unidades não foi pelo MCP: %+v", fake.chamadas)
+	if len(fake.chamadas) != 1 || fake.chamadas[0].nome != "gruvi.bff.building-operation.get-company-by-document-controller-handle" || len(fake.utcp.chamadas) != 1 || fake.utcp.chamadas[0] != ferramentaEmpresaUTCPFluxo {
+		t.Fatalf("bootstrap MCP e consulta UTCP deveriam ser chamadas separadamente: MCP=%+v UTCP=%+v", fake.chamadas, fake.utcp.chamadas)
 	}
 	if !sess.Identidade.Authenticated || len(sess.Identidade.Units) != 1 {
 		t.Fatalf("vínculo comprovado deveria autenticar o telefone e as unidades: %+v", sess.Identidade)
@@ -214,9 +279,9 @@ func TestCasoRealEncomendasUsaStatusExplicitoOuWaitingPadrao(t *testing.T) {
 				fake.pacotesStatus[teste.status] = []any{}
 			}
 			sess := falar(t, svc, "mcp-encomendas-"+teste.id, teste.mensagem)
-			args := fake.argsPorNome["gruvi.bff.building-operation.fetch-unit-packages-controller-handle"]
-			if args == nil || args["filter_status"] != teste.status {
-				t.Fatalf("filter_status enviado ao MCP: %+v, esperado %s; chamadas=%+v", args, teste.status, fake.chamadas)
+			args := fake.utcp.argsPorNome[ferramentaPacotesUTCPFluxo]
+			if args == nil || args["filter[status]"] != teste.status {
+				t.Fatalf("filter[status] enviado ao UTCP: %+v, esperado %s; chamadas=%+v", args, teste.status, fake.utcp.chamadas)
 			}
 			if _, ok := args["unitId"].(string); !ok {
 				t.Fatalf("unitId deve chegar como texto segundo a OpenAPI: %+v", args)
@@ -230,6 +295,62 @@ func TestCasoRealEncomendasUsaStatusExplicitoOuWaitingPadrao(t *testing.T) {
 				t.Fatalf("encomenda não apareceu na resposta: %q", texto)
 			}
 		})
+	}
+}
+
+func TestCasoEncomendasMantemAllowlistUTCPEntreTurnos(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	fake.resultadoEmpresa = resultadoMCPFluxo(`{"data":{"units":[{"id":"interno-109","id_fastpass":"109","unit":"A - 101","resident":{"mobile_number":"5519981621916"}}]}}`)
+	fake.utcp.resultadoEmpresa = map[string]any{"data": map[string]any{"units": []any{
+		map[string]any{"id": "interno-109", "id_fastpass": float64(109), "unit": "A - 101", "resident": map[string]any{"mobile_number": "5519981621916"}},
+		map[string]any{"id": "interno-110", "id_fastpass": float64(110), "unit": "B - 202", "resident": map[string]any{"mobile_number": "5519981621916"}},
+	}}}
+	sess := falar(t, svc, "utcp-escolha-unidade", "minhas encomendas?")
+	if !strings.Contains(ultimoConcierge(sess).Texto, "De qual unidade?") {
+		t.Fatalf("o primeiro turno deveria solicitar unidade: %q", ultimoConcierge(sess).Texto)
+	}
+	if !sess.UTCPVinculoResolvido || len(sess.UTCPUnidades) != 2 {
+		t.Fatalf("allowlist UTCP não foi salva na sessão: %+v", sess.UTCPUnidades)
+	}
+	sess = falar(t, svc, "utcp-escolha-unidade-2", "B - 202")
+	args := fake.utcp.argsPorNome[ferramentaPacotesUTCPFluxo]
+	if args["unitId"] != "110" {
+		t.Fatalf("unidade selecionada não chegou como id_fastpass string: args=%+v resposta=%q", args, ultimoConcierge(sess).Texto)
+	}
+}
+
+func TestSessaoNaoRestauraUnidadesUTCPDoBootstrapDepoisDeVinculoVazio(t *testing.T) {
+	sess := &Sessao{ID: "s", Contato: entrada.Contato{Phone: "5519981621916"}, UTCPCompanyID: "5982", UTCPPhone: "5519981621916", UTCPVinculoResolvido: true, UTCPUnidades: []string{}}
+	bootstrap := map[string]struct{}{"109": {}}
+	if units := sess.unidadesUTCP("5982", "5519981621916", bootstrap); len(units) != 0 {
+		t.Fatalf("vínculo UTCP vazio foi reabilitado pelo bootstrap MCP: %v", units)
+	}
+	if units := sess.unidadesUTCP("9999", "5519981621916", bootstrap); len(units) != 0 {
+		t.Fatalf("troca de empresa reutilizou unidades antigas: %v", units)
+	}
+	if units := sess.unidadesUTCP("5982", "5511999999999", bootstrap); len(units) != 0 {
+		t.Fatalf("troca de telefone reutilizou unidades antigas: %v", units)
+	}
+	record, err := sess.Registro()
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := RestaurarSessao(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !restored.UTCPVinculoResolvido || restored.UTCPPhone != "5519981621916" || len(restored.UTCPUnidades) != 0 {
+		t.Fatalf("roundtrip perdeu allowlist vazia: %+v", restored)
+	}
+	if units := restored.unidadesUTCP("5982", "5519981621916", bootstrap); len(units) != 0 {
+		t.Fatalf("restauração reviveu bootstrap após vínculo vazio: %v", units)
+	}
+	if units := idsFastpassVinculados(map[string]any{"units": []any{map[string]any{"id": "109"}}}); len(units) != 0 {
+		t.Fatalf("ID interno sem id_fastpass não deve autorizar encomendas: %v", units)
+	}
+	if units := idsFastpassVinculados(map[string]any{"units": []any{map[string]any{"id": "interno", "id_fastpass": float64(109)}}}); len(units) != 1 {
+		t.Fatalf("id_fastpass numérico não foi normalizado: %v", units)
 	}
 }
 
@@ -325,11 +446,11 @@ func TestFalhaMCPDeEncomendasNaoUsaFallback(t *testing.T) {
 	const packages = "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
 	fake.falhas[packages] = errors.New("bff indisponível")
 	sess := falar(t, svc, "mcp-falha", "minhas encomendas?")
-	if !strings.Contains(ultimoConcierge(sess).Texto, "Não consegui concluir") || !strings.Contains(ultimoConcierge(sess).Texto, "bff indisponível") {
-		t.Fatalf("falha do MCP precisa chegar ao morador: %q", ultimoConcierge(sess).Texto)
+	if !strings.Contains(ultimoConcierge(sess).Texto, "Não consegui concluir") {
+		t.Fatalf("falha UTCP precisa chegar ao morador: %q", ultimoConcierge(sess).Texto)
 	}
-	if len(fake.chamadas) != 2 || fake.chamadas[0].nome != "gruvi.bff.building-operation.get-company-by-document-controller-handle" || fake.chamadas[1].nome != packages {
-		t.Fatalf("não deve executar fallback após falha MCP: %+v", fake.chamadas)
+	if len(fake.chamadas) != 1 || len(fake.utcp.chamadas) != 2 || fake.utcp.chamadas[0] != ferramentaEmpresaUTCPFluxo || fake.utcp.chamadas[1] != ferramentaPacotesUTCPFluxo {
+		t.Fatalf("não deve executar fallback MCP após falha UTCP: MCP=%+v UTCP=%+v", fake.chamadas, fake.utcp.chamadas)
 	}
 }
 

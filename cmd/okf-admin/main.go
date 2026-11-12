@@ -62,6 +62,8 @@ import (
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
 	"go-concierge/internal/pedidos"
+	"go-concierge/internal/recursos"
+	"go-concierge/internal/utcp"
 	"go-concierge/web"
 )
 
@@ -174,7 +176,19 @@ func main() {
 		log.Fatal(err)
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
-	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
+	var utcpClient *utcp.Client
+	if manualURL := strings.TrimSpace(os.Getenv("UTCP_MANUAL_URL")); manualURL != "" {
+		var token utcp.TokenProvider
+		if mcpCli != nil {
+			token = mcpCli.Token
+		}
+		utcpClient, err = utcp.New(manualURL, token)
+		if err != nil {
+			log.Printf("okf-admin: UTCP desligado: %v", err)
+			utcpClient = nil
+		}
+	}
+	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), utcp.Fonte(utcpClient), fonteNexus)
 	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", log: log.Default(), banco: db,
 		prazoDoCatalogo:   prazoCatalogo,
 		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
@@ -254,6 +268,9 @@ func main() {
 
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
 	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv, Ganchos: conjunto}
+	if utcpClient != nil {
+		cfgHarness.Executores = map[string]recursos.Cliente{okf.OrigemUTCP: utcpClient}
+	}
 	if mcpCli != nil {
 		cfgHarness.MCP = mcpCli
 	}

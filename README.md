@@ -492,7 +492,7 @@ npm run manual:utcp
 
 Nesse modo, o manual fica em `http://127.0.0.1:3345/utcp` e o índice em `http://127.0.0.1:3345/`. Configure `UTCP_MANUAL_URL` no Concierge para habilitar o repasse fora do Compose. O publicador usa as variáveis de fontes `MCP_VIEWS_*` e `UPSTREAM_BASE_URL` de `mcp/.env`; [configuração e limites](mcp/utcp/README.md).
 
-Esta etapa publica definições UTCP. O cliente UTCP e a migração dos casos de uso serão tratados depois; os casos existentes continuam executando pelo MCP.
+O cliente UTCP consome esse manual no piloto de `listar-unidades` e `encomendas`; a descoberta e os schemas ficam em cache em memória por processo. O bootstrap de identidade e os demais fluxos continuam no MCP. Consulte [configuração, limites e aplicação no Studio](docs/integracao/utcp.md).
 
 ## Docs
 
@@ -505,5 +505,7 @@ Esta etapa publica definições UTCP. O cliente UTCP e a migração dos casos de
 | Memória classificada | [spec](docs/superpowers/specs/2026-11-03-memoria-classificada-design.md) | | |
 
 Integração com o app concierge do Nexus: [contrato do pacote](docs/integracao/nexus.md).
+
+Integração UTCP: [configuração, limites e migração piloto](docs/integracao/utcp.md).
 
 Princípios do projeto: [constituição](docs/superpowers/constitution.md). Definições de partida: [DEFINICOES.md](DEFINICOES.md). Regras de código do front: [web/studio/README.md](web/studio/README.md).

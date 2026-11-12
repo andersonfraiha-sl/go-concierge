@@ -220,10 +220,23 @@ var verbosLeitura = []string{"get-", "list-", "find-", "search-", "read-", "fetc
 // `obter_email`), para "ler" e "ver" não pegarem "lerdo" ou "verificar".
 var verbosLeituraPT = []string{"listar", "consultar", "buscar", "obter", "ler", "ver"}
 
+func separarCamelCase(s string) string {
+	var out strings.Builder
+	var anterior rune
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' && ((anterior >= 'a' && anterior <= 'z') || (anterior >= '0' && anterior <= '9')) {
+			out.WriteByte('-')
+		}
+		out.WriteRune(r)
+		anterior = r
+	}
+	return out.String()
+}
+
 // EscritaPeloNome("") é true (nome sem verbo de leitura); quem classifica trata recurso vazio antes.
 // EscritaPeloNome deduz pelo último nível do nome (a operação) se a ferramenta grava no sistema.
 func EscritaPeloNome(recurso string) bool {
-	op := strings.ToLower(recurso[strings.LastIndex(recurso, ".")+1:])
+	op := strings.ToLower(separarCamelCase(recurso[strings.LastIndex(recurso, ".")+1:]))
 	palavra, _, _ := strings.Cut(strings.ReplaceAll(op, "_", "-"), "-")
 	leitura := slices.ContainsFunc(verbosLeitura, func(v string) bool { return strings.HasPrefix(op, v) }) ||
 		slices.Contains(verbosLeituraPT, palavra)

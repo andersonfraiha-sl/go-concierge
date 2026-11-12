@@ -163,7 +163,7 @@ func (s *Servico) payloadsDaSessao(ctx context.Context, sess *Sessao) map[string
 		return nil
 	}
 	cfg := harness.Config{Payloads: m.PayloadsDe(condo.ID)}
-	s.injetarParametrosMCP(&cfg, sess)
+	s.injetarContextoRecursos(&cfg, sess)
 	return cfg.Payloads
 }
 

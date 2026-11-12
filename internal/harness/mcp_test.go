@@ -8,6 +8,7 @@ import (
 
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/okf"
+	"go-concierge/internal/recursos"
 )
 
 // mcpFalso imita o cliente MCP: grava a chamada e devolve um resultado em texto JSON.
@@ -35,17 +36,17 @@ func (m *mcpFalso) CallTool(_ context.Context, name string, args map[string]any)
 	return &mcp.CallResult{Content: []mcp.Content{{Type: "text", Text: `{"unidades":[{"id":"109","label":"Jataí"}]}`}}}, nil
 }
 
-func TestToolsObrigatoriasExecutadasPorMCPFalso(t *testing.T) {
+func TestRecursosPilotoExecutadosPorUTCPFalso(t *testing.T) {
 	const (
-		empresa = "gruvi.bff.building-operation.get-company-by-document-controller-handle"
-		pacotes = "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
+		empresa = "agent_utcp.building-operation.GetCompanyByDocumentController_handle"
+		pacotes = "agent_utcp.building-operation.FetchUnitPackagesController_handle"
 		codigo  = "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
 		motivos = "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle"
 		visita  = "gruvi.bff.building-operation.create-visit-controller-handle"
 	)
 	cat, a := catalogoComMCP(t)
+	utcpFake := fakePilotExecutor()
 	fake := &mcpFalso{resultados: map[string]*mcp.CallResult{
-		pacotes: {Content: []mcp.Content{{Type: "text", Text: `{"data":{"packages":[{"id":42,"description":"Caixa"}]}}`}}},
 		codigo:  {Content: []mcp.Content{{Type: "text", Text: `{"data":{"delivery_code":"4831"}}`}}},
 		motivos: {Content: []mcp.Content{{Type: "text", Text: `{"data":{"reasons":[{"id":5,"reason":"Visita","type_provider":"GUEST"}]}}`}}},
 		visita:  {Content: []mcp.Content{{Type: "text", Text: `{"data":{"visit":{"clearance_status":"AUTHORIZED"}}}`}}},
@@ -58,43 +59,38 @@ func TestToolsObrigatoriasExecutadasPorMCPFalso(t *testing.T) {
 		motivos: {"companyId": "5982"},
 		visita:  {"companyId": "5982", "resident": map[string]any{"mobile_number": telefoneMorador}},
 	}
-	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, MCP: fake, Payloads: payloads, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}})
+	ag, err := Build(context.Background(), cat, a, Config{Mock: true, Env: semEnv, MCP: fake, Executores: map[string]recursos.Cliente{okf.OrigemUTCP: utcpFake}, ValidarParametros: map[string]func(map[string]any) error{empresa: func(map[string]any) error { return nil }, pacotes: func(map[string]any) error { return nil }}, TransformarResultados: map[string]func(any) (any, error){empresa: func(v any) (any, error) { return v, nil }, pacotes: func(v any) (any, error) { return v, nil }}, Payloads: payloads, Identidade: Identidade{Authenticated: true, AccountID: "cond-001", Role: "morador"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	casos := []struct {
-		agente, nome string
-		params       map[string]any
-		confirmacao  string
+		agente, nome, origem string
+		params               map[string]any
+		confirmacao          string
 	}{
-		{"encomendas", empresa, map[string]any{"companyId": "9999", "filter_mobile_number": "000", "filter": map[string]any{"mobile-number": "000"}}, ""},
-		{"encomendas", pacotes, map[string]any{"companyId": "9999", "unitId": 101, "filter_mobile_number": "000", "filter_status": "waiting"}, ""},
-		{"codigo-retirada", codigo, map[string]any{"companyId": "9999", "filter_mobile_number": "000", "unitId": 101, "packageId": 42}, ""},
-		{"liberacao-visitante", motivos, map[string]any{"companyId": "9999", "filter_visitor_type": "GUEST"}, ""},
+		{"encomendas", empresa, okf.OrigemUTCP, map[string]any{"companyId": "9999", "filter_mobile_number": "000", "filter[mobile-number]": "000"}, ""},
+		{"encomendas", pacotes, okf.OrigemUTCP, map[string]any{"companyId": "9999", "unitId": 101, "filter_mobile_number": "000", "filter[status]": "waiting"}, ""},
+		{"codigo-retirada", codigo, okf.OrigemMCP, map[string]any{"companyId": "9999", "filter_mobile_number": "000", "unitId": 101, "packageId": 42}, ""},
+		{"liberacao-visitante", motivos, okf.OrigemMCP, map[string]any{"companyId": "9999", "filter_visitor_type": "GUEST"}, ""},
 	}
 	for _, caso := range casos {
 		sub := ag.Subagentes[caso.agente]
 		out, err := sub.InvocarRecurso(context.Background(), caso.nome, caso.params, caso.confirmacao)
-		if err != nil || out["error"] != nil || out["origem"] != "mcp" {
-			t.Fatalf("%s via MCP: resultado=%v erro=%v", caso.nome, out, err)
+		if err != nil || out["error"] != nil || out["origem"] != caso.origem {
+			t.Fatalf("%s via %s: resultado=%v erro=%v", caso.nome, caso.origem, out, err)
 		}
 	}
-	quer := []string{empresa, pacotes, codigo, motivos}
+	quer := []string{codigo, motivos}
 	if strings.Join(fake.chamadas, ",") != strings.Join(quer, ",") {
-		t.Fatalf("tools MCP chamadas: %v", fake.chamadas)
+		t.Fatalf("tools MCP remanescentes chamadas: %v", fake.chamadas)
 	}
-	if fake.argsPorNome[empresa]["companyId"] != "5982" || fake.argsPorNome[pacotes]["companyId"] != "5982" || fake.argsPorNome[codigo]["companyId"] != "5982" || fake.argsPorNome[motivos]["companyId"] != "5982" || fake.argsPorNome[pacotes]["unitId"] != 101 || fake.argsPorNome[codigo]["packageId"] != 42 || fake.argsPorNome[motivos]["filter_visitor_type"] != "GUEST" {
-		t.Fatalf("parâmetros MCP: %+v", fake.argsPorNome)
+	argsEmpresa, argsPacotes := utcpFake.callsByName[empresa], utcpFake.callsByName[pacotes]
+	if argsEmpresa["companyId"] != "5982" || argsEmpresa["filter[mobile-number]"] != telefoneMorador || argsPacotes["companyId"] != "5982" || argsPacotes["unitId"] != "101" || argsPacotes["filter[mobile-number]"] != telefoneMorador || argsPacotes["filter[status]"] != "waiting" {
+		t.Fatalf("contexto B2C UTCP: empresa=%+v pacotes=%+v", argsEmpresa, argsPacotes)
 	}
-	for _, nome := range []string{empresa, pacotes, codigo} {
-		if fake.argsPorNome[nome]["filter_mobile_number"] != telefoneMorador {
-			t.Fatalf("telefone do morador foi sobrescrito em %s: %+v", nome, fake.argsPorNome[nome])
-		}
-	}
-	filtro := fake.argsPorNome[empresa]["filter"].(map[string]any)
-	if filtro["mobile-number"] != telefoneMorador {
-		t.Fatalf("telefone no filtro aninhado foi sobrescrito: %+v", filtro)
+	if fake.argsPorNome[codigo]["companyId"] != "5982" || fake.argsPorNome[codigo]["packageId"] != 42 || fake.argsPorNome[motivos]["filter_visitor_type"] != "GUEST" {
+		t.Fatalf("parâmetros MCP remanescentes: %+v", fake.argsPorNome)
 	}
 	resultadoVisita, errOut := ag.Subagentes["liberacao-visitante"].InvocarRecurso(context.Background(), visita, map[string]any{"unitId": 101, "reason": 5, "resident": map[string]any{"mobile_number": "000", "name": "Morador"}, "visitors": []any{map[string]any{"name": "Ana"}}}, "sim")
 	if errOut != nil || !strings.Contains(erroDe(resultadoVisita), "motor determinístico") {
@@ -125,6 +121,10 @@ func catalogoComMCP(t *testing.T) (*okf.Catalogo, *okf.Agent) {
 				out[i].Write = true
 			}
 		}
+		out = append(out,
+			okf.Recurso{Name: "agent_utcp.building-operation.GetCompanyByDocumentController_handle", Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemUTCP},
+			okf.Recurso{Name: "agent_utcp.building-operation.FetchUnitPackagesController_handle", Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemUTCP},
+		)
 		return out
 	}
 	return cat, a

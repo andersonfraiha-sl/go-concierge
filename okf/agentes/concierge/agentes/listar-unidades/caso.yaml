@@ -10,7 +10,7 @@ examples:
   - quais são minhas unidades?
   - em quais apartamentos eu estou cadastrado?
 steps:
-  - resource: gruvi.bff.building-operation.get-company-by-document-controller-handle
+  - resource: agent_utcp.building-operation.GetCompanyByDocumentController_handle
     save_as: condominio
 output: |-
   Unidades vinculadas ao seu cadastro:
