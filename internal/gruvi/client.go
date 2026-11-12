@@ -187,6 +187,10 @@ func IdentidadeDoResultadoMCP(phone, companyID string, data any) Identidade {
 }
 
 func IdentidadeComDadosVinculadosMCP(phone, companyID string, data any) (Identidade, map[string]any) {
+	return IdentidadeComDadosVinculados(phone, companyID, data)
+}
+
+func IdentidadeComDadosVinculados(phone, companyID string, data any) (Identidade, map[string]any) {
 	tel := NormalizarTelefone(phone)
 	id := Identidade{Phone: tel, CompanyID: strings.TrimSpace(companyID), Units: []Unidade{}, Condominios: []Condominio{}}
 	var unidadesVinculadas []any

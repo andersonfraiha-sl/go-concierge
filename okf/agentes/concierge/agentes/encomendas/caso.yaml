@@ -28,7 +28,7 @@ params:
       - {value: delivered, label: entregue}
       - {value: canceled, label: cancelada}
 steps:
-  - resource: gruvi.bff.building-operation.get-company-by-document-controller-handle
+  - resource: agent_utcp.building-operation.GetCompanyByDocumentController_handle
     save_as: condominio
   - reuse:
       slot: unidade
@@ -47,10 +47,10 @@ steps:
       ask: De qual unidade?
       empty: A consulta de encomendas não está disponível para as unidades retornadas.
   - collect: status
-  - resource: gruvi.bff.building-operation.fetch-unit-packages-controller-handle
+  - resource: agent_utcp.building-operation.FetchUnitPackagesController_handle
     with:
       unitId: "$unidade"
-      filter_status: '{{if .status}}{{.status}}{{else}}waiting{{end}}'
+      "filter[status]": '{{if .status}}{{.status}}{{else}}waiting{{end}}'
     save_as: encomendas
 output: |-
   {{if .encomendas}}Encomendas {{if eq .status "delivered"}}entregues{{else if eq .status "canceled"}}canceladas{{else}}aguardando retirada{{end}} ({{.unidade_label}}):

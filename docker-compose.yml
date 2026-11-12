@@ -13,12 +13,14 @@ services:
   # o Console (web/okf) também, e aqui é montado do repositório (-web), para editar sem rebuild.
   concierge:
     build: .
+    user: "${CONCIERGE_UID:-65532}:${CONCIERGE_GID:-65532}"
     env_file:
       - path: ./.env
         required: false
     environment:
       MCP_URL: ${MCP_URL:-http://127.0.0.1:3337/mcp/gruvi/bff}
       MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:-}
+      UTCP_MANUAL_URL: ${UTCP_MANUAL_URL:-http://127.0.0.1:3345/utcp}
       DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
       # router (padrão) | planning | react — vence o `orquestracao:` do agent.yaml
       ORQUESTRACAO_MODO: ${ORQUESTRACAO_MODO:-}
@@ -80,6 +82,20 @@ services:
     environment:
       MCP_CATALOG_AGENT_MCP_HOST: 127.0.0.1
       MCP_CATALOG_AGENT_MCP_PORT: "3337"
+    network_mode: "service:concierge"
+    depends_on:
+      - concierge
+    restart: unless-stopped
+
+  utcp:
+    build: ./mcp
+    command: ["npx", "tsx", "utcp/manual-main.ts"]
+    env_file:
+      - path: ./mcp/.env
+        required: false
+    environment:
+      AGENT_UTCP_MANUAL_HOST: 127.0.0.1
+      AGENT_UTCP_MANUAL_PORT: "3345"
     network_mode: "service:concierge"
     depends_on:
       - concierge

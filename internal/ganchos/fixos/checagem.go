@@ -36,6 +36,8 @@ const MotivoCondominioNaoIdentificado = "condomínio não identificado"
 const (
 	ferramentaCriarVisita         = "gruvi.bff.building-operation.create-visit-controller-handle"
 	ferramentaEmpresaPorDocumento = "gruvi.bff.building-operation.get-company-by-document-controller-handle"
+	ferramentaEmpresaUTCP         = "agent_utcp.building-operation.GetCompanyByDocumentController_handle"
+	ferramentaPacotesUTCP         = "agent_utcp.building-operation.FetchUnitPackagesController_handle"
 	ferramentaPacotes             = "gruvi.bff.building-operation.fetch-unit-packages-controller-handle"
 	ferramentaCodigoRetirada      = "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
 	ferramentaMotivosVisita       = "gruvi.bff.building-operation.fetch-visit-reasons-controller-handle"
@@ -164,6 +166,8 @@ func contextoB2C() ganchos.Gancho[ganchos.AntesDaFerramenta] {
 var comContextoB2C = map[string]bool{
 	ferramentaEmpresaPorDocumento: true,
 	ferramentaPacotes:             true,
+	ferramentaEmpresaUTCP:         true,
+	ferramentaPacotesUTCP:         true,
 	ferramentaCodigoRetirada:      true,
 	ferramentaMotivosVisita:       true,
 	ferramentaCriarVisita:         true,
@@ -207,6 +211,13 @@ func fixarContextoB2C(nome string, params, contexto map[string]any) error {
 		if filtro, ok := params["filter"].(map[string]any); ok {
 			filtro["mobile-number"] = telefone
 		}
+	case ferramentaEmpresaUTCP, ferramentaPacotesUTCP:
+		telefone, existe := contexto["filter_mobile_number"]
+		if !existe || strings.TrimSpace(fmt.Sprint(telefone)) == "" {
+			return fmt.Errorf("telefone B2C ausente")
+		}
+		delete(params, "filter_mobile_number")
+		params["filter[mobile-number]"] = telefone
 	case ferramentaCriarVisita:
 		return fixarMoradorDaVisita(params, contexto)
 	case ferramentaCobrancas, ferramentaCobranca, ferramentaDocumentos, ferramentaDocumento, ferramentaTiposDeChamado, ferramentaAbrirChamado:

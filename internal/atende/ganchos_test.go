@@ -76,7 +76,7 @@ func (r *registroDoModelo) leu() (string, int) {
 	return strings.Join(r.vistos, "\n"), r.geracoes
 }
 
-// modeloRoteirizado é o LLM do turno: roteia para listar-unidades, chama o
+// modeloRoteirizado é o LLM do turno: roteia para codigo-retirada, chama o
 // get-company-by-document com o marcador do CPF que leu e responde citando o marcador.
 type modeloRoteirizado struct {
 	registro *registroDoModelo
@@ -108,7 +108,7 @@ func (m modeloRoteirizado) Generate(_ context.Context, in []*schema.Message, opt
 	ultima := in[len(in)-1]
 	switch {
 	case in[0].Role == schema.System && strings.HasPrefix(in[0].Content, "# Roteador"):
-		return schema.AssistantMessage("listar-unidades", nil), nil
+		return schema.AssistantMessage("codigo-retirada", nil), nil
 	case ultima.Role == schema.User && temChamarRecurso(tools):
 		args, _ := json.Marshal(map[string]any{"nome": ferramentaEmpresa, "params": map[string]any{"document": reMarcadorCPF.FindString(ultima.Content)}})
 		return schema.AssistantMessage("", []schema.ToolCall{{ID: "consulta", Type: "function", Function: schema.FunctionCall{Name: "chamar_recurso", Arguments: string(args)}}}), nil

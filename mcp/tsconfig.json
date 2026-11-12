@@ -12,5 +12,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "mcp-catalog-agent/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "mcp-catalog-agent/**/*.ts", "utcp/**/*.ts", "tests/**/*.ts"]
 }

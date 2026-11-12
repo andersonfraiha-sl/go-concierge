@@ -439,6 +439,7 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 | Ganchos | `GET /api/ganchos/fixos`, `GET\|POST /api/ganchos/regras`, `GET\|PUT /api/ganchos/regras/{id}`, `GET /api/ganchos/regras/{id}/versoes/{versao}`, `GET /api/ganchos/regras/exportar`, `POST /api/ganchos/regras/importar`, `GET /api/ganchos/historico` |
 | Emulador | `POST /emulador/atende/webhook`, `POST /emulador/atende/messages` |
 | MCP | `GET\|POST\|DELETE\|OPTIONS /mcp/...` (repasse, `studio.avancado`) |
+| Manual UTCP | `GET /utcp` (manual), `GET /utcp/` (índice), repasse com `studio.avancado` |
 
 </details>
 
@@ -471,6 +472,28 @@ cd mcp && npm ci && npm run start:mcp:catalog-agent        # fora do Docker, pra
 
 </details>
 
+### Manual UTCP
+
+O serviço `utcp` publica o manual importado da POC `agent-utcp` de `superlogica-estudo-pocs/mcp-server-with-agent`. Reutiliza o pacote Node e as OpenAPIs de `mcp/`. O Docker Compose o inicia na rede do Concierge, em `127.0.0.1:3345`, com a porta interna, como o MCP. O Concierge repassa `GET http://127.0.0.1:8090/utcp` (manual) e `GET /utcp/` (índice de fontes e operações omitidas), exigindo usuário com `studio.avancado` no escopo Superlógica.
+
+```bash
+docker compose up -d --build concierge mcp utcp
+```
+
+Com o catálogo montado do host, configure `CONCIERGE_UID` e `CONCIERGE_GID` no `.env` local com o UID/GID do dono de `okf/var` (consulte `id -u` e `id -g`). Sem essas variáveis, o Compose mantém o usuário `65532:65532` da imagem. O usuário do container precisa escrever a cópia de trabalho do catálogo nesse diretório.
+
+Para rodar somente o publicador fora do Docker:
+
+```bash
+cd mcp
+npm ci
+npm run manual:utcp
+```
+
+Nesse modo, o manual fica em `http://127.0.0.1:3345/utcp` e o índice em `http://127.0.0.1:3345/`. Configure `UTCP_MANUAL_URL` no Concierge para habilitar o repasse fora do Compose. O publicador usa as variáveis de fontes `MCP_VIEWS_*` e `UPSTREAM_BASE_URL` de `mcp/.env`; [configuração e limites](mcp/utcp/README.md).
+
+O cliente UTCP consome esse manual no piloto de `listar-unidades` e `encomendas`; a descoberta e os schemas ficam em cache em memória por processo. O bootstrap de identidade e os demais fluxos continuam no MCP. Consulte [configuração, limites e aplicação no Studio](docs/integracao/utcp.md).
+
 ## Docs
 
 | Tema | Spec | Plano | Prova |
@@ -482,5 +505,7 @@ cd mcp && npm ci && npm run start:mcp:catalog-agent        # fora do Docker, pra
 | Memória classificada | [spec](docs/superpowers/specs/2026-11-03-memoria-classificada-design.md) | | |
 
 Integração com o app concierge do Nexus: [contrato do pacote](docs/integracao/nexus.md).
+
+Integração UTCP: [configuração, limites e migração piloto](docs/integracao/utcp.md).
 
 Princípios do projeto: [constituição](docs/superpowers/constitution.md). Definições de partida: [DEFINICOES.md](DEFINICOES.md). Regras de código do front: [web/studio/README.md](web/studio/README.md).

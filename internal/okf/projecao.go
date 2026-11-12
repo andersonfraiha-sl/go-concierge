@@ -108,7 +108,7 @@ func (c *Catalogo) ProjecaoCom(a *Agent, principal *string) string {
 			}
 		}
 		if len(leitura) > 0 {
-			recursos = append(recursos, "## Recursos do Nexus que você pode chamar (tool chamar_recurso; só estes, e só os que a identidade do morador permitir)\n"+strings.Join(leitura, "\n"))
+			recursos = append(recursos, "## Recursos que você pode chamar (tool chamar_recurso; só estes, e só os que a identidade do morador permitir)\n"+strings.Join(leitura, "\n"))
 		}
 		if len(escrita) > 0 {
 			recursos = append(recursos, "## Recursos de escrita (NUNCA chame diretamente: o harness os executa pelos passos do caso de uso, com confirmação)\n"+strings.Join(escrita, "\n"))

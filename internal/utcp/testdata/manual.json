@@ -1,0 +1,377 @@
+{
+  "utcp_version": "1.0.0",
+  "manual_version": "1.0.0",
+  "tools": [
+    {
+      "name": "agent_utcp.building-operation.GetCompanyByDocumentController_handle",
+      "description": "Consultar vínculos condominiais por telefone\n\nConsulta o condomínio e os vínculos retornados para o telefone informado. Combina CondCore e Sync usando id_external_gruvi para conciliar unidades e responsáveis; prioriza os dados do CondCore e acrescenta unidades exclusivas do Sync. Se apenas um provedor falhar, responde com os dados do outro, sem indicador de resposta parcial. As listas podem estar vazias. Os responsáveis legais são fornecidos pelo CondCore; o adaptador Sync retorna essa lista vazia. Exige Bearer JWT Gruvi ou Person; o token é repassado às integrações.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "filter[mobile-number]": {
+            "description": "Telefone do morador usado como filtro na integração. Informe somente dígitos, com código do Brasil (55), DDD e número, totalizando 12 ou 13 dígitos.",
+            "type": "string",
+            "examples": [
+              "5511900000000"
+            ],
+            "pattern": "^55\\d{10,11}$",
+            "minLength": 12,
+            "maxLength": 13
+          },
+          "companyId": {
+            "description": "Identificador do condomínio (empresa) no contexto da operação.",
+            "type": "string",
+            "examples": [
+              "5629"
+            ],
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "filter[mobile-number]",
+          "companyId"
+        ],
+        "additionalProperties": false
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "condominium": {
+                "description": "Dados do condomínio consultado.",
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Nome do condomínio retornado pelo CondCore ou, se indisponível, pelo Sync.",
+                        "example": "Condomínio Exemplo"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                ]
+              },
+              "units": {
+                "description": "Unidades retornadas para a consulta por telefone, conciliadas pelo identificador externo Gruvi. Pode ser uma lista vazia.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "description": "Identificador da unidade no provedor que forneceu o registro: CondCore tem prioridade; unidades exclusivas do Sync mantêm o identificador do Sync. Trate como string opaca.",
+                      "type": "string",
+                      "example": "204"
+                    },
+                    "id_external_gruvi": {
+                      "description": "Identificador externo Gruvi da unidade, usado pelo BFF para conciliar registros do CondCore e do Sync.",
+                      "type": "string",
+                      "example": "unidade-externa-exemplo"
+                    },
+                    "id_fastpass": {
+                      "description": "Identificador da unidade no Sync/facility-operations. Para registros conciliados, é obtido pelo mesmo id_external_gruvi; retorna string vazia quando não está disponível.",
+                      "type": "string",
+                      "example": "204"
+                    },
+                    "block": {
+                      "description": "Bloco da unidade conforme informado pelo provedor.",
+                      "type": "string",
+                      "example": "2"
+                    },
+                    "unit": {
+                      "description": "Nome ou número de apresentação da unidade, distinto do identificador id. Originado em unit no CondCore e em name no Sync.",
+                      "type": "string",
+                      "example": "0204"
+                    },
+                    "resident": {
+                      "description": "Morador associado à unidade no resultado da integração.",
+                      "allOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "Nome do morador associado à unidade pelo provedor.",
+                              "example": "Pessoa Moradora"
+                            },
+                            "documents": {
+                              "description": "Documentos do morador retornados pela integração. Pode ser uma lista vazia.",
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "description": "Tipo do documento conforme informado pelo provedor. Não há enumeração local; MOBILE_NUMBER é um exemplo de tipo de telefone.",
+                                    "example": "MOBILE_NUMBER"
+                                  },
+                                  "value": {
+                                    "type": "string",
+                                    "description": "Valor do documento no formato fornecido pelo provedor, sem normalização pelo presenter.",
+                                    "example": "5511900000000"
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "value"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "documents"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "id_external_gruvi",
+                    "id_fastpass",
+                    "block",
+                    "unit",
+                    "resident"
+                  ]
+                }
+              },
+              "legal_responsibles": {
+                "description": "Responsáveis legais informados pelo CondCore. A lista pode ser vazia, inclusive quando somente o Sync responde com sucesso.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "description": "Identificador do responsável legal fornecido pelo CondCore.",
+                      "type": "string",
+                      "example": "responsavel-exemplo"
+                    },
+                    "id_external_gruvi": {
+                      "description": "Identificador externo Gruvi do responsável legal, preservado do provedor.",
+                      "type": "string",
+                      "example": "responsavel-externo-exemplo"
+                    },
+                    "id_fastpass": {
+                      "anyOf": [
+                        {
+                          "description": "Identificador do responsável no Sync quando disponível. Os adaptadores atuais não fornecem responsáveis pelo Sync, portanto o presenter retorna null.",
+                          "type": "string",
+                          "example": null
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "name": {
+                      "description": "Nome do responsável legal informado pelo CondCore.",
+                      "type": "string",
+                      "example": "Pessoa Responsável"
+                    },
+                    "position": {
+                      "description": "Cargo ou função do responsável legal no condomínio.",
+                      "allOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "Nome do cargo ou função do responsável legal.",
+                              "example": "Síndico"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ]
+                        }
+                      ]
+                    },
+                    "documents": {
+                      "description": "Documentos do responsável legal retornados pelo CondCore, podendo ser uma lista vazia.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "description": "Tipo do documento conforme informado pelo provedor. Não há enumeração local; MOBILE_NUMBER é um exemplo de tipo de telefone.",
+                            "type": "string",
+                            "example": "MOBILE_NUMBER"
+                          },
+                          "value": {
+                            "description": "Valor do documento no formato fornecido pelo provedor, sem normalização pelo presenter.",
+                            "type": "string",
+                            "example": "5511900000000"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "id_external_gruvi",
+                    "id_fastpass",
+                    "name",
+                    "position",
+                    "documents"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "condominium",
+              "units",
+              "legal_responsibles"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "tags": [
+        "[Building Operation] Companies",
+        "building-operation"
+      ],
+      "tool_call_template": {
+        "name": "Building_Operation_BFF_API",
+        "call_template_type": "http",
+        "http_method": "GET",
+        "url": "http://127.0.0.1:9999/building-operation/companies/{companyId}",
+        "headers": {
+          "authorization": "Bearer ${B2C_TOKEN}"
+        },
+        "content_type": "application/json",
+        "timeout": 15000
+      }
+    },
+    {
+      "name": "agent_utcp.building-operation.FetchUnitPackagesController_handle",
+      "description": "Listar encomendas de uma unidade por telefone do morador\n\nConsulta correspondências no Sync/facility-operations usando condomínio, unidade e telefone obrigatório do morador, com filtro opcional de status. Retorna somente os itens do lote recebido do provedor, sem metadados ou controles de paginação no BFF. A resposta contém os dados de identificação e descrição da encomenda; não inclui status nem telefone do morador. Exige Bearer JWT Gruvi ou Person; o token é repassado à integração.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "filter[status]": {
+            "description": "Situação da encomenda: waiting/WAITING (aguardando retirada), delivered/DELIVERED (entregue) ou canceled/CANCELED (cancelada). O BFF normaliza o valor para a integração. Quando omitido, não envia filtro de status ao provedor; não assume waiting como padrão.",
+            "type": "string",
+            "enum": [
+              "waiting",
+              "WAITING",
+              "delivered",
+              "DELIVERED",
+              "canceled",
+              "CANCELED"
+            ]
+          },
+          "filter[mobile-number]": {
+            "description": "Telefone do morador usado como filtro na integração. Informe somente dígitos, com código do Brasil (55), DDD e número, totalizando 12 ou 13 dígitos.",
+            "type": "string",
+            "examples": [
+              "5511900000000"
+            ],
+            "pattern": "^55\\d{10,11}$",
+            "minLength": 12,
+            "maxLength": 13
+          },
+          "unitId": {
+            "description": "Identificador da unidade no provedor facility-operations.",
+            "type": "string",
+            "examples": [
+              "204"
+            ],
+            "pattern": "^[0-9]+$"
+          },
+          "companyId": {
+            "description": "Identificador do condomínio (empresa) no contexto da operação.",
+            "type": "string",
+            "examples": [
+              "5629"
+            ],
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "filter[mobile-number]",
+          "unitId",
+          "companyId"
+        ],
+        "additionalProperties": false
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Identificador da encomenda no provedor, preservado como número ou string, sem conversão.",
+                  "oneOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ],
+                  "example": 1
+                },
+                "image_url": {
+                  "description": "Endereço da imagem da encomenda informado pelo provedor. Omitido quando a origem não fornece valor ou fornece null.",
+                  "type": "string",
+                  "example": "https://example.com/image.jpg"
+                },
+                "package_size": {
+                  "description": "Porte da encomenda como texto fornecido pelo provedor, sem enumeração local. Omitido quando ausente ou nulo na origem.",
+                  "type": "string",
+                  "example": "Médio"
+                },
+                "tracking_code": {
+                  "description": "Código de rastreio da encomenda, distinto do código de retirada. Omitido quando ausente ou nulo na origem.",
+                  "type": "string",
+                  "example": "SL123456789BR"
+                },
+                "description": {
+                  "description": "Observação da encomenda, originada no campo observation do provedor. Omitida quando ausente ou nula na origem.",
+                  "type": "string",
+                  "example": "Caixa com etiqueta azul"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "tags": [
+        "[Building Operation] Packages",
+        "building-operation"
+      ],
+      "tool_call_template": {
+        "name": "Building_Operation_BFF_API",
+        "call_template_type": "http",
+        "http_method": "GET",
+        "url": "http://127.0.0.1:9999/building-operation/companies/{companyId}/unit/{unitId}/packages",
+        "headers": {
+          "authorization": "Bearer ${B2C_TOKEN}"
+        },
+        "content_type": "application/json",
+        "timeout": 15000
+      }
+    }
+  ]
+}

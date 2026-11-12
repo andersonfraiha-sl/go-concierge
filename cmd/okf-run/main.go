@@ -28,6 +28,8 @@ import (
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
+	"go-concierge/internal/recursos"
+	"go-concierge/internal/utcp"
 )
 
 func main() {
@@ -63,7 +65,19 @@ func main() {
 	mcpCli, mcpModo, err := mcp.FromEnv(os.Getenv)
 	falha(err)
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
-	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, nil), fonteNexus)
+	var utcpClient *utcp.Client
+	if manualURL := strings.TrimSpace(os.Getenv("UTCP_MANUAL_URL")); manualURL != "" {
+		var token utcp.TokenProvider
+		if mcpCli != nil {
+			token = mcpCli.Token
+		}
+		utcpClient, err = utcp.New(manualURL, token)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "okf-run: UTCP desligado:", err)
+			utcpClient = nil
+		}
+	}
+	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, nil), utcp.Fonte(utcpClient), fonteNexus)
 	origem := "nenhuma"
 	switch {
 	case mcpCli != nil:
@@ -103,6 +117,9 @@ func main() {
 	}
 	if mcpCli != nil {
 		cfg.MCP = mcpCli
+	}
+	if utcpClient != nil {
+		cfg.Executores = map[string]recursos.Cliente{okf.OrigemUTCP: utcpClient}
 	}
 	ag, err := harness.Build(ctx, cat, a, cfg)
 	falha(err)

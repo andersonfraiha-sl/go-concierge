@@ -37,6 +37,7 @@ import (
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
+	"go-concierge/internal/recursos"
 )
 
 const (
@@ -71,8 +72,11 @@ type Config struct {
 	Nexus *nexus.Client
 	// MCP executa os recursos que vieram do catálogo MCP (Recurso.Origem == "mcp") por
 	// tools/call, com o token do cliente; nil = esses recursos ficam indisponíveis.
-	MCP           mcp.Caller
-	MCPResultados map[string]any
+	MCP                   mcp.Caller
+	MCPResultados         map[string]any
+	Executores            map[string]recursos.Cliente
+	ValidarParametros     map[string]func(map[string]any) error
+	TransformarResultados map[string]func(any) (any, error)
 	// Identidade do morador nesta execução. Sem AccountID nenhum recurso do Nexus é
 	// chamado: quem monta a Config (o atendimento, pelo condomínio; o okf-run) a define.
 	Identidade Identidade

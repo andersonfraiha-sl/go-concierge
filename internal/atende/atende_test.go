@@ -146,6 +146,10 @@ func adicionarToolsMCP(cat *okf.Catalogo) {
 		} {
 			out = append(out, okf.Recurso{Name: nome, Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemMCP, Write: strings.HasSuffix(nome, "create-visit-controller-handle") || strings.HasSuffix(nome, "create-ticket-controller-handle"), Params: parametros[nome]})
 		}
+		out = append(out,
+			okf.Recurso{Name: "agent_utcp.building-operation.GetCompanyByDocumentController_handle", Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemUTCP},
+			okf.Recurso{Name: "agent_utcp.building-operation.FetchUnitPackagesController_handle", Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemUTCP},
+		)
 		return out
 	}
 }

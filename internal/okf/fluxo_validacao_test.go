@@ -182,7 +182,11 @@ func TestClassificarFerramenta(t *testing.T) {
 	tests := map[string]bool{
 		"gruvi.bff.building-operation.get-company-by-document-controller-handle": false,
 		"gruvi.bff.building-operation.fetch-unit-packages-controller-handle":     false,
+		"gruvi.bff.building-operation.GetCompanyByDocumentControllerHandle":      false,
+		"gruvi.bff.building-operation.FetchUnitPackagesControllerHandle":         false,
 		"gruvi.bff.building-operation.create-visit-controller-handle":            true,
+		"gruvi.bff.building-operation.CreateVisitControllerHandle":               true,
+		"gruvi.bff.building-operation.UnknownOperationControllerHandle":          true,
 		"mudancas.agendar":         true,
 		"health":                   false,
 		"unidades.listar":          false,
