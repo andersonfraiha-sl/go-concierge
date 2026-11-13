@@ -26,7 +26,7 @@ func NovoExtratorPedidos(ctx context.Context, cfg Config) pedidos.Extrator {
 	if chave == "" {
 		chave = prov.Chave
 	}
-	if cfg.Mock || chave == "" || prov.Nome == "mock" {
+	if cfg.Mock || prov.semAutenticacao(chave) || prov.Nome == "mock" {
 		return pedidos.Regras{}
 	}
 	modelo := cfg.env("MODEL_EXTRACT")

@@ -13,10 +13,12 @@ services:
   # o Console (web/okf) também, e aqui é montado do repositório (-web), para editar sem rebuild.
   concierge:
     build: .
+    user: "${CONCIERGE_UID:-65532}:${CONCIERGE_GID:-65532}"
     env_file:
       - path: ./.env
         required: false
     environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credenciais/google_service_account.json
       MCP_URL: ${MCP_URL:-http://127.0.0.1:3337/mcp/gruvi/bff}
       MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:-}
       DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
@@ -34,6 +36,12 @@ services:
       - ./okf:/app/okf
       # o front, servido do disco: mexeu em web/okf, é só recarregar a página
       - ./web/okf:/app/web:ro
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS:-./.temp/gcp/google_service_account.json}
+        target: /app/credenciais/google_service_account.json
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:${CONCIERGE_PORT:-8090}:8090"
     depends_on:

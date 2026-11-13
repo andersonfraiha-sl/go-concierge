@@ -58,7 +58,7 @@ const (
 type Config struct {
 	// Modelo é o id no provedor; vazio usa `modelo:` do agent.yaml, senão o padrão do provedor.
 	Modelo string
-	// APIKey do provedor; vazio lê a chave do provedor resolvido em Env. Sem chave = Mock.
+	// APIKey do provedor; vazio lê a chave do provedor resolvido em Env. Vertex usa ADC.
 	APIKey string
 	// BaseURL do endpoint OpenAI-compatível; vazio = a do provedor resolvido.
 	BaseURL string
@@ -144,7 +144,7 @@ type Agente struct {
 	Roteador   string
 	Tools      []tool.BaseTool
 	Subagentes map[string]*Agente
-	// NomeModelo é o id resolvido; Provedor é gemini | openrouter | mock; Mock diz se o modelo é o falso.
+	// NomeModelo é o id resolvido; Provedor identifica o provedor; Mock diz se o modelo é o falso.
 	NomeModelo string
 	Provedor   string
 	Mock       bool
@@ -360,13 +360,13 @@ func (ag *Agente) montarModelo(ctx context.Context) error {
 	if prov.Nome == "luna" && chave == "" && !cfg.Mock {
 		return errors.New("harness: configure LLM_LUNA_GATEWAY_TOKEN para o gateway Luna")
 	}
-	if cfg.Mock || chave == "" || prov.Nome == "mock" && cfg.APIKey == "" {
+	if cfg.Mock || prov.semAutenticacao(chave) || prov.Nome == "mock" && cfg.APIKey == "" {
 		ag.Mock = true
 		ag.Provedor = "mock"
 		ag.modelo = NewMock(ag.Cat, ag.Def)
 		return nil
 	}
-	if base == "" {
+	if base == "" && prov.Nome != "vertex" {
 		base = BaseURLPadrao
 	}
 	m, err := novoModelo(ctx, prov, chave, base, ag.NomeModelo, 90*time.Second)

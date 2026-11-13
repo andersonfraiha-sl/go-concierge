@@ -240,7 +240,7 @@ find okf -type d -exec setfacl -m d:u:10001:rwx {} +
 |---|---|
 | Banco | `DATABASE_URL` (obrigatória) |
 | Acesso | `AUTH_MODE`, `AUTH_DEV_USUARIO`, `ACESSO_ADMIN_INICIAL`, `ADMINISTRADORA_ID`, `AMBIENTE` |
-| Modelo | `LLM_MODE` (`gemini` \| `openrouter` \| `luna` \| `mock`), `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `LLM_LUNA_OPENAI_URL`, `LLM_LUNA_GATEWAY_TOKEN`, `LLM_LUNA_MODEL`, `MODEL_EXTRACT`, `MODEL_PLANNER`, `MODEL_COMPOSE`, `MODEL_CHEAP` |
+| Modelo | `LLM_MODE` (`vertex`, padrão, \| `gemini` \| `openrouter` \| `luna` \| `local` \| `mock`), `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `LLM_LUNA_OPENAI_URL`, `LLM_LUNA_GATEWAY_TOKEN`, `LLM_LUNA_MODEL`, `MODEL_EXTRACT`, `MODEL_PLANNER`, `MODEL_COMPOSE`, `MODEL_CHEAP`, `MODEL_COPILOTO` |
 | Gruvi | `GRUVI_BFF_URL`, `GRUVI_COMPANY_ID` |
 | Ganchos | `GANCHOS_SEGREDO_EXPORTACAO` (HMAC da exportação; fora de dev é obrigatório) |
 | Integração | `INTEGRACAO_CHAVE` (chave de serviço das rotas `/integracao/v1`; vazia desliga a rota) |
@@ -359,7 +359,15 @@ Com os Pedidos ligados, o motor é a espinha dorsal e o orquestrador atende só 
 ./bin/okf-run.exe -root okf -mock "..."     # modelo falso, sem rede
 ```
 
-Gemini e OpenRouter sem chave caem em mock. Em `luna`, chave ausente é erro.
+O provedor padrão é `vertex`, com `gemini-3.5-flash` em `global`. Configure `GOOGLE_CLOUD_PROJECT` e `GOOGLE_APPLICATION_CREDENTIALS` com o caminho do JSON da service account. O cliente oficial Google usa ADC e renova a autenticação automaticamente; não é necessário instalar `gcloud` nem informar API key. Deixe `MODEL_*` vazios para herdar o modelo do provedor, ou defina os modelos por tarefa.
+
+No Docker local, o Compose monta somente esse JSON, em modo de leitura, e ajusta o caminho interno. O arquivo precisa existir antes de `docker compose up -d --build`; a pasta `.temp/` fica fora do contexto de build. Em Linux, configure `CONCIERGE_UID` e `CONCIERGE_GID` com `id -u` e `id -g` para permitir a escrita no catálogo montado do host. Essas duas variáveis são usadas somente pelo Compose local: alinham o usuário e o grupo do processo com o dono dos arquivos compartilhados para que o Studio consiga salvar o catálogo. Elas não configuram a autenticação Google nem são consumidas pelos manifests de produção.
+
+Os demais provedores continuam selecionáveis com `LLM_MODE`. `gemini` usa a API Google com `GEMINI_API_KEY`; Gemini e OpenRouter sem chave caem em mock. Em `luna`, chave ausente é erro. Em `vertex`, configuração ou credencial inválida gera erro ao montar o agente, sem trocar o atendimento por mock.
+
+Para voltar ao gateway Luna, use `LLM_MODE=luna`, mantenha `LLM_LUNA_GATEWAY_TOKEN` válido e escolha o modelo em `LLM_LUNA_MODEL` (padrão `gpt-6-luna`). Deixe `MODEL_*` vazios para herdar esse modelo ou informe modelos aceitos pelo gateway. Após alterar o `.env`, recrie os containers `concierge` e `mcp` para aplicar as variáveis; a troca de provedor não exige alteração de código nem novo build da imagem.
+
+Para produção, a configuração e a injeção da service account precisam ser revisadas antes de ativar Vertex. A referência é base64 → JSON → `GOOGLE_APPLICATION_CREDENTIALS`, como no gruvi-concierge-orquestrador, considerando outro mecanismo já disponível nesta infraestrutura. Origem do segredo, autenticação do deploy, runner e ambientes ficam para essa revisão; a validação local não comprova funcionamento em produção. Registrar essa pendência na descrição do PR.
 
 </details>
 

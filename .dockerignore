@@ -2,6 +2,7 @@
 bin
 *.exe
 .env
+.temp
 mcp
 bateria
 okf-admin.log
