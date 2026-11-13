@@ -25,7 +25,7 @@ func modeloBarato(ctx context.Context, cfg Config) (func(ctx context.Context, ms
 	if chave == "" {
 		chave = prov.Chave
 	}
-	if cfg.Mock || chave == "" || prov.Nome == "mock" {
+	if cfg.Mock || prov.semAutenticacao(chave) || prov.Nome == "mock" {
 		return nil, false
 	}
 	modelo := cfg.env("MODEL_EXTRACT")

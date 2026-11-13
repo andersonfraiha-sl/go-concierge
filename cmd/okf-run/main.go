@@ -5,9 +5,8 @@
 //	okf-run -phone 5511999990001 "quero liberar um visitante"     (identidade pelo Nexus)
 //	okf-run -autenticado "quais são as minhas unidades?"          (simula morador identificado)
 //
-// O provedor vem do .env (mesmos nomes do sl-concierge): LLM_MODE=gemini com
-// GEMINI_API_KEY, ou LLM_MODE=openrouter com OPENROUTER_API_KEY. Sem chave (ou com
-// -mock) o modelo é o falso: roteia por palavras-chave e responde com o dado lido,
+// O provedor vem do .env: Vertex AI com ADC por padrão, ou outro LLM_MODE explícito.
+// Com -mock o modelo é o falso: roteia por palavras-chave e responde com o dado lido,
 // sem rede. Os recursos vêm do Nexus (NEXUS_BASE_URL, NEXUS_TOKEN, DEFAULT_ACCOUNT_ID)
 // ou do instantâneo okf/nexus/<account>.yaml. --inspecionar imprime a projeção, as
 // tools e os recursos declarados com o estado, sem gastar cota.
