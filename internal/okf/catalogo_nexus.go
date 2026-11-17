@@ -139,7 +139,7 @@ func (s *CatalogoNexusStore) gravar(lista []Recurso) error {
 		return err
 	}
 	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 	if err := tmp.Chmod(0o644); err != nil {
 		tmp.Close()
 		return err
