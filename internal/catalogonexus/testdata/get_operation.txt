@@ -1,0 +1,32 @@
+GET /v2/units/{unitId}/packages · FetchUnitPackages · Listar encomendas da unidade
+Resumo: Listar encomendas de uma unidade
+Descrição: Retorna encomendas da unidade filtradas pelos parâmetros disponíveis.
+Serviço: API de Condomínios · versão 1.0.0 · status active
+
+Como chamar (1 exposição(ões)):
+- URL: https://api.example.test/v2/units/{unitId}/packages | gateway: api-exemplo | Auth: não informado | Limite: não informado
+
+Definição OpenAPI da operação ($ref resolvidos):
+{
+ "parameters": [
+  {
+   "name": "unitId",
+   "in": "path",
+   "required": true,
+   "description": "Identificador da unidade.",
+   "schema": {"type": "string"}
+  },
+  {
+   "name": "page",
+   "in": "query",
+   "required": false,
+   "description": "Página de resultados.",
+   "schema": {"type": "integer"}
+  }
+ ],
+ "responses": {
+  "200": {
+   "description": "Lista de encomendas."
+  }
+ }
+}

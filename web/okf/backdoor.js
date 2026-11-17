@@ -69,7 +69,7 @@
     else mostrarSecao(secaoDaURL());
   }
   // ---- seções do painel central: visão geral, agentes, recursos, ficha ---------------
-  const secaoDaURL = () => ({ '#/agentes': 'agentes', '#/recursos': 'recursos' }[location.hash] || 'visao');
+  const secaoDaURL = () => ({ '#/agentes': 'agentes', '#/recursos': 'recursos', '#/catalogo-nexus': 'catalogo-nexus' }[location.hash] || 'visao');
   function mostrarSecao(nome) {
     if (nome !== 'ficha' && !podeSair()) return;
     if (nome !== 'ficha') { estado.selecionado = null; estado.ficha = null; }
@@ -77,6 +77,7 @@
     $('#ficha').hidden = nome !== 'ficha';
     $('#secAgentes').hidden = nome !== 'agentes';
     $('#secRecursos').hidden = nome !== 'recursos';
+    $('#secCatalogoNexus').hidden = nome !== 'catalogo-nexus';
     $$('.admin-nav a[data-secao]').forEach((a) => a.classList.toggle('is-active', a.dataset.secao === nome));
     if (nome !== 'ficha') { desenharArvore(); desenharNexus(); if (nome === 'visao') desenharVisao(); }
     if (estado.secao !== nome) $('#main').scrollTop = 0;
@@ -222,7 +223,7 @@
 
   // ---- edição de um recurso (instantâneo da account) ------------------------------------
   const linhaHeader = (k = '', v = '') => `<tr><td><input class="field-input mono" data-h-k value="${esc(k)}" placeholder="Authorization" spellcheck="false"></td><td><input class="field-input mono" data-h-v value="${esc(v)}" placeholder="Bearer {{token}}" spellcheck="false"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
-  const linhaParam = (p = {}) => `<tr><td><input class="field-input mono" data-p-name value="${esc(p.name || '')}" placeholder="unidade_id" spellcheck="false"></td><td><select class="field-select" data-p-type>${['string', 'number', 'boolean', 'date', 'array', 'object'].map((t) => `<option ${(p.type || 'string') === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-p-req ${p.required ? 'checked' : ''}></td><td><input class="field-input" data-p-desc value="${esc(p.description || '')}" placeholder="o que é, formato, exemplo"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
+  const linhaParam = (p = {}) => `<tr><td><input class="field-input mono" data-p-name value="${esc(p.name || '')}" placeholder="unidade_id" spellcheck="false"></td><td><select class="field-select" data-p-type>${['string', 'number', 'integer', 'boolean', 'date', 'array', 'object'].map((t) => `<option ${(p.type || 'string') === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td><td style="text-align:center"><input type="checkbox" data-p-req ${p.required ? 'checked' : ''}></td><td><input class="field-input" data-p-desc value="${esc(p.description || '')}" placeholder="o que é, formato, exemplo"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
   const linhaSaida = (s = {}) => `<tr><td><input class="field-input mono" data-s-name value="${esc(s.name || '')}" placeholder="itens" spellcheck="false"></td><td><input class="field-input mono" data-s-path value="${esc(s.path || '')}" placeholder="data.items[].id" spellcheck="false"></td><td><select class="field-select" data-s-type>${['', 'string', 'number', 'boolean', 'date', 'array', 'object'].map((t) => `<option value="${t}" ${(s.type || '') === t ? 'selected' : ''}>${t || '—'}</option>`).join('')}</select></td><td><input class="field-input" data-s-desc value="${esc(s.description || '')}" placeholder="o que o campo significa"></td><td><button type="button" class="vote no" data-del title="tirar"><i data-lucide="x"></i></button></td></tr>`;
   function abrirRecurso(r) {
     const f = $('#formRecurso');

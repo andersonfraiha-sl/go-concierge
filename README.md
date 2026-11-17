@@ -452,6 +452,12 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 
 ## Legado
 
+No Backdoor, **Catálogo Nexus Recursos** permite pesquisar operações no MCP do
+catálogo de serviços, revisar seus detalhes e cadastrar recursos em
+`okf/catalogo-nexus/<account>.yaml`. A consulta usa `LLM_LUNA_GATEWAY_TOKEN`; a
+URL pode ser alterada por `CATALOGO_NEXUS_MCP_URL`. Esses registros ficam separados
+dos recursos atuais e a execução das APIs descobertas ainda não está implementada.
+
 Ficam no ar pra comparação, cada uma com link a partir do Studio.
 
 | Tela | Rota | O que é |
