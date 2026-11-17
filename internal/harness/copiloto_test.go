@@ -43,11 +43,11 @@ func TestLerRespostaDoModelo(t *testing.T) {
 }
 
 func TestNovoCopilotoSemProvedor(t *testing.T) {
-	semChave := func(string) string { return "" }
+	semChave := func(k string) string { return map[string]string{"LLM_MODE": "gemini"}[k] }
 	if _, ok := NovoCopiloto(Config{Env: semChave}); ok {
 		t.Fatal("sem chave não há Copiloto")
 	}
-	comChave := func(k string) string { return map[string]string{"GEMINI_API_KEY": "x"}[k] }
+	comChave := func(k string) string { return map[string]string{"LLM_MODE": "gemini", "GEMINI_API_KEY": "x"}[k] }
 	if _, ok := NovoCopiloto(Config{Env: comChave, Mock: true}); ok {
 		t.Fatal("mock não tem Copiloto")
 	}
@@ -64,7 +64,8 @@ func TestModeloDoCopiloto(t *testing.T) {
 	}{
 		{"usa MODEL_COPILOTO", map[string]string{"GEMINI_API_KEY": "x", "MODEL_COPILOTO": "c", "MODEL_PLANNER": "p"}, "c"},
 		{"cai no MODEL_PLANNER", map[string]string{"GEMINI_API_KEY": "x", "MODEL_PLANNER": "p"}, "p"},
-		{"cai no padrao do provedor", map[string]string{"GEMINI_API_KEY": "x"}, ModeloGemini},
+		{"cai no padrao do provedor", map[string]string{"LLM_MODE": "gemini", "GEMINI_API_KEY": "x"}, ModeloGemini},
+		{"vertex sem chave", map[string]string{"LLM_MODE": "vertex"}, ModeloVertex},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
