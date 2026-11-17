@@ -57,7 +57,7 @@ func NovoCopiloto(cfg Config) (Copiloto, bool) {
 	if chave == "" {
 		chave = prov.Chave
 	}
-	if cfg.Mock || chave == "" || prov.Nome == "mock" {
+	if cfg.Mock || prov.semAutenticacao(chave) || prov.Nome == "mock" {
 		return nil, false
 	}
 	base := cfg.BaseURL
