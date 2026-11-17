@@ -231,6 +231,9 @@ type argsWorkflow struct {
 }
 
 func (ag *Agente) abrirWorkflow(_ context.Context, in *argsWorkflow) (saida, error) {
+	if ag.principal != nil && strings.TrimSuffix(strings.TrimSpace(in.Nome), ".md") == "principal" {
+		return saida{"nome": "principal", "conteudo": *ag.principal}, nil
+	}
 	procs := ag.Cat.Procedimentos(ag.Def)
 	var nomes []string
 	for _, p := range procs {

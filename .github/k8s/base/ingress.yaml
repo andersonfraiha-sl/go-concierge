@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: go-concierge
+  labels:
+    app: go-concierge
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    # O ALB entrega no proxy de autenticação (go-concierge-auth), não na app. Healthcheck na
+    # API do Oathkeeper (4456), que só responde quando a config e as regras foram carregadas.
+    alb.ingress.kubernetes.io/healthcheck-path: /health/alive
+    alb.ingress.kubernetes.io/healthcheck-port: "4456"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # LB compartilhado: todos os Ingress com este group.name dividem o mesmo ALB.
+    alb.ingress.kubernetes.io/group.name: idp-shared
+spec:
+  ingressClassName: alb
+  rules:
+    - host: go-concierge.idp.nexus.superlogica.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: go-concierge-auth
+                port:
+                  number: 4455

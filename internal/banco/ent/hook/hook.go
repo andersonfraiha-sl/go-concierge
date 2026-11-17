@@ -224,6 +224,54 @@ func (f SessaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SessaoMutation", m)
 }
 
+// The SkillAtualizacaoFunc type is an adapter to allow the use of ordinary
+// function as SkillAtualizacao mutator.
+type SkillAtualizacaoFunc func(context.Context, *ent.SkillAtualizacaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SkillAtualizacaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SkillAtualizacaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SkillAtualizacaoMutation", m)
+}
+
+// The SkillAvisoFunc type is an adapter to allow the use of ordinary
+// function as SkillAviso mutator.
+type SkillAvisoFunc func(context.Context, *ent.SkillAvisoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SkillAvisoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SkillAvisoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SkillAvisoMutation", m)
+}
+
+// The SkillCamadaFunc type is an adapter to allow the use of ordinary
+// function as SkillCamada mutator.
+type SkillCamadaFunc func(context.Context, *ent.SkillCamadaMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SkillCamadaFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SkillCamadaMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SkillCamadaMutation", m)
+}
+
+// The SkillVersaoFunc type is an adapter to allow the use of ordinary
+// function as SkillVersao mutator.
+type SkillVersaoFunc func(context.Context, *ent.SkillVersaoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SkillVersaoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SkillVersaoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SkillVersaoMutation", m)
+}
+
 // The UsuarioFunc type is an adapter to allow the use of ordinary
 // function as Usuario mutator.
 type UsuarioFunc func(context.Context, *ent.UsuarioMutation) (ent.Value, error)

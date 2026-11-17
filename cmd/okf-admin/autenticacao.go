@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"go-concierge/internal/acesso"
@@ -17,7 +18,9 @@ type Autenticador interface {
 }
 
 const (
-	cabecalhoUsuarioDev = "X-Dev-Usuario"
+	cabecalhoUsuarioDev   = "X-Dev-Usuario"
+	cabecalhoUsuarioProxy = "X-Authenticated-User-Email"
+	tamanhoMaximoEmail    = 254 // limite do RFC 5321
 	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento,
 	// o padrão de AUTH_DEV_USUARIO.
 	usuarioSemeadoDev = "admin-superlogica"
@@ -51,17 +54,52 @@ func (a autenticadorDev) Autenticar(r *http.Request) (string, error) {
 	return "", errSemUsuario
 }
 
-// autenticadorFechado recusa todos: fora de AUTH_MODE=dev ainda não há login, e a API fica
-// fechada (o webhook do ATENDE e o healthz não passam por aqui).
+// autenticadorProxy confia no e-mail que o proxy de identidade (Oathkeeper) injeta depois de
+// validar o JWT. Só é seguro se nada alcança o serviço sem passar pelo proxy; quem garante é a
+// NetworkPolicy do deploy. O e-mail normalizado é o id do usuário.
+type autenticadorProxy struct{}
+
+func (autenticadorProxy) Autenticar(r *http.Request) (string, error) {
+	valores := r.Header.Values(cabecalhoUsuarioProxy)
+	if len(valores) != 1 {
+		return "", errSemUsuario
+	}
+	email, ok := normalizarEmail(valores[0])
+	if !ok {
+		return "", errSemUsuario
+	}
+	return email, nil
+}
+
+// normalizarEmail tira espaços e caixa e confere a forma de um endereço simples (sem nome de
+// exibição nem lista). O valor original nunca vai para mensagem de erro nem para log.
+func normalizarEmail(bruto string) (string, bool) {
+	email := strings.ToLower(strings.TrimSpace(bruto))
+	if email == "" || len(email) > tamanhoMaximoEmail {
+		return "", false
+	}
+	enderecoLido, err := mail.ParseAddress(email)
+	if err != nil || enderecoLido.Address != email {
+		return "", false
+	}
+	return email, true
+}
+
+// autenticadorFechado recusa todos: sem AUTH_MODE a API fica fechada (o webhook do ATENDE e
+// o healthz não passam por aqui).
 type autenticadorFechado struct{}
 
 func (autenticadorFechado) Autenticar(*http.Request) (string, error) { return "", errSemAutenticacao }
 
 func novoAutenticador(authMode, usuarioPadrao string) Autenticador {
-	if authMode == authModeDev {
+	switch authMode {
+	case authModeDev:
 		return autenticadorDev{padrao: strings.TrimSpace(usuarioPadrao)}
+	case authModeProxy:
+		return autenticadorProxy{}
+	default:
+		return autenticadorFechado{}
 	}
-	return autenticadorFechado{}
 }
 
 // carregadorAcesso é o acesso.Postgres; os testes usam um fake.

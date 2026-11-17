@@ -356,6 +356,9 @@ type Servico struct {
 	// Mapeamento é o Admin das administradoras: resolve o condomínio de cada mensagem
 	// (sem ele nenhuma é atendida), filtra os casos de uso e injeta os payloads.
 	Mapeamento admin.Repositorio
+	// SkillsDe devolve a consulta das skills compostas (base e camadas) de uma administradora
+	// e condomínio, em memória e sem ida ao banco. nil = o turno lê os arquivos do catálogo.
+	SkillsDe func(administradora, condominio string, agora time.Time) func(string) (okf.SkillEfetiva, bool)
 	// Pedidos é o registro de pedidos por contato (nil = desligado: a conversa segue só
 	// pelo orquestrador). ExtratorPedidos detecta os pedidos na mensagem (nil = Regras).
 	Pedidos          pedidos.Store
@@ -1346,6 +1349,9 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	papel := identidade.Role
 	cfg.Casos = func(nome, casoID string) bool {
 		return m.Habilitado(condo.ID, nome, papel) && (casoID == "" || m.Habilitado(condo.ID, casoID, papel))
+	}
+	if s.SkillsDe != nil {
+		cfg.Skills = s.SkillsDe(condo.Administradora, condo.ID, s.agora())
 	}
 	cfg.Payloads = m.PayloadsDe(condo.ID)
 	orient := m.OrientacaoDe(condo.ID)

@@ -87,6 +87,51 @@ func TestPermitido(t *testing.T) {
 	}
 }
 
+func TestGestorDecideEEditaEtapasNaCamada(t *testing.T) {
+	gestorA := []Atribuicao{{"gestor_administradora", admA(), ""}}
+	operadorA := []Atribuicao{{"operador_administradora", admA(), ""}}
+	construtor := []Atribuicao{{"construtor_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
+	adminSuperlogica := []Atribuicao{{"admin_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
+	superlogica := Escopo{Tipo: TipoSuperlogica}
+
+	tests := []struct {
+		name string
+		a    Acesso
+		perm Permissao
+		alvo Escopo
+		want bool
+	}{
+		{"gestor edita etapas na administradora", base(gestorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, admA(), true},
+		{"gestor edita etapas no condominio dela", base(gestorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, cond("c1"), true},
+		{"gestor nao edita etapas em condominio de outra", base(gestorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, cond("c9"), false},
+		{"gestor decide atualizacao no condominio dela", base(gestorA, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, cond("c1"), true},
+		{"gestor nao decide atualizacao em condominio de outra", base(gestorA, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, cond("c9"), false},
+		{"gestor nao publica a base", base(gestorA, nil, escopo.Implantacao{}), SkillsPublicarBase, superlogica, false},
+		{"gestor nao publica a base nem na administradora", base(gestorA, nil, escopo.Implantacao{}), SkillsPublicarBase, admA(), false},
+		{"operador nao edita etapas", base(operadorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, admA(), false},
+		{"operador nao decide atualizacao", base(operadorA, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, admA(), false},
+		{"construtor publica a base", base(construtor, nil, escopo.Implantacao{}), SkillsPublicarBase, superlogica, true},
+		{"construtor edita etapas herdado do gestor", base(construtor, nil, escopo.Implantacao{}), SkillsEditarEtapas, cond("c9"), true},
+		{"construtor decide atualizacao herdado do gestor", base(construtor, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, cond("c9"), true},
+		{"admin superlogica publica a base herdado", base(adminSuperlogica, nil, escopo.Implantacao{}), SkillsPublicarBase, superlogica, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Permitido(tt.a, tt.perm, tt.alvo); got != tt.want {
+				t.Errorf("Permitido(%s, %+v) = %v, want %v", tt.perm, tt.alvo, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPermissoesEmAlgumListaAsDasCamadasNaOrdemDasConstantes(t *testing.T) {
+	got := PermissoesEmAlgum(base([]Atribuicao{{"construtor_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}, nil, escopo.Implantacao{}))
+	i := slices.Index(got, SkillsExcluir)
+	if i < 0 || !slices.Equal(got[i+1:i+4], []Permissao{SkillsEditarEtapas, SkillsDecidirAtualizacao, SkillsPublicarBase}) {
+		t.Errorf("PermissoesEmAlgum = %v, quer as três permissões das camadas logo depois de %s", got, SkillsExcluir)
+	}
+}
+
 func TestPermitidoEmAlgum(t *testing.T) {
 	gestorB := []Atribuicao{{"gestor_administradora", Escopo{TipoAdministradora, "B"}, ""}}
 	tests := []struct {

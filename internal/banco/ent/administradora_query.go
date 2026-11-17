@@ -9,6 +9,7 @@ import (
 	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/condominio"
 	"go-concierge/internal/banco/ent/predicate"
+	"go-concierge/internal/banco/ent/skillcamada"
 	"math"
 
 	"entgo.io/ent"
@@ -20,11 +21,12 @@ import (
 // AdministradoraQuery is the builder for querying Administradora entities.
 type AdministradoraQuery struct {
 	config
-	ctx             *QueryContext
-	order           []administradora.OrderOption
-	inters          []Interceptor
-	predicates      []predicate.Administradora
-	withCondominios *CondominioQuery
+	ctx              *QueryContext
+	order            []administradora.OrderOption
+	inters           []Interceptor
+	predicates       []predicate.Administradora
+	withCondominios  *CondominioQuery
+	withSkillCamadas *SkillCamadaQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -76,6 +78,28 @@ func (_q *AdministradoraQuery) QueryCondominios() *CondominioQuery {
 			sqlgraph.From(administradora.Table, administradora.FieldID, selector),
 			sqlgraph.To(condominio.Table, condominio.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, administradora.CondominiosTable, administradora.CondominiosColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySkillCamadas chains the current query on the "skill_camadas" edge.
+func (_q *AdministradoraQuery) QuerySkillCamadas() *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(administradora.Table, administradora.FieldID, selector),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, administradora.SkillCamadasTable, administradora.SkillCamadasColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -270,12 +294,13 @@ func (_q *AdministradoraQuery) Clone() *AdministradoraQuery {
 		return nil
 	}
 	return &AdministradoraQuery{
-		config:          _q.config,
-		ctx:             _q.ctx.Clone(),
-		order:           append([]administradora.OrderOption{}, _q.order...),
-		inters:          append([]Interceptor{}, _q.inters...),
-		predicates:      append([]predicate.Administradora{}, _q.predicates...),
-		withCondominios: _q.withCondominios.Clone(),
+		config:           _q.config,
+		ctx:              _q.ctx.Clone(),
+		order:            append([]administradora.OrderOption{}, _q.order...),
+		inters:           append([]Interceptor{}, _q.inters...),
+		predicates:       append([]predicate.Administradora{}, _q.predicates...),
+		withCondominios:  _q.withCondominios.Clone(),
+		withSkillCamadas: _q.withSkillCamadas.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -290,6 +315,17 @@ func (_q *AdministradoraQuery) WithCondominios(opts ...func(*CondominioQuery)) *
 		opt(query)
 	}
 	_q.withCondominios = query
+	return _q
+}
+
+// WithSkillCamadas tells the query-builder to eager-load the nodes that are connected to
+// the "skill_camadas" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *AdministradoraQuery) WithSkillCamadas(opts ...func(*SkillCamadaQuery)) *AdministradoraQuery {
+	query := (&SkillCamadaClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSkillCamadas = query
 	return _q
 }
 
@@ -371,8 +407,9 @@ func (_q *AdministradoraQuery) sqlAll(ctx context.Context, hooks ...queryHook) (
 	var (
 		nodes       = []*Administradora{}
 		_spec       = _q.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			_q.withCondominios != nil,
+			_q.withSkillCamadas != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -400,6 +437,13 @@ func (_q *AdministradoraQuery) sqlAll(ctx context.Context, hooks ...queryHook) (
 			return nil, err
 		}
 	}
+	if query := _q.withSkillCamadas; query != nil {
+		if err := _q.loadSkillCamadas(ctx, query, nodes,
+			func(n *Administradora) { n.Edges.SkillCamadas = []*SkillCamada{} },
+			func(n *Administradora, e *SkillCamada) { n.Edges.SkillCamadas = append(n.Edges.SkillCamadas, e) }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
 }
 
@@ -418,6 +462,39 @@ func (_q *AdministradoraQuery) loadCondominios(ctx context.Context, query *Condo
 	}
 	query.Where(predicate.Condominio(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(administradora.CondominiosColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.AdministradoraID
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "administradora_id" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "administradora_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *AdministradoraQuery) loadSkillCamadas(ctx context.Context, query *SkillCamadaQuery, nodes []*Administradora, init func(*Administradora), assign func(*Administradora, *SkillCamada)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*Administradora)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(skillcamada.FieldAdministradoraID)
+	}
+	query.Where(predicate.SkillCamada(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(administradora.SkillCamadasColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

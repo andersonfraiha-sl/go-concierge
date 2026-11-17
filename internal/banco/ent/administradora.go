@@ -28,9 +28,11 @@ type Administradora struct {
 type AdministradoraEdges struct {
 	// Condominios holds the value of the condominios edge.
 	Condominios []*Condominio `json:"condominios,omitempty"`
+	// SkillCamadas holds the value of the skill_camadas edge.
+	SkillCamadas []*SkillCamada `json:"skill_camadas,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // CondominiosOrErr returns the Condominios value or an error if the edge
@@ -40,6 +42,15 @@ func (e AdministradoraEdges) CondominiosOrErr() ([]*Condominio, error) {
 		return e.Condominios, nil
 	}
 	return nil, &NotLoadedError{edge: "condominios"}
+}
+
+// SkillCamadasOrErr returns the SkillCamadas value or an error if the edge
+// was not loaded in eager-loading.
+func (e AdministradoraEdges) SkillCamadasOrErr() ([]*SkillCamada, error) {
+	if e.loadedTypes[1] {
+		return e.SkillCamadas, nil
+	}
+	return nil, &NotLoadedError{edge: "skill_camadas"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -92,6 +103,11 @@ func (_m *Administradora) Value(name string) (ent.Value, error) {
 // QueryCondominios queries the "condominios" edge of the Administradora entity.
 func (_m *Administradora) QueryCondominios() *CondominioQuery {
 	return NewAdministradoraClient(_m.config).QueryCondominios(_m)
+}
+
+// QuerySkillCamadas queries the "skill_camadas" edge of the Administradora entity.
+func (_m *Administradora) QuerySkillCamadas() *SkillCamadaQuery {
+	return NewAdministradoraClient(_m.config).QuerySkillCamadas(_m)
 }
 
 // Update returns a builder for updating this Administradora.

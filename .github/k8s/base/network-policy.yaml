@@ -1,0 +1,59 @@
+# O serviço confia no cabeçalho X-Authenticated-User-Email (AUTH_MODE=proxy). Isso só é
+# seguro se nada alcança o pod sem passar pelo proxy de identidade: por isso o ingress aceita
+# apenas os pods go-concierge-auth, e só na 8080. Sem esta política, qualquer pod do cluster
+# poderia forjar o cabeçalho e entrar como admin.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-concierge-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app: go-concierge
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: go-concierge-auth
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Postgres. Onde ele mora é a confirmar com a plataforma; por ora qualquer destino
+    # privado na 5432. Restringir ao destino quando for definido.
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+        - ipBlock:
+            cidr: 172.16.0.0/12
+        - ipBlock:
+            cidr: 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 5432
+    # HTTPS externo: ATENDE, Gruvi, provedor de modelo, Nexus.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

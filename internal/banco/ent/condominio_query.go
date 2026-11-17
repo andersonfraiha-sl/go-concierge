@@ -12,6 +12,7 @@ import (
 	"go-concierge/internal/banco/ent/orientacao"
 	"go-concierge/internal/banco/ent/payload"
 	"go-concierge/internal/banco/ent/predicate"
+	"go-concierge/internal/banco/ent/skillcamada"
 	"math"
 
 	"entgo.io/ent"
@@ -31,6 +32,7 @@ type CondominioQuery struct {
 	withHabilitacoes   *HabilitacaoQuery
 	withPayloads       *PayloadQuery
 	withOrientacoes    *OrientacaoQuery
+	withSkillCamadas   *SkillCamadaQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -148,6 +150,28 @@ func (_q *CondominioQuery) QueryOrientacoes() *OrientacaoQuery {
 			sqlgraph.From(condominio.Table, condominio.FieldID, selector),
 			sqlgraph.To(orientacao.Table, orientacao.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, condominio.OrientacoesTable, condominio.OrientacoesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QuerySkillCamadas chains the current query on the "skill_camadas" edge.
+func (_q *CondominioQuery) QuerySkillCamadas() *SkillCamadaQuery {
+	query := (&SkillCamadaClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(condominio.Table, condominio.FieldID, selector),
+			sqlgraph.To(skillcamada.Table, skillcamada.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, condominio.SkillCamadasTable, condominio.SkillCamadasColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -351,6 +375,7 @@ func (_q *CondominioQuery) Clone() *CondominioQuery {
 		withHabilitacoes:   _q.withHabilitacoes.Clone(),
 		withPayloads:       _q.withPayloads.Clone(),
 		withOrientacoes:    _q.withOrientacoes.Clone(),
+		withSkillCamadas:   _q.withSkillCamadas.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -398,6 +423,17 @@ func (_q *CondominioQuery) WithOrientacoes(opts ...func(*OrientacaoQuery)) *Cond
 		opt(query)
 	}
 	_q.withOrientacoes = query
+	return _q
+}
+
+// WithSkillCamadas tells the query-builder to eager-load the nodes that are connected to
+// the "skill_camadas" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *CondominioQuery) WithSkillCamadas(opts ...func(*SkillCamadaQuery)) *CondominioQuery {
+	query := (&SkillCamadaClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSkillCamadas = query
 	return _q
 }
 
@@ -479,11 +515,12 @@ func (_q *CondominioQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*C
 	var (
 		nodes       = []*Condominio{}
 		_spec       = _q.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [5]bool{
 			_q.withAdministradora != nil,
 			_q.withHabilitacoes != nil,
 			_q.withPayloads != nil,
 			_q.withOrientacoes != nil,
+			_q.withSkillCamadas != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -528,6 +565,13 @@ func (_q *CondominioQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*C
 		if err := _q.loadOrientacoes(ctx, query, nodes,
 			func(n *Condominio) { n.Edges.Orientacoes = []*Orientacao{} },
 			func(n *Condominio, e *Orientacao) { n.Edges.Orientacoes = append(n.Edges.Orientacoes, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSkillCamadas; query != nil {
+		if err := _q.loadSkillCamadas(ctx, query, nodes,
+			func(n *Condominio) { n.Edges.SkillCamadas = []*SkillCamada{} },
+			func(n *Condominio, e *SkillCamada) { n.Edges.SkillCamadas = append(n.Edges.SkillCamadas, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -647,6 +691,39 @@ func (_q *CondominioQuery) loadOrientacoes(ctx context.Context, query *Orientaca
 	}
 	query.Where(predicate.Orientacao(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(condominio.OrientacoesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.CondominioID
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "condominio_id" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "condominio_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *CondominioQuery) loadSkillCamadas(ctx context.Context, query *SkillCamadaQuery, nodes []*Condominio, init func(*Condominio), assign func(*Condominio, *SkillCamada)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*Condominio)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(skillcamada.FieldCondominioID)
+	}
+	query.Where(predicate.SkillCamada(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(condominio.SkillCamadasColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

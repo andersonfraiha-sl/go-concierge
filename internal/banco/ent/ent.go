@@ -24,6 +24,10 @@ import (
 	"go-concierge/internal/banco/ent/pedido"
 	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/sessao"
+	"go-concierge/internal/banco/ent/skillatualizacao"
+	"go-concierge/internal/banco/ent/skillaviso"
+	"go-concierge/internal/banco/ent/skillcamada"
+	"go-concierge/internal/banco/ent/skillversao"
 	"go-concierge/internal/banco/ent/usuario"
 	"reflect"
 	"sync"
@@ -109,6 +113,10 @@ func checkColumn(t, c string) error {
 			pedido.Table:             pedido.ValidColumn,
 			pedidoevento.Table:       pedidoevento.ValidColumn,
 			sessao.Table:             sessao.ValidColumn,
+			skillatualizacao.Table:   skillatualizacao.ValidColumn,
+			skillaviso.Table:         skillaviso.ValidColumn,
+			skillcamada.Table:        skillcamada.ValidColumn,
+			skillversao.Table:        skillversao.ValidColumn,
 			usuario.Table:            usuario.ValidColumn,
 		})
 	})

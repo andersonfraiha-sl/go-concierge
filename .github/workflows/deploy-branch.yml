@@ -1,0 +1,228 @@
+name: Deploy Branch (Preview)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        # staging e prod ficam para depois: ver docs/deploy/idp-nexus.md
+        options:
+          - dev
+      branch:
+        description: 'Branch to build and deploy (leave empty to use current branch)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  PROJECT_NAME: go-concierge
+  GITOPS_REPO: ${{ vars.GITOPS_REPO || 'gitops-apps' }}
+  GITOPS_OWNER: ${{ vars.GITOPS_OWNER || github.repository_owner }}
+
+# O preview sobe com o mesmo ConfigMap e Secret do dev: usa o mesmo banco e, com -migrar,
+# aplica as migrations da branch nele. Só use com branch cujas migrations o banco de dev aceite.
+# A guarda de dono existe porque o repositório ainda mora em outra conta: sem ela este
+# workflow falharia no fork. Remover quando o repositório migrar para a org idp-nexusapps.
+jobs:
+  deploy-branch:
+    name: Build & Deploy Branch Preview
+    if: github.repository_owner == 'idp-nexusapps'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Validate required configuration
+        env:
+          CHECK_AWS_ROLE: ${{ vars.AWS_ROLE_ARN }}
+          CHECK_GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          FAILED=false
+          [ -z "$CHECK_AWS_ROLE" ]     && { echo "::error::Missing var: AWS_ROLE_ARN"; FAILED=true; }
+          [ -z "$CHECK_GITOPS_TOKEN" ] && { echo "::error::Missing secret: GITOPS_TOKEN"; FAILED=true; }
+          if [ "$FAILED" = "true" ]; then
+            echo "Configure missing items in: Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          echo "All required configuration is present"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get ECR Repository URL
+        id: ecr
+        run: |
+          ECR_URL=$(aws ecr describe-repositories \
+            --repository-names ${{ env.PROJECT_NAME }} \
+            --query 'repositories[0].repositoryUri' --output text)
+          echo "repository_url=$ECR_URL" >> $GITHUB_OUTPUT
+
+      - name: Build, tag, and push image
+        id: build
+        env:
+          ECR_REPOSITORY: ${{ steps.ecr.outputs.repository_url }}
+        run: |
+          TARGET_BRANCH="${{ inputs.branch || github.ref_name }}"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          SAFE_BRANCH=$(echo "$TARGET_BRANCH" | tr '[:upper:]' '[:lower:]' | tr '/._' '-' | tr -cd 'a-z0-9-' | cut -c1-20)
+          IMAGE_TAG="${SAFE_BRANCH}-${SHORT_SHA}"
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REPOSITORY:$IMAGE_TAG
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "safe_branch=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Sync base manifests to GitOps repo
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          API="https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}"
+          AUTH="Authorization: Bearer $GITOPS_TOKEN"
+          ACCEPT="Accept: application/vnd.github+json"
+          BASE_PATH="apps/${{ env.PROJECT_NAME }}/base"
+
+          for FILE in .github/k8s/base/*; do
+            FILENAME=$(basename "$FILE")
+            GITOPS_FILE_PATH="$BASE_PATH/$FILENAME"
+
+            EXISTING=$(curl -s -H "$AUTH" -H "$ACCEPT" "$API/contents/$GITOPS_FILE_PATH" || echo "{}")
+            SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+
+            ENCODED=$(base64 -w 0 < "$FILE")
+
+            if [ -n "$SHA" ]; then
+              EXISTING_CONTENT=$(echo "$EXISTING" | jq -r '.content // empty' | tr -d '\n ')
+              if [ "$ENCODED" = "$EXISTING_CONTENT" ]; then
+                echo "Unchanged: $GITOPS_FILE_PATH"
+                continue
+              fi
+            fi
+
+            BODY="{\"message\":\"chore: sync base manifest $FILENAME for ${{ env.PROJECT_NAME }}\",\"content\":\"$ENCODED\",\"branch\":\"main\""
+            if [ -n "$SHA" ]; then
+              BODY="$BODY,\"sha\":\"$SHA\""
+            fi
+            BODY="$BODY}"
+
+            curl -s --fail-with-body -X PUT \
+              -H "$AUTH" -H "$ACCEPT" \
+              "$API/contents/$GITOPS_FILE_PATH" \
+              -d "$BODY"
+            echo "Synced: $GITOPS_FILE_PATH"
+          done
+
+      - name: Create preview overlay in GitOps repo
+        env:
+          GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+          SAFE_BRANCH: ${{ steps.build.outputs.safe_branch }}
+          ECR_REPOSITORY: ${{ steps.ecr.outputs.repository_url }}
+        run: |
+          PREVIEW_NS="go-concierge-preview-$SAFE_BRANCH"
+          OVERLAY_PATH="apps/${{ env.PROJECT_NAME }}/overlays/preview-$SAFE_BRANCH/kustomization.yaml"
+          ARGO_PATH="argocd/${{ env.PROJECT_NAME }}-preview-$SAFE_BRANCH.yaml"
+
+          OVERLAY_CONTENT=$(cat << KUSTOMIZE
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+
+          namespace: $PREVIEW_NS
+
+          resources:
+            - ../../base
+
+          images:
+            - name: PLACEHOLDER_IMAGE
+              newName: $ECR_REPOSITORY
+              newTag: "$IMAGE_TAG"
+          KUSTOMIZE
+          )
+
+          # O proxy go-concierge-auth casa as rotas sem olhar o host, então o preview só
+          # precisa de um host próprio no Ingress. Sem isso ele dividiria o host do dev no
+          # ALB compartilhado.
+          PREVIEW_HOST="go-concierge-$(echo "$SAFE_BRANCH" | sed 's/-*$//').idp.nexus.superlogica.net"
+          OVERLAY_CONTENT="${OVERLAY_CONTENT}$(printf '\npatches:\n  - patch: |-\n      - op: replace\n        path: /spec/rules/0/host\n        value: %s\n    target:\n      kind: Ingress\n      name: go-concierge' "$PREVIEW_HOST")"
+
+          ARGO_CONTENT=$(cat << ARGOAPP
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: ${{ env.PROJECT_NAME }}-preview-$SAFE_BRANCH
+            namespace: argocd
+            finalizers:
+              - resources-finalizer.argocd.argoproj.io
+          spec:
+            project: go-concierge
+            source:
+              repoURL: https://github.com/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}.git
+              targetRevision: main
+              path: apps/${{ env.PROJECT_NAME }}/overlays/preview-$SAFE_BRANCH
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: $PREVIEW_NS
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true
+          ARGOAPP
+          )
+
+          for FILE_PATH in "$OVERLAY_PATH" "$ARGO_PATH"; do
+            if [ "$FILE_PATH" = "$OVERLAY_PATH" ]; then
+              CONTENT="$OVERLAY_CONTENT"
+            else
+              CONTENT="$ARGO_CONTENT"
+            fi
+
+            EXISTING=$(curl -s -H "Authorization: Bearer $GITOPS_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}/contents/$FILE_PATH" || echo "{}")
+            SHA=$(echo "$EXISTING" | jq -r '.sha // empty')
+
+            ENCODED=$(echo "$CONTENT" | base64 -w 0)
+            BODY="{\"message\":\"feat: preview ${{ env.PROJECT_NAME }}/$SAFE_BRANCH\",\"content\":\"$ENCODED\",\"branch\":\"main\""
+            if [ -n "$SHA" ]; then
+              BODY="$BODY,\"sha\":\"$SHA\""
+            fi
+            BODY="$BODY}"
+
+            curl -s --fail-with-body -X PUT \
+              -H "Authorization: Bearer $GITOPS_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}/contents/$FILE_PATH" \
+              -d "$BODY"
+          done
+
+      - name: Summary
+        env:
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+          SAFE_BRANCH: ${{ steps.build.outputs.safe_branch }}
+        run: |
+          echo "## Branch Deploy Successful :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image Tag:** $IMAGE_TAG" >> $GITHUB_STEP_SUMMARY
+          echo "**Preview Namespace:** go-concierge-preview-$SAFE_BRANCH" >> $GITHUB_STEP_SUMMARY
+          echo "**Preview Host:** go-concierge-$(echo "$SAFE_BRANCH" | sed 's/-*$//').idp.nexus.superlogica.net" >> $GITHUB_STEP_SUMMARY
+          echo "**GitOps Repo:** ${{ env.GITOPS_OWNER }}/${{ env.GITOPS_REPO }}" >> $GITHUB_STEP_SUMMARY

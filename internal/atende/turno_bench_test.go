@@ -3,6 +3,7 @@ package atende
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -455,7 +456,17 @@ func BenchmarkIdaAoBanco(b *testing.B) {
 // uma ida; um turno sem mudança de pedido com o contato quente não vai ao banco. A sessão
 // chega ao banco depois da resposta.
 func TestTurnoNoPostgresIdasAntesDaResposta(t *testing.T) {
+	t.Run("arquivos do catálogo", func(t *testing.T) { idasAntesDaResposta(t, false) })
+	// a skill composta vem de memória: ligar as camadas não pode somar nenhuma ida ao banco
+	t.Run("skills efetivas", func(t *testing.T) { idasAntesDaResposta(t, true) })
+}
+
+func idasAntesDaResposta(t *testing.T, comSkillsEfetivas bool) {
+	t.Helper()
 	svc, db, contador := servicoNoPostgres(t)
+	if comSkillsEfetivas {
+		svc.SkillsDe = skillsEfetivasDoCatalogo(t, svc.Cat, svc.Agente)
+	}
 	pergunta, agendamento := eventoCom(t, textoSemPedido), eventoDoTurno(t)
 	obra := eventoCom(t, "vou fazer uma obra no apartamento")
 	tests := []struct {
@@ -491,4 +502,32 @@ func linhasDaRegraBloqueada(t *testing.T, db banco.Banco) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+// skillsEfetivasDoCatalogo é a consulta em memória das camadas: a skill composta de cada
+// caso de uso é a do catálogo, lida uma vez antes do turno, como a composição faria.
+func skillsEfetivasDoCatalogo(tb testing.TB, cat *okf.Catalogo, agente string) func(string, string, time.Time) func(string) (okf.SkillEfetiva, bool) {
+	tb.Helper()
+	arvore, err := cat.Tree()
+	if err != nil {
+		tb.Fatal(err)
+	}
+	raiz := okf.Find(arvore, agente)
+	if raiz == nil {
+		tb.Fatalf("agente %s não encontrado no catálogo", agente)
+	}
+	efetivas := map[string]okf.SkillEfetiva{}
+	for _, s := range raiz.Subagentes {
+		principal, err := os.ReadFile(filepath.Join(s.Path, "workflows", "principal.md"))
+		if err != nil && !os.IsNotExist(err) {
+			tb.Fatal(err)
+		}
+		efetivas[s.Nome] = okf.SkillEfetiva{Caso: s.Caso, Descricao: s.Descricao, Principal: string(principal)}
+	}
+	return func(string, string, time.Time) func(string) (okf.SkillEfetiva, bool) {
+		return func(nome string) (okf.SkillEfetiva, bool) {
+			efetiva, ok := efetivas[nome]
+			return efetiva, ok
+		}
+	}
 }

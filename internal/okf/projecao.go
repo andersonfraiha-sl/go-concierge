@@ -12,6 +12,12 @@ import (
 // projeção; os dados ficam indexados e são lidos sob demanda pelas tools). É o que
 // a interface mostra em "projeção" e o que o harness Eino recebe como instrução.
 func (c *Catalogo) Projecao(a *Agent) string {
+	return c.ProjecaoCom(a, nil)
+}
+
+// ProjecaoCom é a Projecao com o workflows/principal.md dado no lugar do arquivo; nil lê o
+// arquivo. O turno usa para projetar a skill composta sem tocar o disco da base.
+func (c *Catalogo) ProjecaoCom(a *Agent, principal *string) string {
 	var partes []string
 
 	papel := "OPERADOR (você executa a tarefa você mesmo)"
@@ -30,7 +36,7 @@ func (c *Catalogo) Projecao(a *Agent) string {
 	if pol := c.politicas(a); pol != "" {
 		partes = append(partes, "# Políticas\n\n"+pol)
 	}
-	if wf := c.lerProprio(a, "workflows/principal.md"); wf != "" {
+	if wf := c.principalDe(a, principal); wf != "" {
 		partes = append(partes, "# Workflow (siga o passo a passo)\n\n"+corpo(wf))
 	}
 	if a.Caso != nil {
@@ -197,6 +203,14 @@ func (c *Catalogo) lerProprio(a *Agent, rel string) string {
 		return ""
 	}
 	return string(raw)
+}
+
+// principalDe é o principal.md dado, ou o do arquivo quando nenhum foi dado.
+func (c *Catalogo) principalDe(a *Agent, dado *string) string {
+	if dado != nil {
+		return *dado
+	}
+	return c.lerProprio(a, "workflows/principal.md")
 }
 
 // lerArquivo lê um Arquivo próprio ou herdado (pelo ancestral indicado).

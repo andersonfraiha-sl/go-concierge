@@ -91,6 +91,10 @@ type Config struct {
 	// Orientacoes por caso de uso (nome da pasta do subagente → texto da
 	// administradora): entram só na instrução daquele subagente.
 	Orientacoes map[string]string
+	// Skills devolve a skill composta (base e camadas) de cada caso de uso do orquestrador de
+	// primeiro nível, já pronta e em memória. nil = os arquivos do catálogo, como sempre; com
+	// ela, caso de uso sem skill efetiva não é oferecido ao morador.
+	Skills func(nome string) (okf.SkillEfetiva, bool)
 	// Locais são recursos que o próprio canal resolve, sem Nexus.
 	Locais map[string]func(ctx context.Context, params map[string]any) (any, error)
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
@@ -145,6 +149,9 @@ type Agente struct {
 	Provedor   string
 	Mock       bool
 
+	// principal é o principal.md efetivo; nil = o do arquivo.
+	principal *string
+
 	cfg    Config
 	modelo model.ToolCallingChatModel
 	runner *adk.Runner
@@ -154,6 +161,11 @@ type Agente struct {
 // nativas do formato que a pasta pede (ler_dado, abrir_workflow, invocar_agente,
 // chamar_recurso), subagentes recursivos com a mesma Config.
 func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*Agente, error) {
+	return construir(ctx, cat, a, cfg, nil)
+}
+
+// construir é o Build de um agente que pode ter uma skill efetiva no lugar dos arquivos.
+func construir(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config, efetiva *okf.SkillEfetiva) (*Agente, error) {
 	if cat == nil || a == nil {
 		return nil, errors.New("harness: catálogo e agente são obrigatórios")
 	}
@@ -165,11 +177,15 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 		return nil, err
 	}
 	cfg.Turno = turno
-	instrucao := cat.Projecao(a)
+	var principal *string
+	if efetiva != nil {
+		principal = &efetiva.Principal
+	}
+	instrucao := cat.ProjecaoCom(a, principal)
 	if c := strings.TrimSpace(cfg.Contexto); c != "" {
 		instrucao += "\n\n" + c
 	}
-	if o := strings.TrimSpace(cfg.Orientacoes[a.Nome]); o != "" && len(okf.Ancestrais(a.Path)) > 0 {
+	if o := orientacaoDe(cfg, a, efetiva); o != "" && len(okf.Ancestrais(a.Path)) > 0 {
 		instrucao += "\n\n# Orientações da administradora para este caso de uso\n\nValem neste condomínio, por cima das políticas gerais:\n\n" + o
 	}
 	ag := &Agente{
@@ -177,25 +193,22 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 		Def:        a,
 		Instrucao:  instrucao,
 		Subagentes: map[string]*Agente{},
+		principal:  principal,
 		cfg:        cfg,
 	}
 	if a.Tipo == okf.Orquestrador {
+		// ponytail: rotas.md do orquestrador continua o da base; personalizar o roteador pede um Roteador por condomínio
 		ag.Roteador = cat.Roteador(a)
 	}
 	var excluidos []string
 	raiz := len(okf.Ancestrais(a.Path)) == 0
 	for _, s := range a.Subagentes {
-		if raiz && cfg.Casos != nil {
-			casoID := ""
-			if s.Caso != nil {
-				casoID = s.Caso.ID
-			}
-			if !cfg.Casos(s.Nome, casoID) {
-				excluidos = append(excluidos, s.Nome)
-				continue
-			}
+		usado, efetivaDoSub, oferecido := subagenteUsado(s, raiz, cfg)
+		if !oferecido {
+			excluidos = append(excluidos, s.Nome)
+			continue
 		}
-		sub, err := Build(ctx, cat, s, cfg)
+		sub, err := construir(ctx, cat, usado, cfg, efetivaDoSub)
 		if err != nil {
 			return nil, err
 		}
@@ -230,6 +243,46 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	}
 	ag.runner = adk.NewRunner(ctx, adk.RunnerConfig{Agent: cma})
 	return ag, nil
+}
+
+// subagenteUsado decide se um caso de uso do orquestrador de primeiro nível é oferecido e com
+// que definição. Com cfg.Skills, o usado é uma cópia do subagente com o caso e a descrição da
+// skill efetiva (o arquivo da pasta não é tocado); sem efetiva, o caso não é oferecido.
+func subagenteUsado(s *okf.Agent, raiz bool, cfg Config) (*okf.Agent, *okf.SkillEfetiva, bool) {
+	if !raiz {
+		return s, nil, true
+	}
+	var efetiva *okf.SkillEfetiva
+	if cfg.Skills != nil {
+		composta, ok := cfg.Skills(s.Nome)
+		if !ok {
+			return nil, nil, false
+		}
+		copia := *s
+		copia.Caso, copia.Descricao = composta.Caso, composta.Descricao
+		s, efetiva = &copia, &composta
+	}
+	if cfg.Casos != nil && !cfg.Casos(s.Nome, casoIDDe(s)) {
+		return nil, nil, false
+	}
+	return s, efetiva, true
+}
+
+func casoIDDe(a *okf.Agent) string {
+	if a.Caso == nil {
+		return ""
+	}
+	return a.Caso.ID
+}
+
+// orientacaoDe é a orientação da skill efetiva, senão a do mapeamento da administradora.
+func orientacaoDe(cfg Config, a *okf.Agent, efetiva *okf.SkillEfetiva) string {
+	if efetiva != nil {
+		if o := strings.TrimSpace(efetiva.Orientacao); o != "" {
+			return o
+		}
+	}
+	return strings.TrimSpace(cfg.Orientacoes[a.Nome])
 }
 
 // turnoDoAgente é o turno da Config ou um aberto no conjunto dela; sem conjunto, no dos
