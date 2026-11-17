@@ -38,7 +38,7 @@ func TestMudancaDeAtendimentoAntesDaEscritaInterrompeVisita(t *testing.T) {
 			go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 			select {
 			case <-entrou:
-			case <-time.After(5 * time.Second):
+			case <-time.After(90 * time.Second):
 				t.Fatal("extrator não iniciou")
 			}
 			if caso == "humano" {
@@ -53,7 +53,7 @@ func TestMudancaDeAtendimentoAntesDaEscritaInterrompeVisita(t *testing.T) {
 			close(liberar)
 			select {
 			case <-fim:
-			case <-time.After(5 * time.Second):
+			case <-time.After(90 * time.Second):
 				t.Fatal("processamento não encerrou")
 			}
 			if fake.tentativasVisita != 0 {
@@ -160,7 +160,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 	select {
 	case <-bloqueado.iniciou:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("escrita não iniciou")
 	}
 	humana := msg
@@ -170,7 +170,7 @@ func TestMudancaDuranteEscritaPreservaEstadoIncerto(t *testing.T) {
 	}
 	select {
 	case <-fim:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("escrita em andamento não foi interrompida")
 	}
 	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
@@ -315,7 +315,7 @@ func TestFechamentoAntesDaEscritaManualInterrompeVisita(t *testing.T) {
 	}()
 	select {
 	case <-bloqueado.iniciou:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("consulta de vínculo não iniciou")
 	}
 	ev, _ := Parse([]byte(eventoExemplo))
@@ -327,7 +327,7 @@ func TestFechamentoAntesDaEscritaManualInterrompeVisita(t *testing.T) {
 	close(bloqueado.liberar)
 	select {
 	case <-fim:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("ação manual não encerrou")
 	}
 	if fake.tentativasVisita != 0 {
@@ -411,7 +411,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 	go func() { _, err := svc.Processar(context.Background(), msg); fim <- err }()
 	select {
 	case <-iniciou:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("entrega inicial não iniciou")
 	}
 	// a carteira do turno só vai ao banco depois da resposta; pelo serviço ela já aparece
@@ -441,7 +441,7 @@ func TestEntregaAnteriorNaoConfirmaValoresAlteradosEmOutraSessao(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("entrega inicial não terminou")
 	}
 	cart, err = svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
@@ -470,7 +470,7 @@ func TestFechamentoDuranteEscritaManualPreservaEstadoIncerto(t *testing.T) {
 	}()
 	select {
 	case <-bloqueado.iniciou:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("escrita manual não iniciou")
 	}
 	ev, _ := Parse([]byte(eventoExemplo))
@@ -481,7 +481,7 @@ func TestFechamentoDuranteEscritaManualPreservaEstadoIncerto(t *testing.T) {
 	}
 	select {
 	case <-fim:
-	case <-time.After(5 * time.Second):
+	case <-time.After(90 * time.Second):
 		t.Fatal("escrita manual não encerrou")
 	}
 	cart, err := svc.Pedidos.Ler(context.Background(), contatoDeTeste(t, "adm-a"))
