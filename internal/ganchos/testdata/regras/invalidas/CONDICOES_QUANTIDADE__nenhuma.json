@@ -1,0 +1,11 @@
+{
+  "nome": "Regra de teste",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Não posso fazer isso agora."
+  },
+  "ativa": true
+}

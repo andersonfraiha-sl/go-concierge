@@ -12,6 +12,8 @@ import (
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+
+	"go-concierge/internal/falha"
 )
 
 type Model struct {
@@ -139,11 +141,11 @@ func (m *Model) Generate(ctx context.Context, messages []*schema.Message, opts .
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("responses: requisição: %w", err)
+		return nil, falha.ComPilha(fmt.Errorf("responses: requisição: %w", err))
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("responses: gateway retornou HTTP %d", res.StatusCode)
+		return nil, falha.ComPilha(fmt.Errorf("responses: gateway retornou HTTP %d", res.StatusCode))
 	}
 	var response struct {
 		Status string            `json:"status"`

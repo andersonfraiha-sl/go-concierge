@@ -30,7 +30,8 @@
   // o seletor vem do mapeamento (GET /api/admin/estado); o condomínio vai ao emulador e
   // a administradora dele às rotas de memória e pedidos
   const condominioEscolhido = () => $('#formContato').condominio.value;
-  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || '';
+  // sem condomínio no seletor, vale a administradora que o turno resolveu para a conversa aberta
+  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || estado.sessao?.administradora_id || '';
   const comAdministradora = (caminho) => caminho + (caminho.includes('?') ? '&' : '?') + 'administradora=' + encodeURIComponent(administradora());
   async function carregarCondominios() {
     try {
@@ -243,7 +244,7 @@
     if (!id || !id.phone) { el.className = 'empty-state'; el.style.padding = '12px'; el.innerHTML = '<i data-lucide="user-search"></i>sem identidade ainda'; icons(); return; }
     el.className = '';
     el.style.padding = '';
-    el.innerHTML = `<div class="persona" style="cursor:default"><span class="avatar ${id.authenticated ? 'avatar-bot' : ''}">${esc((id.name || '?').slice(0, 1).toUpperCase())}</span><div class="persona-info"><span class="persona-name">${esc(id.name || 'Contato sem cadastro')}</span><span class="persona-meta">${id.authenticated ? (id.company_name || 'company ' + id.company_id) + ' · ' + (id.role || '') : 'público · sem unidades no Gruvi'}</span></div><span class="tag ${id.authenticated ? 'tag-private' : 'tag-locked'}">${id.authenticated ? 'identificado' : 'público'}</span></div>`
+    el.innerHTML = `<div class="persona" style="cursor:default"><span class="avatar ${id.authenticated ? 'avatar-bot' : ''}">${esc((id.name || '?').slice(0, 1).toUpperCase())}</span><div class="persona-info"><span class="persona-name">${esc(id.name || 'Contato sem cadastro')}</span><span class="persona-meta">${esc(id.authenticated ? (id.company_name || 'company ' + id.company_id) + ' · ' + (id.role || '') : 'público · sem unidades no Gruvi')}</span></div><span class="tag ${id.authenticated ? 'tag-private' : 'tag-locked'}">${id.authenticated ? 'identificado' : 'público'}</span></div>`
       + ((id.condominios && id.condominios.length) ? id.condominios.map((c) => `<div style="margin-top:8px"><div class="muted" style="font-size:11.5px;font-weight:600">${esc(c.nome || 'condomínio')}</div><div class="chips" style="margin-top:3px">${c.unidades.map((u) => `<span class="tag tag-kind" title="unidade_id ${esc(u.id)}">${esc(u.label)}</span>`).join('')}</div></div>`).join('') : (id.units && id.units.length ? `<div class="chips" style="margin-top:8px">${id.units.map((u) => `<span class="tag tag-kind">${esc(u.label)}</span>`).join('')}</div>` : ''))
       + (id.units && id.units.length > 1 ? '<div class="muted" style="font-size:11.5px;margin-top:6px">mais de uma unidade: o concierge pergunta de qual se trata o pedido</div>' : '')
       + (erro ? `<p class="notice warn" style="margin-top:8px"><i data-lucide="triangle-alert"></i>${esc(erro)}</p>` : '');
@@ -357,7 +358,11 @@
     try {
       const r = await api(comAdministradora('/api/memoria?phone=' + encodeURIComponent(phone)));
       desenharMemoria(r.memoria);
-    } catch (err) { /* silencioso */ }
+    } catch (err) {
+      estado.chaveMemoria = '';
+      $('#memoriaTabela').innerHTML = `<div class="empty-state" style="padding:14px"><i data-lucide="circle-alert"></i>memória indisponível: ${esc(err.message)}</div>`;
+      icons();
+    }
   }
   function desenharMemoria(m) {
     const chave = JSON.stringify(m);
@@ -413,6 +418,8 @@
         estado.chaveId = estado.chaveRota = estado.chaveSaidas = '';
         desenharSessao(r2.sessao, r2.saidas, true);
         carregarSessoes();
+        estado.chaveMemoria = estado.chavePedidos = '';
+        carregarMemoria(); carregarPedidos();
       }));
       icons();
     } catch (err) { /* silencioso */ }

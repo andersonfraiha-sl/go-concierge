@@ -27,6 +27,7 @@ type mcpFluxoFalso struct {
 	motivosVisita    []any
 	tentativasVisita int
 	escritasVisita   int
+	escritasChamado  int
 }
 
 func (m *mcpFluxoFalso) ValidarToken(context.Context) error { return nil }
@@ -70,6 +71,25 @@ func (m *mcpFluxoFalso) CallTool(_ context.Context, nome string, params map[stri
 		}
 		conteudo, _ := json.Marshal(map[string]any{"data": motivos})
 		return resultadoMCPFluxo(string(conteudo)), nil
+	case "gruvi.bff.mobile.fetch-fees-controller-handle-1":
+		if params["filter[paid]"] == true {
+			return resultadoMCPFluxo(`{"data":[{"id":"f-pago","due_date":"2026-10-10","value":498.7}]}`), nil
+		}
+		return resultadoMCPFluxo(`{"links":{},"meta":{"count":2},"data":[{"id":"f-jurid","due_date":"2026-06-10","value":512.3,"billet_unavailable":true},{"id":"f-nov","due_date":"2026-11-10","value":498.7,"billet_unavailable":false}]}`), nil
+	case "gruvi.bff.mobile.get-fee-by-id-controller-handle-2":
+		if params["feeId"] == "f-pago" {
+			return resultadoMCPFluxo(`{"data":{"id":"f-pago","unit_description":"A - 101","due_date":"2026-10-10","value":498.7,"paid_date":"2026-10-08","payment_method":"Pix"}}`), nil
+		}
+		return resultadoMCPFluxo(`{"data":{"id":"f-nov","unit_description":"A - 101","due_date":"2026-11-10","value":498.7,"billet_code":"23790.00009 00000.000000 00000.000000 1 00000000049870","pix_code":"PIX-SINTETICO"}}`), nil
+	case "gruvi.bff.mobile.fetch-documents-controller-handle-1":
+		return resultadoMCPFluxo(`{"data":[{"id":"d-ata","file_name":"ata-assembleia-out.pdf","title":"Ata AGO"}]}`), nil
+	case "gruvi.bff.mobile.get-document-by-id-controller-handle-1":
+		return resultadoMCPFluxo(`{"data":{"link":"https://docs.exemplo.test/ata.pdf"}}`), nil
+	case "gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606":
+		return resultadoMCPFluxo(`{"data":{"has_title":false,"has_subject":true,"has_attachment":false,"subjects":[{"id":"s-1","description":"Assunto"}],"types":[{"id":"t-manut","description":"Manutenção"}]}}`), nil
+	case "gruvi.bff.mobile.create-ticket-controller-handle":
+		m.escritasChamado++
+		return resultadoMCPFluxo(`{"data":{"id":"CH-77","status":"OPEN"}}`), nil
 	case "gruvi.bff.building-operation.create-visit-controller-handle":
 		m.escritasVisita++
 		return resultadoMCPFluxo(`{"data":{"visit":{"clearance_status":"AUTHORIZED"}}}`), nil
@@ -245,7 +265,7 @@ func TestCasoRealVisitanteConfirmaEEscreveUmaVezPeloMotor(t *testing.T) {
 	if fake.tentativasVisita != 1 || fake.escritasVisita != 1 || !strings.Contains(ultimoConcierge(sess).Texto, "Prontinho") {
 		t.Fatalf("confirmação válida deve criar uma visita: resposta=%q chamadas=%+v", ultimoConcierge(sess).Texto, fake.chamadas)
 	}
-	sess = falar(t, svc, "mcp-visita-3", "sim")
+	falar(t, svc, "mcp-visita-3", "sim")
 	if fake.tentativasVisita != 1 || fake.escritasVisita != 1 {
 		t.Fatalf("a visita concluída não pode ser escrita novamente: chamadas=%+v", fake.chamadas)
 	}
@@ -293,7 +313,7 @@ func TestCasoVisitanteResultadoIncertoNaoRepeteEscrita(t *testing.T) {
 	if fake.tentativasVisita != 1 || !strings.Contains(ultimoConcierge(sess).Texto, "incerto após o envio") {
 		t.Fatalf("timeout deve ser tratado como resultado incerto sem retry: resposta=%q chamadas=%+v", ultimoConcierge(sess).Texto, fake.chamadas)
 	}
-	sess = falar(t, svc, "mcp-visita-incerta-3", "sim")
+	falar(t, svc, "mcp-visita-incerta-3", "sim")
 	if fake.tentativasVisita != 1 {
 		t.Fatalf("resultado incerto não pode repetir a escrita: chamadas=%+v", fake.chamadas)
 	}
@@ -310,5 +330,96 @@ func TestFalhaMCPDeEncomendasNaoUsaFallback(t *testing.T) {
 	}
 	if len(fake.chamadas) != 2 || fake.chamadas[0].nome != "gruvi.bff.building-operation.get-company-by-document-controller-handle" || fake.chamadas[1].nome != packages {
 		t.Fatalf("não deve executar fallback após falha MCP: %+v", fake.chamadas)
+	}
+}
+
+func TestCasoRealBoletoPulaCobrancaIndisponivelEFixaOMorador(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	sess := falar(t, svc, "mcp-boleto", "me manda a segunda via do boleto")
+	texto := ultimoConcierge(sess).Texto
+	for _, quer := range []string{"23790.00009", "PIX-SINTETICO", "2026-11-10"} {
+		if !strings.Contains(texto, quer) {
+			t.Fatalf("boleto sem %q: %q", quer, texto)
+		}
+	}
+	detalhe := fake.argsPorNome["gruvi.bff.mobile.get-fee-by-id-controller-handle-2"]
+	if detalhe["feeId"] != "f-nov" {
+		t.Fatalf("deve pular a cobrança sem boleto e usar a disponível sem perguntar: %+v", detalhe)
+	}
+	lista := fake.argsPorNome["gruvi.bff.mobile.fetch-fees-controller-handle-1"]
+	if lista["persona"] != "resident" || lista["companyId"] == nil {
+		t.Fatalf("lista de cobranças deve sair como morador do condomínio do canal: %+v", lista)
+	}
+}
+
+func TestCasoRealPagamentoConfereARegistradaComoMorador(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	sess := falar(t, svc, "mcp-pagamento", "já paguei o condomínio, consta aí?")
+	texto := ultimoConcierge(sess).Texto
+	for _, quer := range []string{"Pagamento registrado", "2026-10-08", "Pix"} {
+		if !strings.Contains(texto, quer) {
+			t.Fatalf("confirmação sem %q: %q", quer, texto)
+		}
+	}
+	lista := fake.argsPorNome["gruvi.bff.mobile.fetch-fees-controller-handle-1"]
+	if lista["filter[paid]"] != true || lista["persona"] != "resident" || lista["companyId"] == nil {
+		t.Fatalf("deve listar só as pagas, como morador do condomínio do canal: %+v", lista)
+	}
+}
+
+func TestCasoRealDebitoListaAbertasComIndisponivelEOfereceAtendente(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	sess := falar(t, svc, "mcp-debito", "quanto eu devo de condomínio?")
+	texto := ultimoConcierge(sess).Texto
+	for _, quer := range []string{"2026-06-10", "sem boleto disponível", "2026-11-10", "atendente"} {
+		if !strings.Contains(texto, quer) {
+			t.Fatalf("resumo do débito sem %q: %q", quer, texto)
+		}
+	}
+	if lista := fake.argsPorNome["gruvi.bff.mobile.fetch-fees-controller-handle-1"]; lista["persona"] != "resident" || lista["filter[only-open]"] != true {
+		t.Fatalf("débito deve listar só as abertas, como morador: %+v", lista)
+	}
+}
+
+func TestCasoRealDocumentosPassaOLinkComoMorador(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	sess := falar(t, svc, "mcp-docs", "me manda a ata da última assembleia")
+	if texto := ultimoConcierge(sess).Texto; !strings.Contains(texto, "https://docs.exemplo.test/ata.pdf") {
+		t.Fatalf("documento sem link: %q", texto)
+	}
+	detalhe := fake.argsPorNome["gruvi.bff.mobile.get-document-by-id-controller-handle-1"]
+	if detalhe["documentId"] != "d-ata" || detalhe["persona"] != "resident" || detalhe["companyId"] == nil {
+		t.Fatalf("documento deve sair como morador do condomínio do canal: %+v", detalhe)
+	}
+}
+
+func TestCasoRealChamadoConfirmaEAbreUmaVez(t *testing.T) {
+	fixarAgoraDoFluxo(t)
+	svc, fake := servicoComMCPFluxo(t)
+	svc.ExtratorPedidos = extratorPedidosFunc(func(ctx context.Context, entrada pedidos.Entrada) (pedidos.Extracao, error) {
+		if strings.Contains(entrada.Mensagem, "vazamento") {
+			return pedidos.Extracao{Pedidos: []pedidos.PedidoExtraido{{Caso: "chamado", Valores: map[string]any{"descricao": "vazamento na garagem, vaga 12"}}}}, nil
+		}
+		return (pedidos.Regras{}).Extrair(ctx, entrada)
+	})
+	sess := falar(t, svc, "mcp-chamado-1", "tem um vazamento na garagem")
+	if texto := ultimoConcierge(sess).Texto; !strings.Contains(texto, "Confirma a abertura do chamado de Manutenção") || fake.escritasChamado != 0 {
+		t.Fatalf("deve pedir confirmação com o tipo antes de escrever: resposta=%q chamadas=%+v", texto, fake.chamadas)
+	}
+	sess = falar(t, svc, "mcp-chamado-2", "sim")
+	if texto := ultimoConcierge(sess).Texto; fake.escritasChamado != 1 || !strings.Contains(texto, "CH-77") {
+		t.Fatalf("confirmação deve abrir um chamado: resposta=%q chamadas=%+v", texto, fake.chamadas)
+	}
+	falar(t, svc, "mcp-chamado-3", "sim")
+	if fake.escritasChamado != 1 {
+		t.Fatalf("chamado aberto não pode ser criado de novo: chamadas=%+v", fake.chamadas)
+	}
+	args := fake.argsPorNome["gruvi.bff.mobile.create-ticket-controller-handle"]
+	if args["unit_id"] != "unit-109" || args["type_id"] != "t-manut" || args["description"] != "vazamento na garagem, vaga 12" || args["persona"] != "resident" || args["companyId"] == nil {
+		t.Fatalf("chamado deve usar unidade, tipo e descrição do caso, como morador do canal: %+v", args)
 	}
 }

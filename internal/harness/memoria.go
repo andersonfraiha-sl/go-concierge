@@ -41,7 +41,7 @@ func NovoExtrator(ctx context.Context, cfg Config) memoria.Extrator {
 	if chave == "" {
 		chave = prov.Chave
 	}
-	if cfg.Mock || chave == "" || prov.Nome == "mock" {
+	if cfg.Mock || prov.semAutenticacao(chave) || prov.Nome == "mock" {
 		return memoria.Regras{}
 	}
 	modelo := cfg.env("MODEL_EXTRACT")

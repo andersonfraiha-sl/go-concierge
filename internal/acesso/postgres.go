@@ -2,6 +2,7 @@ package acesso
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"maps"
@@ -9,8 +10,11 @@ import (
 	"time"
 
 	"go-concierge/internal/banco/ent"
+	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/usuario"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/falha"
 )
 
 const timeoutCarregar = 3 * time.Second
@@ -39,24 +43,25 @@ func (p *Postgres) Carregar(ctx context.Context, usuarioID string, imp escopo.Im
 		return Acesso{}, fmt.Errorf("carregar acesso de %s: %w", usuarioID, ErrUsuarioDesconhecido)
 	}
 	if err != nil {
-		return Acesso{}, fmt.Errorf("carregar usuário %s: %w", usuarioID, err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar usuário %s: %w", usuarioID, err))
 	}
 	papeis, err := p.cli.Papel.Query().WithPermissoes().WithConcessoes().All(ctx)
 	if err != nil {
-		return Acesso{}, fmt.Errorf("carregar papéis: %w", err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar papéis: %w", err))
 	}
 	// ponytail: lê todos os condomínios a cada Carregar; quando a tabela passar de alguns
 	// milhares, trocar por consulta só dos ids de atribuições e dos alvos da requisição.
 	condominios, err := p.cli.Condominio.Query().All(ctx)
 	if err != nil {
-		return Acesso{}, fmt.Errorf("carregar condomínios: %w", err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar condomínios: %w", err))
 	}
 	porID := papeisDe(papeis)
 	if err := ValidarHeranca(slices.Collect(maps.Values(porID))); err != nil {
-		return Acesso{}, fmt.Errorf("carregar papéis: %w", err)
+		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar papéis: %w", err))
 	}
 	return Acesso{
 		UsuarioID:        usuarioID,
+		Nome:             u.Nome,
 		Papeis:           porID,
 		Atribuicoes:      atribuicoesDe(u.Edges.Atribuicoes),
 		Concessoes:       concessoesDe(papeis),
@@ -112,4 +117,43 @@ func administradorasPorCondominio(rows []*ent.Condominio) map[string]string {
 		}
 	}
 	return out
+}
+
+// Conceder libera a permissão ao papel dentro da administradora (que já existe). Repetir a
+// mesma concessão não faz nada.
+func (p *Postgres) Conceder(ctx context.Context, c Concessao) error {
+	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
+	defer cancel()
+	err := p.cli.Concessao.Create().
+		SetAdministradoraID(c.AdministradoraID).SetPapelID(c.PapelID).SetPermissao(string(c.Permissao)).
+		OnConflictColumns(concessao.FieldAdministradoraID, concessao.FieldPapelID, concessao.FieldPermissao).
+		DoNothing().Exec(ctx)
+	// o ent devolve sql.ErrNoRows quando o DoNothing não insere nada
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return falha.ComPilha(fmt.Errorf("conceder %s a %s em %s: %w", c.Permissao, c.PapelID, c.AdministradoraID, err))
+	}
+	return nil
+}
+
+// Atribuir garante o usuário e lhe dá o papel no escopo. Repetir não faz nada: o usuário e a
+// atribuição só são gravados se faltam. Em escopo de condomínio, AdministradoraID é obrigatório.
+func (p *Postgres) Atribuir(ctx context.Context, u Usuario, at Atribuicao) error {
+	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
+	defer cancel()
+	err := p.cli.Usuario.Create().SetID(u.ID).SetNome(u.Nome).
+		OnConflictColumns(usuario.FieldID).DoNothing().Exec(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return falha.ComPilha(fmt.Errorf("criar usuário %s: %w", u.ID, err))
+	}
+	criar := p.cli.Atribuicao.Create().SetUsuarioID(u.ID).SetPapelID(at.PapelID).
+		SetEscopoTipo(string(at.Escopo.Tipo)).SetEscopoID(at.Escopo.ID)
+	if at.AdministradoraID != "" {
+		criar.SetAdministradoraID(at.AdministradoraID)
+	}
+	err = criar.OnConflictColumns(atribuicao.FieldUsuarioID, atribuicao.FieldPapelID, atribuicao.FieldEscopoTipo, atribuicao.FieldEscopoID).
+		DoNothing().Exec(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return falha.ComPilha(fmt.Errorf("atribuir %s a %s: %w", at.PapelID, u.ID, err))
+	}
+	return nil
 }

@@ -1,0 +1,19 @@
+{
+  "nome": "Regra de teste",
+  "evento": "mensagem_recebida",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "dia_nao_util",
+      "fonte": {
+        "tipo": "parametro",
+        "nome": "inicio"
+      }
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Não posso fazer isso agora."
+  },
+  "ativa": true
+}

@@ -12,11 +12,23 @@ type Administradora func(*sql.Selector)
 // Atribuicao is the predicate function for atribuicao builders.
 type Atribuicao func(*sql.Selector)
 
+// CatalogoArquivo is the predicate function for catalogoarquivo builders.
+type CatalogoArquivo func(*sql.Selector)
+
 // Concessao is the predicate function for concessao builders.
 type Concessao func(*sql.Selector)
 
 // Condominio is the predicate function for condominio builders.
 type Condominio func(*sql.Selector)
+
+// GanchosAuditoria is the predicate function for ganchosauditoria builders.
+type GanchosAuditoria func(*sql.Selector)
+
+// GanchosRegra is the predicate function for ganchosregra builders.
+type GanchosRegra func(*sql.Selector)
+
+// GanchosRegraVersao is the predicate function for ganchosregraversao builders.
+type GanchosRegraVersao func(*sql.Selector)
 
 // Habilitacao is the predicate function for habilitacao builders.
 type Habilitacao func(*sql.Selector)
@@ -47,6 +59,18 @@ type PedidoEvento func(*sql.Selector)
 
 // Sessao is the predicate function for sessao builders.
 type Sessao func(*sql.Selector)
+
+// SkillAtualizacao is the predicate function for skillatualizacao builders.
+type SkillAtualizacao func(*sql.Selector)
+
+// SkillAviso is the predicate function for skillaviso builders.
+type SkillAviso func(*sql.Selector)
+
+// SkillCamada is the predicate function for skillcamada builders.
+type SkillCamada func(*sql.Selector)
+
+// SkillVersao is the predicate function for skillversao builders.
+type SkillVersao func(*sql.Selector)
 
 // Usuario is the predicate function for usuario builders.
 type Usuario func(*sql.Selector)

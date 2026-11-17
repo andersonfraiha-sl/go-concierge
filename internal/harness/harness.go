@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -29,7 +30,10 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"go.opentelemetry.io/otel/metric/noop"
 
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
 	"go-concierge/internal/okf"
@@ -54,7 +58,7 @@ const (
 type Config struct {
 	// Modelo é o id no provedor; vazio usa `modelo:` do agent.yaml, senão o padrão do provedor.
 	Modelo string
-	// APIKey do provedor; vazio lê a chave do provedor resolvido em Env. Sem chave = Mock.
+	// APIKey do provedor; vazio lê a chave do provedor resolvido em Env. Vertex usa ADC.
 	APIKey string
 	// BaseURL do endpoint OpenAI-compatível; vazio = a do provedor resolvido.
 	BaseURL string
@@ -87,12 +91,26 @@ type Config struct {
 	// Orientacoes por caso de uso (nome da pasta do subagente → texto da
 	// administradora): entram só na instrução daquele subagente.
 	Orientacoes map[string]string
+	// Skills devolve a skill composta (base e camadas) de cada caso de uso do orquestrador de
+	// primeiro nível, já pronta e em memória. nil = os arquivos do catálogo, como sempre; com
+	// ela, caso de uso sem skill efetiva não é oferecido ao morador.
+	Skills func(nome string) (okf.SkillEfetiva, bool)
 	// Locais são recursos que o próprio canal resolve, sem Nexus.
 	Locais map[string]func(ctx context.Context, params map[string]any) (any, error)
 	// MaxIteracoes do loop de tools por execução; <=0 = 12.
 	MaxIteracoes int
 	// ChatModel injeta um modelo pronto (testes); tem precedência sobre tudo.
 	ChatModel model.ToolCallingChatModel
+	// Ganchos avaliam toda chamada a recurso; nil = só os fixos, montados no Build.
+	Ganchos *ganchos.Conjunto
+	// Turno é o turno de quem chama, dono do cofre de PII; nil = o Build abre um com
+	// Ganchos, e toda a família do agente o compartilha.
+	Turno *ganchos.Turno
+	// AdministradoraID e CondominioID são o alvo dos ganchos nas ferramentas: sem eles só
+	// as regras globais valem.
+	AdministradoraID, CondominioID string
+	// Agora é o relógio dos eventos dos ganchos; nil = time.Now.
+	Agora func() time.Time
 }
 
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em
@@ -126,10 +144,13 @@ type Agente struct {
 	Roteador   string
 	Tools      []tool.BaseTool
 	Subagentes map[string]*Agente
-	// NomeModelo é o id resolvido; Provedor é gemini | openrouter | mock; Mock diz se o modelo é o falso.
+	// NomeModelo é o id resolvido; Provedor identifica o provedor; Mock diz se o modelo é o falso.
 	NomeModelo string
 	Provedor   string
 	Mock       bool
+
+	// principal é o principal.md efetivo; nil = o do arquivo.
+	principal *string
 
 	cfg    Config
 	modelo model.ToolCallingChatModel
@@ -140,17 +161,31 @@ type Agente struct {
 // nativas do formato que a pasta pede (ler_dado, abrir_workflow, invocar_agente,
 // chamar_recurso), subagentes recursivos com a mesma Config.
 func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*Agente, error) {
+	return construir(ctx, cat, a, cfg, nil)
+}
+
+// construir é o Build de um agente que pode ter uma skill efetiva no lugar dos arquivos.
+func construir(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config, efetiva *okf.SkillEfetiva) (*Agente, error) {
 	if cat == nil || a == nil {
 		return nil, errors.New("harness: catálogo e agente são obrigatórios")
 	}
 	if cfg.MaxIteracoes <= 0 {
 		cfg.MaxIteracoes = maxIteracoesPadrao
 	}
-	instrucao := cat.Projecao(a)
+	turno, err := turnoDoAgente(cfg)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Turno = turno
+	var principal *string
+	if efetiva != nil {
+		principal = &efetiva.Principal
+	}
+	instrucao := cat.ProjecaoCom(a, principal)
 	if c := strings.TrimSpace(cfg.Contexto); c != "" {
 		instrucao += "\n\n" + c
 	}
-	if o := strings.TrimSpace(cfg.Orientacoes[a.Nome]); o != "" && len(okf.Ancestrais(a.Path)) > 0 {
+	if o := orientacaoDe(cfg, a, efetiva); o != "" && len(okf.Ancestrais(a.Path)) > 0 {
 		instrucao += "\n\n# Orientações da administradora para este caso de uso\n\nValem neste condomínio, por cima das políticas gerais:\n\n" + o
 	}
 	ag := &Agente{
@@ -158,25 +193,22 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 		Def:        a,
 		Instrucao:  instrucao,
 		Subagentes: map[string]*Agente{},
+		principal:  principal,
 		cfg:        cfg,
 	}
 	if a.Tipo == okf.Orquestrador {
+		// ponytail: rotas.md do orquestrador continua o da base; personalizar o roteador pede um Roteador por condomínio
 		ag.Roteador = cat.Roteador(a)
 	}
 	var excluidos []string
 	raiz := len(okf.Ancestrais(a.Path)) == 0
 	for _, s := range a.Subagentes {
-		if raiz && cfg.Casos != nil {
-			casoID := ""
-			if s.Caso != nil {
-				casoID = s.Caso.ID
-			}
-			if !cfg.Casos(s.Nome, casoID) {
-				excluidos = append(excluidos, s.Nome)
-				continue
-			}
+		usado, efetivaDoSub, oferecido := subagenteUsado(s, raiz, cfg)
+		if !oferecido {
+			excluidos = append(excluidos, s.Nome)
+			continue
 		}
-		sub, err := Build(ctx, cat, s, cfg)
+		sub, err := construir(ctx, cat, usado, cfg, efetivaDoSub)
 		if err != nil {
 			return nil, err
 		}
@@ -211,6 +243,82 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 	}
 	ag.runner = adk.NewRunner(ctx, adk.RunnerConfig{Agent: cma})
 	return ag, nil
+}
+
+// subagenteUsado decide se um caso de uso do orquestrador de primeiro nível é oferecido e com
+// que definição. Com cfg.Skills, o usado é uma cópia do subagente com o caso e a descrição da
+// skill efetiva (o arquivo da pasta não é tocado); sem efetiva, o caso não é oferecido.
+func subagenteUsado(s *okf.Agent, raiz bool, cfg Config) (*okf.Agent, *okf.SkillEfetiva, bool) {
+	if !raiz {
+		return s, nil, true
+	}
+	var efetiva *okf.SkillEfetiva
+	if cfg.Skills != nil {
+		composta, ok := cfg.Skills(s.Nome)
+		if !ok {
+			return nil, nil, false
+		}
+		copia := *s
+		copia.Caso, copia.Descricao = composta.Caso, composta.Descricao
+		s, efetiva = &copia, &composta
+	}
+	if cfg.Casos != nil && !cfg.Casos(s.Nome, casoIDDe(s)) {
+		return nil, nil, false
+	}
+	return s, efetiva, true
+}
+
+func casoIDDe(a *okf.Agent) string {
+	if a.Caso == nil {
+		return ""
+	}
+	return a.Caso.ID
+}
+
+// orientacaoDe é a orientação da skill efetiva, senão a do mapeamento da administradora.
+func orientacaoDe(cfg Config, a *okf.Agent, efetiva *okf.SkillEfetiva) string {
+	if efetiva != nil {
+		if o := strings.TrimSpace(efetiva.Orientacao); o != "" {
+			return o
+		}
+	}
+	return strings.TrimSpace(cfg.Orientacoes[a.Nome])
+}
+
+// turnoDoAgente é o turno da Config ou um aberto no conjunto dela; sem conjunto, no dos
+// fixos. Recusa turno sem algum fixo: as guardas de permissão, escrita e contexto B2C
+// moram neles, e fixo nunca some por configuração.
+func turnoDoAgente(cfg Config) (*ganchos.Turno, error) {
+	turno := cfg.Turno
+	if turno == nil {
+		conjunto, err := conjuntoDe(cfg.Ganchos)
+		if err != nil {
+			return nil, err
+		}
+		t := conjunto.Turno()
+		turno = &t
+	}
+	if faltam := fixos.Ausentes(turno.NomesDosFixos()); len(faltam) > 0 {
+		return nil, fmt.Errorf("harness: ganchos sem os fixos %s", strings.Join(faltam, ", "))
+	}
+	return turno, nil
+}
+
+func conjuntoDe(conjunto *ganchos.Conjunto) (*ganchos.Conjunto, error) {
+	if conjunto != nil {
+		return conjunto, nil
+	}
+	return conjuntoDosFixos(fixos.Todos())
+}
+
+// conjuntoDosFixos é o conjunto de quem não injetou um: só fixos, com log e métrica noop,
+// para falha de fixo sair em ERROR.
+func conjuntoDosFixos(f ganchos.Fixos) (*ganchos.Conjunto, error) {
+	observar, err := ganchos.ComObservabilidade(slog.Default(), noop.NewMeterProvider().Meter("ganchos"))
+	if err != nil {
+		return nil, fmt.Errorf("harness: observabilidade dos ganchos: %w", err)
+	}
+	return ganchos.NovoConjunto(f, nil, observar), nil
 }
 
 // semTemplate põe a projeção como system message SEM formatação: ela tem JSON e
@@ -252,13 +360,13 @@ func (ag *Agente) montarModelo(ctx context.Context) error {
 	if prov.Nome == "luna" && chave == "" && !cfg.Mock {
 		return errors.New("harness: configure LLM_LUNA_GATEWAY_TOKEN para o gateway Luna")
 	}
-	if cfg.Mock || chave == "" || prov.Nome == "mock" && cfg.APIKey == "" {
+	if cfg.Mock || prov.semAutenticacao(chave) || prov.Nome == "mock" && cfg.APIKey == "" {
 		ag.Mock = true
 		ag.Provedor = "mock"
 		ag.modelo = NewMock(ag.Cat, ag.Def)
 		return nil
 	}
-	if base == "" {
+	if base == "" && prov.Nome != "vertex" {
 		base = BaseURLPadrao
 	}
 	m, err := novoModelo(ctx, prov, chave, base, ag.NomeModelo, 90*time.Second)
@@ -350,6 +458,9 @@ type Resultado struct {
 	// Plano é o estado da orquestração nos modos planning e react (nil no router). A
 	// sessão o guarda enquanto Pendente != "" e retoma com Continuar.
 	Plano *Plano `json:"plano,omitempty"`
+	// Registros são os ganchos que ajustaram, não deixaram passar ou falharam nas
+	// chamadas a recurso. Fora do JSON: o motivo pode citar a mensagem do morador.
+	Registros []ganchos.Registro `json:"-"`
 }
 
 // coletor acompanha uma execução (e as aninhadas via invocar_agente) pelo contexto.
@@ -363,6 +474,13 @@ type coletor struct {
 	passos     []Passo
 	uso        Uso
 	invocacoes int // chamadas a recursos do Nexus nesta execução (chave de idempotência)
+	registros  []ganchos.Registro
+}
+
+func (c *coletor) registrar(rs []ganchos.Registro) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.registros = append(c.registros, rs...)
 }
 
 func (c *coletor) proximaInvocacao() int {
@@ -384,6 +502,7 @@ func (c *coletor) absorve(r *Resultado) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.passos = append(c.passos, r.Rota...)
+	c.registros = append(c.registros, r.Registros...)
 	c.uso.soma(r.Uso)
 }
 
@@ -464,6 +583,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 				}
 				r.Transbordo = guardaTransbordo(col, rel, r.Resposta)
 				r.Rota = append(col.passos, r.Rota...)
+				r.Registros = append(col.registros, r.Registros...)
 				r.Uso.soma(col.uso)
 				return r, nil
 			}
@@ -532,6 +652,7 @@ func run(ctx context.Context, ag *Agente, mensagem string, historico []*schema.M
 		Uso:        col.uso,
 		Mensagens:  msgs,
 		Transbordo: transbordo,
+		Registros:  col.registros,
 	}, nil
 }
 

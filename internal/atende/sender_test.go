@@ -3,7 +3,6 @@ package atende
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -117,7 +116,7 @@ func TestATENDESenderRecusaRedirectETempoERegistraFalhaParcial(t *testing.T) {
 }
 
 func TestATENDESenderSemConfigNaoFazRequisicao(t *testing.T) {
-	err := (&ATENDESender{}).Enviar(context.Background(), entrada.Destino{}, fmt.Sprintf("%s", "texto"))
+	err := (&ATENDESender{}).Enviar(context.Background(), entrada.Destino{}, "texto")
 	if err == nil || strings.Contains(err.Error(), "texto") {
 		t.Fatalf("configuração incompleta deve falhar sem incluir conteúdo: %v", err)
 	}

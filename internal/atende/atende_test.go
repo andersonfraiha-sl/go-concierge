@@ -96,6 +96,40 @@ func adicionarToolsMCP(cat *okf.Catalogo) {
 				{Name: "reason", Type: "number", Required: true},
 				{Name: "visitors", Type: "array", Required: true},
 			},
+			"gruvi.bff.mobile.fetch-fees-controller-handle-1": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "filter[only-open]", Type: "boolean"},
+				{Name: "filter[with-due-status]", Type: "boolean"},
+				{Name: "filter[paid]", Type: "boolean"},
+			},
+			"gruvi.bff.mobile.get-fee-by-id-controller-handle-2": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "feeId", Type: "string", Required: true},
+			},
+			"gruvi.bff.mobile.fetch-documents-controller-handle-1": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "page[limit]", Type: "number"},
+			},
+			"gruvi.bff.mobile.get-document-by-id-controller-handle-1": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "documentId", Type: "string", Required: true},
+			},
+			"gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "filter[unit.id]", Type: "string"},
+			},
+			"gruvi.bff.mobile.create-ticket-controller-handle": {
+				{Name: "persona", Type: "string", Required: true},
+				{Name: "companyId", Type: "string", Required: true},
+				{Name: "unit_id", Type: "string", Required: true},
+				{Name: "type_id", Type: "string", Required: true},
+				{Name: "description", Type: "string", Required: true},
+			},
 		}
 		for _, nome := range []string{
 			"gruvi.bff.building-operation.get-company-by-document-controller-handle",
@@ -103,8 +137,14 @@ func adicionarToolsMCP(cat *okf.Catalogo) {
 			"gruvi.bff.building-operation.get-package-delivery-code-controller-handle",
 			"gruvi.bff.building-operation.fetch-visit-reasons-controller-handle",
 			"gruvi.bff.building-operation.create-visit-controller-handle",
+			"gruvi.bff.mobile.fetch-fees-controller-handle-1",
+			"gruvi.bff.mobile.get-fee-by-id-controller-handle-2",
+			"gruvi.bff.mobile.fetch-documents-controller-handle-1",
+			"gruvi.bff.mobile.get-document-by-id-controller-handle-1",
+			"gruvi.bff.mobile.get-parameters-controller-handle-get-ticket-parameters-c4fee62606",
+			"gruvi.bff.mobile.create-ticket-controller-handle",
 		} {
-			out = append(out, okf.Recurso{Name: nome, Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemMCP, Write: strings.HasSuffix(nome, "create-visit-controller-handle"), Params: parametros[nome]})
+			out = append(out, okf.Recurso{Name: nome, Kind: okf.KindAPI, Visibility: "private", Origem: okf.OrigemMCP, Write: strings.HasSuffix(nome, "create-visit-controller-handle") || strings.HasSuffix(nome, "create-ticket-controller-handle"), Params: parametros[nome]})
 		}
 		return out
 	}

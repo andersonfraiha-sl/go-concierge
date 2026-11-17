@@ -223,7 +223,7 @@ func TestProjecao(t *testing.T) {
 	}
 }
 
-func TestCriarMoverClonarExcluir(t *testing.T) {
+func TestCriarExcluir(t *testing.T) {
 	c, root := montaFamilia(t)
 	rel, mud, err := c.CriarAgente(NovoAgente{Pai: "agentes/pai", Nome: "observador", Tipo: Operador, Descricao: "observa a sessão", Caixinhas: []string{"rules", "workflows", "knowledge"}, Caso: true, Recursos: []string{"faq.buscar"}})
 	if err != nil {
@@ -250,22 +250,7 @@ func TestCriarMoverClonarExcluir(t *testing.T) {
 		t.Fatalf("agent.yaml sem recursos:\n%s", cfg)
 	}
 
-	novoRel, _, err := c.Mover(rel, "", false)
-	if err != nil || novoRel != "agentes/observador" {
-		t.Fatal(err, novoRel)
-	}
-	rotas, _ = os.ReadFile(filepath.Join(root, "agentes", "pai", "routers", "rotas.md"))
-	if strings.Contains(string(rotas), "observador") {
-		t.Fatalf("rota deveria ter sido removida:\n%s", rotas)
-	}
-	cloneRel, _, err := c.Mover(novoRel, "agentes/pai", true)
-	if err != nil || cloneRel != "agentes/pai/agentes/observador" || !dirExists(filepath.Join(root, "agentes", "observador")) {
-		t.Fatal(err, cloneRel)
-	}
-	if _, _, err := c.Mover("agentes/pai", "agentes/pai/agentes/regimento", false); err == nil {
-		t.Fatal("deveria recusar mover o pai para dentro do filho")
-	}
-	if _, err := c.ExcluirAgente(cloneRel); err != nil {
+	if _, err := c.excluirAgente(rel); err != nil {
 		t.Fatal(err)
 	}
 	rotas, _ = os.ReadFile(filepath.Join(root, "agentes", "pai", "routers", "rotas.md"))

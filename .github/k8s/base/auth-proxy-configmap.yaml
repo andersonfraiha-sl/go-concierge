@@ -1,0 +1,204 @@
+# Config do proxy de autenticação (Ory Oathkeeper em proxy mode) que fica na frente do
+# go-concierge no caminho do Ingress. Mesma política do report-manager: JWT do Auth0
+# validado por JWKS, claim `email` obrigatória, identidade repassada ao serviço em
+# X-Authenticated-User-Email.
+#
+# Inline (e não configMapGenerator) porque o deploy.yml sincroniza os arquivos de
+# .github/k8s/base/* um a um para o gitops-apps e não suporta subdiretórios.
+#
+# Só o que está em access-rules.yaml é exposto. O que não casa recebe 404 do proxy e nunca
+# chega ao serviço: /healthz, /readyz, /console, /admin, /backdoor*, /emulador/* e /mcp/*.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-concierge-auth-config
+  labels:
+    app: go-concierge-auth
+data:
+  oathkeeper.yaml: |
+    log:
+      level: info
+      format: json
+
+    serve:
+      proxy:
+        port: 4455
+        # O ALB envia X-Forwarded-Proto/Host; o match das regras usa a URL pública.
+        trust_forwarded_headers: true
+        # Um turno do concierge pode levar até 120 s. O proxy espera mais que isso para
+        # não cortar a resposta.
+        timeout:
+          read: 130s
+          write: 130s
+          idle: 150s
+        # O Studio é servido do mesmo host, então o navegador só precisa de CORS se alguém
+        # chamar a API de outra origem. Fica restrito ao próprio host. O preflight OPTIONS
+        # é respondido aqui, antes das regras, por isso não leva 401.
+        cors:
+          enabled: true
+          allowed_origins:
+            - https://go-concierge.idp.nexus.superlogica.net
+          allowed_methods:
+            - GET
+            - HEAD
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+          allowed_headers:
+            - Authorization
+            - Content-Type
+            - X-Request-Id
+          exposed_headers:
+            - Content-Type
+            - Content-Disposition
+          allow_credentials: false
+          max_age: 600
+      api:
+        port: 4456
+
+    access_rules:
+      repositories:
+        - file:///etc/oathkeeper/access-rules.yaml
+      matching_strategy: regexp
+
+    errors:
+      fallback:
+        - json
+      handlers:
+        json:
+          enabled: true
+          config:
+            verbose: false
+
+    authenticators:
+      jwt:
+        enabled: true
+        config:
+          jwks_urls:
+            - https://login.superlogica.net/.well-known/jwks.json
+            - https://superlogica-prd.us.auth0.com/.well-known/jwks.json
+          trusted_issuers:
+            - https://login.superlogica.net/
+            - https://superlogica-prd.us.auth0.com/
+          target_audience:
+            - https://superlogica.com
+          allowed_algorithms:
+            - RS256
+          scope_strategy: none
+          jwks_max_wait: 1s
+          jwks_ttl: 30m
+      # Rotas que o próprio serviço protege (HMAC, chave de serviço) ou que são públicas.
+      # noop e não anonymous: o anonymous recusa requisição que traz Authorization, e a
+      # chave de serviço de /integracao/v1 chega nesse cabeçalho.
+      noop:
+        enabled: true
+
+    authorizers:
+      allow:
+        enabled: true
+
+    mutators:
+      header:
+        enabled: true
+        config:
+          headers:
+            X-Authenticated-User-Email: "{{ if .Extra.email }}{{ print .Extra.email }}{{ else }}{{ fail \"missing email claim in JWT\" }}{{ end }}"
+
+  access-rules.yaml: |
+    # O host não entra no match: o Ingress já entrega ao proxy só o tráfego do host do app, e
+    # assim o mesmo manifesto serve a ambientes e previews com hosts diferentes.
+    #
+    # Toda regra anônima zera X-Authenticated-User-Email. Sem isso, um cliente mandaria o
+    # cabeçalho por uma rota que não valida JWT e o serviço o aceitaria como identidade.
+    - id: go-concierge-api-jwt
+      match:
+        url: "<https?>://<[^/]+>/api/<.*>"
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - HEAD
+      authenticators:
+        - handler: jwt
+      authorizer:
+        handler: allow
+      mutators:
+        - handler: header
+      errors:
+        - handler: json
+      upstream:
+        # Service da app no mesmo namespace (resolvido pelo search domain do pod), para o
+        # manifesto não fixar o namespace do overlay.
+        url: http://go-concierge
+        preserve_host: false
+
+    # O serviço confere a assinatura HMAC do ATENDE.
+    - id: go-concierge-webhook-atende
+      match:
+        url: "<https?>://<[^/]+>/webhook/atende"
+        methods:
+          - POST
+      authenticators:
+        - handler: noop
+      authorizer:
+        handler: allow
+      mutators:
+        - handler: header
+          config:
+            headers:
+              X-Authenticated-User-Email: ""
+      errors:
+        - handler: json
+      upstream:
+        url: http://go-concierge
+        preserve_host: false
+
+    # O serviço confere a chave de serviço no Authorization, que passa intacto.
+    - id: go-concierge-integracao
+      match:
+        url: "<https?>://<[^/]+>/integracao/v1/<.*>"
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - HEAD
+      authenticators:
+        - handler: noop
+      authorizer:
+        handler: allow
+      mutators:
+        - handler: header
+          config:
+            headers:
+              X-Authenticated-User-Email: ""
+      errors:
+        - handler: json
+      upstream:
+        url: http://go-concierge
+        preserve_host: false
+
+    # Arquivos estáticos do Studio. Os dados vêm de /api, que exige JWT.
+    - id: go-concierge-studio-estatico
+      match:
+        url: "<https?>://<[^/]+><(/|/studio/.*)>"
+        methods:
+          - GET
+      authenticators:
+        - handler: noop
+      authorizer:
+        handler: allow
+      mutators:
+        - handler: header
+          config:
+            headers:
+              X-Authenticated-User-Email: ""
+      errors:
+        - handler: json
+      upstream:
+        url: http://go-concierge
+        preserve_host: false

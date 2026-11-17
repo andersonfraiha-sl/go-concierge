@@ -1,0 +1,6 @@
+nome: documentos
+tipo: operador
+descricao: 'Documentos do condomínio: lista atas, convocações, prestação de contas e outros documentos publicados e passa o link do escolhido. Caso de uso: Documentos do Condomínio.'
+recursos:
+- gruvi.bff.mobile.fetch-documents-controller-handle-1
+- gruvi.bff.mobile.get-document-by-id-controller-handle-1

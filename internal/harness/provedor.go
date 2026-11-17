@@ -18,25 +18,33 @@ import (
 //
 //	LLM_MODE=gemini      GEMINI_API_KEY, endpoint OpenAI-compatível do Google
 //	LLM_MODE=openrouter  OPENROUTER_API_KEY, https://openrouter.ai/api/v1
+//	LLM_MODE=local       modelo local OpenAI-compatível (Ollama), LLM_LOCAL_URL e LLM_LOCAL_MODEL, sem custo de token
 //	LLM_MODE=mock        modelo falso, sem rede
 //
-// Sem LLM_MODE: gemini se houver GEMINI_API_KEY, senão openrouter se houver
-// OPENROUTER_API_KEY, senão mock. O modelo padrão vem de MODEL_PLANNER, senão do
-// padrão do provedor.
+// Sem LLM_MODE: Vertex AI com ADC. O modelo padrão vem de MODEL_PLANNER,
+// senão do padrão do provedor.
 type Provedor struct {
-	Nome    string // gemini | openrouter | mock
-	BaseURL string
-	Chave   string
-	Modelo  string // modelo padrão do provedor (quando nem Config nem agent.yaml dizem)
+	Nome               string // vertex | gemini | openrouter | luna | local | mock
+	BaseURL            string
+	Chave              string
+	Modelo             string // modelo padrão do provedor (quando nem Config nem agent.yaml dizem)
+	Projeto            string
+	Localizacao        string
+	ArquivoCredenciais string
 }
 
 const (
 	BaseURLGemini     = "https://generativelanguage.googleapis.com/v1beta/openai/"
 	BaseURLOpenRouter = "https://openrouter.ai/api/v1"
 	ModeloGemini      = "gemini-2.5-flash-lite"
+	ModeloVertex      = "gemini-3.5-flash"
 	ModeloOpenRouter  = "openai/gpt-4o-mini"
 	BaseURLLuna       = "https://kong-ai-gtw.idp.nexus.superlogica.net/v1"
 	ModeloLuna        = "gpt-6-luna"
+	BaseURLLocal      = "http://127.0.0.1:11434/v1"
+	ModeloLocal       = "llama3.1:8b"
+	// chaveLocal: o Ollama ignora a chave, mas sem chave o harness cai no mock.
+	chaveLocal = "local"
 )
 
 // ResolverProvedor lê o ambiente (env) e decide o provedor.
@@ -45,17 +53,19 @@ func ResolverProvedor(env func(string) string) Provedor {
 	gemini := strings.TrimSpace(env("GEMINI_API_KEY"))
 	router := strings.TrimSpace(env("OPENROUTER_API_KEY"))
 	if modo == "" {
-		switch {
-		case gemini != "":
-			modo = "gemini"
-		case router != "":
-			modo = "openrouter"
-		default:
-			modo = "mock"
-		}
+		modo = "vertex"
 	}
 	padrao := strings.TrimSpace(env("MODEL_PLANNER"))
 	switch modo {
+	case "vertex":
+		if padrao == "" {
+			padrao = ModeloVertex
+		}
+		localizacao := strings.TrimSpace(env("GOOGLE_CLOUD_LOCATION"))
+		if localizacao == "" {
+			localizacao = "global"
+		}
+		return Provedor{Nome: "vertex", Modelo: padrao, Projeto: strings.TrimSpace(env("GOOGLE_CLOUD_PROJECT")), Localizacao: localizacao, ArquivoCredenciais: strings.TrimSpace(env("GOOGLE_APPLICATION_CREDENTIALS"))}
 	case "gemini":
 		if padrao == "" {
 			padrao = ModeloGemini
@@ -78,16 +88,39 @@ func ResolverProvedor(env func(string) string) Provedor {
 			padrao = ModeloLuna
 		}
 		return Provedor{Nome: "luna", BaseURL: base, Chave: strings.TrimSpace(env("LLM_LUNA_GATEWAY_TOKEN")), Modelo: padrao}
+	case "local":
+		return provedorLocal(env, padrao)
 	default:
 		return Provedor{Nome: "mock", Modelo: "mock"}
 	}
 }
 
+func provedorLocal(env func(string) string, padrao string) Provedor {
+	base := strings.TrimSpace(env("LLM_LOCAL_URL"))
+	if base == "" {
+		base = BaseURLLocal
+	}
+	if padrao == "" {
+		padrao = strings.TrimSpace(env("LLM_LOCAL_MODEL"))
+	}
+	if padrao == "" {
+		padrao = ModeloLocal
+	}
+	return Provedor{Nome: "local", BaseURL: base, Chave: chaveLocal, Modelo: padrao}
+}
+
 func novoModelo(ctx context.Context, prov Provedor, chave, base, nome string, timeout time.Duration) (model.ToolCallingChatModel, error) {
+	if prov.Nome == "vertex" {
+		return novoModeloVertex(ctx, prov, base, nome, timeout)
+	}
 	if prov.Nome == "luna" {
 		return &responses.Model{URL: base, Token: chave, Name: nome, Client: &http.Client{Timeout: timeout}}, nil
 	}
 	return openai.NewChatModel(ctx, &openai.ChatModelConfig{APIKey: chave, BaseURL: base, Model: nome, Timeout: timeout})
+}
+
+func (p Provedor) semAutenticacao(chave string) bool {
+	return p.Nome != "vertex" && chave == ""
 }
 
 // CarregarDotEnv lê arquivos NOME=valor e põe no ambiente o que ainda não existe

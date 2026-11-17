@@ -18,6 +18,27 @@ import (
 // Tudo passa por ResolveAgente (nunca sai da raiz) e por caminhoSeguro (só os
 // arquivos da raiz do agente e as caixinhas; nunca agentes/ de outro).
 
+// escreverArquivoAtomico grava em um arquivo temporário no mesmo diretório e troca com
+// rename, para que um leitor concorrente nunca veja um arquivo truncado ou pela metade.
+func escreverArquivoAtomico(caminho string, conteudo []byte, perm os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(caminho), "."+filepath.Base(caminho)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }() // sobra se o rename abaixo não rodar; some se rodar
+	if _, err := tmp.Write(conteudo); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), perm); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), caminho)
+}
+
 var extPermitidas = map[string]bool{
 	".md": true, ".yaml": true, ".yml": true, ".json": true, ".txt": true, ".csv": true,
 	".png": true, ".jpg": true, ".jpeg": true, ".svg": true, ".gif": true, ".webp": true, ".pdf": true,
@@ -36,8 +57,8 @@ type NovoAgente struct {
 	Recursos  []string `json:"recursos"`  // nomes do Nexus declarados
 }
 
-// CriarAgente monta a pasta com os arquivos-modelo e registra a rota no pai.
-func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
+// criarAgente monta a pasta com os arquivos-modelo e registra a rota no pai.
+func (c *Catalogo) criarAgente(n NovoAgente) (string, []string, error) {
 	if !SlugOK(n.Nome) {
 		return "", nil, fmt.Errorf("nome inválido: %q (letras minúsculas, dígitos e hífen)", n.Nome)
 	}
@@ -128,6 +149,9 @@ func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
 // caminhoSeguro valida um caminho de arquivo dentro do agente: agent.yaml, persona.md,
 // caso.yaml ou <caixinha>/…; nunca agentes/ (é dos filhos).
 func caminhoSeguro(rel string) (string, error) {
+	if strings.ContainsRune(rel, 0) {
+		return "", errors.New("caminho inválido")
+	}
 	rel = filepath.ToSlash(filepath.Clean("/" + rel))[1:]
 	if rel == "" || rel == "." {
 		return "", errors.New("caminho vazio")
@@ -169,8 +193,8 @@ func (c *Catalogo) LerArquivo(agenteRel, rel string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
 }
 
-// SalvarArquivo grava (cria ou substitui). agent.yaml e caso.yaml precisam ser válidos.
-func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
+// salvarArquivo grava (cria ou substitui). agent.yaml e caso.yaml precisam ser válidos.
+func (c *Catalogo) salvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return err
@@ -201,11 +225,11 @@ func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(p, conteudo, 0o644)
+	return escreverArquivoAtomico(p, conteudo, 0o644)
 }
 
-// ExcluirArquivo remove um arquivo (nunca o agent.yaml).
-func (c *Catalogo) ExcluirArquivo(agenteRel, rel string) error {
+// excluirArquivo remove um arquivo (nunca o agent.yaml).
+func (c *Catalogo) excluirArquivo(agenteRel, rel string) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return err
@@ -227,8 +251,8 @@ func (c *Catalogo) ExcluirArquivo(agenteRel, rel string) error {
 	return nil
 }
 
-// SalvarConfig atualiza os campos principais do agent.yaml preservando o resto.
-func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
+// salvarConfig atualiza os campos principais do agent.yaml preservando o resto.
+func (c *Catalogo) salvarConfig(agenteRel string, campos map[string]any) error {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return err
@@ -272,8 +296,8 @@ func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
 	return gravarConfig(dir, cfg)
 }
 
-// VincularRecurso liga ou desliga um recurso do Nexus em agent.yaml → recursos.
-func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string, error) {
+// vincularRecurso liga ou desliga um recurso do Nexus em agent.yaml → recursos.
+func (c *Catalogo) vincularRecurso(agenteRel, nome string, ligar bool) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err
@@ -329,8 +353,9 @@ func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string
 	return []string{fmt.Sprintf("agent.yaml: recursos %s %s", map[bool]string{true: "+=", false: "-="}[ligar], nome)}, nil
 }
 
-// ExcluirAgente apaga a pasta (com os subagentes) e tira a rota do pai.
-func (c *Catalogo) ExcluirAgente(agenteRel string) ([]string, error) {
+// excluirAgente apaga a pasta (com os subagentes) e tira a rota do pai. Não trava o
+// catálogo: quem chama é ExcluirSkill, que segura c.mu.
+func (c *Catalogo) excluirAgente(agenteRel string) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err
@@ -352,75 +377,6 @@ func (c *Catalogo) ExcluirAgente(agenteRel string) ([]string, error) {
 	return mudancas, nil
 }
 
-// Mover leva o agente para dentro de outro (destinoRel) ou para a raiz (""),
-// e acerta as rotas dos dois pais. Com clonar=true, copia em vez de mover.
-func (c *Catalogo) Mover(origemRel, destinoRel string, clonar bool) (string, []string, error) {
-	origem, err := c.ResolveAgente(origemRel)
-	if err != nil {
-		return "", nil, err
-	}
-	if !IsAgent(origem) {
-		return "", nil, fmt.Errorf("agente não existe: %s", origemRel)
-	}
-	destinoBase := filepath.Join(c.Root, DirAgentes)
-	paiNovo := ""
-	if destinoRel != "" {
-		paiNovo, err = c.ResolveAgente(destinoRel)
-		if err != nil {
-			return "", nil, err
-		}
-		if !IsAgent(paiNovo) {
-			return "", nil, fmt.Errorf("destino não é um agente: %s", destinoRel)
-		}
-		destinoBase = filepath.Join(paiNovo, DirAgentes)
-	}
-	if dentro(origem, destinoBase) {
-		return "", nil, errors.New("não dá pra mover um agente pra dentro dele mesmo")
-	}
-	if filepath.Dir(origem) == destinoBase && !clonar {
-		return "", nil, errors.New("o agente já está nesse lugar")
-	}
-	nome := filepath.Base(origem)
-	if clonar {
-		if dirExists(filepath.Join(destinoBase, nome)) {
-			for n := 2; ; n++ {
-				cand := fmt.Sprintf("%s-%d", nome, n)
-				if !dirExists(filepath.Join(destinoBase, cand)) {
-					nome = cand
-					break
-				}
-			}
-		}
-	} else if dirExists(filepath.Join(destinoBase, nome)) {
-		return "", nil, fmt.Errorf("já existe um agente %q no destino", nome)
-	}
-	alvo := filepath.Join(destinoBase, nome)
-	if err := os.MkdirAll(destinoBase, 0o755); err != nil {
-		return "", nil, err
-	}
-	paiAntigo := Pai(origem)
-	if clonar {
-		if err := copiarPasta(origem, alvo); err != nil {
-			return "", nil, err
-		}
-		if nome != filepath.Base(origem) {
-			if cfg, err := lerConfig(alvo); err == nil {
-				cfg["nome"] = nome
-				_ = gravarConfig(alvo, cfg)
-			}
-		}
-		paiAntigo = ""
-	} else if err := os.Rename(origem, alvo); err != nil {
-		return "", nil, err
-	}
-	mudancas, err := SincronizarRotas(paiAntigo, paiNovo, alvo, nome)
-	if err != nil {
-		return "", nil, err
-	}
-	rel, _ := filepath.Rel(c.Root, alvo)
-	return filepath.ToSlash(rel), mudancas, nil
-}
-
 var ignorarNaCopia = map[string]bool{".rag": true, "__pycache__": true, "var": true, ".git": true}
 
 func copiarPasta(origem, destino string) error {
@@ -439,8 +395,8 @@ func copiarPasta(origem, destino string) error {
 	})
 }
 
-// ImportarZip instala (ou substitui) um agente a partir do zip da pasta.
-func (c *Catalogo) ImportarZip(agenteRel string, dados []byte) ([]string, error) {
+// importarZip instala (ou substitui) um agente a partir do zip da pasta.
+func (c *Catalogo) importarZip(agenteRel string, dados []byte) ([]string, error) {
 	dir, err := c.ResolveAgente(agenteRel)
 	if err != nil {
 		return nil, err
@@ -633,7 +589,7 @@ func gravarConfig(dir string, cfg map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, AgentYAML), out, 0o644)
+	return escreverArquivoAtomico(filepath.Join(dir, AgentYAML), out, 0o644)
 }
 
 func copiarArquivo(origem, destino string) error {

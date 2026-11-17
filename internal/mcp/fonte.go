@@ -54,24 +54,12 @@ func titulo(t Tool) string {
 	return ""
 }
 
-var verbosLeitura = []string{"get-", "list-", "find-", "search-", "read-", "fetch-", "show-", "count-", "check-", "health", "hello", "status"}
-
-// escrita: readOnlyHint decide; sem ela, o último nível do nome (operação) diz.
+// escrita: readOnlyHint decide; sem ela, o nome da operação diz.
 func escrita(t Tool) bool {
 	if t.Annotations != nil && t.Annotations.ReadOnlyHint != nil {
 		return !*t.Annotations.ReadOnlyHint
 	}
-	op := t.Name
-	if i := strings.LastIndex(op, "."); i >= 0 {
-		op = op[i+1:]
-	}
-	op = strings.ToLower(op)
-	for _, v := range verbosLeitura {
-		if strings.HasPrefix(op, v) {
-			return false
-		}
-	}
-	return true
+	return okf.EscritaPeloNome(t.Name)
 }
 
 // params achata o nível de cima do inputSchema em ParamMeta; objetos e listas levam

@@ -4,6 +4,10 @@
 //
 //	okf-admin -root ./okf -addr 127.0.0.1:8090
 //	okf-admin importar-json -dir okf/var   (leva os JSON antigos para o Postgres)
+//	okf-admin importar-catalogo -dir okf   (deixa o catálogo do Postgres igual à pasta)
+//
+// O catálogo (agentes/ e nexus/) mora no Postgres. -root é a semente: com a tabela vazia ela é
+// importada; depois o banco vale e a pasta vira cópia de trabalho em <root>/var/catalogo.
 //
 // Os recursos do Nexus vêm de NEXUS_BASE_URL (GET /v1/accounts/{account}/resources) ou,
 // sem Nexus, do instantâneo okf/nexus/<account>.yaml. DEFAULT_ACCOUNT_ID é a account desse
@@ -22,15 +26,22 @@ import (
 	"io/fs"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
+
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
@@ -39,6 +50,12 @@ import (
 	"go-concierge/internal/catalogonexus"
 	"go-concierge/internal/env"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/falha"
+	"go-concierge/internal/ganchos"
+	"go-concierge/internal/ganchos/auditoria"
+	"go-concierge/internal/ganchos/fixos"
+	"go-concierge/internal/ganchos/pii"
+	"go-concierge/internal/ganchos/regras"
 	"go-concierge/internal/gruvi"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
@@ -52,11 +69,15 @@ import (
 type servidor struct {
 	cat                *okf.Catalogo
 	web                fs.FS
+	studio             fs.FS
 	account            string
-	nexus              string
+	nexus              string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	catalogoNexusStore *okf.CatalogoNexusStore
 	catalogoNexusMCP   *catalogonexus.Service
 	log                *log.Logger
+	// prazoDoCatalogo é o teto de parede do trabalho do catálogo por pedido (comPrazo); o
+	// main põe prazoCatalogo, e zero (os testes de handler) deixa só o contexto do pedido.
+	prazoDoCatalogo time.Duration
 
 	// canal ATENDE (webhook + emulador no Console)
 	atende              *atende.Servico
@@ -80,6 +101,13 @@ type servidor struct {
 	admin               admin.Repositorio
 	implantacao         escopo.Implantacao // ADMINISTRADORA_ID: o processo atende só essa (vazia = todas)
 	banco               banco.Banco
+	regras              *regras.Postgres
+	segredoExportacao   []byte           // GANCHOS_SEGREDO_EXPORTACAO; vazio só em dev, e aí exportar e importar recusam
+	chaveDeIntegracao   []byte           // INTEGRACAO_CHAVE; vazia: a rota de integração não é registrada
+	copiloto            harness.Copiloto // nil: sem provedor, o painel mostra "Indisponível"
+	limiteCopiloto      *limiteDoCopiloto
+	turnos              sync.WaitGroup // turnos do webhook em segundo plano; o desligamento espera
+	regrasAquecidas     func() bool    // readyz: o cache de regras dos ganchos já carregou
 
 	// acesso: quem é (autenticador) e o que pode (acessos); registro é o log JSON por requisição
 	autenticador Autenticador
@@ -103,7 +131,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarJSON {
 		os.Exit(importarJSON(os.Args[2:], os.Stdout, os.Stderr))
 	}
-	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
+	if len(os.Args) > 1 && os.Args[1] == subcomandoImportarCatalogo {
+		os.Exit(importarCatalogo(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == subcomandoSaude {
+		os.Exit(saude(os.Args[2:], os.Stderr))
+	}
+	root := flag.String("root", "okf", "semente do catálogo (agentes/, nexus/); a cópia de trabalho fica em <root>/var/catalogo")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	webDir := flag.String("web", "", "serve a interface desta pasta em vez da embutida (desenvolvimento: web/okf)")
@@ -111,9 +145,11 @@ func main() {
 	migrar := flag.Bool("migrar", false, "aplica as migrations no boot (padrão: ligado com AMBIENTE vazio ou dev, lido também do -env)")
 	flag.Parse()
 	env.Carregar(*dotenv)
-	registro := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	registro := novoRegistro(os.Stderr)
 	slog.SetDefault(registro) // o log.Printf legado passa a sair pelo mesmo handler JSON
-	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET")})
+	cfg := normalizarConfig(Config{Ambiente: os.Getenv("AMBIENTE"), AuthMode: os.Getenv("AUTH_MODE"), AtendeSecret: os.Getenv("ATENDE_API_SECRET"),
+		SegredoExportacao: os.Getenv("GANCHOS_SEGREDO_EXPORTACAO"),
+		IntegracaoChave:   strings.TrimSpace(os.Getenv("INTEGRACAO_CHAVE")), AdminInicial: os.Getenv("ACESSO_ADMIN_INICIAL")})
 	if err := validarConfig(cfg); err != nil {
 		log.Fatal(err)
 	}
@@ -127,12 +163,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cat, err := okf.NewCatalogo(*root)
+	cat, err := abrirCatalogo(*root, db)
 	if err != nil {
 		log.Fatal(err)
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
-	catalogoNexusStore, err := okf.NewCatalogoNexusStore(cat.Root, account)
+	catalogoNexusStore, err := okf.NewCatalogoNexusStore(*root, account)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -154,12 +190,16 @@ func main() {
 	}
 	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
-	s := &servidor{cat: cat, web: web.OKF, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
-		implantacao:  escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
-		autenticador: novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
-		authMode:     cfg.AuthMode,
-		acessos:      acesso.NovoPostgres(db.Ent),
-		registro:     registro,
+	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
+		prazoDoCatalogo:   prazoCatalogo,
+		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
+		autenticador:      novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
+		authMode:          cfg.AuthMode,
+		acessos:           acesso.NovoPostgres(db.Ent),
+		registro:          registro,
+		regras:            regras.NovoPostgres(db.Ent),
+		segredoExportacao: []byte(cfg.SegredoExportacao),
+		chaveDeIntegracao: []byte(cfg.IntegracaoChave),
 	}
 	var origens []string
 	if mcpCli != nil {
@@ -205,8 +245,30 @@ func main() {
 	} else if replyURLLegada != "" {
 		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
 	}
+	// o sinal de desligamento cancela o ctx do servidor: o HTTP para de aceitar conexões e a
+	// retenção da auditoria para. Um segundo sinal volta ao padrão e mata na hora.
+	prazoDesligar, err := prazoDeDesligamento(os.Getenv("DESLIGAMENTO_PRAZO"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctxServidor, pararSinais := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctxServidor.Done()
+		pararSinais()
+		log.Printf("okf-admin: desligando, esperando até %s pelo que está em andamento", prazoDesligar)
+	}()
+	conjunto, auditor, err := s.montarGanchos(ctxServidor, noop.NewMeterProvider().Meter("ganchos"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	retencaoParou := make(chan struct{})
+	go func() {
+		defer close(retencaoParou)
+		auditoria.Reter(ctxServidor, db.Ent, time.Now)
+	}()
+
 	s.provedor = harness.ResolverProvedor(os.Getenv).Nome
-	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv}
+	cfgHarness := harness.Config{Nexus: cli, Env: os.Getenv, Ganchos: conjunto}
 	if mcpCli != nil {
 		cfgHarness.MCP = mcpCli
 	}
@@ -217,7 +279,7 @@ func main() {
 		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
-		Pool: db.Pool,
+		Pool: db.Pool, Ganchos: conjunto, Auditoria: auditor,
 	}
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
@@ -243,6 +305,15 @@ func main() {
 	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
 		log.Fatal(err)
 	}
+	if err := garantirAdminInicial(context.Background(), cfg.AdminInicial, acesso.NovoPostgres(db.Ent).Atribuir); err != nil {
+		log.Fatal(err)
+	}
+	if ehDesenvolvimento(cfg.Ambiente) && cfg.AuthMode == authModeDev {
+		rbac := acesso.NovoPostgres(db.Ent)
+		if err := semearAcessoDev(context.Background(), adminPG, acessoDev{conceder: rbac.Conceder, atribuir: rbac.Atribuir}, exemplo.ID); err != nil {
+			log.Fatal(err)
+		}
+	}
 	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
 	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
 	mapeamento := admin.NovoCache(adminPG)
@@ -250,6 +321,10 @@ func main() {
 		log.Printf("okf-admin: mapeamento não aquecido no boot, o primeiro turno lê do banco: %v", err)
 	}
 	s.atende.Mapeamento = mapeamento
+	if c, ok := harness.NovoCopiloto(s.atende.Config); ok {
+		s.copiloto = c
+	}
+	s.limiteCopiloto = novoLimiteDoCopiloto(time.Now)
 
 	// O servidor MCP só escuta em loopback (na rede deste contêiner): /mcp/ aqui o repassa,
 	// para testar de fora (Inspector, curl) pela porta do concierge. O token NÃO é injetado:
@@ -260,7 +335,7 @@ func main() {
 		if err != nil {
 			log.Printf("okf-admin: proxy do MCP desligado: %v", err)
 		} else {
-			proxy = p
+			proxy = semPrazoDeEscrita(p) // SSE: a resposta dura o quanto o MCP quiser
 			log.Printf("okf-admin: MCP exposto em http://%s%s (repassa a %s; Authorization do cliente)", *addr, mcpPath(mcpCli.URL), base)
 		}
 	}
@@ -273,7 +348,54 @@ func main() {
 			abrirNavegador("http://" + *addr)
 		}()
 	}
-	log.Fatal(http.ListenAndServe(*addr, handler))
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = servir(ctxServidor, novoServidorHTTP(handler), ln, desligamento{prazo: prazoDesligar, aguardar: func() {
+		s.turnos.Wait()
+		s.atende.Aguardar()
+		<-retencaoParou
+	}})
+	pararSinais()
+	if err != nil {
+		encerrarComErro(errors.Join(err, db.Fechar()))
+	}
+	if err := db.Fechar(); err != nil {
+		encerrarComErro(err)
+	}
+	log.Print("okf-admin: desligado")
+}
+
+// novoRegistro é o log do processo: JSON, com CPF e telefone mascarados em toda mensagem e
+// atributo de texto antes de sair (a pilha também); ERROR ganha fonte e, sem stack, a pilha
+// curta do projeto.
+func novoRegistro(w io.Writer) *slog.Logger {
+	return slog.New(falha.ComFonte(pii.NovoHandler(slog.NewJSONHandler(w, nil))))
+}
+
+// montarGanchos monta o Conjunto único do servidor: os fixos, as regras do cache (aquecido
+// aqui; sem ele o boot falha), log e métricas em m, e o auditor que grava as decisões. O
+// mesmo Conjunto vai no turno do concierge e no harness; o auditor, no Servico, para o turno
+// gravar a auditoria no lote pós resposta.
+func (s *servidor) montarGanchos(ctx context.Context, m metric.Meter) (*ganchos.Conjunto, *auditoria.Auditor, error) {
+	var recarga func(resultado string)
+	// o cache só recarrega a partir do Aquecer, quando recarga já existe
+	cache := regras.NovoCache(s.regras, regras.Compilar, func(resultado string) { recarga(resultado) })
+	recarga, auditoriaFalhou, err := ganchos.Contadores(m, cache.Indice)
+	if err != nil {
+		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
+	}
+	if err := cache.Aquecer(ctx); err != nil {
+		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
+	}
+	s.regrasAquecidas = func() bool { return cache.Indice() != nil }
+	observabilidade, err := ganchos.ComObservabilidade(slog.Default(), m)
+	if err != nil {
+		return nil, nil, fmt.Errorf("montar ganchos: %w", err)
+	}
+	auditor := auditoria.NovoAuditor(s.banco, auditoriaFalhou, time.Now)
+	return ganchos.NovoConjunto(fixos.Todos(), cache.Indice, observabilidade, auditor.Observador()), auditor, nil
 }
 
 // migrarPorPadrao liga as migrations no boot só em desenvolvimento; nos demais ambientes
@@ -356,16 +478,31 @@ func gravarExemplo(ctx context.Context, repo admin.Repositorio, exemplo admin.Co
 	return err
 }
 
-// healthz responde 503 quando o Postgres não responde em timeoutHealthz.
-func (s *servidor) healthz(w http.ResponseWriter, r *http.Request) {
+// healthz é a liveness: o processo responde. Sem I/O, para o orquestrador não reiniciar o
+// concierge por causa do banco.
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// readyz é a readiness: 503 enquanto o Postgres não responde em timeoutHealthz ou as regras
+// dos ganchos não foram aquecidas; o orquestrador só manda tráfego depois do 200.
+func (s *servidor) readyz(w http.ResponseWriter, r *http.Request) {
+	if s.regrasAquecidas == nil || !s.regrasAquecidas() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "indisponivel", "motivo": "regras não aquecidas"})
+		return
+	}
+	if s.banco.Pool == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "indisponivel", "motivo": "postgres não configurado"})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeoutHealthz)
 	defer cancel()
 	if err := s.banco.Pool.Ping(ctx); err != nil {
-		s.log.Printf("okf-admin: healthz: ping no postgres: %v", err)
-		http.Error(w, "postgres indisponível", http.StatusServiceUnavailable)
+		slog.WarnContext(ctx, "readyz: postgres não respondeu", "operacao", "readyz", "erro", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "indisponivel", "motivo": "postgres não respondeu"})
 		return
 	}
-	w.Write([]byte("ok"))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "pronto"})
 }
 
 // proxyMCP repassa /mcp/... ao servidor MCP configurado (MCP_URL), com o Host que ele
@@ -399,7 +536,9 @@ func mcpPath(raw string) string {
 
 func (s *servidor) rotas(mux *http.ServeMux) {
 	mux.Handle(padraoEstaticos, semCache(http.FileServerFS(s.web)))
-	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.Handle("GET /{$}", http.RedirectHandler("/studio/", http.StatusFound))
+	mux.HandleFunc(padraoHealthz, healthz)
+	mux.HandleFunc(padraoReadyz, s.readyz)
 
 	// leitura do catálogo: skills.ler em qualquer escopo
 	for padrao, h := range map[string]http.HandlerFunc{
@@ -451,6 +590,40 @@ func (s *servidor) anatomia(w http.ResponseWriter, _ *http.Request) {
 		"account":      s.account,
 		"nexus_origem": s.nexus,
 	})
+}
+
+func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
+	var n okf.NovoAgente
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&n); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	rel, mud, err := s.cat.CriarAgente(n)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	writeJSON(w, 201, map[string]any{"caminho": rel, "mudancas": mud})
+}
+
+func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("agente")
+	if err := s.cat.ExcluirSkill(rel); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	// ExcluirSkill não devolve as rotas que ajustou (ao contrário da ExcluirAgente antiga);
+	// mudancas fica vazia em vez de ausente, pois backdoor.js:464 lê r.mudancas.length sem
+	// checar undefined.
+	writeJSON(w, 200, map[string]any{"excluido": rel, "mudancas": []string{}})
+}
+
+// mover: a árvore do Backdoor ainda tem o drag-and-drop de mover/clonar agente, mas o
+// catálogo não tem mais Mover (retirado na fase 1 do Studio, junto da limpeza que
+// manteve o Admin no ar). A rota continua registrada para o Backdoor não
+// quebrar ao carregar; o retorno é um erro claro em vez de fingir que moveu algo.
+func (s *servidor) mover(w http.ResponseWriter, _ *http.Request) {
+	writeErr(w, http.StatusGone, errors.New("mover agente: recurso retirado do catálogo nesta fase"))
 }
 
 func (s *servidor) arvore(w http.ResponseWriter, _ *http.Request) {
@@ -536,26 +709,12 @@ func paiRel(rel string) string {
 	return rel[:i]
 }
 
-func (s *servidor) criar(w http.ResponseWriter, r *http.Request) {
-	var n okf.NovoAgente
-	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	rel, mud, err := s.cat.CriarAgente(n)
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 201, map[string]any{"caminho": rel, "mudancas": mud})
-}
-
 func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
 	var corpo struct {
 		Agente string         `json:"agente"`
 		Campos map[string]any `json:"campos"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 100<<20)).Decode(&corpo); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -564,33 +723,6 @@ func (s *servidor) config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"salvo": corpo.Agente})
-}
-
-func (s *servidor) excluir(w http.ResponseWriter, r *http.Request) {
-	mud, err := s.cat.ExcluirAgente(r.URL.Query().Get("agente"))
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"excluido": r.URL.Query().Get("agente"), "mudancas": mud})
-}
-
-func (s *servidor) mover(w http.ResponseWriter, r *http.Request) {
-	var corpo struct {
-		Origem  string `json:"origem"`
-		Destino string `json:"destino"`
-		Clonar  bool   `json:"clonar"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	rel, mud, err := s.cat.Mover(corpo.Origem, corpo.Destino, corpo.Clonar)
-	if err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"caminho": rel, "mudancas": mud})
 }
 
 func (s *servidor) importar(w http.ResponseWriter, r *http.Request) {
@@ -636,7 +768,7 @@ func (s *servidor) salvarArquivo(w http.ResponseWriter, r *http.Request) {
 		Caminho  string `json:"caminho"`
 		Conteudo string `json:"conteudo"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoArquivo); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -777,7 +909,7 @@ func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
 		Original string      `json:"original"`
 		Recurso  okf.Recurso `json:"recurso"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -786,7 +918,8 @@ func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 409, err)
 		return
 	}
-	if err := okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso); err != nil {
+	err = s.cat.Escrever(func() error { return okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso) })
+	if err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -800,7 +933,8 @@ func (s *servidor) removerRecurso(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 409, err)
 		return
 	}
-	if err := okf.RemoverRecursoFixture(p, nome); err != nil {
+	err = s.cat.Escrever(func() error { return okf.RemoverRecursoFixture(p, nome) })
+	if err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -813,7 +947,7 @@ func (s *servidor) vincular(w http.ResponseWriter, r *http.Request) {
 		Nome   string `json:"nome"`
 		Ligar  bool   `json:"ligar"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -836,11 +970,39 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// Tetos dos corpos JSON lidos por decodificarJSON. O maior arquivo de okf/ hoje tem 12,6 KB
+// (okf/nexus/cond-001.yaml) e o escape do JSON pode multiplicar o texto por até 6 (é):
+// 1 MiB deixa mais de 10x de folga. Os formulários administrativos (administradora,
+// condomínio, payload, orientação, orquestração) somam poucos KB; 256 KiB cobre o maior com folga.
+const (
+	limiteCorpoArquivo = 1 << 20
+	limiteCorpoJSON    = 256 << 10
+)
+
+// decodificarJSON lê o corpo JSON até limite bytes. Acima do limite o erro carrega um
+// *http.MaxBytesError, que writeErr responde como 413.
+func decodificarJSON(w http.ResponseWriter, r *http.Request, v any, limite int64) error {
+	return json.NewDecoder(http.MaxBytesReader(w, r.Body, limite)).Decode(v)
+}
+
+// writeErr responde o erro em JSON. Um 5xx é falha do servidor: vai para a linha de ERROR da
+// requisição, com a cadeia, a pilha (se capturada) e quem respondeu. Corpo acima do teto
+// (decodificarJSON) é sempre 413, seja qual for o code pedido.
 func writeErr(w http.ResponseWriter, code int, err error) {
 	if err == nil {
 		err = errors.New("erro")
 	}
-	writeJSON(w, code, map[string]string{"error": err.Error()})
+	if grande, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		code, err = http.StatusRequestEntityTooLarge, fmt.Errorf("corpo grande demais (máximo %d bytes)", grande.Limit)
+	}
+	mensagem := err.Error()
+	if errors.Is(err, okf.ErrPersistir) { // o texto do banco fica no log, não na resposta
+		code, mensagem = http.StatusInternalServerError, "não deu para salvar o catálogo no banco; tente de novo"
+	}
+	if code >= http.StatusInternalServerError {
+		anotarFalha(context.Background(), w, err, 1)
+	}
+	writeJSON(w, code, map[string]string{"error": mensagem})
 }
 
 func semCache(h http.Handler) http.Handler {

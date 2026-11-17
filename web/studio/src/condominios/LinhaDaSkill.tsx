@@ -1,0 +1,140 @@
+import ChevronRightOutlined from '@mui/icons-material/ChevronRightOutlined';
+import {
+  Box,
+  ListItemButton,
+  Switch,
+  type SxProps,
+  type Theme,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import type { ReactNode } from 'react';
+import { useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
+import { iconeDaSkill } from '@/skills/icones';
+import { ICONES, PESOS, RAIO, RAIOS } from '@/theme/tokens';
+import { categoriaDe, type LinhaDeSkill, rotuloDePapeis, tomDaCategoria } from './listaDeSkills';
+
+/** Raio de pílula bem acima de qualquer altura real do chip: sempre fica totalmente arredondado. */
+
+const ESTILO_DA_LINHA = {
+  minHeight: 52,
+  gap: 1.5,
+  px: 2.5,
+  borderRadius: RAIO.reto,
+  borderTop: 1,
+  borderColor: 'border.subtle',
+  '&:hover': { bgcolor: 'background.subtle', color: 'inherit', fontWeight: 'inherit' },
+} as const;
+
+const ESTILO_DA_IDENTIDADE = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1.5,
+  flex: 1,
+  minWidth: 0,
+} as const;
+
+const ESTILO_DO_ICONE = {
+  width: 30,
+  height: 30,
+  borderRadius: `${RAIOS.campo}px`,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flex: 'none',
+} as const;
+
+const CORES_DO_ICONE = {
+  registra: { bgcolor: 'studio.registra.soft', color: 'studio.registra.onSoft' },
+  consulta: { bgcolor: 'background.tint', color: 'primary.main' },
+} as const;
+
+const ESTILO_DO_CHIP = {
+  px: 1,
+  py: 0.25,
+  borderRadius: RAIO.pilula,
+  whiteSpace: 'nowrap',
+} as const;
+
+const CHIP_DE_PAPEIS = { ...ESTILO_DO_CHIP, bgcolor: 'background.tint', color: 'primary.main' };
+
+const CHIP_DE_DECISAO_PROPRIA = {
+  ...ESTILO_DO_CHIP,
+  bgcolor: 'warning.soft',
+  color: 'warning.onSoft',
+};
+
+type Props = {
+  linha: LinhaDeSkill;
+  /** Id de realce da linha: `condominio:<id>:skill:<nome>`. */
+  alvoDoRealce: string;
+  ehPadrao: boolean;
+  editavel: boolean;
+  gravando: boolean;
+  onAbrir: () => void;
+  onMudarHabilitado: (habilitado: boolean) => void;
+};
+
+/** Linha densa de ~52 px: ícone, título, resumo, chips de exceção, atalho e switch. */
+export function LinhaDaSkill(props: Props): ReactNode {
+  const { linha, ehPadrao, onAbrir } = props;
+  const realce = useRealceDoCopiloto(props.alvoDoRealce);
+
+  return (
+    <ListItemButton onClick={onAbrir} sx={[ESTILO_DA_LINHA, realce]}>
+      <IdentidadeDaSkill
+        linha={linha}
+        mostraDesligadaAqui={linha.propria && !ehPadrao && !linha.habilitacao.habilitado}
+      />
+      <ChevronRightOutlined fontSize="small" sx={{ color: 'text.muted', flex: 'none' }} />
+      <Switch
+        checked={linha.habilitacao.habilitado}
+        disabled={!props.editavel || props.gravando}
+        onClick={(evento) => evento.stopPropagation()}
+        onChange={(_, ligado) => props.onMudarHabilitado(ligado)}
+        slotProps={{ input: { 'aria-label': `${linha.titulo} neste condomínio` } }}
+      />
+    </ListItemButton>
+  );
+}
+
+type IdentidadeProps = { linha: LinhaDeSkill; mostraDesligadaAqui: boolean };
+
+function IdentidadeDaSkill({ linha, mostraDesligadaAqui }: IdentidadeProps): ReactNode {
+  const Icone = iconeDaSkill(linha.caso.icone);
+  const rotuloPapeis = rotuloDePapeis(linha.habilitacao.papeis);
+  const opacidade = linha.habilitacao.habilitado ? 1 : 0.6;
+  const tom = tomDaCategoria(categoriaDe(linha.caso));
+
+  return (
+    <Box sx={[ESTILO_DA_IDENTIDADE, { opacity: opacidade }]}>
+      <Box sx={[ESTILO_DO_ICONE, CORES_DO_ICONE[tom]]}>
+        <Icone sx={{ fontSize: ICONES.grande }} />
+      </Box>
+      <TituloEResumo linha={linha} />
+      {rotuloPapeis !== null && <Chip texto={rotuloPapeis} estilo={CHIP_DE_PAPEIS} />}
+      {mostraDesligadaAqui && <Chip texto="desligada aqui" estilo={CHIP_DE_DECISAO_PROPRIA} />}
+    </Box>
+  );
+}
+
+function TituloEResumo({ linha }: { linha: LinhaDeSkill }): ReactNode {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, flex: 1, minWidth: 0 }}>
+      <Typography sx={{ fontWeight: PESOS.semi, whiteSpace: 'nowrap' }}>{linha.titulo}</Typography>
+      <Tooltip title={linha.caso.resumo}>
+        <Typography variant="body2" color="textMuted" noWrap sx={{ flex: 1, minWidth: 0 }}>
+          {linha.caso.resumo}
+        </Typography>
+      </Tooltip>
+    </Box>
+  );
+}
+
+function Chip({ texto, estilo }: { texto: string; estilo: SxProps<Theme> }): ReactNode {
+  return (
+    <Typography variant="caption" sx={estilo}>
+      {texto}
+    </Typography>
+  );
+}

@@ -43,9 +43,11 @@ type CondominioEdges struct {
 	Payloads []*Payload `json:"payloads,omitempty"`
 	// Orientacoes holds the value of the orientacoes edge.
 	Orientacoes []*Orientacao `json:"orientacoes,omitempty"`
+	// SkillCamadas holds the value of the skill_camadas edge.
+	SkillCamadas []*SkillCamada `json:"skill_camadas,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [5]bool
 }
 
 // AdministradoraOrErr returns the Administradora value or an error if the edge
@@ -84,6 +86,15 @@ func (e CondominioEdges) OrientacoesOrErr() ([]*Orientacao, error) {
 		return e.Orientacoes, nil
 	}
 	return nil, &NotLoadedError{edge: "orientacoes"}
+}
+
+// SkillCamadasOrErr returns the SkillCamadas value or an error if the edge
+// was not loaded in eager-loading.
+func (e CondominioEdges) SkillCamadasOrErr() ([]*SkillCamada, error) {
+	if e.loadedTypes[4] {
+		return e.SkillCamadas, nil
+	}
+	return nil, &NotLoadedError{edge: "skill_camadas"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -176,6 +187,11 @@ func (_m *Condominio) QueryPayloads() *PayloadQuery {
 // QueryOrientacoes queries the "orientacoes" edge of the Condominio entity.
 func (_m *Condominio) QueryOrientacoes() *OrientacaoQuery {
 	return NewCondominioClient(_m.config).QueryOrientacoes(_m)
+}
+
+// QuerySkillCamadas queries the "skill_camadas" edge of the Condominio entity.
+func (_m *Condominio) QuerySkillCamadas() *SkillCamadaQuery {
+	return NewCondominioClient(_m.config).QuerySkillCamadas(_m)
 }
 
 // Update returns a builder for updating this Condominio.

@@ -30,6 +30,10 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 	s.rotas(mux)
 	s.rotasAtende(mux)
 	s.rotasAdmin(mux)
+	s.rotasGanchos(mux)
+	s.rotasStudio(mux)
+	s.rotasCopiloto(mux)
+	s.rotasIntegracao(mux)
 	if mcp != nil {
 		// por método: um "/mcp/" sem método conflitaria com o "GET /" da interface
 		protegido := s.protegida(acesso.StudioAvancado, alvoSuperlogica, mcp.ServeHTTP)
@@ -37,7 +41,7 @@ func (s *servidor) rotear(mcp http.Handler) http.Handler {
 			mux.Handle(m+" /mcp/", protegido)
 		}
 	}
-	return s.registrar(mux)
+	return s.registrar(comCabecalhosDeSeguranca(mux))
 }
 
 // alvoDe resolve o escopo sobre o qual a requisição age.
@@ -109,7 +113,7 @@ func responderErroDeAlvo(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, e.status, map[string]string{"codigo": e.codigo, "error": e.mensagem})
 		return
 	}
-	loggerDe(r.Context()).ErrorContext(r.Context(), "resolver alvo da requisição", "operacao", operacaoDe(r), "erro", err.Error())
+	anotarFalha(r.Context(), w, fmt.Errorf("resolver alvo da requisição: %w", err), 1)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
 }
 
@@ -265,15 +269,17 @@ func alvoDonaDoCorpo(r *http.Request) (acesso.Escopo, error) {
 // alvo conferido ser o mesmo que a escrita grava.
 func normalizarID(id string) string { return strings.ToLower(strings.TrimSpace(id)) }
 
-// limiteCorpoEspiado cobre os corpos JSON do Admin e do Console; o importar (zip) não é espiado.
-const limiteCorpoEspiado = 2 << 20
-
 // espiarCorpo decodifica o corpo JSON para resolver o alvo e o devolve intacto à requisição,
-// para o handler ler de novo.
+// para o handler ler de novo. Só espia corpos JSON do Admin e do Console (o importar, zip, não
+// passa aqui), então o teto é o mesmo de decodificarJSON: lê um byte a mais para recusar com
+// 413 em vez de entregar ao handler um corpo cortado.
 func espiarCorpo(r *http.Request, v any) error {
-	raw, err := io.ReadAll(io.LimitReader(r.Body, limiteCorpoEspiado))
+	raw, err := io.ReadAll(io.LimitReader(r.Body, limiteCorpoJSON+1))
 	if err != nil {
 		return erroDeAlvo{http.StatusBadRequest, "CORPO_INVALIDO", "corpo ilegível"}
+	}
+	if len(raw) > limiteCorpoJSON {
+		return erroDeAlvo{http.StatusRequestEntityTooLarge, "CORPO_GRANDE_DEMAIS", "corpo grande demais"}
 	}
 	r.Body = io.NopCloser(bytes.NewReader(raw))
 	if len(bytes.TrimSpace(raw)) == 0 {
@@ -323,6 +329,32 @@ func visaoPara(r *http.Request, m admin.Mapeamento, recorte string) (admin.Mapea
 		return admin.Mapeamento{}, []admin.Administradora{}
 	}
 	return m.Visao(recorte), administradorasVisiveis(a, m.Administradoras)
+}
+
+// visaoDoEstado recorta o mapeamento do /api/admin/estado. Quem não lê nenhuma administradora
+// inteira mas tem condomínios atribuídos recebe só esses condomínios.
+func visaoDoEstado(r *http.Request, m admin.Mapeamento) (admin.Mapeamento, []admin.Administradora, error) {
+	a, _ := acessoDe(r.Context())
+	if soCondominios := condominiosVisiveis(a, m.Condominios); len(soCondominios) > 0 && len(administradorasVisiveis(a, m.Administradoras)) == 0 {
+		v := m.VisaoDosCondominios(soCondominios)
+		return v, v.Administradoras, nil
+	}
+	recorte, err := recorteDoUsuario(r, m.Administradoras)
+	if err != nil {
+		return admin.Mapeamento{}, nil, err
+	}
+	v, visiveis := visaoPara(r, m, recorte)
+	return v, visiveis, nil
+}
+
+func condominiosVisiveis(a acesso.Acesso, conds []admin.Condominio) []string {
+	var ids []string
+	for _, c := range conds {
+		if acesso.Permitido(a, acesso.SkillsLer, acesso.Escopo{Tipo: acesso.TipoCondominio, ID: c.ID}) {
+			ids = append(ids, c.ID)
+		}
+	}
+	return ids
 }
 
 func administradorasVisiveis(a acesso.Acesso, adms []admin.Administradora) []admin.Administradora {

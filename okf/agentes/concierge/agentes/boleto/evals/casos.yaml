@@ -1,0 +1,18 @@
+- nome: segunda via não pede CPF
+  pergunta: me manda a segunda via do boleto
+  nao_contem:
+  - CPF
+  - caso de uso
+  - recurso
+- nome: linha digitável não vaza termos internos
+  pergunta: qual a linha digitável do condomínio?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: pix não vaza termos internos
+  pergunta: tem como pagar o condomínio por pix?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

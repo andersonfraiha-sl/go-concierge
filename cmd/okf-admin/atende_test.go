@@ -87,6 +87,85 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 	}
 }
 
+// TestWebhookEventoDuplicadoNaoRepeteTurno: o ATENDE pode reentregar o mesmo evento (retry
+// de rede, timeout na resposta). O mesmo id duas vezes não pode virar dois turnos do morador
+// nem duas respostas do concierge para quem já foi atendido.
+func TestWebhookEventoDuplicadoNaoRepeteTurno(t *testing.T) {
+	cat, err := okf.NewCatalogo(filepath.Join("..", "..", "okf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fix, err := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.Recursos = func() []okf.Recurso { return fix }
+	out := &atende.Outbox{}
+	repo := mapeamentoTeste(t)
+	s := &servidor{
+		atende: &atende.Servico{
+			Cat: cat, Agente: "agentes/concierge", Mapeamento: repo,
+			Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Sender: out,
+			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
+		},
+		admin: repo,
+		log:   log.New(io.Discard, "", 0),
+	}
+	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-duplicado","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-dup"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-dup","type":"text","content":"posso fazer barulho depois das 22h?"}}}`
+	entregar := func() {
+		w := httptest.NewRecorder()
+		s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=cond-x", strings.NewReader(corpo)))
+		if w.Code != 202 {
+			t.Fatalf("status HTTP %d: %s", w.Code, w.Body.String())
+		}
+	}
+	esperarResposta := func(quer int) {
+		t.Helper()
+		deadline := time.After(5 * time.Second)
+		for {
+			if saidas := out.Itens("protocolo-dup"); len(saidas) == quer {
+				return
+			} else if len(saidas) > quer {
+				t.Fatalf("respostas = %d, queria %d: %+v", len(saidas), quer, saidas)
+			}
+			select {
+			case <-deadline:
+				t.Fatalf("não chegou a %d resposta(s) a tempo", quer)
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	}
+	// aindaUmaResposta confere, por meio segundo, que nenhuma resposta nova chegou: tempo
+	// suficiente para uma segunda resposta aparecer, se a reentrega tivesse processado de novo.
+	aindaUmaResposta := func() {
+		t.Helper()
+		fim := time.Now().Add(500 * time.Millisecond)
+		for time.Now().Before(fim) {
+			if n := len(out.Itens("protocolo-dup")); n != 1 {
+				t.Fatalf("respostas = %d depois da reentrega, queria 1", n)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	// primeira entrega: processa normalmente.
+	entregar()
+	esperarResposta(1)
+	// reentrega do mesmo evento (o provedor reenvia quando a confirmação atrasa): não pode
+	// virar um segundo turno do morador nem uma segunda resposta.
+	entregar()
+	aindaUmaResposta()
+	sessoes := listarSessoes(t, s.atende.Sessoes)
+	turnosDoMorador := 0
+	for _, turno := range sessoes[0].Turnos {
+		if turno.Quem == "morador" && turno.EventoID == "evt-duplicado" {
+			turnosDoMorador++
+		}
+	}
+	if turnosDoMorador != 1 {
+		t.Fatalf("evento reentregue virou %d turnos do morador, queria 1", turnosDoMorador)
+	}
+}
+
 func corpoEventoTeste(evento, tenant, canal string) string {
 	corpo, _ := json.Marshal(map[string]any{
 		"event":  evento,

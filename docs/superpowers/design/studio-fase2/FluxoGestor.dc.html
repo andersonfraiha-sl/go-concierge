@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Studio · Fluxo · gestor</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1034F2}a:hover{color:#0A24B8}
+</style>
+</helmet>
+<div style="min-height: 980px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #22252B; display: flex; flex-direction: column; position: relative">
+  <header style="height: 58px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC; display: flex; align-items: center; gap: 13px; padding: 0 34px">
+    <a href="Main.dc.html" aria-label="Voltar para Skills" style="width: 34px; height: 34px; border-radius: 9px; border: 1px solid #E4E7EC; display: flex; align-items: center; justify-content: center; color: #536379"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></a>
+    <div style="width: 34px; height: 34px; border-radius: 9px; background: #FFF3E6; color: #C25E00; display: flex; align-items: center; justify-content: center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 1 0-4M17 19a2 2 0 1 1 0-4"></path></svg></div>
+    <div style="display: flex; flex-direction: column; line-height: 1.25">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px; color: #071950">Agendamento de mudança</span>
+      <span style="font-size: 12px; color: #637792">Skills · registra no sistema</span>
+    </div>
+    <div style="flex: 1"></div>
+    
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; border-radius: 99px; background: #F1F3F6; color: #536379; font-weight: 500"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 10V7a4 4 0 0 1 8 0v3M5 10h14v10H5z"></path></svg>Só leitura</span>
+    <a href="Copiloto.dc.html" aria-pressed="false" style="height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid #DBDFE5; background: #FFFFFF; color: #071950; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-decoration: none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg>Copiloto</a>
+  </header>
+  <nav aria-label="Abas da skill" style="background: #FFFFFF; border-bottom: 1px solid #E4E7EC; padding: 0 34px; display: flex; gap: 26px">
+    <a href="SkillQuandoUsar.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Quando usar</a>
+    <a href="Fluxo.dc.html" aria-current="page" style="padding: 13px 0; font-size: 14px; color: #1034F2; font-weight: 600; text-decoration: none; border-bottom: 2px solid #1034F2">Fluxo</a>
+    <a href="SkillRegras.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Regras</a>
+    <a href="SkillRegras.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Base de conhecimento</a>
+    <a href="SkillFerramentas.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Ferramentas</a>
+  </nav>
+  <div style="display: flex; flex: 1">
+    <section aria-label="Fluxo" style="flex: 1 1 auto; min-width: 0; padding: 34px; box-sizing: border-box; background-color: #F5F6F8; background-image: radial-gradient(#D0D4DB 1px, transparent 1px); background-size: 21px 21px; display: flex; flex-direction: column; align-items: center">
+      <div style="align-self: stretch; display: flex; align-items: center; gap: 13px; margin-bottom: 21px; padding: 10px 16px; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 12px">
+        <span style="color: #536379"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 10V7a4 4 0 0 1 8 0v3M5 10h14v10H5z"></path></svg></span>
+        <span style="font-size: 13px; color: #323B49">Você vê o passo a passo como gestor. Para mudar, fale com quem constrói as skills ou peça ao Copiloto uma explicação.</span>
+      </div>
+      <div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #00838F; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #00838F; width: 18px">1</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #00838F; text-transform: uppercase; letter-spacing: 0.05em">Buscar dados</div><div style="font-size: 14px; margin-top: 3px">Unidades do morador</div></div></div><div style="width: 2px; height: 21px; background: #C1CAD6"></div><div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #7B1FA2; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #7B1FA2; width: 18px">2</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #7B1FA2; text-transform: uppercase; letter-spacing: 0.05em">Pedir escolha</div><div style="font-size: 14px; margin-top: 3px">“Para qual unidade é a mudança?”</div></div></div><div style="width: 2px; height: 21px; background: #C1CAD6"></div><div style="width: 420px; background: #FFFFFF; border: 2px solid #1034F2; border-left: 4px solid #7B1FA2; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #7B1FA2; width: 18px">3</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #7B1FA2; text-transform: uppercase; letter-spacing: 0.05em">Perguntar</div><div style="font-size: 14px; margin-top: 3px">Data e período da mudança</div></div></div><div style="width: 2px; height: 21px; background: #C1CAD6"></div><div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #1034F2; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #1034F2; width: 18px">4</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #1034F2; text-transform: uppercase; letter-spacing: 0.05em">Confirmar</div><div style="font-size: 14px; margin-top: 3px">“Confirma a mudança em 15/11, manhã?”</div></div></div><div style="width: 2px; height: 21px; background: #C1CAD6"></div><div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #EF6C00; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #C25E00; width: 18px">5</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #C25E00; text-transform: uppercase; letter-spacing: 0.05em">Gravar no sistema</div><div style="font-size: 14px; margin-top: 3px">Agenda a mudança e reserva o elevador</div></div></div><div style="width: 2px; height: 21px; background: #C1CAD6"></div><div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #455A64; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #455A64; width: 18px">6</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #455A64; text-transform: uppercase; letter-spacing: 0.05em">Responder</div><div style="font-size: 14px; margin-top: 3px">“Sua mudança foi agendada! Protocolo…”</div></div></div>
+    </section>
+    <aside aria-label="Passo selecionado" style="flex: 0 0 420px; background: #FFFFFF; border-left: 1px solid #E4E7EC; padding: 34px; box-sizing: border-box; display: flex; flex-direction: column; gap: 21px">
+      <div>
+        <div style="font-size: 11px; font-weight: 600; color: #7B1FA2; text-transform: uppercase; letter-spacing: 0.06em">Passo 3 · Perguntar</div>
+        <h2 style="margin: 8px 0 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 21px; font-weight: 700; color: #071950">Data e período</h2>
+        <p style="margin: 8px 0 0; font-size: 13px; color: #637792; line-height: 1.6">O concierge pergunta só o que ainda falta, uma coisa por vez.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; font-weight: 600; color: #323B49">Data da mudança</span><span style="font-size: 14px; color: #22252B; line-height: 1.5">Para qual data você quer agendar a mudança?</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 13px; font-weight: 600; color: #323B49">Período</span><span style="font-size: 14px; color: #22252B; line-height: 1.5">Qual período você prefere?</span></div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap"><span style="font-size: 12px; padding: 5px 10px; border-radius: 99px; border: 1px solid #DBDFE5; color: #323B49">Manhã · 8h às 12h</span><span style="font-size: 12px; padding: 5px 10px; border-radius: 99px; border: 1px solid #DBDFE5; color: #323B49">Tarde · 13h às 18h</span></div>
+      <div style="margin-top: auto; padding: 16px; border-radius: 12px; background: #F8F9FB; border: 1px solid #EDEFF2">
+        <div style="font-size: 12px; font-weight: 600; color: #536379">Como o morador vê</div>
+        <div style="margin-top: 13px; display: flex; flex-direction: column; gap: 8px">
+          <div style="align-self: flex-start; max-width: 85%; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 12px 12px 12px 4px; padding: 8px 13px; font-size: 13px">Para qual data você quer agendar a mudança?</div>
+          <div style="align-self: flex-end; max-width: 85%; background: #E8EEFF; border-radius: 12px 12px 4px 12px; padding: 8px 13px; font-size: 13px">dia 15, de manhã</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

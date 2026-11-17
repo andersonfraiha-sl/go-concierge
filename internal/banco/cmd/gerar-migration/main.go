@@ -35,11 +35,15 @@ func main() {
 	if flag.NArg() != 1 {
 		log.Fatal("uso: gerar-migration [-dir pasta] <nome>")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeoutGeracao)
-	defer cancel()
-	if err := gerar(ctx, *pasta, flag.Arg(0)); err != nil {
+	if err := gerarComTimeout(*pasta, flag.Arg(0)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func gerarComTimeout(pasta, nome string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutGeracao)
+	defer cancel()
+	return gerar(ctx, pasta, nome)
 }
 
 func gerar(ctx context.Context, pasta, nome string) (err error) {

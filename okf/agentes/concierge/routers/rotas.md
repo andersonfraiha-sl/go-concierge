@@ -5,7 +5,19 @@ Escolha as rotas pelas linhas que melhor descrevem a mensagem do morador. Pode s
 - Regras de convivência, o que o regimento permite ou proíbe (barulho, obras, pets,
   áreas comuns), "o que diz o regimento" → rota `regimento`.
 - Dúvida geral sobre o condomínio: horários (portaria, piscina, nadar, "tomar banho"),
-  endereço, contato da administradora, taxa, boleto → rota `faq`.
+  endereço, contato da administradora, valor da taxa, dia de vencimento → rota `faq`.
+- Segunda Via de Boleto: boleto, segunda via, 2ª via, linha digitável, código de barras, pix
+  do condomínio, boleto vencido ou atrasado que o morador quer pagar → rota `boleto`.
+- Confirmação de Pagamento: já paguei, paguei, comprovante, pagamento consta, baixa, ainda aparece
+  em aberto depois de pagar → rota `pagamento`.
+- Débito e Acordo: quanto devo, débito, dívida, contas em aberto, acordo, parcelar, negociar
+  as taxas atrasadas → rota `debito`.
+- Documentos do Condomínio: ata, assembleia, convocação, edital, prestação de contas, balancete
+  → rota `documentos`.
+- Abertura de Chamado: manutenção, conserto, vazamento, infiltração, lâmpada, portão ou elevador
+  quebrado, reclamação ou ocorrência que o morador quer registrar → rota `chamado`.
+- Emergência (cheiro de gás, fogo, fumaça, alagamento, alguém preso ou ferido): rota `self`,
+  orientando ligar 193 na hora, e `transbordo`; nunca `chamado`.
 - Contestação ou "por quê?" sobre a resposta anterior: a MESMA rota da resposta anterior
   (faq ou regimento), nunca `self` nem atendente.
 - Liberar, autorizar ou avisar a entrada de visitante, amigo, parente, prestador ou

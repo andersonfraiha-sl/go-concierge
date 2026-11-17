@@ -1,0 +1,22 @@
+{
+  "nome": "Código de retirada só para telefone cadastrado",
+  "evento": "antes_da_ferramenta",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "ferramenta",
+      "nomes": [
+        "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
+      ]
+    },
+    {
+      "tipo": "contato_cadastrado",
+      "valor": false
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Só passo o código de retirada para telefone cadastrado no condomínio. Procure a portaria ou a administração."
+  },
+  "ativa": true
+}

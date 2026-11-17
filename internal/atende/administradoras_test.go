@@ -10,6 +10,7 @@ import (
 	"go-concierge/internal/admin"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/ganchos/fixos"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/okf"
@@ -223,7 +224,7 @@ func TestServicoTransbordaQuandoOCondominioTrocaDeDona(t *testing.T) {
 	if _, err := svc.Mapeamento.EditarCondominio(ctx, condo, visto); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.condominioDaSessao(ctx, sess, sess.contato()); !errors.Is(err, errCondominioMudou) {
+	if _, _, err := svc.condominioDaSessao(ctx, sess, sess.contato()); !errors.Is(err, fixos.ErrCondominioMudou) {
 		t.Fatalf("ações do atendente com a dona nova: err = %v, want errCondominioMudou", err)
 	}
 	sess, err = svc.Processar(ctx, mensagemDe(t, "P-1", tenantExemplo, "", "e agora?"))

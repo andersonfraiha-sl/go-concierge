@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"go-concierge/internal/acesso"
@@ -16,11 +18,22 @@ type Autenticador interface {
 }
 
 const (
-	cabecalhoUsuarioDev = "X-Dev-Usuario"
-	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento:
-	// fora de AUTH_MODE=dev ninguém entra com ele, venha de que autenticador vier.
+	cabecalhoUsuarioDev   = "X-Dev-Usuario"
+	cabecalhoUsuarioProxy = "X-Authenticated-User-Email"
+	tamanhoMaximoEmail    = 254 // limite do RFC 5321
+	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento,
+	// o padrão de AUTH_DEV_USUARIO.
 	usuarioSemeadoDev = "admin-superlogica"
 )
+
+// usuariosSemeadosDev são os usuários que as migrations semeiam para desenvolvimento: fora de
+// AUTH_MODE=dev ninguém entra com eles, venha de que autenticador vier. Só lido, nunca escrito.
+var usuariosSemeadosDev = map[string]bool{
+	usuarioSemeadoDev: true, "construtor-superlogica": true, "gestor-exemplo": true, "gestor-avancado": true,
+	gestorDeCondominioDev: true, gestorDeUmCondominioDev: true,
+}
+
+func semeadoDev(id string) bool { return usuariosSemeadosDev[id] }
 
 var (
 	errSemUsuario      = errors.New("requisição sem usuário")
@@ -41,17 +54,52 @@ func (a autenticadorDev) Autenticar(r *http.Request) (string, error) {
 	return "", errSemUsuario
 }
 
-// autenticadorFechado recusa todos: fora de AUTH_MODE=dev ainda não há login, e a API fica
-// fechada (o webhook do ATENDE e o healthz não passam por aqui).
+// autenticadorProxy confia no e-mail que o proxy de identidade (Oathkeeper) injeta depois de
+// validar o JWT. Só é seguro se nada alcança o serviço sem passar pelo proxy; quem garante é a
+// NetworkPolicy do deploy. O e-mail normalizado é o id do usuário.
+type autenticadorProxy struct{}
+
+func (autenticadorProxy) Autenticar(r *http.Request) (string, error) {
+	valores := r.Header.Values(cabecalhoUsuarioProxy)
+	if len(valores) != 1 {
+		return "", errSemUsuario
+	}
+	email, ok := normalizarEmail(valores[0])
+	if !ok {
+		return "", errSemUsuario
+	}
+	return email, nil
+}
+
+// normalizarEmail tira espaços e caixa e confere a forma de um endereço simples (sem nome de
+// exibição nem lista). O valor original nunca vai para mensagem de erro nem para log.
+func normalizarEmail(bruto string) (string, bool) {
+	email := strings.ToLower(strings.TrimSpace(bruto))
+	if email == "" || len(email) > tamanhoMaximoEmail {
+		return "", false
+	}
+	enderecoLido, err := mail.ParseAddress(email)
+	if err != nil || enderecoLido.Address != email {
+		return "", false
+	}
+	return email, true
+}
+
+// autenticadorFechado recusa todos: sem AUTH_MODE a API fica fechada (o webhook do ATENDE e
+// o healthz não passam por aqui).
 type autenticadorFechado struct{}
 
 func (autenticadorFechado) Autenticar(*http.Request) (string, error) { return "", errSemAutenticacao }
 
 func novoAutenticador(authMode, usuarioPadrao string) Autenticador {
-	if authMode == authModeDev {
+	switch authMode {
+	case authModeDev:
 		return autenticadorDev{padrao: strings.TrimSpace(usuarioPadrao)}
+	case authModeProxy:
+		return autenticadorProxy{}
+	default:
+		return autenticadorFechado{}
 	}
-	return autenticadorFechado{}
 }
 
 // carregadorAcesso é o acesso.Postgres; os testes usam um fake.
@@ -71,14 +119,14 @@ func acessoDe(ctx context.Context) (acesso.Acesso, bool) {
 func (s *servidor) autenticado(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		usuarioID, err := s.autenticador.Autenticar(r)
-		if err != nil || (usuarioID == usuarioSemeadoDev && s.authMode != authModeDev) {
-			responderNaoAutenticado(w)
+		if err != nil || (semeadoDev(usuarioID) && s.authMode != authModeDev) {
+			s.recusarLogin(w)
 			return
 		}
 		anotarUsuario(r.Context(), usuarioID)
 		a, err := s.acessos.Carregar(r.Context(), usuarioID, s.implantacao)
 		if errors.Is(err, acesso.ErrUsuarioDesconhecido) {
-			responderNaoAutenticado(w)
+			s.recusarLogin(w)
 			return
 		}
 		if err != nil {
@@ -89,8 +137,21 @@ func (s *servidor) autenticado(next http.Handler) http.Handler {
 	})
 }
 
+// naoAutenticado é o corpo do 401. Dev diz ao Studio que pode oferecer o "Ver como" mesmo sem
+// /api/eu; fora de AUTH_MODE=dev o campo nem aparece.
+type naoAutenticado struct {
+	Codigo string `json:"codigo"`
+	Error  string `json:"error"`
+	Dev    bool   `json:"dev,omitempty"`
+}
+
 func responderNaoAutenticado(w http.ResponseWriter) {
-	writeJSON(w, http.StatusUnauthorized, map[string]string{"codigo": "NAO_AUTENTICADO", "error": "usuário não autenticado"})
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado"})
+}
+
+// recusarLogin é o 401 do middleware: o único ponto em que o usuário ainda não foi reconhecido.
+func (s *servidor) recusarLogin(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado", Dev: s.authMode == authModeDev})
 }
 
 func responderSemPermissao(w http.ResponseWriter) {
@@ -99,6 +160,6 @@ func responderSemPermissao(w http.ResponseWriter) {
 
 // responderErroInterno: o erro vai só para o log; o cliente recebe uma mensagem fixa.
 func (s *servidor) responderErroInterno(w http.ResponseWriter, r *http.Request, operacao string, err error) {
-	s.logger().ErrorContext(r.Context(), "erro interno", "operacao", operacao, "erro", err.Error())
+	anotarFalha(r.Context(), w, fmt.Errorf("%s: %w", operacao, err), 1)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
 }

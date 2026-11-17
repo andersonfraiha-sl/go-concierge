@@ -1,0 +1,44 @@
+# Só o que não é segredo. Os segredos vêm do ExternalSecret (external-secret.yaml).
+# Base: .env.example. Sem LLM_LOCAL_*, AUTH_DEV_USUARIO nem nada do emulador.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-concierge
+  labels:
+    app: go-concierge
+data:
+  AMBIENTE: "prd"
+  # O Oathkeeper go-concierge-auth valida o JWT e injeta X-Authenticated-User-Email.
+  AUTH_MODE: "proxy"
+  ATENDE_AGENTE: "agentes/concierge"
+
+  # Modelo de linguagem. Vazio: o modo vem da chave presente no segredo (gemini, depois
+  # openrouter, senão mock). Decisão de quem opera: gemini | openrouter | luna.
+  LLM_MODE: ""
+  # Com LLM_MODE=luna deixe MODEL_* vazios (vale LLM_LUNA_MODEL) ou use modelos do gateway.
+  # Com openrouter use os slugs do OpenRouter.
+  MODEL_EXTRACT: "gemini-2.5-flash-lite"
+  MODEL_PLANNER: "gemini-2.5-flash"
+  MODEL_COMPOSE: "gemini-2.5-flash-lite"
+  MODEL_CHEAP: "gemini-2.5-flash-lite"
+  LLM_LUNA_OPENAI_URL: "https://kong-ai-gtw.idp.nexus.superlogica.net/v1"
+  LLM_LUNA_MODEL: "gpt-6-luna"
+  GEMINI_PRICE_IN: "0.10"
+  GEMINI_PRICE_OUT: "0.40"
+
+  # Gruvi (identidade do morador pelo telefone)
+  GRUVI_BFF_URL: "https://b2c-nexus.superlogica.net/api/gruvi"
+  GRUVI_COMPANY_ID: "5982"
+
+  # ATENDE. Vazio: a resposta real ao morador fica desligada. Decisão de quem opera, pois o
+  # .env.example aponta para hml. Sem barra final, com /v2.
+  ATENDE_API_BASE_URL: ""
+
+  # Catálogo MCP. Vazio: o servidor MCP legado (Node, mcp/) não vai na imagem. Sem ele os
+  # recursos vêm do Nexus ou do instantâneo okf/nexus/<account>.yaml.
+  MCP_URL: ""
+  MCP_AUTH: "b2c"
+  MCP_B2C_URL: "https://api.superlogica.com/spaces/v1"
+  MCP_B2C_FINGERPRINT: "go-concierge"
+  # emptyDir montado em /app/okf/var (ver deployment.yaml)
+  MCP_TOKEN_FILE: "/app/okf/var/b2c.token"

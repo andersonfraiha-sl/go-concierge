@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,53 +19,19 @@ import (
 	"go-concierge/internal/okf"
 )
 
-// Admin da administradora: a matriz condomínio × caso de uso (habilitação e papéis),
-// restrita aos condomínios dela (?administradora=<id> emula o login; RLS). O resto é da
-// Superlógica, no Backdoor: administradoras e seus condomínios, casos de uso, tools,
-// recursos e o payload de cada recurso por condomínio.
+// API do mapeamento administradoras → condomínios → skills (habilitação, papéis,
+// orientações, ajustes), restrita aos condomínios da administradora do pedido
+// (?administradora=<id>; RLS). O Studio é quem usa. Até o Studio cobrir tudo, ficam três
+// telas antigas: /admin (matriz skills × condomínios), /backdoor/administradoras
+// (renomear administradora) e /backdoor/payloads (definições livres por recurso).
 
 func (s *servidor) rotasAdmin(mux *http.ServeMux) {
-	mux.HandleFunc("GET /backdoor", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "backdoor.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/payloads", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "payloads.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/administradoras", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "administradoras.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.HandleFunc("GET /backdoor/orquestracao", func(w http.ResponseWriter, r *http.Request) {
-		raw, err := fs.ReadFile(s.web, "orquestracao.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		w.Write(raw)
-	})
-	mux.Handle("GET /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminOrquestracao))
+	mux.HandleFunc("GET /admin", s.telaAntiga("index.html"))
+	mux.HandleFunc("GET /backdoor", s.telaAntiga("backdoor.html"))
+	mux.HandleFunc("GET /backdoor/orquestracao", s.telaAntiga("orquestracao.html"))
+	mux.HandleFunc("GET /backdoor/payloads", s.telaAntiga("payloads.html"))
+	mux.HandleFunc("GET /backdoor/administradoras", s.telaAntiga("administradoras.html"))
+	mux.Handle("GET /api/admin/orquestracao", s.protegidaEmAlgum(acesso.StudioAvancado, s.adminOrquestracao))
 	mux.Handle("PUT /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminSalvarOrquestracao))
 	// a resposta já vem recortada às administradoras visíveis ao usuário
 	mux.Handle("GET /api/admin/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.adminEstado))
@@ -93,6 +58,8 @@ type casoDeUso struct {
 	ID        string   `json:"id"`   // id do caso.yaml, se houver
 	Titulo    string   `json:"titulo"`
 	Descricao string   `json:"descricao"`
+	Resumo    string   `json:"resumo"` // caso: deriva de summary/description; sem caso: agent.yaml resumo
+	Icone     string   `json:"icone"`  // caso.icon; sem caso, vazio
 	Escrita   bool     `json:"escrita"`
 	Tipo      string   `json:"tipo"`
 	Recursos  []string `json:"recursos"` // o que o caso usa (agent.yaml e caso.yaml)
@@ -123,6 +90,9 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 			continue
 		}
 		c := casoDeUso{Nome: sub.Nome, Titulo: sub.Nome, Descricao: sub.Descricao, Tipo: sub.Tipo, Recursos: []string{}}
+		if resumo, ok := sub.Config["resumo"].(string); ok {
+			c.Resumo = resumo
+		}
 		visto := map[string]bool{}
 		for _, r := range sub.Recursos {
 			if !visto[r] {
@@ -138,6 +108,8 @@ func (s *servidor) casosDeUso() ([]casoDeUso, error) {
 			if d := strings.TrimSpace(sub.Caso.Description); d != "" {
 				c.Descricao = d // a descrição do caso fala com a administradora; a do agente é critério de rota
 			}
+			c.Resumo = okf.ResumoDe(sub.Caso.Summary, sub.Caso.Description)
+			c.Icone = sub.Caso.Icon
 			for _, r := range sub.Caso.Recursos {
 				if reg[r].Write {
 					c.Escrita = true
@@ -160,13 +132,13 @@ func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
 		s.responderErroInterno(w, r, "ler mapeamento", err)
 		return
 	}
-	// RLS: cada um vê só as administradoras que pode ler (a Superlógica, todas)
-	recorte, err := recorteDoUsuario(r, m.Administradoras)
+	// RLS: cada um vê só as administradoras que pode ler (a Superlógica, todas); quem só tem
+	// condomínios atribuídos vê esses condomínios.
+	m, visiveis, err := visaoDoEstado(r, m)
 	if err != nil {
 		responderErroDeAlvo(w, r, err)
 		return
 	}
-	m, visiveis := visaoPara(r, m, recorte)
 	casos, err := s.casosDeUso()
 	if err != nil {
 		s.responderErroInterno(w, r, "casos de uso", err)
@@ -189,7 +161,7 @@ func (s *servidor) adminEstado(w http.ResponseWriter, r *http.Request) {
 
 func (s *servidor) adminCriarAdministradora(w http.ResponseWriter, r *http.Request) {
 	var a admin.Administradora
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+	if err := decodificarJSON(w, r, &a, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -203,7 +175,7 @@ func (s *servidor) adminCriarAdministradora(w http.ResponseWriter, r *http.Reque
 
 func (s *servidor) adminEditarAdministradora(w http.ResponseWriter, r *http.Request) {
 	var a admin.Administradora
-	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+	if err := decodificarJSON(w, r, &a, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -225,7 +197,7 @@ func (s *servidor) adminRemoverAdministradora(w http.ResponseWriter, r *http.Req
 
 func (s *servidor) adminCriarCondominio(w http.ResponseWriter, r *http.Request) {
 	var c admin.Condominio
-	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+	if err := decodificarJSON(w, r, &c, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -247,7 +219,7 @@ func (s *servidor) adminCriarCondominio(w http.ResponseWriter, r *http.Request) 
 // aqui vão para o repositório, que recusa se mudaram desde esta conferência.
 func (s *servidor) adminEditarCondominio(w http.ResponseWriter, r *http.Request) {
 	var c admin.Condominio
-	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+	if err := decodificarJSON(w, r, &c, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -292,7 +264,7 @@ func (s *servidor) adminHabilitacao(w http.ResponseWriter, r *http.Request) {
 		Papeis     []string `json:"papeis"`
 		Limpar     bool     `json:"limpar"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -309,7 +281,7 @@ func (s *servidor) adminPayload(w http.ResponseWriter, r *http.Request) {
 		Payload    map[string]any `json:"payload"`
 		Apagar     bool           `json:"apagar"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -333,7 +305,7 @@ func (s *servidor) adminSugerirPayload(w http.ResponseWriter, r *http.Request) {
 		Texto      string         `json:"texto"`
 		Atual      map[string]any `json:"atual"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -365,7 +337,7 @@ func (s *servidor) adminOrientacao(w http.ResponseWriter, r *http.Request) {
 		Geral      string            `json:"geral"`
 		PorCaso    map[string]string `json:"por_caso"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -380,7 +352,7 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 		Condominio string                    `json:"condominio"`
 		Ajustes    map[string]map[string]any `json:"ajustes"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}
@@ -388,6 +360,20 @@ func (s *servidor) adminAjustes(w http.ResponseWriter, r *http.Request) {
 	s.escrever(w, r, http.StatusOK, func(admin.Mapeamento) (admin.Mapeamento, error) {
 		return s.admin.SalvarAjustes(r.Context(), alvoDaEscrita(r, corpo.Condominio), corpo.Ajustes)
 	})
+}
+
+// telaAntiga serve uma página de web/okf que o Studio ainda não substituiu.
+func (s *servidor) telaAntiga(arquivo string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw, err := fs.ReadFile(s.web, arquivo)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(raw)
+	}
 }
 
 // codigoConflitoConcorrente é o código que o Admin recebe para repetir o pedido.
@@ -497,7 +483,7 @@ func (s *servidor) adminOrquestracao(w http.ResponseWriter, r *http.Request) {
 
 func (s *servidor) adminSalvarOrquestracao(w http.ResponseWriter, r *http.Request) {
 	var corpo harness.Orquestracao
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
+	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
 		writeErr(w, 400, err)
 		return
 	}

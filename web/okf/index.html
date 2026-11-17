@@ -22,8 +22,8 @@
     </div>
     <nav class="app-switch" aria-label="Área">
       <a href="/console"><i data-lucide="messages-square" class="i-sm"></i>Atendente</a>
-      <a href="/" class="is-active"><i data-lucide="settings-2" class="i-sm"></i>Admin</a>
-      <a href="/backdoor"><i data-lucide="door-open" class="i-sm"></i>Backdoor</a>
+      <a href="/admin" class="is-active"><i data-lucide="settings-2" class="i-sm"></i>Admin (antigo)</a>
+      <a href="/studio/"><i data-lucide="layout-dashboard" class="i-sm"></i>Studio</a>
     </nav>
     <div class="env">
       <label class="chip" id="chipAdm" title="Entrar como esta administradora (emula o login; no produto vem do RLS)"><i data-lucide="building" class="i-sm"></i><select class="chip-select" id="selAdm"><option value="">administradora</option></select></label>
@@ -37,6 +37,9 @@
       <a href="#/condominios" data-secao="condominios"><i data-lucide="building-2"></i><span>Condomínios</span><em>quem a administradora atende</em></a>
       <span class="nav-label">Mapeamento</span>
       <a href="#/casos" data-secao="casos"><i data-lucide="list-checks"></i><span>Casos de uso</span><em>o que cada condomínio pode usar</em></a>
+      <span class="nav-label">Telas antigas</span>
+      <a href="/backdoor/administradoras"><i data-lucide="building"></i><span>Administradoras</span><em>renomear e ver os condomínios de cada uma</em></a>
+      <a href="/backdoor/payloads"><i data-lucide="sliders-horizontal"></i><span>Definições livres</span><em>chaves de cada recurso por condomínio</em></a>
       <p class="nav-dica" style="margin-top:18px">Sem mapeamento para um condomínio, vale o <b>Padrão (todos)</b>. Um caso de uso sem entrada está habilitado para todos.</p>
     </nav>
 

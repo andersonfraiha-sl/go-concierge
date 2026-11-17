@@ -102,6 +102,9 @@ type Confirmacao struct {
 	Resposta string          `json:"resposta,omitempty"` // sim | nao
 	Por      string          `json:"por,omitempty"`      // morador | atendente
 	Quando   time.Time       `json:"quando,omitempty"`
+	// Ganchos: o Texto é a pergunta que os ganchos fizeram antes de um recurso do caso (uma
+	// regra que pede confirmação); a confirmação do caso, se houve, já foi respondida.
+	Ganchos bool `json:"ganchos,omitempty"`
 }
 
 type Resultado struct {

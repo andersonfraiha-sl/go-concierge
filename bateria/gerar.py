@@ -109,6 +109,47 @@ CENARIOS = [
     {"id": "c-reserva-sem-data", "tipo": "acao-fluxo", "nivel": 3, "turnos": ["quero reservar a churrasqueira"], "rota": ["reserva-area-comum"], "contem_qualquer": ["data", "dia", "quando"], "descricao": "sem data: pergunta a data"},
 ]
 
+# Padrões das conversas reais do Atende (out/2026), reescritos sem texto real. A meta mínima
+# é empatar com o bot atual, sem pedir CPF a quem o telefone já identifica.
+CENARIOS_ATENDE = [
+    {"id": "atende-boleto-seco", "tipo": "consulta", "nivel": 1, "turnos": ["boleto"], "rota": ["boleto"], "nao_contem": ["cpf", "opção inválida"], "descricao": "uma palavra só, sem menu"},
+    {"id": "atende-boleto-mes", "tipo": "consulta", "nivel": 1, "turnos": ["preciso do boleto desse mês"], "rota": ["boleto"], "nao_contem": ["cpf"], "descricao": "2ª via com morador identificado pelo telefone"},
+    {"id": "atende-boleto-2via", "tipo": "consulta", "nivel": 2, "turnos": ["me manda a 2 via do condominio pfv"], "rota": ["boleto"], "nao_contem": ["cpf", "aceite"], "descricao": "abreviação e sem acento"},
+    {"id": "atende-boleto-linha", "tipo": "consulta", "nivel": 2, "turnos": ["qual a linha digitável pra eu pagar no app do banco?"], "rota": ["boleto"], "descricao": "pede só a linha digitável"},
+    {"id": "atende-boleto-pix", "tipo": "consulta", "nivel": 2, "turnos": ["dá pra pagar o condomínio no pix?"], "rota": ["boleto", "faq"], "descricao": "pix do boleto"},
+    {"id": "atende-boleto-vencido", "tipo": "consulta", "nivel": 3, "turnos": ["meu boleto venceu semana passada, manda outro atualizado"], "rota": ["boleto"], "descricao": "vencido recente"},
+    {"id": "atende-boleto-antigo", "tipo": "consulta", "nivel": 4, "turnos": ["preciso dos boletos de março e abril que ficaram em aberto"], "rota": ["boleto", "transbordo"], "nao_contem": ["indisponível."], "descricao": "vencido há mais de 30 dias: explica e oferece atendente"},
+    {"id": "atende-boleto-proprietario", "tipo": "consulta", "nivel": 4, "turnos": ["sou proprietário, o inquilino disse que não recebeu o boleto, pode me mandar?"], "rota": ["boleto"], "descricao": "proprietário pedindo pelo inquilino"},
+    {"id": "atende-boleto-depois-oi", "tipo": "consulta-fluxo", "nivel": 2, "turnos": ["oi bom dia", "queria a segunda via"], "rota": ["boleto"], "nao_contem": ["cpf"], "descricao": "saudação e depois o pedido"},
+    {"id": "atende-comprovante", "tipo": "consulta", "nivel": 2, "turnos": ["já paguei, segue o comprovante"], "rota": ["pagamento"], "nao_contem": ["opção inválida", "cpf"], "descricao": "comprovante confere o pagamento, não vira opção inválida"},
+    {"id": "atende-paguei-consta", "tipo": "consulta", "nivel": 1, "turnos": ["já paguei o condomínio, consta aí?"], "rota": ["pagamento"], "nao_contem": ["cpf"], "descricao": "confirmação de pagamento sem pedir CPF"},
+    {"id": "atende-paguei-em-aberto", "tipo": "consulta", "nivel": 3, "turnos": ["paguei ontem e ainda aparece em aberto no app"], "rota": ["pagamento"], "nao_contem": ["dei baixa"], "descricao": "não promete baixa, explica compensação"},
+    {"id": "atende-acordo", "tipo": "consulta", "nivel": 3, "turnos": ["quero parcelar as taxas atrasadas, como faço acordo?"], "rota": ["debito", "transbordo"], "nao_contem": ["desconto"], "descricao": "acordo resume o débito e vai para humano"},
+    {"id": "atende-debito-quanto", "tipo": "consulta", "nivel": 1, "turnos": ["quanto eu devo de condomínio?"], "rota": ["debito"], "nao_contem": ["cpf"], "descricao": "débito sem pedir CPF"},
+    {"id": "atende-documentos-ata", "tipo": "consulta", "nivel": 1, "turnos": ["me manda a ata da última assembleia"], "rota": ["documentos"], "nao_contem": ["cpf"], "descricao": "ata publicada sai sem humano"},
+    {"id": "atende-documentos-contas", "tipo": "consulta", "nivel": 2, "turnos": ["onde vejo a prestação de contas do condomínio?"], "rota": ["documentos"], "descricao": "prestação de contas é documento publicado"},
+    {"id": "atende-chamado-portao", "tipo": "acao", "nivel": 2, "turnos": ["o portão da garagem quebrou de novo"], "rota": ["chamado"], "nao_contem": ["cpf"], "descricao": "manutenção vira chamado, não opção inválida"},
+    {"id": "atende-chamado-lampada", "tipo": "acao", "nivel": 2, "turnos": ["a lâmpada do corredor do 3º andar queimou"], "rota": ["chamado"], "descricao": "ocorrência simples vira chamado"},
+    {"id": "atende-valor-errado", "tipo": "transbordo", "nivel": 4, "turnos": ["o valor do boleto veio errado, cobraram multa que eu não devo"], "rota": ["self", "transbordo"], "descricao": "contestação de valor é humano"},
+    {"id": "atende-pede-humano", "tipo": "transbordo", "nivel": 1, "turnos": ["quero falar com um atendente"], "rota": ["transbordo"], "descricao": "pedido explícito de humano"},
+    {"id": "atende-emergencia", "tipo": "transbordo", "nivel": 5, "turnos": ["tem cheiro forte de gás no corredor do meu andar"], "rota": ["transbordo", "self"], "contem_qualquer": ["193", "bombeiro", "emergência"], "descricao": "emergência tem canal próprio, mesmo fora do horário"},
+    {"id": "atende-saudacao-vazia", "tipo": "social", "nivel": 1, "turnos": ["oi"], "rota": ["self"], "contem_qualquer": ["ajudar", "posso"], "descricao": "saudação sem pedido: pergunta como ajudar"},
+    {"id": "atende-auto-resposta", "tipo": "fora", "nivel": 3, "turnos": ["Olá! Recebemos sua mensagem e retornaremos em breve. Horário de atendimento: seg a sex."], "rota": ["self"], "nao_contem": ["boleto", "unidade"], "descricao": "eco de outro bot não abre atendimento"},
+    {"id": "atende-lead", "tipo": "fora", "nivel": 3, "turnos": ["vocês fazem administração de condomínio? queria um orçamento pro meu prédio"], "rota": ["self"], "descricao": "lead comercial fora do fluxo de morador"},
+    {"id": "atende-mudanca-livre", "tipo": "acao", "nivel": 2, "turnos": ["vou me mudar dia 20, preciso reservar o elevador"], "rota": ["agendar-mudanca"], "descricao": "assunto que hoje só o humano resolve"},
+    {"id": "atende-reserva-livre", "tipo": "acao", "nivel": 2, "turnos": ["quero usar o salão no aniversário do meu filho dia 15"], "rota": ["reserva-area-comum"], "descricao": "assunto que hoje só o humano resolve"},
+    {"id": "atende-cadastro-livre", "tipo": "acao", "nivel": 2, "turnos": ["mudei meu email, atualiza aí no cadastro"], "rota": ["atualizacao-cadastral"], "descricao": "assunto que hoje só o humano resolve"},
+]
+
+# Boleto ganhou rota própria: 2ª via, pix e linha vão para `boleto`; vencimento aceita as duas.
+def rota_do_boleto(c):
+    texto = c["turnos"][-1].lower()
+    if "boleto" not in texto or "faq" not in c["rota"]:
+        return c
+    so_boleto = any(p in texto for p in ("segunda via", "pix", "linha"))
+    rotas = [r for r in c["rota"] if r != "faq"] if so_boleto else list(c["rota"])
+    return {**c, "rota": list(dict.fromkeys(["boleto"] + rotas))}
+
 # transformações de estilo (nível sobe com elas)
 def sem_acentos(s): return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
 def giria(s): return s.replace("você", "vc").replace("por favor", "pfv").replace("também", "tb").replace("quero", "queria").replace("?", "??")
@@ -156,8 +197,8 @@ def gerar():
         ("meu vizinho faz barulho toda noite, o que eu faço?", ["regimento", "transbordo", "self"], "conflito entre vizinhos"),
         ("quero cancelar a reserva de sábado", ["reserva-area-comum", "self", "transbordo"], "cancelamento (sem recurso)"),
         ("perdi o código da encomenda", ["codigo-retirada"], "código perdido"),
-        ("o elevador está quebrado", ["transbordo", "self", "faq"], "ocorrência de manutenção"),
-        ("tem vazamento no meu teto, vem do apê de cima", ["transbordo", "self", "comunicar-obra"], "ocorrência urgente"),
+        ("o elevador está quebrado", ["chamado", "transbordo", "self", "faq"], "ocorrência de manutenção"),
+        ("tem vazamento no meu teto, vem do apê de cima", ["chamado", "transbordo", "self", "comunicar-obra"], "ocorrência urgente"),
         ("quero pagar o boleto por pix", ["faq", "self"], "pagamento"),
         ("preciso de uma declaração de quitação", ["transbordo", "self", "faq"], "documento"),
         ("libera a entrada do meu cachorro na piscina", ["regimento", "self"], "pedido que o regimento proíbe"),
@@ -181,7 +222,8 @@ def gerar():
         add({"id": f"{i}-{len(casos):03d}", "intencao": i, "tipo": tipo, "nivel": min(nivel, 5), "transformacao": nome, "turnos": [texto], "rota": rotas})
     for c in CENARIOS:
         casos.append({**c, "intencao": c["tipo"], "transformacao": "cenario"})
-    return casos[:N]
+    casos = [rota_do_boleto(c) for c in casos[:N]]
+    return casos + [{**c, "intencao": "atende", "transformacao": "cenario"} for c in CENARIOS_ATENDE]
 
 if __name__ == "__main__":
     casos = gerar()

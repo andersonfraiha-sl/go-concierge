@@ -2,6 +2,7 @@ package acesso
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"go-concierge/internal/escopo"
@@ -34,7 +35,9 @@ func TestPermitido(t *testing.T) {
 	operadorA := []Atribuicao{{"operador_administradora", admA(), ""}}
 	concGestor := []Concessao{{"A", "gestor_administradora", StudioAvancado}}
 	superl := []Atribuicao{{"admin_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
+	construtorSuperl := []Atribuicao{{"construtor_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
 	fixaA := escopo.Implantacao{AdministradoraFixa: "A"}
+	superlogica := Escopo{Tipo: TipoSuperlogica}
 
 	tests := []struct {
 		name string
@@ -68,6 +71,12 @@ func TestPermitido(t *testing.T) {
 		{"duas atribuicoes: concessao de A nao vale em c9 de B", base([]Atribuicao{{"gestor_administradora", admA(), ""}, {"operador_administradora", Escopo{TipoAdministradora, "B"}, ""}}, concGestor, escopo.Implantacao{}), StudioAvancado, cond("c9"), false},
 		{"atribuicao de condominio sem dona nega", base([]Atribuicao{{"gestor_administradora", cond("c1"), ""}}, nil, escopo.Implantacao{}), SkillsLer, cond("c1"), false},
 		{"condominio sem administradora conhecida nega", base(gestorA, nil, escopo.Implantacao{}), SkillsLer, cond("zz"), false},
+		{"construtor tem ganchos.editar em superlogica", base(construtorSuperl, nil, escopo.Implantacao{}), GanchosEditar, superlogica, true},
+		{"gestor de A nao tem ganchos.editar mesmo com concessao de ganchos.editar", base(gestorA, []Concessao{{"A", "gestor_administradora", GanchosEditar}}, escopo.Implantacao{}), GanchosEditar, superlogica, false},
+		{"gestor de A nao tem ganchos.editar mesmo com concessao de studio.avancado", base(gestorA, concGestor, escopo.Implantacao{}), GanchosEditar, superlogica, false},
+		{"gestor de A tem ganchos.historico no condominio c1 de A", base(gestorA, nil, escopo.Implantacao{}), GanchosHistorico, cond("c1"), true},
+		{"gestor de A nao tem ganchos.historico no condominio c9 de B", base(gestorA, nil, escopo.Implantacao{}), GanchosHistorico, cond("c9"), false},
+		{"administradora fixa A nega ganchos.editar ao admin superlogica", base(superl, nil, fixaA), GanchosEditar, superlogica, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,6 +84,51 @@ func TestPermitido(t *testing.T) {
 				t.Errorf("Permitido(%s, %+v) = %v, want %v", tt.perm, tt.alvo, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGestorDecideEEditaEtapasNaCamada(t *testing.T) {
+	gestorA := []Atribuicao{{"gestor_administradora", admA(), ""}}
+	operadorA := []Atribuicao{{"operador_administradora", admA(), ""}}
+	construtor := []Atribuicao{{"construtor_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
+	adminSuperlogica := []Atribuicao{{"admin_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}
+	superlogica := Escopo{Tipo: TipoSuperlogica}
+
+	tests := []struct {
+		name string
+		a    Acesso
+		perm Permissao
+		alvo Escopo
+		want bool
+	}{
+		{"gestor edita etapas na administradora", base(gestorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, admA(), true},
+		{"gestor edita etapas no condominio dela", base(gestorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, cond("c1"), true},
+		{"gestor nao edita etapas em condominio de outra", base(gestorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, cond("c9"), false},
+		{"gestor decide atualizacao no condominio dela", base(gestorA, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, cond("c1"), true},
+		{"gestor nao decide atualizacao em condominio de outra", base(gestorA, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, cond("c9"), false},
+		{"gestor nao publica a base", base(gestorA, nil, escopo.Implantacao{}), SkillsPublicarBase, superlogica, false},
+		{"gestor nao publica a base nem na administradora", base(gestorA, nil, escopo.Implantacao{}), SkillsPublicarBase, admA(), false},
+		{"operador nao edita etapas", base(operadorA, nil, escopo.Implantacao{}), SkillsEditarEtapas, admA(), false},
+		{"operador nao decide atualizacao", base(operadorA, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, admA(), false},
+		{"construtor publica a base", base(construtor, nil, escopo.Implantacao{}), SkillsPublicarBase, superlogica, true},
+		{"construtor edita etapas herdado do gestor", base(construtor, nil, escopo.Implantacao{}), SkillsEditarEtapas, cond("c9"), true},
+		{"construtor decide atualizacao herdado do gestor", base(construtor, nil, escopo.Implantacao{}), SkillsDecidirAtualizacao, cond("c9"), true},
+		{"admin superlogica publica a base herdado", base(adminSuperlogica, nil, escopo.Implantacao{}), SkillsPublicarBase, superlogica, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Permitido(tt.a, tt.perm, tt.alvo); got != tt.want {
+				t.Errorf("Permitido(%s, %+v) = %v, want %v", tt.perm, tt.alvo, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPermissoesEmAlgumListaAsDasCamadasNaOrdemDasConstantes(t *testing.T) {
+	got := PermissoesEmAlgum(base([]Atribuicao{{"construtor_superlogica", Escopo{Tipo: TipoSuperlogica}, ""}}, nil, escopo.Implantacao{}))
+	i := slices.Index(got, SkillsExcluir)
+	if i < 0 || !slices.Equal(got[i+1:i+4], []Permissao{SkillsEditarEtapas, SkillsDecidirAtualizacao, SkillsPublicarBase}) {
+		t.Errorf("PermissoesEmAlgum = %v, quer as três permissões das camadas logo depois de %s", got, SkillsExcluir)
 	}
 }
 
@@ -148,5 +202,62 @@ func TestAtribuicaoDeCondominioPerdeValidadeQuandoCondominioMuda(t *testing.T) {
 	a.Concessoes = []Concessao{{"B", "gestor_administradora", StudioAvancado}}
 	if Permitido(a, StudioAvancado, cond("c1")) {
 		t.Error("concessão da nova administradora vazou para atribuição obsoleta")
+	}
+}
+
+func naAdm(papel, adm string) []Atribuicao {
+	return []Atribuicao{{PapelID: papel, Escopo: Escopo{TipoAdministradora, adm}}}
+}
+
+func TestPermissoesEmAlgum(t *testing.T) {
+	casos := []struct {
+		nome   string
+		ats    []Atribuicao
+		conc   []Concessao
+		tem    []Permissao
+		naoTem []Permissao
+	}{
+		{"operador", naAdm("operador_administradora", "A"), nil, []Permissao{SkillsLer}, []Permissao{CondominiosHabilitar, StudioAvancado}},
+		{"gestor sem concessão", naAdm("gestor_administradora", "A"), nil, []Permissao{SkillsEditarTextos}, []Permissao{StudioAvancado}},
+		{"gestor com concessão", naAdm("gestor_administradora", "A"), []Concessao{{AdministradoraID: "A", PapelID: "gestor_administradora", Permissao: StudioAvancado}}, []Permissao{StudioAvancado}, nil},
+		{"sem papel", nil, nil, nil, []Permissao{SkillsLer}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			got := PermissoesEmAlgum(base(c.ats, c.conc, escopo.Implantacao{}))
+			if got == nil {
+				t.Fatal("PermissoesEmAlgum = nil")
+			}
+			for _, p := range c.tem {
+				if !slices.Contains(got, p) {
+					t.Errorf("falta %s em %v", p, got)
+				}
+			}
+			for _, p := range c.naoTem {
+				if slices.Contains(got, p) {
+					t.Errorf("sobra %s em %v", p, got)
+				}
+			}
+		})
+	}
+}
+
+func TestPapelPrincipal(t *testing.T) {
+	casos := []struct {
+		nome string
+		ats  []Atribuicao
+		quer string
+	}{
+		{"admin vence operador", []Atribuicao{{PapelID: "operador_administradora", Escopo: admA()}, {PapelID: "admin_superlogica", Escopo: Escopo{Tipo: TipoSuperlogica}}}, "admin_superlogica"},
+		{"só gestor", naAdm("gestor_administradora", "A"), "gestor_administradora"},
+		{"sem atribuição", nil, ""},
+		{"condomínio com dona mudada é ignorado", []Atribuicao{{PapelID: "gestor_administradora", Escopo: cond("c1"), AdministradoraID: "B"}}, ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			if got := PapelPrincipal(base(c.ats, nil, escopo.Implantacao{})); got != c.quer {
+				t.Fatalf("PapelPrincipal = %q, quer %q", got, c.quer)
+			}
+		})
 	}
 }

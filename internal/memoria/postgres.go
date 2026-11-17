@@ -15,6 +15,7 @@ import (
 	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/sqlc"
 	"go-concierge/internal/escopo"
+	"go-concierge/internal/falha"
 )
 
 // timeoutConsulta limita cada leitura ou gravação da memória.
@@ -39,7 +40,7 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Memoria, error) {
 	lote := banco.NovoLote()
 	p.LerNoLote(ctx, lote, c, func(lida Memoria) { m = lida })
 	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
-		return Memoria{}, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err)
+		return Memoria{}, falha.ComPilha(fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err))
 	}
 	return m, nil
 }
@@ -87,7 +88,7 @@ func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, m Memoria) erro
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
 	if err := p.b.SQL.GravarFatos(ctx, paramsDeGravacao(comoGuardada(c, m, time.Now()))); err != nil {
-		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), err)
+		return falha.ComPilha(fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), err))
 	}
 	return nil
 }
@@ -104,14 +105,14 @@ func (p *Postgres) Listar(ctx context.Context, administradoraID string) ([]Memor
 		Where(memoriacontato.AdministradoraID(administradoraID)).
 		All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("listar memórias da administradora %s: %w", administradoraID, err)
+		return nil, falha.ComPilha(fmt.Errorf("listar memórias da administradora %s: %w", administradoraID, err))
 	}
 	fatos, err := p.b.Ent.MemoriaFato.Query().
 		Where(memoriafato.AdministradoraID(administradoraID)).
 		Order(ent.Asc(memoriafato.FieldID)).
 		All(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("listar fatos da administradora %s: %w", administradoraID, err)
+		return nil, falha.ComPilha(fmt.Errorf("listar fatos da administradora %s: %w", administradoraID, err))
 	}
 	return juntar(contatos, fatos), nil
 }

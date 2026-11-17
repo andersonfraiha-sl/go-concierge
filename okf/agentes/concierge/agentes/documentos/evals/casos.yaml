@@ -1,0 +1,12 @@
+- nome: ata não pede CPF
+  pergunta: me manda a ata da última assembleia
+  nao_contem:
+  - CPF
+  - caso de uso
+  - recurso
+- nome: prestação de contas não vaza termos internos
+  pergunta: onde vejo a prestação de contas?
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota

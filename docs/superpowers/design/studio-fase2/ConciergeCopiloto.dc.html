@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Studio · Concierge com Copiloto</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1034F2}a:hover{color:#0A24B8}
+</style>
+</helmet>
+<div style="min-height: 980px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #22252B; display: flex; flex-direction: column; position: relative">
+  <header style="height: 58px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC; display: flex; align-items: center; gap: 21px; padding: 0 34px">
+    <div style="display: flex; align-items: center; gap: 13px">
+      <div style="width: 34px; height: 34px; border-radius: 10px; background: #1034F2; display: flex; align-items: center; justify-content: center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18h16M6 18a6 6 0 0 1 12 0M12 9V7"></path></svg>
+      </div>
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px; color: #071950">Superlógica</span>
+      <span style="width: 1px; height: 21px; background: #DBDFE5"></span>
+      <span style="font-size: 15px; color: #536379">Concierge <strong style="color: #1034F2; font-weight: 600">Studio</strong></span>
+    </div>
+    <div style="flex: 1"></div>
+    <label style="display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #F8F9FB; color: #7789A3; font-size: 13px; width: 260px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+      <input aria-label="Buscar no Studio" placeholder="Buscar skill, condomínio…" style="border: 0; outline: 0; background: transparent; font: inherit; color: #22252B; flex: 1">
+    </label>
+    <a href="Concierge.dc.html" aria-pressed="true" style="height: 34px; padding: 0 14px; border-radius: 9px; background: #071950; color: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-decoration: none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg>Copiloto</a>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <div style="width: 32px; height: 32px; border-radius: 50%; background: #EEF1FE; color: #1034F2; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center">FC</div>
+      <div style="display: flex; flex-direction: column; line-height: 1.2"><span style="font-size: 13px; font-weight: 600">Felipe</span><span style="font-size: 11px; color: #637792">Construtor · Superlógica</span></div>
+    </div>
+  </header>
+  <div style="display: flex; flex: 1">
+    <nav aria-label="Seções" style="flex: 0 0 236px; background: #FFFFFF; border-right: 1px solid #E4E7EC; padding: 21px 13px; display: flex; flex-direction: column; gap: 3px; box-sizing: border-box">
+      <a href="Concierge.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 13px; border-radius: 10px; font-size: 14px; text-decoration: none; background: #EEF1FE; color: #1034F2; font-weight: 600">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 18h16M6 18a6 6 0 0 1 12 0M12 9V7"></path></svg>Concierge</a>
+      <a href="Main.dc.html" style="display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 13px; border-radius: 10px; font-size: 14px; text-decoration: none; color: #323B49">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"></path></svg>Skills</a>
+      <a href="Ferramentas.dc.html" style="display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 13px; border-radius: 10px; font-size: 14px; text-decoration: none; color: #323B49">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 7l3-3 3 3-3 3M17 4v9a4 4 0 0 1-4 4H4"></path></svg>Ferramentas</a>
+      <a href="Condominios.dc.html" style="display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 13px; border-radius: 10px; font-size: 14px; text-decoration: none; color: #323B49">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 21V5l8-2v18M12 9l8 2v10M8 9h1M8 13h1M8 17h1M16 14h1M16 18h1"></path></svg>Condomínios</a>
+      <a href="Avancado.dc.html" style="display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 13px; border-radius: 10px; font-size: 14px; text-decoration: none; color: #323B49">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Avançado</a>
+      <div style="height: 1px; background: #EDEFF2; margin: 13px 8px"></div>
+      <a href="#" style="display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 13px; border-radius: 10px; font-size: 14px; text-decoration: none; color: #536379">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"></path></svg>Atendente<span style="margin-left: auto; color: #A7B1C2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"></path></svg></span></a>
+    </nav>
+    <aside aria-label="Copiloto" style="flex: 0 0 380px; background: #FFFFFF; border-right: 1px solid #E4E7EC; display: flex; flex-direction: column; box-sizing: border-box">
+      <div style="height: 50px; padding: 0 21px; border-bottom: 1px solid #EDEFF2; display: flex; align-items: center; gap: 10px">
+        <div style="width: 26px; height: 26px; border-radius: 8px; background: #071950; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path></svg></div>
+        <span style="font-weight: 600; font-size: 14px; color: #071950">Copiloto</span>
+        <span style="font-size: 12px; color: #1B7A33; display: flex; align-items: center; gap: 5px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #1B993B"></span>Pronto</span>
+        <div style="flex: 1"></div>
+        <a href="Concierge.dc.html" aria-label="Fechar copiloto" style="width: 28px; height: 28px; border-radius: 7px; background: #F1F3F6; color: #536379; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+      </div>
+      <div style="flex: 1; padding: 21px; display: flex; flex-direction: column; gap: 13px; background: #FBFCFD">
+        <div style="align-self: flex-end; max-width: 85%; background: #E8EEFF; border-radius: 12px 12px 4px 12px; padding: 10px 13px; font-size: 13px; line-height: 1.55">Deixa a persona mais acolhedora e pede para ele sempre oferecer mais ajuda antes de encerrar.</div>
+        <div style="align-self: flex-start; max-width: 92%; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 12px 12px 12px 4px; padding: 10px 13px; font-size: 13px; line-height: 1.55">Mudei uma frase e acrescentei a despedida. O resto da persona fica igual. Confere:</div>
+        <div style="align-self: stretch; background: #FFFFFF; border: 1px solid #DBDFE5; border-radius: 12px; overflow: hidden">
+          <div style="padding: 10px 13px; background: #F8F9FB; border-bottom: 1px solid #EDEFF2; font-size: 12px; font-weight: 600; color: #536379">Persona e tom de voz</div>
+          <div style="padding: 13px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.5">
+            <div style="display: flex; gap: 8px; align-items: flex-start"><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 5px; background: #EEF1FE; color: #1034F2; white-space: nowrap">troca</span><span style="flex: 1; display: flex; flex-direction: column; gap: 5px"><span style="flex: 1; padding: 4px 8px; border-radius: 6px; background: #FDECEC; color: #B3191A; text-decoration: line-through; font-size: 13px">Fale como um vizinho prestativo: frases curtas, tom cordial, sem gírias.</span><span style="flex: 1; padding: 4px 8px; border-radius: 6px; background: #E8F5EC; color: #1B5E2A; font-size: 13px">Fale como um vizinho prestativo e gentil: frases curtas, calorosas, sem gírias.</span></span></div>
+            <div style="display: flex; gap: 8px; align-items: flex-start"><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 5px; background: #E8F5EC; color: #1B7A33; white-space: nowrap">nova frase</span><span style="flex: 1; padding: 4px 8px; border-radius: 6px; background: #E8F5EC; color: #1B5E2A; font-size: 13px">Antes de encerrar, pergunte se pode ajudar em mais alguma coisa.</span></div>
+          </div>
+          <div style="padding: 0 13px 10px; font-size: 11px; color: #7789A3">Vale para todas as skills e condomínios.</div>
+          <div style="padding: 10px 13px; border-top: 1px solid #EDEFF2; display: flex; gap: 8px">
+            <button type="button" style="flex: 1; height: 34px; border: 0; border-radius: 8px; background: #1034F2; color: #FFFFFF; font: 600 13px Inter, sans-serif; cursor: pointer">Aplicar</button>
+            <button type="button" style="flex: 1; height: 34px; border: 1px solid #E4E7EC; border-radius: 8px; background: #FFFFFF; color: #536379; font: 500 13px Inter, sans-serif; cursor: pointer">Descartar</button>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="font-size: 11px; font-weight: 600; color: #7789A3; text-transform: uppercase; letter-spacing: 0.06em">Sugestões</span>
+          <button type="button" style="text-align: left; padding: 9px 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #FFFFFF; font: 13px Inter, sans-serif; color: #323B49; cursor: pointer">Revise a persona para respostas curtas</button>
+          <button type="button" style="text-align: left; padding: 9px 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #FFFFFF; font: 13px Inter, sans-serif; color: #323B49; cursor: pointer">Escreva boas-vindas mais curtas</button>
+        </div>
+      </div>
+      <div style="padding: 13px 21px 21px; border-top: 1px solid #EDEFF2">
+        <div style="display: flex; align-items: flex-end; gap: 8px; border: 1px solid #DBDFE5; border-radius: 12px; padding: 8px 8px 8px 13px; background: #FFFFFF">
+          <textarea aria-label="Mensagem para o copiloto" placeholder="Peça uma mudança, uma explicação ou uma skill nova…" style="flex: 1; min-height: 42px; border: 0; outline: 0; resize: none; font: 13px/1.5 Inter, sans-serif; color: #22252B"></textarea>
+          <button type="button" aria-label="Enviar" style="width: 34px; height: 34px; border: 0; border-radius: 9px; background: #1034F2; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </div>
+        <div style="font-size: 11px; color: #7789A3; margin-top: 8px">Enter envia · Shift+Enter quebra linha · nada muda sem você aplicar</div>
+      </div>
+    </aside>
+    <main style="flex: 1 1 auto; min-width: 0; padding: 34px 55px; box-sizing: border-box; display: flex; flex-direction: column; gap: 21px; ">
+      <div style="display: flex; align-items: flex-end; gap: 21px">
+        <div style="flex: 1">
+          <h1 style="margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 26px; font-weight: 700; color: #071950; letter-spacing: -0.01em">Concierge</h1>
+          <p style="margin: 8px 0 0; font-size: 15px; color: #536379; line-height: 1.6; max-width: 640px">Quem conversa com o morador. O que você define aqui vale para todas as skills e condomínios.</p>
+        </div>
+        <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8A5A00"><span style="width: 7px; height: 7px; border-radius: 50%; background: #FFC02A"></span>1 mudança esperando você</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 21px"><section aria-labelledby="t-identidade" style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 13px; padding: 21px; display: flex; flex-direction: column; gap: 13px">
+  <div style="display: flex; align-items: flex-start; gap: 13px"><div style="flex: 1"><h2 id="t-identidade" style="margin: 0; font-size: 15px; font-weight: 600">Identidade</h2><p style="margin: 5px 0 0; font-size: 13px; color: #637792; line-height: 1.5">Como o concierge se apresenta e com quem ele conversa.</p></div></div>
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 13px; align-items: end">
+    <div style="display: flex; flex-direction: column; gap: 8px"><label for="nome-concierge" style="font-size: 13px; font-weight: 600; color: #323B49">Nome</label><input id="nome-concierge" value="Concierge Superlógica" style="height: 40px; padding: 0 13px; border: 1px solid #DBDFE5; border-radius: 10px; font: 14px Inter, sans-serif; color: #22252B; box-sizing: border-box"></div>
+    <div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: 13px; font-weight: 600; color: #323B49">Quem pode conversar</span><div style="display: flex; gap: 8px; flex-wrap: wrap"><button type="button" aria-pressed="true" style="font: 500 13px Inter, sans-serif; padding: 6px 13px; border-radius: 99px; border: 1px solid #1034F2; background: #EEF1FE; color: #1034F2; cursor: pointer">Morador identificado</button><button type="button" aria-pressed="false" style="font: 500 13px Inter, sans-serif; padding: 6px 13px; border-radius: 99px; border: 1px solid #DBDFE5; background: #FFFFFF; color: #536379; cursor: pointer">Qualquer contato</button></div></div>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center"><span style="font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; background: #E8F5EC; color: #1B7A33; white-space: nowrap">WhatsApp</span><span style="font-size: 12px; color: #7789A3">um número por administradora</span></div>
+</section><section aria-labelledby="t-persona" style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 13px; padding: 21px; display: flex; flex-direction: column; gap: 13px">
+  <div style="display: flex; align-items: flex-start; gap: 13px"><div style="flex: 1"><h2 id="t-persona" style="margin: 0; font-size: 15px; font-weight: 600">Persona e tom de voz</h2><p style="margin: 5px 0 0; font-size: 13px; color: #637792; line-height: 1.5">A voz do concierge em todas as respostas ao morador.</p></div><span style="font-size: 11px; font-weight: 600; color: #8A5A00; padding-top: 3px">proposta do Copiloto</span></div>
+  <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center"><span style="font-size: 13px; font-weight: 600; color: #323B49; margin-right: 5px">Tom</span><button type="button" aria-pressed="true" style="font: 500 13px Inter, sans-serif; padding: 6px 13px; border-radius: 99px; border: 1px solid #1034F2; background: #EEF1FE; color: #1034F2; cursor: pointer">Acolhedor</button><button type="button" aria-pressed="true" style="font: 500 13px Inter, sans-serif; padding: 6px 13px; border-radius: 99px; border: 1px solid #1034F2; background: #EEF1FE; color: #1034F2; cursor: pointer">Direto</button><button type="button" aria-pressed="false" style="font: 500 13px Inter, sans-serif; padding: 6px 13px; border-radius: 99px; border: 1px solid #DBDFE5; background: #FFFFFF; color: #536379; cursor: pointer">Formal</button><button type="button" aria-pressed="false" style="font: 500 13px Inter, sans-serif; padding: 6px 13px; border-radius: 99px; border: 1px solid #DBDFE5; background: #FFFFFF; color: #536379; cursor: pointer">Descontraído</button></div>
+  <div role="textbox" aria-multiline="true" aria-label="Texto da persona" style="padding: 13px; border: 1px solid #DBDFE5; border-radius: 10px; font: 14px/1.6 Inter, sans-serif; color: #22252B; background: #FFFFFF; min-height: 120px">Você é o concierge do condomínio no WhatsApp. <span style="background: #FFF7CC; border: 2px dashed #E0B400; border-radius: 4px; padding: 0 3px">Fale como um vizinho prestativo e gentil: frases curtas, calorosas, sem gírias.</span> Chame o morador pelo primeiro nome. Quando não souber, diga que vai verificar e ofereça falar com um atendente. Nunca prometa prazo que a administração não confirmou. <span style="background: #FFF7CC; border: 2px dashed #E0B400; border-radius: 4px; padding: 0 3px">Antes de encerrar, pergunte se pode ajudar em mais alguma coisa.</span></div>
+</section><section aria-labelledby="t-boas" style="background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 13px; padding: 21px; display: flex; flex-direction: column; gap: 13px">
+  <div style="display: flex; align-items: flex-start; gap: 13px"><div style="flex: 1"><h2 id="t-boas" style="margin: 0; font-size: 15px; font-weight: 600">Boas-vindas</h2><p style="margin: 5px 0 0; font-size: 13px; color: #637792; line-height: 1.5">A primeira mensagem de cada conversa. Os campos em azul são trocados pelos dados do morador.</p></div><button type="button" style="height: 34px; padding: 0 8px; border-radius: 9px; border: 0; background: transparent; color: #1034F2; font: 600 13px Inter, sans-serif; display: inline-flex; align-items: center; gap: 6px; cursor: pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Inserir campo</button></div>
+  <div role="textbox" aria-multiline="true" aria-label="Mensagem de boas-vindas" style="padding: 13px; border: 1px solid #DBDFE5; border-radius: 10px; font: 14px/1.6 Inter, sans-serif; color: #22252B; background: #FFFFFF">Oi, <span style="font-size: 12px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: #EEF1FE; color: #1034F2">Primeiro nome</span>! Sou o concierge do <span style="font-size: 12px; font-weight: 500; padding: 1px 7px; border-radius: 6px; background: #EEF1FE; color: #1034F2">Condomínio</span>. Posso agendar sua mudança, liberar um visitante, mandar a 2ª via do boleto e tirar dúvidas. Como posso ajudar?</div>
+</section></div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -48,7 +48,7 @@ func (Atribuicao) Annotations() []schema.Annotation {
 			"atribuicoes_escopo_tipo": "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
 			// só o escopo superlogica dispensa o id; os outros precisam dele
 			"atribuicoes_administradora_id": "(escopo_tipo = 'condominio') = (administradora_id IS NOT NULL)",
-			"atribuicoes_escopo_id": "(escopo_tipo = 'superlogica') = (escopo_id = '')",
+			"atribuicoes_escopo_id":         "(escopo_tipo = 'superlogica') = (escopo_id = '')",
 		},
 	}}
 }

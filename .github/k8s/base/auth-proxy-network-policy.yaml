@@ -1,0 +1,51 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: go-concierge-auth-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app: go-concierge-auth
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Sem `from`: o ALB (target-type: ip) chega direto no pod: trafego na
+    # 4455 e healthcheck /health/alive na 4456.
+    - ports:
+        - protocol: TCP
+          port: 4455
+        - protocol: TCP
+          port: 4456
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Upstream: pods do go-concierge no mesmo namespace.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: go-concierge
+      ports:
+        - protocol: TCP
+          port: 8080
+    # JWKS do Auth0 (login.superlogica.net / superlogica-prd.us.auth0.com).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

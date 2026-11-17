@@ -1,0 +1,17 @@
+{
+  "mensagem": "Pronto.",
+  "propostas": [
+    {
+      "id": "0",
+      "resumo": "Mudar os textos de Agendamento de Mudança",
+      "operacao": {
+        "tipo": "preencher_textos",
+        "skill": "agendar-mudanca",
+        "textos": {
+          "titulo": "Agendar mudança"
+        }
+      }
+    }
+  ],
+  "recusas": []
+}

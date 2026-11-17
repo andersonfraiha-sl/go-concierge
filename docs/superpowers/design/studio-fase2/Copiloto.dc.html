@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Studio · Copiloto aberto</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F6F8}
+a{color:#1034F2}a:hover{color:#0A24B8}
+</style>
+</helmet>
+<div style="min-height: 980px; background: #F5F6F8; font-family: Inter, system-ui, sans-serif; color: #22252B; display: flex; flex-direction: column">
+  <header style="height: 58px; background: #FFFFFF; border-bottom: 1px solid #E4E7EC; display: flex; align-items: center; gap: 13px; padding: 0 34px">
+    <a href="Main.dc.html" aria-label="Voltar para Skills" style="width: 34px; height: 34px; border-radius: 9px; border: 1px solid #E4E7EC; display: flex; align-items: center; justify-content: center; color: #536379"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></a>
+    <div style="display: flex; flex-direction: column; line-height: 1.25">
+      <span style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px; color: #071950">Agendamento de mudança</span>
+      <span style="font-size: 12px; color: #637792">Skills · registra no sistema</span>
+    </div>
+    <div style="flex: 1"></div>
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8A5A00"><span style="width: 7px; height: 7px; border-radius: 50%; background: #FFC02A"></span>1 mudança esperando você</span>
+    <a href="Fluxo.dc.html" aria-pressed="true" style="height: 36px; padding: 0 14px; border-radius: 9px; background: #071950; color: #FFFFFF; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-decoration: none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg>Copiloto</a>
+  </header>
+  <nav aria-label="Abas da skill" style="background: #FFFFFF; border-bottom: 1px solid #E4E7EC; padding: 0 34px; display: flex; gap: 26px">
+    <a href="SkillQuandoUsar.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Quando usar</a>
+    <a href="Fluxo.dc.html" aria-current="page" style="padding: 13px 0; font-size: 14px; color: #1034F2; font-weight: 600; text-decoration: none; border-bottom: 2px solid #1034F2">Fluxo</a>
+    <a href="SkillRegras.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Regras</a>
+    <a href="SkillRegras.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Base de conhecimento</a>
+    <a href="SkillFerramentas.dc.html" style="padding: 13px 0; font-size: 14px; color: #536379; text-decoration: none">Ferramentas</a>
+  </nav>
+  <div style="display: flex; flex-wrap: wrap; flex: 1">
+    <aside aria-label="Copiloto" style="flex: 1 1 360px; max-width: 400px; background: #FFFFFF; border-right: 1px solid #E4E7EC; display: flex; flex-direction: column; box-sizing: border-box">
+      <div style="height: 50px; padding: 0 21px; border-bottom: 1px solid #EDEFF2; display: flex; align-items: center; gap: 10px">
+        <div style="width: 26px; height: 26px; border-radius: 8px; background: #071950; color: #FFFFFF; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9.4l-4.2 1.8L12 16l-1.8-4.8L6 9.4l4.2-1.8z"></path></svg></div>
+        <span style="font-weight: 600; font-size: 14px">Copiloto</span>
+        <span style="font-size: 12px; color: #1B7A33; display: flex; align-items: center; gap: 5px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #1B993B"></span>Pronto</span>
+        <div style="flex: 1"></div>
+        <a href="Fluxo.dc.html" aria-label="Fechar copiloto" style="width: 28px; height: 28px; border-radius: 7px; background: #F1F3F6; color: #536379; display: flex; align-items: center; justify-content: center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+      </div>
+      <div style="flex: 1; padding: 21px; display: flex; flex-direction: column; gap: 13px; background: #FBFCFD">
+        <div style="align-self: flex-end; max-width: 85%; background: #E8EEFF; border-radius: 12px 12px 4px 12px; padding: 10px 13px; font-size: 13px; line-height: 1.55">Pergunta o período antes da data, e coloca “noite” como opção também.</div>
+        <div style="align-self: flex-start; max-width: 92%; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 12px 12px 12px 4px; padding: 10px 13px; font-size: 13px; line-height: 1.55">Preparei duas mudanças no passo 3. Confere antes de eu aplicar:</div>
+        <div style="align-self: stretch; background: #FFFFFF; border: 1px solid #DBDFE5; border-radius: 12px; overflow: hidden">
+          <div style="padding: 10px 13px; background: #F8F9FB; border-bottom: 1px solid #EDEFF2; font-size: 12px; font-weight: 600; color: #536379">Passo 3 · Perguntar</div>
+          <div style="padding: 13px; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+            <div style="display: flex; gap: 8px; align-items: flex-start"><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 5px; background: #EEF1FE; color: #1034F2">ordem</span><span>Período vem antes da data</span></div>
+            <div style="display: flex; gap: 8px; align-items: flex-start"><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 5px; background: #E8F5EC; color: #1B7A33">nova opção</span><span>Noite · 18h às 21h</span></div>
+          </div>
+          <div style="padding: 10px 13px; border-top: 1px solid #EDEFF2; display: flex; gap: 8px">
+            <button type="button" style="flex: 1; height: 34px; border: 0; border-radius: 8px; background: #1034F2; color: #FFFFFF; font: 600 13px Inter, sans-serif; cursor: pointer">Aplicar</button>
+            <button type="button" style="flex: 1; height: 34px; border: 1px solid #E4E7EC; border-radius: 8px; background: #FFFFFF; color: #536379; font: 500 13px Inter, sans-serif; cursor: pointer">Descartar</button>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+          <span style="font-size: 11px; font-weight: 600; color: #7789A3; text-transform: uppercase; letter-spacing: 0.06em">Sugestões</span>
+          <button type="button" style="text-align: left; padding: 9px 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #FFFFFF; font: 13px Inter, sans-serif; color: #323B49; cursor: pointer">Deixa a confirmação mais curta</button>
+          <button type="button" style="text-align: left; padding: 9px 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #FFFFFF; font: 13px Inter, sans-serif; color: #323B49; cursor: pointer">Explica o que este fluxo faz</button>
+          <button type="button" style="text-align: left; padding: 9px 13px; border: 1px solid #E4E7EC; border-radius: 10px; background: #FFFFFF; font: 13px Inter, sans-serif; color: #323B49; cursor: pointer">Cria uma skill de segunda via de boleto</button>
+        </div>
+      </div>
+      <div style="padding: 13px 21px 21px; border-top: 1px solid #EDEFF2">
+        <div style="display: flex; align-items: flex-end; gap: 8px; border: 1px solid #DBDFE5; border-radius: 12px; padding: 8px 8px 8px 13px; background: #FFFFFF">
+          <textarea aria-label="Mensagem para o copiloto" placeholder="Peça uma mudança, uma explicação ou uma skill nova…" style="flex: 1; min-height: 42px; border: 0; outline: 0; resize: none; font: 13px/1.5 Inter, sans-serif; color: #22252B"></textarea>
+          <button type="button" aria-label="Enviar" style="width: 34px; height: 34px; border: 0; border-radius: 9px; background: #1034F2; color: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+        </div>
+        <div style="font-size: 11px; color: #7789A3; margin-top: 8px">Enter envia · Shift+Enter quebra linha · nada muda sem você aplicar</div>
+      </div>
+    </aside>
+    <section aria-label="Fluxo" style="flex: 999 1 560px; min-width: 0; padding: 34px; box-sizing: border-box; background-color: #F5F6F8; background-image: radial-gradient(#D0D4DB 1px, transparent 1px); background-size: 21px 21px; display: flex; flex-direction: column; align-items: center">
+      <div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #00838F; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #00838F; width: 18px">1</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #00838F; text-transform: uppercase; letter-spacing: 0.05em">Buscar dados</div><div style="font-size: 14px; margin-top: 3px">Unidades do morador</div></div></div>
+      <div style="width: 2px; height: 21px; background: #C1CAD6"></div>
+      <div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #7B1FA2; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #7B1FA2; width: 18px">2</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #7B1FA2; text-transform: uppercase; letter-spacing: 0.05em">Pedir escolha</div><div style="font-size: 14px; margin-top: 3px">“Para qual unidade é a mudança?”</div></div></div>
+      <div style="width: 2px; height: 21px; background: #C1CAD6"></div>
+      <div style="width: 420px; background: #FFF7CC; border: 2px dashed #E0B400; border-left: 4px solid #7B1FA2; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #7B1FA2; width: 18px">3</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #7B1FA2; text-transform: uppercase; letter-spacing: 0.05em">Perguntar</div><div style="font-size: 14px; margin-top: 3px">Período (manhã, tarde, noite) e data</div></div><span style="font-size: 11px; font-weight: 600; color: #8A5A00">proposta</span></div>
+      <div style="width: 2px; height: 21px; background: #C1CAD6"></div>
+      <div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #1034F2; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #1034F2; width: 18px">4</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #1034F2; text-transform: uppercase; letter-spacing: 0.05em">Confirmar</div><div style="font-size: 14px; margin-top: 3px">“Confirma a mudança em 15/11, manhã?”</div></div></div>
+      <div style="width: 2px; height: 21px; background: #C1CAD6"></div>
+      <div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #EF6C00; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #C25E00; width: 18px">5</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #C25E00; text-transform: uppercase; letter-spacing: 0.05em">Gravar no sistema</div><div style="font-size: 14px; margin-top: 3px">Agenda a mudança e reserva o elevador</div></div></div>
+      <div style="width: 2px; height: 21px; background: #C1CAD6"></div>
+      <div style="width: 420px; background: #FFFFFF; border: 1px solid #DBDFE5; border-left: 4px solid #455A64; border-radius: 12px; padding: 13px 16px; display: flex; gap: 13px; align-items: center"><span style="font-size: 11px; font-weight: 600; color: #455A64; width: 18px">6</span><div style="flex: 1"><div style="font-size: 11px; font-weight: 600; color: #455A64; text-transform: uppercase; letter-spacing: 0.05em">Responder</div><div style="font-size: 14px; margin-top: 3px">“Sua mudança foi agendada! Protocolo…”</div></div></div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

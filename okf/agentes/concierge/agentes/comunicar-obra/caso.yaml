@@ -1,6 +1,7 @@
 # Trazido do sl-concierge (_default/60_comunicar_obra.yaml). O harness executa estes passos; a escrita só acontece aqui, depois do confirm.
 id: comunicar_obra
 name: Comunicação de Obra
+summary: Avisa a administração sobre uma obra e libera os prestadores.
 visibility: private
 icon: hammer
 description: >

@@ -1,0 +1,6 @@
+nome: boleto
+tipo: operador
+descricao: 'Segunda via do boleto do condomínio: lista as cobranças em aberto da unidade e passa valor, vencimento, linha digitável, Pix e link. Caso de uso: Segunda Via de Boleto.'
+recursos:
+- gruvi.bff.mobile.fetch-fees-controller-handle-1
+- gruvi.bff.mobile.get-fee-by-id-controller-handle-2

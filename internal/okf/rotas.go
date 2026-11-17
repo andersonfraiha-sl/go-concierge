@@ -1,10 +1,13 @@
 package okf
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -132,14 +135,7 @@ func RegistrarRota(pai, nome, descricao string) (string, error) {
 			return "", nil
 		}
 	}
-	criterio := strings.TrimSpace(descricao)
-	if criterio == "" {
-		criterio = "assunto de " + nome
-	}
-	criterio = strings.TrimRight(criterio, ".;")
-	r := []rune(criterio)
-	criterio = strings.ToUpper(string(r[0])) + string(r[1:])
-	novo := quebrar(fmt.Sprintf("- %s → rota `%s`.", criterio, nome), 78, "  ")
+	novo := linhasDaRota(nome, descricao)
 
 	onde := pontoDeEntrada(bl)
 	if onde < len(bl) && len(bl[onde]) > 0 && strings.HasPrefix(strings.TrimSpace(bl[onde][0]), "#") {
@@ -157,6 +153,40 @@ func RegistrarRota(pai, nome, descricao string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("rota '%s' criada em %s/routers/%s", nome, filepath.Base(pai), arquivoRotas), nil
+}
+
+// linhasDaRota monta o item `- <critério> → rota `nome`.` já quebrado em 78 colunas.
+func linhasDaRota(nome, descricao string) []string {
+	criterio := strings.TrimSpace(descricao)
+	if criterio == "" {
+		criterio = "assunto de " + nome
+	}
+	criterio = strings.TrimRight(criterio, ".;")
+	r := []rune(criterio)
+	criterio = strings.ToUpper(string(r[0])) + string(r[1:])
+	return quebrar(fmt.Sprintf("- %s → rota `%s`.", criterio, nome), 78, "  ")
+}
+
+// TrocarRota reescreve o item da rota no mesmo lugar do arquivo; sem o item, registra como novo.
+func TrocarRota(pai, nome, descricao string) (string, error) {
+	arq := caminhoRotas(pai)
+	raw, err := os.ReadFile(arq)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil // pai sem routers/: roteia pela descrição, nada a fazer
+	}
+	if err != nil {
+		return "", err
+	}
+	bl := blocos(strings.Split(strings.TrimRight(string(raw), "\n"), "\n"))
+	i := slices.IndexFunc(bl, func(b []string) bool { return rotaDoBloco(b) == nome })
+	if i < 0 {
+		return RegistrarRota(pai, nome, descricao)
+	}
+	bl[i] = linhasDaRota(nome, descricao)
+	if err := os.WriteFile(arq, []byte(strings.Join(slices.Concat(bl...), "\n")+"\n"), 0o644); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("rota '%s' atualizada em %s/routers/%s", nome, filepath.Base(pai), arquivoRotas), nil
 }
 
 // quebrar: textwrap simples por palavras, com indentação nas continuações.

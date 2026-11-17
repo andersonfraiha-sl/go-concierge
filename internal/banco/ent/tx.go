@@ -18,10 +18,18 @@ type Tx struct {
 	Administradora *AdministradoraClient
 	// Atribuicao is the client for interacting with the Atribuicao builders.
 	Atribuicao *AtribuicaoClient
+	// CatalogoArquivo is the client for interacting with the CatalogoArquivo builders.
+	CatalogoArquivo *CatalogoArquivoClient
 	// Concessao is the client for interacting with the Concessao builders.
 	Concessao *ConcessaoClient
 	// Condominio is the client for interacting with the Condominio builders.
 	Condominio *CondominioClient
+	// GanchosAuditoria is the client for interacting with the GanchosAuditoria builders.
+	GanchosAuditoria *GanchosAuditoriaClient
+	// GanchosRegra is the client for interacting with the GanchosRegra builders.
+	GanchosRegra *GanchosRegraClient
+	// GanchosRegraVersao is the client for interacting with the GanchosRegraVersao builders.
+	GanchosRegraVersao *GanchosRegraVersaoClient
 	// Habilitacao is the client for interacting with the Habilitacao builders.
 	Habilitacao *HabilitacaoClient
 	// MemoriaContato is the client for interacting with the MemoriaContato builders.
@@ -42,6 +50,14 @@ type Tx struct {
 	PedidoEvento *PedidoEventoClient
 	// Sessao is the client for interacting with the Sessao builders.
 	Sessao *SessaoClient
+	// SkillAtualizacao is the client for interacting with the SkillAtualizacao builders.
+	SkillAtualizacao *SkillAtualizacaoClient
+	// SkillAviso is the client for interacting with the SkillAviso builders.
+	SkillAviso *SkillAvisoClient
+	// SkillCamada is the client for interacting with the SkillCamada builders.
+	SkillCamada *SkillCamadaClient
+	// SkillVersao is the client for interacting with the SkillVersao builders.
+	SkillVersao *SkillVersaoClient
 	// Usuario is the client for interacting with the Usuario builders.
 	Usuario *UsuarioClient
 
@@ -177,8 +193,12 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.Administradora = NewAdministradoraClient(tx.config)
 	tx.Atribuicao = NewAtribuicaoClient(tx.config)
+	tx.CatalogoArquivo = NewCatalogoArquivoClient(tx.config)
 	tx.Concessao = NewConcessaoClient(tx.config)
 	tx.Condominio = NewCondominioClient(tx.config)
+	tx.GanchosAuditoria = NewGanchosAuditoriaClient(tx.config)
+	tx.GanchosRegra = NewGanchosRegraClient(tx.config)
+	tx.GanchosRegraVersao = NewGanchosRegraVersaoClient(tx.config)
 	tx.Habilitacao = NewHabilitacaoClient(tx.config)
 	tx.MemoriaContato = NewMemoriaContatoClient(tx.config)
 	tx.MemoriaFato = NewMemoriaFatoClient(tx.config)
@@ -189,6 +209,10 @@ func (tx *Tx) init() {
 	tx.Pedido = NewPedidoClient(tx.config)
 	tx.PedidoEvento = NewPedidoEventoClient(tx.config)
 	tx.Sessao = NewSessaoClient(tx.config)
+	tx.SkillAtualizacao = NewSkillAtualizacaoClient(tx.config)
+	tx.SkillAviso = NewSkillAvisoClient(tx.config)
+	tx.SkillCamada = NewSkillCamadaClient(tx.config)
+	tx.SkillVersao = NewSkillVersaoClient(tx.config)
 	tx.Usuario = NewUsuarioClient(tx.config)
 }
 

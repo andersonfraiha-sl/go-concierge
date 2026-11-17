@@ -20,6 +20,7 @@ import (
 
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/sqlc"
+	"go-concierge/internal/falha"
 )
 
 const timeoutConexao = 5 * time.Second
@@ -50,11 +51,11 @@ func Abrir(ctx context.Context, url string, ajustes ...func(*pgxpool.Config)) (B
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		return Banco{}, fmt.Errorf("abrir pool do postgres: %w", err)
+		return Banco{}, falha.ComPilha(fmt.Errorf("abrir pool do postgres: %w", err))
 	}
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
-		return Banco{}, fmt.Errorf("ping no postgres: %w", err)
+		return Banco{}, falha.ComPilha(fmt.Errorf("ping no postgres: %w", err))
 	}
 	drv := entsql.OpenDB(dialect.Postgres, stdlib.OpenDBFromPool(pool))
 	return Banco{Pool: pool, Ent: ent.NewClient(ent.Driver(drv)), SQL: sqlc.New(pool)}, nil
@@ -92,7 +93,7 @@ func Migrar(ctx context.Context, b Banco) (err error) {
 		}
 	}()
 	if _, err := p.Up(ctx); err != nil {
-		return fmt.Errorf("aplicar migrations: %w", err)
+		return falha.ComPilha(fmt.Errorf("aplicar migrations: %w", err))
 	}
 	return nil
 }

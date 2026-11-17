@@ -1,0 +1,60 @@
+{
+  "fluxo": {
+    "blocos": [
+      { "id": "b1", "tipo": "buscar_dados", "recurso": "unidades.listar", "guardarEm": "unidades" },
+      {
+        "id": "b2",
+        "tipo": "pedir_escolha",
+        "param": "unidade",
+        "titulo": "Unidade",
+        "de": "unidades",
+        "rotulo": "label",
+        "valor": "id",
+        "pergunta": "Para qual unidade é a mudança?",
+        "seVazio": "Não encontrei unidades vinculadas ao seu cadastro. Por favor, entre em contato com a administração.",
+        "reaproveitar": "always"
+      },
+      { "id": "b3", "tipo": "perguntar", "campos": ["data_mudanca", "periodo_mudanca"] },
+      {
+        "id": "b4",
+        "tipo": "confirmar",
+        "texto": "Confirma o agendamento da mudança para a unidade {{.unidade_label}} em {{.data_mudanca_label}}, {{.periodo_mudanca_label}}? (sim/não)"
+      },
+      {
+        "id": "b5",
+        "tipo": "gravar_no_sistema",
+        "recurso": "mudancas.agendar",
+        "com": [
+          { "campo": "unidade_id", "valor": "{{.unidade}}" },
+          { "campo": "data", "valor": "{{.data_mudanca}}" },
+          { "campo": "periodo", "valor": "{{.periodo_mudanca}}" }
+        ],
+        "guardarEm": "agendamento"
+      },
+      {
+        "id": "b6",
+        "tipo": "responder",
+        "texto": "Sua mudança para {{.unidade_label}} em {{.data_mudanca_label}}, {{.periodo_mudanca_label}}, foi agendada com sucesso! Protocolo: {{.agendamento.protocolo}}. O elevador de serviço estará reservado para você."
+      }
+    ],
+    "informacoes": [
+      {
+        "nome": "data_mudanca",
+        "titulo": "Data da mudança",
+        "pergunta": "Para qual data você gostaria de agendar a mudança?",
+        "extra": { "validate": "date" }
+      },
+      {
+        "nome": "periodo_mudanca",
+        "titulo": "Período da mudança",
+        "pergunta": "Qual período você prefere para a mudança?",
+        "opcoes": [
+          { "valor": "manha", "rotulo": "Manhã (8h às 12h)" },
+          { "valor": "tarde", "rotulo": "Tarde (13h às 18h)" }
+        ]
+      }
+    ]
+  },
+  "versao": "3f9c1a7e5b2d4086",
+  "problemas": []
+}

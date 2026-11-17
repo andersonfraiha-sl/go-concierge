@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go-concierge/internal/falha"
 )
 
 const (
@@ -102,12 +104,12 @@ func (c *Client) Identidade(ctx context.Context, phone string) (Identidade, erro
 	req.Header.Set("Accept", "application/json")
 	res, err := c.HTTP.Do(req)
 	if err != nil {
-		return id, fmt.Errorf("gruvi bff: %w", err)
+		return id, falha.ComPilha(fmt.Errorf("gruvi bff: %w", err))
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(res.Body, 4<<20))
 	if res.StatusCode >= 300 {
-		return id, fmt.Errorf("gruvi bff: HTTP %d: %s", res.StatusCode, truncar(string(raw), 300))
+		return id, falha.ComPilha(fmt.Errorf("gruvi bff: HTTP %d: %s", res.StatusCode, truncar(string(raw), 300)))
 	}
 	var corpo any
 	if err := json.Unmarshal(raw, &corpo); err != nil {

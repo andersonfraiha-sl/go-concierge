@@ -5,8 +5,12 @@ package ent
 import (
 	"go-concierge/internal/banco/ent/administradora"
 	"go-concierge/internal/banco/ent/atribuicao"
+	"go-concierge/internal/banco/ent/catalogoarquivo"
 	"go-concierge/internal/banco/ent/concessao"
 	"go-concierge/internal/banco/ent/condominio"
+	"go-concierge/internal/banco/ent/ganchosauditoria"
+	"go-concierge/internal/banco/ent/ganchosregra"
+	"go-concierge/internal/banco/ent/ganchosregraversao"
 	"go-concierge/internal/banco/ent/habilitacao"
 	"go-concierge/internal/banco/ent/memoriacontato"
 	"go-concierge/internal/banco/ent/memoriafato"
@@ -18,7 +22,14 @@ import (
 	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/banco/ent/schema"
 	"go-concierge/internal/banco/ent/sessao"
+	"go-concierge/internal/banco/ent/skillatualizacao"
+	"go-concierge/internal/banco/ent/skillaviso"
+	"go-concierge/internal/banco/ent/skillcamada"
+	"go-concierge/internal/banco/ent/skillversao"
 	"go-concierge/internal/banco/ent/usuario"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -53,6 +64,16 @@ func init() {
 	atribuicaoDescEscopoID := atribuicaoFields[3].Descriptor()
 	// atribuicao.DefaultEscopoID holds the default value on creation for the escopo_id field.
 	atribuicao.DefaultEscopoID = atribuicaoDescEscopoID.Default.(string)
+	catalogoarquivoFields := schema.CatalogoArquivo{}.Fields()
+	_ = catalogoarquivoFields
+	// catalogoarquivoDescSha256 is the schema descriptor for sha256 field.
+	catalogoarquivoDescSha256 := catalogoarquivoFields[2].Descriptor()
+	// catalogoarquivo.Sha256Validator is a validator for the "sha256" field. It is called by the builders before save.
+	catalogoarquivo.Sha256Validator = catalogoarquivoDescSha256.Validators[0].(func(string) error)
+	// catalogoarquivoDescID is the schema descriptor for id field.
+	catalogoarquivoDescID := catalogoarquivoFields[0].Descriptor()
+	// catalogoarquivo.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	catalogoarquivo.IDValidator = catalogoarquivoDescID.Validators[0].(func(string) error)
 	concessaoFields := schema.Concessao{}.Fields()
 	_ = concessaoFields
 	// concessaoDescAdministradoraID is the schema descriptor for administradora_id field.
@@ -89,6 +110,100 @@ func init() {
 	condominioDescID := condominioFields[0].Descriptor()
 	// condominio.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	condominio.IDValidator = condominioDescID.Validators[0].(func(string) error)
+	ganchosauditoriaFields := schema.GanchosAuditoria{}.Fields()
+	_ = ganchosauditoriaFields
+	// ganchosauditoriaDescOrigem is the schema descriptor for origem field.
+	ganchosauditoriaDescOrigem := ganchosauditoriaFields[2].Descriptor()
+	// ganchosauditoria.OrigemValidator is a validator for the "origem" field. It is called by the builders before save.
+	ganchosauditoria.OrigemValidator = ganchosauditoriaDescOrigem.Validators[0].(func(string) error)
+	// ganchosauditoriaDescEvento is the schema descriptor for evento field.
+	ganchosauditoriaDescEvento := ganchosauditoriaFields[3].Descriptor()
+	// ganchosauditoria.EventoValidator is a validator for the "evento" field. It is called by the builders before save.
+	ganchosauditoria.EventoValidator = ganchosauditoriaDescEvento.Validators[0].(func(string) error)
+	// ganchosauditoriaDescGancho is the schema descriptor for gancho field.
+	ganchosauditoriaDescGancho := ganchosauditoriaFields[4].Descriptor()
+	// ganchosauditoria.GanchoValidator is a validator for the "gancho" field. It is called by the builders before save.
+	ganchosauditoria.GanchoValidator = ganchosauditoriaDescGancho.Validators[0].(func(string) error)
+	// ganchosauditoriaDescRegraID is the schema descriptor for regra_id field.
+	ganchosauditoriaDescRegraID := ganchosauditoriaFields[5].Descriptor()
+	// ganchosauditoria.DefaultRegraID holds the default value on creation for the regra_id field.
+	ganchosauditoria.DefaultRegraID = ganchosauditoriaDescRegraID.Default.(string)
+	// ganchosauditoriaDescRegraVersao is the schema descriptor for regra_versao field.
+	ganchosauditoriaDescRegraVersao := ganchosauditoriaFields[6].Descriptor()
+	// ganchosauditoria.DefaultRegraVersao holds the default value on creation for the regra_versao field.
+	ganchosauditoria.DefaultRegraVersao = ganchosauditoriaDescRegraVersao.Default.(int)
+	// ganchosauditoriaDescDecisao is the schema descriptor for decisao field.
+	ganchosauditoriaDescDecisao := ganchosauditoriaFields[7].Descriptor()
+	// ganchosauditoria.DecisaoValidator is a validator for the "decisao" field. It is called by the builders before save.
+	ganchosauditoria.DecisaoValidator = ganchosauditoriaDescDecisao.Validators[0].(func(string) error)
+	// ganchosauditoriaDescAdministradoraID is the schema descriptor for administradora_id field.
+	ganchosauditoriaDescAdministradoraID := ganchosauditoriaFields[9].Descriptor()
+	// ganchosauditoria.DefaultAdministradoraID holds the default value on creation for the administradora_id field.
+	ganchosauditoria.DefaultAdministradoraID = ganchosauditoriaDescAdministradoraID.Default.(string)
+	// ganchosauditoriaDescCondominioID is the schema descriptor for condominio_id field.
+	ganchosauditoriaDescCondominioID := ganchosauditoriaFields[10].Descriptor()
+	// ganchosauditoria.DefaultCondominioID holds the default value on creation for the condominio_id field.
+	ganchosauditoria.DefaultCondominioID = ganchosauditoriaDescCondominioID.Default.(string)
+	// ganchosauditoriaDescSessaoID is the schema descriptor for sessao_id field.
+	ganchosauditoriaDescSessaoID := ganchosauditoriaFields[11].Descriptor()
+	// ganchosauditoria.DefaultSessaoID holds the default value on creation for the sessao_id field.
+	ganchosauditoria.DefaultSessaoID = ganchosauditoriaDescSessaoID.Default.(string)
+	// ganchosauditoriaDescProtocolo is the schema descriptor for protocolo field.
+	ganchosauditoriaDescProtocolo := ganchosauditoriaFields[12].Descriptor()
+	// ganchosauditoria.DefaultProtocolo holds the default value on creation for the protocolo field.
+	ganchosauditoria.DefaultProtocolo = ganchosauditoriaDescProtocolo.Default.(string)
+	// ganchosauditoriaDescUsuarioID is the schema descriptor for usuario_id field.
+	ganchosauditoriaDescUsuarioID := ganchosauditoriaFields[13].Descriptor()
+	// ganchosauditoria.DefaultUsuarioID holds the default value on creation for the usuario_id field.
+	ganchosauditoria.DefaultUsuarioID = ganchosauditoriaDescUsuarioID.Default.(string)
+	// ganchosauditoriaDescTela is the schema descriptor for tela field.
+	ganchosauditoriaDescTela := ganchosauditoriaFields[14].Descriptor()
+	// ganchosauditoria.DefaultTela holds the default value on creation for the tela field.
+	ganchosauditoria.DefaultTela = ganchosauditoriaDescTela.Default.(string)
+	// ganchosauditoriaDescFerramenta is the schema descriptor for ferramenta field.
+	ganchosauditoriaDescFerramenta := ganchosauditoriaFields[15].Descriptor()
+	// ganchosauditoria.DefaultFerramenta holds the default value on creation for the ferramenta field.
+	ganchosauditoria.DefaultFerramenta = ganchosauditoriaDescFerramenta.Default.(string)
+	// ganchosauditoriaDescQuantidade is the schema descriptor for quantidade field.
+	ganchosauditoriaDescQuantidade := ganchosauditoriaFields[16].Descriptor()
+	// ganchosauditoria.DefaultQuantidade holds the default value on creation for the quantidade field.
+	ganchosauditoria.DefaultQuantidade = ganchosauditoriaDescQuantidade.Default.(int)
+	// ganchosauditoriaDescID is the schema descriptor for id field.
+	ganchosauditoriaDescID := ganchosauditoriaFields[0].Descriptor()
+	// ganchosauditoria.DefaultID holds the default value on creation for the id field.
+	ganchosauditoria.DefaultID = ganchosauditoriaDescID.Default.(func() uuid.UUID)
+	ganchosregraFields := schema.GanchosRegra{}.Fields()
+	_ = ganchosregraFields
+	// ganchosregraDescNome is the schema descriptor for nome field.
+	ganchosregraDescNome := ganchosregraFields[2].Descriptor()
+	// ganchosregra.NomeValidator is a validator for the "nome" field. It is called by the builders before save.
+	ganchosregra.NomeValidator = ganchosregraDescNome.Validators[0].(func(string) error)
+	// ganchosregraDescEvento is the schema descriptor for evento field.
+	ganchosregraDescEvento := ganchosregraFields[3].Descriptor()
+	// ganchosregra.EventoValidator is a validator for the "evento" field. It is called by the builders before save.
+	ganchosregra.EventoValidator = ganchosregraDescEvento.Validators[0].(func(string) error)
+	// ganchosregraDescAdministradoraID is the schema descriptor for administradora_id field.
+	ganchosregraDescAdministradoraID := ganchosregraFields[4].Descriptor()
+	// ganchosregra.DefaultAdministradoraID holds the default value on creation for the administradora_id field.
+	ganchosregra.DefaultAdministradoraID = ganchosregraDescAdministradoraID.Default.(string)
+	// ganchosregraDescCondominios is the schema descriptor for condominios field.
+	ganchosregraDescCondominios := ganchosregraFields[5].Descriptor()
+	// ganchosregra.DefaultCondominios holds the default value on creation for the condominios field.
+	ganchosregra.DefaultCondominios = ganchosregraDescCondominios.Default.(schema.GanchosCondominios)
+	// ganchosregraDescAlteradaPor is the schema descriptor for alterada_por field.
+	ganchosregraDescAlteradaPor := ganchosregraFields[8].Descriptor()
+	// ganchosregra.DefaultAlteradaPor holds the default value on creation for the alterada_por field.
+	ganchosregra.DefaultAlteradaPor = ganchosregraDescAlteradaPor.Default.(string)
+	// ganchosregraDescID is the schema descriptor for id field.
+	ganchosregraDescID := ganchosregraFields[0].Descriptor()
+	// ganchosregra.DefaultID holds the default value on creation for the id field.
+	ganchosregra.DefaultID = ganchosregraDescID.Default.(func() uuid.UUID)
+	ganchosregraversaoFields := schema.GanchosRegraVersao{}.Fields()
+	_ = ganchosregraversaoFields
+	// ganchosregraversaoDescAlteradaPor is the schema descriptor for alterada_por field.
+	ganchosregraversaoDescAlteradaPor := ganchosregraversaoFields[3].Descriptor()
+	// ganchosregraversao.DefaultAlteradaPor holds the default value on creation for the alterada_por field.
+	ganchosregraversao.DefaultAlteradaPor = ganchosregraversaoDescAlteradaPor.Default.(string)
 	habilitacaoFields := schema.Habilitacao{}.Fields()
 	_ = habilitacaoFields
 	// habilitacaoDescCaso is the schema descriptor for caso field.
@@ -213,6 +328,62 @@ func init() {
 	sessaoDescID := sessaoFields[0].Descriptor()
 	// sessao.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	sessao.IDValidator = sessaoDescID.Validators[0].(func(string) error)
+	skillatualizacaoFields := schema.SkillAtualizacao{}.Fields()
+	_ = skillatualizacaoFields
+	// skillatualizacaoDescPrazoAplicado is the schema descriptor for prazo_aplicado field.
+	skillatualizacaoDescPrazoAplicado := skillatualizacaoFields[5].Descriptor()
+	// skillatualizacao.DefaultPrazoAplicado holds the default value on creation for the prazo_aplicado field.
+	skillatualizacao.DefaultPrazoAplicado = skillatualizacaoDescPrazoAplicado.Default.(bool)
+	// skillatualizacaoDescDecididaPor is the schema descriptor for decidida_por field.
+	skillatualizacaoDescDecididaPor := skillatualizacaoFields[7].Descriptor()
+	// skillatualizacao.DefaultDecididaPor holds the default value on creation for the decidida_por field.
+	skillatualizacao.DefaultDecididaPor = skillatualizacaoDescDecididaPor.Default.(string)
+	// skillatualizacaoDescCriadoEm is the schema descriptor for criado_em field.
+	skillatualizacaoDescCriadoEm := skillatualizacaoFields[9].Descriptor()
+	// skillatualizacao.DefaultCriadoEm holds the default value on creation for the criado_em field.
+	skillatualizacao.DefaultCriadoEm = skillatualizacaoDescCriadoEm.Default.(func() time.Time)
+	skillavisoFields := schema.SkillAviso{}.Fields()
+	_ = skillavisoFields
+	// skillavisoDescMotivo is the schema descriptor for motivo field.
+	skillavisoDescMotivo := skillavisoFields[2].Descriptor()
+	// skillaviso.DefaultMotivo holds the default value on creation for the motivo field.
+	skillaviso.DefaultMotivo = skillavisoDescMotivo.Default.(string)
+	// skillavisoDescCientePor is the schema descriptor for ciente_por field.
+	skillavisoDescCientePor := skillavisoFields[5].Descriptor()
+	// skillaviso.DefaultCientePor holds the default value on creation for the ciente_por field.
+	skillaviso.DefaultCientePor = skillavisoDescCientePor.Default.(string)
+	// skillavisoDescCriadoEm is the schema descriptor for criado_em field.
+	skillavisoDescCriadoEm := skillavisoFields[7].Descriptor()
+	// skillaviso.DefaultCriadoEm holds the default value on creation for the criado_em field.
+	skillaviso.DefaultCriadoEm = skillavisoDescCriadoEm.Default.(func() time.Time)
+	skillcamadaFields := schema.SkillCamada{}.Fields()
+	_ = skillcamadaFields
+	// skillcamadaDescSkill is the schema descriptor for skill field.
+	skillcamadaDescSkill := skillcamadaFields[0].Descriptor()
+	// skillcamada.SkillValidator is a validator for the "skill" field. It is called by the builders before save.
+	skillcamada.SkillValidator = skillcamadaDescSkill.Validators[0].(func(string) error)
+	// skillcamadaDescRascunhoVersao is the schema descriptor for rascunho_versao field.
+	skillcamadaDescRascunhoVersao := skillcamadaFields[7].Descriptor()
+	// skillcamada.DefaultRascunhoVersao holds the default value on creation for the rascunho_versao field.
+	skillcamada.DefaultRascunhoVersao = skillcamadaDescRascunhoVersao.Default.(string)
+	skillversaoFields := schema.SkillVersao{}.Fields()
+	_ = skillversaoFields
+	// skillversaoDescAutor is the schema descriptor for autor field.
+	skillversaoDescAutor := skillversaoFields[7].Descriptor()
+	// skillversao.AutorValidator is a validator for the "autor" field. It is called by the builders before save.
+	skillversao.AutorValidator = skillversaoDescAutor.Validators[0].(func(string) error)
+	// skillversaoDescResumo is the schema descriptor for resumo field.
+	skillversaoDescResumo := skillversaoFields[8].Descriptor()
+	// skillversao.DefaultResumo holds the default value on creation for the resumo field.
+	skillversao.DefaultResumo = skillversaoDescResumo.Default.(string)
+	// skillversaoDescMotivo is the schema descriptor for motivo field.
+	skillversaoDescMotivo := skillversaoFields[9].Descriptor()
+	// skillversao.DefaultMotivo holds the default value on creation for the motivo field.
+	skillversao.DefaultMotivo = skillversaoDescMotivo.Default.(string)
+	// skillversaoDescCriadoEm is the schema descriptor for criado_em field.
+	skillversaoDescCriadoEm := skillversaoFields[12].Descriptor()
+	// skillversao.DefaultCriadoEm holds the default value on creation for the criado_em field.
+	skillversao.DefaultCriadoEm = skillversaoDescCriadoEm.Default.(func() time.Time)
 	usuarioFields := schema.Usuario{}.Fields()
 	_ = usuarioFields
 	// usuarioDescNome is the schema descriptor for nome field.

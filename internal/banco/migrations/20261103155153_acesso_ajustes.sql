@@ -8,7 +8,9 @@ ALTER TABLE "atribuicoes" ADD CONSTRAINT "atribuicoes_administradora_id" CHECK (
 
 -- +goose Down
 -- reverse: modify "atribuicoes" table
-ALTER TABLE "atribuicoes" DROP CONSTRAINT "atribuicoes_administradoras_administradora", DROP COLUMN "administradora_id", DROP CONSTRAINT "atribuicoes_administradora_id";
+-- as duas constraints têm de cair antes da coluna: DROP COLUMN já leva a CHECK junto (ela
+-- só existe por causa da coluna), e um DROP CONSTRAINT depois disso falha porque ela já foi.
+ALTER TABLE "atribuicoes" DROP CONSTRAINT "atribuicoes_administradoras_administradora", DROP CONSTRAINT "atribuicoes_administradora_id", DROP COLUMN "administradora_id";
 -- reverse: modify "papeis" table
 ALTER TABLE "papeis" DROP CONSTRAINT "papeis_papeis_filhos", ADD CONSTRAINT "papeis_papeis_herda" FOREIGN KEY ("herda_de") REFERENCES "papeis" ("id") ON UPDATE NO ACTION ON DELETE RESTRICT;
 -- reverse: drop index "papeis_herda_de_key" from table: "papeis"

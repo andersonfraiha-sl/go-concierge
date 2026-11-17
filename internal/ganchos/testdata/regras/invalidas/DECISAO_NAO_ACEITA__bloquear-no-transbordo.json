@@ -1,0 +1,20 @@
+{
+  "nome": "Regra de teste",
+  "evento": "transbordo_ou_encerramento",
+  "alvo": {},
+  "condicoes": [
+    {
+      "tipo": "fora_do_horario",
+      "inicio": "08:00",
+      "fim": "18:00",
+      "fonte": {
+        "tipo": "agora"
+      }
+    }
+  ],
+  "decisao": {
+    "tipo": "bloquear",
+    "mensagem": "Não posso fazer isso agora."
+  },
+  "ativa": true
+}

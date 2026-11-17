@@ -1,0 +1,18 @@
+- nome: já paguei não pede CPF
+  pergunta: já paguei o condomínio, consta aí?
+  nao_contem:
+  - CPF
+  - caso de uso
+  - recurso
+- nome: comprovante não vaza termos internos
+  pergunta: segue o comprovante de pagamento
+  nao_contem:
+  - caso de uso
+  - recurso
+  - rota
+- nome: não promete baixa
+  pergunta: paguei ontem e ainda aparece em aberto
+  nao_contem:
+  - dei baixa
+  - baixa realizada
+  - caso de uso
