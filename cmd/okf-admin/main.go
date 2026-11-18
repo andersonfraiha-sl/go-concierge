@@ -314,13 +314,7 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
-	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
-	mapeamento := admin.NovoCache(adminPG)
-	if _, err := mapeamento.Ler(context.Background()); err != nil {
-		log.Printf("okf-admin: mapeamento não aquecido no boot, o primeiro turno lê do banco: %v", err)
-	}
-	s.atende.Mapeamento = mapeamento
+	s.atende.Mapeamento = adminPG
 	if c, ok := harness.NovoCopiloto(s.atende.Config); ok {
 		s.copiloto = c
 	}

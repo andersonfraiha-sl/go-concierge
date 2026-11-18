@@ -109,7 +109,7 @@ Os campos têm a forma do `mapeamento` do pacote: ler, editar e devolver funcion
 - **Sem transação única.** Cada item é uma escrita própria. Se um falha no meio, a resposta traz `aplicados` (quantos passaram) e `falhou` (qual item, ex.: `condominios[cond-1]`), e o erro vem no mesmo formato das demais rotas.
 - **Reenviar é seguro.** Os itens são upserts e remover o que já não existe não é erro: o mesmo lote duas vezes deixa o mesmo estado.
 - **Recorte.** Com `?administradora=<id>` (ou `ADMINISTRADORA_ID` fixo na implantação, que vence o parâmetro), só entram a própria administradora, condomínios dela e o que é deles. Fora do recorte: outra administradora, o padrão `*`, condomínio de outra (inclusive um existente que o corpo tentaria tomar) e `company_id`/`tenant`, que decidem o roteamento das mensagens e só mudam sem recorte, como no Studio. Sem recorte, vale tudo.
-- **Efeito no turno.** A escrita passa pelo mesmo repositório do Studio e atualiza o cache de mapeamento que o turno lê, sem reiniciar. A leitura seguinte do pacote já traz o novo estado.
+- **Efeito no turno.** O turno e o pacote leem o mapeamento diretamente do Postgres. A leitura seguinte observa as escritas confirmadas pela integração, Studio ou SQL, sem reiniciar.
 
 ## Escrever arquivos do catálogo
 

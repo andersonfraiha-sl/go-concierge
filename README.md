@@ -42,7 +42,7 @@
 | **CPF e telefone** | iam inteiros pro LLM e pro histórico | mascarados em `mensagem_recebida`, no log e na auditoria |
 | **Regra por condomínio** ("reserva até 22h") | sem lugar | regra declarativa, editada no Studio, cache aquecido no boot |
 | **Escrita no mundo** | qualquer tool | só por passo do `caso.yaml`, depois do `confirm` |
-| **Idas ao banco antes da resposta** | 18 | 0 quente, 1 a frio |
+| **Idas ao banco antes da resposta** | 18 | Medição histórica: 0 quente, 1 a frio; atualmente há leitura direta do mapeamento |
 | **Decisão de bloqueio** | some no log | linha em `ganchos_auditoria`, visível no Studio |
 
 ## Arquitetura
@@ -73,7 +73,7 @@ flowchart TB
             Invocar --> GOut
         end
         subgraph Estado ["Estado em processo"]
-            Caches["memória · pedidos · sessões<br/>mapeamento (write-through)"]:::store
+            Caches["memória · pedidos · sessões"]:::store
             Regras["cache de regras<br/>internal/ganchos/regras"]:::store
         end
         Audit["auditoria<br/>internal/ganchos/auditoria"]:::core
@@ -129,7 +129,9 @@ flowchart TB
 
 ## Um turno
 
-Medido em [`medicoes/2026-11-03-turno.md`](docs/superpowers/medicoes/2026-11-03-turno.md) e [`medicoes/2026-11-03-ganchos.md`](docs/superpowers/medicoes/2026-11-03-ganchos.md): contato quente sem mudança de pedido faz **0 idas** ao Postgres antes do `Sender.Enviar`, também com 20 regras ativas e um bloqueio.
+As medições em [`medicoes/2026-11-03-turno.md`](docs/superpowers/medicoes/2026-11-03-turno.md) e [`medicoes/2026-11-03-ganchos.md`](docs/superpowers/medicoes/2026-11-03-ganchos.md) registraram **0 idas** ao Postgres antes do `Sender.Enviar` para contato quente sem mudança de pedido. São resultados históricos, anteriores à remoção do cache administrativo. Atualmente o turno consulta o mapeamento diretamente no Postgres, incluindo habilitações, payloads e orientações, para observar alterações por SQL sem reiniciar.
+
+O teste atual de consultas registra 21 comandos antes do envio para contato quente sem mudança de pedido: três leituras do mapeamento, cada uma com cinco SELECTs e abertura/fechamento da transação. Para contato frio ou abertura de pedido são 22; com bloqueio antecipado são 14. A latência após essa mudança ainda não foi medida. No refactor de identidade, essas leituras amplas deverão ser substituídas por consultas do contexto empresa/canal aplicável.
 
 ```mermaid
 sequenceDiagram
@@ -146,8 +148,8 @@ sequenceDiagram
     A->>W: POST /webhook/atende com HMAC
     W-->>A: 202, processa em segundo plano
     W->>T: Processar
-    T->>C: sessão, memória, pedidos, mapeamento, regras
-    Note over T,P: contato quente, 0 idas ao banco até o envio
+    T->>C: sessão, memória, pedidos, regras
+    T->>P: leituras diretas do mapeamento administrativo
     T->>T: ganchos mensagem_recebida, mascara CPF e telefone
     T->>X: motor do caso ou harness, ferramentas via invocar
     T->>T: ganchos antes_de_responder
@@ -156,6 +158,8 @@ sequenceDiagram
     T->>P: 1 lote com sessão, carteira adiada e auditoria
     T--)P: extração de memória em segundo plano
 ```
+
+Medições históricas, com cache administrativo:
 
 | Cenário | Idas antes do envio |
 |---|---|
@@ -170,7 +174,6 @@ Caches e locks por contato são em processo. Com duas réplicas nada corrompe o 
 
 - trocas simultâneas do mesmo telefone em réplicas diferentes podem perder um fato ou um pedido;
 - o cache de sessões (`Sessoes`) e os de memória e pedidos não revalidam contra o banco;
-- o cache do mapeamento só vê escrita do Admin desta réplica; `importar-json` com o servidor no ar só aparece depois de reiniciar;
 - o catálogo (skills, regras, instantâneo) mora no Postgres, mas cada réplica lê a sua cópia em disco, refeita no boot: uma edição só chega às outras réplicas quando elas reiniciam;
 - a sessão e as mudanças menores da carteira (valores, eventos) vão depois da resposta: se o processo cair nesse intervalo, elas se perdem.
 
@@ -288,7 +291,7 @@ Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome no
 | `internal/ganchos` | eventos, fixos, regras, PII, auditoria |
 | `internal/acesso` | papéis, permissões, escopos |
 | `internal/memoria` | fatos por contato, cache |
-| `internal/admin` | mapeamento de administradoras e condomínios, cache |
+| `internal/admin` | mapeamento de administradoras e condomínios, leitura direta do Postgres |
 | `internal/okf` | pasta de agente: carga, herança, fronteira, projeção, conhecimento OKF |
 | `internal/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/, diferença, cópia de trabalho |
 | `internal/banco` | migrations, sqlc, ent, `Lote` (vários `:batch*` numa ida) |

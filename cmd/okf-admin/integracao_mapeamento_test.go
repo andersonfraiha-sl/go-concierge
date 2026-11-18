@@ -15,15 +15,10 @@ import (
 	"go-concierge/internal/escopo"
 )
 
-// ambienteDeMapeamento troca o repositório do ambiente de integração por um Postgres real com
-// o cache do turno ligado a ele, como no main: adm-a e adm-b, cond-a (de adm-a) e cond-b (de
-// adm-b). O cache sobe aquecido, então uma escrita que não o atinge deixa o turno com o valor
-// velho.
-func ambienteDeMapeamento(t *testing.T) (ambienteRotas, *admin.Postgres, *admin.Cache) {
+func ambienteDeMapeamento(t *testing.T) (ambienteRotas, *admin.Postgres) {
 	t.Helper()
 	amb := ambienteDeIntegracao(t)
 	pg := admin.NovoPostgres(amb.s.banco.Ent)
-	cache := admin.NovoCache(pg)
 	ctx := t.Context()
 	for _, a := range []admin.Administradora{{ID: "adm-a", Nome: "A"}, {ID: "adm-b", Nome: "B"}} {
 		if _, err := pg.SalvarAdministradora(ctx, a); err != nil {
@@ -35,11 +30,8 @@ func ambienteDeMapeamento(t *testing.T) (ambienteRotas, *admin.Postgres, *admin.
 			t.Fatal(err)
 		}
 	}
-	amb.s.admin, amb.s.atende.Mapeamento = pg, cache
-	if _, err := cache.Ler(ctx); err != nil {
-		t.Fatal(err)
-	}
-	return amb, pg, cache
+	amb.s.admin, amb.s.atende.Mapeamento = pg, pg
+	return amb, pg
 }
 
 func chamarIntegracao(amb ambienteRotas, metodo, url, corpo string) *httptest.ResponseRecorder {
@@ -100,7 +92,7 @@ const loteCompleto = `{
 }`
 
 func TestMapeamentoExigeChaveDeIntegracao(t *testing.T) {
-	amb, _, _ := ambienteDeMapeamento(t)
+	amb, _ := ambienteDeMapeamento(t)
 	casos := []struct {
 		nome, autorizacao string
 		quer              int
@@ -143,34 +135,32 @@ func TestRotasDeEscritaNaoExistemSemChaveConfigurada(t *testing.T) {
 	}
 }
 
-// A escrita da integração tem de chegar ao cache que o turno lê, sem reiniciar: o Cache sobe
-// aquecido, então se a escrita não o atingisse ele devolveria o mapeamento de antes.
-func TestMapeamentoGravaEChegaAoCacheDoTurnoEAoPacote(t *testing.T) {
-	amb, pg, cache := ambienteDeMapeamento(t)
+func TestMapeamentoGravaEChegaAoTurnoEAoPacote(t *testing.T) {
+	amb, pg := ambienteDeMapeamento(t)
 	if w := putMapeamento(amb, "", loteCompleto); w.Code != http.StatusOK || lerResposta(t, w).Aplicados != 5 {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
 
-	doTurno, err := cache.Ler(t.Context())
+	doTurno, err := amb.s.atende.Mapeamento.Ler(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	doBanco := lerMapeamento(t, pg)
 	if !igual(t, doTurno, doBanco) {
-		t.Fatalf("cache do turno difere do banco:\ncache %+v\nbanco %+v", doTurno, doBanco)
+		t.Fatalf("mapeamento do turno difere do banco:\nturno %+v\nbanco %+v", doTurno, doBanco)
 	}
 	condo, ok := doTurno.Condominio("cond-x")
 	if !ok || condo.Administradora != "adm-x" || condo.Account != "acc-x" {
-		t.Fatalf("condomínio no cache do turno: %+v", condo)
+		t.Fatalf("condomínio no mapeamento do turno: %+v", condo)
 	}
 	if h := doTurno.Habilitacoes["cond-x"]["boleto"]; h.Habilitado || len(h.Papeis) != 1 {
-		t.Errorf("habilitação no cache do turno: %+v", h)
+		t.Errorf("habilitação no mapeamento do turno: %+v", h)
 	}
 	if o := doTurno.OrientacaoDe("cond-x"); o.Geral != "Falar com carinho" || o.PorCaso["boleto"] != "Só segunda via" {
-		t.Errorf("orientação no cache do turno: %+v", o)
+		t.Errorf("orientação no mapeamento do turno: %+v", o)
 	}
 	if p := doTurno.PayloadsDe("cond-x")["recurso.nome"]["chave"]; p != "valor" {
-		t.Errorf("payload no cache do turno: %v", p)
+		t.Errorf("payload no mapeamento do turno: %v", p)
 	}
 
 	var p pacote
@@ -183,8 +173,35 @@ func TestMapeamentoGravaEChegaAoCacheDoTurnoEAoPacote(t *testing.T) {
 	}
 }
 
+func TestMapeamentoDoTurnoRefleteHabilitacaoAlteradaPorSQL(t *testing.T) {
+	amb, pg := ambienteDeMapeamento(t)
+	ctx := t.Context()
+	if _, err := pg.SalvarHabilitacao(ctx, admin.Alvo{Dona: "adm-a", Condominio: "cond-a"}, "boleto", admin.Habilitacao{Habilitado: true}, false); err != nil {
+		t.Fatal(err)
+	}
+	if m := lerMapeamento(t, amb.s.atende.Mapeamento); !m.Habilitado("cond-a", "boleto", "morador") {
+		t.Fatal("caso deveria iniciar habilitado")
+	}
+	for _, habilitado := range []bool{false, true, false} {
+		resultado, err := amb.s.banco.Pool.Exec(ctx, "UPDATE habilitacoes SET habilitado = $1 WHERE condominio_id = $2 AND caso = $3", habilitado, "cond-a", "boleto")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resultado.RowsAffected() != 1 {
+			t.Fatalf("alteradas %d habilitações, quer 1", resultado.RowsAffected())
+		}
+		m := lerMapeamento(t, amb.s.atende.Mapeamento)
+		if obtido := m.Habilitado("cond-a", "boleto", "morador"); obtido != habilitado {
+			t.Fatalf("após SQL: habilitado = %v, quer %v", obtido, habilitado)
+		}
+		if !m.Habilitado("cond-b", "boleto", "morador") {
+			t.Fatal("alteração em cond-a afetou cond-b")
+		}
+	}
+}
+
 func TestMapeamentoReenviarOLoteNaoMudaNada(t *testing.T) {
-	amb, pg, cache := ambienteDeMapeamento(t)
+	amb, pg := ambienteDeMapeamento(t)
 	lote := `{"administradoras": [{"id": "adm-a", "nome": "A renomeada"}],
 	  "condominios": [{"id": "cond-a", "nome": "Cond A", "administradora_id": "adm-a", "account": "acc-a"}, {"id": "cond-novo", "nome": "Novo", "administradora_id": "adm-a"}],
 	  "habilitacoes": {"cond-a": {"boleto": {"habilitado": true}}, "*": {"reserva": {"habilitado": false}}},
@@ -204,8 +221,8 @@ func TestMapeamentoReenviarOLoteNaoMudaNada(t *testing.T) {
 	if depoisDoSegundo := lerMapeamento(t, pg); !igual(t, depoisDoPrimeiro, depoisDoSegundo) {
 		t.Fatalf("reenviar mudou o mapeamento:\n%+v\n%+v", depoisDoPrimeiro, depoisDoSegundo)
 	}
-	if noTurno, err := cache.Ler(t.Context()); err != nil || !igual(t, noTurno, depoisDoPrimeiro) {
-		t.Fatalf("cache do turno após o reenvio: %v %+v", err, noTurno)
+	if noTurno, err := amb.s.atende.Mapeamento.Ler(t.Context()); err != nil || !igual(t, noTurno, depoisDoPrimeiro) {
+		t.Fatalf("mapeamento do turno após o reenvio: %v %+v", err, noTurno)
 	}
 	if _, existe := depoisDoPrimeiro.Condominio("cond-b"); existe {
 		t.Error("cond-b devia ter sido removido")
@@ -233,7 +250,7 @@ func TestMapeamentoRecusaForaDoRecorteSemGravarNada(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			amb, pg, _ := ambienteDeMapeamento(t)
+			amb, pg := ambienteDeMapeamento(t)
 			antes := lerMapeamento(t, pg)
 			w := putMapeamento(amb, "?administradora=adm-a", c.corpo)
 			if w.Code != http.StatusForbidden || lerResposta(t, w).Codigo != "FORA_DO_RECORTE" {
@@ -247,7 +264,7 @@ func TestMapeamentoRecusaForaDoRecorteSemGravarNada(t *testing.T) {
 }
 
 func TestMapeamentoAceitaODentroDoRecorte(t *testing.T) {
-	amb, pg, cache := ambienteDeMapeamento(t)
+	amb, pg := ambienteDeMapeamento(t)
 	lote := `{"administradoras": [{"id": "adm-a", "nome": "A nova"}],
 	  "condominios": [{"id": "cond-a", "nome": "Cond A", "administradora_id": "adm-a", "account": "acc"}, {"id": "cond-novo", "nome": "Novo", "administradora_id": "adm-a"}],
 	  "habilitacoes": {"cond-novo": {"boleto": {"habilitado": true}}},
@@ -265,8 +282,8 @@ func TestMapeamentoAceitaODentroDoRecorte(t *testing.T) {
 	if b, _ := m.Administradora("adm-b"); b.Nome != "B" {
 		t.Errorf("a administradora de fora mudou: %+v", b)
 	}
-	if noTurno, _ := cache.Ler(t.Context()); !igual(t, noTurno, m) {
-		t.Error("cache do turno difere do banco")
+	if noTurno, _ := amb.s.atende.Mapeamento.Ler(t.Context()); !igual(t, noTurno, m) {
+		t.Error("mapeamento do turno difere do banco")
 	}
 	if w := putMapeamento(amb, "?administradora=adm-a", lote); w.Code != http.StatusOK {
 		t.Fatalf("reenvio dentro do recorte: status %d: %s", w.Code, w.Body.String())
@@ -274,7 +291,7 @@ func TestMapeamentoAceitaODentroDoRecorte(t *testing.T) {
 }
 
 func TestMapeamentoReenviarRemocaoDentroDoRecorteContinuaValendo(t *testing.T) {
-	amb, _, _ := ambienteDeMapeamento(t)
+	amb, _ := ambienteDeMapeamento(t)
 	lote := `{"remover": {"habilitacoes": {"cond-a": ["boleto"]}, "condominios": ["cond-a"]}}`
 	for i := range 2 {
 		if w := putMapeamento(amb, "?administradora=adm-a", lote); w.Code != http.StatusOK {
@@ -284,7 +301,7 @@ func TestMapeamentoReenviarRemocaoDentroDoRecorteContinuaValendo(t *testing.T) {
 }
 
 func TestMapeamentoRecorteDaImplantacaoFixaVale(t *testing.T) {
-	amb, pg, _ := ambienteDeMapeamento(t)
+	amb, pg := ambienteDeMapeamento(t)
 	amb.s.implantacao = escopo.Implantacao{AdministradoraFixa: "adm-a"}
 	proibido := `{"habilitacoes": {"cond-b": {"boleto": {}}}}`
 	for _, query := range []string{"", "?administradora=adm-b"} { // a fixa vence o parâmetro
@@ -326,7 +343,7 @@ func TestMapeamentoRecusaLoteInvalidoSemGravarNada(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			amb, pg, _ := ambienteDeMapeamento(t)
+			amb, pg := ambienteDeMapeamento(t)
 			antes := lerMapeamento(t, pg)
 			query := ""
 			if strings.Contains(c.nome, "formato inválido") {
@@ -344,7 +361,7 @@ func TestMapeamentoRecusaLoteInvalidoSemGravarNada(t *testing.T) {
 }
 
 func TestMapeamentoRemoverAdministradoraComCondominioEConflito(t *testing.T) {
-	amb, pg, _ := ambienteDeMapeamento(t)
+	amb, pg := ambienteDeMapeamento(t)
 	antes := lerMapeamento(t, pg)
 	w := putMapeamento(amb, "", `{"remover": {"administradoras": ["adm-a"]}}`)
 	r := lerResposta(t, w)
@@ -385,7 +402,7 @@ func TestMapeamentoFalhaNoMeioDizOQueFoiAplicadoEReenviarCompleta(t *testing.T) 
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			amb, pg, _ := ambienteDeMapeamento(t)
+			amb, pg := ambienteDeMapeamento(t)
 			falhando := &repoQueFalha{Repositorio: pg, erro: c.erro, no: "adm-2"}
 			amb.s.admin = falhando
 

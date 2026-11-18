@@ -15,8 +15,7 @@ import (
 
 // PUT /integracao/v1/mapeamento: o Nexus cria e atualiza administradoras, condomínios,
 // habilitações, orientações e payloads. Cada item grava pelo mesmo repositório que o Studio
-// usa (s.admin), então o cache de mapeamento do turno recebe a escrita pelo mesmo caminho
-// (Postgres.aoAlterar, ligado por admin.NovoCache).
+// usa (s.admin); o turno lê o mapeamento diretamente do banco.
 //
 // O lote não é uma transação: cada item é uma transação própria, aplicada na ordem do desenho
 // até o primeiro erro. Antes do primeiro item o lote inteiro é ensaiado (forma, recorte e as
