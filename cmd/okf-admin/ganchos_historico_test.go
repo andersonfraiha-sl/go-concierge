@@ -72,18 +72,18 @@ func TestGanchosHistoricoExigeGanchosHistorico(t *testing.T) {
 func TestGanchosHistoricoRespeitaOEscopoNaQuery(t *testing.T) {
 	amb := novoAmbienteHistorico(t)
 	agora := time.Now().Add(-time.Minute)
-	amb.gravarHistorico(t, linhaDoCondominio("adm-a", "cond-a", agora), linhaDoCondominio("adm-b", "cond-b", agora))
+	amb.gravarHistorico(t, linhaDoCondominio("adm-a", "101", agora), linhaDoCondominio("adm-b", "202", agora))
 	tests := []struct {
 		nome, usuario, consulta string
 		quer                    []string
 	}{
-		{"gestor de A vê só A", "gestor-a", "", []string{"cond-a"}},
+		{"gestor de A vê só A", "gestor-a", "", []string{"101"}},
 		{"gestor de A filtrando por B recebe página vazia", "gestor-a", "administradora=adm-b", nil},
-		{"gestor de A filtrando pelo condomínio de B recebe página vazia", "gestor-a", "condominio=cond-b", nil},
-		{"gestor de B vê só B", "gestor-b", "", []string{"cond-b"}},
-		{"gestor de A e B vê os dois", "gestor-ab", "", []string{"cond-b", "cond-a"}},
-		{"Superlógica vê tudo", "admin", "", []string{"cond-b", "cond-a"}},
-		{"Superlógica filtra por B", "admin", "administradora=adm-b", []string{"cond-b"}},
+		{"gestor de A filtrando pelo condomínio de B recebe página vazia", "gestor-a", "condominio=202", nil},
+		{"gestor de B vê só B", "gestor-b", "", []string{"202"}},
+		{"gestor de A e B vê os dois", "gestor-ab", "", []string{"202", "101"}},
+		{"Superlógica vê tudo", "admin", "", []string{"202", "101"}},
+		{"Superlógica filtra por B", "admin", "administradora=adm-b", []string{"202"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.nome, func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestGanchosHistoricoPaginaCento20LinhasEmTresPaginas(t *testing.T) {
 	base := time.Now().Add(-time.Hour)
 	var linhas []auditoria.Linha
 	for i := range 120 {
-		linhas = append(linhas, linhaDoCondominio("adm-a", "cond-a", base.Add(time.Duration(i%4)*time.Second)))
+		linhas = append(linhas, linhaDoCondominio("adm-a", "101", base.Add(time.Duration(i%4)*time.Second)))
 	}
 	amb.gravarHistorico(t, linhas...)
 
@@ -146,8 +146,8 @@ func TestGanchosHistoricoPaginaCento20LinhasEmTresPaginas(t *testing.T) {
 
 func TestGanchosHistoricoSoMostraProtocoloComConversasVer(t *testing.T) {
 	amb := novoAmbienteHistorico(t)
-	amb.gravarHistorico(t, linhaDoCondominio("adm-a", "cond-a", time.Now().Add(-time.Minute)))
-	for usuario, quer := range map[string]string{"gestor-a": "prot-cond-a", "admin": "prot-cond-a", "auditor-a": ""} {
+	amb.gravarHistorico(t, linhaDoCondominio("adm-a", "101", time.Now().Add(-time.Minute)))
+	for usuario, quer := range map[string]string{"gestor-a": "prot-101", "admin": "prot-101", "auditor-a": ""} {
 		_, pagina := amb.historico(t, usuario, "")
 		if len(pagina.Linhas) != 1 || pagina.Linhas[0].Protocolo != quer {
 			t.Errorf("%s: protocolo = %+v, quer %q", usuario, pagina.Linhas, quer)
@@ -157,9 +157,9 @@ func TestGanchosHistoricoSoMostraProtocoloComConversasVer(t *testing.T) {
 
 func TestGanchosHistoricoAceitaDecisaoFalhouEPadraoDeSeteDias(t *testing.T) {
 	amb := novoAmbienteHistorico(t)
-	falha := linhaDoCondominio("adm-a", "cond-a", time.Now().Add(-time.Hour))
+	falha := linhaDoCondominio("adm-a", "101", time.Now().Add(-time.Hour))
 	falha.Decisao = "falhou"
-	velha := linhaDoCondominio("adm-a", "cond-a", time.Now().Add(-8*24*time.Hour))
+	velha := linhaDoCondominio("adm-a", "101", time.Now().Add(-8*24*time.Hour))
 	amb.gravarHistorico(t, falha, velha)
 
 	_, todas := amb.historico(t, "gestor-a", "")
@@ -216,16 +216,16 @@ func TestIntervaloDoHistoricoAplicaPadraoETeto(t *testing.T) {
 func TestEscopoDoHistoricoSegueAsPermissoes(t *testing.T) {
 	m := admin.Mapeamento{
 		Administradoras: []admin.Administradora{{ID: "adm-a"}, {ID: "adm-b"}},
-		Condominios:     []admin.Condominio{{ID: "cond-a", Administradora: "adm-a"}, {ID: "cond-b", Administradora: "adm-b"}},
+		Condominios:     []admin.Condominio{{ID: "101", Administradora: "adm-a"}, {ID: "202", Administradora: "adm-b"}},
 	}
 	acessoDe := func(at ...acesso.Atribuicao) acesso.Acesso {
 		papeis := map[string]acesso.Papel{}
 		for _, p := range acesso.PapeisIniciais() {
 			papeis[p.ID] = p
 		}
-		return acesso.Acesso{Papeis: papeis, Atribuicoes: at, AdministradoraDe: map[string]string{"cond-a": "adm-a", "cond-b": "adm-b"}}
+		return acesso.Acesso{Papeis: papeis, Atribuicoes: at, AdministradoraDe: map[string]string{"101": "adm-a", "202": "adm-b"}}
 	}
-	condoB := acesso.Atribuicao{PapelID: "gestor_administradora", AdministradoraID: "adm-b", Escopo: acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "cond-b"}}
+	condoB := acesso.Atribuicao{PapelID: "gestor_administradora", AdministradoraID: "adm-b", Escopo: acesso.EscopoCondominio("adm-b", "202")}
 
 	super := escopoDoHistorico(acessoDe(acesso.Atribuicao{PapelID: "admin_superlogica", Escopo: escopoSuperlogica}), m)
 	gestorA := escopoDoHistorico(acessoDe(naAdministradora("gestor_administradora", "adm-a")...), m)
@@ -238,7 +238,7 @@ func TestEscopoDoHistoricoSegueAsPermissoes(t *testing.T) {
 	if gestorA.Tudo || fmt.Sprint(gestorA.Administradoras, gestorA.Condominios) != "[adm-a] []" {
 		t.Errorf("gestor de A = %+v", gestorA)
 	}
-	if avulso.Tudo || fmt.Sprint(avulso.Administradoras, avulso.Condominios) != "[] [cond-b]" {
+	if avulso.Tudo || fmt.Sprint(avulso.Administradoras, avulso.Condominios) != fmt.Sprint([]string{}, []string{acesso.EscopoCondominio("adm-b", "202").ID}) {
 		t.Errorf("gestor só do condomínio B = %+v", avulso)
 	}
 	if operador.Tudo || len(operador.Administradoras)+len(operador.Condominios) != 0 {

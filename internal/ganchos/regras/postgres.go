@@ -2,323 +2,276 @@ package regras
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
-
 	"go-concierge/internal/banco/ent"
-	"go-concierge/internal/banco/ent/ganchosregra"
-	"go-concierge/internal/banco/ent/ganchosregraversao"
-	"go-concierge/internal/banco/ent/schema"
-	"go-concierge/internal/falha"
 	"go-concierge/internal/ganchos"
 )
 
-// timeoutConsulta limita cada leitura ou escrita das regras (vale também para as rotas HTTP).
 const timeoutConsulta = 3 * time.Second
+const timeoutLote = 30 * time.Second
+const limiteMinimo = 1
+const limiteMaximo = 200
 
-// Postgres guarda as regras em ganchos_regras (estado atual) e ganchos_regras_versoes (cada
-// versão gravada, só acrescenta).
 type Postgres struct {
-	cli *ent.Client
-	// aoAlterar recebe as regras de cada gravação depois do commit (o Cache), num aviso só por
-	// transação. A versão vem do banco e cresce por regra, então quem recebe pode descartar um
-	// aviso atrasado.
+	cli       *ent.Client
 	aoAlterar func([]RegraGravada)
+	consultar func(context.Context, string, ...any) (*sql.Rows, error)
 }
 
 func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
 
-// Salvar grava r se ninguém gravou a regra depois da versaoLida (0 = regra nova) e devolve a
-// regra com a versão e a data novas. Versão desatualizada dá ErrVersaoVelha.
-func (p *Postgres) Salvar(ctx context.Context, r RegraGravada, versaoLida int) (RegraGravada, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
-	defer cancel()
-	r.Versao = versaoLida + 1
-	r.AlteradaEm = time.Now().UTC().Truncate(time.Microsecond) // precisão do timestamptz
-	salva, err := emTransacao(ctx, p.cli, func(tx *ent.Tx) (RegraGravada, error) { return gravar(ctx, tx, r, versaoLida) })
-	if err != nil {
-		return RegraGravada{}, fmt.Errorf("salvar regra %q: %w", r.Nome, err)
-	}
-	p.avisar([]RegraGravada{salva})
-	return salva, nil
-}
-
-// timeoutLote limita a transação de SalvarVarias: até 1000 regras, três comandos cada.
-const timeoutLote = 30 * time.Second
-
-// SalvarVarias grava rs numa transação só (tudo ou nada), cada uma contra a versão lida de
-// mesmo índice (0 = regra nova, com o id de r quando vier preenchido), e avisa uma vez depois
-// do commit. Uma versão desatualizada desfaz tudo com ErrVersaoVelha.
-func (p *Postgres) SalvarVarias(ctx context.Context, rs []RegraGravada, versoesLidas []int) ([]RegraGravada, error) {
-	if len(rs) != len(versoesLidas) {
-		return nil, fmt.Errorf("salvar %d regras com %d versões lidas", len(rs), len(versoesLidas))
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeoutLote)
-	defer cancel()
-	agora := time.Now().UTC().Truncate(time.Microsecond)
-	salvas, err := emTransacao(ctx, p.cli, func(tx *ent.Tx) ([]RegraGravada, error) {
-		out := make([]RegraGravada, len(rs))
-		for i, r := range rs {
-			r.Versao, r.AlteradaEm = versoesLidas[i]+1, agora
-			salva, err := gravar(ctx, tx, r, versoesLidas[i])
-			if err != nil {
-				return nil, fmt.Errorf("regra %d (%q): %w", i, r.Nome, err)
-			}
-			out[i] = salva
-		}
-		return out, nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("salvar %d regras: %w", len(rs), err)
-	}
-	p.avisar(salvas)
-	return salvas, nil
-}
-
-func (p *Postgres) avisar(rs []RegraGravada) {
-	if p.aoAlterar != nil {
-		p.aoAlterar(rs)
-	}
-}
-
-// VersoesAtuais devolve a versão de cada id que já existe; os que não existem ficam fora.
-func (p *Postgres) VersoesAtuais(ctx context.Context, ids []string) (map[string]int, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
-	defer cancel()
-	uids := make([]uuid.UUID, len(ids))
-	for i, id := range ids {
-		uid, err := uuid.Parse(id)
-		if err != nil {
-			return nil, fmt.Errorf("versões atuais: id %q: %w", id, err)
-		}
-		uids[i] = uid
-	}
-	linhas, err := p.cli.GanchosRegra.Query().Where(ganchosregra.IDIn(uids...)).
-		Select(ganchosregra.FieldID, ganchosregra.FieldVersao).All(ctx)
-	if err != nil {
-		return nil, falha.ComPilha(fmt.Errorf("versões atuais: %w", err))
-	}
-	versoes := make(map[string]int, len(linhas))
-	for _, l := range linhas {
-		versoes[l.ID.String()] = l.Versao
-	}
-	return versoes, nil
-}
-
-func gravar(ctx context.Context, tx *ent.Tx, r RegraGravada, versaoLida int) (RegraGravada, error) {
-	id, err := gravarRegra(ctx, tx, r, versaoLida)
+func (p *Postgres) Salvar(ctx context.Context, r RegraGravada, v int) (RegraGravada, error) {
+	rs, err := p.SalvarVarias(ctx, []RegraGravada{r}, []int{v})
 	if err != nil {
 		return RegraGravada{}, err
 	}
-	r.ID = id.String()
-	err = tx.GanchosRegraVersao.Create().
-		SetRegraID(id).
-		SetVersao(r.Versao).
-		SetDefinicao(r.Definicao).
-		SetAlteradaPor(r.AlteradaPor).
-		SetAlteradaEm(r.AlteradaEm).
-		Exec(ctx)
-	if err != nil {
-		return RegraGravada{}, fmt.Errorf("gravar versão %d: %w", r.Versao, err)
-	}
-	return r, nil
+	return rs[0], nil
 }
 
-func gravarRegra(ctx context.Context, tx *ent.Tx, r RegraGravada, versaoLida int) (uuid.UUID, error) {
-	if versaoLida == 0 {
-		return criarRegra(ctx, tx, r)
-	}
-	id, err := uuid.Parse(r.ID)
+func validarIdentidadeDaRegra(r RegraGravada) ([]int, error) {
+	definition, err := Decodificar(r.Definicao)
 	if err != nil {
-		return uuid.Nil, ErrRegraDesconhecida
+		return nil, err
 	}
-	alteradas, err := tx.GanchosRegra.Update().
-		Where(ganchosregra.IDEQ(id), ganchosregra.VersaoEQ(versaoLida)).
-		SetVersao(r.Versao).
-		SetNome(r.Nome).
-		SetEvento(string(r.Evento)).
-		SetAdministradoraID(r.AdministradoraID).
-		SetCondominios(schema.GanchosCondominios(r.Condominios)).
-		SetAtiva(r.Ativa).
-		SetDefinicao(r.Definicao).
-		SetAlteradaPor(r.AlteradaPor).
-		SetAlteradaEm(r.AlteradaEm).
-		Save(ctx)
-	if err != nil {
-		return uuid.Nil, falha.ComPilha(fmt.Errorf("atualizar regra: %w", err))
+	if definition.ID != "" && definition.ID != r.ID {
+		return nil, fmt.Errorf("ID da definição difere da regra")
 	}
-	if alteradas > 0 {
-		return id, nil
+	if definition.Alvo.Administradora != r.AdministradoraID || !slices.Equal(definition.Alvo.Condominios, r.Condominios) || definition.Nome != r.Nome || definition.Evento != r.Evento || definition.Ativa != r.Ativa {
+		return nil, fmt.Errorf("definição da regra difere de suas colunas")
 	}
-	existe, err := tx.GanchosRegra.Query().Where(ganchosregra.IDEQ(id)).Exist(ctx)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("conferir regra: %w", err)
+	if len(r.Condominios) > 0 && strings.TrimSpace(r.AdministradoraID) == "" {
+		return nil, fmt.Errorf("regra condominial exige empresa")
 	}
-	if !existe {
-		return uuid.Nil, ErrRegraDesconhecida
-	}
-	return uuid.Nil, ErrVersaoVelha
-}
-
-// criarRegra usa o id de r quando vem preenchido (importação) e gera um quando vem vazio.
-func criarRegra(ctx context.Context, tx *ent.Tx, r RegraGravada) (uuid.UUID, error) {
-	criar := tx.GanchosRegra.Create().
-		SetVersao(r.Versao).
-		SetNome(r.Nome).
-		SetEvento(string(r.Evento)).
-		SetAdministradoraID(r.AdministradoraID).
-		SetCondominios(schema.GanchosCondominios(r.Condominios)).
-		SetAtiva(r.Ativa).
-		SetDefinicao(r.Definicao).
-		SetAlteradaPor(r.AlteradaPor).
-		SetAlteradaEm(r.AlteradaEm)
-	if r.ID != "" {
-		id, err := uuid.Parse(r.ID)
+	condos := make([]int, len(r.Condominios))
+	for i, c := range r.Condominios {
+		n, err := strconv.Atoi(c)
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("id %q: %w", r.ID, err)
+			return nil, fmt.Errorf("condomínio ERP inválido: %w", err)
 		}
-		criar.SetID(id)
+		if strconv.Itoa(n) != c {
+			return nil, fmt.Errorf("condomínio ERP deve ser inteiro canônico")
+		}
+		condos[i] = n
 	}
-	criada, err := criar.Save(ctx)
-	if ent.IsConstraintError(err) {
-		// o id do arquivo já foi criado por outra gravação depois da versão lida (0)
-		return uuid.Nil, ErrVersaoVelha
+	return condos, nil
+}
+
+func (p *Postgres) SalvarVarias(ctx context.Context, rs []RegraGravada, versions []int) ([]RegraGravada, error) {
+	if len(rs) != len(versions) {
+		return nil, fmt.Errorf("quantidade de versões incompatível")
 	}
+	for _, r := range rs {
+		if _, err := validarIdentidadeDaRegra(r); err != nil {
+			return nil, err
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutLote)
+	defer cancel()
+	tx, err := p.cli.Tx(ctx)
 	if err != nil {
-		return uuid.Nil, falha.ComPilha(fmt.Errorf("criar regra: %w", err))
+		return nil, err
 	}
-	return criada.ID, nil
+	out := make([]RegraGravada, len(rs))
+	for i, r := range rs {
+		saved, err := gravarSQL(ctx, tx.Client(), r, versions[i])
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		out[i] = saved
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	if p.aoAlterar != nil {
+		p.aoAlterar(out)
+	}
+	return out, nil
+}
+
+func gravarSQL(ctx context.Context, cli *ent.Client, r RegraGravada, expected int) (RegraGravada, error) {
+	condos, err := validarIdentidadeDaRegra(r)
+	if err != nil {
+		return r, err
+	}
+	if r.ID == "" {
+		if expected != 0 {
+			return r, ErrRegraDesconhecida
+		}
+		r.ID = uuid.NewString()
+	}
+	if uuid.Validate(r.ID) != nil {
+		return r, ErrRegraDesconhecida
+	}
+	persistida, err := converterDefinicao(r.Definicao, true)
+	if err != nil {
+		return r, err
+	}
+	r.Versao = expected + 1
+	r.AlteradaEm = time.Now().UTC().Truncate(time.Microsecond)
+	scope := "GLOBAL"
+	var company any
+	if r.AdministradoraID != "" {
+		scope = "COMPANY"
+		company = r.AdministradoraID
+	}
+	condoJSON, err := json.Marshal(condos)
+	if err != nil {
+		return r, err
+	}
+	result, err := cli.ExecContext(ctx, `INSERT INTO hook_rules(id,scope_type,company_id,condo_ids,version,name,event,enabled,definition,updated_by,updated_at) SELECT $1,$2,$3,ARRAY(SELECT jsonb_array_elements_text($4::jsonb)::integer),$5,$6,$7,$8,$9,$10,$11 WHERE $12=0 ON CONFLICT(id) DO NOTHING`, r.ID, scope, company, condoJSON, r.Versao, r.Nome, ganchos.EventoNoBanco(r.Evento), r.Ativa, persistida, r.AlteradaPor, r.AlteradaEm, expected)
+	if err != nil {
+		return r, err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return r, err
+	}
+	if expected > 0 {
+		result, err = cli.ExecContext(ctx, `UPDATE hook_rules SET condo_ids=ARRAY(SELECT jsonb_array_elements_text($4::jsonb)::integer),version=$5,name=$6,event=$7,enabled=$8,definition=$9,updated_by=$10,updated_at=$11 WHERE id=$1 AND scope_type=$2 AND company_id IS NOT DISTINCT FROM $3 AND version=$12`, r.ID, scope, company, condoJSON, r.Versao, r.Nome, ganchos.EventoNoBanco(r.Evento), r.Ativa, persistida, r.AlteradaPor, r.AlteradaEm, expected)
+		if err != nil {
+			return r, err
+		}
+		n, err = result.RowsAffected()
+		if err != nil {
+			return r, err
+		}
+	}
+	if n != 1 {
+		if expected > 0 {
+			rows, err := cli.QueryContext(ctx, `SELECT 1 FROM hook_rules WHERE id=$1`, r.ID)
+			if err != nil {
+				return r, err
+			}
+			exists := rows.Next()
+			rowErr := rows.Err()
+			rows.Close()
+			if rowErr != nil {
+				return r, rowErr
+			}
+			if !exists {
+				return r, ErrRegraDesconhecida
+			}
+		}
+		return r, ErrVersaoVelha
+	}
+	_, err = cli.ExecContext(ctx, `INSERT INTO hook_rule_versions(rule_id,version,definition,updated_by,updated_at) VALUES($1,$2,$3,$4,$5)`, r.ID, r.Versao, persistida, r.AlteradaPor, r.AlteradaEm)
+	return r, err
+}
+
+func (p *Postgres) VersoesAtuais(ctx context.Context, ids []string) (map[string]int, error) {
+	out := map[string]int{}
+	for _, id := range ids {
+		r, err := p.Ler(ctx, id)
+		if errors.Is(err, ErrRegraDesconhecida) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		out[id] = r.Versao
+	}
+	return out, nil
 }
 
 func (p *Postgres) Ler(ctx context.Context, id string) (RegraGravada, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
-	defer cancel()
-	linha, err := lerLinha(ctx, p.cli, id)
-	if err != nil {
-		return RegraGravada{}, fmt.Errorf("ler regra %q: %w", id, err)
+	if uuid.Validate(id) != nil {
+		return RegraGravada{}, ErrRegraDesconhecida
 	}
-	return deLinha(linha), nil
+	rows, err := p.listar(ctx, `WHERE id=$1`, id)
+	if err != nil {
+		return RegraGravada{}, err
+	}
+	if len(rows) == 0 {
+		return RegraGravada{}, ErrRegraDesconhecida
+	}
+	return rows[0], nil
 }
 
-// Limites da página de Listar.
-const (
-	limiteMinimo = 1
-	limiteMaximo = 200
-)
-
-// Listar devolve uma página das regras, ativas ou não, em ordem de id, começando depois do id
-// depois ("" = primeira página). limite fica entre 1 e 200.
 func (p *Postgres) Listar(ctx context.Context, depois string, limite int) ([]RegraGravada, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
-	defer cancel()
-	consulta := p.cli.GanchosRegra.Query().Limit(min(max(limite, limiteMinimo), limiteMaximo))
-	if depois != "" {
-		cursor, err := uuid.Parse(depois)
-		if err != nil {
-			return nil, falha.ComPilha(fmt.Errorf("listar regras depois de %q: %w", depois, err))
-		}
-		consulta.Where(ganchosregra.IDGT(cursor))
+	if depois != "" && uuid.Validate(depois) != nil {
+		return nil, fmt.Errorf("cursor de regra inválido")
 	}
-	return lerRegras(ctx, consulta, "listar regras")
+	return p.listar(ctx, `WHERE ($1='' OR id>NULLIF($1,'')::uuid) ORDER BY id LIMIT $2`, depois, min(max(limite, limiteMinimo), limiteMaximo))
 }
 
-// Ativas devolve só as regras ativas, para o cache.
-func (p *Postgres) Ativas(ctx context.Context) ([]RegraGravada, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
-	defer cancel()
-	return p.ativas(ctx)
-}
-
-// ativas lê no prazo de quem chama, sem o teto de 3 s das rotas (o boot tem 5 s).
-// ponytail: sem LIMIT; o teto de 10 mil ativas (spec §7) segura o tamanho.
+func (p *Postgres) Ativas(ctx context.Context) ([]RegraGravada, error) { return p.ativas(ctx) }
 func (p *Postgres) ativas(ctx context.Context) ([]RegraGravada, error) {
-	return lerRegras(ctx, p.cli.GanchosRegra.Query().Where(ganchosregra.AtivaEQ(true)), "ler regras ativas")
+	return p.listar(ctx, `WHERE enabled=true ORDER BY id`)
 }
 
-func lerRegras(ctx context.Context, consulta *ent.GanchosRegraQuery, operacao string) ([]RegraGravada, error) {
-	linhas, err := consulta.Order(ent.Asc(ganchosregra.FieldID)).All(ctx)
+func (p *Postgres) listar(ctx context.Context, where string, args ...any) ([]RegraGravada, error) {
+	consultar := p.cli.QueryContext
+	if p.consultar != nil {
+		consultar = p.consultar
+	}
+	rows, err := consultar(ctx, `SELECT id::text,version,name,event,company_id,to_json(condo_ids),enabled,definition,updated_by,updated_at FROM hook_rules `+where, args...)
 	if err != nil {
-		return nil, falha.ComPilha(fmt.Errorf("%s: %w", operacao, err))
+		return nil, err
 	}
-	regras := make([]RegraGravada, len(linhas))
-	for i, linha := range linhas {
-		regras[i] = deLinha(linha)
+	defer rows.Close()
+	out := []RegraGravada{}
+	for rows.Next() {
+		var r RegraGravada
+		var company sql.NullString
+		var condos []byte
+		var event string
+		if err := rows.Scan(&r.ID, &r.Versao, &r.Nome, &event, &company, &condos, &r.Ativa, &r.Definicao, &r.AlteradaPor, &r.AlteradaEm); err != nil {
+			return nil, err
+		}
+		r.Evento = ganchos.EventoDoBanco(event)
+		r.Definicao, err = converterDefinicao(r.Definicao, false)
+		if err != nil {
+			return nil, err
+		}
+		r.AdministradoraID = company.String
+		var ids []int
+		if err := json.Unmarshal(condos, &ids); err != nil {
+			return nil, err
+		}
+		r.Condominios = []string{}
+		for _, id := range ids {
+			r.Condominios = append(r.Condominios, strconv.Itoa(id))
+		}
+		if _, err := validarIdentidadeDaRegra(r); err != nil {
+			return nil, fmt.Errorf("regra %s inconsistente: %w", r.ID, err)
+		}
+		out = append(out, r)
 	}
-	return regras, nil
+	return out, rows.Err()
 }
 
-// LerVersao devolve uma versão gravada da regra, só com o que a tabela de versões guarda.
-func (p *Postgres) LerVersao(ctx context.Context, id string, versao int) (VersaoGravada, error) {
+func (p *Postgres) LerVersao(ctx context.Context, id string, version int) (VersaoGravada, error) {
+	if uuid.Validate(id) != nil {
+		return VersaoGravada{}, ErrRegraDesconhecida
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	uid, err := uuid.Parse(id)
+	rows, err := p.cli.QueryContext(ctx, `SELECT v.rule_id::text,v.version,v.definition,v.updated_by,v.updated_at FROM hook_rule_versions v JOIN hook_rules r ON r.id=v.rule_id WHERE v.rule_id=$1 AND v.version=$2`, id, version)
 	if err != nil {
-		return VersaoGravada{}, fmt.Errorf("ler regra %q versão %d: %w", id, versao, ErrRegraDesconhecida)
+		return VersaoGravada{}, err
 	}
-	gravada, err := p.cli.GanchosRegraVersao.Query().
-		Where(ganchosregraversao.RegraIDEQ(uid), ganchosregraversao.VersaoEQ(versao)).
-		Only(ctx)
-	if err != nil {
-		return VersaoGravada{}, fmt.Errorf("ler regra %q versão %d: %w", id, versao, traduzir(err))
-	}
-	return VersaoGravada{
-		RegraID:     id,
-		Versao:      gravada.Versao,
-		Definicao:   gravada.Definicao,
-		AlteradaPor: gravada.AlteradaPor,
-		AlteradaEm:  gravada.AlteradaEm,
-	}, nil
-}
-
-func lerLinha(ctx context.Context, cli *ent.Client, id string) (*ent.GanchosRegra, error) {
-	uid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, ErrRegraDesconhecida
-	}
-	linha, err := cli.GanchosRegra.Get(ctx, uid)
-	return linha, traduzir(err)
-}
-
-func traduzir(err error) error {
-	if ent.IsNotFound(err) {
-		return ErrRegraDesconhecida
-	}
-	return err
-}
-
-func deLinha(l *ent.GanchosRegra) RegraGravada {
-	return RegraGravada{
-		ID:               l.ID.String(),
-		Versao:           l.Versao,
-		Nome:             l.Nome,
-		Evento:           ganchos.NomeDoEvento(l.Evento),
-		AdministradoraID: l.AdministradoraID,
-		Condominios:      []string(l.Condominios),
-		Ativa:            l.Ativa,
-		Definicao:        l.Definicao,
-		AlteradaPor:      l.AlteradaPor,
-		AlteradaEm:       l.AlteradaEm,
-	}
-}
-
-func emTransacao[T any](ctx context.Context, cli *ent.Client, fn func(*ent.Tx) (T, error)) (T, error) {
-	var zero T
-	tx, err := cli.Tx(ctx)
-	if err != nil {
-		return zero, falha.ComPilha(fmt.Errorf("abrir transação: %w", err))
-	}
-	r, err := fn(tx)
-	if err != nil {
-		if errDesfazer := tx.Rollback(); errDesfazer != nil {
-			err = errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return VersaoGravada{}, err
 		}
-		return zero, err
+		return VersaoGravada{}, ErrRegraDesconhecida
 	}
-	if err := tx.Commit(); err != nil {
-		return zero, falha.ComPilha(fmt.Errorf("confirmar transação: %w", err))
+	var v VersaoGravada
+	err = rows.Scan(&v.RegraID, &v.Versao, &v.Definicao, &v.AlteradaPor, &v.AlteradaEm)
+	if err != nil {
+		return v, err
 	}
-	return r, nil
+	v.Definicao, err = converterDefinicao(v.Definicao, false)
+	return v, err
 }

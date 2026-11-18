@@ -23,7 +23,7 @@ func TestEu(t *testing.T) {
 		{usuario: "construtor-a", status: 200, papel: "construtor_superlogica", administradoraID: ptr("adm-a"), tem: []string{"skills.editar_fluxo", "studio.avancado"}},
 		{usuario: "gestor-a", status: 200, papel: "gestor_administradora", administradoraID: ptr("adm-a"), tem: []string{"condominios.habilitar"}, naoTem: []string{"studio.avancado", "skills.criar"}},
 		{usuario: "sem-papel", status: 200, papel: "", administradoraID: nil, naoTem: []string{"skills.ler"}},
-		{usuario: gestorDeCondominioDev, status: 200, papel: "gestor_administradora", administradoraID: ptr("adm-a"), condominioID: ptr("cond-a"), tem: []string{"condominios.habilitar"}, naoTem: []string{"skills.criar"}},
+		{usuario: gestorDeCondominioDev, status: 200, papel: "gestor_administradora", administradoraID: ptr("adm-a"), condominioID: ptr("101"), tem: []string{"condominios.habilitar"}, naoTem: []string{"skills.criar"}},
 		{usuario: "gestor-ab", status: 409},
 	}
 	for _, c := range casos {

@@ -13,31 +13,31 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldAdministradoraID holds the string denoting the administradora_id field in the database.
-	FieldAdministradoraID = "administradora_id"
+	FieldAdministradoraID = "company_id"
 	// FieldPapelID holds the string denoting the papel_id field in the database.
-	FieldPapelID = "papel_id"
+	FieldPapelID = "role_id"
 	// FieldPermissao holds the string denoting the permissao field in the database.
-	FieldPermissao = "permissao"
+	FieldPermissao = "permission"
 	// EdgeAdministradora holds the string denoting the administradora edge name in mutations.
 	EdgeAdministradora = "administradora"
 	// EdgePapel holds the string denoting the papel edge name in mutations.
 	EdgePapel = "papel"
 	// Table holds the table name of the concessao in the database.
-	Table = "concessoes"
+	Table = "company_role_grants"
 	// AdministradoraTable is the table that holds the administradora relation/edge.
-	AdministradoraTable = "concessoes"
+	AdministradoraTable = "company_role_grants"
 	// AdministradoraInverseTable is the table name for the Administradora entity.
 	// It exists in this package in order to avoid circular dependency with the "administradora" package.
 	AdministradoraInverseTable = "administradoras"
 	// AdministradoraColumn is the table column denoting the administradora relation/edge.
-	AdministradoraColumn = "administradora_id"
+	AdministradoraColumn = "company_id"
 	// PapelTable is the table that holds the papel relation/edge.
-	PapelTable = "concessoes"
+	PapelTable = "company_role_grants"
 	// PapelInverseTable is the table name for the Papel entity.
 	// It exists in this package in order to avoid circular dependency with the "papel" package.
-	PapelInverseTable = "papeis"
+	PapelInverseTable = "roles"
 	// PapelColumn is the table column denoting the papel relation/edge.
-	PapelColumn = "papel_id"
+	PapelColumn = "role_id"
 )
 
 // Columns holds all SQL columns for concessao fields.

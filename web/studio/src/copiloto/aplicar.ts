@@ -5,10 +5,8 @@ import { CAMINHO_PERSONA, salvarArquivo } from '@/catalogo/contratos';
 import {
   type Escopo,
   type Estado,
-  habilitacaoDe,
   type Orientacao,
   salvarAjustes,
-  salvarHabilitacao,
   salvarOrientacao,
 } from '@/condominios/contratos';
 import type { Fluxo } from '@/fluxo/modelo/tipos';
@@ -40,7 +38,7 @@ export type Resultado = Aplicacao | typeof DESISTIU;
 export type Ambiente = {
   escopo: Escopo;
   /** Estado do condomínio lido na hora de gravar, para mesclar com o que está no servidor. */
-  lerEstado: () => Promise<Estado>;
+  lerEstado: (condominio?: string) => Promise<Estado>;
   confirmar: (texto: string) => Promise<boolean>;
 };
 
@@ -113,32 +111,21 @@ export const APLICADORES: { [T in TipoDeOperacao]: Aplicador<T> } = {
     await excluirSkill(op.skill);
     return { alvos: [], invalidar: [CHAVE_DAS_SKILLS] };
   },
-  habilitar_skill: async (op, ambiente) => {
-    const { mapeamento } = await ambiente.lerEstado();
-    const { habilitacao } = habilitacaoDe(mapeamento, op.condominio, op.skill);
-    const papeis = op.papeis ?? habilitacao.papeis;
-    await salvarHabilitacao(
-      {
-        condominio: op.condominio,
-        caso: op.skill,
-        habilitado: op.habilitado,
-        papeis,
-        limpar: false,
-      },
-      ambiente.escopo,
-    );
-    return doCondominio(op.condominio, `:skill:${op.skill}`);
+  habilitar_skill: async () => {
+    throw new Error('A habilitação de skills não é gerenciada no Studio.');
   },
   orientar: async (op, ambiente) => {
-    const { mapeamento } = await ambiente.lerEstado();
+    const { mapeamento, casos } = await ambiente.lerEstado(op.condominio);
+    const caso = casos.find((c) => c.id === op.skill || c.nome === op.skill);
+    const skillID = caso?.id || op.skill;
     const atual = mapeamento.orientacoes[op.condominio] ?? ORIENTACAO_VAZIA;
-    const orientacao = orientacaoMesclada(atual, op.skill, op.texto);
+    const orientacao = orientacaoMesclada(atual, skillID, op.texto);
     await salvarOrientacao({ condominio: op.condominio, ...orientacao }, ambiente.escopo);
     const onde = op.skill === undefined ? '' : `:skill:${op.skill}`;
     return doCondominio(op.condominio, `${onde}:orientacao`);
   },
   ajustar: async (op, ambiente) => {
-    const { mapeamento } = await ambiente.lerEstado();
+    const { mapeamento } = await ambiente.lerEstado(op.condominio);
     const atuais = mapeamento.payloads[op.condominio] ?? {};
     const ajustes = { ...atuais, [op.recurso]: { ...atuais[op.recurso], ...op.campos } };
     await salvarAjustes({ condominio: op.condominio, ajustes }, ambiente.escopo);
@@ -192,6 +179,7 @@ const PODE_NO_ALCANCE: Record<Alcance, (eu: Eu, permissao: Permissao) => boolean
 };
 
 export function podeAplicar(eu: Eu, op: Operacao): boolean {
+  if (op.tipo === 'habilitar_skill') return false;
   const { permissao, alcance } = REGRAS[op.tipo];
   return PODE_NO_ALCANCE[alcance](eu, permissao);
 }

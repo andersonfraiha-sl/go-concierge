@@ -4,131 +4,83 @@ import { json, responderCom } from '@/test/fetchFalso';
 import { estadoFalso, gestor, rotasBase } from './estadoFalso';
 import { abrirCondominio, gravador } from './paginaDeTeste';
 
-describe('SkillsSecao', () => {
-  it('togglesSkill', async () => {
-    const { corpos, handlers } = gravador('PUT /api/admin/habilitacao');
-    responderCom({ ...rotasBase(gestor), ...handlers });
-    const { user } = abrirCondominio();
+const estadoBase = structuredClone(estadoFalso);
+const condoBase = estadoBase.mapeamento.condominios[0];
+if (!condoBase) throw new Error('fixture sem condomínio');
+condoBase.id = '101';
+const rotas = () => ({ ...rotasBase(gestor), 'GET /api/admin/estado': () => json(estadoBase) });
 
-    await user.click(
-      await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
-    );
+describe('conteúdo por skill', () => {
+  it('abreOrientacoesEAjustesSemControlesDeAtivacao', async () => {
+    responderCom(rotas());
+    const { user } = abrirCondominio('101');
 
-    await waitFor(() =>
-      expect(corpos[0]).toMatchObject({
-        condominio: 'vila-verde',
-        caso: 'agendar-mudanca',
-        habilitado: false,
-      }),
-    );
+    await user.click(await screen.findByRole('button', { name: 'Agendar mudança' }));
+
+    expect(screen.getByText('Orientação desta skill')).toBeInTheDocument();
+    expect(screen.getByText('Ajustes desta skill')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('switch', { name: /neste condomínio|Ligada/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/ligadas|desligada aqui|só síndico/)).not.toBeInTheDocument();
   });
 
-  it('showsCountOfEnabled', async () => {
-    responderCom(rotasBase(gestor));
-    abrirCondominio();
-
-    expect(await screen.findByText('1 de 2 ligadas')).toBeInTheDocument();
-  });
-
-  it('filtersBySearch', async () => {
-    responderCom(rotasBase(gestor));
-    const { user } = abrirCondominio();
-    await screen.findByText('Agendar mudança');
-
-    await user.type(screen.getByLabelText('Buscar skill'), 'reserva');
-
-    expect(screen.getByText('Reserva do salão')).toBeInTheDocument();
-    expect(screen.queryByText('Agendar mudança')).not.toBeInTheDocument();
-  });
-
-  it('showsOnlyChangesFromDefault', async () => {
-    const comUmaDecisaoPropria = structuredClone(estadoFalso);
-    comUmaDecisaoPropria.mapeamento.habilitacoes['vila-verde'] = {
-      'agendar-mudanca': { habilitado: false, papeis: [] },
-    } as never;
+  it('salvaOrientacaoDaSkillPreservandoAGeralEOutrasSkills', async () => {
+    const estado = structuredClone(estadoBase);
+    estado.mapeamento.orientacoes = {
+      '101': { geral: 'Piscina às 22h.', por_caso: { reserva_salao: 'Sem som após 22h.' } },
+    };
+    const { corpos, handlers } = gravador('PUT /api/admin/orientacao');
     responderCom({
       ...rotasBase(gestor),
-      'GET /api/admin/estado': () => json(comUmaDecisaoPropria),
+      'GET /api/admin/estado': () => json(estado),
+      ...handlers,
     });
-    const { user } = abrirCondominio();
-    await screen.findByText('Agendar mudança');
+    const { user } = abrirCondominio('101');
 
-    await user.click(screen.getByLabelText('Só o que muda do Padrão'));
+    await user.click(await screen.findByRole('button', { name: 'Agendar mudança' }));
+    await user.type(screen.getByLabelText('Orientação de Agendar mudança'), 'Chamar o zelador.');
 
-    expect(screen.getByText('Agendar mudança')).toBeInTheDocument();
-    expect(screen.queryByText('Reserva do salão')).not.toBeInTheDocument();
-  });
-
-  it('groupsByCategory', async () => {
-    responderCom(rotasBase(gestor));
-    abrirCondominio();
-
-    expect(await screen.findByText('Registram no sistema')).toBeInTheDocument();
-  });
-
-  it('showsRoleChipOnlyWhenRestricted', async () => {
-    const comPapelRestrito = structuredClone(estadoFalso);
-    comPapelRestrito.mapeamento.habilitacoes['vila-verde'] = {
-      'agendar-mudanca': { habilitado: true, papeis: ['sindico'] },
-    } as never;
-    responderCom({
-      ...rotasBase(gestor),
-      'GET /api/admin/estado': () => json(comPapelRestrito),
-    });
-    abrirCondominio();
-
-    expect(await screen.findByText('só síndico')).toBeInTheDocument();
-  });
-
-  it('showsOwnDecisionChip', async () => {
-    const comDecisaoPropria = structuredClone(estadoFalso);
-    comDecisaoPropria.mapeamento.habilitacoes['vila-verde'] = {
-      'reserva-do-salao': { habilitado: false, papeis: [] },
-    } as never;
-    responderCom({
-      ...rotasBase(gestor),
-      'GET /api/admin/estado': () => json(comDecisaoPropria),
-    });
-    abrirCondominio();
-
-    expect(await screen.findByText('desligada aqui')).toBeInTheDocument();
-  });
-
-  it('opensDrawerOnRowClick', async () => {
-    responderCom(rotasBase(gestor));
-    const { user } = abrirCondominio();
-
-    await user.click(await screen.findByText('Agendar mudança'));
-
-    expect(await screen.findByRole('dialog', { name: /Agendar mudança/ })).toBeInTheDocument();
-  });
-
-  it('toggleDoesNotOpenDrawer', async () => {
-    const { handlers } = gravador('PUT /api/admin/habilitacao');
-    responderCom({ ...rotasBase(gestor), ...handlers });
-    const { user } = abrirCondominio();
-
-    await user.click(
-      await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
+    await waitFor(
+      () =>
+        expect(corpos[0]).toMatchObject({
+          company_id: 'adm-exemplo',
+          condo_id: 101,
+          geral: 'Piscina às 22h.',
+          por_caso: {
+            agendar_mudanca: 'Chamar o zelador.',
+            reserva_salao: 'Sem som após 22h.',
+          },
+        }),
+      { timeout: 3000 },
     );
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('hidesOnlyChangesToggleOnDefault', async () => {
-    responderCom(rotasBase(gestor));
-    abrirCondominio('*');
+  it('salvaAjustesDaSkillPreservandoOutrasFerramentas', async () => {
+    const estado = structuredClone(estadoBase);
+    estado.mapeamento.payloads = { '101': { 'horario-portaria': { horario: '8h às 20h' } } };
+    const { corpos, handlers } = gravador('PUT /api/admin/ajustes');
+    responderCom({
+      ...rotasBase(gestor),
+      'GET /api/admin/estado': () => json(estado),
+      ...handlers,
+    });
+    const { user } = abrirCondominio('101');
 
-    await screen.findByText('Agendar mudança');
-    expect(screen.queryByLabelText('Só o que muda do Padrão')).not.toBeInTheDocument();
-  });
+    await user.click(await screen.findByRole('button', { name: 'Agendar mudança' }));
+    const campo = screen.getByLabelText('Antecedência mínima');
+    await user.clear(campo);
+    await user.type(campo, '5');
 
-  it('showsNoResultsMessage', async () => {
-    responderCom(rotasBase(gestor));
-    const { user } = abrirCondominio();
-
-    await user.type(await screen.findByLabelText('Buscar skill'), 'inexistente');
-
-    expect(await screen.findByText('Nenhuma skill encontrada.')).toBeInTheDocument();
+    await waitFor(
+      () =>
+        expect(corpos[0]).toMatchObject({
+          ajustes: {
+            'horario-portaria': { horario: '8h às 20h' },
+            'agenda-mudanca': { antecedencia_dias: 5 },
+          },
+        }),
+      { timeout: 3000 },
+    );
   });
 });

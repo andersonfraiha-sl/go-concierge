@@ -36,7 +36,7 @@ func regrasDeCarga(n, condominios int) []RegraGravada {
 	rs := make([]RegraGravada, n)
 	for i := range rs {
 		adm := fmt.Sprintf("adm-%d", i%20)
-		cond := fmt.Sprintf("cond-%d", i%condominios)
+		cond := fmt.Sprintf("%d", i%condominios+100)
 		rs[i] = RegraGravada{ID: fmt.Sprintf("r%05d", i), Versao: 1, Ativa: true, Definicao: definicaoDeCarga(i, adm, cond)}
 	}
 	return rs
@@ -70,14 +70,14 @@ func TestIndiceDezMilRegras(t *testing.T) {
 func BenchmarkGanchos(b *testing.B) {
 	rs := regrasDeCarga(20, 1)
 	for i := range rs { // mesmo condomínio e mesma administradora para as 20
-		rs[i].Definicao = definicaoDeCarga(i, "adm-0", "cond-0")
+		rs[i].Definicao = definicaoDeCarga(i, "adm-0", "100")
 	}
 	indice, erros := Compilar(rs)
 	require.Empty(b, erros)
 	conjunto := ganchos.NovoConjunto(ganchos.Fixos{}, func() *ganchos.Indice { return indice })
 	meioDia := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC) // 09h em São Paulo: dentro do horário
 	ev := ganchos.AntesDaFerramenta{
-		Agora: meioDia, Ferramenta: "areas.reservar", AdministradoraID: "adm-0", CondominioID: "cond-0",
+		Agora: meioDia, Ferramenta: "areas.reservar", AdministradoraID: "adm-0", CondominioID: "100",
 	}
 	ctx := context.Background()
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
@@ -134,7 +134,7 @@ func BenchmarkDepoisDaFerramentaResultadoGrande(b *testing.B) {
 			for i := range rs {
 				rs[i].Definicao = json.RawMessage(fmt.Sprintf(`{
 					"nome":"regra depois %02d","evento":"depois_da_ferramenta",
-					"alvo":{"administradora":"adm-0","condominios":["cond-0"]},
+					"alvo":{"administradora":"adm-0","condominios":["100"]},
 					"condicoes":[{"tipo":"ferramenta","nomes":["outra.ferramenta"]}],
 					"decisao":{"tipo":"bloquear","mensagem":"Não vale."},"ativa":true}`, i))
 			}
@@ -156,7 +156,7 @@ func BenchmarkDepoisDaFerramentaResultadoGrande(b *testing.B) {
 			resultado := resultadoGrande(comPII)
 			ev := ganchos.DepoisDaFerramenta{
 				Agora: time.Now(), Ferramenta: "unidades.listar", Resultado: resultado,
-				AdministradoraID: "adm-0", CondominioID: "cond-0",
+				AdministradoraID: "adm-0", CondominioID: "100",
 			}
 			ctx := context.Background()
 

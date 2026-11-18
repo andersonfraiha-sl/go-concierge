@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { useSnackbar } from '@/shared/snackbar/SnackbarContext';
-import { type Escopo, type RespostaMapeamento, useAplicarMapeamento, useEscopo } from './contratos';
+import {
+  type AlvoDoEstado,
+  type Escopo,
+  type RespostaMapeamento,
+  useAplicarMapeamento,
+  useEscopo,
+} from './contratos';
 
 type Gravacao = (escopo: Escopo) => Promise<RespostaMapeamento>;
 
@@ -12,9 +18,10 @@ type Execucao = {
   gravando: boolean;
 };
 
-export function useExecutar(): Execucao {
-  const aplicar = useAplicarMapeamento();
-  const escopo = useEscopo() ?? null;
+export function useExecutar(alvo: AlvoDoEstado = {}): Execucao {
+  const aplicar = useAplicarMapeamento(alvo);
+  const escopoDaTela = useEscopo() ?? null;
+  const escopo = alvo.escopo === undefined ? escopoDaTela : alvo.escopo;
   const { mostrar } = useSnackbar();
   const [gravando, setGravando] = useState(false);
 

@@ -19,19 +19,20 @@ func TestMain(m *testing.M) {
 }
 
 func novaRegra(nome string, ativa bool) RegraGravada {
-	return RegraGravada{
+	return completarRegraDeTeste(RegraGravada{
 		Nome:             nome,
 		Evento:           ganchos.EventoMensagemRecebida,
 		AdministradoraID: "adm-1",
-		Condominios:      []string{"cond-1"},
+		Condominios:      []string{"101"},
 		Ativa:            ativa,
 		Definicao:        json.RawMessage(`{"nome":"` + nome + `"}`),
 		AlteradaPor:      "ana",
-	}
+	})
 }
 
 func salvar(t *testing.T, p *Postgres, r RegraGravada, versaoLida int) RegraGravada {
 	t.Helper()
+	r = completarRegraDeTeste(r)
 	salva, err := p.Salvar(t.Context(), r, versaoLida)
 	if err != nil {
 		t.Fatalf("Salvar %q (versão lida %d): %v", r.Nome, versaoLida, err)
@@ -52,7 +53,7 @@ func TestSalvarCriaRegraNaVersaoUm(t *testing.T) {
 	if lida.Nome != "horario" || lida.Versao != 1 || !jsonIgual(t, lida.Definicao, salva.Definicao) {
 		t.Fatalf("Ler = %+v", lida)
 	}
-	if len(lida.Condominios) != 1 || lida.Condominios[0] != "cond-1" || !lida.AlteradaEm.Equal(salva.AlteradaEm) {
+	if len(lida.Condominios) != 1 || lida.Condominios[0] != "101" || !lida.AlteradaEm.Equal(salva.AlteradaEm) {
 		t.Fatalf("Ler = %+v, salva = %+v", lida, salva)
 	}
 }
@@ -61,7 +62,8 @@ func TestSalvarComVersaoCertaSobeAVersaoEGuardaAAnterior(t *testing.T) {
 	p := NovoPostgres(bancotest.Novo(t).Ent)
 	v1 := salvar(t, p, novaRegra("horario", true), 0)
 	alterada := v1
-	alterada.Definicao = json.RawMessage(`{"nome":"outra"}`)
+	alterada.Nome = "outra"
+	alterada = completarRegraDeTeste(alterada)
 	v2 := salvar(t, p, alterada, v1.Versao)
 	if v2.Versao != 2 || v2.ID != v1.ID {
 		t.Fatalf("segunda gravação = %+v, quer versão 2 do mesmo id", v2)
@@ -260,5 +262,65 @@ func TestCriarComIDQueJaExisteDevolveErrVersaoVelha(t *testing.T) {
 	_, err := p.SalvarVarias(t.Context(), []RegraGravada{importada}, []int{0})
 	if !errors.Is(err, ErrVersaoVelha) {
 		t.Fatalf("segunda criação = %v, quer ErrVersaoVelha", err)
+	}
+}
+
+func completarRegraDeTeste(r RegraGravada) RegraGravada {
+	definition := map[string]any{"nome": r.Nome, "evento": r.Evento, "alvo": Alvo{Administradora: r.AdministradoraID, Condominios: r.Condominios}, "ativa": r.Ativa}
+	r.Definicao, _ = json.Marshal(definition)
+	return r
+}
+
+func TestPersistenciaRegraV2CodificaContratoEmInglesEValidaIdentidade(t *testing.T) {
+	p := NovoPostgres(bancotest.Novo(t).Ent)
+	regra := novaRegra("Regra em português", true)
+	regra.Definicao = json.RawMessage(`{"nome":"Regra em português","evento":"mensagem_recebida","alvo":{"administradora":"adm-1","condominios":["101"]},"ativa":true,"condicoes":[{"tipo":"fora_do_horario","inicio":"09:00","fim":"18:00","fonte":{"tipo":"parametro","nome":"inicio_em"}},{"tipo":"texto_contem","termos":["nome","português"]}],"decisao":{"tipo":"bloquear","mensagem":"Mensagem livre em português"}}`)
+	salva, err := p.Salvar(t.Context(), regra, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := p.cli.QueryContext(t.Context(), `SELECT event,definition FROM hook_rules WHERE id=$1`, salva.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows.Next() {
+		t.Fatal("regra ausente")
+	}
+	var event string
+	var raw []byte
+	if err := rows.Scan(&event, &raw); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		t.Fatal(err)
+	}
+	if event != "MESSAGE_RECEIVED" || obj["event"] != event || obj["name"] != "Regra em português" || obj["nome"] != nil {
+		t.Fatalf("regra persistida: %s %s", event, raw)
+	}
+	alvo := obj["target"].(map[string]any)
+	if alvo["company_id"] != "adm-1" || alvo["condo_ids"].([]any)[0] != float64(101) {
+		t.Fatalf("alvo persistido: %#v", alvo)
+	}
+	lida, err := p.Ler(t.Context(), salva.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jsonIgual(t, lida.Definicao, regra.Definicao) {
+		t.Fatalf("contrato público alterado: %s", lida.Definicao)
+	}
+	versao, err := p.LerVersao(t.Context(), salva.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jsonIgual(t, versao.Definicao, regra.Definicao) {
+		t.Fatal("histórico perdeu definição")
+	}
+	if _, err := p.cli.ExecContext(t.Context(), `UPDATE hook_rules SET company_id='outra-empresa' WHERE id=$1`, salva.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Ler(t.Context(), salva.ID); err == nil {
+		t.Fatal("definição incompatível com as colunas foi aceita")
 	}
 }

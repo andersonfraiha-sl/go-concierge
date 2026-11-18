@@ -188,6 +188,7 @@ func (e *Evento) Normalizar() entrada.Mensagem {
 		autor = "atendente"
 	}
 	return entrada.Mensagem{
+		Provider: "ATENDE", ChannelType: "WHATSAPP", Endpoint: normalizarCanal(e.Data.Channel.DisplayNumber),
 		ID:         e.ID,
 		ConversaID: e.Data.Protocol.Number,
 		Tenant:     e.Tenant,

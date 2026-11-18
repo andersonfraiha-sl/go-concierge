@@ -2,6 +2,7 @@ package memoria
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -10,23 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"go-concierge/internal/banco"
-	"go-concierge/internal/banco/ent"
-	"go-concierge/internal/banco/ent/memoriacontato"
-	"go-concierge/internal/banco/ent/memoriafato"
 	"go-concierge/internal/banco/sqlc"
 	"go-concierge/internal/escopo"
-	"go-concierge/internal/falha"
 )
 
-// timeoutConsulta limita cada leitura ou gravação da memória.
 const timeoutConsulta = 3 * time.Second
 
-// Postgres guarda a memória em duas tabelas: memoria_contatos (o nome e quando mudou, uma
-// linha por contato) e memoria_fatos (uma linha por fato). Ler lê as duas numa query do sqlc, que
-// cabe no lote do turno; Listar vai pelo ent; Gravar grava as duas num comando só do sqlc.
-type Postgres struct {
-	b banco.Banco
-}
+type Postgres struct{ b banco.Banco }
 
 func NovoPostgres(b banco.Banco) *Postgres { return &Postgres{b: b} }
 
@@ -34,25 +25,29 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Memoria, error) {
 	if err := validarContato(c); err != nil {
 		return Memoria{}, err
 	}
+	c = c.Canonico()
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
 	var m Memoria
 	lote := banco.NovoLote()
 	p.LerNoLote(ctx, lote, c, func(lida Memoria) { m = lida })
 	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
-		return Memoria{}, falha.ComPilha(fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err))
+		return Memoria{}, fmt.Errorf("ler memória de %s: %w", c.Mascarado(), err)
 	}
 	return m, nil
 }
 
-// LerNoLote põe no lote a leitura da memória do contato (LerMemoria, uma query com o contato
-// e os fatos); guardar recebe a memória quando o lote roda. Um erro volta no Enviar do lote.
 func (p *Postgres) LerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, guardar func(Memoria)) {
+	if err := validarContato(c); err != nil {
+		lote.Erro(err)
+		return
+	}
+	c = c.Canonico()
 	lote.Por(func(q *sqlc.Queries) func() error {
-		res := q.LerMemoria(ctx, []sqlc.LerMemoriaParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
+		res := q.LoadMemory(ctx, []sqlc.LoadMemoryParams{{CompanyID: c.CompanyID, PhoneNumber: c.Telefone, AllCondos: c.CondoID == nil, CondoID: inteiro(c.CondoID)}})
 		return func() error {
 			var errLer error
-			res.Query(func(_ int, linhas []sqlc.LerMemoriaRow, err error) {
+			res.Query(func(_ int, linhas []sqlc.LoadMemoryRow, err error) {
 				if err != nil {
 					errLer = err
 					return
@@ -64,119 +59,107 @@ func (p *Postgres) LerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Con
 	})
 }
 
-func memoriaDasLinhas(c escopo.Contato, linhas []sqlc.LerMemoriaRow) Memoria {
+func memoriaDasLinhas(c escopo.Contato, linhas []sqlc.LoadMemoryRow) Memoria {
 	m := vazia(c)
 	for _, l := range linhas {
-		m.Nome, m.AtualizadaEm = l.Nome, l.AtualizadaEm.Time
-		if !l.Chave.Valid { // contato sem fatos
+		m.Nome, m.AtualizadaEm = l.Name, l.UpdatedAt.Time
+		if !l.Key.Valid {
 			continue
 		}
-		m.Fatos = append(m.Fatos, Fato{
-			Chave: l.Chave.String, Texto: l.Texto.String, Fonte: l.Fonte.String, CondominioID: l.CondominioID.String,
-			Quando: l.Quando.Time, Confianca: confiancaDe(l.Confianca.Float32),
-		})
+		m.Fatos = append(m.Fatos, Fato{Chave: l.Key.String, Texto: l.Text.String, Fonte: l.Source.String, CondoID: ponteiro(l.CondoID), Quando: l.OccurredAt.Time, Confianca: confiancaDe(l.Confidence.Float32)})
 	}
 	return m
 }
 
-// Gravar troca a memória do contato pela recebida, num comando só: o nome e AtualizadaEm são
-// regravados, as chaves que saíram são apagadas e as demais gravadas por cima.
 func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, m Memoria) error {
 	if err := validarContato(c); err != nil {
 		return err
 	}
+	c = c.Canonico()
+	m, err := preparar(c, m)
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	if err := p.b.SQL.GravarFatos(ctx, paramsDeGravacao(comoGuardada(c, m, time.Now()))); err != nil {
-		return falha.ComPilha(fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), err))
+	params, err := paramsDeGravacao(c, comoGuardada(c, m, time.Now()))
+	if err != nil {
+		return err
+	}
+	if err := p.b.SQL.SaveMemory(ctx, params); err != nil {
+		return fmt.Errorf("gravar memória de %s: %w", c.Mascarado(), err)
 	}
 	return nil
 }
 
-// Listar devolve as memórias da administradora, a atualizada por último primeiro.
-func (p *Postgres) Listar(ctx context.Context, administradoraID string) ([]Memoria, error) {
-	if err := validarAdministradora(administradoraID); err != nil {
+func (p *Postgres) Listar(ctx context.Context, companyID string) ([]Memoria, error) {
+	if err := validarAdministradora(companyID); err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	// ponytail: lista a administradora inteira, como a interface pede; paginar quando o Studio listar
-	contatos, err := p.b.Ent.MemoriaContato.Query().
-		Where(memoriacontato.AdministradoraID(administradoraID)).
-		All(ctx)
+	rows, err := p.b.Pool.Query(ctx, `SELECT phone_number FROM contact_memories WHERE company_id = $1 ORDER BY updated_at DESC, phone_number`, companyID)
 	if err != nil {
-		return nil, falha.ComPilha(fmt.Errorf("listar memórias da administradora %s: %w", administradoraID, err))
+		return nil, err
 	}
-	fatos, err := p.b.Ent.MemoriaFato.Query().
-		Where(memoriafato.AdministradoraID(administradoraID)).
-		Order(ent.Asc(memoriafato.FieldID)).
-		All(ctx)
+	var contatos []escopo.Contato
+	for rows.Next() {
+		var phone string
+		if err := rows.Scan(&phone); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		contatos = append(contatos, escopo.Contato{CompanyID: companyID, Telefone: phone})
+	}
+	err = rows.Err()
+	rows.Close()
 	if err != nil {
-		return nil, falha.ComPilha(fmt.Errorf("listar fatos da administradora %s: %w", administradoraID, err))
-	}
-	return juntar(contatos, fatos), nil
-}
-
-// juntar monta uma memória por contato com os fatos do telefone dele.
-func juntar(contatos []*ent.MemoriaContato, fatos []*ent.MemoriaFato) []Memoria {
-	porTelefone := map[string][]*ent.MemoriaFato{}
-	for _, f := range fatos {
-		porTelefone[f.Telefone] = append(porTelefone[f.Telefone], f)
+		return nil, err
 	}
 	out := make([]Memoria, 0, len(contatos))
 	for _, c := range contatos {
-		out = append(out, Memoria{
-			AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Nome: c.Nome,
-			AtualizadaEm: c.AtualizadaEm, Fatos: fatosDe(porTelefone[c.Telefone]),
-		})
+		m, err := p.Ler(ctx, c)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
 	}
 	slices.SortFunc(out, maisRecentesPrimeiro)
-	return out
+	return out, nil
 }
 
-func fatosDe(linhas []*ent.MemoriaFato) []Fato {
-	fatos := make([]Fato, 0, len(linhas))
-	for _, l := range linhas {
-		fatos = append(fatos, Fato{
-			Chave: l.Chave, Texto: l.Texto, Fonte: l.Fonte, CondominioID: l.CondominioID,
-			Quando: l.Quando, Confianca: confiancaDe(l.Confianca),
-		})
-	}
-	return fatos
-}
-
-// confiancaDe devolve o real do banco como o float64 que foi gravado: 0.8 volta 0.8, e não
-// 0.800000011920929.
 func confiancaDe(real float32) float64 {
-	// o texto vem do próprio FormatFloat: é sempre um número válido, o erro não acontece
 	v, _ := strconv.ParseFloat(strconv.FormatFloat(float64(real), 'g', -1, 32), 64)
 	return v
 }
 
-// paramsDeGravacao põe a memória guardada (comoGuardada: sem chave repetida, que o ON CONFLICT
-// recusaria) em colunas; os arrays nunca são nil, que o pgx mandaria como NULL e a cláusula
-// "chave <> ALL(NULL)" não apagaria nada.
-func paramsDeGravacao(m Memoria) sqlc.GravarFatosParams {
-	fatos := m.Fatos
-	p := sqlc.GravarFatosParams{
-		AdministradoraID: m.AdministradoraID,
-		Telefone:         m.Telefone,
-		Nome:             m.Nome,
-		AtualizadaEm:     pgtype.Timestamptz{Time: m.AtualizadaEm, Valid: true},
-		Chaves:           make([]string, 0, len(fatos)),
-		Condominios:      make([]string, 0, len(fatos)),
-		Textos:           make([]string, 0, len(fatos)),
-		Fontes:           make([]string, 0, len(fatos)),
-		Quandos:          make([]pgtype.Timestamptz, 0, len(fatos)),
-		Confiancas:       make([]float32, 0, len(fatos)),
+func inteiro(n *int) pgtype.Int4 {
+	if n == nil {
+		return pgtype.Int4{}
 	}
-	for _, f := range fatos {
-		p.Chaves = append(p.Chaves, f.Chave)
-		p.Condominios = append(p.Condominios, f.CondominioID)
-		p.Textos = append(p.Textos, f.Texto)
-		p.Fontes = append(p.Fontes, f.Fonte)
-		p.Quandos = append(p.Quandos, pgtype.Timestamptz{Time: f.Quando, Valid: true})
-		p.Confiancas = append(p.Confiancas, float32(f.Confianca))
+	return pgtype.Int4{Int32: int32(*n), Valid: true}
+}
+func ponteiro(n pgtype.Int4) *int {
+	if !n.Valid {
+		return nil
 	}
-	return p
+	v := int(n.Int32)
+	return &v
+}
+
+func paramsDeGravacao(c escopo.Contato, m Memoria) (sqlc.SaveMemoryParams, error) {
+	type fatoSQL struct {
+		CondoID    *int      `json:"condo_id"`
+		Key        string    `json:"key"`
+		Text       string    `json:"text"`
+		Source     string    `json:"source"`
+		OccurredAt time.Time `json:"occurred_at"`
+		Confidence float32   `json:"confidence"`
+	}
+	fatos := make([]fatoSQL, 0, len(m.Fatos))
+	for _, f := range m.Fatos {
+		fatos = append(fatos, fatoSQL{f.CondoID, f.Chave, f.Texto, f.Fonte, f.Quando.Truncate(time.Microsecond), float32(f.Confianca)})
+	}
+	dados, err := json.Marshal(fatos)
+	return sqlc.SaveMemoryParams{CompanyID: c.CompanyID, PhoneNumber: c.Telefone, TargetCondoID: inteiro(c.CondoID), Name: m.Nome, UpdatedAt: pgtype.Timestamptz{Time: m.AtualizadaEm, Valid: true}, Facts: dados}, err
 }

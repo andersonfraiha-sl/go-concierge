@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go-concierge/internal/banco/bancotest"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos/auditoria"
 )
 
@@ -75,8 +76,8 @@ func TestListarAplicaEscopoEFiltrosNaQuery(t *testing.T) {
 		return l
 	}
 	gravadas := []auditoria.Linha{
-		de("adm-a", "cond-a", "bloquear"), de("adm-a", "cond-a2", "falhou"),
-		de("adm-b", "cond-b", "bloquear"), de("", "", "ajustar"),
+		de("adm-a", "101", "bloquear"), de("adm-a", "102", "falhou"),
+		de("adm-b", "101", "bloquear"), de("", "", "ajustar"),
 	}
 	if err := auditoria.Gravar(t.Context(), b, gravadas, nil); err != nil {
 		t.Fatal(err)
@@ -90,13 +91,14 @@ func TestListarAplicaEscopoEFiltrosNaQuery(t *testing.T) {
 	}{
 		{"tudo", auditoria.Escopo{Tudo: true}, nil, 4},
 		{"administradora A", auditoria.Escopo{Administradoras: []string{"adm-a"}}, nil, 2},
-		{"condomínio avulso", auditoria.Escopo{Condominios: []string{"cond-b"}}, nil, 1},
-		{"administradora e condomínio avulso", auditoria.Escopo{Administradoras: []string{"adm-a"}, Condominios: []string{"cond-b"}}, nil, 3},
+		{"condomínio avulso", auditoria.Escopo{Condominios: []string{escopo.ChaveCondominio("adm-b", "101")}}, nil, 1},
+		{"administradora e condomínio avulso", auditoria.Escopo{Administradoras: []string{"adm-a"}, Condominios: []string{escopo.ChaveCondominio("adm-b", "101")}}, nil, 3},
 		{"escopo vazio não vê nada", auditoria.Escopo{}, nil, 0},
 		{"filtro de B dentro do escopo de A", auditoria.Escopo{Administradoras: []string{"adm-a"}},
 			func(f *auditoria.Filtro) { f.AdministradoraID = "adm-b" }, 0},
 		{"decisão falhou", auditoria.Escopo{Tudo: true}, func(f *auditoria.Filtro) { f.Decisao = "falhou" }, 1},
-		{"condomínio", auditoria.Escopo{Tudo: true}, func(f *auditoria.Filtro) { f.CondominioID = "cond-a" }, 1},
+		{"condomínio ERP homônimo em empresas diferentes", auditoria.Escopo{Tudo: true}, func(f *auditoria.Filtro) { f.CondominioID = "101" }, 2},
+		{"condomínio na empresa alvo", auditoria.Escopo{Tudo: true}, func(f *auditoria.Filtro) { f.CondominioID = "101"; f.AdministradoraID = "adm-a" }, 1},
 		{"fora do período", auditoria.Escopo{Tudo: true}, func(f *auditoria.Filtro) { f.Ate = agora.Add(-time.Hour) }, 0},
 	}
 	for _, tt := range tests {

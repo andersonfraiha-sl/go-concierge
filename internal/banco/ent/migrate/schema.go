@@ -20,92 +20,92 @@ var (
 		Columns:    AdministradorasColumns,
 		PrimaryKey: []*schema.Column{AdministradorasColumns[0]},
 	}
-	// AtribuicoesColumns holds the columns for the "atribuicoes" table.
-	AtribuicoesColumns = []*schema.Column{
+	// RoleAssignmentsColumns holds the columns for the "role_assignments" table.
+	RoleAssignmentsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "escopo_tipo", Type: field.TypeString},
-		{Name: "escopo_id", Type: field.TypeString, Default: ""},
-		{Name: "papel_id", Type: field.TypeString},
-		{Name: "administradora_id", Type: field.TypeString, Nullable: true},
-		{Name: "usuario_id", Type: field.TypeString},
+		{Name: "scope_type", Type: field.TypeString},
+		{Name: "condo_id", Type: field.TypeString, Nullable: true},
+		{Name: "role_id", Type: field.TypeString},
+		{Name: "company_id", Type: field.TypeString, Nullable: true},
+		{Name: "user_id", Type: field.TypeString},
 	}
-	// AtribuicoesTable holds the schema information for the "atribuicoes" table.
-	AtribuicoesTable = &schema.Table{
-		Name:       "atribuicoes",
-		Columns:    AtribuicoesColumns,
-		PrimaryKey: []*schema.Column{AtribuicoesColumns[0]},
+	// RoleAssignmentsTable holds the schema information for the "role_assignments" table.
+	RoleAssignmentsTable = &schema.Table{
+		Name:       "role_assignments",
+		Columns:    RoleAssignmentsColumns,
+		PrimaryKey: []*schema.Column{RoleAssignmentsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "atribuicoes_papeis_papel",
-				Columns:    []*schema.Column{AtribuicoesColumns[3]},
-				RefColumns: []*schema.Column{PapeisColumns[0]},
+				Symbol:     "role_assignments_roles_papel",
+				Columns:    []*schema.Column{RoleAssignmentsColumns[3]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
-				Symbol:     "atribuicoes_administradoras_administradora",
-				Columns:    []*schema.Column{AtribuicoesColumns[4]},
+				Symbol:     "role_assignments_administradoras_administradora",
+				Columns:    []*schema.Column{RoleAssignmentsColumns[4]},
 				RefColumns: []*schema.Column{AdministradorasColumns[0]},
 				OnDelete:   schema.Restrict,
 			},
 			{
-				Symbol:     "atribuicoes_usuarios_atribuicoes",
-				Columns:    []*schema.Column{AtribuicoesColumns[5]},
-				RefColumns: []*schema.Column{UsuariosColumns[0]},
+				Symbol:     "role_assignments_users_atribuicoes",
+				Columns:    []*schema.Column{RoleAssignmentsColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "atribuicao_usuario_id_papel_id_escopo_tipo_escopo_id",
+				Name:    "atribuicao_user_id_role_id_scope_type_condo_id",
 				Unique:  true,
-				Columns: []*schema.Column{AtribuicoesColumns[5], AtribuicoesColumns[3], AtribuicoesColumns[1], AtribuicoesColumns[2]},
+				Columns: []*schema.Column{RoleAssignmentsColumns[5], RoleAssignmentsColumns[3], RoleAssignmentsColumns[1], RoleAssignmentsColumns[2]},
 			},
 		},
 	}
-	// CatalogoArquivosColumns holds the columns for the "catalogo_arquivos" table.
-	CatalogoArquivosColumns = []*schema.Column{
-		{Name: "caminho", Type: field.TypeString},
-		{Name: "conteudo", Type: field.TypeBytes},
+	// CatalogFilesColumns holds the columns for the "catalog_files" table.
+	CatalogFilesColumns = []*schema.Column{
+		{Name: "path", Type: field.TypeString},
+		{Name: "content", Type: field.TypeBytes},
 		{Name: "sha256", Type: field.TypeString},
-		{Name: "atualizado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 	}
-	// CatalogoArquivosTable holds the schema information for the "catalogo_arquivos" table.
-	CatalogoArquivosTable = &schema.Table{
-		Name:       "catalogo_arquivos",
-		Columns:    CatalogoArquivosColumns,
-		PrimaryKey: []*schema.Column{CatalogoArquivosColumns[0]},
+	// CatalogFilesTable holds the schema information for the "catalog_files" table.
+	CatalogFilesTable = &schema.Table{
+		Name:       "catalog_files",
+		Columns:    CatalogFilesColumns,
+		PrimaryKey: []*schema.Column{CatalogFilesColumns[0]},
 	}
-	// ConcessoesColumns holds the columns for the "concessoes" table.
-	ConcessoesColumns = []*schema.Column{
+	// CompanyRoleGrantsColumns holds the columns for the "company_role_grants" table.
+	CompanyRoleGrantsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "permissao", Type: field.TypeString},
-		{Name: "administradora_id", Type: field.TypeString},
-		{Name: "papel_id", Type: field.TypeString},
+		{Name: "permission", Type: field.TypeString},
+		{Name: "company_id", Type: field.TypeString},
+		{Name: "role_id", Type: field.TypeString},
 	}
-	// ConcessoesTable holds the schema information for the "concessoes" table.
-	ConcessoesTable = &schema.Table{
-		Name:       "concessoes",
-		Columns:    ConcessoesColumns,
-		PrimaryKey: []*schema.Column{ConcessoesColumns[0]},
+	// CompanyRoleGrantsTable holds the schema information for the "company_role_grants" table.
+	CompanyRoleGrantsTable = &schema.Table{
+		Name:       "company_role_grants",
+		Columns:    CompanyRoleGrantsColumns,
+		PrimaryKey: []*schema.Column{CompanyRoleGrantsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "concessoes_administradoras_administradora",
-				Columns:    []*schema.Column{ConcessoesColumns[2]},
+				Symbol:     "company_role_grants_administradoras_administradora",
+				Columns:    []*schema.Column{CompanyRoleGrantsColumns[2]},
 				RefColumns: []*schema.Column{AdministradorasColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
-				Symbol:     "concessoes_papeis_concessoes",
-				Columns:    []*schema.Column{ConcessoesColumns[3]},
-				RefColumns: []*schema.Column{PapeisColumns[0]},
+				Symbol:     "company_role_grants_roles_concessoes",
+				Columns:    []*schema.Column{CompanyRoleGrantsColumns[3]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "concessao_administradora_id_papel_id_permissao",
+				Name:    "concessao_company_id_role_id_permission",
 				Unique:  true,
-				Columns: []*schema.Column{ConcessoesColumns[2], ConcessoesColumns[3], ConcessoesColumns[1]},
+				Columns: []*schema.Column{CompanyRoleGrantsColumns[2], CompanyRoleGrantsColumns[3], CompanyRoleGrantsColumns[1]},
 			},
 		},
 	}
@@ -132,112 +132,111 @@ var (
 			},
 		},
 	}
-	// GanchosAuditoriaColumns holds the columns for the "ganchos_auditoria" table.
-	GanchosAuditoriaColumns = []*schema.Column{
+	// HookAuditLogsColumns holds the columns for the "hook_audit_logs" table.
+	HookAuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
-		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "origem", Type: field.TypeString},
-		{Name: "evento", Type: field.TypeString},
-		{Name: "gancho", Type: field.TypeString},
-		{Name: "regra_id", Type: field.TypeString, Default: ""},
-		{Name: "regra_versao", Type: field.TypeInt, Default: 0},
-		{Name: "decisao", Type: field.TypeString},
-		{Name: "motivo", Type: field.TypeString, Size: 2147483647},
-		{Name: "administradora_id", Type: field.TypeString, Default: ""},
-		{Name: "condominio_id", Type: field.TypeString, Default: ""},
-		{Name: "sessao_id", Type: field.TypeString, Default: ""},
-		{Name: "protocolo", Type: field.TypeString, Default: ""},
-		{Name: "usuario_id", Type: field.TypeString, Default: ""},
-		{Name: "tela", Type: field.TypeString, Default: ""},
-		{Name: "ferramenta", Type: field.TypeString, Default: ""},
-		{Name: "quantidade", Type: field.TypeInt, Default: 0},
+		{Name: "scope_type", Type: field.TypeString},
+		{Name: "channel_id", Type: field.TypeString, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "origin", Type: field.TypeString},
+		{Name: "event", Type: field.TypeString},
+		{Name: "hook", Type: field.TypeString},
+		{Name: "rule_id", Type: field.TypeString, Nullable: true},
+		{Name: "rule_version", Type: field.TypeInt, Default: 0},
+		{Name: "decision", Type: field.TypeString},
+		{Name: "reason", Type: field.TypeString, Size: 2147483647},
+		{Name: "company_id", Type: field.TypeString, Nullable: true},
+		{Name: "condo_id", Type: field.TypeString, Nullable: true},
+		{Name: "session_id", Type: field.TypeString, Nullable: true},
+		{Name: "protocol", Type: field.TypeString, Default: ""},
+		{Name: "user_id", Type: field.TypeString, Default: ""},
+		{Name: "screen", Type: field.TypeString, Default: ""},
+		{Name: "tool", Type: field.TypeString, Default: ""},
+		{Name: "count", Type: field.TypeInt, Default: 0},
 	}
-	// GanchosAuditoriaTable holds the schema information for the "ganchos_auditoria" table.
-	GanchosAuditoriaTable = &schema.Table{
-		Name:       "ganchos_auditoria",
-		Columns:    GanchosAuditoriaColumns,
-		PrimaryKey: []*schema.Column{GanchosAuditoriaColumns[0]},
+	// HookAuditLogsTable holds the schema information for the "hook_audit_logs" table.
+	HookAuditLogsTable = &schema.Table{
+		Name:       "hook_audit_logs",
+		Columns:    HookAuditLogsColumns,
+		PrimaryKey: []*schema.Column{HookAuditLogsColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "ganchosauditoria_administradora_id_criado_em",
+				Name:    "ganchosauditoria_company_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{GanchosAuditoriaColumns[9], GanchosAuditoriaColumns[1]},
+				Columns: []*schema.Column{HookAuditLogsColumns[11], HookAuditLogsColumns[3]},
 				Annotation: &entsql.IndexAnnotation{
-					DescColumns: map[string]bool{
-						GanchosAuditoriaColumns[1].Name: true,
-					},
+					DescColumns: map[string]bool{},
 				},
 			},
 			{
-				Name:    "ganchosauditoria_condominio_id_criado_em",
+				Name:    "ganchosauditoria_condo_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{GanchosAuditoriaColumns[10], GanchosAuditoriaColumns[1]},
+				Columns: []*schema.Column{HookAuditLogsColumns[12], HookAuditLogsColumns[3]},
 				Annotation: &entsql.IndexAnnotation{
-					DescColumns: map[string]bool{
-						GanchosAuditoriaColumns[1].Name: true,
-					},
+					DescColumns: map[string]bool{},
 				},
 			},
 			{
-				Name:    "ganchosauditoria_criado_em",
+				Name:    "ganchosauditoria_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{GanchosAuditoriaColumns[1]},
+				Columns: []*schema.Column{HookAuditLogsColumns[3]},
 			},
 		},
 	}
-	// GanchosRegrasColumns holds the columns for the "ganchos_regras" table.
-	GanchosRegrasColumns = []*schema.Column{
+	// HookRulesColumns holds the columns for the "hook_rules" table.
+	HookRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
-		{Name: "versao", Type: field.TypeInt},
-		{Name: "nome", Type: field.TypeString},
-		{Name: "evento", Type: field.TypeString},
-		{Name: "administradora_id", Type: field.TypeString, Default: ""},
-		{Name: "condominios", Type: field.TypeOther, SchemaType: map[string]string{"postgres": "text[]"}},
-		{Name: "ativa", Type: field.TypeBool},
-		{Name: "definicao", Type: field.TypeJSON},
-		{Name: "alterada_por", Type: field.TypeString, Default: ""},
-		{Name: "alterada_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "scope_type", Type: field.TypeString},
+		{Name: "version", Type: field.TypeInt},
+		{Name: "name", Type: field.TypeString},
+		{Name: "event", Type: field.TypeString},
+		{Name: "company_id", Type: field.TypeString, Nullable: true},
+		{Name: "condo_ids", Type: field.TypeOther, SchemaType: map[string]string{"postgres": "text[]"}},
+		{Name: "enabled", Type: field.TypeBool},
+		{Name: "definition", Type: field.TypeJSON},
+		{Name: "updated_by", Type: field.TypeString, Default: ""},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 	}
-	// GanchosRegrasTable holds the schema information for the "ganchos_regras" table.
-	GanchosRegrasTable = &schema.Table{
-		Name:       "ganchos_regras",
-		Columns:    GanchosRegrasColumns,
-		PrimaryKey: []*schema.Column{GanchosRegrasColumns[0]},
+	// HookRulesTable holds the schema information for the "hook_rules" table.
+	HookRulesTable = &schema.Table{
+		Name:       "hook_rules",
+		Columns:    HookRulesColumns,
+		PrimaryKey: []*schema.Column{HookRulesColumns[0]},
 		Indexes: []*schema.Index{
 			{
-				Name:    "ganchosregra_evento_ativa",
+				Name:    "ganchosregra_event_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{GanchosRegrasColumns[3], GanchosRegrasColumns[6]},
+				Columns: []*schema.Column{HookRulesColumns[4], HookRulesColumns[7]},
 			},
 		},
 	}
-	// GanchosRegrasVersoesColumns holds the columns for the "ganchos_regras_versoes" table.
-	GanchosRegrasVersoesColumns = []*schema.Column{
+	// HookRuleVersionsColumns holds the columns for the "hook_rule_versions" table.
+	HookRuleVersionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "versao", Type: field.TypeInt},
-		{Name: "definicao", Type: field.TypeJSON},
-		{Name: "alterada_por", Type: field.TypeString, Default: ""},
-		{Name: "alterada_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "regra_id", Type: field.TypeUUID},
+		{Name: "version", Type: field.TypeInt},
+		{Name: "definition", Type: field.TypeJSON},
+		{Name: "updated_by", Type: field.TypeString, Default: ""},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "rule_id", Type: field.TypeUUID},
 	}
-	// GanchosRegrasVersoesTable holds the schema information for the "ganchos_regras_versoes" table.
-	GanchosRegrasVersoesTable = &schema.Table{
-		Name:       "ganchos_regras_versoes",
-		Columns:    GanchosRegrasVersoesColumns,
-		PrimaryKey: []*schema.Column{GanchosRegrasVersoesColumns[0]},
+	// HookRuleVersionsTable holds the schema information for the "hook_rule_versions" table.
+	HookRuleVersionsTable = &schema.Table{
+		Name:       "hook_rule_versions",
+		Columns:    HookRuleVersionsColumns,
+		PrimaryKey: []*schema.Column{HookRuleVersionsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "ganchos_regras_versoes_ganchos_regras_versoes",
-				Columns:    []*schema.Column{GanchosRegrasVersoesColumns[5]},
-				RefColumns: []*schema.Column{GanchosRegrasColumns[0]},
+				Symbol:     "hook_rule_versions_hook_rules_versoes",
+				Columns:    []*schema.Column{HookRuleVersionsColumns[5]},
+				RefColumns: []*schema.Column{HookRulesColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "ganchosregraversao_regra_id_versao",
+				Name:    "ganchosregraversao_rule_id_version",
 				Unique:  true,
-				Columns: []*schema.Column{GanchosRegrasVersoesColumns[5], GanchosRegrasVersoesColumns[1]},
+				Columns: []*schema.Column{HookRuleVersionsColumns[5], HookRuleVersionsColumns[1]},
 			},
 		},
 	}
@@ -327,89 +326,93 @@ var (
 			},
 		},
 	}
-	// OrientacoesColumns holds the columns for the "orientacoes" table.
-	OrientacoesColumns = []*schema.Column{
+	// GuidelinesColumns holds the columns for the "guidelines" table.
+	GuidelinesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "geral", Type: field.TypeString, Size: 2147483647, Default: ""},
-		{Name: "por_caso", Type: field.TypeJSON},
-		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+		{Name: "scope_type", Type: field.TypeString},
+		{Name: "company_id", Type: field.TypeString, Nullable: true},
+		{Name: "general_text", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "by_use_case", Type: field.TypeJSON},
+		{Name: "condo_id", Type: field.TypeString, Nullable: true},
 	}
-	// OrientacoesTable holds the schema information for the "orientacoes" table.
-	OrientacoesTable = &schema.Table{
-		Name:       "orientacoes",
-		Columns:    OrientacoesColumns,
-		PrimaryKey: []*schema.Column{OrientacoesColumns[0]},
+	// GuidelinesTable holds the schema information for the "guidelines" table.
+	GuidelinesTable = &schema.Table{
+		Name:       "guidelines",
+		Columns:    GuidelinesColumns,
+		PrimaryKey: []*schema.Column{GuidelinesColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "orientacoes_condominios_orientacoes",
-				Columns:    []*schema.Column{OrientacoesColumns[3]},
+				Symbol:     "guidelines_condominios_orientacoes",
+				Columns:    []*schema.Column{GuidelinesColumns[5]},
 				RefColumns: []*schema.Column{CondominiosColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "orientacao_condominio_id",
+				Name:    "orientacao_condo_id",
 				Unique:  true,
-				Columns: []*schema.Column{OrientacoesColumns[3]},
+				Columns: []*schema.Column{GuidelinesColumns[5]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "condominio_id IS NOT NULL",
 				},
 			},
 		},
 	}
-	// PapeisColumns holds the columns for the "papeis" table.
-	PapeisColumns = []*schema.Column{
+	// RolesColumns holds the columns for the "roles" table.
+	RolesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "herda_de", Type: field.TypeString, Nullable: true},
+		{Name: "inherits_from", Type: field.TypeString, Nullable: true},
 	}
-	// PapeisTable holds the schema information for the "papeis" table.
-	PapeisTable = &schema.Table{
-		Name:       "papeis",
-		Columns:    PapeisColumns,
-		PrimaryKey: []*schema.Column{PapeisColumns[0]},
+	// RolesTable holds the schema information for the "roles" table.
+	RolesTable = &schema.Table{
+		Name:       "roles",
+		Columns:    RolesColumns,
+		PrimaryKey: []*schema.Column{RolesColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "papeis_papeis_filhos",
-				Columns:    []*schema.Column{PapeisColumns[1]},
-				RefColumns: []*schema.Column{PapeisColumns[0]},
+				Symbol:     "roles_roles_filhos",
+				Columns:    []*schema.Column{RolesColumns[1]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
 				OnDelete:   schema.Restrict,
 			},
 		},
 	}
-	// PapelPermissoesColumns holds the columns for the "papel_permissoes" table.
-	PapelPermissoesColumns = []*schema.Column{
+	// RolePermissionsColumns holds the columns for the "role_permissions" table.
+	RolePermissionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "permissao", Type: field.TypeString},
-		{Name: "papel_id", Type: field.TypeString},
+		{Name: "permission", Type: field.TypeString},
+		{Name: "role_id", Type: field.TypeString},
 	}
-	// PapelPermissoesTable holds the schema information for the "papel_permissoes" table.
-	PapelPermissoesTable = &schema.Table{
-		Name:       "papel_permissoes",
-		Columns:    PapelPermissoesColumns,
-		PrimaryKey: []*schema.Column{PapelPermissoesColumns[0]},
+	// RolePermissionsTable holds the schema information for the "role_permissions" table.
+	RolePermissionsTable = &schema.Table{
+		Name:       "role_permissions",
+		Columns:    RolePermissionsColumns,
+		PrimaryKey: []*schema.Column{RolePermissionsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "papel_permissoes_papeis_permissoes",
-				Columns:    []*schema.Column{PapelPermissoesColumns[2]},
-				RefColumns: []*schema.Column{PapeisColumns[0]},
+				Symbol:     "role_permissions_roles_permissoes",
+				Columns:    []*schema.Column{RolePermissionsColumns[2]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "papelpermissao_papel_id_permissao",
+				Name:    "papelpermissao_role_id_permission",
 				Unique:  true,
-				Columns: []*schema.Column{PapelPermissoesColumns[2], PapelPermissoesColumns[1]},
+				Columns: []*schema.Column{RolePermissionsColumns[2], RolePermissionsColumns[1]},
 			},
 		},
 	}
 	// PayloadsColumns holds the columns for the "payloads" table.
 	PayloadsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "recurso", Type: field.TypeString},
-		{Name: "dados", Type: field.TypeJSON},
-		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+		{Name: "scope_type", Type: field.TypeString},
+		{Name: "company_id", Type: field.TypeString, Nullable: true},
+		{Name: "resource_key", Type: field.TypeString},
+		{Name: "data", Type: field.TypeJSON},
+		{Name: "condo_id", Type: field.TypeString, Nullable: true},
 	}
 	// PayloadsTable holds the schema information for the "payloads" table.
 	PayloadsTable = &schema.Table{
@@ -419,24 +422,24 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "payloads_condominios_payloads",
-				Columns:    []*schema.Column{PayloadsColumns[3]},
+				Columns:    []*schema.Column{PayloadsColumns[5]},
 				RefColumns: []*schema.Column{CondominiosColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "payload_condominio_id_recurso",
+				Name:    "payload_condo_id_resource_key",
 				Unique:  true,
-				Columns: []*schema.Column{PayloadsColumns[3], PayloadsColumns[1]},
+				Columns: []*schema.Column{PayloadsColumns[5], PayloadsColumns[3]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "condominio_id IS NOT NULL",
 				},
 			},
 			{
-				Name:    "payload_recurso",
+				Name:    "payload_resource_key",
 				Unique:  true,
-				Columns: []*schema.Column{PayloadsColumns[1]},
+				Columns: []*schema.Column{PayloadsColumns[3]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "condominio_id IS NULL",
 				},
@@ -526,124 +529,124 @@ var (
 			},
 		},
 	}
-	// SkillAtualizacoesColumns holds the columns for the "skill_atualizacoes" table.
-	SkillAtualizacoesColumns = []*schema.Column{
+	// SkillUpdatesColumns holds the columns for the "skill_updates" table.
+	SkillUpdatesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "estado", Type: field.TypeEnum, Enums: []string{"pendente", "aceita", "recusada", "parcial", "substituida"}, Default: "pendente"},
-		{Name: "prazo_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "prazo_aplicado", Type: field.TypeBool, Default: false},
-		{Name: "decisoes", Type: field.TypeJSON, Nullable: true},
-		{Name: "decidida_por", Type: field.TypeString, Default: ""},
-		{Name: "decidida_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "de_id", Type: field.TypeInt},
-		{Name: "para_id", Type: field.TypeInt},
-		{Name: "camada_id", Type: field.TypeInt},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"PENDING", "ACCEPTED", "REJECTED", "PARTIAL", "SUPERSEDED"}, Default: "PENDING"},
+		{Name: "deadline_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "deadline_applied", Type: field.TypeBool, Default: false},
+		{Name: "decisions", Type: field.TypeJSON, Nullable: true},
+		{Name: "decided_by", Type: field.TypeString, Default: ""},
+		{Name: "decided_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "from_version_id", Type: field.TypeInt},
+		{Name: "to_version_id", Type: field.TypeInt},
+		{Name: "layer_id", Type: field.TypeInt},
 	}
-	// SkillAtualizacoesTable holds the schema information for the "skill_atualizacoes" table.
-	SkillAtualizacoesTable = &schema.Table{
-		Name:       "skill_atualizacoes",
-		Columns:    SkillAtualizacoesColumns,
-		PrimaryKey: []*schema.Column{SkillAtualizacoesColumns[0]},
+	// SkillUpdatesTable holds the schema information for the "skill_updates" table.
+	SkillUpdatesTable = &schema.Table{
+		Name:       "skill_updates",
+		Columns:    SkillUpdatesColumns,
+		PrimaryKey: []*schema.Column{SkillUpdatesColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "skill_atualizacoes_skill_versoes_de",
-				Columns:    []*schema.Column{SkillAtualizacoesColumns[8]},
-				RefColumns: []*schema.Column{SkillVersoesColumns[0]},
+				Symbol:     "skill_updates_skill_versions_de",
+				Columns:    []*schema.Column{SkillUpdatesColumns[8]},
+				RefColumns: []*schema.Column{SkillVersionsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
-				Symbol:     "skill_atualizacoes_skill_versoes_para",
-				Columns:    []*schema.Column{SkillAtualizacoesColumns[9]},
-				RefColumns: []*schema.Column{SkillVersoesColumns[0]},
+				Symbol:     "skill_updates_skill_versions_para",
+				Columns:    []*schema.Column{SkillUpdatesColumns[9]},
+				RefColumns: []*schema.Column{SkillVersionsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
-				Symbol:     "skill_atualizacoes_skill_camadas_atualizacoes",
-				Columns:    []*schema.Column{SkillAtualizacoesColumns[10]},
-				RefColumns: []*schema.Column{SkillCamadasColumns[0]},
+				Symbol:     "skill_updates_skill_layers_atualizacoes",
+				Columns:    []*schema.Column{SkillUpdatesColumns[10]},
+				RefColumns: []*schema.Column{SkillLayersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "skillatualizacao_camada_id_estado",
+				Name:    "skillatualizacao_layer_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{SkillAtualizacoesColumns[10], SkillAtualizacoesColumns[1]},
+				Columns: []*schema.Column{SkillUpdatesColumns[10], SkillUpdatesColumns[1]},
 			},
 			{
-				Name:    "skillatualizacao_estado_prazo_em",
+				Name:    "skillatualizacao_status_deadline_at",
 				Unique:  false,
-				Columns: []*schema.Column{SkillAtualizacoesColumns[1], SkillAtualizacoesColumns[2]},
+				Columns: []*schema.Column{SkillUpdatesColumns[1], SkillUpdatesColumns[2]},
 			},
 		},
 	}
-	// SkillAvisosColumns holds the columns for the "skill_avisos" table.
-	SkillAvisosColumns = []*schema.Column{
+	// SkillNoticesColumns holds the columns for the "skill_notices" table.
+	SkillNoticesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "motivo", Type: field.TypeString, Size: 2147483647, Default: ""},
-		{Name: "trechos", Type: field.TypeJSON},
-		{Name: "encerra_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "ciente_por", Type: field.TypeString, Default: ""},
-		{Name: "ciente_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "versao_id", Type: field.TypeInt},
-		{Name: "camada_id", Type: field.TypeInt},
+		{Name: "reason", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "sections", Type: field.TypeJSON},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "acknowledged_by", Type: field.TypeString, Default: ""},
+		{Name: "acknowledged_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "version_id", Type: field.TypeInt},
+		{Name: "layer_id", Type: field.TypeInt},
 	}
-	// SkillAvisosTable holds the schema information for the "skill_avisos" table.
-	SkillAvisosTable = &schema.Table{
-		Name:       "skill_avisos",
-		Columns:    SkillAvisosColumns,
-		PrimaryKey: []*schema.Column{SkillAvisosColumns[0]},
+	// SkillNoticesTable holds the schema information for the "skill_notices" table.
+	SkillNoticesTable = &schema.Table{
+		Name:       "skill_notices",
+		Columns:    SkillNoticesColumns,
+		PrimaryKey: []*schema.Column{SkillNoticesColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "skill_avisos_skill_versoes_versao",
-				Columns:    []*schema.Column{SkillAvisosColumns[7]},
-				RefColumns: []*schema.Column{SkillVersoesColumns[0]},
+				Symbol:     "skill_notices_skill_versions_versao",
+				Columns:    []*schema.Column{SkillNoticesColumns[7]},
+				RefColumns: []*schema.Column{SkillVersionsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
-				Symbol:     "skill_avisos_skill_camadas_avisos",
-				Columns:    []*schema.Column{SkillAvisosColumns[8]},
-				RefColumns: []*schema.Column{SkillCamadasColumns[0]},
+				Symbol:     "skill_notices_skill_layers_avisos",
+				Columns:    []*schema.Column{SkillNoticesColumns[8]},
+				RefColumns: []*schema.Column{SkillLayersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "skillaviso_camada_id_ciente_em",
+				Name:    "skillaviso_layer_id_acknowledged_at",
 				Unique:  false,
-				Columns: []*schema.Column{SkillAvisosColumns[8], SkillAvisosColumns[5]},
+				Columns: []*schema.Column{SkillNoticesColumns[8], SkillNoticesColumns[5]},
 			},
 		},
 	}
-	// SkillCamadasColumns holds the columns for the "skill_camadas" table.
-	SkillCamadasColumns = []*schema.Column{
+	// SkillLayersColumns holds the columns for the "skill_layers" table.
+	SkillLayersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "skill", Type: field.TypeString},
-		{Name: "tipo", Type: field.TypeEnum, Enums: []string{"base", "administradora", "condominio"}},
-		{Name: "cabeca_id", Type: field.TypeInt, Nullable: true},
-		{Name: "acima_id", Type: field.TypeInt, Nullable: true},
-		{Name: "rascunho", Type: field.TypeJSON, Nullable: true},
-		{Name: "rascunho_versao", Type: field.TypeString, Default: ""},
-		{Name: "administradora_id", Type: field.TypeString, Nullable: true},
-		{Name: "condominio_id", Type: field.TypeString, Nullable: true},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"BASE", "COMPANY", "CONDO"}},
+		{Name: "head_version_id", Type: field.TypeInt, Nullable: true},
+		{Name: "parent_version_id", Type: field.TypeInt, Nullable: true},
+		{Name: "draft", Type: field.TypeJSON, Nullable: true},
+		{Name: "draft_version", Type: field.TypeString, Default: ""},
+		{Name: "company_id", Type: field.TypeString, Nullable: true},
+		{Name: "condo_id", Type: field.TypeString, Nullable: true},
 	}
-	// SkillCamadasTable holds the schema information for the "skill_camadas" table.
-	SkillCamadasTable = &schema.Table{
-		Name:       "skill_camadas",
-		Columns:    SkillCamadasColumns,
-		PrimaryKey: []*schema.Column{SkillCamadasColumns[0]},
+	// SkillLayersTable holds the schema information for the "skill_layers" table.
+	SkillLayersTable = &schema.Table{
+		Name:       "skill_layers",
+		Columns:    SkillLayersColumns,
+		PrimaryKey: []*schema.Column{SkillLayersColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "skill_camadas_administradoras_skill_camadas",
-				Columns:    []*schema.Column{SkillCamadasColumns[7]},
+				Symbol:     "skill_layers_administradoras_skill_camadas",
+				Columns:    []*schema.Column{SkillLayersColumns[7]},
 				RefColumns: []*schema.Column{AdministradorasColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
-				Symbol:     "skill_camadas_condominios_skill_camadas",
-				Columns:    []*schema.Column{SkillCamadasColumns[8]},
+				Symbol:     "skill_layers_condominios_skill_camadas",
+				Columns:    []*schema.Column{SkillLayersColumns[8]},
 				RefColumns: []*schema.Column{CondominiosColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -652,139 +655,131 @@ var (
 			{
 				Name:    "skillcamada_skill",
 				Unique:  true,
-				Columns: []*schema.Column{SkillCamadasColumns[1]},
+				Columns: []*schema.Column{SkillLayersColumns[1]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "(tipo)::text = 'base'::text",
 				},
 			},
 			{
-				Name:    "skillcamada_skill_administradora_id",
+				Name:    "skillcamada_skill_company_id",
 				Unique:  true,
-				Columns: []*schema.Column{SkillCamadasColumns[1], SkillCamadasColumns[7]},
+				Columns: []*schema.Column{SkillLayersColumns[1], SkillLayersColumns[7]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "(tipo)::text = 'administradora'::text",
 				},
 			},
 			{
-				Name:    "skillcamada_skill_condominio_id",
+				Name:    "skillcamada_skill_condo_id",
 				Unique:  true,
-				Columns: []*schema.Column{SkillCamadasColumns[1], SkillCamadasColumns[8]},
+				Columns: []*schema.Column{SkillLayersColumns[1], SkillLayersColumns[8]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "(tipo)::text = 'condominio'::text",
 				},
 			},
 		},
 	}
-	// SkillVersoesColumns holds the columns for the "skill_versoes" table.
-	SkillVersoesColumns = []*schema.Column{
+	// SkillVersionsColumns holds the columns for the "skill_versions" table.
+	SkillVersionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
-		{Name: "numero", Type: field.TypeInt},
-		{Name: "documento", Type: field.TypeJSON},
-		{Name: "caso_yaml", Type: field.TypeBytes, Nullable: true},
-		{Name: "acima_id", Type: field.TypeInt, Nullable: true},
-		{Name: "atualizacao_id", Type: field.TypeInt, Nullable: true},
-		{Name: "origem", Type: field.TypeEnum, Enums: []string{"importacao", "inicial", "publicacao", "decisao", "obrigatorio", "prazo", "volta"}},
-		{Name: "autor", Type: field.TypeString},
-		{Name: "resumo", Type: field.TypeString, Size: 2147483647, Default: ""},
-		{Name: "motivo", Type: field.TypeString, Size: 2147483647, Default: ""},
-		{Name: "obrigatorios", Type: field.TypeJSON},
-		{Name: "encerra_em", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "criado_em", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "camada_id", Type: field.TypeInt},
+		{Name: "number", Type: field.TypeInt},
+		{Name: "document", Type: field.TypeJSON},
+		{Name: "case_yaml", Type: field.TypeBytes, Nullable: true},
+		{Name: "parent_version_id", Type: field.TypeInt, Nullable: true},
+		{Name: "update_id", Type: field.TypeInt, Nullable: true},
+		{Name: "origin", Type: field.TypeEnum, Enums: []string{"IMPORT", "INITIAL", "PUBLICATION", "DECISION", "MANDATORY", "DEADLINE", "ROLLBACK"}},
+		{Name: "author", Type: field.TypeString},
+		{Name: "summary", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "reason", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "mandatory_sections", Type: field.TypeJSON},
+		{Name: "expires_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "layer_id", Type: field.TypeInt},
 	}
-	// SkillVersoesTable holds the schema information for the "skill_versoes" table.
-	SkillVersoesTable = &schema.Table{
-		Name:       "skill_versoes",
-		Columns:    SkillVersoesColumns,
-		PrimaryKey: []*schema.Column{SkillVersoesColumns[0]},
+	// SkillVersionsTable holds the schema information for the "skill_versions" table.
+	SkillVersionsTable = &schema.Table{
+		Name:       "skill_versions",
+		Columns:    SkillVersionsColumns,
+		PrimaryKey: []*schema.Column{SkillVersionsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "skill_versoes_skill_camadas_versoes",
-				Columns:    []*schema.Column{SkillVersoesColumns[13]},
-				RefColumns: []*schema.Column{SkillCamadasColumns[0]},
+				Symbol:     "skill_versions_skill_layers_versoes",
+				Columns:    []*schema.Column{SkillVersionsColumns[13]},
+				RefColumns: []*schema.Column{SkillLayersColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "skillversao_camada_id_numero",
+				Name:    "skillversao_layer_id_number",
 				Unique:  true,
-				Columns: []*schema.Column{SkillVersoesColumns[13], SkillVersoesColumns[1]},
+				Columns: []*schema.Column{SkillVersionsColumns[13], SkillVersionsColumns[1]},
 			},
 		},
 	}
-	// UsuariosColumns holds the columns for the "usuarios" table.
-	UsuariosColumns = []*schema.Column{
+	// UsersColumns holds the columns for the "users" table.
+	UsersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString},
-		{Name: "nome", Type: field.TypeString},
+		{Name: "name", Type: field.TypeString},
 	}
-	// UsuariosTable holds the schema information for the "usuarios" table.
-	UsuariosTable = &schema.Table{
-		Name:       "usuarios",
-		Columns:    UsuariosColumns,
-		PrimaryKey: []*schema.Column{UsuariosColumns[0]},
+	// UsersTable holds the schema information for the "users" table.
+	UsersTable = &schema.Table{
+		Name:       "users",
+		Columns:    UsersColumns,
+		PrimaryKey: []*schema.Column{UsersColumns[0]},
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		AdministradorasTable,
-		AtribuicoesTable,
-		CatalogoArquivosTable,
-		ConcessoesTable,
+		RoleAssignmentsTable,
+		CatalogFilesTable,
+		CompanyRoleGrantsTable,
 		CondominiosTable,
-		GanchosAuditoriaTable,
-		GanchosRegrasTable,
-		GanchosRegrasVersoesTable,
+		HookAuditLogsTable,
+		HookRulesTable,
+		HookRuleVersionsTable,
 		HabilitacoesTable,
 		MemoriaContatosTable,
 		MemoriaFatosTable,
-		OrientacoesTable,
-		PapeisTable,
-		PapelPermissoesTable,
+		GuidelinesTable,
+		RolesTable,
+		RolePermissionsTable,
 		PayloadsTable,
 		PedidosTable,
 		PedidoEventosTable,
 		SessoesTable,
-		SkillAtualizacoesTable,
-		SkillAvisosTable,
-		SkillCamadasTable,
-		SkillVersoesTable,
-		UsuariosTable,
+		SkillUpdatesTable,
+		SkillNoticesTable,
+		SkillLayersTable,
+		SkillVersionsTable,
+		UsersTable,
 	}
 )
 
 func init() {
-	AtribuicoesTable.ForeignKeys[0].RefTable = PapeisTable
-	AtribuicoesTable.ForeignKeys[1].RefTable = AdministradorasTable
-	AtribuicoesTable.ForeignKeys[2].RefTable = UsuariosTable
-	AtribuicoesTable.Annotation = &entsql.Annotation{
-		Table: "atribuicoes",
+	RoleAssignmentsTable.ForeignKeys[0].RefTable = RolesTable
+	RoleAssignmentsTable.ForeignKeys[1].RefTable = AdministradorasTable
+	RoleAssignmentsTable.ForeignKeys[2].RefTable = UsersTable
+	RoleAssignmentsTable.Annotation = &entsql.Annotation{
+		Table: "role_assignments",
 	}
-	AtribuicoesTable.Annotation.Checks = map[string]string{
-		"atribuicoes_administradora_id": "(escopo_tipo = 'condominio') = (administradora_id IS NOT NULL)",
-		"atribuicoes_escopo_id":         "(escopo_tipo = 'superlogica') = (escopo_id = '')",
-		"atribuicoes_escopo_tipo":       "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
+	CatalogFilesTable.Annotation = &entsql.Annotation{
+		Table: "catalog_files",
 	}
-	CatalogoArquivosTable.Annotation = &entsql.Annotation{
-		Table: "catalogo_arquivos",
-	}
-	CatalogoArquivosTable.Annotation.Checks = map[string]string{
-		"catalogo_arquivos_caminho_na_raiz": "caminho LIKE 'agentes/%' OR caminho LIKE 'nexus/%'",
-	}
-	ConcessoesTable.ForeignKeys[0].RefTable = AdministradorasTable
-	ConcessoesTable.ForeignKeys[1].RefTable = PapeisTable
-	ConcessoesTable.Annotation = &entsql.Annotation{
-		Table: "concessoes",
+	CompanyRoleGrantsTable.ForeignKeys[0].RefTable = AdministradorasTable
+	CompanyRoleGrantsTable.ForeignKeys[1].RefTable = RolesTable
+	CompanyRoleGrantsTable.Annotation = &entsql.Annotation{
+		Table: "company_role_grants",
 	}
 	CondominiosTable.ForeignKeys[0].RefTable = AdministradorasTable
-	GanchosAuditoriaTable.Annotation = &entsql.Annotation{
-		Table: "ganchos_auditoria",
+	HookAuditLogsTable.Annotation = &entsql.Annotation{
+		Table: "hook_audit_logs",
 	}
-	GanchosRegrasTable.Annotation = &entsql.Annotation{
-		Table: "ganchos_regras",
+	HookRulesTable.Annotation = &entsql.Annotation{
+		Table: "hook_rules",
 	}
-	GanchosRegrasVersoesTable.ForeignKeys[0].RefTable = GanchosRegrasTable
-	GanchosRegrasVersoesTable.Annotation = &entsql.Annotation{
-		Table: "ganchos_regras_versoes",
+	HookRuleVersionsTable.ForeignKeys[0].RefTable = HookRulesTable
+	HookRuleVersionsTable.Annotation = &entsql.Annotation{
+		Table: "hook_rule_versions",
 	}
 	HabilitacoesTable.ForeignKeys[0].RefTable = CondominiosTable
 	HabilitacoesTable.Annotation = &entsql.Annotation{
@@ -805,19 +800,22 @@ func init() {
 		"memoria_fatos_chave_preenchida":          "chave <> ''",
 		"memoria_fatos_telefone_preenchido":       "telefone <> ''",
 	}
-	OrientacoesTable.ForeignKeys[0].RefTable = CondominiosTable
-	OrientacoesTable.Annotation = &entsql.Annotation{
-		Table: "orientacoes",
+	GuidelinesTable.ForeignKeys[0].RefTable = CondominiosTable
+	GuidelinesTable.Annotation = &entsql.Annotation{
+		Table: "guidelines",
 	}
-	PapeisTable.ForeignKeys[0].RefTable = PapeisTable
-	PapeisTable.Annotation = &entsql.Annotation{
-		Table: "papeis",
+	RolesTable.ForeignKeys[0].RefTable = RolesTable
+	RolesTable.Annotation = &entsql.Annotation{
+		Table: "roles",
 	}
-	PapelPermissoesTable.ForeignKeys[0].RefTable = PapeisTable
-	PapelPermissoesTable.Annotation = &entsql.Annotation{
-		Table: "papel_permissoes",
+	RolePermissionsTable.ForeignKeys[0].RefTable = RolesTable
+	RolePermissionsTable.Annotation = &entsql.Annotation{
+		Table: "role_permissions",
 	}
 	PayloadsTable.ForeignKeys[0].RefTable = CondominiosTable
+	PayloadsTable.Annotation = &entsql.Annotation{
+		Table: "payloads",
+	}
 	PedidosTable.Annotation = &entsql.Annotation{
 		Table: "pedidos",
 	}
@@ -828,27 +826,27 @@ func init() {
 	SessoesTable.Annotation = &entsql.Annotation{
 		Table: "sessoes",
 	}
-	SkillAtualizacoesTable.ForeignKeys[0].RefTable = SkillVersoesTable
-	SkillAtualizacoesTable.ForeignKeys[1].RefTable = SkillVersoesTable
-	SkillAtualizacoesTable.ForeignKeys[2].RefTable = SkillCamadasTable
-	SkillAtualizacoesTable.Annotation = &entsql.Annotation{
-		Table: "skill_atualizacoes",
+	SkillUpdatesTable.ForeignKeys[0].RefTable = SkillVersionsTable
+	SkillUpdatesTable.ForeignKeys[1].RefTable = SkillVersionsTable
+	SkillUpdatesTable.ForeignKeys[2].RefTable = SkillLayersTable
+	SkillUpdatesTable.Annotation = &entsql.Annotation{
+		Table: "skill_updates",
 	}
-	SkillAvisosTable.ForeignKeys[0].RefTable = SkillVersoesTable
-	SkillAvisosTable.ForeignKeys[1].RefTable = SkillCamadasTable
-	SkillAvisosTable.Annotation = &entsql.Annotation{
-		Table: "skill_avisos",
+	SkillNoticesTable.ForeignKeys[0].RefTable = SkillVersionsTable
+	SkillNoticesTable.ForeignKeys[1].RefTable = SkillLayersTable
+	SkillNoticesTable.Annotation = &entsql.Annotation{
+		Table: "skill_notices",
 	}
-	SkillCamadasTable.ForeignKeys[0].RefTable = AdministradorasTable
-	SkillCamadasTable.ForeignKeys[1].RefTable = CondominiosTable
-	SkillCamadasTable.Annotation = &entsql.Annotation{
-		Table: "skill_camadas",
+	SkillLayersTable.ForeignKeys[0].RefTable = AdministradorasTable
+	SkillLayersTable.ForeignKeys[1].RefTable = CondominiosTable
+	SkillLayersTable.Annotation = &entsql.Annotation{
+		Table: "skill_layers",
 	}
-	SkillCamadasTable.Annotation.Checks = map[string]string{
-		"skill_camadas_dono_do_tipo": "(tipo = 'base' AND administradora_id IS NULL AND condominio_id IS NULL) OR (tipo = 'administradora' AND administradora_id IS NOT NULL AND condominio_id IS NULL) OR (tipo = 'condominio' AND condominio_id IS NOT NULL AND administradora_id IS NULL)",
+	SkillVersionsTable.ForeignKeys[0].RefTable = SkillLayersTable
+	SkillVersionsTable.Annotation = &entsql.Annotation{
+		Table: "skill_versions",
 	}
-	SkillVersoesTable.ForeignKeys[0].RefTable = SkillCamadasTable
-	SkillVersoesTable.Annotation = &entsql.Annotation{
-		Table: "skill_versoes",
+	UsersTable.Annotation = &entsql.Annotation{
+		Table: "users",
 	}
 }

@@ -263,12 +263,12 @@ func (_q *GanchosAuditoriaQuery) Clone() *GanchosAuditoriaQuery {
 // Example:
 //
 //	var v []struct {
-//		CriadoEm time.Time `json:"criado_em,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.GanchosAuditoria.Query().
-//		GroupBy(ganchosauditoria.FieldCriadoEm).
+//		GroupBy(ganchosauditoria.FieldScopeType).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *GanchosAuditoriaQuery) GroupBy(field string, fields ...string) *GanchosAuditoriaGroupBy {
@@ -286,11 +286,11 @@ func (_q *GanchosAuditoriaQuery) GroupBy(field string, fields ...string) *Gancho
 // Example:
 //
 //	var v []struct {
-//		CriadoEm time.Time `json:"criado_em,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //	}
 //
 //	client.GanchosAuditoria.Query().
-//		Select(ganchosauditoria.FieldCriadoEm).
+//		Select(ganchosauditoria.FieldScopeType).
 //		Scan(ctx, &v)
 func (_q *GanchosAuditoriaQuery) Select(fields ...string) *GanchosAuditoriaSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

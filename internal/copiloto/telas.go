@@ -30,8 +30,8 @@ var operacoesPorTela = map[Tela][]TipoDeOperacao{
 	TelaSkills:      {CriarSkill, ExcluirSkill, PreencherTextos},
 	TelaSkill:       {PreencherTextos},
 	TelaFluxo:       {TrocarFluxo, PreencherTextos},
-	TelaCondominios: {HabilitarSkill, Orientar},
-	TelaCondominio:  {HabilitarSkill, Orientar, Ajustar},
+	TelaCondominios: {Orientar},
+	TelaCondominio:  {Orientar, Ajustar},
 	TelaConcierge:   {EditarPersona},
 	TelaAvancado:    {EditarArquivo},
 }

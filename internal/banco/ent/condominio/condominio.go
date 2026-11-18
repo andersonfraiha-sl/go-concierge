@@ -54,21 +54,21 @@ const (
 	// It exists in this package in order to avoid circular dependency with the "payload" package.
 	PayloadsInverseTable = "payloads"
 	// PayloadsColumn is the table column denoting the payloads relation/edge.
-	PayloadsColumn = "condominio_id"
+	PayloadsColumn = "condo_id"
 	// OrientacoesTable is the table that holds the orientacoes relation/edge.
-	OrientacoesTable = "orientacoes"
+	OrientacoesTable = "guidelines"
 	// OrientacoesInverseTable is the table name for the Orientacao entity.
 	// It exists in this package in order to avoid circular dependency with the "orientacao" package.
-	OrientacoesInverseTable = "orientacoes"
+	OrientacoesInverseTable = "guidelines"
 	// OrientacoesColumn is the table column denoting the orientacoes relation/edge.
-	OrientacoesColumn = "condominio_id"
+	OrientacoesColumn = "condo_id"
 	// SkillCamadasTable is the table that holds the skill_camadas relation/edge.
-	SkillCamadasTable = "skill_camadas"
+	SkillCamadasTable = "skill_layers"
 	// SkillCamadasInverseTable is the table name for the SkillCamada entity.
 	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
-	SkillCamadasInverseTable = "skill_camadas"
+	SkillCamadasInverseTable = "skill_layers"
 	// SkillCamadasColumn is the table column denoting the skill_camadas relation/edge.
-	SkillCamadasColumn = "condominio_id"
+	SkillCamadasColumn = "condo_id"
 )
 
 // Columns holds all SQL columns for condominio fields.

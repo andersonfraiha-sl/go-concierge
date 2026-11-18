@@ -19,11 +19,11 @@ type Atribuicao struct {
 
 func (Atribuicao) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("usuario_id").NotEmpty(),
-		field.String("papel_id").NotEmpty(),
-		field.String("escopo_tipo").NotEmpty(),
-		field.String("escopo_id").Default(""),
-		field.String("administradora_id").Optional().Nillable(),
+		field.String("usuario_id").StorageKey("user_id").NotEmpty(),
+		field.String("papel_id").StorageKey("role_id").NotEmpty(),
+		field.String("escopo_tipo").StorageKey("scope_type").NotEmpty(),
+		field.String("escopo_id").StorageKey("condo_id").Optional(),
+		field.String("administradora_id").StorageKey("company_id").Optional().Nillable(),
 	}
 }
 
@@ -42,13 +42,5 @@ func (Atribuicao) Indexes() []ent.Index {
 }
 
 func (Atribuicao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{
-		Table: "atribuicoes",
-		Checks: map[string]string{
-			"atribuicoes_escopo_tipo": "escopo_tipo IN ('superlogica', 'administradora', 'condominio')",
-			// só o escopo superlogica dispensa o id; os outros precisam dele
-			"atribuicoes_administradora_id": "(escopo_tipo = 'condominio') = (administradora_id IS NOT NULL)",
-			"atribuicoes_escopo_id":         "(escopo_tipo = 'superlogica') = (escopo_id = '')",
-		},
-	}}
+	return []schema.Annotation{entsql.Annotation{Table: "role_assignments"}}
 }

@@ -23,14 +23,7 @@ describe('StudioLayout', () => {
 
     expect(screen.getByText('Studio')).toBeInTheDocument();
     await screen.findByRole('link', { name: 'Casos de uso' });
-    const rotulos = [
-      'Concierge',
-      'Casos de uso',
-      'Recursos',
-      'Condomínios',
-      'Avançado',
-      'Atendente',
-    ];
+    const rotulos = ['Concierge', 'Casos de uso', 'Recursos', 'Conteúdo', 'Avançado', 'Atendente'];
     for (const rotulo of rotulos) {
       expect(screen.getByRole('link', { name: rotulo })).toBeInTheDocument();
     }
@@ -39,33 +32,24 @@ describe('StudioLayout', () => {
   it('escondeAdministradorasSemPermissao', async () => {
     renderComProvedores(<StudioLayout />);
 
-    await screen.findByRole('link', { name: 'Condomínios' });
+    await screen.findByRole('link', { name: 'Conteúdo' });
     expect(screen.queryByRole('link', { name: 'Administradoras' })).not.toBeInTheDocument();
   });
 
-  it('mostraAdministradorasComPermissaoDeEditar', async () => {
+  it('mantemConteudoSemGestaoLocalMesmoComPermissaoAntiga', async () => {
     const admin = { ...eu, permissoes: [...eu.permissoes, 'administradoras.editar'] };
     responderCom({ 'GET /api/eu': () => json(admin) });
+    localStorage.setItem('studio.semCondominios', 'true');
     renderComProvedores(<StudioLayout />);
 
-    expect(await screen.findByRole('link', { name: 'Administradoras' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Conteúdo' })).toHaveAttribute(
       'href',
-      '/administradoras',
+      '/condominios',
     );
-  });
-
-  it('escondeCondominiosEAdministradorasPelaChaveELembra', async () => {
-    const admin = { ...eu, permissoes: [...eu.permissoes, 'administradoras.editar'] };
-    responderCom({ 'GET /api/eu': () => json(admin) });
-    const { user } = renderComProvedores(<StudioLayout />);
-    await screen.findByRole('link', { name: 'Administradoras' });
-
-    await user.click(screen.getByRole('switch', { name: 'Condomínios e administradoras' }));
-
-    expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Administradoras' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Recursos' })).toBeInTheDocument();
-    expect(localStorage.getItem('studio.semCondominios')).toBe('true');
+    expect(
+      screen.queryByRole('switch', { name: 'Condomínios e administradoras' }),
+    ).not.toBeInTheDocument();
   });
 
   it('mostraCondominioNoSingularEAbreDiretoNeleParaQuemSoTemUm', async () => {
@@ -79,11 +63,10 @@ describe('StudioLayout', () => {
     responderCom({ 'GET /api/eu': () => json(gestorDoCondominio) });
     renderComProvedores(<StudioLayout />);
 
-    expect(await screen.findByRole('link', { name: 'Condomínio' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Conteúdo' })).toHaveAttribute(
       'href',
-      '/condominios/vila%20verde',
+      '/condominios/vila%20verde?company_id=adm-a',
     );
-    expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
     expect(screen.getByText('Gestor · Condomínio')).toBeInTheDocument();
   });
 
@@ -92,9 +75,9 @@ describe('StudioLayout', () => {
     responderCom({ 'GET /api/eu': () => json(gestor) });
     renderComProvedores(<StudioLayout />);
 
-    expect(await screen.findByRole('link', { name: 'Condomínios' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Conteúdo' })).toHaveAttribute(
       'href',
-      '/condominios',
+      '/condominios?company_id=adm-a',
     );
     expect(screen.getByText('Gestor · Administradora')).toBeInTheDocument();
   });

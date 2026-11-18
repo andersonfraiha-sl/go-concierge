@@ -168,8 +168,10 @@ describe('SkillDoCondominioDrawer', () => {
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos[0]).toEqual({
       condominio: 'vila-verde',
+      company_id: 'adm-exemplo',
+      condo_id: null,
       geral: 'Piscina fecha às 22h.',
-      por_caso: { 'agendar-mudanca': 'Chamar o zelador antes.' },
+      por_caso: { agendar_mudanca: 'Chamar o zelador antes.' },
     });
   });
 

@@ -46,8 +46,12 @@ const (
 // Pedido é um caso de uso em andamento para um contato.
 type Pedido struct {
 	Protocolo        string `json:"protocolo"`
-	AdministradoraID string `json:"administradora_id"`
-	CondominioID     string `json:"condominio_id"` // o condomínio da conversa que abriu o pedido
+	CompanyID        string `json:"company_id"`
+	AdministradoraID string `json:"-"`
+	CondoID          *int   `json:"condo_id"`
+	CompanyUseCaseID string `json:"company_use_case_id,omitempty"`
+	SourceSessionID  string `json:"source_session_id,omitempty"`
+	CondominioID     string `json:"-"` // o condomínio da conversa que abriu o pedido
 	Telefone         string `json:"telefone"`
 	Caso             string `json:"caso"`      // id do caso.yaml
 	CasoNome         string `json:"caso_nome"` // name do caso.yaml
@@ -201,7 +205,8 @@ func (p *Pedido) Faltando(c *Contrato) []*Slot {
 // ---- carteira: os pedidos de um contato ----------------------------------------------
 
 type Carteira struct {
-	AdministradoraID string    `json:"administradora_id"`
+	CompanyID        string    `json:"company_id"`
+	AdministradoraID string    `json:"-"`
 	Telefone         string    `json:"telefone"`
 	Pedidos          []*Pedido `json:"pedidos"`
 	AtualizadaEm     time.Time `json:"atualizada_em"`
@@ -255,8 +260,9 @@ func (c *Carteira) AbertoDoCaso(caso string) *Pedido {
 
 // Novo abre um pedido para o caso, no condomínio da conversa, com protocolo aleatório
 // único na carteira.
-func (c *Carteira) Novo(ct *Contrato, agente, condominioID string, origem Origem) *Pedido {
-	p := &Pedido{AdministradoraID: c.AdministradoraID, CondominioID: condominioID, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
+func (c *Carteira) Novo(ct *Contrato, agente string, condominioID any, origem Origem) *Pedido {
+	contato, _ := escopo.NovoContato(c.empresa(), condominioID, c.Telefone)
+	p := &Pedido{CompanyID: c.empresa(), AdministradoraID: c.empresa(), CondoID: contato.CondoID, CondominioID: contato.CondominioID, Telefone: c.Telefone, Caso: ct.Caso.ID, CasoNome: ct.Caso.Name, Agente: agente, Estado: Coletando,
 		Valores: map[string]any{}, Rotulos: map[string]string{}, Origens: map[string]string{}, Dados: map[string]any{}, Origem: origem, CriadoEm: time.Now(),
 		Ordem: c.ultimaOrdem() + 1}
 	for {
@@ -381,21 +387,13 @@ func adotarProtocolos(carteira []*Pedido, gravados []Pedido) {
 }
 
 func validarAdministradora(administradoraID string) error {
-	if !escopo.AdministradoraValida(administradoraID) {
+	if !escopo.EmpresaValida(administradoraID) {
 		return fmt.Errorf("pedidos da administradora %q: %w", administradoraID, errContatoInvalido)
 	}
 	return nil
 }
 
-func validarContato(c escopo.Contato) error {
-	if err := validarAdministradora(c.AdministradoraID); err != nil {
-		return err
-	}
-	if c.Telefone == "" {
-		return errContatoInvalido
-	}
-	return nil
-}
+func validarContato(c escopo.Contato) error { return c.Validar() }
 
 // copiasDoContato copia os pedidos com a administradora e o telefone do contato: quem grava é o
 // contato, não o que veio escrito no pedido. Os pedidos do chamador ficam intactos.
@@ -403,7 +401,8 @@ func copiasDoContato(c escopo.Contato, pedidos []*Pedido) []Pedido {
 	out := make([]Pedido, 0, len(pedidos))
 	for _, p := range pedidos {
 		copia := *p
-		copia.AdministradoraID, copia.Telefone = c.AdministradoraID, c.Telefone
+		c = c.Canonico()
+		copia.CompanyID, copia.AdministradoraID, copia.Telefone = c.CompanyID, c.CompanyID, c.Telefone
 		out = append(out, copia)
 	}
 	return out
@@ -412,7 +411,8 @@ func copiasDoContato(c escopo.Contato, pedidos []*Pedido) []Pedido {
 // montar é a carteira do contato com os pedidos na ordem em que foram abertos; ela foi
 // atualizada quando o seu pedido mais recente foi.
 func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
-	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Pedidos: slices.Clone(pedidos)}
+	c = c.Canonico()
+	cart := Carteira{CompanyID: c.CompanyID, AdministradoraID: c.CompanyID, Telefone: c.Telefone, Pedidos: slices.Clone(pedidos)}
 	slices.SortStableFunc(cart.Pedidos, func(a, b *Pedido) int {
 		return cmp.Or(cmp.Compare(a.Ordem, b.Ordem), a.CriadoEm.Compare(b.CriadoEm), strings.Compare(a.Protocolo, b.Protocolo))
 	})
@@ -425,3 +425,10 @@ func montar(c escopo.Contato, pedidos []*Pedido) Carteira {
 }
 
 func maisRecentesPrimeiro(a, b Carteira) int { return b.AtualizadaEm.Compare(a.AtualizadaEm) }
+
+func (c Carteira) empresa() string {
+	if c.CompanyID != "" {
+		return c.CompanyID
+	}
+	return c.AdministradoraID
+}

@@ -22,6 +22,26 @@ type OrientacaoCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_c *OrientacaoCreate) SetScopeType(v string) *OrientacaoCreate {
+	_c.mutation.SetScopeType(v)
+	return _c
+}
+
+// SetCompanyID sets the "company_id" field.
+func (_c *OrientacaoCreate) SetCompanyID(v string) *OrientacaoCreate {
+	_c.mutation.SetCompanyID(v)
+	return _c
+}
+
+// SetNillableCompanyID sets the "company_id" field if the given value is not nil.
+func (_c *OrientacaoCreate) SetNillableCompanyID(v *string) *OrientacaoCreate {
+	if v != nil {
+		_c.SetCompanyID(*v)
+	}
+	return _c
+}
+
 // SetCondominioID sets the "condominio_id" field.
 func (_c *OrientacaoCreate) SetCondominioID(v string) *OrientacaoCreate {
 	_c.mutation.SetCondominioID(v)
@@ -104,6 +124,9 @@ func (_c *OrientacaoCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *OrientacaoCreate) check() error {
+	if _, ok := _c.mutation.ScopeType(); !ok {
+		return &ValidationError{Name: "scope_type", err: errors.New(`ent: missing required field "Orientacao.scope_type"`)}
+	}
 	if _, ok := _c.mutation.Geral(); !ok {
 		return &ValidationError{Name: "geral", err: errors.New(`ent: missing required field "Orientacao.geral"`)}
 	}
@@ -137,6 +160,14 @@ func (_c *OrientacaoCreate) createSpec() (*Orientacao, *sqlgraph.CreateSpec) {
 		_spec = sqlgraph.NewCreateSpec(orientacao.Table, sqlgraph.NewFieldSpec(orientacao.FieldID, field.TypeInt))
 	)
 	_spec.OnConflict = _c.conflict
+	if value, ok := _c.mutation.ScopeType(); ok {
+		_spec.SetField(orientacao.FieldScopeType, field.TypeString, value)
+		_node.ScopeType = value
+	}
+	if value, ok := _c.mutation.CompanyID(); ok {
+		_spec.SetField(orientacao.FieldCompanyID, field.TypeString, value)
+		_node.CompanyID = value
+	}
 	if value, ok := _c.mutation.Geral(); ok {
 		_spec.SetField(orientacao.FieldGeral, field.TypeString, value)
 		_node.Geral = value
@@ -169,7 +200,7 @@ func (_c *OrientacaoCreate) createSpec() (*Orientacao, *sqlgraph.CreateSpec) {
 // of the `INSERT` statement. For example:
 //
 //	client.Orientacao.Create().
-//		SetCondominioID(v).
+//		SetScopeType(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -178,7 +209,7 @@ func (_c *OrientacaoCreate) createSpec() (*Orientacao, *sqlgraph.CreateSpec) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.OrientacaoUpsert) {
-//			SetCondominioID(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *OrientacaoCreate) OnConflict(opts ...sql.ConflictOption) *OrientacaoUpsertOne {
@@ -213,6 +244,36 @@ type (
 		*sql.UpdateSet
 	}
 )
+
+// SetScopeType sets the "scope_type" field.
+func (u *OrientacaoUpsert) SetScopeType(v string) *OrientacaoUpsert {
+	u.Set(orientacao.FieldScopeType, v)
+	return u
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *OrientacaoUpsert) UpdateScopeType() *OrientacaoUpsert {
+	u.SetExcluded(orientacao.FieldScopeType)
+	return u
+}
+
+// SetCompanyID sets the "company_id" field.
+func (u *OrientacaoUpsert) SetCompanyID(v string) *OrientacaoUpsert {
+	u.Set(orientacao.FieldCompanyID, v)
+	return u
+}
+
+// UpdateCompanyID sets the "company_id" field to the value that was provided on create.
+func (u *OrientacaoUpsert) UpdateCompanyID() *OrientacaoUpsert {
+	u.SetExcluded(orientacao.FieldCompanyID)
+	return u
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (u *OrientacaoUpsert) ClearCompanyID() *OrientacaoUpsert {
+	u.SetNull(orientacao.FieldCompanyID)
+	return u
+}
 
 // SetCondominioID sets the "condominio_id" field.
 func (u *OrientacaoUpsert) SetCondominioID(v string) *OrientacaoUpsert {
@@ -294,6 +355,41 @@ func (u *OrientacaoUpsertOne) Update(set func(*OrientacaoUpsert)) *OrientacaoUps
 		set(&OrientacaoUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetScopeType sets the "scope_type" field.
+func (u *OrientacaoUpsertOne) SetScopeType(v string) *OrientacaoUpsertOne {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *OrientacaoUpsertOne) UpdateScopeType() *OrientacaoUpsertOne {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.UpdateScopeType()
+	})
+}
+
+// SetCompanyID sets the "company_id" field.
+func (u *OrientacaoUpsertOne) SetCompanyID(v string) *OrientacaoUpsertOne {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.SetCompanyID(v)
+	})
+}
+
+// UpdateCompanyID sets the "company_id" field to the value that was provided on create.
+func (u *OrientacaoUpsertOne) UpdateCompanyID() *OrientacaoUpsertOne {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.UpdateCompanyID()
+	})
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (u *OrientacaoUpsertOne) ClearCompanyID() *OrientacaoUpsertOne {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.ClearCompanyID()
+	})
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -480,7 +576,7 @@ func (_c *OrientacaoCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.OrientacaoUpsert) {
-//			SetCondominioID(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *OrientacaoCreateBulk) OnConflict(opts ...sql.ConflictOption) *OrientacaoUpsertBulk {
@@ -547,6 +643,41 @@ func (u *OrientacaoUpsertBulk) Update(set func(*OrientacaoUpsert)) *OrientacaoUp
 		set(&OrientacaoUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetScopeType sets the "scope_type" field.
+func (u *OrientacaoUpsertBulk) SetScopeType(v string) *OrientacaoUpsertBulk {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *OrientacaoUpsertBulk) UpdateScopeType() *OrientacaoUpsertBulk {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.UpdateScopeType()
+	})
+}
+
+// SetCompanyID sets the "company_id" field.
+func (u *OrientacaoUpsertBulk) SetCompanyID(v string) *OrientacaoUpsertBulk {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.SetCompanyID(v)
+	})
+}
+
+// UpdateCompanyID sets the "company_id" field to the value that was provided on create.
+func (u *OrientacaoUpsertBulk) UpdateCompanyID() *OrientacaoUpsertBulk {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.UpdateCompanyID()
+	})
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (u *OrientacaoUpsertBulk) ClearCompanyID() *OrientacaoUpsertBulk {
+	return u.Update(func(s *OrientacaoUpsert) {
+		s.ClearCompanyID()
+	})
 }
 
 // SetCondominioID sets the "condominio_id" field.

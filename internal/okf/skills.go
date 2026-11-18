@@ -599,10 +599,14 @@ func (c *Catalogo) ExcluirSkill(rel string) error {
 	if _, err := c.resolverSkill(rel); err != nil {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
+	remover, err := c.arquivosDoAlvo(rel)
+	if err != nil {
+		return err
+	}
 	if _, err := c.excluirAgente(rel); err != nil {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
-	if err := c.persistir(); err != nil {
+	if err := c.persistir(remover...); err != nil {
 		return fmt.Errorf("excluir skill %s: %w", rel, err)
 	}
 	return nil

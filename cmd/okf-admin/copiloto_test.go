@@ -143,7 +143,7 @@ func TestCopilotoDisponivel(t *testing.T) {
 
 func TestCopilotoDevolvePropostasDaTela(t *testing.T) {
 	falso := &copilotoFalso{ops: []copiloto.Operacao{{
-		Tipo: copiloto.HabilitarSkill, Skill: "reserva-area-comum", Condominio: "vila-verde", Habilitado: ligado(),
+		Tipo: copiloto.Orientar, Skill: "reserva-area-comum", Condominio: "vila-verde", Texto: "Seja breve.",
 	}}}
 	h := handlerDoCopiloto(servidorDoCopiloto(t, falso))
 
@@ -155,10 +155,10 @@ func TestCopilotoDevolvePropostasDaTela(t *testing.T) {
 		t.Fatalf("resposta = %+v", resp)
 	}
 	p := resp.Propostas[0]
-	if p.ID != "0" || p.Resumo != "Ligar Reserva de Área Comum em Vila Verde" || p.Operacao.Tipo != copiloto.HabilitarSkill {
+	if p.ID != "0" || p.Resumo != "Orientar Reserva de Área Comum em Vila Verde" || p.Operacao.Tipo != copiloto.Orientar {
 		t.Fatalf("proposta = %+v", p)
 	}
-	if !slices.Contains(falso.recebeu.Operacoes, copiloto.HabilitarSkill) || slices.Contains(falso.recebeu.Operacoes, copiloto.TrocarFluxo) {
+	if !slices.Contains(falso.recebeu.Operacoes, copiloto.Orientar) || slices.Contains(falso.recebeu.Operacoes, copiloto.HabilitarSkill) || slices.Contains(falso.recebeu.Operacoes, copiloto.TrocarFluxo) {
 		t.Fatalf("operações mandadas ao modelo = %v", falso.recebeu.Operacoes)
 	}
 }
@@ -177,7 +177,7 @@ func TestCopilotoNaoPropoeAlemDoPapel(t *testing.T) {
 				{Tipo: copiloto.TrocarFluxo, Skill: "agendar-mudanca", Fluxo: &okf.Fluxo{}},
 				{Tipo: copiloto.HabilitarSkill, Skill: "reserva-area-comum", Condominio: "solar", Habilitado: ligado()},
 			},
-			querMotivos: []string{"Esta tela não faz isso.", "Esse condomínio não está com você."},
+			querMotivos: []string{"Esta tela não faz isso.", "Esta operação está indisponível."},
 		},
 		{
 			nome:        "a tela aceita e so o papel recusa",

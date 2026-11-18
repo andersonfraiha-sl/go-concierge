@@ -54,6 +54,16 @@ func IDLTE(id int) predicate.Payload {
 	return predicate.Payload(sql.FieldLTE(FieldID, id))
 }
 
+// ScopeType applies equality check predicate on the "scope_type" field. It's identical to ScopeTypeEQ.
+func ScopeType(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldEQ(FieldScopeType, v))
+}
+
+// CompanyID applies equality check predicate on the "company_id" field. It's identical to CompanyIDEQ.
+func CompanyID(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldEQ(FieldCompanyID, v))
+}
+
 // CondominioID applies equality check predicate on the "condominio_id" field. It's identical to CondominioIDEQ.
 func CondominioID(v string) predicate.Payload {
 	return predicate.Payload(sql.FieldEQ(FieldCondominioID, v))
@@ -62,6 +72,146 @@ func CondominioID(v string) predicate.Payload {
 // Recurso applies equality check predicate on the "recurso" field. It's identical to RecursoEQ.
 func Recurso(v string) predicate.Payload {
 	return predicate.Payload(sql.FieldEQ(FieldRecurso, v))
+}
+
+// ScopeTypeEQ applies the EQ predicate on the "scope_type" field.
+func ScopeTypeEQ(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldEQ(FieldScopeType, v))
+}
+
+// ScopeTypeNEQ applies the NEQ predicate on the "scope_type" field.
+func ScopeTypeNEQ(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldNEQ(FieldScopeType, v))
+}
+
+// ScopeTypeIn applies the In predicate on the "scope_type" field.
+func ScopeTypeIn(vs ...string) predicate.Payload {
+	return predicate.Payload(sql.FieldIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeNotIn applies the NotIn predicate on the "scope_type" field.
+func ScopeTypeNotIn(vs ...string) predicate.Payload {
+	return predicate.Payload(sql.FieldNotIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeGT applies the GT predicate on the "scope_type" field.
+func ScopeTypeGT(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldGT(FieldScopeType, v))
+}
+
+// ScopeTypeGTE applies the GTE predicate on the "scope_type" field.
+func ScopeTypeGTE(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldGTE(FieldScopeType, v))
+}
+
+// ScopeTypeLT applies the LT predicate on the "scope_type" field.
+func ScopeTypeLT(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldLT(FieldScopeType, v))
+}
+
+// ScopeTypeLTE applies the LTE predicate on the "scope_type" field.
+func ScopeTypeLTE(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldLTE(FieldScopeType, v))
+}
+
+// ScopeTypeContains applies the Contains predicate on the "scope_type" field.
+func ScopeTypeContains(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldContains(FieldScopeType, v))
+}
+
+// ScopeTypeHasPrefix applies the HasPrefix predicate on the "scope_type" field.
+func ScopeTypeHasPrefix(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldHasPrefix(FieldScopeType, v))
+}
+
+// ScopeTypeHasSuffix applies the HasSuffix predicate on the "scope_type" field.
+func ScopeTypeHasSuffix(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldHasSuffix(FieldScopeType, v))
+}
+
+// ScopeTypeEqualFold applies the EqualFold predicate on the "scope_type" field.
+func ScopeTypeEqualFold(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldEqualFold(FieldScopeType, v))
+}
+
+// ScopeTypeContainsFold applies the ContainsFold predicate on the "scope_type" field.
+func ScopeTypeContainsFold(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldContainsFold(FieldScopeType, v))
+}
+
+// CompanyIDEQ applies the EQ predicate on the "company_id" field.
+func CompanyIDEQ(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldEQ(FieldCompanyID, v))
+}
+
+// CompanyIDNEQ applies the NEQ predicate on the "company_id" field.
+func CompanyIDNEQ(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldNEQ(FieldCompanyID, v))
+}
+
+// CompanyIDIn applies the In predicate on the "company_id" field.
+func CompanyIDIn(vs ...string) predicate.Payload {
+	return predicate.Payload(sql.FieldIn(FieldCompanyID, vs...))
+}
+
+// CompanyIDNotIn applies the NotIn predicate on the "company_id" field.
+func CompanyIDNotIn(vs ...string) predicate.Payload {
+	return predicate.Payload(sql.FieldNotIn(FieldCompanyID, vs...))
+}
+
+// CompanyIDGT applies the GT predicate on the "company_id" field.
+func CompanyIDGT(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldGT(FieldCompanyID, v))
+}
+
+// CompanyIDGTE applies the GTE predicate on the "company_id" field.
+func CompanyIDGTE(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldGTE(FieldCompanyID, v))
+}
+
+// CompanyIDLT applies the LT predicate on the "company_id" field.
+func CompanyIDLT(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldLT(FieldCompanyID, v))
+}
+
+// CompanyIDLTE applies the LTE predicate on the "company_id" field.
+func CompanyIDLTE(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldLTE(FieldCompanyID, v))
+}
+
+// CompanyIDContains applies the Contains predicate on the "company_id" field.
+func CompanyIDContains(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldContains(FieldCompanyID, v))
+}
+
+// CompanyIDHasPrefix applies the HasPrefix predicate on the "company_id" field.
+func CompanyIDHasPrefix(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldHasPrefix(FieldCompanyID, v))
+}
+
+// CompanyIDHasSuffix applies the HasSuffix predicate on the "company_id" field.
+func CompanyIDHasSuffix(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldHasSuffix(FieldCompanyID, v))
+}
+
+// CompanyIDIsNil applies the IsNil predicate on the "company_id" field.
+func CompanyIDIsNil() predicate.Payload {
+	return predicate.Payload(sql.FieldIsNull(FieldCompanyID))
+}
+
+// CompanyIDNotNil applies the NotNil predicate on the "company_id" field.
+func CompanyIDNotNil() predicate.Payload {
+	return predicate.Payload(sql.FieldNotNull(FieldCompanyID))
+}
+
+// CompanyIDEqualFold applies the EqualFold predicate on the "company_id" field.
+func CompanyIDEqualFold(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldEqualFold(FieldCompanyID, v))
+}
+
+// CompanyIDContainsFold applies the ContainsFold predicate on the "company_id" field.
+func CompanyIDContainsFold(v string) predicate.Payload {
+	return predicate.Payload(sql.FieldContainsFold(FieldCompanyID, v))
 }
 
 // CondominioIDEQ applies the EQ predicate on the "condominio_id" field.

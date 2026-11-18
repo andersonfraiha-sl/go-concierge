@@ -36,16 +36,39 @@ func mapeamentoDeTeste(t testing.TB) *admin.EmMemoria {
 		}
 	}
 	condominios := []admin.Condominio{
-		{ID: "cond-001", Nome: "Exemplo", Administradora: "adm-a", Account: "cond-001", CompanyID: "5982", Tenant: tenantExemplo},
-		{ID: "cond-b", Nome: "Condomínio B", Administradora: "adm-b", Account: "acc-b", CompanyID: "7777", Tenant: "tenant-b"},
-		{ID: "cond-b-sem-account", Nome: "B sem account", Administradora: "adm-b", CompanyID: "8888", Tenant: "tenant-b-sem-account"},
-		{ID: "cond-b-sem-company", Nome: "B sem company", Administradora: "adm-b", Account: "acc-b2", Tenant: "tenant-b-sem-company"},
-		{ID: "cond-a-dividido", Nome: "A dividido", Administradora: "adm-a", Account: "acc-ad", CompanyID: "9001", Tenant: "tenant-dividido"},
-		{ID: "cond-b-dividido", Nome: "B dividido", Administradora: "adm-b", Account: "acc-bd", CompanyID: "9002", Tenant: "tenant-dividido"},
+		{ID: "101", Nome: "Exemplo", Administradora: "adm-a", Account: "cond-001", CompanyID: "5982", Tenant: tenantExemplo},
+		{ID: "202", Nome: "Condomínio B", Administradora: "adm-b", Account: "acc-b", CompanyID: "7777", Tenant: "tenant-b"},
+		{ID: "203", Nome: "B sem account", Administradora: "adm-b", CompanyID: "8888", Tenant: "tenant-b-sem-account"},
+		{ID: "204", Nome: "B sem company", Administradora: "adm-b", Account: "acc-b2", Tenant: "tenant-b-sem-company"},
+		{ID: "105", Nome: "A dividido", Administradora: "adm-a", Account: "acc-ad", CompanyID: "9001", Tenant: "tenant-dividido"},
+		{ID: "205", Nome: "B dividido", Administradora: "adm-b", Account: "acc-bd", CompanyID: "9002", Tenant: "tenant-dividido"},
 	}
 	for _, c := range condominios {
 		if _, err := repo.SalvarCondominio(ctx, c); err != nil {
 			t.Fatal(err)
+		}
+	}
+	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := cat.ResolveAgente("agentes/concierge")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := cat.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sub := range a.Subagentes {
+		ids := []string{sub.Nome}
+		if sub.Caso != nil {
+			ids = append(ids, sub.Caso.ID)
+		}
+		for _, id := range ids {
+			if _, err := repo.SalvarHabilitacao(ctx, admin.Alvo{Condominio: admin.Padrao}, id, admin.Habilitacao{Habilitado: true}, false); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return repo
@@ -54,7 +77,7 @@ func mapeamentoDeTeste(t testing.TB) *admin.EmMemoria {
 // contatoDeTeste: o telefone do eventoExemplo numa administradora.
 func contatoDeTeste(t testing.TB, administradoraID string) escopo.Contato {
 	t.Helper()
-	c, err := escopo.NovoContato(administradoraID, "cond-001", telefoneMorador)
+	c, err := escopo.NovoContato(administradoraID, nil, telefoneMorador)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,8 +139,8 @@ func TestServicoAtendeDuasAdministradoras(t *testing.T) {
 		company        string
 		fato           string
 	}{
-		{sessA, "adm-a", "cond-001", "cond-001", "5982", "tem um cachorro"},
-		{sessB, "adm-b", "cond-b", "acc-b", "7777", "tem dois gatos"},
+		{sessA, "adm-a", "101", "cond-001", "5982", "tem um cachorro"},
+		{sessB, "adm-b", "202", "acc-b", "7777", "tem dois gatos"},
 	}
 	for _, c := range casos {
 		t.Run(c.administradora, func(t *testing.T) {
@@ -218,7 +241,7 @@ func TestServicoTransbordaQuandoOCondominioTrocaDeDona(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	condo, _ := m.Condominio("cond-001")
+	condo, _ := m.Condominio("101")
 	visto := condo.Chaves()
 	condo.Administradora = "adm-b"
 	if _, err := svc.Mapeamento.EditarCondominio(ctx, condo, visto); err != nil {

@@ -55,7 +55,7 @@ describe('MatrizDeSkills', () => {
       expect(corpos[0]).toMatchObject({
         condominio: 'vila-verde',
         caso: 'agendar-mudanca',
-        habilitado: false,
+        habilitado: true,
       }),
     );
   });

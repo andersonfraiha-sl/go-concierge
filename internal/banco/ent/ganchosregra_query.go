@@ -300,12 +300,12 @@ func (_q *GanchosRegraQuery) WithVersoes(opts ...func(*GanchosRegraVersaoQuery))
 // Example:
 //
 //	var v []struct {
-//		Versao int `json:"versao,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.GanchosRegra.Query().
-//		GroupBy(ganchosregra.FieldVersao).
+//		GroupBy(ganchosregra.FieldScopeType).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *GanchosRegraQuery) GroupBy(field string, fields ...string) *GanchosRegraGroupBy {
@@ -323,11 +323,11 @@ func (_q *GanchosRegraQuery) GroupBy(field string, fields ...string) *GanchosReg
 // Example:
 //
 //	var v []struct {
-//		Versao int `json:"versao,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //	}
 //
 //	client.GanchosRegra.Query().
-//		Select(ganchosregra.FieldVersao).
+//		Select(ganchosregra.FieldScopeType).
 //		Scan(ctx, &v)
 func (_q *GanchosRegraQuery) Select(fields ...string) *GanchosRegraSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

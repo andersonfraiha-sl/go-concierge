@@ -16,9 +16,9 @@ type Concessao struct {
 
 func (Concessao) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("administradora_id").NotEmpty(),
-		field.String("papel_id").NotEmpty(),
-		field.String("permissao").NotEmpty(),
+		field.String("administradora_id").StorageKey("company_id").NotEmpty(),
+		field.String("papel_id").StorageKey("role_id").NotEmpty(),
+		field.String("permissao").StorageKey("permission").NotEmpty(),
 	}
 }
 
@@ -34,5 +34,5 @@ func (Concessao) Indexes() []ent.Index {
 }
 
 func (Concessao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "concessoes"}}
+	return []schema.Annotation{entsql.Annotation{Table: "company_role_grants"}}
 }

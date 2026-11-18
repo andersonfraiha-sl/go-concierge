@@ -13,16 +13,17 @@ import (
 type Tipo string
 
 const (
-	TipoBase           Tipo = "base"
-	TipoAdministradora Tipo = "administradora"
-	TipoCondominio     Tipo = "condominio"
+	TipoBase           Tipo = "BASE"
+	TipoAdministradora Tipo = "COMPANY"
+	TipoCondominio     Tipo = "CONDO"
 )
 
 // Camada identifica uma camada de uma skill. ID é vazio na base.
 type Camada struct {
-	Skill string `json:"skill"`
-	Tipo  Tipo   `json:"tipo"`
-	ID    string `json:"id"`
+	Skill     string `json:"skill"`
+	Tipo      Tipo   `json:"tipo"`
+	ID        string `json:"id"`
+	CompanyID string `json:"company_id,omitempty"`
 }
 
 // Documento é o que uma camada guarda: a skill composta inteira daquele nível. As ferramentas

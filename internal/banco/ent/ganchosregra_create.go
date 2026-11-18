@@ -27,6 +27,12 @@ type GanchosRegraCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_c *GanchosRegraCreate) SetScopeType(v string) *GanchosRegraCreate {
+	_c.mutation.SetScopeType(v)
+	return _c
+}
+
 // SetVersao sets the "versao" field.
 func (_c *GanchosRegraCreate) SetVersao(v int) *GanchosRegraCreate {
 	_c.mutation.SetVersao(v)
@@ -161,10 +167,6 @@ func (_c *GanchosRegraCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *GanchosRegraCreate) defaults() {
-	if _, ok := _c.mutation.AdministradoraID(); !ok {
-		v := ganchosregra.DefaultAdministradoraID
-		_c.mutation.SetAdministradoraID(v)
-	}
 	if _, ok := _c.mutation.Condominios(); !ok {
 		v := ganchosregra.DefaultCondominios
 		_c.mutation.SetCondominios(v)
@@ -181,6 +183,9 @@ func (_c *GanchosRegraCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *GanchosRegraCreate) check() error {
+	if _, ok := _c.mutation.ScopeType(); !ok {
+		return &ValidationError{Name: "scope_type", err: errors.New(`ent: missing required field "GanchosRegra.scope_type"`)}
+	}
 	if _, ok := _c.mutation.Versao(); !ok {
 		return &ValidationError{Name: "versao", err: errors.New(`ent: missing required field "GanchosRegra.versao"`)}
 	}
@@ -199,9 +204,6 @@ func (_c *GanchosRegraCreate) check() error {
 		if err := ganchosregra.EventoValidator(v); err != nil {
 			return &ValidationError{Name: "evento", err: fmt.Errorf(`ent: validator failed for field "GanchosRegra.evento": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.AdministradoraID(); !ok {
-		return &ValidationError{Name: "administradora_id", err: errors.New(`ent: missing required field "GanchosRegra.administradora_id"`)}
 	}
 	if _, ok := _c.mutation.Condominios(); !ok {
 		return &ValidationError{Name: "condominios", err: errors.New(`ent: missing required field "GanchosRegra.condominios"`)}
@@ -253,6 +255,10 @@ func (_c *GanchosRegraCreate) createSpec() (*GanchosRegra, *sqlgraph.CreateSpec)
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = &id
+	}
+	if value, ok := _c.mutation.ScopeType(); ok {
+		_spec.SetField(ganchosregra.FieldScopeType, field.TypeString, value)
+		_node.ScopeType = value
 	}
 	if value, ok := _c.mutation.Versao(); ok {
 		_spec.SetField(ganchosregra.FieldVersao, field.TypeInt, value)
@@ -313,7 +319,7 @@ func (_c *GanchosRegraCreate) createSpec() (*GanchosRegra, *sqlgraph.CreateSpec)
 // of the `INSERT` statement. For example:
 //
 //	client.GanchosRegra.Create().
-//		SetVersao(v).
+//		SetScopeType(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -322,7 +328,7 @@ func (_c *GanchosRegraCreate) createSpec() (*GanchosRegra, *sqlgraph.CreateSpec)
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.GanchosRegraUpsert) {
-//			SetVersao(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *GanchosRegraCreate) OnConflict(opts ...sql.ConflictOption) *GanchosRegraUpsertOne {
@@ -357,6 +363,18 @@ type (
 		*sql.UpdateSet
 	}
 )
+
+// SetScopeType sets the "scope_type" field.
+func (u *GanchosRegraUpsert) SetScopeType(v string) *GanchosRegraUpsert {
+	u.Set(ganchosregra.FieldScopeType, v)
+	return u
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *GanchosRegraUpsert) UpdateScopeType() *GanchosRegraUpsert {
+	u.SetExcluded(ganchosregra.FieldScopeType)
+	return u
+}
 
 // SetVersao sets the "versao" field.
 func (u *GanchosRegraUpsert) SetVersao(v int) *GanchosRegraUpsert {
@@ -409,6 +427,12 @@ func (u *GanchosRegraUpsert) SetAdministradoraID(v string) *GanchosRegraUpsert {
 // UpdateAdministradoraID sets the "administradora_id" field to the value that was provided on create.
 func (u *GanchosRegraUpsert) UpdateAdministradoraID() *GanchosRegraUpsert {
 	u.SetExcluded(ganchosregra.FieldAdministradoraID)
+	return u
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (u *GanchosRegraUpsert) ClearAdministradoraID() *GanchosRegraUpsert {
+	u.SetNull(ganchosregra.FieldAdministradoraID)
 	return u
 }
 
@@ -520,6 +544,20 @@ func (u *GanchosRegraUpsertOne) Update(set func(*GanchosRegraUpsert)) *GanchosRe
 	return u
 }
 
+// SetScopeType sets the "scope_type" field.
+func (u *GanchosRegraUpsertOne) SetScopeType(v string) *GanchosRegraUpsertOne {
+	return u.Update(func(s *GanchosRegraUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *GanchosRegraUpsertOne) UpdateScopeType() *GanchosRegraUpsertOne {
+	return u.Update(func(s *GanchosRegraUpsert) {
+		s.UpdateScopeType()
+	})
+}
+
 // SetVersao sets the "versao" field.
 func (u *GanchosRegraUpsertOne) SetVersao(v int) *GanchosRegraUpsertOne {
 	return u.Update(func(s *GanchosRegraUpsert) {
@@ -580,6 +618,13 @@ func (u *GanchosRegraUpsertOne) SetAdministradoraID(v string) *GanchosRegraUpser
 func (u *GanchosRegraUpsertOne) UpdateAdministradoraID() *GanchosRegraUpsertOne {
 	return u.Update(func(s *GanchosRegraUpsert) {
 		s.UpdateAdministradoraID()
+	})
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (u *GanchosRegraUpsertOne) ClearAdministradoraID() *GanchosRegraUpsertOne {
+	return u.Update(func(s *GanchosRegraUpsert) {
+		s.ClearAdministradoraID()
 	})
 }
 
@@ -789,7 +834,7 @@ func (_c *GanchosRegraCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.GanchosRegraUpsert) {
-//			SetVersao(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *GanchosRegraCreateBulk) OnConflict(opts ...sql.ConflictOption) *GanchosRegraUpsertBulk {
@@ -868,6 +913,20 @@ func (u *GanchosRegraUpsertBulk) Update(set func(*GanchosRegraUpsert)) *GanchosR
 	return u
 }
 
+// SetScopeType sets the "scope_type" field.
+func (u *GanchosRegraUpsertBulk) SetScopeType(v string) *GanchosRegraUpsertBulk {
+	return u.Update(func(s *GanchosRegraUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *GanchosRegraUpsertBulk) UpdateScopeType() *GanchosRegraUpsertBulk {
+	return u.Update(func(s *GanchosRegraUpsert) {
+		s.UpdateScopeType()
+	})
+}
+
 // SetVersao sets the "versao" field.
 func (u *GanchosRegraUpsertBulk) SetVersao(v int) *GanchosRegraUpsertBulk {
 	return u.Update(func(s *GanchosRegraUpsert) {
@@ -928,6 +987,13 @@ func (u *GanchosRegraUpsertBulk) SetAdministradoraID(v string) *GanchosRegraUpse
 func (u *GanchosRegraUpsertBulk) UpdateAdministradoraID() *GanchosRegraUpsertBulk {
 	return u.Update(func(s *GanchosRegraUpsert) {
 		s.UpdateAdministradoraID()
+	})
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (u *GanchosRegraUpsertBulk) ClearAdministradoraID() *GanchosRegraUpsertBulk {
+	return u.Update(func(s *GanchosRegraUpsert) {
+		s.ClearAdministradoraID()
 	})
 }
 

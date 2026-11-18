@@ -13,15 +13,15 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldUsuarioID holds the string denoting the usuario_id field in the database.
-	FieldUsuarioID = "usuario_id"
+	FieldUsuarioID = "user_id"
 	// FieldPapelID holds the string denoting the papel_id field in the database.
-	FieldPapelID = "papel_id"
+	FieldPapelID = "role_id"
 	// FieldEscopoTipo holds the string denoting the escopo_tipo field in the database.
-	FieldEscopoTipo = "escopo_tipo"
+	FieldEscopoTipo = "scope_type"
 	// FieldEscopoID holds the string denoting the escopo_id field in the database.
-	FieldEscopoID = "escopo_id"
+	FieldEscopoID = "condo_id"
 	// FieldAdministradoraID holds the string denoting the administradora_id field in the database.
-	FieldAdministradoraID = "administradora_id"
+	FieldAdministradoraID = "company_id"
 	// EdgeUsuario holds the string denoting the usuario edge name in mutations.
 	EdgeUsuario = "usuario"
 	// EdgePapel holds the string denoting the papel edge name in mutations.
@@ -29,28 +29,28 @@ const (
 	// EdgeAdministradora holds the string denoting the administradora edge name in mutations.
 	EdgeAdministradora = "administradora"
 	// Table holds the table name of the atribuicao in the database.
-	Table = "atribuicoes"
+	Table = "role_assignments"
 	// UsuarioTable is the table that holds the usuario relation/edge.
-	UsuarioTable = "atribuicoes"
+	UsuarioTable = "role_assignments"
 	// UsuarioInverseTable is the table name for the Usuario entity.
 	// It exists in this package in order to avoid circular dependency with the "usuario" package.
-	UsuarioInverseTable = "usuarios"
+	UsuarioInverseTable = "users"
 	// UsuarioColumn is the table column denoting the usuario relation/edge.
-	UsuarioColumn = "usuario_id"
+	UsuarioColumn = "user_id"
 	// PapelTable is the table that holds the papel relation/edge.
-	PapelTable = "atribuicoes"
+	PapelTable = "role_assignments"
 	// PapelInverseTable is the table name for the Papel entity.
 	// It exists in this package in order to avoid circular dependency with the "papel" package.
-	PapelInverseTable = "papeis"
+	PapelInverseTable = "roles"
 	// PapelColumn is the table column denoting the papel relation/edge.
-	PapelColumn = "papel_id"
+	PapelColumn = "role_id"
 	// AdministradoraTable is the table that holds the administradora relation/edge.
-	AdministradoraTable = "atribuicoes"
+	AdministradoraTable = "role_assignments"
 	// AdministradoraInverseTable is the table name for the Administradora entity.
 	// It exists in this package in order to avoid circular dependency with the "administradora" package.
 	AdministradoraInverseTable = "administradoras"
 	// AdministradoraColumn is the table column denoting the administradora relation/edge.
-	AdministradoraColumn = "administradora_id"
+	AdministradoraColumn = "company_id"
 )
 
 // Columns holds all SQL columns for atribuicao fields.
@@ -80,8 +80,6 @@ var (
 	PapelIDValidator func(string) error
 	// EscopoTipoValidator is a validator for the "escopo_tipo" field. It is called by the builders before save.
 	EscopoTipoValidator func(string) error
-	// DefaultEscopoID holds the default value on creation for the "escopo_id" field.
-	DefaultEscopoID string
 )
 
 // OrderOption defines the ordering options for the Atribuicao queries.

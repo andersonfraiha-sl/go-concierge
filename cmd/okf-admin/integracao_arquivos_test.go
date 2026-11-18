@@ -356,3 +356,27 @@ func TestArquivosComFalhaDeBancoResponde500GenericoERestauraDiscoEBanco(t *testi
 	}
 	bancoIgualAoDisco(t, pg, amb.s.cat.Root)
 }
+
+func TestArquivosRestauraBancoQuandoFalhaReportadaDepoisDoCommit(t *testing.T) {
+	amb, pg := ambienteDeArquivos(t)
+	gancho := persistirNoBanco(pg, amb.s.cat.Root, amb.s.cat.RemocoesDaEscrita)
+	chamadas := 0
+	amb.s.cat.Persistir = func() error {
+		chamadas++
+		if err := gancho(); err != nil {
+			return err
+		}
+		if chamadas == 1 {
+			return errors.New("resposta perdida depois da gravação")
+		}
+		return nil
+	}
+	antes := fotografarCatalogo(t, pg, amb.s.cat.Root)
+	w := putArquivos(amb, "", loteJSON(t, []arquivoDoPacote{arquivoTexto(arquivoNovo, "novo"), arquivoTexto(arquivoPersona, "alterado")}, []string{arquivoDoCaso}))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	if !antes.igual(fotografarCatalogo(t, pg, amb.s.cat.Root)) {
+		t.Fatal("compensação perdeu o estado anterior após commit")
+	}
+}

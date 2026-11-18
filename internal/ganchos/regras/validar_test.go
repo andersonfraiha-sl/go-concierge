@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 )
 
@@ -18,7 +19,7 @@ func catalogoDeTeste() Catalogo {
 			"gruvi.bff.building-operation.get-package-delivery-code-controller-handle": true,
 		},
 		Casos:            map[string]bool{"reserva_area_comum": true, "comunicar_obra": true},
-		AdministradoraDe: map[string]string{"cond-flores": "adm-aurora", "cond-outra": "adm-outra"},
+		AdministradoraDe: map[string]string{escopo.ChaveCondominio("adm-aurora", "101"): "adm-aurora", escopo.ChaveCondominio("adm-outra", "202"): "adm-outra"},
 		NomesDosFixos:    []string{"escopo_da_conversa"},
 	}
 }
@@ -131,5 +132,15 @@ func TestMatrizDoEvento(t *testing.T) {
 				t.Fatalf("códigos = %v, quer %q", got, c.codigo)
 			}
 		})
+	}
+}
+
+func TestAlvoERPValidoIndependeDeCadastroLocal(t *testing.T) {
+	for _, company := range []string{"Company-A", "Company-B"} {
+		r := regraBase()
+		r.Alvo = Alvo{Administradora: company, Condominios: []string{"102"}}
+		if ps := ValidarRegra(r, catalogoDeTeste()); len(ps) != 0 {
+			t.Fatalf("%s: %v", company, ps)
+		}
 	}
 }

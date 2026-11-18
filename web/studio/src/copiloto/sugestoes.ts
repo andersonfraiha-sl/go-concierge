@@ -53,10 +53,7 @@ const SUGESTOES_POR_TELA: Readonly<Record<Tela, readonly Sugestao[]>> = {
     { texto: 'Adicione um Confirmar antes de gravar', operacao: 'trocar_fluxo' },
     { texto: 'Pergunte o horário antes de reservar', operacao: 'trocar_fluxo' },
   ],
-  condominios: [
-    { texto: 'Quais condomínios estão sem ids?' },
-    { texto: 'Desligue a reserva de área comum onde não há área', operacao: 'habilitar_skill' },
-  ],
+  condominios: [{ texto: 'Explique os níveis de conteúdo global, da empresa e do condomínio' }],
   condominio: [
     { texto: 'O que muda deste condomínio para o Padrão?' },
     { texto: 'Escreva uma orientação sobre mudanças aos domingos', operacao: 'orientar' },

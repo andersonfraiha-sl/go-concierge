@@ -17,18 +17,13 @@ type CatalogoArquivo struct {
 func (CatalogoArquivo) Fields() []ent.Field {
 	return []ent.Field{
 		// o id do ent é o caminho: a chave primária da tabela se chama caminho
-		field.String("id").StorageKey("caminho").NotEmpty().Immutable(),
-		field.Bytes("conteudo"),
+		field.String("id").StorageKey("path").NotEmpty().Immutable(),
+		field.Bytes("conteudo").StorageKey("content"),
 		field.String("sha256").NotEmpty(),
-		field.Time("atualizado_em").SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Time("atualizado_em").StorageKey("updated_at").SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 	}
 }
 
 func (CatalogoArquivo) Annotations() []schema.Annotation {
-	return []schema.Annotation{
-		entsql.Annotation{Table: "catalogo_arquivos"},
-		entsql.Checks(map[string]string{
-			"catalogo_arquivos_caminho_na_raiz": "caminho LIKE 'agentes/%' OR caminho LIKE 'nexus/%'",
-		}),
-	}
+	return []schema.Annotation{entsql.Annotation{Table: "catalog_files"}}
 }

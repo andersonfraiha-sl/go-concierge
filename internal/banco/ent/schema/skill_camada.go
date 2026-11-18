@@ -23,13 +23,13 @@ type SkillCamada struct {
 func (SkillCamada) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("skill").NotEmpty().Immutable(),
-		field.Enum("tipo").Values("base", "administradora", "condominio").Immutable(),
-		field.String("administradora_id").Optional().Nillable().Immutable(),
-		field.String("condominio_id").Optional().Nillable().Immutable(),
-		field.Int("cabeca_id").Optional().Nillable(),
-		field.Int("acima_id").Optional().Nillable(),
-		field.JSON("rascunho", json.RawMessage{}).Optional(),
-		field.String("rascunho_versao").Default(""),
+		field.Enum("tipo").StorageKey("type").NamedValues("Base", "BASE", "Administradora", "COMPANY", "Condominio", "CONDO").Immutable(),
+		field.String("administradora_id").StorageKey("company_id").Optional().Nillable().Immutable(),
+		field.String("condominio_id").StorageKey("condo_id").Optional().Nillable().Immutable(),
+		field.Int("cabeca_id").StorageKey("head_version_id").Optional().Nillable(),
+		field.Int("acima_id").StorageKey("parent_version_id").Optional().Nillable(),
+		field.JSON("rascunho", json.RawMessage{}).StorageKey("draft").Optional(),
+		field.String("rascunho_versao").StorageKey("draft_version").Default(""),
 	}
 }
 
@@ -59,12 +59,5 @@ func (SkillCamada) Indexes() []ent.Index {
 }
 
 func (SkillCamada) Annotations() []schema.Annotation {
-	return []schema.Annotation{
-		entsql.Annotation{Table: "skill_camadas"},
-		entsql.Checks(map[string]string{
-			"skill_camadas_dono_do_tipo": "(tipo = 'base' AND administradora_id IS NULL AND condominio_id IS NULL)" +
-				" OR (tipo = 'administradora' AND administradora_id IS NOT NULL AND condominio_id IS NULL)" +
-				" OR (tipo = 'condominio' AND condominio_id IS NOT NULL AND administradora_id IS NULL)",
-		}),
-	}
+	return []schema.Annotation{entsql.Annotation{Table: "skill_layers"}}
 }

@@ -2,7 +2,7 @@
 
 Data: 18/11/2026. Leia junto com o [desenho principal](README.md) e o [dicionário](DICIONARIO.md).
 
-Os diagramas mostram apenas campos essenciais. As relações sólidas representam FKs materializadas na [baseline isolada](../../../internal/banco/v2/migrations/00001_baseline.sql); as pontilhadas de origem não substituem o detalhamento textual. Não existe tabela local de empresa ou condomínio. O runtime ainda usa o banco legado.
+Os diagramas mostram apenas campos essenciais. As relações sólidas representam FKs da [baseline v2](../../../internal/banco/v2/migrations/00001_baseline.sql), usada pelo backend atual; as pontilhadas de origem não substituem o detalhamento textual. Não existe tabela local de empresa ou condomínio. Veja [runtime no banco v2](../../../internal/banco/v2/RUNTIME.md) para o fluxo atual de canais, disponibilidade e camadas publicadas.
 
 ## 1. Catálogo, canal e atendimento
 

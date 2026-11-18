@@ -28,6 +28,40 @@ func (_u *PayloadUpdate) Where(ps ...predicate.Payload) *PayloadUpdate {
 	return _u
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_u *PayloadUpdate) SetScopeType(v string) *PayloadUpdate {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *PayloadUpdate) SetNillableScopeType(v *string) *PayloadUpdate {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
+// SetCompanyID sets the "company_id" field.
+func (_u *PayloadUpdate) SetCompanyID(v string) *PayloadUpdate {
+	_u.mutation.SetCompanyID(v)
+	return _u
+}
+
+// SetNillableCompanyID sets the "company_id" field if the given value is not nil.
+func (_u *PayloadUpdate) SetNillableCompanyID(v *string) *PayloadUpdate {
+	if v != nil {
+		_u.SetCompanyID(*v)
+	}
+	return _u
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (_u *PayloadUpdate) ClearCompanyID() *PayloadUpdate {
+	_u.mutation.ClearCompanyID()
+	return _u
+}
+
 // SetCondominioID sets the "condominio_id" field.
 func (_u *PayloadUpdate) SetCondominioID(v string) *PayloadUpdate {
 	_u.mutation.SetCondominioID(v)
@@ -133,6 +167,15 @@ func (_u *PayloadUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			}
 		}
 	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(payload.FieldScopeType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CompanyID(); ok {
+		_spec.SetField(payload.FieldCompanyID, field.TypeString, value)
+	}
+	if _u.mutation.CompanyIDCleared() {
+		_spec.ClearField(payload.FieldCompanyID, field.TypeString)
+	}
 	if value, ok := _u.mutation.Recurso(); ok {
 		_spec.SetField(payload.FieldRecurso, field.TypeString, value)
 	}
@@ -186,6 +229,40 @@ type PayloadUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *PayloadMutation
+}
+
+// SetScopeType sets the "scope_type" field.
+func (_u *PayloadUpdateOne) SetScopeType(v string) *PayloadUpdateOne {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *PayloadUpdateOne) SetNillableScopeType(v *string) *PayloadUpdateOne {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
+// SetCompanyID sets the "company_id" field.
+func (_u *PayloadUpdateOne) SetCompanyID(v string) *PayloadUpdateOne {
+	_u.mutation.SetCompanyID(v)
+	return _u
+}
+
+// SetNillableCompanyID sets the "company_id" field if the given value is not nil.
+func (_u *PayloadUpdateOne) SetNillableCompanyID(v *string) *PayloadUpdateOne {
+	if v != nil {
+		_u.SetCompanyID(*v)
+	}
+	return _u
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (_u *PayloadUpdateOne) ClearCompanyID() *PayloadUpdateOne {
+	_u.mutation.ClearCompanyID()
+	return _u
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -322,6 +399,15 @@ func (_u *PayloadUpdateOne) sqlSave(ctx context.Context) (_node *Payload, err er
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(payload.FieldScopeType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CompanyID(); ok {
+		_spec.SetField(payload.FieldCompanyID, field.TypeString, value)
+	}
+	if _u.mutation.CompanyIDCleared() {
+		_spec.ClearField(payload.FieldCompanyID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Recurso(); ok {
 		_spec.SetField(payload.FieldRecurso, field.TypeString, value)

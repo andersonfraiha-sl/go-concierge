@@ -15,41 +15,41 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldCamadaID holds the string denoting the camada_id field in the database.
-	FieldCamadaID = "camada_id"
+	FieldCamadaID = "layer_id"
 	// FieldVersaoID holds the string denoting the versao_id field in the database.
-	FieldVersaoID = "versao_id"
+	FieldVersaoID = "version_id"
 	// FieldMotivo holds the string denoting the motivo field in the database.
-	FieldMotivo = "motivo"
+	FieldMotivo = "reason"
 	// FieldTrechos holds the string denoting the trechos field in the database.
-	FieldTrechos = "trechos"
+	FieldTrechos = "sections"
 	// FieldEncerraEm holds the string denoting the encerra_em field in the database.
-	FieldEncerraEm = "encerra_em"
+	FieldEncerraEm = "expires_at"
 	// FieldCientePor holds the string denoting the ciente_por field in the database.
-	FieldCientePor = "ciente_por"
+	FieldCientePor = "acknowledged_by"
 	// FieldCienteEm holds the string denoting the ciente_em field in the database.
-	FieldCienteEm = "ciente_em"
+	FieldCienteEm = "acknowledged_at"
 	// FieldCriadoEm holds the string denoting the criado_em field in the database.
-	FieldCriadoEm = "criado_em"
+	FieldCriadoEm = "created_at"
 	// EdgeCamada holds the string denoting the camada edge name in mutations.
 	EdgeCamada = "camada"
 	// EdgeVersao holds the string denoting the versao edge name in mutations.
 	EdgeVersao = "versao"
 	// Table holds the table name of the skillaviso in the database.
-	Table = "skill_avisos"
+	Table = "skill_notices"
 	// CamadaTable is the table that holds the camada relation/edge.
-	CamadaTable = "skill_avisos"
+	CamadaTable = "skill_notices"
 	// CamadaInverseTable is the table name for the SkillCamada entity.
 	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
-	CamadaInverseTable = "skill_camadas"
+	CamadaInverseTable = "skill_layers"
 	// CamadaColumn is the table column denoting the camada relation/edge.
-	CamadaColumn = "camada_id"
+	CamadaColumn = "layer_id"
 	// VersaoTable is the table that holds the versao relation/edge.
-	VersaoTable = "skill_avisos"
+	VersaoTable = "skill_notices"
 	// VersaoInverseTable is the table name for the SkillVersao entity.
 	// It exists in this package in order to avoid circular dependency with the "skillversao" package.
-	VersaoInverseTable = "skill_versoes"
+	VersaoInverseTable = "skill_versions"
 	// VersaoColumn is the table column denoting the versao relation/edge.
-	VersaoColumn = "versao_id"
+	VersaoColumn = "version_id"
 )
 
 // Columns holds all SQL columns for skillaviso fields.

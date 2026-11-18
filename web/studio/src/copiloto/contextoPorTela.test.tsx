@@ -191,7 +191,7 @@ describe('contexto do Copiloto por tela', () => {
 
   it('sendsCondominiosContext', async () => {
     const { user, pedidos } = montar({ tela: <CondominiosPage />, rotas: rotasDoCondominio() });
-    await screen.findByRole('link', { name: 'Vila Verde' });
+    await screen.findByRole('link', { name: /Vila Verde/ });
 
     expect(await contextoEnviado(user, pedidos)).toEqual({ tela: 'condominios' });
   });
@@ -199,7 +199,7 @@ describe('contexto do Copiloto por tela', () => {
   it('sendsCondominioContext', async () => {
     const { user, pedidos } = montar({
       tela: <CondominioPage />,
-      rota: '/condominios/vila-verde',
+      rota: '/condominios/vila-verde?company_id=adm-exemplo',
       caminho: '/condominios/:id',
       rotas: rotasDoCondominio(),
     });
@@ -274,12 +274,7 @@ describe('contexto do Copiloto por tela', () => {
 });
 
 describe('realce e formulário aberto quando o Copiloto aplica', () => {
-  it('highlightsAppliedSkillRow', async () => {
-    const ligada = structuredClone(estadoFalso);
-    ligada.mapeamento.habilitacoes['vila-verde'] = {
-      'reserva-do-salao': { habilitado: true, papeis: null },
-    };
-    let estado: unknown = estadoFalso;
+  it('recusaPropostaAntigaDeHabilitacao', async () => {
     const resumo = 'Ligar Reserva do salão em Vila Verde';
     const operacao = {
       tipo: 'habilitar_skill',
@@ -289,27 +284,20 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
     };
     const { user } = montar({
       tela: <CondominioPage />,
-      rota: '/condominios/vila-verde',
+      rota: '/condominios/vila-verde?company_id=adm-exemplo',
       caminho: '/condominios/:id',
       rotas: {
         ...rotasDoCondominio(),
-        'GET /api/admin/estado': () => json(estado),
         'POST /api/copiloto': () => json(respostaCom(resumo, operacao)),
-        'PUT /api/admin/habilitacao': () => {
-          estado = ligada;
-          return json({ mapeamento: ligada.mapeamento, administradoras: ligada.administradoras });
-        },
       },
     });
     await screen.findByRole('heading', { name: 'Vila Verde' });
+    await waitFor(() => expect(caixa()).toBeEnabled());
+    await user.type(caixa(), 'Faça{Enter}');
 
-    await aplicarProposta(user, resumo);
-
-    const linha = screen.getByRole('switch', { name: 'Reserva do salão neste condomínio' });
-    await waitFor(() => expect(linha).toBeChecked());
-    expect(linha.closest('[role="button"]')).toHaveStyle({
-      backgroundColor: tokens.color.realceDoCopiloto,
-    });
+    const cartao = await screen.findByRole('group', { name: resumo });
+    expect(within(cartao).getByText('Você não pode aplicar esta.')).toBeInTheDocument();
+    expect(within(cartao).queryByRole('button', { name: 'Aplicar' })).not.toBeInTheDocument();
   });
 
   it('highlightsAppliedSummaryField', async () => {
@@ -361,7 +349,7 @@ describe('realce e formulário aberto quando o Copiloto aplica', () => {
     const operacao = { tipo: 'orientar', condominio: 'vila-verde', texto: 'Piscina até 23h.' };
     const { user } = montar({
       tela: <CondominioPage />,
-      rota: '/condominios/vila-verde',
+      rota: '/condominios/vila-verde?company_id=adm-exemplo',
       caminho: '/condominios/:id',
       rotas: {
         ...rotasDoCondominio(),

@@ -86,6 +86,12 @@ func (_u *AtribuicaoUpdate) SetNillableEscopoID(v *string) *AtribuicaoUpdate {
 	return _u
 }
 
+// ClearEscopoID clears the value of the "escopo_id" field.
+func (_u *AtribuicaoUpdate) ClearEscopoID() *AtribuicaoUpdate {
+	_u.mutation.ClearEscopoID()
+	return _u
+}
+
 // SetAdministradoraID sets the "administradora_id" field.
 func (_u *AtribuicaoUpdate) SetAdministradoraID(v string) *AtribuicaoUpdate {
 	_u.mutation.SetAdministradoraID(v)
@@ -214,6 +220,9 @@ func (_u *AtribuicaoUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if value, ok := _u.mutation.EscopoID(); ok {
 		_spec.SetField(atribuicao.FieldEscopoID, field.TypeString, value)
+	}
+	if _u.mutation.EscopoIDCleared() {
+		_spec.ClearField(atribuicao.FieldEscopoID, field.TypeString)
 	}
 	if _u.mutation.UsuarioCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -378,6 +387,12 @@ func (_u *AtribuicaoUpdateOne) SetNillableEscopoID(v *string) *AtribuicaoUpdateO
 	return _u
 }
 
+// ClearEscopoID clears the value of the "escopo_id" field.
+func (_u *AtribuicaoUpdateOne) ClearEscopoID() *AtribuicaoUpdateOne {
+	_u.mutation.ClearEscopoID()
+	return _u
+}
+
 // SetAdministradoraID sets the "administradora_id" field.
 func (_u *AtribuicaoUpdateOne) SetAdministradoraID(v string) *AtribuicaoUpdateOne {
 	_u.mutation.SetAdministradoraID(v)
@@ -536,6 +551,9 @@ func (_u *AtribuicaoUpdateOne) sqlSave(ctx context.Context) (_node *Atribuicao, 
 	}
 	if value, ok := _u.mutation.EscopoID(); ok {
 		_spec.SetField(atribuicao.FieldEscopoID, field.TypeString, value)
+	}
+	if _u.mutation.EscopoIDCleared() {
+		_spec.ClearField(atribuicao.FieldEscopoID, field.TypeString)
 	}
 	if _u.mutation.UsuarioCleared() {
 		edge := &sqlgraph.EdgeSpec{

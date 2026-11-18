@@ -69,6 +69,7 @@ const (
 	motivoForaDoEscopo  = "Esse condomínio não está com você."
 	motivoSoSuperlogica = "Só a Superlógica muda isso."
 	motivoIncompleta    = "Proposta incompleta."
+	motivoIndisponivel  = "Esta operação está indisponível."
 )
 
 // alcance diz que regra extra a operação segue além da permissão. O zero é indefinido e recusa.
@@ -111,10 +112,7 @@ var regras = map[TipoDeOperacao]regra{
 	TrocarFluxo:     {"skills.editar_fluxo", alcanceCatalogo, []campo{campoSkill, {"fluxo", func(op Operacao) bool { return op.Fluxo != nil }}}},
 	CriarSkill:      {"skills.criar", alcanceCatalogo, []campo{{"titulo", texto(func(op Operacao) string { return op.Titulo })}}},
 	ExcluirSkill:    {"skills.excluir", alcanceCatalogo, []campo{campoSkill}},
-	HabilitarSkill: {"condominios.habilitar", alcanceCondominio, []campo{
-		campoSkill, campoCondominio, {"habilitado", func(op Operacao) bool { return op.Habilitado != nil }},
-	}},
-	Orientar: {"condominios.habilitar", alcanceCondominio, []campo{campoCondominio, campoTexto}},
+	Orientar:        {"condominios.habilitar", alcanceCondominio, []campo{campoCondominio, campoTexto}},
 	Ajustar: {"condominios.habilitar", alcanceCondominio, []campo{
 		campoCondominio,
 		{"recurso", texto(func(op Operacao) string { return op.Recurso })},
@@ -135,6 +133,9 @@ func PermissaoDe(t TipoDeOperacao) string {
 
 // ValidarForma confere os campos obrigatórios do tipo.
 func ValidarForma(op Operacao) error {
+	if op.Tipo == HabilitarSkill {
+		return errors.New(motivoIndisponivel)
+	}
 	r := regras[op.Tipo]
 	if !r.completa() {
 		return fmt.Errorf("operação %q: tipo desconhecido", op.Tipo)
@@ -167,6 +168,9 @@ func Filtrar(ops []Operacao, ctx Contexto, quem Quem, condominiosDoEscopo func(i
 // motivoDaRecusa devolve "" quando a operação pode ser aplicada. Forma vem antes do escopo
 // porque o escopo precisa do condomínio preenchido.
 func motivoDaRecusa(op Operacao, ctx Contexto, quem Quem, doEscopo func(string) bool) string {
+	if op.Tipo == HabilitarSkill {
+		return motivoIndisponivel
+	}
 	r := regras[op.Tipo]
 	switch {
 	case !telaFaz(ctx.Tela, op.Tipo):

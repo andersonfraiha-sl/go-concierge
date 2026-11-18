@@ -23,6 +23,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"go-concierge/internal/admin"
+	"go-concierge/internal/banco"
+	"go-concierge/internal/canais"
+	"go-concierge/internal/catalogo"
 	"go-concierge/internal/harness"
 	"go-concierge/internal/mcp"
 	"go-concierge/internal/nexus"
@@ -30,6 +35,18 @@ import (
 )
 
 func main() {
+	os.Exit(executar())
+}
+
+func executar() int {
+	limpar := func() {}
+	falha := func(err error) {
+		if err != nil {
+			limpar()
+			falhar(err)
+		}
+	}
+	defer func() { limpar() }()
 	root := flag.String("root", "okf", "raiz do catálogo (agentes/, nexus/)")
 	agente := flag.String("agente", "agentes/concierge", "caminho relativo do agente")
 	inspecionar := flag.Bool("inspecionar", false, "imprime a projeção, o roteador, as tools e os recursos declarados; não chama o modelo")
@@ -40,12 +57,51 @@ func main() {
 	phone := flag.String("phone", "", "telefone do morador: resolve a identidade no Nexus (precisa de NEXUS_BASE_URL)")
 	autenticado := flag.Bool("autenticado", false, "simula morador identificado (papel morador) sem consultar o Nexus")
 	sessao := flag.String("sessao", "", "id da conversa para a chave de idempotência (padrão: local)")
+	channelID := flag.String("channel", "", "UUID do canal persistido no banco v2")
+	companyID := flag.String("company", "", "empresa Nexus dona do canal; padrão NEXUS_COMPANY_ID")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "uso: okf-run [-root okf] [-agente agentes/x] [-modelo id] [-mock] [-json] [-phone n | -autenticado] \"mensagem\"\n     okf-run [-root okf] [-agente agentes/x] --inspecionar\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 	harness.CarregarDotEnv(*dotenv)
+	ctx := context.Background()
+	var canal *canais.Canal
+	var casos []canais.Caso
+	var conteudo admin.Mapeamento
+	if *channelID == "" && !*mock && !*inspecionar {
+		falha(fmt.Errorf("informe -channel e -company para executar com a configuração persistida"))
+	}
+	if *channelID != "" {
+		company := strings.TrimSpace(*companyID)
+		if company == "" {
+			company = strings.TrimSpace(os.Getenv("NEXUS_COMPANY_ID"))
+		}
+		id, err := uuid.Parse(*channelID)
+		falha(err)
+		db, err := banco.Abrir(ctx, os.Getenv("DATABASE_URL"))
+		falha(err)
+		limpar = func() { _ = db.Fechar() }
+		repo := canais.NovoPostgres(db.Pool)
+		c, err := repo.PorID(ctx, company, id)
+		falha(err)
+		if !c.Habilitado {
+			falha(canais.ErrDesabilitado)
+		}
+		canal = &c
+		casos, err = repo.Casos(ctx, c)
+		falha(err)
+		conteudo, err = admin.NovoPostgres(db.Ent).Conteudo(ctx, c.CompanyID, c.CondoID)
+		falha(err)
+		arquivos, err := catalogo.NovoPostgres(db.Ent).Listar(ctx)
+		falha(err)
+		copia, err := os.MkdirTemp("", "concierge-run-")
+		falha(err)
+		limpar = func() { _ = os.RemoveAll(copia); _ = db.Fechar() }
+		falha(catalogo.Materializar(copia, arquivos))
+		*root = copia
+		*agente = c.Agente
+	}
 
 	cat, err := okf.NewCatalogo(*root)
 	falha(err)
@@ -55,7 +111,10 @@ func main() {
 	falha(err)
 
 	account := os.Getenv("DEFAULT_ACCOUNT_ID")
-	if account == "" {
+	if canal != nil {
+		account = canal.Integracoes.NexusAccountID
+	}
+	if account == "" && canal == nil {
 		account = "cond-001"
 	}
 	cli := nexus.New(os.Getenv("NEXUS_BASE_URL"), os.Getenv("NEXUS_TOKEN"))
@@ -73,7 +132,6 @@ func main() {
 		origem = "instantâneo nexus/" + account + ".yaml"
 	}
 
-	ctx := context.Background()
 	ident := harness.Identidade{AccountID: account}
 	switch {
 	case *phone != "" && cli.BaseURL != "":
@@ -100,6 +158,31 @@ func main() {
 		Identidade: ident,
 		Sessao:     *sessao,
 	}
+	if canal != nil {
+		cfg.CompanyID, cfg.CondoID, cfg.ChannelID = canal.CompanyID, canal.CondoID, canal.ID
+		cfg.Casos = func(_ string, id string) bool {
+			if id == "" {
+				return canal.Habilitado
+			}
+			for _, caso := range casos {
+				if caso.ID == id {
+					return canal.Disponivel(caso, ident.Role)
+				}
+			}
+			return false
+		}
+		condo := "*"
+		if canal.CondoID != nil {
+			condo = fmt.Sprint(*canal.CondoID)
+			cfg.ValidarFerramenta = func(string, map[string]any) error {
+				return fmt.Errorf("operação exige identidade e vínculo condominial comprovados pelo runtime de atendimento")
+			}
+		}
+		cfg.Payloads = conteudo.PayloadsDe(condo)
+		orient := conteudo.OrientacaoDe(condo)
+		cfg.Orientacoes = orient.PorCaso
+		cfg.Contexto = admin.ContextoDoCondominio(admin.Condominio{Nome: canal.Nome}, cfg.Payloads, orient.Geral)
+	}
 	if mcpCli != nil {
 		cfg.MCP = mcpCli
 	}
@@ -109,11 +192,11 @@ func main() {
 	if *inspecionar {
 		fmt.Printf("# %s (%s) — modelo %s · account %s · recursos: %s · identidade: %s\n\n", ag.Def.Rel, ag.Def.Tipo, ag.NomeModelo, account, origem, descreverIdentidade(ident))
 		inspecao(ag, 0)
-		return
+		return 0
 	}
 	if flag.NArg() == 0 {
 		flag.Usage()
-		os.Exit(2)
+		return 2
 	}
 	res, err := harness.Run(ctx, ag, strings.Join(flag.Args(), " "), nil)
 	falha(err)
@@ -122,7 +205,7 @@ func main() {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		falha(enc.Encode(res))
-		return
+		return 0
 	}
 	fmt.Println(res.Resposta)
 	fmt.Fprintf(os.Stderr, "\n--- %s respondeu (modelo %s, provedor %s, %s)\n", res.Agente, ag.NomeModelo, ag.Provedor, descreverIdentidade(ident))
@@ -130,6 +213,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %-9s %-40s %s\n", p.Tipo, p.Agente, p.Detalhe)
 	}
 	fmt.Fprintf(os.Stderr, "--- uso: %d chamadas, %d entrada + %d saída = %d tokens\n", res.Uso.Chamadas, res.Uso.Entrada, res.Uso.Saida, res.Uso.Total)
+	return 0
 }
 
 func descreverIdentidade(id harness.Identidade) string {
@@ -202,7 +286,7 @@ func inspecao(ag *harness.Agente, nivel int) {
 	}
 }
 
-func falha(err error) {
+func falhar(err error) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "okf-run:", err)
 		os.Exit(1)

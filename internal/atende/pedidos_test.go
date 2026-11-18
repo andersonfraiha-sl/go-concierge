@@ -170,7 +170,7 @@ func TestPedidoPendenteVaiAoAtendente(t *testing.T) {
 		t.Fatal("pedido inexistente devia falhar")
 	}
 	cart, _ = st.Ler(ctx, contatoDeTeste(t, "adm-a"))
-	p2 := cart.Novo(mustContrato(t, svc), "reserva-area-comum", "cond-001", pedidos.Origem{})
+	p2 := cart.Novo(mustContrato(t, svc), "reserva-area-comum", "101", pedidos.Origem{})
 	_ = st.Gravar(ctx, contatoDeTeste(t, "adm-a"), cart)
 	if _, _, _, err := svc.PreencherPedido(ctx, sess.Protocolo, p2.Protocolo, "Ana", map[string]any{"data": "ontem"}, false); err == nil || !strings.Contains(err.Error(), "data") {
 		t.Fatalf("valor inválido do atendente é rejeitado: %v", err)

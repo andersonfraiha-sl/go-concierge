@@ -4,17 +4,17 @@ Data: 18/11/2026. Inspeção do checkout local, incluindo o legado. Leia junto c
 
 O backdoor atual permite **editar o conteúdo e o fluxo dos casos de uso**, configurar recursos e orientações e operar atendimentos. Sua responsabilidade vai além de criar casos e disponibilizá-los às empresas. Este mapa indica onde cada responsabilidade aparece na proposta de banco.
 
-**Estas são anotações de documentação, não colunas novas nem permissões de CRUD.** Os nomes abaixo são os das tabelas v2, materializadas em baseline isolada; o alcance atual se refere ao equivalente legado existente no Go. As telas ainda não usam o banco v2. A interface do plugin em outro repositório não conta como uma tela já integrada ao backdoor deste projeto. As marcações são reproduzidas no dicionário e no objeto documental `backdoor` de cada tabela em [modelo.json](modelo.json).
+**Estas são anotações de documentação, não colunas novas nem permissões de CRUD.** O backend usa o banco v2. Canais e ativações são configurados por SQL/seed nesta etapa; o Console consulta esses dados. As composições publicadas de camadas participam do runtime. A interface do plugin em outro repositório não conta como tela integrada ao backdoor deste projeto. As marcações são reproduzidas no dicionário e no objeto documental `backdoor` de cada tabela em [modelo.json](modelo.json).
 
 ## Público e separação futura do frontend
 
 O backdoor será um frontend próprio (`concierge-backdor-front`), voltado à operação da plataforma por Professional Services e outros usuários autorizados. Studio, console e emulador integram essa jornada interna. O `concierge-plugin`, separado e acessado na interface Nexus, concentra a gestão do recurso pela empresa cliente: canais e disponibilidade de casos. Ambos consomem as APIs do `concierge-back`, que mantém a persistência e executa o runtime e as integrações.
 
-A sequência é refatorar primeiro as capacidades pertinentes no frontend atual, junto da adaptação do backend ao banco novo, e depois separar a aplicação do backdoor e rever sua organização. Preservar capacidades não obriga a manter telas cujo cadastro ou vínculo deixou de existir. A matriz abaixo é um inventário para orientar essa adaptação, não uma exigência de conservar a navegação atual.
+O backend atual já usa o banco v2. A separação da aplicação do backdoor e a revisão de sua organização ficam para uma etapa futura. Preservar capacidades não obriga a manter telas cujo cadastro ou vínculo deixou de existir. A matriz abaixo descreve o alcance atual da interface, não exige conservar sua navegação.
 
 Uma tela interna pode trabalhar no contexto de uma empresa ou condomínio. Isso identifica o alvo da operação; não transforma o operador em cliente daquela empresa nem define que a mesma tela será oferecida no plugin. A organização atual da interface e seus perfis legados serão revistos na separação, sem serem tomados como requisito da nova jornada.
 
-Consequentemente, **“alcançável no backdoor” não significa “gerenciável pelo cliente no plugin”**. Operação interna e gestão empresarial têm permissões próprias, validadas pelo backend. O `company_id` do registro identifica a empresa dona do dado, independentemente do frontend ou operador que iniciou a ação. O mapeamento legado será adaptado a essa identidade e ao `condo_id` ERP, sem recriar entidades locais de administradora/condomínio. Veja as [fronteiras das aplicações](README.md#fronteiras-das-aplicações-e-públicos).
+Consequentemente, **“alcançável no backdoor” não significa “gerenciável pelo cliente no plugin”**. Operação interna e gestão empresarial têm permissões próprias, validadas pelo backend. O `company_id` do registro identifica a empresa dona do dado, independentemente do frontend ou operador que iniciou a ação. O runtime v2 usa essa identidade e o `condo_id` ERP, sem entidades locais de administradora/condomínio. Veja as [fronteiras das aplicações](README.md#fronteiras-das-aplicações-e-públicos).
 
 ## Legenda
 
@@ -23,12 +23,13 @@ Consequentemente, **“alcançável no backdoor” não significa “gerenciáve
 | Tela: edição | Existe interface para alterar a definição/configuração, pelas operações que ela oferece. |
 | Tela: consulta e ações operacionais | Existe interface de atendimento com ações específicas; não implica edição livre de todas as colunas. |
 | Tela: consulta | Existe visualização do dado; não foi encontrado editor genérico. |
+| Console: consulta | O Console consulta dados persistidos, sem CRUD de gestão nesta etapa. |
 | Gravação indireta | Outra operação persiste o dado, como gerar um evento ao alterar um pedido. |
 | Equivalente parcial no legado | A responsabilidade já existe em parte, com outra modelagem; precisa de adaptação. |
 | API administrativa: edição/consulta | Há rotas administrativas; não foi encontrada tela que as consuma. |
-| Somente backend | Há implementação de persistência/lógica, sem rotas/telas ou integração do pacote no runtime encontradas. |
+| Somente backend | Há persistência ou lógica no backend; não implica tela ou API própria de gestão. O uso no runtime é descrito na linha correspondente. |
 | Suporte interno, sem editor | O dado participa da autorização/infraestrutura administrativa, sem CRUD próprio encontrado. |
-| Novo no desenho / Projeção nova do catálogo | Estrutura proposta, ainda sem CRUD próprio implementado neste Go. |
+| Novo no desenho / Projeção nova do catálogo | Estrutura materializada no v2, sem CRUD próprio de gestão nesta etapa. |
 
 ## Matriz por tabela
 
@@ -36,18 +37,18 @@ Consequentemente, **“alcançável no backdoor” não significa “gerenciáve
 |---|---|---|---|
 | [catalog_files](DICIONARIO.md#catalog_files) | Tela: edição | Autoria de casos e conteúdo do Concierge | Criar, duplicar e excluir skills; editar textos, fluxo procedural, persona, regras, conhecimento, orquestração, arquivos e referências de recursos. A persistência atual passa pelo catálogo. |
 | [use_cases](DICIONARIO.md#use_cases) | Projeção nova do catálogo | Listagem comum de casos | O catálogo já é listado/editado pelo Studio via arquivos. Esta tabela é nova: seus metadados serão projetados de caso.yaml, sem editor independente. |
-| [channels](DICIONARIO.md#channels) | Novo no desenho | Cadastro operacional de canal | Sem CRUD/tela equivalente de canais no Go atual; hoje parte dos dados está em env e no mapeamento legado. O formulário existente no outro projeto não é uma tela já integrada aqui. |
-| [company_use_cases](DICIONARIO.md#company_use_cases) | Equivalente parcial no legado | Disponibilidade e configuração empresarial | Há telas de habilitação padrão/por condomínio, papéis e ajustes. A separação por empresa, enabled e default_available desta proposta ainda precisa ser implementada. |
-| [channel_use_cases](DICIONARIO.md#channel_use_cases) | Novo no desenho | Exceções de disponibilidade por canal | Sem tela/CRUD equivalente no Go atual. A política e a interface do app de origem são referência para a adaptação. |
+| [channels](DICIONARIO.md#channels) | Console: consulta | Cadastro operacional de canal | Canais e credenciais são configurados por SQL/seed; o Console consulta o cadastro persistido. Não há API ou tela de gestão nesta etapa. |
+| [company_use_cases](DICIONARIO.md#company_use_cases) | Console: consulta | Disponibilidade e configuração empresarial | Ativações são configuradas por SQL/seed; o Console consulta os dados persistidos. Não há API ou tela de gestão nesta etapa. |
+| [channel_use_cases](DICIONARIO.md#channel_use_cases) | Console: consulta | Exceções de disponibilidade por canal | Overrides são configurados por SQL/seed; o Console consulta os dados persistidos. Não há API ou tela de gestão nesta etapa. |
 | [contact_memories](DICIONARIO.md#contact_memories) | Tela: consulta | Inspeção de memória do contato | O console mostra nome/cabeçalho do contato. Não foi encontrado editor genérico desse cadastro; as ações de esquecer são descritas em memory_facts. |
 | [sessions](DICIONARIO.md#sessions) | Tela: consulta e ações operacionais | Operação do atendimento | Consultar conversa/estado, assumir atendimento, responder, devolver ao agente e reiniciar/excluir a sessão por ações específicas do console. Sem editor livre de todo JSON. |
-| [memory_facts](DICIONARIO.md#memory_facts) | Tela: consulta e ações operacionais | Inspeção e esquecimento de fatos | Consultar fatos e esquecer um fato ou todos do alvo pelo console. Não é editor arbitrário da memória; o novo recorte de company/usuário/condo terá de governar essas ações. |
+| [memory_facts](DICIONARIO.md#memory_facts) | Tela: consulta e ações operacionais | Inspeção e esquecimento de fatos | Consultar fatos e esquecer um fato ou todos do alvo pelo console. Não é editor arbitrário da memória; o backend v2 aplica o recorte company/usuário/condo. |
 | [requests](DICIONARIO.md#requests) | Tela: consulta e ações operacionais | Operação da carteira de pedidos | Consultar/exportar pedidos, preencher pendências e confirmar quando aplicável, cancelar e remover pedidos encerrados por ações próprias do console. Sem CRUD livre do JSON. |
 | [request_events](DICIONARIO.md#request_events) | Tela: consulta; Gravação indireta | Histórico de pedidos | O console exibe o histórico do pedido; ações operacionais geram eventos indiretamente. Não há editor arbitrário de eventos. |
 | [payloads](DICIONARIO.md#payloads) | Tela: edição | Parâmetros e integrações de recursos | Tela de payloads e configuração de parâmetros por recurso/contexto; mantém configurações além de ligar/desligar um caso. |
 | [guidelines](DICIONARIO.md#guidelines) | Tela: edição | Orientações e ajustes por contexto | Telas administrativas editam orientação geral, orientação por caso e ajustes do contexto legado; serão adaptadas aos escopos GLOBAL/COMPANY/CONDO. |
-| [skill_layers](DICIONARIO.md#skill_layers) | Somente backend | Personalização e composição de conteúdo | Há repositório de camadas/rascunhos e composição no pacote interno. Não foram encontradas rotas, telas ou integração desse pacote no runtime atual. |
-| [skill_versions](DICIONARIO.md#skill_versions) | Somente backend | Versões publicadas de conteúdo | Há persistência de versões/snapshots/histórico no pacote de camadas. Sem jornada de publicação/rollback encontrada no backdoor; a versão das APIs de arquivos não comprova uso desta tabela. |
+| [skill_layers](DICIONARIO.md#skill_layers) | Somente backend | Personalização e composição de conteúdo | O backend persiste as camadas; as composições publicadas participam do runtime. Não há API ou tela de gestão de camadas nesta etapa. |
+| [skill_versions](DICIONARIO.md#skill_versions) | Somente backend | Versões publicadas de conteúdo | O backend persiste snapshots e versões; as versões publicadas são consumidas pelo runtime. Não há jornada de publicação/rollback no backdoor nesta etapa. |
 | [skill_updates](DICIONARIO.md#skill_updates) | Somente backend | Decisões de atualização de conteúdo | Há persistência de atualizações/decisões no pacote de camadas. Não foi encontrada tela/API administrativa que a exponha. |
 | [skill_notices](DICIONARIO.md#skill_notices) | Somente backend | Avisos de atualização de conteúdo | Há persistência de avisos por camada. Não foi encontrada tela/API administrativa; avisos diagnósticos dos cards atuais não são estes registros. |
 | [hook_rules](DICIONARIO.md#hook_rules) | API administrativa: edição | Regras de ganchos | API administrativa lista, consulta, cria, edita e importa/exporta regras. Não foi encontrado cliente dessas rotas nas telas inspecionadas. |
@@ -63,7 +64,7 @@ Consequentemente, **“alcançável no backdoor” não significa “gerenciáve
 
 - **Definição de um caso/fluxo:** o editor de texto/fluxo e o copiloto alteram conteúdo do catálogo, persistido no equivalente atual de `catalog_files`. `use_cases` apenas projeta identidade/metadados; não terá outra cópia editável do procedimento. Uma variante procedural cadastrada como outro caso terá identidade própria.
 - **Configuração da oferta:** `company_use_cases` e `channel_use_cases` decidem ativação, padrão e exceções. Ligar/desligar não reescreve o procedimento. As jornadas do plugin e do backdoor consomem o backend compartilhado conforme suas permissões.
-- **Personalização de conteúdo/contexto:** `payloads` e `guidelines` já têm gestão administrativa. `skill_layers`, `skill_versions`, `skill_updates` e `skill_notices` preservam uma capacidade de persistência existente, mas sua jornada de gestão/publicação e sua ligação ao agente ainda não foram encontradas no código de aplicação. Não apresentá-las como telas já prontas.
+- **Personalização de conteúdo/contexto:** `payloads` e `guidelines` têm gestão administrativa. O runtime consome a composição das camadas publicadas em `skill_layers` e `skill_versions`; esta etapa não inclui telas de gestão/publicação dessas camadas. `skill_updates` e `skill_notices` não têm tela administrativa própria nesta etapa.
 - **Instância de atendimento:** alterar um pedido ou assumir uma sessão opera um atendimento; não altera a definição do caso. Eventos e auditoria são históricos, sem editor arbitrário de seus registros.
 
 Um fluxo editado no backdoor é conteúdo persistido; não exige uma tabela nova para cada fluxo. O conteúdo canônico do catálogo fica no banco, embora o código atual também use uma cópia de trabalho em disco. Já “substituir coleções” de memória/pedidos refere-se à gravação de conjuntos de registros persistidos, não à remoção de arquivos físicos.

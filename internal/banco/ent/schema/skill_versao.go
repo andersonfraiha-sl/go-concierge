@@ -23,21 +23,21 @@ type SkillVersao struct {
 func (SkillVersao) Fields() []ent.Field {
 	horario := map[string]string{dialect.Postgres: "timestamptz"}
 	return []ent.Field{
-		field.Int("camada_id").Immutable(),
-		field.Int("numero").Immutable(),
-		field.JSON("documento", json.RawMessage{}).Immutable(),
+		field.Int("camada_id").StorageKey("layer_id").Immutable(),
+		field.Int("numero").StorageKey("number").Immutable(),
+		field.JSON("documento", json.RawMessage{}).StorageKey("document").Immutable(),
 		// caso.yaml cru: só a versão da base o guarda, para o turno não reler o disco.
-		field.Bytes("caso_yaml").Optional().Immutable(),
-		field.Int("acima_id").Optional().Nillable().Immutable(),
-		field.Int("atualizacao_id").Optional().Nillable().Immutable(),
-		field.Enum("origem").
-			Values("importacao", "inicial", "publicacao", "decisao", "obrigatorio", "prazo", "volta").Immutable(),
-		field.String("autor").NotEmpty().Immutable(),
-		field.Text("resumo").Default("").Immutable(),
-		field.Text("motivo").Default("").Immutable(),
-		field.JSON("obrigatorios", []string{}).Immutable(),
-		field.Time("encerra_em").SchemaType(horario).Optional().Nillable().Immutable(),
-		field.Time("criado_em").SchemaType(horario).Default(time.Now).Immutable(),
+		field.Bytes("caso_yaml").StorageKey("case_yaml").Optional().Immutable(),
+		field.Int("acima_id").StorageKey("parent_version_id").Optional().Nillable().Immutable(),
+		field.Int("atualizacao_id").StorageKey("update_id").Optional().Nillable().Immutable(),
+		field.Enum("origem").StorageKey("origin").
+			NamedValues("Importacao", "IMPORT", "Inicial", "INITIAL", "Publicacao", "PUBLICATION", "Decisao", "DECISION", "Obrigatorio", "MANDATORY", "Prazo", "DEADLINE", "Volta", "ROLLBACK").Immutable(),
+		field.String("autor").StorageKey("author").NotEmpty().Immutable(),
+		field.Text("resumo").StorageKey("summary").Default("").Immutable(),
+		field.Text("motivo").StorageKey("reason").Default("").Immutable(),
+		field.JSON("obrigatorios", []string{}).StorageKey("mandatory_sections").Immutable(),
+		field.Time("encerra_em").StorageKey("expires_at").SchemaType(horario).Optional().Nillable().Immutable(),
+		field.Time("criado_em").StorageKey("created_at").SchemaType(horario).Default(time.Now).Immutable(),
 	}
 }
 
@@ -54,5 +54,5 @@ func (SkillVersao) Indexes() []ent.Index {
 }
 
 func (SkillVersao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "skill_versoes"}}
+	return []schema.Annotation{entsql.Annotation{Table: "skill_versions"}}
 }

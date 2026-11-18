@@ -329,6 +329,16 @@ func EscopoIDHasSuffix(v string) predicate.Atribuicao {
 	return predicate.Atribuicao(sql.FieldHasSuffix(FieldEscopoID, v))
 }
 
+// EscopoIDIsNil applies the IsNil predicate on the "escopo_id" field.
+func EscopoIDIsNil() predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldIsNull(FieldEscopoID))
+}
+
+// EscopoIDNotNil applies the NotNil predicate on the "escopo_id" field.
+func EscopoIDNotNil() predicate.Atribuicao {
+	return predicate.Atribuicao(sql.FieldNotNull(FieldEscopoID))
+}
+
 // EscopoIDEqualFold applies the EqualFold predicate on the "escopo_id" field.
 func EscopoIDEqualFold(v string) predicate.Atribuicao {
 	return predicate.Atribuicao(sql.FieldEqualFold(FieldEscopoID, v))

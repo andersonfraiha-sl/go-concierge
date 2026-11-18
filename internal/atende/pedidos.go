@@ -422,7 +422,8 @@ func (s *Servico) turnoComPedidos(ctx context.Context, sess *Sessao, ag *harness
 			sess.mu.Lock()
 			numeroTurno := len(sess.Turnos)
 			sess.mu.Unlock()
-			p = cart.Novo(cc.ct, cc.agente, contato.CondominioID, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: numeroTurno})
+			p = cart.Novo(cc.ct, cc.agente, contato.CondoID, pedidos.Origem{ProtocoloAtende: sess.Protocolo, Turno: numeroTurno})
+			p.SourceSessionID = sess.ID
 			passo("pedido", p.Protocolo+" aberto: "+cc.ct.Caso.Name)
 			anota(p, "aberto")
 			// pedido novo sem nenhuma menção a data na mensagem: data extraída é invenção
@@ -1024,6 +1025,16 @@ func (s *Servico) RemoverPedido(ctx context.Context, contato escopo.Contato, pro
 	cart, err := s.carregarCarteira(ctx, contato)
 	if err != nil {
 		return err
+	}
+	if p := cart.Por(protocoloPedido); p != nil && contato.Canonico().CondoID == nil && p.CondoID != nil {
+		contato, err = escopo.NovoContato(contato.Canonico().CompanyID, p.CondoID, contato.Telefone)
+		if err != nil {
+			return err
+		}
+		cart, err = s.carregarCarteira(ctx, contato)
+		if err != nil {
+			return err
+		}
 	}
 	if err := cart.Remover(protocoloPedido); err != nil {
 		return err

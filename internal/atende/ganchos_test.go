@@ -200,12 +200,12 @@ func TestGanchosVeemOTurnoInteiro(t *testing.T) {
 				t.Fatalf("antes_de_responder: %d eventos", n)
 			}
 			for _, e := range r.antes.Eventos() {
-				if e.CondominioID != "cond-001" || e.AdministradoraID != "adm-a" {
+				if e.CondominioID != "101" || e.AdministradoraID != "adm-a" {
 					t.Fatalf("antes_da_ferramenta sem o alvo: %q/%q", e.AdministradoraID, e.CondominioID)
 				}
 			}
 			for _, e := range r.depois.Eventos() {
-				if e.CondominioID != "cond-001" || e.AdministradoraID != "adm-a" {
+				if e.CondominioID != "101" || e.AdministradoraID != "adm-a" {
 					t.Fatalf("depois_da_ferramenta sem o alvo: %q/%q", e.AdministradoraID, e.CondominioID)
 				}
 			}

@@ -22,14 +22,14 @@ type SkillAviso struct {
 func (SkillAviso) Fields() []ent.Field {
 	horario := map[string]string{dialect.Postgres: "timestamptz"}
 	return []ent.Field{
-		field.Int("camada_id").Immutable(),
-		field.Int("versao_id").Immutable(),
-		field.Text("motivo").Default("").Immutable(),
-		field.JSON("trechos", []string{}).Immutable(),
-		field.Time("encerra_em").SchemaType(horario).Optional().Nillable().Immutable(),
-		field.String("ciente_por").Default(""),
-		field.Time("ciente_em").SchemaType(horario).Optional().Nillable(),
-		field.Time("criado_em").SchemaType(horario).Default(time.Now).Immutable(),
+		field.Int("camada_id").StorageKey("layer_id").Immutable(),
+		field.Int("versao_id").StorageKey("version_id").Immutable(),
+		field.Text("motivo").StorageKey("reason").Default("").Immutable(),
+		field.JSON("trechos", []string{}).StorageKey("sections").Immutable(),
+		field.Time("encerra_em").StorageKey("expires_at").SchemaType(horario).Optional().Nillable().Immutable(),
+		field.String("ciente_por").StorageKey("acknowledged_by").Default(""),
+		field.Time("ciente_em").StorageKey("acknowledged_at").SchemaType(horario).Optional().Nillable(),
+		field.Time("criado_em").StorageKey("created_at").SchemaType(horario).Default(time.Now).Immutable(),
 	}
 }
 
@@ -48,5 +48,5 @@ func (SkillAviso) Indexes() []ent.Index {
 }
 
 func (SkillAviso) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "skill_avisos"}}
+	return []schema.Annotation{entsql.Annotation{Table: "skill_notices"}}
 }

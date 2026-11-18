@@ -23,16 +23,16 @@ type SkillAtualizacao struct {
 func (SkillAtualizacao) Fields() []ent.Field {
 	horario := map[string]string{dialect.Postgres: "timestamptz"}
 	return []ent.Field{
-		field.Int("camada_id").Immutable(),
-		field.Int("de_id").Immutable(),
-		field.Int("para_id").Immutable(),
-		field.Enum("estado").Values("pendente", "aceita", "recusada", "parcial", "substituida").Default("pendente"),
-		field.Time("prazo_em").SchemaType(horario),
-		field.Bool("prazo_aplicado").Default(false),
-		field.JSON("decisoes", json.RawMessage{}).Optional(),
-		field.String("decidida_por").Default(""),
-		field.Time("decidida_em").SchemaType(horario).Optional().Nillable(),
-		field.Time("criado_em").SchemaType(horario).Default(time.Now).Immutable(),
+		field.Int("camada_id").StorageKey("layer_id").Immutable(),
+		field.Int("de_id").StorageKey("from_version_id").Immutable(),
+		field.Int("para_id").StorageKey("to_version_id").Immutable(),
+		field.Enum("estado").StorageKey("status").NamedValues("Pendente", "PENDING", "Aceita", "ACCEPTED", "Recusada", "REJECTED", "Parcial", "PARTIAL", "Substituida", "SUPERSEDED").Default("PENDING"),
+		field.Time("prazo_em").StorageKey("deadline_at").SchemaType(horario),
+		field.Bool("prazo_aplicado").StorageKey("deadline_applied").Default(false),
+		field.JSON("decisoes", json.RawMessage{}).StorageKey("decisions").Optional(),
+		field.String("decidida_por").StorageKey("decided_by").Default(""),
+		field.Time("decidida_em").StorageKey("decided_at").SchemaType(horario).Optional().Nillable(),
+		field.Time("criado_em").StorageKey("created_at").SchemaType(horario).Default(time.Now).Immutable(),
 	}
 }
 
@@ -55,5 +55,5 @@ func (SkillAtualizacao) Indexes() []ent.Index {
 }
 
 func (SkillAtualizacao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "skill_atualizacoes"}}
+	return []schema.Annotation{entsql.Annotation{Table: "skill_updates"}}
 }

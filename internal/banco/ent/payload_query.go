@@ -298,12 +298,12 @@ func (_q *PayloadQuery) WithCondominio(opts ...func(*CondominioQuery)) *PayloadQ
 // Example:
 //
 //	var v []struct {
-//		CondominioID string `json:"condominio_id,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.Payload.Query().
-//		GroupBy(payload.FieldCondominioID).
+//		GroupBy(payload.FieldScopeType).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *PayloadQuery) GroupBy(field string, fields ...string) *PayloadGroupBy {
@@ -321,11 +321,11 @@ func (_q *PayloadQuery) GroupBy(field string, fields ...string) *PayloadGroupBy 
 // Example:
 //
 //	var v []struct {
-//		CondominioID string `json:"condominio_id,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //	}
 //
 //	client.Payload.Query().
-//		Select(payload.FieldCondominioID).
+//		Select(payload.FieldScopeType).
 //		Scan(ctx, &v)
 func (_q *PayloadQuery) Select(fields ...string) *PayloadSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

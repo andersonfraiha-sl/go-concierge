@@ -839,9 +839,22 @@ func (m *AtribuicaoMutation) OldEscopoID(ctx context.Context) (v string, err err
 	return oldValue.EscopoID, nil
 }
 
+// ClearEscopoID clears the value of the "escopo_id" field.
+func (m *AtribuicaoMutation) ClearEscopoID() {
+	m.escopo_id = nil
+	m.clearedFields[atribuicao.FieldEscopoID] = struct{}{}
+}
+
+// EscopoIDCleared returns if the "escopo_id" field was cleared in this mutation.
+func (m *AtribuicaoMutation) EscopoIDCleared() bool {
+	_, ok := m.clearedFields[atribuicao.FieldEscopoID]
+	return ok
+}
+
 // ResetEscopoID resets all changes to the "escopo_id" field.
 func (m *AtribuicaoMutation) ResetEscopoID() {
 	m.escopo_id = nil
+	delete(m.clearedFields, atribuicao.FieldEscopoID)
 }
 
 // SetAdministradoraID sets the "administradora_id" field.
@@ -1135,6 +1148,9 @@ func (m *AtribuicaoMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *AtribuicaoMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(atribuicao.FieldEscopoID) {
+		fields = append(fields, atribuicao.FieldEscopoID)
+	}
 	if m.FieldCleared(atribuicao.FieldAdministradoraID) {
 		fields = append(fields, atribuicao.FieldAdministradoraID)
 	}
@@ -1152,6 +1168,9 @@ func (m *AtribuicaoMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *AtribuicaoMutation) ClearField(name string) error {
 	switch name {
+	case atribuicao.FieldEscopoID:
+		m.ClearEscopoID()
+		return nil
 	case atribuicao.FieldAdministradoraID:
 		m.ClearAdministradoraID()
 		return nil
@@ -3230,6 +3249,8 @@ type GanchosAuditoriaMutation struct {
 	op                Op
 	typ               string
 	id                *uuid.UUID
+	scope_type        *string
+	channel_id        *string
 	criado_em         *time.Time
 	origem            *string
 	evento            *string
@@ -3356,6 +3377,91 @@ func (m *GanchosAuditoriaMutation) IDs(ctx context.Context) ([]uuid.UUID, error)
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetScopeType sets the "scope_type" field.
+func (m *GanchosAuditoriaMutation) SetScopeType(s string) {
+	m.scope_type = &s
+}
+
+// ScopeType returns the value of the "scope_type" field in the mutation.
+func (m *GanchosAuditoriaMutation) ScopeType() (r string, exists bool) {
+	v := m.scope_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopeType returns the old "scope_type" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldScopeType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopeType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopeType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopeType: %w", err)
+	}
+	return oldValue.ScopeType, nil
+}
+
+// ResetScopeType resets all changes to the "scope_type" field.
+func (m *GanchosAuditoriaMutation) ResetScopeType() {
+	m.scope_type = nil
+}
+
+// SetChannelID sets the "channel_id" field.
+func (m *GanchosAuditoriaMutation) SetChannelID(s string) {
+	m.channel_id = &s
+}
+
+// ChannelID returns the value of the "channel_id" field in the mutation.
+func (m *GanchosAuditoriaMutation) ChannelID() (r string, exists bool) {
+	v := m.channel_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldChannelID returns the old "channel_id" field's value of the GanchosAuditoria entity.
+// If the GanchosAuditoria object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosAuditoriaMutation) OldChannelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldChannelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldChannelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldChannelID: %w", err)
+	}
+	return oldValue.ChannelID, nil
+}
+
+// ClearChannelID clears the value of the "channel_id" field.
+func (m *GanchosAuditoriaMutation) ClearChannelID() {
+	m.channel_id = nil
+	m.clearedFields[ganchosauditoria.FieldChannelID] = struct{}{}
+}
+
+// ChannelIDCleared returns if the "channel_id" field was cleared in this mutation.
+func (m *GanchosAuditoriaMutation) ChannelIDCleared() bool {
+	_, ok := m.clearedFields[ganchosauditoria.FieldChannelID]
+	return ok
+}
+
+// ResetChannelID resets all changes to the "channel_id" field.
+func (m *GanchosAuditoriaMutation) ResetChannelID() {
+	m.channel_id = nil
+	delete(m.clearedFields, ganchosauditoria.FieldChannelID)
 }
 
 // SetCriadoEm sets the "criado_em" field.
@@ -3533,9 +3639,22 @@ func (m *GanchosAuditoriaMutation) OldRegraID(ctx context.Context) (v string, er
 	return oldValue.RegraID, nil
 }
 
+// ClearRegraID clears the value of the "regra_id" field.
+func (m *GanchosAuditoriaMutation) ClearRegraID() {
+	m.regra_id = nil
+	m.clearedFields[ganchosauditoria.FieldRegraID] = struct{}{}
+}
+
+// RegraIDCleared returns if the "regra_id" field was cleared in this mutation.
+func (m *GanchosAuditoriaMutation) RegraIDCleared() bool {
+	_, ok := m.clearedFields[ganchosauditoria.FieldRegraID]
+	return ok
+}
+
 // ResetRegraID resets all changes to the "regra_id" field.
 func (m *GanchosAuditoriaMutation) ResetRegraID() {
 	m.regra_id = nil
+	delete(m.clearedFields, ganchosauditoria.FieldRegraID)
 }
 
 // SetRegraVersao sets the "regra_versao" field.
@@ -3697,9 +3816,22 @@ func (m *GanchosAuditoriaMutation) OldAdministradoraID(ctx context.Context) (v s
 	return oldValue.AdministradoraID, nil
 }
 
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (m *GanchosAuditoriaMutation) ClearAdministradoraID() {
+	m.administradora_id = nil
+	m.clearedFields[ganchosauditoria.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraIDCleared returns if the "administradora_id" field was cleared in this mutation.
+func (m *GanchosAuditoriaMutation) AdministradoraIDCleared() bool {
+	_, ok := m.clearedFields[ganchosauditoria.FieldAdministradoraID]
+	return ok
+}
+
 // ResetAdministradoraID resets all changes to the "administradora_id" field.
 func (m *GanchosAuditoriaMutation) ResetAdministradoraID() {
 	m.administradora_id = nil
+	delete(m.clearedFields, ganchosauditoria.FieldAdministradoraID)
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -3733,9 +3865,22 @@ func (m *GanchosAuditoriaMutation) OldCondominioID(ctx context.Context) (v strin
 	return oldValue.CondominioID, nil
 }
 
+// ClearCondominioID clears the value of the "condominio_id" field.
+func (m *GanchosAuditoriaMutation) ClearCondominioID() {
+	m.condominio_id = nil
+	m.clearedFields[ganchosauditoria.FieldCondominioID] = struct{}{}
+}
+
+// CondominioIDCleared returns if the "condominio_id" field was cleared in this mutation.
+func (m *GanchosAuditoriaMutation) CondominioIDCleared() bool {
+	_, ok := m.clearedFields[ganchosauditoria.FieldCondominioID]
+	return ok
+}
+
 // ResetCondominioID resets all changes to the "condominio_id" field.
 func (m *GanchosAuditoriaMutation) ResetCondominioID() {
 	m.condominio_id = nil
+	delete(m.clearedFields, ganchosauditoria.FieldCondominioID)
 }
 
 // SetSessaoID sets the "sessao_id" field.
@@ -3769,9 +3914,22 @@ func (m *GanchosAuditoriaMutation) OldSessaoID(ctx context.Context) (v string, e
 	return oldValue.SessaoID, nil
 }
 
+// ClearSessaoID clears the value of the "sessao_id" field.
+func (m *GanchosAuditoriaMutation) ClearSessaoID() {
+	m.sessao_id = nil
+	m.clearedFields[ganchosauditoria.FieldSessaoID] = struct{}{}
+}
+
+// SessaoIDCleared returns if the "sessao_id" field was cleared in this mutation.
+func (m *GanchosAuditoriaMutation) SessaoIDCleared() bool {
+	_, ok := m.clearedFields[ganchosauditoria.FieldSessaoID]
+	return ok
+}
+
 // ResetSessaoID resets all changes to the "sessao_id" field.
 func (m *GanchosAuditoriaMutation) ResetSessaoID() {
 	m.sessao_id = nil
+	delete(m.clearedFields, ganchosauditoria.FieldSessaoID)
 }
 
 // SetProtocolo sets the "protocolo" field.
@@ -4008,7 +4166,13 @@ func (m *GanchosAuditoriaMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GanchosAuditoriaMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 18)
+	if m.scope_type != nil {
+		fields = append(fields, ganchosauditoria.FieldScopeType)
+	}
+	if m.channel_id != nil {
+		fields = append(fields, ganchosauditoria.FieldChannelID)
+	}
 	if m.criado_em != nil {
 		fields = append(fields, ganchosauditoria.FieldCriadoEm)
 	}
@@ -4065,6 +4229,10 @@ func (m *GanchosAuditoriaMutation) Fields() []string {
 // schema.
 func (m *GanchosAuditoriaMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case ganchosauditoria.FieldScopeType:
+		return m.ScopeType()
+	case ganchosauditoria.FieldChannelID:
+		return m.ChannelID()
 	case ganchosauditoria.FieldCriadoEm:
 		return m.CriadoEm()
 	case ganchosauditoria.FieldOrigem:
@@ -4106,6 +4274,10 @@ func (m *GanchosAuditoriaMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *GanchosAuditoriaMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case ganchosauditoria.FieldScopeType:
+		return m.OldScopeType(ctx)
+	case ganchosauditoria.FieldChannelID:
+		return m.OldChannelID(ctx)
 	case ganchosauditoria.FieldCriadoEm:
 		return m.OldCriadoEm(ctx)
 	case ganchosauditoria.FieldOrigem:
@@ -4147,6 +4319,20 @@ func (m *GanchosAuditoriaMutation) OldField(ctx context.Context, name string) (e
 // type.
 func (m *GanchosAuditoriaMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case ganchosauditoria.FieldScopeType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopeType(v)
+		return nil
+	case ganchosauditoria.FieldChannelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetChannelID(v)
+		return nil
 	case ganchosauditoria.FieldCriadoEm:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -4315,7 +4501,23 @@ func (m *GanchosAuditoriaMutation) AddField(name string, value ent.Value) error 
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *GanchosAuditoriaMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(ganchosauditoria.FieldChannelID) {
+		fields = append(fields, ganchosauditoria.FieldChannelID)
+	}
+	if m.FieldCleared(ganchosauditoria.FieldRegraID) {
+		fields = append(fields, ganchosauditoria.FieldRegraID)
+	}
+	if m.FieldCleared(ganchosauditoria.FieldAdministradoraID) {
+		fields = append(fields, ganchosauditoria.FieldAdministradoraID)
+	}
+	if m.FieldCleared(ganchosauditoria.FieldCondominioID) {
+		fields = append(fields, ganchosauditoria.FieldCondominioID)
+	}
+	if m.FieldCleared(ganchosauditoria.FieldSessaoID) {
+		fields = append(fields, ganchosauditoria.FieldSessaoID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -4328,6 +4530,23 @@ func (m *GanchosAuditoriaMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *GanchosAuditoriaMutation) ClearField(name string) error {
+	switch name {
+	case ganchosauditoria.FieldChannelID:
+		m.ClearChannelID()
+		return nil
+	case ganchosauditoria.FieldRegraID:
+		m.ClearRegraID()
+		return nil
+	case ganchosauditoria.FieldAdministradoraID:
+		m.ClearAdministradoraID()
+		return nil
+	case ganchosauditoria.FieldCondominioID:
+		m.ClearCondominioID()
+		return nil
+	case ganchosauditoria.FieldSessaoID:
+		m.ClearSessaoID()
+		return nil
+	}
 	return fmt.Errorf("unknown GanchosAuditoria nullable field %s", name)
 }
 
@@ -4335,6 +4554,12 @@ func (m *GanchosAuditoriaMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *GanchosAuditoriaMutation) ResetField(name string) error {
 	switch name {
+	case ganchosauditoria.FieldScopeType:
+		m.ResetScopeType()
+		return nil
+	case ganchosauditoria.FieldChannelID:
+		m.ResetChannelID()
+		return nil
 	case ganchosauditoria.FieldCriadoEm:
 		m.ResetCriadoEm()
 		return nil
@@ -4441,6 +4666,7 @@ type GanchosRegraMutation struct {
 	op                Op
 	typ               string
 	id                *uuid.UUID
+	scope_type        *string
 	versao            *int
 	addversao         *int
 	nome              *string
@@ -4563,6 +4789,42 @@ func (m *GanchosRegraMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetScopeType sets the "scope_type" field.
+func (m *GanchosRegraMutation) SetScopeType(s string) {
+	m.scope_type = &s
+}
+
+// ScopeType returns the value of the "scope_type" field in the mutation.
+func (m *GanchosRegraMutation) ScopeType() (r string, exists bool) {
+	v := m.scope_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopeType returns the old "scope_type" field's value of the GanchosRegra entity.
+// If the GanchosRegra object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GanchosRegraMutation) OldScopeType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopeType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopeType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopeType: %w", err)
+	}
+	return oldValue.ScopeType, nil
+}
+
+// ResetScopeType resets all changes to the "scope_type" field.
+func (m *GanchosRegraMutation) ResetScopeType() {
+	m.scope_type = nil
 }
 
 // SetVersao sets the "versao" field.
@@ -4724,9 +4986,22 @@ func (m *GanchosRegraMutation) OldAdministradoraID(ctx context.Context) (v strin
 	return oldValue.AdministradoraID, nil
 }
 
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (m *GanchosRegraMutation) ClearAdministradoraID() {
+	m.administradora_id = nil
+	m.clearedFields[ganchosregra.FieldAdministradoraID] = struct{}{}
+}
+
+// AdministradoraIDCleared returns if the "administradora_id" field was cleared in this mutation.
+func (m *GanchosRegraMutation) AdministradoraIDCleared() bool {
+	_, ok := m.clearedFields[ganchosregra.FieldAdministradoraID]
+	return ok
+}
+
 // ResetAdministradoraID resets all changes to the "administradora_id" field.
 func (m *GanchosRegraMutation) ResetAdministradoraID() {
 	m.administradora_id = nil
+	delete(m.clearedFields, ganchosregra.FieldAdministradoraID)
 }
 
 // SetCondominios sets the "condominios" field.
@@ -5012,7 +5287,10 @@ func (m *GanchosRegraMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GanchosRegraMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
+	if m.scope_type != nil {
+		fields = append(fields, ganchosregra.FieldScopeType)
+	}
 	if m.versao != nil {
 		fields = append(fields, ganchosregra.FieldVersao)
 	}
@@ -5048,6 +5326,8 @@ func (m *GanchosRegraMutation) Fields() []string {
 // schema.
 func (m *GanchosRegraMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case ganchosregra.FieldScopeType:
+		return m.ScopeType()
 	case ganchosregra.FieldVersao:
 		return m.Versao()
 	case ganchosregra.FieldNome:
@@ -5075,6 +5355,8 @@ func (m *GanchosRegraMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *GanchosRegraMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case ganchosregra.FieldScopeType:
+		return m.OldScopeType(ctx)
 	case ganchosregra.FieldVersao:
 		return m.OldVersao(ctx)
 	case ganchosregra.FieldNome:
@@ -5102,6 +5384,13 @@ func (m *GanchosRegraMutation) OldField(ctx context.Context, name string) (ent.V
 // type.
 func (m *GanchosRegraMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case ganchosregra.FieldScopeType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopeType(v)
+		return nil
 	case ganchosregra.FieldVersao:
 		v, ok := value.(int)
 		if !ok {
@@ -5209,7 +5498,11 @@ func (m *GanchosRegraMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *GanchosRegraMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(ganchosregra.FieldAdministradoraID) {
+		fields = append(fields, ganchosregra.FieldAdministradoraID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -5222,6 +5515,11 @@ func (m *GanchosRegraMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *GanchosRegraMutation) ClearField(name string) error {
+	switch name {
+	case ganchosregra.FieldAdministradoraID:
+		m.ClearAdministradoraID()
+		return nil
+	}
 	return fmt.Errorf("unknown GanchosRegra nullable field %s", name)
 }
 
@@ -5229,6 +5527,9 @@ func (m *GanchosRegraMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *GanchosRegraMutation) ResetField(name string) error {
 	switch name {
+	case ganchosregra.FieldScopeType:
+		m.ResetScopeType()
+		return nil
 	case ganchosregra.FieldVersao:
 		m.ResetVersao()
 		return nil
@@ -7790,6 +8091,8 @@ type OrientacaoMutation struct {
 	op                Op
 	typ               string
 	id                *int
+	scope_type        *string
+	company_id        *string
 	geral             *string
 	por_caso          *map[string]string
 	clearedFields     map[string]struct{}
@@ -7896,6 +8199,91 @@ func (m *OrientacaoMutation) IDs(ctx context.Context) ([]int, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetScopeType sets the "scope_type" field.
+func (m *OrientacaoMutation) SetScopeType(s string) {
+	m.scope_type = &s
+}
+
+// ScopeType returns the value of the "scope_type" field in the mutation.
+func (m *OrientacaoMutation) ScopeType() (r string, exists bool) {
+	v := m.scope_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopeType returns the old "scope_type" field's value of the Orientacao entity.
+// If the Orientacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OrientacaoMutation) OldScopeType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopeType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopeType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopeType: %w", err)
+	}
+	return oldValue.ScopeType, nil
+}
+
+// ResetScopeType resets all changes to the "scope_type" field.
+func (m *OrientacaoMutation) ResetScopeType() {
+	m.scope_type = nil
+}
+
+// SetCompanyID sets the "company_id" field.
+func (m *OrientacaoMutation) SetCompanyID(s string) {
+	m.company_id = &s
+}
+
+// CompanyID returns the value of the "company_id" field in the mutation.
+func (m *OrientacaoMutation) CompanyID() (r string, exists bool) {
+	v := m.company_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompanyID returns the old "company_id" field's value of the Orientacao entity.
+// If the Orientacao object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OrientacaoMutation) OldCompanyID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompanyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompanyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompanyID: %w", err)
+	}
+	return oldValue.CompanyID, nil
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (m *OrientacaoMutation) ClearCompanyID() {
+	m.company_id = nil
+	m.clearedFields[orientacao.FieldCompanyID] = struct{}{}
+}
+
+// CompanyIDCleared returns if the "company_id" field was cleared in this mutation.
+func (m *OrientacaoMutation) CompanyIDCleared() bool {
+	_, ok := m.clearedFields[orientacao.FieldCompanyID]
+	return ok
+}
+
+// ResetCompanyID resets all changes to the "company_id" field.
+func (m *OrientacaoMutation) ResetCompanyID() {
+	m.company_id = nil
+	delete(m.clearedFields, orientacao.FieldCompanyID)
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -8080,7 +8468,13 @@ func (m *OrientacaoMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OrientacaoMutation) Fields() []string {
-	fields := make([]string, 0, 3)
+	fields := make([]string, 0, 5)
+	if m.scope_type != nil {
+		fields = append(fields, orientacao.FieldScopeType)
+	}
+	if m.company_id != nil {
+		fields = append(fields, orientacao.FieldCompanyID)
+	}
 	if m.condominio != nil {
 		fields = append(fields, orientacao.FieldCondominioID)
 	}
@@ -8098,6 +8492,10 @@ func (m *OrientacaoMutation) Fields() []string {
 // schema.
 func (m *OrientacaoMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case orientacao.FieldScopeType:
+		return m.ScopeType()
+	case orientacao.FieldCompanyID:
+		return m.CompanyID()
 	case orientacao.FieldCondominioID:
 		return m.CondominioID()
 	case orientacao.FieldGeral:
@@ -8113,6 +8511,10 @@ func (m *OrientacaoMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *OrientacaoMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case orientacao.FieldScopeType:
+		return m.OldScopeType(ctx)
+	case orientacao.FieldCompanyID:
+		return m.OldCompanyID(ctx)
 	case orientacao.FieldCondominioID:
 		return m.OldCondominioID(ctx)
 	case orientacao.FieldGeral:
@@ -8128,6 +8530,20 @@ func (m *OrientacaoMutation) OldField(ctx context.Context, name string) (ent.Val
 // type.
 func (m *OrientacaoMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case orientacao.FieldScopeType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopeType(v)
+		return nil
+	case orientacao.FieldCompanyID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompanyID(v)
+		return nil
 	case orientacao.FieldCondominioID:
 		v, ok := value.(string)
 		if !ok {
@@ -8179,6 +8595,9 @@ func (m *OrientacaoMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *OrientacaoMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(orientacao.FieldCompanyID) {
+		fields = append(fields, orientacao.FieldCompanyID)
+	}
 	if m.FieldCleared(orientacao.FieldCondominioID) {
 		fields = append(fields, orientacao.FieldCondominioID)
 	}
@@ -8196,6 +8615,9 @@ func (m *OrientacaoMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *OrientacaoMutation) ClearField(name string) error {
 	switch name {
+	case orientacao.FieldCompanyID:
+		m.ClearCompanyID()
+		return nil
 	case orientacao.FieldCondominioID:
 		m.ClearCondominioID()
 		return nil
@@ -8207,6 +8629,12 @@ func (m *OrientacaoMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *OrientacaoMutation) ResetField(name string) error {
 	switch name {
+	case orientacao.FieldScopeType:
+		m.ResetScopeType()
+		return nil
+	case orientacao.FieldCompanyID:
+		m.ResetCompanyID()
+		return nil
 	case orientacao.FieldCondominioID:
 		m.ResetCondominioID()
 		return nil
@@ -9406,6 +9834,8 @@ type PayloadMutation struct {
 	op                Op
 	typ               string
 	id                *int
+	scope_type        *string
+	company_id        *string
 	recurso           *string
 	dados             *map[string]interface{}
 	clearedFields     map[string]struct{}
@@ -9512,6 +9942,91 @@ func (m *PayloadMutation) IDs(ctx context.Context) ([]int, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetScopeType sets the "scope_type" field.
+func (m *PayloadMutation) SetScopeType(s string) {
+	m.scope_type = &s
+}
+
+// ScopeType returns the value of the "scope_type" field in the mutation.
+func (m *PayloadMutation) ScopeType() (r string, exists bool) {
+	v := m.scope_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldScopeType returns the old "scope_type" field's value of the Payload entity.
+// If the Payload object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PayloadMutation) OldScopeType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldScopeType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldScopeType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldScopeType: %w", err)
+	}
+	return oldValue.ScopeType, nil
+}
+
+// ResetScopeType resets all changes to the "scope_type" field.
+func (m *PayloadMutation) ResetScopeType() {
+	m.scope_type = nil
+}
+
+// SetCompanyID sets the "company_id" field.
+func (m *PayloadMutation) SetCompanyID(s string) {
+	m.company_id = &s
+}
+
+// CompanyID returns the value of the "company_id" field in the mutation.
+func (m *PayloadMutation) CompanyID() (r string, exists bool) {
+	v := m.company_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCompanyID returns the old "company_id" field's value of the Payload entity.
+// If the Payload object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PayloadMutation) OldCompanyID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCompanyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCompanyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCompanyID: %w", err)
+	}
+	return oldValue.CompanyID, nil
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (m *PayloadMutation) ClearCompanyID() {
+	m.company_id = nil
+	m.clearedFields[payload.FieldCompanyID] = struct{}{}
+}
+
+// CompanyIDCleared returns if the "company_id" field was cleared in this mutation.
+func (m *PayloadMutation) CompanyIDCleared() bool {
+	_, ok := m.clearedFields[payload.FieldCompanyID]
+	return ok
+}
+
+// ResetCompanyID resets all changes to the "company_id" field.
+func (m *PayloadMutation) ResetCompanyID() {
+	m.company_id = nil
+	delete(m.clearedFields, payload.FieldCompanyID)
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -9696,7 +10211,13 @@ func (m *PayloadMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PayloadMutation) Fields() []string {
-	fields := make([]string, 0, 3)
+	fields := make([]string, 0, 5)
+	if m.scope_type != nil {
+		fields = append(fields, payload.FieldScopeType)
+	}
+	if m.company_id != nil {
+		fields = append(fields, payload.FieldCompanyID)
+	}
 	if m.condominio != nil {
 		fields = append(fields, payload.FieldCondominioID)
 	}
@@ -9714,6 +10235,10 @@ func (m *PayloadMutation) Fields() []string {
 // schema.
 func (m *PayloadMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case payload.FieldScopeType:
+		return m.ScopeType()
+	case payload.FieldCompanyID:
+		return m.CompanyID()
 	case payload.FieldCondominioID:
 		return m.CondominioID()
 	case payload.FieldRecurso:
@@ -9729,6 +10254,10 @@ func (m *PayloadMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *PayloadMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case payload.FieldScopeType:
+		return m.OldScopeType(ctx)
+	case payload.FieldCompanyID:
+		return m.OldCompanyID(ctx)
 	case payload.FieldCondominioID:
 		return m.OldCondominioID(ctx)
 	case payload.FieldRecurso:
@@ -9744,6 +10273,20 @@ func (m *PayloadMutation) OldField(ctx context.Context, name string) (ent.Value,
 // type.
 func (m *PayloadMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case payload.FieldScopeType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetScopeType(v)
+		return nil
+	case payload.FieldCompanyID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCompanyID(v)
+		return nil
 	case payload.FieldCondominioID:
 		v, ok := value.(string)
 		if !ok {
@@ -9795,6 +10338,9 @@ func (m *PayloadMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *PayloadMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(payload.FieldCompanyID) {
+		fields = append(fields, payload.FieldCompanyID)
+	}
 	if m.FieldCleared(payload.FieldCondominioID) {
 		fields = append(fields, payload.FieldCondominioID)
 	}
@@ -9812,6 +10358,9 @@ func (m *PayloadMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *PayloadMutation) ClearField(name string) error {
 	switch name {
+	case payload.FieldCompanyID:
+		m.ClearCompanyID()
+		return nil
 	case payload.FieldCondominioID:
 		m.ClearCondominioID()
 		return nil
@@ -9823,6 +10372,12 @@ func (m *PayloadMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *PayloadMutation) ResetField(name string) error {
 	switch name {
+	case payload.FieldScopeType:
+		m.ResetScopeType()
+		return nil
+	case payload.FieldCompanyID:
+		m.ResetCompanyID()
+		return nil
 	case payload.FieldCondominioID:
 		m.ResetCondominioID()
 		return nil

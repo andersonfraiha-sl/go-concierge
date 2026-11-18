@@ -11,59 +11,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const gravarFatos = `-- name: GravarFatos :exec
-WITH contato AS (
-    INSERT INTO memoria_contatos (administradora_id, telefone, nome, atualizada_em)
-    VALUES ($1::text, $2::text, $9::text, $10::timestamptz)
-    ON CONFLICT (administradora_id, telefone) DO UPDATE
-    SET nome = EXCLUDED.nome,
-        atualizada_em = EXCLUDED.atualizada_em
-),
-saidas AS (
-    DELETE FROM memoria_fatos
-    WHERE administradora_id = $1::text
-      AND telefone = $2::text
-      AND chave <> ALL($3::text[])
+const saveMemory = `-- name: SaveMemory :exec
+WITH contact AS (
+ INSERT INTO contact_memories (company_id, phone_number, name, updated_at)
+ VALUES ($1::text, $2::text, $3::text, $4::timestamptz)
+ ON CONFLICT (company_id, phone_number) DO UPDATE SET name = EXCLUDED.name, updated_at = EXCLUDED.updated_at
+ RETURNING company_id
+), incoming (condo_id, key, text, source, occurred_at, confidence) AS (
+ SELECT (f->>'condo_id')::integer, f->>'key', f->>'text', f->>'source', (f->>'occurred_at')::timestamptz, (f->>'confidence')::real
+ FROM jsonb_array_elements($5::jsonb) f
+), removed AS (
+ DELETE FROM memory_facts f
+ WHERE f.company_id = $1::text AND f.phone_number = $2::text
+ AND f.condo_id IS NOT DISTINCT FROM $6::integer
+ AND NOT EXISTS (SELECT 1 FROM incoming i WHERE i.condo_id IS NOT DISTINCT FROM f.condo_id AND i.key = f.key)
 )
-INSERT INTO memoria_fatos (administradora_id, telefone, chave, condominio_id, texto, fonte, quando, confianca)
-SELECT $1::text, $2::text,
-       unnest($3::text[]), unnest($4::text[]), unnest($5::text[]),
-       unnest($6::text[]), unnest($7::timestamptz[]), unnest($8::real[])
-ON CONFLICT (administradora_id, telefone, chave) DO UPDATE
-SET condominio_id = EXCLUDED.condominio_id,
-    texto = EXCLUDED.texto,
-    fonte = EXCLUDED.fonte,
-    quando = EXCLUDED.quando,
-    confianca = EXCLUDED.confianca
+INSERT INTO memory_facts (company_id, phone_number, condo_id, key, text, source, occurred_at, confidence)
+SELECT $1::text, $2::text, i.condo_id, i.key, i.text, i.source, i.occurred_at, i.confidence
+FROM incoming i, contact
+ON CONFLICT (company_id, phone_number, condo_id, key) DO UPDATE
+SET text = EXCLUDED.text, source = EXCLUDED.source, occurred_at = EXCLUDED.occurred_at, confidence = EXCLUDED.confidence
 `
 
-type GravarFatosParams struct {
-	AdministradoraID string
-	Telefone         string
-	Chaves           []string
-	Condominios      []string
-	Textos           []string
-	Fontes           []string
-	Quandos          []pgtype.Timestamptz
-	Confiancas       []float32
-	Nome             string
-	AtualizadaEm     pgtype.Timestamptz
+type SaveMemoryParams struct {
+	CompanyID     string
+	PhoneNumber   string
+	Name          string
+	UpdatedAt     pgtype.Timestamptz
+	Facts         []byte
+	TargetCondoID pgtype.Int4
 }
 
-// por que não ent: gravar o contato, apagar as chaves que saíram e fazer upsert das restantes num comando só, atômico; o ent faria uma ida por fato e precisaria de uma transação com o sqlc
-// várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
-func (q *Queries) GravarFatos(ctx context.Context, arg GravarFatosParams) error {
-	_, err := q.db.Exec(ctx, gravarFatos,
-		arg.AdministradoraID,
-		arg.Telefone,
-		arg.Chaves,
-		arg.Condominios,
-		arg.Textos,
-		arg.Fontes,
-		arg.Quandos,
-		arg.Confiancas,
-		arg.Nome,
-		arg.AtualizadaEm,
+func (q *Queries) SaveMemory(ctx context.Context, arg SaveMemoryParams) error {
+	_, err := q.db.Exec(ctx, saveMemory,
+		arg.CompanyID,
+		arg.PhoneNumber,
+		arg.Name,
+		arg.UpdatedAt,
+		arg.Facts,
+		arg.TargetCondoID,
 	)
 	return err
 }

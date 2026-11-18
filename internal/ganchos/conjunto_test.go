@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go-concierge/internal/admin"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/ganchostest"
 )
@@ -34,8 +35,8 @@ func cenario[E ganchos.Ocorrencia](ordem *[]string, checagemExtra ...ganchos.Gan
 	}
 	n := ganchos.Nivel[E]{
 		PorCondominio: map[string][]ganchos.Gancho[E]{
-			"c1": {anotador[E]("regra-c1-a", ordem), anotador[E]("regra-c1-b", ordem)},
-			"c2": {anotador[E]("regra-c2", ordem)},
+			escopo.ChaveCondominio("a1", "c1"): {anotador[E]("regra-c1-a", ordem), anotador[E]("regra-c1-b", ordem)},
+			escopo.ChaveCondominio("a1", "c2"): {anotador[E]("regra-c2", ordem)},
 		},
 		PorAdministradora: map[string][]ganchos.Gancho[E]{
 			"a1": {anotador[E]("regra-a1", ordem)},

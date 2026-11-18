@@ -2,6 +2,7 @@ package harness
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"go-concierge/internal/copiloto"
@@ -74,5 +75,12 @@ func TestModeloDoCopiloto(t *testing.T) {
 				t.Fatalf("modelo = %q, quer %q", got, c.quer)
 			}
 		})
+	}
+}
+
+func TestPromptDoCopilotoNaoOfereceHabilitacao(t *testing.T) {
+	prompt := promptDoCopiloto(PedidoAoCopiloto{Operacoes: []copiloto.TipoDeOperacao{copiloto.HabilitarSkill, copiloto.Orientar}})
+	if strings.Contains(prompt, "habilitar_skill") || strings.Contains(prompt, "skills ficam ligadas") || !strings.Contains(prompt, `"tipo":"orientar"`) {
+		t.Fatalf("operações do prompt: %s", prompt)
 	}
 }

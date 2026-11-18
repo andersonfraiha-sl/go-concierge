@@ -22,11 +22,11 @@ type GanchosRegraVersao struct {
 
 func (GanchosRegraVersao) Fields() []ent.Field {
 	return []ent.Field{
-		field.UUID("regra_id", uuid.New()).Immutable(),
-		field.Int("versao").Immutable(),
-		field.JSON("definicao", json.RawMessage{}).Immutable(),
-		field.String("alterada_por").Default("").Immutable(),
-		field.Time("alterada_em").SchemaType(map[string]string{dialect.Postgres: "timestamptz"}).Immutable(),
+		field.UUID("regra_id", uuid.New()).StorageKey("rule_id").Immutable(),
+		field.Int("versao").StorageKey("version").Immutable(),
+		field.JSON("definicao", json.RawMessage{}).StorageKey("definition").Immutable(),
+		field.String("alterada_por").StorageKey("updated_by").Default("").Immutable(),
+		field.Time("alterada_em").StorageKey("updated_at").SchemaType(map[string]string{dialect.Postgres: "timestamptz"}).Immutable(),
 	}
 }
 
@@ -43,5 +43,5 @@ func (GanchosRegraVersao) Indexes() []ent.Index {
 }
 
 func (GanchosRegraVersao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "ganchos_regras_versoes"}}
+	return []schema.Annotation{entsql.Annotation{Table: "hook_rule_versions"}}
 }

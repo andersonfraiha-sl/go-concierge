@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 )
 
@@ -61,7 +62,7 @@ func decidirAntes(indice *ganchos.Indice, ev ganchos.AntesDaFerramenta) ganchos.
 func TestCompilarReservaSoAte22h(t *testing.T) {
 	indice := compilarSemErro(t, gravadaDoArquivo(t, "r1", "reserva-so-ate-22h.json"))
 	reserva := ganchos.AntesDaFerramenta{
-		Ferramenta: "areas.reservar", AdministradoraID: "adm-aurora", CondominioID: "cond-flores",
+		Ferramenta: "areas.reservar", AdministradoraID: "adm-aurora", CondominioID: "101",
 	}
 	casos := []struct {
 		nome    string
@@ -74,9 +75,9 @@ func TestCompilarReservaSoAte22h(t *testing.T) {
 		{"deixa de manha", "2026-11-04T15:00:00Z", reserva, ganchos.Deixar},
 		{"bloqueia de madrugada", "2026-11-04T07:00:00Z", reserva, ganchos.Bloquear},
 		{"deixa outra ferramenta", "2026-11-05T01:30:00Z", ganchos.AntesDaFerramenta{
-			Ferramenta: "areas.listar", AdministradoraID: "adm-aurora", CondominioID: "cond-flores"}, ganchos.Deixar},
+			Ferramenta: "areas.listar", AdministradoraID: "adm-aurora", CondominioID: "101"}, ganchos.Deixar},
 		{"deixa outro condominio", "2026-11-05T01:30:00Z", ganchos.AntesDaFerramenta{
-			Ferramenta: "areas.reservar", AdministradoraID: "adm-aurora", CondominioID: "cond-rios"}, ganchos.Deixar},
+			Ferramenta: "areas.reservar", AdministradoraID: "adm-aurora", CondominioID: "102"}, ganchos.Deixar},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -241,7 +242,7 @@ func TestCompilarRegraQuePerdeAcaoSaiEmErroDeCargaEAsOutrasEntram(t *testing.T) 
 	}
 	require.ElementsMatch(t, []string{"r2", "r3", "r4"}, ids)
 	require.Equal(t, map[ganchos.NomeDoEvento]int{ganchos.EventoAntesDaFerramenta: 1}, indice.Ativas)
-	require.Len(t, indice.AntesDaFerramenta.PorCondominio["cond-flores"], 1)
+	require.Len(t, indice.AntesDaFerramenta.PorCondominio[escopo.ChaveCondominio("adm-aurora", "101")], 1)
 	require.Contains(t, erros[0].Err.Error(), "AJUSTE_NAO_PERMITIDO")
 }
 
@@ -263,7 +264,7 @@ func TestCompilarEntraNoNivelDoAlvoOrdenadaPorID(t *testing.T) {
 	indice := compilarSemErro(t, reserva, obra, codigo, outraGlobal)
 
 	n := indice.AntesDaFerramenta
-	require.Len(t, n.PorCondominio["cond-flores"], 1)
+	require.Len(t, n.PorCondominio[escopo.ChaveCondominio("adm-aurora", "101")], 1)
 	require.Len(t, n.PorAdministradora["adm-aurora"], 1)
 	require.Len(t, n.Globais, 2)
 	require.Equal(t, 4, indice.Ativas[ganchos.EventoAntesDaFerramenta])
@@ -276,12 +277,12 @@ func TestCompilarEntraNoNivelDoAlvoOrdenadaPorID(t *testing.T) {
 func TestCompilarCondominiosDoAlvoGanhamUmaEntradaCada(t *testing.T) {
 	regra := RegraGravada{ID: "r1", Versao: 1, Ativa: true, Definicao: json.RawMessage(`{
 		"nome":"duas torres","evento":"antes_da_ferramenta",
-		"alvo":{"administradora":"adm-aurora","condominios":["cond-flores","cond-rios"]},
+		"alvo":{"administradora":"adm-aurora","condominios":["101","102"]},
 		"condicoes":[{"tipo":"contato_cadastrado","valor":false}],
 		"decisao":{"tipo":"bloquear","mensagem":"Só para cadastrados."},"ativa":true}`)}
 	indice := compilarSemErro(t, regra)
-	require.Len(t, indice.AntesDaFerramenta.PorCondominio["cond-flores"], 1)
-	require.Len(t, indice.AntesDaFerramenta.PorCondominio["cond-rios"], 1)
+	require.Len(t, indice.AntesDaFerramenta.PorCondominio[escopo.ChaveCondominio("adm-aurora", "101")], 1)
+	require.Len(t, indice.AntesDaFerramenta.PorCondominio[escopo.ChaveCondominio("adm-aurora", "102")], 1)
 	require.Equal(t, 1, indice.Ativas[ganchos.EventoAntesDaFerramenta])
 }
 
@@ -337,7 +338,7 @@ func TestCompilarBloquearIgnoraAsConfirmacoes(t *testing.T) {
 	ev := ganchos.AntesDaFerramenta{
 		Ferramenta: "areas.reservar", Agora: momentoUTC("2026-11-05T01:30:00Z"), Confirmacao: "sim",
 		PerguntasConfirmadas: []string{"Reservas por aqui só das 6h às 22h. Me chama amanhã a partir das 6h que eu faço para você."},
-		AdministradoraID:     "adm-aurora", CondominioID: "cond-flores",
+		AdministradoraID:     "adm-aurora", CondominioID: "101",
 	}
 	require.Equal(t, ganchos.Bloquear, decidirAntes(indice, ev).Tipo)
 }

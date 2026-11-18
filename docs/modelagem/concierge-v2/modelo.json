@@ -2,7 +2,7 @@
   "version": "baseline-1",
   "date": "2026-11-18",
   "branch": "feat/refactor-identidade-canais-db",
-  "status": "Modelo aprovado materializado nos schemas Ent v2 e na baseline Goose isolada para PostgreSQL 18; bootstrap, banco e runtime legados preservados. Adaptação do backend pendente.",
+  "status": "Modelo canônico de 24 tabelas, 197 campos e 24 FKs em uso pelo backend v2, em banco novo dedicado; sem migração de registros legados. Canais e ativações são configurados por SQL/seed e consultados pelo Console. Camadas publicadas participam do runtime.",
   "tables": [
     {
       "name": "catalog_files",
@@ -323,7 +323,7 @@
           "NEW"
         ],
         "area": "Cadastro operacional de canal",
-        "management": "Sem CRUD/tela equivalente de canais no Go atual; hoje parte dos dados está em env e no mapeamento legado. O formulário existente no outro projeto não é uma tela já integrada aqui.",
+        "management": "Canais e credenciais são configurados por SQL/seed nesta etapa. O Console consulta o cadastro persistido; não há API ou tela de gestão de canais.",
         "runtime_use": "Empresa, entrada, restrição condominial, perfil e credenciais do atendimento."
       }
     },
@@ -420,7 +420,7 @@
         "Desativar preserva vínculos e pedidos. Não apagar registro referenciado por pedido.",
         "feature_id do DTO pode corresponder a este UUID; feature_key corresponde a use_cases.id.",
         "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela.",
-        "Hoje admin.Habilitado permite execução quando não encontra configuração (internal/admin/admin.go:290-291). Ausência empresarial como não ativado é mudança de default aprovada pelo usuário; a adaptação do runtime ainda não foi implementada."
+        "No runtime legado, admin.Habilitado permitia execução quando não encontrava configuração (internal/admin/admin.go:290-291). O runtime v2 aplica a decisão aprovada: ausência empresarial significa não ativado."
       ],
       "indexes": [],
       "backdoor": {
@@ -428,7 +428,7 @@
           "LEGACY_EQUIVALENT"
         ],
         "area": "Disponibilidade e configuração empresarial",
-        "management": "Há telas de habilitação padrão/por condomínio, papéis e ajustes. A separação por empresa, enabled e default_available desta proposta ainda precisa ser implementada.",
+        "management": "A configuração empresarial é feita por SQL/seed nesta etapa. O Console consulta a disponibilidade persistida; não há API ou tela nova para editar ativações.",
         "runtime_use": "Ativação, bloqueio, padrão e parâmetros do caso na empresa."
       }
     },
@@ -536,7 +536,7 @@
           "NEW"
         ],
         "area": "Exceções de disponibilidade por canal",
-        "management": "Sem tela/CRUD equivalente no Go atual. A política e a interface do app de origem são referência para a adaptação.",
+        "management": "Overrides são configurados por SQL/seed nesta etapa. O Console consulta as regras resolvidas; não há API ou tela de gestão de overrides.",
         "runtime_use": "Overrides true/false aplicados conforme INHERIT/CUSTOM/EXPLICIT, mantendo ausência distinta de false."
       }
     },
@@ -1316,8 +1316,8 @@
           "BACKEND_ONLY"
         ],
         "area": "Personalização e composição de conteúdo",
-        "management": "Há repositório de camadas/rascunhos e composição no pacote interno. Não foram encontradas rotas, telas ou integração desse pacote no runtime atual.",
-        "runtime_use": "Proposta: composição de conteúdo por base/empresa/condomínio quando a integração for realizada."
+        "management": "O backend persiste camadas e rascunhos; esta etapa não inclui API ou tela administrativa para editar camadas.",
+        "runtime_use": "Camadas publicadas compõem o conteúdo do runtime nos escopos global, empresa e condomínio."
       }
     },
     {
@@ -1473,8 +1473,8 @@
           "BACKEND_ONLY"
         ],
         "area": "Versões publicadas de conteúdo",
-        "management": "Há persistência de versões/snapshots/histórico no pacote de camadas. Sem jornada de publicação/rollback encontrada no backdoor; a versão das APIs de arquivos não comprova uso desta tabela.",
-        "runtime_use": "Proposta: retratos imutáveis da composição publicada para consumo do agente."
+        "management": "O backend persiste versões e snapshots; esta etapa não inclui jornada de publicação/rollback no backdoor.",
+        "runtime_use": "Versões publicadas fornecem snapshots imutáveis consumidos pelo runtime."
       }
     },
     {
@@ -2590,7 +2590,7 @@
     "Arquitetura de destino: concierge-back concentra persistência, runtime, integrações e APIs; concierge-backdor-front será o frontend separado de operação da plataforma por Professional Services/operadores autorizados, incluindo Studio/console/emulador; concierge-plugin será a gestão de canais e disponibilidade pela empresa cliente na interface Nexus.",
     "Escopos de company/condo identificam propriedade e alvo autorizado dos dados, não a audiência do frontend. Alcance no backdoor não concede a mesma capacidade ao plugin; navegação/perfis legados não fixam a futura jornada dos dois públicos.",
     "Decisão aprovada: personalização de conteúdo nos níveis base global, empresa e condomínio, sem nível por canal nesta fase; independente da disponibilidade INHERIT/CUSTOM/EXPLICIT.",
-    "Escopo do refactor: configurar canais e disponibilidade diretamente por SQL/seed; novas APIs e telas de gestão ficam para depois. O backend deve ler canal e disponibilidade no modelo novo e aplicá-los ao agente, substituindo a origem/regra legada de habilitacoes.",
+    "Estado do refactor: o backend lê canais e disponibilidade do modelo v2 e os aplica ao runtime. Canais e ativações são configurados diretamente por SQL/seed e consultados pelo Console; novas APIs e telas de gestão ficam para depois.",
     "Requisito obrigatório da implementação: nenhuma escrita/exclusão pode alterar dados fora do alvo autorizado. Em dados pessoais, aplicar company + usuário + recorte condominial; coleções parciais ou vazias não autorizam apagar outros recortes. Validar também JSONs e operações indiretas."
   ],
   "naming": {

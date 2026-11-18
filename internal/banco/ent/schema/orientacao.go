@@ -17,9 +17,11 @@ type Orientacao struct {
 
 func (Orientacao) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("condominio_id").Optional().Nillable(),
-		field.Text("geral").Default(""),
-		field.JSON("por_caso", map[string]string{}),
+		field.String("scope_type"),
+		field.String("company_id").Optional(),
+		field.String("condominio_id").StorageKey("condo_id").Optional().Nillable(),
+		field.Text("geral").StorageKey("general_text").Default(""),
+		field.JSON("por_caso", map[string]string{}).StorageKey("by_use_case"),
 	}
 }
 
@@ -38,5 +40,5 @@ func (Orientacao) Indexes() []ent.Index {
 }
 
 func (Orientacao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "orientacoes"}}
+	return []schema.Annotation{entsql.Annotation{Table: "guidelines"}}
 }

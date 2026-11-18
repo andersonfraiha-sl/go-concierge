@@ -9,6 +9,7 @@
   const estado = { protocolo: '', sessaoID: '', ultimoEvento: null, sessao: null, config: null, poll: null };
 
   async function api(caminho, opts = {}) {
+	if (/^\/api\/(atende\/(sessao|sessoes|saidas|transbordo|identidade)|memoria|memorias|pedidos)(\?|\/|$)/.test(caminho)) caminho = comAdministradora(caminho);
     const r = await fetch(caminho, { headers: opts.body ? { 'Content-Type': 'application/json' } : {}, ...opts });
     const tipo = r.headers.get('content-type') || '';
     const dados = tipo.includes('json') ? await r.json() : await r.text();
@@ -31,17 +32,31 @@
   // a administradora dele às rotas de memória e pedidos
   const condominioEscolhido = () => $('#formContato').condominio.value;
   // sem condomínio no seletor, vale a administradora que o turno resolveu para a conversa aberta
-  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || estado.sessao?.administradora_id || '';
-  const comAdministradora = (caminho) => caminho + (caminho.includes('?') ? '&' : '?') + 'administradora=' + encodeURIComponent(administradora());
+  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || estado.sessao?.company_id || '';
+  const comAdministradora = (caminho) => {
+    const url = new URL(caminho, location.origin);
+    url.searchParams.set('company_id', administradora());
+    const channel = condominioEscolhido();
+    if (channel) url.searchParams.set('channel_id', channel);
+    const condo = $('#formContato').condominio.selectedOptions[0]?.dataset.condo;
+    if (condo) url.searchParams.set('condo_id', condo);
+    return url.pathname + url.search;
+  };
   async function carregarCondominios() {
     try {
-      const r = await api('/api/admin/estado');
-      const nomes = Object.fromEntries((r.administradoras || []).map((a) => [a.id, a.nome]));
-      const condos = (r.mapeamento.condominios || []).filter((c) => c.administradora_id);
+      const r = await api('/api/atende/config');
+      const condos = r.canais || [];
       const sel = $('#formContato').condominio;
-      sel.innerHTML = '<option value="">nenhum (usa o tenant abaixo)</option>' + condos.map((c) => `<option value="${esc(c.id)}" data-adm="${esc(c.administradora_id)}">${esc(c.nome)} · ${esc(nomes[c.administradora_id] || c.administradora_id)}</option>`).join('');
+      sel.innerHTML = '<option value="">selecione um canal</option>' + condos.map((c) => `<option value="${esc(c.id)}" data-adm="${esc(c.company_id)}" data-condo="${esc(c.condo_id ?? '')}" data-tenant="${esc(c.tenant)}" data-endpoint="${esc(c.endpoint)}">${esc(c.nome || c.endpoint)} · ${esc(c.company_id)}${c.habilitado ? '' : ' · desligado'}</option>`).join('');
       if (condos.length) sel.value = condos[0].id;
+      atualizarCanalSelecionado();
     } catch (err) { toast(err.message, true); }
+  }
+
+  function atualizarCanalSelecionado() {
+    const option = $('#formContato').condominio.selectedOptions[0];
+    if (option?.dataset.tenant) $('#formContato').tenant.value = option.dataset.tenant;
+    if (option?.dataset.endpoint) $('#displayNumber').textContent = option.dataset.endpoint;
   }
 
   // ---- protocolo e evento -----------------------------------------------------
@@ -100,7 +115,8 @@
     $('#btnEnviar').disabled = true;
     try {
       const cond = condominioEscolhido();
-      const recebido = await api('/emulador/atende/webhook' + (cond ? '?condominio=' + encodeURIComponent(cond) : ''), { method: 'POST', body: JSON.stringify(ev) });
+      if (!cond) throw new Error('Selecione um canal persistido no emulador.');
+      const recebido = await api(comAdministradora('/emulador/atende/webhook?channel_id=' + encodeURIComponent(cond)), { method: 'POST', body: JSON.stringify(ev) });
       estado.sessaoID = recebido.session_id || estado.sessaoID;
       await acompanhar();
     } catch (err) { toast(err.message, true); digitando(false); }
@@ -381,7 +397,7 @@
     icons();
   }
   $('#formContato').phone.addEventListener('change', () => { carregarMemoria(); carregarPedidos(); });
-  $('#formContato').condominio.addEventListener('change', () => { estado.chaveMemoria = estado.chavePedidos = ''; carregarMemoria(); carregarPedidos(); });
+  $('#formContato').condominio.addEventListener('change', () => { atualizarCanalSelecionado(); novaConversa(); estado.chaveMemoria = estado.chavePedidos = ''; carregarMemoria(); carregarPedidos(); });
 
   async function identificar() {
     const phone = $('#formContato').phone.value.trim();
@@ -397,7 +413,7 @@
   async function carregarSessoes() {
     try {
       const r = await api('/api/atende/sessoes');
-      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}" data-condominio="${esc(s.condominio || '')}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
+      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}" data-channel="${esc(s.channel_id || '')}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
       // lixeira: apaga a conversa no servidor; se era a aberta, começa uma nova
       $$('#sessoes .sub-del').forEach((b) => b.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -410,7 +426,7 @@
       }));
       $$('#sessoes .sub').forEach((d) => d.addEventListener('click', async () => {
         const f = $('#formContato');
-        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant; if (d.dataset.condominio) f.condominio.value = d.dataset.condominio;
+        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant; if (d.dataset.channel) f.condominio.value = d.dataset.channel; atualizarCanalSelecionado();
         const r2 = await api('/api/atende/sessao?id=' + encodeURIComponent(d.dataset.id));
         estado.sessao = r2.sessao;
         estado.recebidas = r2.recebidas || [];
@@ -459,5 +475,5 @@
   icons();
   novaConversa();
   const configCarregada = Promise.all([carregarConfig(), carregarCondominios()]);
-  configCarregada.then(() => { carregarMemoria(); carregarPedidos(); });
+  configCarregada.then(() => { carregarSessoes(); carregarMemoria(); carregarPedidos(); });
 })();

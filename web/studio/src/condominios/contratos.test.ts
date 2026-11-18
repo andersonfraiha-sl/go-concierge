@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { json, responderCom } from '@/test/fetchFalso';
 import {
+  buscarEstado,
   criarAdministradora,
   criarCondominio,
   EstadoSchema,
@@ -9,6 +10,7 @@ import {
   ferramentasGerais,
   habilitacaoDe,
   PADRAO,
+  salvarOrientacao,
 } from './contratos';
 import { estadoFalso, respostaMapeamento } from './estadoFalso';
 
@@ -59,7 +61,7 @@ describe('habilitacaoDe', () => {
   const mapeamento = EstadoSchema.parse(estadoFalso).mapeamento;
 
   it.each([
-    { condominio: 'vila-verde', caso: 'agendar-mudanca', habilitado: true, propria: false },
+    { condominio: 'vila-verde', caso: 'agendar-mudanca', habilitado: false, propria: false },
     { condominio: 'vila-verde', caso: 'reserva-do-salao', habilitado: false, propria: false },
     { condominio: PADRAO, caso: 'reserva-do-salao', habilitado: false, propria: true },
   ])('resolve $caso em $condominio', ({ condominio, caso, habilitado, propria }) => {
@@ -130,5 +132,58 @@ describe('criação', () => {
     const falso = responderCom({ [rota]: () => json(respostaMapeamento, 201) });
     await chamar();
     expect(falso).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('escopo externo do conteúdo', () => {
+  it('consultaOAlvoExatoComCompanyECondo', async () => {
+    const urls: URL[] = [];
+    responderCom({
+      'GET /api/admin/estado': (req) => {
+        urls.push(new URL(req.url));
+        return json(estadoFalso);
+      },
+    });
+
+    await buscarEstado('company-a', '101');
+    await buscarEstado('company-b', '101');
+    await buscarEstado('company-a', '*');
+    await buscarEstado(null, '*');
+
+    expect(
+      urls.map((url) => [url.searchParams.get('company_id'), url.searchParams.get('condo_id')]),
+    ).toEqual([
+      ['company-a', '101'],
+      ['company-b', '101'],
+      ['company-a', null],
+      [null, null],
+    ]);
+  });
+
+  it.each([
+    { company: 'company-a', condominio: '101', condoID: 101 },
+    { company: 'company-a', condominio: '*', condoID: null },
+    { company: null, condominio: '*', condoID: null },
+  ])('gravaOrientacaoEm $company / $condominio', async ({ company, condominio, condoID }) => {
+    let recebido: unknown;
+    let companyNaURL: string | null = null;
+    responderCom({
+      'PUT /api/admin/orientacao': async (req) => {
+        recebido = await req.json();
+        companyNaURL = new URL(req.url).searchParams.get('company_id');
+        return json(respostaMapeamento);
+      },
+    });
+
+    await salvarOrientacao({ condominio, geral: 'Piscina às 22h.', por_caso: {} }, company);
+
+    expect(companyNaURL).toBe(company);
+    expect(recebido).toEqual({
+      condominio,
+      company_id: company ?? '',
+      condo_id: condoID,
+      geral: 'Piscina às 22h.',
+      por_caso: {},
+    });
   });
 });

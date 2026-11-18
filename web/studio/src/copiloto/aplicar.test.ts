@@ -250,15 +250,50 @@ describe('aplicarOperacao', () => {
     expect(put.corpos).toEqual([
       {
         condominio: 'vila-verde',
+        company_id: '',
+        condo_id: null,
         geral: 'Piscina até 22h.',
         por_caso: { mudanca: 'Sem domingo.', encomendas: 'Na portaria.' },
       },
       {
         condominio: 'vila-verde',
+        company_id: '',
+        condo_id: null,
         geral: 'Piscina até 23h.',
         por_caso: { mudanca: 'Sem domingo.' },
       },
     ]);
+  });
+
+  it('gravaOrientacaoPeloIdCanonicoDaSkill', async () => {
+    const put = gravando(mapeamento);
+    responderCom({ 'PUT /api/admin/orientacao': put.rota });
+    const atual = {
+      ...estado,
+      casos: [
+        {
+          nome: 'encomendas',
+          id: 'entrega_encomendas',
+          titulo: 'Encomendas',
+          descricao: '',
+          escrita: false,
+          recursos: [],
+          resumo: '',
+          icone: '',
+        },
+      ],
+    };
+
+    await aplicarOperacao(
+      op({ tipo: 'orientar', condominio: '101', skill: 'encomendas', texto: 'Na portaria.' }),
+      ambiente({ escopo: 'empresa', lerEstado: async () => atual }),
+    );
+
+    expect(put.corpos[0]).toMatchObject({
+      company_id: 'empresa',
+      condo_id: 101,
+      por_caso: { entrega_encomendas: 'Na portaria.' },
+    });
   });
 
   it('mergesAdjustmentsWithCurrentState', async () => {
@@ -278,6 +313,8 @@ describe('aplicarOperacao', () => {
     expect(put.corpos).toEqual([
       {
         condominio: 'vila-verde',
+        company_id: '',
+        condo_id: null,
         ajustes: {
           'reserva.criar': { antecedencia: 2, limite: 3 },
           'outro.recurso': { x: 1 },
@@ -286,29 +323,19 @@ describe('aplicarOperacao', () => {
     ]);
   });
 
-  it('togglesSkillKeepingRoles', async () => {
-    const put = gravando(mapeamento);
-    responderCom({ 'PUT /api/admin/habilitacao': put.rota });
+  it('recusaHabilitacaoSemFazerChamadaHttp', async () => {
+    const falso = responderCom({});
+    const operacao = op({
+      tipo: 'habilitar_skill',
+      condominio: '101',
+      skill: 'encomendas',
+      habilitado: true,
+    });
 
-    await aplicarOperacao(
-      op({
-        tipo: 'habilitar_skill',
-        condominio: 'vila-verde',
-        skill: 'encomendas',
-        habilitado: true,
-      }),
-      ambiente(),
+    await expect(aplicarOperacao(operacao, ambiente())).rejects.toThrow(
+      'A habilitação de skills não é gerenciada no Studio.',
     );
-
-    expect(put.corpos).toEqual([
-      {
-        condominio: 'vila-verde',
-        caso: 'encomendas',
-        habilitado: true,
-        papeis: ['sindico'],
-        limpar: false,
-      },
-    ]);
+    expect(falso).not.toHaveBeenCalled();
   });
 
   it('writesPersonaFile', async () => {
@@ -366,11 +393,6 @@ describe('aplicarOperacao', () => {
         'GET /api/skills/agendar-mudanca': () => json(textosLidos),
         'DELETE /api/skills/agendar-mudanca': () => new Response(null, { status: 204 }),
       },
-    },
-    {
-      bruta: { tipo: 'habilitar_skill', condominio: 'c', skill: 's', habilitado: false },
-      alvos: ['condominio:c', 'condominio:c:skill:s'],
-      rotas: { 'PUT /api/admin/habilitacao': () => json(mapeamento) },
     },
     {
       bruta: { tipo: 'orientar', condominio: 'c', skill: 's', texto: 'T' },

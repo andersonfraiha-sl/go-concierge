@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"slices"
+	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"go-concierge/internal/banco/ent"
 	entcatalogo "go-concierge/internal/banco/ent/catalogoarquivo"
@@ -61,13 +65,25 @@ func (p *Postgres) Vazio(ctx context.Context) (bool, error) {
 	return !existe, nil
 }
 
-// Substituir faz o banco ficar igual a noDisco, numa transação: grava o que é novo ou
-// mudou e remove o que sumiu (ver Diferenca). Repetir com o mesmo disco não escreve nada.
-// Um caminho inválido recusa tudo antes de abrir a transação.
-func (p *Postgres) Substituir(ctx context.Context, noDisco []Arquivo) (Mudanca, error) {
+func (p *Postgres) Substituir(ctx context.Context, noDisco []Arquivo, remover ...string) (Mudanca, error) {
+	if _, err := projecoesDe(noDisco); err != nil {
+		return Mudanca{}, err
+	}
 	for _, a := range noDisco {
 		if err := ValidarCaminho(a.Caminho); err != nil {
 			return Mudanca{}, fmt.Errorf("substituir catálogo: %w", err)
+		}
+	}
+	alvos := make(map[string]bool, len(noDisco))
+	for _, a := range noDisco {
+		alvos[a.Caminho] = true
+	}
+	for _, caminho := range remover {
+		if err := ValidarCaminho(caminho); err != nil {
+			return Mudanca{}, err
+		}
+		if alvos[caminho] {
+			return Mudanca{}, fmt.Errorf("caminho %q presente na gravação e na remoção", caminho)
 		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutCatalogo)
@@ -76,7 +92,7 @@ func (p *Postgres) Substituir(ctx context.Context, noDisco []Arquivo) (Mudanca, 
 	if err != nil {
 		return Mudanca{}, falha.ComPilha(fmt.Errorf("substituir catálogo: abrir transação: %w", err))
 	}
-	mudanca, err := aplicar(ctx, tx, noDisco)
+	mudanca, err := aplicar(ctx, tx, noDisco, remover)
 	if err != nil {
 		if errDesfazer := tx.Rollback(); errDesfazer != nil {
 			err = errors.Join(err, fmt.Errorf("desfazer transação: %w", errDesfazer))
@@ -89,24 +105,34 @@ func (p *Postgres) Substituir(ctx context.Context, noDisco []Arquivo) (Mudanca, 
 	return mudanca, nil
 }
 
-func aplicar(ctx context.Context, tx *ent.Tx, noDisco []Arquivo) (Mudanca, error) {
+func aplicar(ctx context.Context, tx *ent.Tx, noDisco []Arquivo, remover []string) (Mudanca, error) {
 	atuais, err := resumos(ctx, tx.CatalogoArquivo)
 	if err != nil {
 		return Mudanca{}, err
 	}
-	gravar, remover := Diferenca(atuais, noDisco)
+	gravar, _ := Diferenca(atuais, noDisco)
 	agora := time.Now().UTC()
 	for lote := range slices.Chunk(gravar, arquivosPorLote) {
 		if err := gravarLote(ctx, tx, lote, agora); err != nil {
 			return Mudanca{}, err
 		}
 	}
+	if err := projetarCasos(ctx, tx.Client(), noDisco, agora); err != nil {
+		return Mudanca{}, err
+	}
+	removidos := 0
 	if len(remover) > 0 {
-		if _, err := tx.CatalogoArquivo.Delete().Where(entcatalogo.IDIn(remover...)).Exec(ctx); err != nil {
+		for _, caminho := range remover {
+			if err := removerCasoSemUso(ctx, tx.Client(), caminho); err != nil {
+				return Mudanca{}, err
+			}
+		}
+		var err error
+		if removidos, err = tx.CatalogoArquivo.Delete().Where(entcatalogo.IDIn(remover...)).Exec(ctx); err != nil {
 			return Mudanca{}, fmt.Errorf("remover %d arquivo(s): %w", len(remover), err)
 		}
 	}
-	return Mudanca{Gravados: len(gravar), Removidos: len(remover)}, nil
+	return Mudanca{Gravados: len(gravar), Removidos: removidos}, nil
 }
 
 func gravarLote(ctx context.Context, tx *ent.Tx, lote []Arquivo, agora time.Time) error {
@@ -124,7 +150,7 @@ func gravarLote(ctx context.Context, tx *ent.Tx, lote []Arquivo, agora time.Time
 
 func resumos(ctx context.Context, cli *ent.CatalogoArquivoClient) (map[string]string, error) {
 	var linhas []struct {
-		ID     string `json:"caminho"`
+		ID     string `json:"path"`
 		Sha256 string `json:"sha256"`
 	}
 	if err := cli.Query().Select(entcatalogo.FieldID, entcatalogo.FieldSha256).Scan(ctx, &linhas); err != nil {
@@ -135,4 +161,94 @@ func resumos(ctx context.Context, cli *ent.CatalogoArquivoClient) (map[string]st
 		out[l.ID] = l.Sha256
 	}
 	return out, nil
+}
+
+type casoProjetado struct {
+	ID               string           `yaml:"id"`
+	Name             string           `yaml:"name"`
+	Summary          string           `yaml:"summary"`
+	Icon             string           `yaml:"icon"`
+	Visibility       string           `yaml:"visibility"`
+	Steps            []map[string]any `yaml:"steps"`
+	file, agent, sha string
+}
+
+func projecoesDe(arquivos []Arquivo) (map[string]casoProjetado, error) {
+	casos := map[string]casoProjetado{}
+	for _, a := range arquivos {
+		if path.Base(a.Caminho) != "caso.yaml" || !strings.HasPrefix(a.Caminho, "agentes/") {
+			continue
+		}
+		var c casoProjetado
+		if err := yaml.Unmarshal(a.Conteudo, &c); err != nil {
+			return nil, fmt.Errorf("%s: caso inválido: %w", a.Caminho, err)
+		}
+		if strings.TrimSpace(c.ID) == "" || len(c.Steps) == 0 {
+			return nil, fmt.Errorf("%s: caso exige ID global e passos", a.Caminho)
+		}
+		if anterior, existe := casos[c.ID]; existe {
+			return nil, fmt.Errorf("ID global %q repetido em %s e %s", c.ID, anterior.file, a.Caminho)
+		}
+		c.file, c.agent, c.sha = a.Caminho, path.Dir(a.Caminho), SHA256(a.Conteudo)
+		if c.Visibility == "" {
+			c.Visibility = "private"
+		}
+		casos[c.ID] = c
+	}
+	return casos, nil
+}
+
+func projetarCasos(ctx context.Context, cli *ent.Client, arquivos []Arquivo, agora time.Time) error {
+	casos, err := projecoesDe(arquivos)
+	if err != nil {
+		return err
+	}
+	for _, c := range casos {
+		result, err := cli.ExecContext(ctx, `INSERT INTO use_cases(id,file_path,agent_path,name,summary,icon,visibility,source_sha256,updated_at) VALUES($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9) ON CONFLICT(id) DO UPDATE SET file_path=EXCLUDED.file_path,agent_path=EXCLUDED.agent_path,name=EXCLUDED.name,summary=EXCLUDED.summary,icon=EXCLUDED.icon,visibility=EXCLUDED.visibility,source_sha256=EXCLUDED.source_sha256,updated_at=EXCLUDED.updated_at WHERE use_cases.file_path=EXCLUDED.file_path`, c.ID, c.file, c.agent, c.Name, c.Summary, c.Icon, c.Visibility, c.sha, agora)
+		if err != nil {
+			return fmt.Errorf("projetar caso %q: %w", c.ID, err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n != 1 {
+			return fmt.Errorf("ID global %q já pertence a outro arquivo", c.ID)
+		}
+	}
+	return nil
+}
+
+func removerCasoSemUso(ctx context.Context, cli *ent.Client, caminho string) error {
+	rows, err := cli.QueryContext(ctx, `SELECT u.id, EXISTS(SELECT 1 FROM company_use_cases c WHERE c.use_case_id=u.id) FROM use_cases u WHERE u.file_path=$1 FOR UPDATE`, caminho)
+	if err != nil {
+		return err
+	}
+	var id string
+	if !rows.Next() {
+		err := rows.Err()
+		rows.Close()
+		return err
+	}
+	var emUso bool
+	err = rows.Scan(&id, &emUso)
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if emUso {
+		return fmt.Errorf("caso %q configurado por empresa; remoção recusada", id)
+	}
+	result, err := cli.ExecContext(ctx, `DELETE FROM use_cases u WHERE u.id=$1 AND u.file_path=$2 AND NOT EXISTS(SELECT 1 FROM company_use_cases c WHERE c.use_case_id=u.id)`, id, caminho)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return fmt.Errorf("caso %q alterado durante remoção", id)
+	}
+	return nil
 }

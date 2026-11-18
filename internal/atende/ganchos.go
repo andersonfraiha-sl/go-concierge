@@ -100,11 +100,19 @@ func (s *Servico) lerMapeamento(ctx context.Context) (admin.Mapeamento, error) {
 // mensagemRecebida passa a mensagem pelos ganchos: o escopo resolve o condomínio e o
 // texto sai mascarado, com os valores no cofre do turno.
 func (s *Servico) mensagemRecebida(ctx context.Context, sess *Sessao, t ganchos.Turno, msg entrada.Mensagem, texto string, m admin.Mapeamento) ganchos.Resultado[ganchos.MensagemRecebida] {
-	r := t.MensagemRecebida(ctx, ganchos.MensagemRecebida{
+	e := ganchos.MensagemRecebida{
 		Agora: s.agora(), Texto: texto, CompanyID: msg.CompanyID, Tenant: msg.Tenant,
 		Mapeamento: m, Implantacao: s.Implantacao, ContatoDaSessao: sess.contato(),
 		Identidade: sess.identidadeDosGanchos(),
-	})
+	}
+	if c, ok := canalDoContexto(ctx); ok {
+		e.CanalResolvido = true
+		e.ChannelID = c.ID.String()
+		e.CompanyID = c.CompanyID
+		e.CondoID = c.CondoID
+		e.Condominio = condominioDoCanal(c)
+	}
+	r := t.MensagemRecebida(ctx, e)
 	return r
 }
 
@@ -177,8 +185,13 @@ func (s *Servico) encerramento(ctx context.Context, sess *Sessao) {
 // comAuditoria põe no ctx a sessão e o usuário que a auditoria dos ganchos grava; o alvo e a
 // hora vêm de cada avaliação. usuario é o atendente (vazio quando quem fala é o morador).
 func comAuditoria(ctx context.Context, sess *Sessao, usuario string) context.Context {
+	channel := ""
+	if sess.ChannelID.String() != "00000000-0000-0000-0000-000000000000" {
+		channel = sess.ChannelID.String()
+	}
 	return auditoria.ComBase(ctx, auditoria.Linha{
-		Origem: ganchos.OrigemConcierge, SessaoID: sess.ID, Protocolo: sess.Protocolo, UsuarioID: usuario,
+		ChannelID: channel,
+		Origem:    ganchos.OrigemConcierge, SessaoID: sess.ID, Protocolo: sess.Protocolo, UsuarioID: usuario,
 	})
 }
 

@@ -25,8 +25,9 @@ function porCasoComTexto(porCaso: Record<string, string>, caso: string, texto: s
 function useOrientacaoDaSkill({ estado, condominio, caso }: Omit<Props, 'editavel'>) {
   const escopo = useEscopo() ?? null;
   const aplicar = useAplicarMapeamento();
+  const casoID = caso.id || caso.nome;
   const { control } = useForm<Campos>({
-    defaultValues: { texto: estado.mapeamento.orientacoes[condominio]?.por_caso[caso.nome] ?? '' },
+    defaultValues: { texto: estado.mapeamento.orientacoes[condominio]?.por_caso[casoID] ?? '' },
   });
   const texto = useWatch({ control, name: 'texto' });
 
@@ -34,7 +35,7 @@ function useOrientacaoDaSkill({ estado, condominio, caso }: Omit<Props, 'editave
     valor: texto,
     salvar: async (valor) => {
       const atual = estado.mapeamento.orientacoes[condominio] ?? { geral: '', por_caso: {} };
-      const porCaso = porCasoComTexto(atual.por_caso, caso.nome, valor);
+      const porCaso = porCasoComTexto(atual.por_caso, casoID, valor);
       aplicar(
         await salvarOrientacao({ condominio, geral: atual.geral, por_caso: porCaso }, escopo),
       );
@@ -69,6 +70,7 @@ function CampoDaOrientacao({ control, caso, editavel }: CampoProps): ReactNode {
       minRows={3}
       fullWidth
       disabled={!editavel}
+      slotProps={{ htmlInput: { 'aria-label': `Orientação de ${caso.titulo || caso.nome}` } }}
       placeholder={`Ex.: ${exemploDeOrientacao(caso.nome)}`}
     />
   );

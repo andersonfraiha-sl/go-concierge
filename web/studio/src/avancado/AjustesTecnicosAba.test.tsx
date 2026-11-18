@@ -7,9 +7,12 @@ import { renderComProvedores } from '@/test/render';
 import { AjustesTecnicosAba } from './AjustesTecnicosAba';
 
 const estado = structuredClone(estadoFalso);
+const condo = estado.mapeamento.condominios[0];
+if (!condo) throw new Error('fixture sem condomínio');
+condo.id = '101';
 estado.mapeamento.payloads = {
   '*': { 'reserva-salao': { limite: 1 }, 'agenda-mudanca': { turno: 'manhã' } },
-  'vila-verde': {
+  '101': {
     'agenda-mudanca': { turno: 'tarde', faixas: [1, 2], nulo: null, ativo: true },
   },
 };
@@ -17,8 +20,8 @@ estado.mapeamento.payloads = {
 const rotas = () => ({ ...rotasBase(construtor), 'GET /api/admin/estado': () => json(estado) });
 
 async function escolherVilaVerde(user: ReturnType<typeof renderComProvedores>['user']) {
-  await user.click(await screen.findByRole('combobox', { name: 'Condomínio' }));
-  await user.click(await screen.findByRole('option', { name: 'Vila Verde' }));
+  await user.click(await screen.findByRole('combobox', { name: 'Alvo do conteúdo' }));
+  await user.click(await screen.findByRole('option', { name: 'Vila Verde · adm-exemplo' }));
 }
 
 const abrirReserva = async (user: ReturnType<typeof renderComProvedores>['user']) => {
@@ -55,7 +58,9 @@ describe('AjustesTecnicosAba', () => {
 
     await waitFor(() =>
       expect(corpos[0]).toEqual({
-        condominio: 'vila-verde',
+        company_id: 'adm-exemplo',
+        condo_id: 101,
+        condominio: '101',
         recurso: 'reserva-salao',
         payload: { limite: 3 },
         apagar: false,
@@ -79,7 +84,9 @@ describe('AjustesTecnicosAba', () => {
 
     await waitFor(() =>
       expect(corpos[0]).toEqual({
-        condominio: 'vila-verde',
+        company_id: 'adm-exemplo',
+        condo_id: 101,
+        condominio: '101',
         recurso: 'agenda-mudanca',
         payload: {},
         apagar: true,

@@ -54,6 +54,16 @@ func IDLTE(id int) predicate.Orientacao {
 	return predicate.Orientacao(sql.FieldLTE(FieldID, id))
 }
 
+// ScopeType applies equality check predicate on the "scope_type" field. It's identical to ScopeTypeEQ.
+func ScopeType(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldEQ(FieldScopeType, v))
+}
+
+// CompanyID applies equality check predicate on the "company_id" field. It's identical to CompanyIDEQ.
+func CompanyID(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldEQ(FieldCompanyID, v))
+}
+
 // CondominioID applies equality check predicate on the "condominio_id" field. It's identical to CondominioIDEQ.
 func CondominioID(v string) predicate.Orientacao {
 	return predicate.Orientacao(sql.FieldEQ(FieldCondominioID, v))
@@ -62,6 +72,146 @@ func CondominioID(v string) predicate.Orientacao {
 // Geral applies equality check predicate on the "geral" field. It's identical to GeralEQ.
 func Geral(v string) predicate.Orientacao {
 	return predicate.Orientacao(sql.FieldEQ(FieldGeral, v))
+}
+
+// ScopeTypeEQ applies the EQ predicate on the "scope_type" field.
+func ScopeTypeEQ(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldEQ(FieldScopeType, v))
+}
+
+// ScopeTypeNEQ applies the NEQ predicate on the "scope_type" field.
+func ScopeTypeNEQ(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldNEQ(FieldScopeType, v))
+}
+
+// ScopeTypeIn applies the In predicate on the "scope_type" field.
+func ScopeTypeIn(vs ...string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeNotIn applies the NotIn predicate on the "scope_type" field.
+func ScopeTypeNotIn(vs ...string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldNotIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeGT applies the GT predicate on the "scope_type" field.
+func ScopeTypeGT(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldGT(FieldScopeType, v))
+}
+
+// ScopeTypeGTE applies the GTE predicate on the "scope_type" field.
+func ScopeTypeGTE(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldGTE(FieldScopeType, v))
+}
+
+// ScopeTypeLT applies the LT predicate on the "scope_type" field.
+func ScopeTypeLT(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldLT(FieldScopeType, v))
+}
+
+// ScopeTypeLTE applies the LTE predicate on the "scope_type" field.
+func ScopeTypeLTE(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldLTE(FieldScopeType, v))
+}
+
+// ScopeTypeContains applies the Contains predicate on the "scope_type" field.
+func ScopeTypeContains(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldContains(FieldScopeType, v))
+}
+
+// ScopeTypeHasPrefix applies the HasPrefix predicate on the "scope_type" field.
+func ScopeTypeHasPrefix(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldHasPrefix(FieldScopeType, v))
+}
+
+// ScopeTypeHasSuffix applies the HasSuffix predicate on the "scope_type" field.
+func ScopeTypeHasSuffix(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldHasSuffix(FieldScopeType, v))
+}
+
+// ScopeTypeEqualFold applies the EqualFold predicate on the "scope_type" field.
+func ScopeTypeEqualFold(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldEqualFold(FieldScopeType, v))
+}
+
+// ScopeTypeContainsFold applies the ContainsFold predicate on the "scope_type" field.
+func ScopeTypeContainsFold(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldContainsFold(FieldScopeType, v))
+}
+
+// CompanyIDEQ applies the EQ predicate on the "company_id" field.
+func CompanyIDEQ(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldEQ(FieldCompanyID, v))
+}
+
+// CompanyIDNEQ applies the NEQ predicate on the "company_id" field.
+func CompanyIDNEQ(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldNEQ(FieldCompanyID, v))
+}
+
+// CompanyIDIn applies the In predicate on the "company_id" field.
+func CompanyIDIn(vs ...string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldIn(FieldCompanyID, vs...))
+}
+
+// CompanyIDNotIn applies the NotIn predicate on the "company_id" field.
+func CompanyIDNotIn(vs ...string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldNotIn(FieldCompanyID, vs...))
+}
+
+// CompanyIDGT applies the GT predicate on the "company_id" field.
+func CompanyIDGT(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldGT(FieldCompanyID, v))
+}
+
+// CompanyIDGTE applies the GTE predicate on the "company_id" field.
+func CompanyIDGTE(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldGTE(FieldCompanyID, v))
+}
+
+// CompanyIDLT applies the LT predicate on the "company_id" field.
+func CompanyIDLT(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldLT(FieldCompanyID, v))
+}
+
+// CompanyIDLTE applies the LTE predicate on the "company_id" field.
+func CompanyIDLTE(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldLTE(FieldCompanyID, v))
+}
+
+// CompanyIDContains applies the Contains predicate on the "company_id" field.
+func CompanyIDContains(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldContains(FieldCompanyID, v))
+}
+
+// CompanyIDHasPrefix applies the HasPrefix predicate on the "company_id" field.
+func CompanyIDHasPrefix(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldHasPrefix(FieldCompanyID, v))
+}
+
+// CompanyIDHasSuffix applies the HasSuffix predicate on the "company_id" field.
+func CompanyIDHasSuffix(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldHasSuffix(FieldCompanyID, v))
+}
+
+// CompanyIDIsNil applies the IsNil predicate on the "company_id" field.
+func CompanyIDIsNil() predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldIsNull(FieldCompanyID))
+}
+
+// CompanyIDNotNil applies the NotNil predicate on the "company_id" field.
+func CompanyIDNotNil() predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldNotNull(FieldCompanyID))
+}
+
+// CompanyIDEqualFold applies the EqualFold predicate on the "company_id" field.
+func CompanyIDEqualFold(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldEqualFold(FieldCompanyID, v))
+}
+
+// CompanyIDContainsFold applies the ContainsFold predicate on the "company_id" field.
+func CompanyIDContainsFold(v string) predicate.Orientacao {
+	return predicate.Orientacao(sql.FieldContainsFold(FieldCompanyID, v))
 }
 
 // CondominioIDEQ applies the EQ predicate on the "condominio_id" field.

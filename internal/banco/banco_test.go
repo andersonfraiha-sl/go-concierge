@@ -1,21 +1,15 @@
 package banco_test
 
 import (
-	"errors"
 	"os"
-	"strings"
+	"os/exec"
 	"testing"
 
-	atlasmigrate "ariga.io/atlas/sql/migrate"
-	"entgo.io/ent/dialect"
-	entsql "entgo.io/ent/dialect/sql"
-	"entgo.io/ent/dialect/sql/schema"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
 	"go-concierge/internal/banco"
 	"go-concierge/internal/banco/bancotest"
-	entmigrate "go-concierge/internal/banco/ent/migrate"
 )
 
 func TestMain(m *testing.M) {
@@ -75,34 +69,37 @@ func TestMigracoesReversiveis(t *testing.T) {
 // ent, nos dois sentidos, e não pode sobrar diferença.
 func TestEsquemaEmDia(t *testing.T) {
 	b := bancotest.Novo(t)
-	plano := atlasmigrate.OpenMemDir(t.Name())
-	defer plano.Close()
-	drv := entsql.OpenDB(dialect.Postgres, stdlib.OpenDBFromPool(b.Pool))
-	defer func() {
-		if err := drv.Close(); err != nil {
-			t.Errorf("fechar driver do ent: %v", err)
-		}
-	}()
-	m, err := schema.NewMigrate(drv,
-		schema.WithDir(plano),
-		schema.WithErrNoPlan(true),
-		schema.WithDialect(dialect.Postgres),
-		schema.WithDropColumn(true),
-		schema.WithDropIndex(true),
-	)
-	if err != nil {
-		t.Fatalf("abrir migrador do ent: %v", err)
+	command := exec.CommandContext(t.Context(), "go", "run", "./internal/banco/v2/cmd/gerar-baseline", "-check")
+	command.Dir = "../.."
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("baseline v2 diverge da fonte canônica: %v\n%s", err, out)
 	}
+	var total int
+	if err := b.Pool.QueryRow(t.Context(), `SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'goose_db_version'`).Scan(&total); err != nil {
+		t.Fatal(err)
+	}
+	if total != 24 {
+		t.Fatalf("tabelas = %d, esperado 24", total)
+	}
+}
 
-	err = m.NamedDiff(t.Context(), "pendente", entmigrate.Tables...)
-
-	if errors.Is(err, atlasmigrate.ErrNoPlan) {
-		return
+func TestBootstrapRecusaDestinoLegadoSemAlterarSeusDados(t *testing.T) {
+	b := bancotest.Novo(t)
+	ctx := t.Context()
+	if _, err := b.Pool.Exec(ctx, `CREATE TABLE administradoras(id text PRIMARY KEY); INSERT INTO administradoras VALUES('preservada')`); err != nil {
+		t.Fatal(err)
 	}
-	if err != nil {
-		t.Fatalf("diff do Atlas: %v", err)
+	if err := banco.Migrar(ctx, b); err == nil {
+		t.Fatal("migration aceitou tabela legada")
 	}
-	t.Fatalf("esquema do ent difere das migrations; rode go run ./internal/banco/cmd/gerar-migration <nome>:\n%s", conteudo(t, plano))
+	if novo, err := banco.Abrir(ctx, b.Pool.Config().ConnString()); err == nil {
+		_ = novo.Fechar()
+		t.Fatal("bootstrap aceitou tabela legada")
+	}
+	var id string
+	if err := b.Pool.QueryRow(ctx, `SELECT id FROM administradoras`).Scan(&id); err != nil || id != "preservada" {
+		t.Fatalf("dado legado alterado: %q %v", id, err)
+	}
 }
 
 func versaoDoBanco(t *testing.T, b banco.Banco) int64 {
@@ -125,7 +122,7 @@ func versaoMaxima(t *testing.T, b banco.Banco) int64 {
 
 func provedorGoose(t *testing.T, b banco.Banco) *goose.Provider {
 	t.Helper()
-	p, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(b.Pool), os.DirFS("migrations"))
+	p, err := goose.NewProvider(goose.DialectPostgres, stdlib.OpenDBFromPool(b.Pool), os.DirFS("v2/migrations"))
 	if err != nil {
 		t.Fatalf("abrir goose: %v", err)
 	}
@@ -135,17 +132,4 @@ func provedorGoose(t *testing.T, b banco.Banco) *goose.Provider {
 		}
 	})
 	return p
-}
-
-func conteudo(t *testing.T, dir *atlasmigrate.MemDir) string {
-	t.Helper()
-	arquivos, err := dir.Files()
-	if err != nil {
-		t.Fatalf("ler plano: %v", err)
-	}
-	var sb strings.Builder
-	for _, a := range arquivos {
-		sb.Write(a.Bytes())
-	}
-	return sb.String()
 }

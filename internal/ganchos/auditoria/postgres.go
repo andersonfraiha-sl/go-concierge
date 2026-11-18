@@ -11,6 +11,7 @@ import (
 
 	"go-concierge/internal/banco"
 	"go-concierge/internal/banco/sqlc"
+	"go-concierge/internal/ganchos"
 )
 
 // NoLote põe as linhas no lote, num comando só. Sem linhas, não enfileira nada.
@@ -90,21 +91,23 @@ func enviar(ctx context.Context, b banco.Banco, linhas []Linha) error {
 func paramsDe(linhas []Linha) sqlc.InserirAuditoriaParams {
 	n := len(linhas)
 	p := sqlc.InserirAuditoriaParams{
-		CriadoEm: make([]pgtype.Timestamptz, 0, n), Origem: make([]string, 0, n), Evento: make([]string, 0, n),
-		Gancho: make([]string, 0, n), RegraID: make([]string, 0, n), RegraVersao: make([]int64, 0, n),
+		ChannelID: make([]string, 0, n),
+		CriadoEm:  make([]pgtype.Timestamptz, 0, n), Origem: make([]string, 0, n), Evento: make([]string, 0, n),
+		Gancho: make([]string, 0, n), RegraID: make([]string, 0, n), RegraVersao: make([]int32, 0, n),
 		Decisao: make([]string, 0, n), Motivo: make([]string, 0, n), AdministradoraID: make([]string, 0, n),
 		CondominioID: make([]string, 0, n), SessaoID: make([]string, 0, n), Protocolo: make([]string, 0, n),
 		UsuarioID: make([]string, 0, n), Tela: make([]string, 0, n), Ferramenta: make([]string, 0, n),
-		Quantidade: make([]int64, 0, n),
+		Quantidade: make([]int32, 0, n),
 	}
 	for _, l := range linhas {
+		p.ChannelID = append(p.ChannelID, l.ChannelID)
 		p.CriadoEm = append(p.CriadoEm, pgtype.Timestamptz{Time: l.CriadoEm, Valid: true})
-		p.Origem = append(p.Origem, l.Origem)
-		p.Evento = append(p.Evento, l.Evento)
+		p.Origem = append(p.Origem, valorNoBanco(l.Origem, origensDoBanco))
+		p.Evento = append(p.Evento, ganchos.EventoNoBanco(ganchos.NomeDoEvento(l.Evento)))
 		p.Gancho = append(p.Gancho, l.Gancho)
 		p.RegraID = append(p.RegraID, l.RegraID)
-		p.RegraVersao = append(p.RegraVersao, int64(l.RegraVersao))
-		p.Decisao = append(p.Decisao, l.Decisao)
+		p.RegraVersao = append(p.RegraVersao, int32(l.RegraVersao))
+		p.Decisao = append(p.Decisao, valorNoBanco(l.Decisao, decisoesDoBanco))
 		p.Motivo = append(p.Motivo, l.Motivo)
 		p.AdministradoraID = append(p.AdministradoraID, l.AdministradoraID)
 		p.CondominioID = append(p.CondominioID, l.CondominioID)
@@ -113,7 +116,7 @@ func paramsDe(linhas []Linha) sqlc.InserirAuditoriaParams {
 		p.UsuarioID = append(p.UsuarioID, l.UsuarioID)
 		p.Tela = append(p.Tela, l.Tela)
 		p.Ferramenta = append(p.Ferramenta, l.Ferramenta)
-		p.Quantidade = append(p.Quantidade, int64(l.Quantidade))
+		p.Quantidade = append(p.Quantidade, int32(l.Quantidade))
 	}
 	return p
 }

@@ -13,26 +13,26 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldRegraID holds the string denoting the regra_id field in the database.
-	FieldRegraID = "regra_id"
+	FieldRegraID = "rule_id"
 	// FieldVersao holds the string denoting the versao field in the database.
-	FieldVersao = "versao"
+	FieldVersao = "version"
 	// FieldDefinicao holds the string denoting the definicao field in the database.
-	FieldDefinicao = "definicao"
+	FieldDefinicao = "definition"
 	// FieldAlteradaPor holds the string denoting the alterada_por field in the database.
-	FieldAlteradaPor = "alterada_por"
+	FieldAlteradaPor = "updated_by"
 	// FieldAlteradaEm holds the string denoting the alterada_em field in the database.
-	FieldAlteradaEm = "alterada_em"
+	FieldAlteradaEm = "updated_at"
 	// EdgeRegra holds the string denoting the regra edge name in mutations.
 	EdgeRegra = "regra"
 	// Table holds the table name of the ganchosregraversao in the database.
-	Table = "ganchos_regras_versoes"
+	Table = "hook_rule_versions"
 	// RegraTable is the table that holds the regra relation/edge.
-	RegraTable = "ganchos_regras_versoes"
+	RegraTable = "hook_rule_versions"
 	// RegraInverseTable is the table name for the GanchosRegra entity.
 	// It exists in this package in order to avoid circular dependency with the "ganchosregra" package.
-	RegraInverseTable = "ganchos_regras"
+	RegraInverseTable = "hook_rules"
 	// RegraColumn is the table column denoting the regra relation/edge.
-	RegraColumn = "regra_id"
+	RegraColumn = "rule_id"
 )
 
 // Columns holds all SQL columns for ganchosregraversao fields.

@@ -120,8 +120,8 @@ func TestPacoteRecortaPorAdministradora(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Mapeamento.Condominios) != 1 || p.Mapeamento.Condominios[0].ID != "cond-a" {
-		t.Fatalf("quer só cond-a, veio %+v", p.Mapeamento.Condominios)
+	if len(p.Mapeamento.Condominios) != 1 || p.Mapeamento.Condominios[0].ID != "101" {
+		t.Fatalf("quer só 101, veio %+v", p.Mapeamento.Condominios)
 	}
 	if len(p.Agentes) == 0 {
 		t.Fatal("o catálogo é global e não pode sumir com o recorte")

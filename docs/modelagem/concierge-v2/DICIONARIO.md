@@ -1,8 +1,8 @@
 # Dicionário do banco v2
 
-Data: 18/11/2026. **Modelo materializado em baseline isolada**, sem substituir o banco ou o runtime atuais.
+Data: 18/11/2026. **Modelo canônico em uso pelo backend v2**, no banco novo dedicado; a baseline não migra dados nem atualiza bancos legados.
 
-Este documento é gerado a partir de [modelo.json](modelo.json) e descreve 24 tabelas e 197 campos. Identificadores estão em inglês; descrições permanecem em pt-BR. O DDL executável está na [baseline Goose](../../../internal/banco/v2/migrations/00001_baseline.sql), derivada dos [schemas Ent v2](../../../internal/banco/v2/ent/schema). Leia as decisões e convenções no [desenho principal](README.md) e os comandos de geração/validação na [documentação técnica](../../../internal/banco/v2/README.md).
+Este documento é gerado a partir de [modelo.json](modelo.json) e descreve 24 tabelas, 197 campos e 24 FKs. Identificadores estão em inglês; descrições permanecem em pt-BR. O DDL executável está na [baseline Goose](../../../internal/banco/v2/migrations/00001_baseline.sql), usada pelo backend v2. Leia as decisões e convenções no [desenho principal](README.md), o [runtime atual](../../../internal/banco/v2/RUNTIME.md) e os comandos de geração/validação na [documentação técnica](../../../internal/banco/v2/README.md).
 
 - `company_id`: string Nexus, sem cadastro/FK local de empresa. Dados empresariais nunca usam string vazia.
 - `condo_id`: integer ERP opcional; sem cadastro/FK local de condomínio.
@@ -15,7 +15,7 @@ Este documento é gerado a partir de [modelo.json](modelo.json) e descreve 24 ta
 - Índices UNIQUE já indexam suas colunas; os índices listados separadamente são adicionais.
 - Valores técnicos de enums são definidos em inglês; o adaptador pode mapear os nomes do domínio atual sem alterar as transições.
 
-As marcações **Backdoor hoje** e **Gestão** descrevem o alcance atual do equivalente legado; as telas ainda não usam as tabelas novas. Veja a [matriz de gestão do backdoor](BACKDOOR.md), com limites e fontes. São anotações documentais, sem novas colunas no schema.
+As marcações **Backdoor hoje** e **Gestão** descrevem o alcance atual da interface e das operações administrativas; a persistência e o runtime usam o modelo v2. Canais e ativações são configurados por SQL/seed nesta etapa e consultados pelo Console. Veja a [matriz de gestão do backdoor](BACKDOOR.md), com limites e fontes. São anotações documentais, sem novas colunas no schema.
 
 Esse alcance pertence à operação interna da plataforma, por Professional Services e outros operadores autorizados. O futuro frontend do backdoor, incluindo console/emulador, será separado do backend e do plugin cliente na interface Nexus. Escopos de empresa/condomínio identificam os dados administrados; não definem a audiência da tela nem concedem ao plugin as capacidades internas. Leia as [fronteiras das aplicações](README.md#fronteiras-das-aplicações-e-públicos).
 
@@ -111,9 +111,9 @@ Cadastro técnico compartilhado pelo backdoor, plugin e runtime. Mesmo UUID do c
 
 **Grupo:** channels. **Propriedade:** Empresa obrigatória.
 
-**Backdoor hoje:** Novo no desenho. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
+**Backdoor hoje:** Consulta pelo Console; sem CRUD de gestão nesta etapa. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
 
-**Gestão:** Sem CRUD/tela equivalente de canais no Go atual; hoje parte dos dados está em env e no mapeamento legado. O formulário existente no outro projeto não é uma tela já integrada aqui.
+**Gestão:** Canais e credenciais são configurados por SQL/seed nesta etapa. O Console consulta o cadastro persistido; não há API ou tela de gestão de canais.
 
 | Campo | Tipo | Aceita NULL | Descrição / preenchimento |
 |---|---|---|---|
@@ -165,9 +165,9 @@ Ativação e configuração de um caso na empresa; equivalente ao papel empresar
 
 **Grupo:** catalog. **Propriedade:** Empresa obrigatória.
 
-**Backdoor hoje:** Equivalente parcial no legado. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
+**Backdoor hoje:** Consulta pelo Console; sem CRUD de gestão nesta etapa. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
 
-**Gestão:** Há telas de habilitação padrão/por condomínio, papéis e ajustes. A separação por empresa, enabled e default_available desta proposta ainda precisa ser implementada.
+**Gestão:** A configuração empresarial é feita por SQL/seed nesta etapa. O Console consulta a disponibilidade persistida; não há API ou tela nova para editar ativações.
 
 | Campo | Tipo | Aceita NULL | Descrição / preenchimento |
 |---|---|---|---|
@@ -197,7 +197,7 @@ Ativação e configuração de um caso na empresa; equivalente ao papel empresar
 - Desativar preserva vínculos e pedidos. Não apagar registro referenciado por pedido.
 - feature_id do DTO pode corresponder a este UUID; feature_key corresponde a use_cases.id.
 - company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela.
-- Hoje admin.Habilitado permite execução quando não encontra configuração (internal/admin/admin.go:290-291). Ausência empresarial como não ativado é mudança de default aprovada pelo usuário; a adaptação do runtime ainda não foi implementada.
+- No runtime legado, admin.Habilitado permitia execução quando não encontrava configuração (internal/admin/admin.go:290-291). O runtime v2 aplica a decisão aprovada: ausência empresarial significa não ativado.
 
 ## channel_use_cases
 
@@ -205,9 +205,9 @@ Override do caso empresarial em um canal; presença true/false, ausência repres
 
 **Grupo:** channels. **Propriedade:** Empresa obrigatória.
 
-**Backdoor hoje:** Novo no desenho. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
+**Backdoor hoje:** Consulta pelo Console; sem CRUD de gestão nesta etapa. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
 
-**Gestão:** Sem tela/CRUD equivalente no Go atual. A política e a interface do app de origem são referência para a adaptação.
+**Gestão:** Overrides são configurados por SQL/seed nesta etapa. O Console consulta as regras resolvidas; não há API ou tela de gestão de overrides.
 
 | Campo | Tipo | Aceita NULL | Descrição / preenchimento |
 |---|---|---|---|
@@ -500,7 +500,7 @@ Herança/versionamento de conteúdo existente; independente da seleção de func
 
 **Backdoor hoje:** Somente backend. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
 
-**Gestão:** Há repositório de camadas/rascunhos e composição no pacote interno. Não foram encontradas rotas, telas ou integração desse pacote no runtime atual.
+**Gestão:** O backend persiste camadas e rascunhos; as composições publicadas participam do runtime. Esta etapa não inclui API ou tela administrativa para editar camadas.
 
 | Campo | Tipo | Aceita NULL | Descrição / preenchimento |
 |---|---|---|---|
@@ -538,7 +538,7 @@ Versões imutáveis; propriedade herdada da camada, consultada obrigatoriamente 
 
 **Backdoor hoje:** Somente backend. [Detalhamento](BACKDOOR.md#matriz-por-tabela).
 
-**Gestão:** Há persistência de versões/snapshots/histórico no pacote de camadas. Sem jornada de publicação/rollback encontrada no backdoor; a versão das APIs de arquivos não comprova uso desta tabela.
+**Gestão:** O backend persiste versões e snapshots; as versões publicadas são consumidas pelo runtime. Esta etapa não inclui jornada de publicação/rollback no backdoor.
 
 | Campo | Tipo | Aceita NULL | Descrição / preenchimento |
 |---|---|---|---|

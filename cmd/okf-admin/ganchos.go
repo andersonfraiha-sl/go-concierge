@@ -280,7 +280,7 @@ func (s *servidor) escoposDoAlvo(alvo regras.Alvo) []acesso.Escopo {
 	if len(alvo.Condominios) > 0 {
 		escopos := make([]acesso.Escopo, len(alvo.Condominios))
 		for i, c := range alvo.Condominios {
-			escopos[i] = escopoCondominio(c)
+			escopos[i] = escopoCondominio(alvo.Administradora, c)
 		}
 		return escopos
 	}
@@ -428,18 +428,12 @@ func gravadaDe(regra regras.Regra, definicao json.RawMessage, autor string) regr
 	}
 }
 
-// catalogoDosGanchos monta o que a validação consulta: ferramentas do catálogo de recursos,
-// casos de uso do concierge, donas dos condomínios e nomes dos fixos.
 func (s *servidor) catalogoDosGanchos(ctx context.Context) (regras.Catalogo, error) {
-	m, err := s.admin.Ler(ctx)
-	if err != nil {
-		return regras.Catalogo{}, err
-	}
 	casos, err := s.casosDeUso()
 	if err != nil {
 		return regras.Catalogo{}, err
 	}
-	cat := regras.Catalogo{Ferramentas: map[string]bool{}, Casos: map[string]bool{}, AdministradoraDe: map[string]string{},
+	cat := regras.Catalogo{Ferramentas: map[string]bool{}, Casos: map[string]bool{},
 		NomesDosFixos: slices.Concat(slices.Collect(maps.Values(nomesDosFixos()))...)}
 	for _, r := range s.cat.RecursosNexus() {
 		cat.Ferramentas[r.Name] = true
@@ -449,9 +443,6 @@ func (s *servidor) catalogoDosGanchos(ctx context.Context) (regras.Catalogo, err
 		if c.ID != "" {
 			cat.Casos[c.ID] = true
 		}
-	}
-	for _, c := range m.Condominios {
-		cat.AdministradoraDe[c.ID] = c.Administradora
 	}
 	return cat, nil
 }

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/fixos"
@@ -17,13 +19,13 @@ import (
 )
 
 const regraQueBloqueiaReserva = `{"nome":"Reserva fechada","evento":"antes_da_ferramenta",
-"alvo":{"administradora":"adm-a","condominios":["cond-001"]},
+"alvo":{"administradora":"adm-a","condominios":["101"]},
 "condicoes":[{"tipo":"ferramenta","nomes":["areas.reservar"]}],
 "decisao":{"tipo":"bloquear","mensagem":"Reservas fechadas por aqui."},"ativa":true}`
 
 func indiceDaRegraDeReserva(t *testing.T) *ganchos.Indice {
 	t.Helper()
-	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: "r1", Versao: 1, Ativa: true, Definicao: []byte(regraQueBloqueiaReserva)}})
+	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: idRegraDeTeste("r1"), Versao: 1, Ativa: true, Definicao: []byte(regraQueBloqueiaReserva)}})
 	if len(erros) > 0 {
 		t.Fatal(erros)
 	}
@@ -54,14 +56,14 @@ func TestPreviaCancelaAReservaAntesDaPrimeiraPergunta(t *testing.T) {
 func TestPreviaQueCancelaAuditaUmaLinhaDepoisDaResposta(t *testing.T) {
 	msg := mensagemDoMorador(eventoCom(t, "quero reservar uma área comum"), 1, 0)
 	base, _, contadorBase := servicoNoPostgres(t) // o conjunto é fixado no primeiro uso: um serviço por medida
-	base.Ganchos, base.Auditoria = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraDeReserva(t)), nil
+	base.Ganchos, base.Auditoria = ganchostest.Conjunto(fixos.Todos(), regraNoCanalAmplo(indiceDaRegraDeReserva(t))), nil
 	semAuditor := medir(t, base, contadorBase, msg)
 	svc, db, contador := servicoNoPostgres(t)
-	comAuditor(svc, db, indiceDaRegraDeReserva(t))
+	comAuditor(svc, db, regraNoCanalAmplo(indiceDaRegraDeReserva(t)))
 
 	m := medir(t, svc, contador, msg)
 
-	sess, ok, err := svc.Sessao(t.Context(), msg.ConversaID)
+	sess, ok, err := svc.Sessao(ComEscopoSessao(t.Context(), "adm-a", uuid.Nil), msg.ConversaID)
 	if err != nil || !ok {
 		t.Fatalf("sessão do turno: %v", err)
 	}
@@ -72,7 +74,7 @@ func TestPreviaQueCancelaAuditaUmaLinhaDepoisDaResposta(t *testing.T) {
 		t.Errorf("idas antes da resposta = %d, want %d (as do turno sem auditor)", m.idas, semAuditor.idas)
 	}
 	linhas := linhasDaRegra(t, db, "r1")
-	if len(linhas) != 1 || linhas[0].Decisao != string(ganchos.Bloquear) || linhas[0].CondominioID != "cond-001" {
+	if len(linhas) != 1 || linhas[0].Decisao != "BLOCK" || linhas[0].CondominioID != "" {
 		t.Fatalf("o bloqueio que cancelou devia ter uma linha: %+v", linhas)
 	}
 }
@@ -86,7 +88,7 @@ func TestPreviaSemRegraNaoMudaOFluxo(t *testing.T) {
 }
 
 const regraDeReservaAte22h = `{"nome":"Reserva só até 22h","evento":"antes_da_ferramenta",
-"alvo":{"administradora":"adm-a","condominios":["cond-001"]},
+"alvo":{"administradora":"adm-a","condominios":["101"]},
 "condicoes":[{"tipo":"ferramenta","nomes":["areas.reservar"]},
 {"tipo":"fora_do_horario","inicio":"06:00","fim":"22:00","fonte":{"tipo":"agora"}}],
 "decisao":{"tipo":"bloquear","mensagem":"Reservas só das 6h às 22h."},"ativa":true}`
@@ -138,7 +140,7 @@ func TestPreviaComGanchoQueFalhaNaoCancela(t *testing.T) {
 }
 
 const regraQueConfirmaReserva = `{"nome":"Confirmar reserva à noite","evento":"antes_da_ferramenta",
-"alvo":{"administradora":"adm-a","condominios":["cond-001"]},
+"alvo":{"administradora":"adm-a","condominios":["101"]},
 "condicoes":[{"tipo":"ferramenta","nomes":["areas.reservar"]},
 {"tipo":"fora_do_horario","inicio":"06:00","fim":"22:00","fonte":{"tipo":"agora"}}],
 "decisao":{"tipo":"confirmar","pergunta":"Já é tarde, quer mesmo reservar assim?"},"ativa":true}`
@@ -147,7 +149,7 @@ const perguntaDaRegraDeReserva = "Já é tarde, quer mesmo reservar assim?"
 
 func indiceDaRegraQueConfirma(t *testing.T) *ganchos.Indice {
 	t.Helper()
-	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: "rc", Versao: 2, Ativa: true, Definicao: []byte(regraQueConfirmaReserva)}})
+	indice, erros := regras.Compilar([]regras.RegraGravada{{ID: idRegraDeTeste("rc"), Versao: 2, Ativa: true, Definicao: []byte(regraQueConfirmaReserva)}})
 	if len(erros) > 0 {
 		t.Fatal(erros)
 	}
@@ -202,12 +204,12 @@ func ateAConfirmacaoDoCaso(t *testing.T, fala func(string) string) {
 
 func TestPerguntaDaRegraSaiDepoisDoSimDoCasoEOProximoSimGrava(t *testing.T) {
 	svc, db, _ := servicoNoPostgres(t)
-	comAuditor(svc, db, indiceDaRegraQueConfirma(t))
+	comAuditor(svc, db, regraNoCanalAmplo(indiceDaRegraQueConfirma(t)))
 	fala := conversaDaReserva(t, svc)
 
 	ateAPerguntaDaRegra(t, fala)
 	linhas := linhasDaRegra(t, db, "rc")
-	if len(linhas) != 1 || linhas[0].Decisao != string(ganchos.Confirmar) || linhas[0].RegraVersao != 2 {
+	if len(linhas) != 1 || linhas[0].Decisao != "CONFIRM" || linhas[0].RegraVersao != 2 {
 		t.Fatalf("a pergunta da escrita real tem uma linha; as prévias, nenhuma: %+v", linhas)
 	}
 	if r := fala("sim"); !strings.Contains(r, "Reserva confirmada") {
@@ -339,4 +341,12 @@ func TestPerguntasDeRegraSobrevivemAGravacaoDaSessao(t *testing.T) {
 	if got := restaurada.tomarPerguntasConfirmadas("sim"); !slices.Equal(got, []string{perguntaDaRegraDeReserva}) {
 		t.Fatalf("o sim depois de um restart responde a pergunta gravada: %v", got)
 	}
+}
+
+func regraNoCanalAmplo(idx *ganchos.Indice) *ganchos.Indice {
+	for _, regras := range idx.AntesDaFerramenta.PorCondominio {
+		idx.AntesDaFerramenta.Globais = append(idx.AntesDaFerramenta.Globais, regras...)
+	}
+	idx.AntesDaFerramenta.PorCondominio = nil
+	return idx
 }

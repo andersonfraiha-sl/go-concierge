@@ -5,7 +5,6 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
 const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
-const CHAVE_SEM_CONDOMINIOS = 'studio.semCondominios';
 
 // Telas de lista: 34 px em cima, 55 nas laterais e embaixo, na largura toda da janela.
 const ESTILO_DO_CONTEUDO: SxProps<Theme> = { pt: 4, px: 5, pb: 5 };
@@ -24,15 +23,7 @@ export function StudioLayout(): ReactNode {
 /** Menu à esquerda com as preferências lembradas entre telas e sessões. */
 export function MenuLateral(): ReactNode {
   const recolhido = usePreferencia(CHAVE_MENU_RECOLHIDO);
-  const semCondominios = usePreferencia(CHAVE_SEM_CONDOMINIOS);
-  return (
-    <Sidebar
-      recolhido={recolhido.ligada}
-      aoAlternar={recolhido.alternar}
-      semCondominios={semCondominios.ligada}
-      aoAlternarCondominios={semCondominios.alternar}
-    />
-  );
+  return <Sidebar recolhido={recolhido.ligada} aoAlternar={recolhido.alternar} />;
 }
 
 function usePreferencia(chave: string): { ligada: boolean; alternar: () => void } {

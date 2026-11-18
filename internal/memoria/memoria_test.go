@@ -9,7 +9,7 @@ import (
 
 func contato(t *testing.T, adm, tel string) escopo.Contato {
 	t.Helper()
-	c, err := escopo.NovoContato(adm, "cond-1", tel)
+	c, err := escopo.NovoContato(adm, nil, tel)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,203 +17,29 @@ var (
 	ErrBatchAlreadyClosed = errors.New("batch already closed")
 )
 
-const carregarSessao = `-- name: CarregarSessao :batchone
-SELECT id, administradora_id, condominio_id, protocolo, atualizada_em, dados
-FROM sessoes WHERE id = $1::text
-`
-
-type CarregarSessaoBatchResults struct {
-	br     pgx.BatchResults
-	tot    int
-	closed bool
-}
-
-// por que não ent: entra no lote que carrega o turno a frio (sessão, memória e pedidos numa ida)
-func (q *Queries) CarregarSessao(ctx context.Context, id []string) *CarregarSessaoBatchResults {
-	batch := &pgx.Batch{}
-	for _, a := range id {
-		vals := []interface{}{
-			a,
-		}
-		batch.Queue(carregarSessao, vals...)
-	}
-	br := q.db.SendBatch(ctx, batch)
-	return &CarregarSessaoBatchResults{br, len(id), false}
-}
-
-func (b *CarregarSessaoBatchResults) QueryRow(f func(int, SessaoGravada, error)) {
-	defer b.br.Close()
-	for t := 0; t < b.tot; t++ {
-		var i SessaoGravada
-		if b.closed {
-			if f != nil {
-				f(t, i, ErrBatchAlreadyClosed)
-			}
-			continue
-		}
-		row := b.br.QueryRow()
-		err := row.Scan(
-			&i.ID,
-			&i.AdministradoraID,
-			&i.CondominioID,
-			&i.Protocolo,
-			&i.AtualizadaEm,
-			&i.Dados,
-		)
-		if f != nil {
-			f(t, i, err)
-		}
-	}
-}
-
-func (b *CarregarSessaoBatchResults) Close() error {
-	b.closed = true
-	return b.br.Close()
-}
-
-const gravarPedidos = `-- name: GravarPedidos :batchone
-WITH alheios AS (
-    SELECT protocolo FROM pedidos
-    WHERE protocolo = ANY($1::text[])
-      AND (administradora_id <> $2::text OR telefone <> $3::text)
-),
-apagados AS (
-    DELETE FROM pedidos
-    WHERE administradora_id = $2::text
-      AND telefone = $3::text
-      AND protocolo <> ALL($1::text[])
-      AND NOT EXISTS (SELECT 1 FROM alheios)
-),
-gravados AS (
-    INSERT INTO pedidos AS atual (protocolo, administradora_id, condominio_id, telefone, caso, estado,
-                                  dados, criado_em, atualizado_em)
-    -- várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
-    SELECT unnest($1::text[]), $2::text, unnest($4::text[]), $3::text,
-           unnest($5::text[]), unnest($6::text[]), unnest($7::text[])::jsonb,
-           unnest($8::timestamptz[]), unnest($9::timestamptz[])
-    WHERE NOT EXISTS (SELECT 1 FROM alheios)
-    ON CONFLICT (protocolo) DO UPDATE
-    SET condominio_id = EXCLUDED.condominio_id,
-        caso = EXCLUDED.caso,
-        estado = EXCLUDED.estado,
-        dados = EXCLUDED.dados,
-        criado_em = EXCLUDED.criado_em,
-        atualizado_em = EXCLUDED.atualizado_em
-    WHERE atual.administradora_id = EXCLUDED.administradora_id
-      AND atual.telefone = EXCLUDED.telefone
-    RETURNING atual.protocolo
-),
-eventos AS (
-    INSERT INTO pedido_eventos (protocolo, seq, tipo, texto, por, quando)
-    SELECT e.protocolo, e.seq, e.tipo, e.texto, e.por, e.quando
-    FROM (SELECT unnest($10::text[]) AS protocolo, unnest($11::bigint[]) AS seq,
-                 unnest($12::text[]) AS tipo, unnest($13::text[]) AS texto,
-                 unnest($14::text[]) AS por, unnest($15::timestamptz[]) AS quando) AS e
-    WHERE e.protocolo IN (SELECT protocolo FROM gravados)
-    ON CONFLICT (protocolo, seq) DO NOTHING
-)
-SELECT ARRAY(SELECT protocolo FROM alheios)::text[] AS alheios,
-       ARRAY(SELECT p FROM unnest($1::text[]) AS p
-             WHERE NOT EXISTS (SELECT 1 FROM alheios)
-               AND p NOT IN (SELECT protocolo FROM gravados))::text[] AS faltando
-`
-
-type GravarPedidosBatchResults struct {
-	br     pgx.BatchResults
-	tot    int
-	closed bool
-}
-
-type GravarPedidosParams struct {
-	Protocolos       []string
-	AdministradoraID string
-	Telefone         string
-	Condominios      []string
-	Casos            []string
-	Estados          []string
-	Dados            []string
-	Criados          []pgtype.Timestamptz
-	Atualizados      []pgtype.Timestamptz
-	EventoProtocolos []string
-	EventoSeqs       []int64
-	EventoTipos      []string
-	EventoTextos     []string
-	EventoPors       []string
-	EventoQuandos    []pgtype.Timestamptz
-}
-
-type GravarPedidosRow struct {
-	Alheios  []string
-	Faltando []string
-}
-
-// por que não ent: grava a carteira inteira numa ida, atômica, com a checagem de dono dos
-// protocolos; pelo ent seriam ~7 idas e os eventos ficariam fora da transação.
-// Um comando só: se algum protocolo é de outro contato (alheios), nenhuma escrita acontece
-// (todas pedem NOT EXISTS alheios) e quem chama redesenha esses protocolos e grava de novo.
-// O upsert só sobrescreve linha do próprio contato; um protocolo que outro contato gravou
-// entre a foto e o upsert volta em faltando. Os eventos só entram para pedidos gravados.
-func (q *Queries) GravarPedidos(ctx context.Context, arg []GravarPedidosParams) *GravarPedidosBatchResults {
-	batch := &pgx.Batch{}
-	for _, a := range arg {
-		vals := []interface{}{
-			a.Protocolos,
-			a.AdministradoraID,
-			a.Telefone,
-			a.Condominios,
-			a.Casos,
-			a.Estados,
-			a.Dados,
-			a.Criados,
-			a.Atualizados,
-			a.EventoProtocolos,
-			a.EventoSeqs,
-			a.EventoTipos,
-			a.EventoTextos,
-			a.EventoPors,
-			a.EventoQuandos,
-		}
-		batch.Queue(gravarPedidos, vals...)
-	}
-	br := q.db.SendBatch(ctx, batch)
-	return &GravarPedidosBatchResults{br, len(arg), false}
-}
-
-func (b *GravarPedidosBatchResults) QueryRow(f func(int, GravarPedidosRow, error)) {
-	defer b.br.Close()
-	for t := 0; t < b.tot; t++ {
-		var i GravarPedidosRow
-		if b.closed {
-			if f != nil {
-				f(t, i, ErrBatchAlreadyClosed)
-			}
-			continue
-		}
-		row := b.br.QueryRow()
-		err := row.Scan(&i.Alheios, &i.Faltando)
-		if f != nil {
-			f(t, i, err)
-		}
-	}
-}
-
-func (b *GravarPedidosBatchResults) Close() error {
-	b.closed = true
-	return b.br.Close()
-}
-
 const inserirAuditoria = `-- name: InserirAuditoria :batchexec
-INSERT INTO ganchos_auditoria (
-    id, criado_em, origem, evento, gancho, regra_id, regra_versao, decisao, motivo,
-    administradora_id, condominio_id, sessao_id, protocolo, usuario_id, tela, ferramenta, quantidade
+INSERT INTO hook_audit_logs (
+    id, created_at, origin, event, hook, rule_id, rule_version, decision, reason,
+    company_id, condo_id, session_id, protocol, user_id, screen, tool, count, scope_type, channel_id
 )
-SELECT gen_random_uuid(),
-       unnest($1::timestamptz[]), unnest($2::text[]), unnest($3::text[]),
-       unnest($4::text[]), unnest($5::text[]), unnest($6::bigint[]),
-       unnest($7::text[]), unnest($8::text[]), unnest($9::text[]),
-       unnest($10::text[]), unnest($11::text[]), unnest($12::text[]),
-       unnest($13::text[]), unnest($14::text[]), unnest($15::text[]),
-       unnest($16::bigint[])
+SELECT gen_random_uuid(), a.created_at, a.origin, a.event, a.hook,
+       NULLIF(a.rule_id, '')::uuid, a.rule_version, a.decision, a.reason,
+       NULLIF(a.company_id, ''), NULLIF(NULLIF(a.condo_id, ''), '*')::integer,
+       NULLIF(a.session_id, ''), a.protocol, a.user_id, a.screen, a.tool, a.count,
+       CASE WHEN a.company_id = '' THEN 'GLOBAL' ELSE 'COMPANY' END,
+       NULLIF(a.channel_id, '')::uuid
+FROM (
+ SELECT unnest($1::timestamptz[]) AS created_at,
+        unnest($2::text[]) AS origin, unnest($3::text[]) AS event,
+        unnest($4::text[]) AS hook, unnest($5::text[]) AS rule_id,
+        unnest($6::integer[]) AS rule_version, unnest($7::text[]) AS decision,
+        unnest($8::text[]) AS reason, unnest($9::text[]) AS company_id,
+        unnest($10::text[]) AS condo_id, unnest($11::text[]) AS session_id,
+        unnest($12::text[]) AS protocol, unnest($13::text[]) AS user_id,
+        unnest($14::text[]) AS screen, unnest($15::text[]) AS tool,
+        unnest($16::integer[]) AS count,
+        unnest($17::text[]) AS channel_id
+) a
 `
 
 type InserirAuditoriaBatchResults struct {
@@ -228,7 +54,7 @@ type InserirAuditoriaParams struct {
 	Evento           []string
 	Gancho           []string
 	RegraID          []string
-	RegraVersao      []int64
+	RegraVersao      []int32
 	Decisao          []string
 	Motivo           []string
 	AdministradoraID []string
@@ -238,11 +64,10 @@ type InserirAuditoriaParams struct {
 	UsuarioID        []string
 	Tela             []string
 	Ferramenta       []string
-	Quantidade       []int64
+	Quantidade       []int32
+	ChannelID        []string
 }
 
-// por que não ent: N linhas num comando só, dentro do lote pós resposta; o ent faria uma ida por linha
-// várias unnest na lista do SELECT andam juntas, linha a linha (o sqlc não conhece a unnest de vários arrays)
 func (q *Queries) InserirAuditoria(ctx context.Context, arg []InserirAuditoriaParams) *InserirAuditoriaBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
@@ -263,6 +88,7 @@ func (q *Queries) InserirAuditoria(ctx context.Context, arg []InserirAuditoriaPa
 			a.Tela,
 			a.Ferramenta,
 			a.Quantidade,
+			a.ChannelID,
 		}
 		batch.Queue(inserirAuditoria, vals...)
 	}
@@ -291,56 +117,58 @@ func (b *InserirAuditoriaBatchResults) Close() error {
 	return b.br.Close()
 }
 
-const lerMemoria = `-- name: LerMemoria :batchmany
-SELECT c.nome, c.atualizada_em, f.chave, f.texto, f.fonte, f.condominio_id, f.quando, f.confianca
-FROM memoria_contatos c
-LEFT JOIN memoria_fatos f ON f.administradora_id = c.administradora_id AND f.telefone = c.telefone
-WHERE c.administradora_id = $1::text AND c.telefone = $2::text
+const loadMemory = `-- name: LoadMemory :batchmany
+SELECT c.name, c.updated_at, f.key, f.text, f.source, f.condo_id, f.occurred_at, f.confidence
+FROM contact_memories c
+LEFT JOIN memory_facts f ON f.company_id = c.company_id AND f.phone_number = c.phone_number
+ AND ($1::boolean OR f.condo_id IS NOT DISTINCT FROM $2::integer)
+WHERE c.company_id = $3::text AND c.phone_number = $4::text
 ORDER BY f.id
 `
 
-type LerMemoriaBatchResults struct {
+type LoadMemoryBatchResults struct {
 	br     pgx.BatchResults
 	tot    int
 	closed bool
 }
 
-type LerMemoriaParams struct {
-	AdministradoraID string
-	Telefone         string
+type LoadMemoryParams struct {
+	AllCondos   bool
+	CondoID     pgtype.Int4
+	CompanyID   string
+	PhoneNumber string
 }
 
-type LerMemoriaRow struct {
-	Nome         string
-	AtualizadaEm pgtype.Timestamptz
-	Chave        pgtype.Text
-	Texto        pgtype.Text
-	Fonte        pgtype.Text
-	CondominioID pgtype.Text
-	Quando       pgtype.Timestamptz
-	Confianca    pgtype.Float4
+type LoadMemoryRow struct {
+	Name       string
+	UpdatedAt  pgtype.Timestamptz
+	Key        pgtype.Text
+	Text       pgtype.Text
+	Source     pgtype.Text
+	CondoID    pgtype.Int4
+	OccurredAt pgtype.Timestamptz
+	Confidence pgtype.Float4
 }
 
-// por que não ent: o contato e os fatos numa query só, no lote que carrega o turno a frio
-// (sessão, memória e pedidos numa ida). Sem linha de contato não há fatos (GravarFatos grava
-// os dois).
-func (q *Queries) LerMemoria(ctx context.Context, arg []LerMemoriaParams) *LerMemoriaBatchResults {
+func (q *Queries) LoadMemory(ctx context.Context, arg []LoadMemoryParams) *LoadMemoryBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
-			a.AdministradoraID,
-			a.Telefone,
+			a.AllCondos,
+			a.CondoID,
+			a.CompanyID,
+			a.PhoneNumber,
 		}
-		batch.Queue(lerMemoria, vals...)
+		batch.Queue(loadMemory, vals...)
 	}
 	br := q.db.SendBatch(ctx, batch)
-	return &LerMemoriaBatchResults{br, len(arg), false}
+	return &LoadMemoryBatchResults{br, len(arg), false}
 }
 
-func (b *LerMemoriaBatchResults) Query(f func(int, []LerMemoriaRow, error)) {
+func (b *LoadMemoryBatchResults) Query(f func(int, []LoadMemoryRow, error)) {
 	defer b.br.Close()
 	for t := 0; t < b.tot; t++ {
-		var items []LerMemoriaRow
+		var items []LoadMemoryRow
 		if b.closed {
 			if f != nil {
 				f(t, items, ErrBatchAlreadyClosed)
@@ -354,16 +182,16 @@ func (b *LerMemoriaBatchResults) Query(f func(int, []LerMemoriaRow, error)) {
 			}
 			defer rows.Close()
 			for rows.Next() {
-				var i LerMemoriaRow
+				var i LoadMemoryRow
 				if err := rows.Scan(
-					&i.Nome,
-					&i.AtualizadaEm,
-					&i.Chave,
-					&i.Texto,
-					&i.Fonte,
-					&i.CondominioID,
-					&i.Quando,
-					&i.Confianca,
+					&i.Name,
+					&i.UpdatedAt,
+					&i.Key,
+					&i.Text,
+					&i.Source,
+					&i.CondoID,
+					&i.OccurredAt,
+					&i.Confidence,
 				); err != nil {
 					return err
 				}
@@ -377,50 +205,64 @@ func (b *LerMemoriaBatchResults) Query(f func(int, []LerMemoriaRow, error)) {
 	}
 }
 
-func (b *LerMemoriaBatchResults) Close() error {
+func (b *LoadMemoryBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
 
-const lerPedidos = `-- name: LerPedidos :batchmany
-SELECT protocolo, dados FROM pedidos
-WHERE administradora_id = $1::text AND telefone = $2::text
+const loadRequests = `-- name: LoadRequests :batchmany
+SELECT r.protocol, r.company_id, r.phone_number, r.condo_id, r.company_use_case_id, r.source_session_id, r.status, r.data, r.created_at, r.updated_at, c.use_case_id
+FROM requests r JOIN company_use_cases c ON c.company_id = r.company_id AND c.id = r.company_use_case_id
+WHERE r.company_id = $1::text AND r.phone_number = $2::text
+ AND ($3::boolean OR r.condo_id IS NOT DISTINCT FROM $4::integer)
 `
 
-type LerPedidosBatchResults struct {
+type LoadRequestsBatchResults struct {
 	br     pgx.BatchResults
 	tot    int
 	closed bool
 }
 
-type LerPedidosParams struct {
-	AdministradoraID string
-	Telefone         string
+type LoadRequestsParams struct {
+	CompanyID   string
+	PhoneNumber string
+	AllCondos   bool
+	CondoID     pgtype.Int4
 }
 
-type LerPedidosRow struct {
-	Protocolo string
-	Dados     []byte
+type LoadRequestsRow struct {
+	Protocol         string
+	CompanyID        string
+	PhoneNumber      string
+	CondoID          pgtype.Int4
+	CompanyUseCaseID pgtype.UUID
+	SourceSessionID  pgtype.Text
+	Status           string
+	Data             []byte
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	UseCaseID        string
 }
 
-// por que não ent: entra no lote que carrega o turno a frio (sessão, memória e pedidos numa ida)
-func (q *Queries) LerPedidos(ctx context.Context, arg []LerPedidosParams) *LerPedidosBatchResults {
+func (q *Queries) LoadRequests(ctx context.Context, arg []LoadRequestsParams) *LoadRequestsBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
-			a.AdministradoraID,
-			a.Telefone,
+			a.CompanyID,
+			a.PhoneNumber,
+			a.AllCondos,
+			a.CondoID,
 		}
-		batch.Queue(lerPedidos, vals...)
+		batch.Queue(loadRequests, vals...)
 	}
 	br := q.db.SendBatch(ctx, batch)
-	return &LerPedidosBatchResults{br, len(arg), false}
+	return &LoadRequestsBatchResults{br, len(arg), false}
 }
 
-func (b *LerPedidosBatchResults) Query(f func(int, []LerPedidosRow, error)) {
+func (b *LoadRequestsBatchResults) Query(f func(int, []LoadRequestsRow, error)) {
 	defer b.br.Close()
 	for t := 0; t < b.tot; t++ {
-		var items []LerPedidosRow
+		var items []LoadRequestsRow
 		if b.closed {
 			if f != nil {
 				f(t, items, ErrBatchAlreadyClosed)
@@ -434,8 +276,20 @@ func (b *LerPedidosBatchResults) Query(f func(int, []LerPedidosRow, error)) {
 			}
 			defer rows.Close()
 			for rows.Next() {
-				var i LerPedidosRow
-				if err := rows.Scan(&i.Protocolo, &i.Dados); err != nil {
+				var i LoadRequestsRow
+				if err := rows.Scan(
+					&i.Protocol,
+					&i.CompanyID,
+					&i.PhoneNumber,
+					&i.CondoID,
+					&i.CompanyUseCaseID,
+					&i.SourceSessionID,
+					&i.Status,
+					&i.Data,
+					&i.CreatedAt,
+					&i.UpdatedAt,
+					&i.UseCaseID,
+				); err != nil {
 					return err
 				}
 				items = append(items, i)
@@ -448,73 +302,264 @@ func (b *LerPedidosBatchResults) Query(f func(int, []LerPedidosRow, error)) {
 	}
 }
 
-func (b *LerPedidosBatchResults) Close() error {
+func (b *LoadRequestsBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
 
-const salvarSessao = `-- name: SalvarSessao :batchexec
-INSERT INTO sessoes (id, administradora_id, condominio_id, protocolo, atualizada_em, dados)
-VALUES ($1::text, $2::text, $3::text, $4::text,
-        $5::timestamptz, $6::jsonb)
-ON CONFLICT (id) DO UPDATE
-SET administradora_id = EXCLUDED.administradora_id,
-    condominio_id = EXCLUDED.condominio_id,
-    protocolo = EXCLUDED.protocolo,
-    atualizada_em = EXCLUDED.atualizada_em,
-    dados = EXCLUDED.dados
+const loadSession = `-- name: LoadSession :batchone
+SELECT s.id, s.company_id, s.channel_id, s.connector, s.protocol, s.phone_number, s.condo_id, s.data, s.updated_at FROM sessions s JOIN channels c ON c.company_id = s.company_id AND c.id = s.channel_id
+WHERE s.id = $1::text AND s.company_id = $2::text
+ AND ($3::boolean OR s.channel_id = $4::uuid)
+ AND (c.condo_id IS NULL OR c.condo_id IS NOT DISTINCT FROM s.condo_id)
+ AND (c.condo_id IS NULL OR c.condo_id IS NOT DISTINCT FROM (s.data #>> '{scope,condo_id}')::integer)
 `
 
-type SalvarSessaoBatchResults struct {
+type LoadSessionBatchResults struct {
 	br     pgx.BatchResults
 	tot    int
 	closed bool
 }
 
-type SalvarSessaoParams struct {
-	ID               string
-	AdministradoraID string
-	CondominioID     string
-	Protocolo        string
-	AtualizadaEm     pgtype.Timestamptz
-	Dados            []byte
+type LoadSessionParams struct {
+	ID          string
+	CompanyID   string
+	AllChannels bool
+	ChannelID   pgtype.UUID
 }
 
-// por que não ent: entra no lote das escritas depois da resposta, junto com os pedidos
-func (q *Queries) SalvarSessao(ctx context.Context, arg []SalvarSessaoParams) *SalvarSessaoBatchResults {
+func (q *Queries) LoadSession(ctx context.Context, arg []LoadSessionParams) *LoadSessionBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {
 		vals := []interface{}{
 			a.ID,
-			a.AdministradoraID,
-			a.CondominioID,
-			a.Protocolo,
-			a.AtualizadaEm,
-			a.Dados,
+			a.CompanyID,
+			a.AllChannels,
+			a.ChannelID,
 		}
-		batch.Queue(salvarSessao, vals...)
+		batch.Queue(loadSession, vals...)
 	}
 	br := q.db.SendBatch(ctx, batch)
-	return &SalvarSessaoBatchResults{br, len(arg), false}
+	return &LoadSessionBatchResults{br, len(arg), false}
 }
 
-func (b *SalvarSessaoBatchResults) Exec(f func(int, error)) {
+func (b *LoadSessionBatchResults) QueryRow(f func(int, Session, error)) {
 	defer b.br.Close()
 	for t := 0; t < b.tot; t++ {
+		var i Session
 		if b.closed {
 			if f != nil {
-				f(t, ErrBatchAlreadyClosed)
+				f(t, i, ErrBatchAlreadyClosed)
 			}
 			continue
 		}
-		_, err := b.br.Exec()
+		row := b.br.QueryRow()
+		err := row.Scan(
+			&i.ID,
+			&i.CompanyID,
+			&i.ChannelID,
+			&i.Connector,
+			&i.Protocol,
+			&i.PhoneNumber,
+			&i.CondoID,
+			&i.Data,
+			&i.UpdatedAt,
+		)
 		if f != nil {
-			f(t, err)
+			f(t, i, err)
 		}
 	}
 }
 
-func (b *SalvarSessaoBatchResults) Close() error {
+func (b *LoadSessionBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const saveRequests = `-- name: SaveRequests :batchone
+WITH incoming (protocol, condo_id, use_case_id, source_session_id, status, data, created_at, updated_at) AS (
+ SELECT r->>'protocol', (r->>'condo_id')::integer, r->>'use_case_id', r->>'source_session_id', r->>'status', r->'data', (r->>'created_at')::timestamptz, (r->>'updated_at')::timestamptz
+ FROM jsonb_array_elements($1::jsonb) r
+), conflicts AS (
+ SELECT r.protocol FROM requests r JOIN incoming i USING (protocol)
+ WHERE r.company_id <> $2::text OR r.phone_number <> $3::text
+ OR r.condo_id IS DISTINCT FROM i.condo_id
+), unresolved AS (
+ SELECT i.protocol FROM incoming i
+ LEFT JOIN company_use_cases c ON c.company_id = $2::text AND c.use_case_id = i.use_case_id
+ WHERE c.id IS NULL
+ OR i.source_session_id IS NOT NULL AND NOT EXISTS (
+ SELECT 1 FROM sessions s WHERE s.id=i.source_session_id AND s.company_id= $2::text
+ AND s.phone_number= $3::text AND s.condo_id IS NOT DISTINCT FROM i.condo_id)
+), removed_events AS (
+ DELETE FROM request_events e USING requests r
+ WHERE e.company_id = r.company_id AND e.protocol = r.protocol
+ AND r.company_id = $2::text AND r.phone_number = $3::text
+ AND r.condo_id IS NOT DISTINCT FROM $4::integer
+ AND NOT EXISTS (SELECT 1 FROM incoming i WHERE i.protocol = r.protocol)
+ AND NOT EXISTS (SELECT 1 FROM conflicts) AND NOT EXISTS (SELECT 1 FROM unresolved)
+ RETURNING e.id
+), removed AS (
+ DELETE FROM requests r
+ WHERE r.company_id = $2::text AND r.phone_number = $3::text
+ AND r.condo_id IS NOT DISTINCT FROM $4::integer
+ AND NOT EXISTS (SELECT 1 FROM incoming i WHERE i.protocol = r.protocol)
+ AND NOT EXISTS (SELECT 1 FROM conflicts) AND NOT EXISTS (SELECT 1 FROM unresolved)
+ AND (SELECT count(*) FROM removed_events) >= 0
+), saved AS (
+ INSERT INTO requests AS current (protocol, company_id, phone_number, condo_id, company_use_case_id, source_session_id, status, data, created_at, updated_at)
+ SELECT i.protocol, $2::text, $3::text, i.condo_id, c.id, i.source_session_id, i.status,
+ i.data || jsonb_build_object('company_use_case_id', c.id), i.created_at, i.updated_at
+ FROM incoming i JOIN company_use_cases c ON c.company_id = $2::text AND c.use_case_id = i.use_case_id
+ WHERE NOT EXISTS (SELECT 1 FROM conflicts) AND NOT EXISTS (SELECT 1 FROM unresolved)
+ ON CONFLICT (protocol) DO UPDATE SET status = EXCLUDED.status, data = EXCLUDED.data,
+ source_session_id = EXCLUDED.source_session_id, updated_at = EXCLUDED.updated_at
+ WHERE current.company_id = EXCLUDED.company_id AND current.phone_number = EXCLUDED.phone_number
+ AND current.condo_id IS NOT DISTINCT FROM EXCLUDED.condo_id AND current.company_use_case_id = EXCLUDED.company_use_case_id
+ RETURNING current.protocol
+), events AS (
+ INSERT INTO request_events (company_id, protocol, sequence, type, text, actor, occurred_at)
+ SELECT $2::text, e->>'protocol', (e->>'sequence')::integer, e->>'type', e->>'text', e->>'actor', (e->>'occurred_at')::timestamptz
+ FROM jsonb_array_elements($5::jsonb) e
+ JOIN saved s ON s.protocol = e->>'protocol'
+ ON CONFLICT (company_id, protocol, sequence) DO NOTHING
+)
+SELECT ARRAY(SELECT protocol FROM conflicts)::text[] AS conflicts,
+ ARRAY(SELECT protocol FROM unresolved)::text[] AS unresolved,
+ ARRAY(SELECT protocol FROM incoming i WHERE NOT EXISTS (SELECT 1 FROM saved s WHERE s.protocol = i.protocol))::text[] AS missing
+`
+
+type SaveRequestsBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SaveRequestsParams struct {
+	Requests      []byte
+	CompanyID     string
+	PhoneNumber   string
+	TargetCondoID pgtype.Int4
+	Events        []byte
+}
+
+type SaveRequestsRow struct {
+	Conflicts  []string
+	Unresolved []string
+	Missing    []string
+}
+
+func (q *Queries) SaveRequests(ctx context.Context, arg []SaveRequestsParams) *SaveRequestsBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Requests,
+			a.CompanyID,
+			a.PhoneNumber,
+			a.TargetCondoID,
+			a.Events,
+		}
+		batch.Queue(saveRequests, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SaveRequestsBatchResults{br, len(arg), false}
+}
+
+func (b *SaveRequestsBatchResults) QueryRow(f func(int, SaveRequestsRow, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var i SaveRequestsRow
+		if b.closed {
+			if f != nil {
+				f(t, i, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		row := b.br.QueryRow()
+		err := row.Scan(&i.Conflicts, &i.Unresolved, &i.Missing)
+		if f != nil {
+			f(t, i, err)
+		}
+	}
+}
+
+func (b *SaveRequestsBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const saveSession = `-- name: SaveSession :batchone
+INSERT INTO sessions AS current (id, company_id, channel_id, connector, protocol, phone_number, condo_id, data, updated_at)
+SELECT $1::text, $2::text, $3::uuid, $4::text, $5::text,
+ $6::text, $7::integer, $8::jsonb, $9::timestamptz
+FROM channels c WHERE c.company_id = $2::text AND c.id = $3::uuid
+ AND (c.condo_id IS NULL OR c.condo_id IS NOT DISTINCT FROM $7::integer)
+ AND (c.condo_id IS NULL OR c.condo_id IS NOT DISTINCT FROM ($8::jsonb #>> '{scope,condo_id}')::integer)
+ON CONFLICT (id) DO UPDATE SET phone_number = EXCLUDED.phone_number, condo_id = EXCLUDED.condo_id,
+ data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
+WHERE current.company_id = EXCLUDED.company_id AND current.channel_id = EXCLUDED.channel_id
+ AND current.connector = EXCLUDED.connector AND current.protocol = EXCLUDED.protocol
+ AND current.phone_number = EXCLUDED.phone_number
+RETURNING id
+`
+
+type SaveSessionBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SaveSessionParams struct {
+	ID          string
+	CompanyID   string
+	ChannelID   pgtype.UUID
+	Connector   string
+	Protocol    string
+	PhoneNumber string
+	CondoID     pgtype.Int4
+	Data        []byte
+	UpdatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) SaveSession(ctx context.Context, arg []SaveSessionParams) *SaveSessionBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.ID,
+			a.CompanyID,
+			a.ChannelID,
+			a.Connector,
+			a.Protocol,
+			a.PhoneNumber,
+			a.CondoID,
+			a.Data,
+			a.UpdatedAt,
+		}
+		batch.Queue(saveSession, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SaveSessionBatchResults{br, len(arg), false}
+}
+
+func (b *SaveSessionBatchResults) QueryRow(f func(int, string, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		var id string
+		if b.closed {
+			if f != nil {
+				f(t, id, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		row := b.br.QueryRow()
+		err := row.Scan(&id)
+		if f != nil {
+			f(t, id, err)
+		}
+	}
+}
+
+func (b *SaveSessionBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

@@ -10,24 +10,22 @@ describe('CondominioPage', () => {
     abrirCondominio('*');
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Padrão (todos)' }),
+      await screen.findByRole('heading', { level: 1, name: 'Conteúdo global' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
   });
 
-  it('gestorCannotEditDefault', async () => {
+  it('gestorEditaConteudoDaEmpresaSemHabilitacaoLocal', async () => {
     responderCom(rotasBase(gestor));
     abrirCondominio('*');
 
     expect(
-      await screen.findByText('Vale para todas as administradoras; só a Superlógica muda.'),
+      await screen.findByRole('heading', { level: 1, name: 'Conteúdo da empresa' }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
-    ).toBeDisabled();
-    expect(
       await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
-    ).toHaveAttribute('aria-readonly', 'true');
+    ).toHaveAttribute('aria-readonly', 'false');
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
   describe('em tela estreita', () => {
@@ -58,9 +56,6 @@ describe('CondominioPage', () => {
       responderCom(rotasBase(construtor));
       abrirCondominio();
 
-      expect(
-        await screen.findByRole('switch', { name: 'Agendar mudança neste condomínio' }),
-      ).toBeDisabled();
       expect(
         await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
       ).toHaveAttribute('aria-readonly', 'true');

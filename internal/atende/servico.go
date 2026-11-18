@@ -21,6 +21,7 @@ import (
 
 	"go-concierge/internal/admin"
 	"go-concierge/internal/banco"
+	"go-concierge/internal/canais"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	comfalha "go-concierge/internal/falha" // falha é o nome local do erro de entrega
@@ -335,9 +336,11 @@ func DividirMensagem(texto string, maxUTF16 int) []string {
 var extracoes sync.WaitGroup
 
 type Servico struct {
-	Cat    *okf.Catalogo
-	Agente string // caminho relativo do agente de primeiro nível (agentes/concierge)
-	Config harness.Config
+	CamadasDe func(context.Context, string, *int, time.Time) (harness.SkillPublicadaFunc, error)
+	Canais    canais.Repositorio
+	Cat       *okf.Catalogo
+	Agente    string // caminho relativo do agente de primeiro nível (agentes/concierge)
+	Config    harness.Config
 	// Agora é o relógio dos eventos dos ganchos; nil = Config.Agora, senão time.Now.
 	Agora func() time.Time
 	// Implantacao restringe o processo a uma administradora (vazia = todas).
@@ -423,6 +426,10 @@ func (s *Servico) aquecer(ctx context.Context, msg entrada.Mensagem) {
 // contatoDaMensagem resolve o contato pelo mapeamento, sem mexer na sessão; o turno resolve
 // de novo (resolverCondominio) e é lá que um erro vira resposta.
 func (s *Servico) contatoDaMensagem(ctx context.Context, msg entrada.Mensagem) (escopo.Contato, bool) {
+	if c, ok := canalDoContexto(ctx); ok {
+		contato, err := escopo.NovoContato(c.CompanyID, c.CondoID, msg.Contato.Phone)
+		return contato, err == nil
+	}
 	if s.Mapeamento == nil {
 		return escopo.Contato{}, false
 	}
@@ -581,7 +588,7 @@ func (s *Servico) lockPorChave(raiz *sync.Mutex, locks *map[string]*sync.Mutex, 
 }
 
 func (s *Servico) bloquearPedidos(c escopo.Contato) func() {
-	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, c.Chave())
+	return s.lockPorChave(&s.pedidoMu, &s.pedidoLocks, c.ChavePessoa())
 }
 
 func (s *Servico) carregarCarteira(ctx context.Context, c escopo.Contato) (pedidos.Carteira, error) {
@@ -618,7 +625,7 @@ func (s *Servico) salvarCarteira(ctx context.Context, c escopo.Contato, cart ped
 }
 
 func (s *Servico) bloquearMemoria(c escopo.Contato) func() {
-	return s.lockPorChave(&s.memoriaMu, &s.memoriaLocks, c.Chave())
+	return s.lockPorChave(&s.memoriaMu, &s.memoriaLocks, c.ChavePessoa())
 }
 
 func (s *Servico) revisaoMemoria(c escopo.Contato) uint64 {
@@ -636,7 +643,7 @@ func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave s
 	if err != nil {
 		return m, err
 	}
-	m, err = esquecerFatos(m, chave)
+	m, err = esquecerFatos(m, chave, c.CondoID)
 	if err != nil {
 		return m, err
 	}
@@ -653,12 +660,12 @@ func (s *Servico) EsquecerMemoria(ctx context.Context, c escopo.Contato, chave s
 }
 
 // esquecerFatos tira da memória o fato da chave; a chave vazia esquece todos.
-func esquecerFatos(m memoria.Memoria, chave string) (memoria.Memoria, error) {
+func esquecerFatos(m memoria.Memoria, chave string, condoID ...*int) (memoria.Memoria, error) {
 	if chave == "" {
 		m.Fatos = []memoria.Fato{}
 		return m, nil
 	}
-	semFato, esqueceu := m.Esquecer(chave)
+	semFato, esqueceu := m.Esquecer(chave, condoID...)
 	if !esqueceu {
 		return m, fmt.Errorf("%w: %s", ErrFatoNaoEncontrado, chave)
 	}
@@ -666,9 +673,19 @@ func esquecerFatos(m memoria.Memoria, chave string) (memoria.Memoria, error) {
 }
 
 func (s *Servico) PrepararMensagem(ctx context.Context, msg entrada.Mensagem) (entrada.Mensagem, *Sessao, error) {
+	var err error
+	ctx, msg, err = s.autorizarMensagem(ctx, msg)
+	if err != nil {
+		return msg, nil, err
+	}
 	sess, err := s.Sessoes.Abrir(ctx, msg)
 	if err != nil {
 		return msg, nil, fmt.Errorf("abrir sessão do protocolo %s: %w", msg.ConversaID, err)
+	}
+	if c, ok := canalDoContexto(ctx); ok {
+		if err := sess.fixarCanal(c, msg.Contato.Phone); err != nil {
+			return msg, nil, err
+		}
 	}
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
@@ -683,6 +700,11 @@ func (s *Servico) PrepararMensagem(ctx context.Context, msg entrada.Mensagem) (e
 // Processar trata um evento: abre a sessão, identifica o contato (uma vez por
 // sessão), roda o concierge com o histórico, envia a resposta e persiste a sessão.
 func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
+	var err error
+	ctx, msg, err = s.autorizarMensagem(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
 	ctx, coletor := s.coletarAuditoria(ctx)
 	sess, err := s.processar(ctx, msg)
 	if sess == nil {
@@ -753,6 +775,11 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	sess.mu.Lock()
 	transbordado := sess.Transbordo != nil && (sess.Transbordo.Ativo || sess.Transbordo.Estado == "solicitado" || sess.Transbordo.Estado == "incerto")
 	identidadeVazia := sess.Identidade.Phone == ""
+	if c, ok := canalDoContexto(ctx); ok && c.CondoID != nil {
+		identidadeVazia = true
+		sess.Identidade = gruvi.Identidade{}
+		sess.mcpResultados = nil
+	}
 	plano := sess.Plano
 	sess.mu.Unlock()
 	turnoGanchos, err := s.abrirTurno(sess)
@@ -770,7 +797,13 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		sess.historicoAdicionar(schema.UserMessage(texto))
 		return sess, nil
 	}
-	m, errMapeamento := s.lerMapeamento(ctx)
+	var m admin.Mapeamento
+	var errMapeamento error
+	if c, ok := canalDoContexto(ctx); ok {
+		m, errMapeamento = s.conteudoDoCanal(ctx, c)
+	} else {
+		m, errMapeamento = s.lerMapeamento(ctx)
+	}
 	entradaGanchos := s.mensagemRecebida(ctx, sess, turnoGanchos, msg, texto, m)
 	if bloqueioPorFalha(entradaGanchos.Registros) {
 		// sem a checagem e a máscara a mensagem não segue, nem para o histórico
@@ -809,7 +842,14 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		return sess, nil
 	}
 	condo := entradaGanchos.Evento.Condominio
-	if err := fixarCondominio(sess, condo, msg.Contato.Phone); err != nil {
+	var errFixar error
+	if c, ok := canalDoContexto(ctx); ok {
+		condo = condominioDoCanal(c)
+		errFixar = sess.fixarCanal(c, msg.Contato.Phone)
+	} else {
+		errFixar = fixarCondominio(sess, condo, msg.Contato.Phone)
+	}
+	if err := errFixar; err != nil {
 		s.responderFalha(ctx, sess, turnoGanchos, troca, err)
 		historicoRegistrado = true
 		return sess, err
@@ -870,6 +910,11 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 	var res *harness.Resultado
 	var pedidosTurno []PedidoTurno
 	if s.Pedidos != nil {
+		if s.Canais != nil {
+			if err := s.Sessoes.Persistir(ctx, sess); err != nil {
+				return sess, err
+			}
+		}
 		res, pedidosTurno, err = s.turnoComPedidos(ctx, sess, ag, texto, historico, turnoGanchos.Cofre())
 	} else if plano != nil && plano.Pendente != "" {
 		// um item do plano perguntou algo ao morador: a resposta vai direto a ele
@@ -1042,7 +1087,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 		memCopia := mem
 		go func() {
 			defer extracoes.Done()
-			ctxMem, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			ctxMem, cancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
 			defer cancel()
 			defer comfalha.Recuperar(ctxMem, "extrair_memoria")
 			fatos := s.lembrar(ctxMem, &memCopia, sess, texto, res.Resposta, revisaoMemoria)
@@ -1150,9 +1195,25 @@ func (s *Servico) Sessao(ctx context.Context, id string) (*Sessao, bool, error) 
 
 // mudarExistente aplica mudar à sessão do evento, se existir, e persiste o que mudou.
 func (s *Servico) mudarExistente(ctx context.Context, msg entrada.Mensagem, mudar func(*Sessao) bool) (bool, error) {
+	var err error
+	ctx, msg, err = s.autorizarMensagem(ctx, msg)
+	if err != nil {
+		return false, err
+	}
 	sess, ok, err := s.Sessoes.Existente(ctx, msg)
 	if err != nil {
 		return false, fmt.Errorf("sessão do protocolo %s: %w", msg.ConversaID, err)
+	}
+	if ok {
+		if c, presente := canalDoContexto(ctx); presente {
+			phone := msg.Contato.Phone
+			if phone == "" {
+				phone = sess.Contato.Phone
+			}
+			if err := sess.fixarCanal(c, phone); err != nil {
+				return false, err
+			}
+		}
 	}
 	if !ok || !mudar(sess) {
 		return false, nil
@@ -1350,8 +1411,33 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	cfg.Casos = func(nome, casoID string) bool {
 		return m.Habilitado(condo.ID, nome, papel) && (casoID == "" || m.Habilitado(condo.ID, casoID, papel))
 	}
+	if c, ok := canalDoContexto(ctx); ok {
+		casos, errCasos := s.Canais.Casos(ctx, c)
+		if errCasos != nil {
+			return cfg, mem, "", errCasos
+		}
+		porID := map[string]canais.Caso{}
+		for _, caso := range casos {
+			porID[caso.ID] = caso
+		}
+		cfg.Casos = func(_ string, id string) bool {
+			if id == "" {
+				return c.Habilitado
+			}
+			caso, ok := porID[id]
+			return ok && c.Disponivel(caso, papel)
+		}
+		cfg.CompanyID, cfg.CondoID, cfg.ChannelID = c.CompanyID, c.CondoID, c.ID
+		cfg.ValidarFerramenta = validarFerramentaDoCanal(c, identidade, cfg.MCPResultados)
+	}
 	if s.SkillsDe != nil {
 		cfg.Skills = s.SkillsDe(condo.Administradora, condo.ID, s.agora())
+	}
+	if s.CamadasDe != nil {
+		cfg.SkillPublicada, err = s.CamadasDe(ctx, contato.CompanyID, contato.CondoID, s.agora())
+		if err != nil {
+			return cfg, mem, "", err
+		}
 	}
 	cfg.Payloads = m.PayloadsDe(condo.ID)
 	orient := m.OrientacaoDe(condo.ID)
@@ -1384,7 +1470,11 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 		}
 	}
 	cfg.Contexto = strings.Join(contexto, "\n\n")
-	dir, err = s.Cat.ResolveAgente(s.Agente)
+	agenteRaiz := s.Agente
+	if c, ok := canalDoContexto(ctx); ok {
+		agenteRaiz = c.Agente
+	}
+	dir, err = s.Cat.ResolveAgente(agenteRaiz)
 	if err != nil {
 		return cfg, mem, "", err
 	}
@@ -1408,6 +1498,17 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 // condominioDaSessao lê o mapeamento e o condomínio resolvido para a sessão. Falha
 // fechada: sem mapeamento ou sem o condomínio, nada é montado.
 func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato escopo.Contato) (admin.Mapeamento, admin.Condominio, error) {
+	if s.Canais != nil {
+		c, err := s.Canais.PorID(ctx, sess.CompanyID, sess.ChannelID)
+		if err != nil {
+			return admin.Mapeamento{}, admin.Condominio{}, err
+		}
+		if err := sess.fixarCanal(c, sess.Contato.Phone); err != nil {
+			return admin.Mapeamento{}, admin.Condominio{}, err
+		}
+		m, err := s.conteudoDoCanal(ctx, c)
+		return m, condominioDoCanal(c), err
+	}
 	if s.Mapeamento == nil {
 		return admin.Mapeamento{}, admin.Condominio{}, fmt.Errorf("montar sessão %s sem mapeamento: %w", sess.ID, admin.ErrCondominioDesconhecido)
 	}
@@ -1429,6 +1530,11 @@ func (s *Servico) condominioDaSessao(ctx context.Context, sess *Sessao, contato 
 
 // agenteDaSessao constrói a família de agentes para a sessão (ações do atendente).
 func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Agente, error) {
+	var err error
+	ctx, err = s.contextoDaSessao(ctx, sess)
+	if err != nil {
+		return nil, err
+	}
 	m, condo, err := s.condominioDaSessao(ctx, sess, sess.contato())
 	if err != nil {
 		return nil, err
@@ -1809,6 +1915,7 @@ func (s *Servico) lembrar(ctx context.Context, mem *memoria.Memoria, sess *Sessa
 	for _, f := range fatosSemPII(fatos) {
 		f.Fonte = sess.Protocolo
 		f.CondominioID = contato.CondominioID
+		f.CondoID = contato.CondoID
 		if f.Quando.IsZero() {
 			f.Quando = agora
 		}
@@ -1855,6 +1962,10 @@ func (s *Servico) identidade(ctx context.Context, phone, companyID string) (gruv
 	dados, err := harness.NormalizarResultadoMCP(ferramenta, resultado)
 	if err != nil {
 		return id, nil, fmt.Errorf("atende: consulta de vínculo B2C: %w", err)
+	}
+	dados, err = restringirIdentidadeGruvi(ctx, dados)
+	if err != nil {
+		return id, nil, err
 	}
 	id, dadosVinculados := gruvi.IdentidadeComDadosVinculadosMCP(phone, id.CompanyID, dados)
 	return id, dadosVinculados, nil

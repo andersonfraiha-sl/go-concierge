@@ -1,5 +1,7 @@
 package entrada
 
+import "github.com/google/uuid"
+
 type Contato struct {
 	Phone string  `json:"phone"`
 	Name  string  `json:"name"`
@@ -7,9 +9,13 @@ type Contato struct {
 }
 
 type Mensagem struct {
-	ID         string
-	ConversaID string
-	Tenant     string
+	ChannelID   uuid.UUID
+	Provider    string
+	ChannelType string
+	Endpoint    string
+	ID          string
+	ConversaID  string
+	Tenant      string
 	// CompanyID: a company do Gruvi, quando o canal a conhece (o emulador a preenche
 	// pelo condomínio escolhido); junto com o Tenant, resolve o condomínio.
 	CompanyID string
@@ -30,6 +36,8 @@ type Origem struct {
 }
 
 type Destino struct {
+	CompanyID string            `json:"company_id,omitempty"`
+	ChannelID uuid.UUID         `json:"channel_id,omitempty"`
 	Conector  string            `json:"conector"`
 	Meio      string            `json:"meio"`
 	ConexaoID string            `json:"conexao_id"`

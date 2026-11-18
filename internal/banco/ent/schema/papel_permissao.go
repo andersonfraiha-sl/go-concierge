@@ -16,8 +16,8 @@ type PapelPermissao struct {
 
 func (PapelPermissao) Fields() []ent.Field {
 	return []ent.Field{
-		field.String("papel_id").NotEmpty(),
-		field.String("permissao").NotEmpty(),
+		field.String("papel_id").StorageKey("role_id").NotEmpty(),
+		field.String("permissao").StorageKey("permission").NotEmpty(),
 	}
 }
 
@@ -32,5 +32,5 @@ func (PapelPermissao) Indexes() []ent.Index {
 }
 
 func (PapelPermissao) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "papel_permissoes"}}
+	return []schema.Annotation{entsql.Annotation{Table: "role_permissions"}}
 }

@@ -7,7 +7,13 @@ import { renderComProvedores } from '@/test/render';
 import { BuscaGlobal } from './BuscaGlobal';
 
 function Caminho() {
-  return <output aria-label="Caminho">{useLocation().pathname}</output>;
+  const { pathname, search } = useLocation();
+  return (
+    <output aria-label="Caminho">
+      {pathname}
+      {search}
+    </output>
+  );
 }
 
 const leitor = { ...construtor, permissoes: [...construtor.permissoes, 'skills.ler'] };
@@ -23,7 +29,11 @@ const montar = () =>
 describe('BuscaGlobal', () => {
   it.each([
     { termo: 'mudanca', opcao: 'Agendar mudança', destino: '/skills/agendar-mudanca' },
-    { termo: 'vila', opcao: 'Vila Verde', destino: '/condominios/vila-verde' },
+    {
+      termo: 'vila',
+      opcao: 'Vila Verde',
+      destino: '/condominios/vila-verde?company_id=adm-exemplo',
+    },
   ])('abre $opcao ao escolher', async ({ termo, opcao, destino }) => {
     responderCom(rotasBase(leitor));
     const { user } = montar();

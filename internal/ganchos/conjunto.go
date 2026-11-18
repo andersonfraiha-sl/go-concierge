@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos/pii"
 )
 
@@ -29,7 +30,7 @@ type Nivel[E Ocorrencia] struct {
 
 // Para devolve as regras do alvo: condomínio, administradora, globais.
 func (n Nivel[E]) Para(condominioID, administradoraID string) []Gancho[E] {
-	return slices.Concat(n.PorCondominio[condominioID], n.PorAdministradora[administradoraID], n.Globais)
+	return slices.Concat(n.PorCondominio[escopo.ChaveCondominio(administradoraID, condominioID)], n.PorAdministradora[administradoraID], n.Globais)
 }
 
 // Indice é o retrato das regras ativas que o cache entrega. Quem publica um índice novo

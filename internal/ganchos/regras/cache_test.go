@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"database/sql"
 	"go-concierge/internal/banco/bancotest"
-	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/ganchos"
 )
 
@@ -58,13 +58,14 @@ func aquecido(t *testing.T, p *Postgres, compilar Compilador, regras []RegraGrav
 func TestAquecerDaAQueryOPrazoDeCincoSegundos(t *testing.T) {
 	cli := bancotest.Novo(t).Ent
 	var sobra time.Duration
-	cli.GanchosRegra.Intercept(ent.TraverseFunc(func(ctx context.Context, _ ent.Query) error {
+	p := NovoPostgres(cli)
+	p.consultar = func(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 		if prazo, ok := ctx.Deadline(); ok {
 			sobra = time.Until(prazo)
 		}
-		return nil
-	}))
-	c := NovoCache(NovoPostgres(cli), compilarContando, nil)
+		return cli.QueryContext(ctx, query, args...)
+	}
+	c := NovoCache(p, compilarContando, nil)
 	if err := c.Aquecer(t.Context()); err != nil {
 		t.Fatal(err)
 	}

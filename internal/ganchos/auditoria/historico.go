@@ -11,9 +11,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 
+	"go-concierge/internal/acesso"
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
 	"go-concierge/internal/banco/ent/predicate"
+	"go-concierge/internal/ganchos"
 )
 
 // ErrCursorInvalido: o cursor não é um que Listar devolveu (adulterado ou de outra versão).
@@ -98,8 +100,8 @@ func paginaDe(rows []*ent.GanchosAuditoria, limite int) ([]Linha, *Cursor) {
 
 func linhaDeRow(r *ent.GanchosAuditoria) Linha {
 	return Linha{
-		ID: r.ID.String(), CriadoEm: r.CriadoEm, Origem: r.Origem, Evento: r.Evento, Gancho: r.Gancho,
-		RegraID: r.RegraID, RegraVersao: r.RegraVersao, Decisao: r.Decisao, Motivo: r.Motivo,
+		ID: r.ID.String(), ChannelID: r.ChannelID, CriadoEm: r.CriadoEm, Origem: valorDoBanco(r.Origem, origensDoBanco), Evento: string(ganchos.EventoDoBanco(r.Evento)), Gancho: r.Gancho,
+		RegraID: r.RegraID, RegraVersao: r.RegraVersao, Decisao: valorDoBanco(r.Decisao, decisoesDoBanco), Motivo: r.Motivo,
 		AdministradoraID: r.AdministradoraID, CondominioID: r.CondominioID, SessaoID: r.SessaoID,
 		Protocolo: r.Protocolo, UsuarioID: r.UsuarioID, Tela: r.Tela, Ferramenta: r.Ferramenta, Quantidade: r.Quantidade,
 	}
@@ -111,10 +113,14 @@ func predicadosDe(esc Escopo, f Filtro, depois *Cursor) ([]predicate.GanchosAudi
 		ganchosauditoria.CriadoEmLTE(f.Ate),
 	}
 	if !esc.Tudo {
-		preds = append(preds, ganchosauditoria.Or(
-			ganchosauditoria.AdministradoraIDIn(esc.Administradoras...),
-			ganchosauditoria.CondominioIDIn(esc.Condominios...),
-		))
+		permissoes := []predicate.GanchosAuditoria{ganchosauditoria.AdministradoraIDIn(esc.Administradoras...)}
+		for _, chave := range esc.Condominios {
+			company, condo, ok := acesso.CondominioDoEscopo(acesso.Escopo{Tipo: acesso.TipoCondominio, ID: chave})
+			if ok {
+				permissoes = append(permissoes, ganchosauditoria.And(ganchosauditoria.AdministradoraIDEQ(company), ganchosauditoria.CondominioIDEQ(condo)))
+			}
+		}
+		preds = append(preds, ganchosauditoria.Or(permissoes...))
 	}
 	preds = append(preds, filtrosDe(f)...)
 	if depois == nil {
@@ -139,8 +145,8 @@ func filtrosDe(f Filtro) []predicate.GanchosAuditoria {
 	}
 	igual(f.AdministradoraID, ganchosauditoria.AdministradoraIDEQ)
 	igual(f.CondominioID, ganchosauditoria.CondominioIDEQ)
-	igual(f.Evento, ganchosauditoria.EventoEQ)
-	igual(f.Decisao, ganchosauditoria.DecisaoEQ)
+	igual(ganchos.EventoNoBanco(ganchos.NomeDoEvento(f.Evento)), ganchosauditoria.EventoEQ)
+	igual(valorNoBanco(f.Decisao, decisoesDoBanco), ganchosauditoria.DecisaoEQ)
 	igual(f.Gancho, ganchosauditoria.GanchoEQ)
 	igual(f.RegraID, ganchosauditoria.RegraIDEQ)
 	return preds

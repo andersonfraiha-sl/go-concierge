@@ -18,17 +18,14 @@ const (
 	timeoutImportarCatalogo    = 5 * time.Minute
 )
 
-var errPastaSemCatalogo = errors.New("a pasta não tem arquivos em agentes/ nem nexus/; importar assim apagaria o catálogo do banco")
+var errPastaSemCatalogo = errors.New("a pasta não tem arquivos em agentes/ nem nexus/")
 
-// importarCatalogo é `okf-admin importar-catalogo -dir <pasta>`: deixa o catálogo do Postgres
-// igual à pasta (agentes/ e nexus/). É o caminho para levar ao banco uma skill que chegou como
-// arquivo. Devolve o código de saída.
 func importarCatalogo(args []string, saida, erro io.Writer) int {
 	fs := flag.NewFlagSet(subcomandoImportarCatalogo, flag.ContinueOnError)
 	fs.SetOutput(erro)
 	fs.Usage = func() {
 		fmt.Fprintf(erro, "uso: okf-admin %s [-dir pasta] [-env arquivo]\n", subcomandoImportarCatalogo)
-		fmt.Fprintln(erro, "ATENÇÃO: o banco passa a ter só o que está na pasta; o que foi editado no Studio e não está nela é apagado.")
+		fmt.Fprintln(erro, "Arquivos da pasta são gravados no catálogo; arquivos e casos ausentes são preservados.")
 		fs.PrintDefaults()
 	}
 	dir := fs.String("dir", "okf", "pasta com agentes/ e nexus/")

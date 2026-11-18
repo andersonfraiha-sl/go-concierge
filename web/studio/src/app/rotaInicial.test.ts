@@ -20,7 +20,7 @@ const casos: { eu: Eu; esperado: string }[] = [
       condominioId: 'vila-verde',
       permissoes: ['condominios.habilitar'],
     },
-    esperado: '/condominios/vila-verde',
+    esperado: '/condominios/vila-verde?company_id=adm-exemplo',
   },
   {
     eu: {
@@ -29,7 +29,7 @@ const casos: { eu: Eu; esperado: string }[] = [
       administradoraId: 'adm-exemplo',
       permissoes: ['condominios.habilitar'],
     },
-    esperado: '/condominios',
+    esperado: '/condominios?company_id=adm-exemplo',
   },
   { eu: { ...base, papel: 'construtor', administradoraId: null }, esperado: '/concierge' },
   {

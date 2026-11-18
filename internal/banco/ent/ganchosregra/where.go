@@ -57,6 +57,11 @@ func IDLTE(id uuid.UUID) predicate.GanchosRegra {
 	return predicate.GanchosRegra(sql.FieldLTE(FieldID, id))
 }
 
+// ScopeType applies equality check predicate on the "scope_type" field. It's identical to ScopeTypeEQ.
+func ScopeType(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldEQ(FieldScopeType, v))
+}
+
 // Versao applies equality check predicate on the "versao" field. It's identical to VersaoEQ.
 func Versao(v int) predicate.GanchosRegra {
 	return predicate.GanchosRegra(sql.FieldEQ(FieldVersao, v))
@@ -95,6 +100,71 @@ func AlteradaPor(v string) predicate.GanchosRegra {
 // AlteradaEm applies equality check predicate on the "alterada_em" field. It's identical to AlteradaEmEQ.
 func AlteradaEm(v time.Time) predicate.GanchosRegra {
 	return predicate.GanchosRegra(sql.FieldEQ(FieldAlteradaEm, v))
+}
+
+// ScopeTypeEQ applies the EQ predicate on the "scope_type" field.
+func ScopeTypeEQ(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldEQ(FieldScopeType, v))
+}
+
+// ScopeTypeNEQ applies the NEQ predicate on the "scope_type" field.
+func ScopeTypeNEQ(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldNEQ(FieldScopeType, v))
+}
+
+// ScopeTypeIn applies the In predicate on the "scope_type" field.
+func ScopeTypeIn(vs ...string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeNotIn applies the NotIn predicate on the "scope_type" field.
+func ScopeTypeNotIn(vs ...string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldNotIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeGT applies the GT predicate on the "scope_type" field.
+func ScopeTypeGT(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldGT(FieldScopeType, v))
+}
+
+// ScopeTypeGTE applies the GTE predicate on the "scope_type" field.
+func ScopeTypeGTE(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldGTE(FieldScopeType, v))
+}
+
+// ScopeTypeLT applies the LT predicate on the "scope_type" field.
+func ScopeTypeLT(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldLT(FieldScopeType, v))
+}
+
+// ScopeTypeLTE applies the LTE predicate on the "scope_type" field.
+func ScopeTypeLTE(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldLTE(FieldScopeType, v))
+}
+
+// ScopeTypeContains applies the Contains predicate on the "scope_type" field.
+func ScopeTypeContains(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldContains(FieldScopeType, v))
+}
+
+// ScopeTypeHasPrefix applies the HasPrefix predicate on the "scope_type" field.
+func ScopeTypeHasPrefix(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldHasPrefix(FieldScopeType, v))
+}
+
+// ScopeTypeHasSuffix applies the HasSuffix predicate on the "scope_type" field.
+func ScopeTypeHasSuffix(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldHasSuffix(FieldScopeType, v))
+}
+
+// ScopeTypeEqualFold applies the EqualFold predicate on the "scope_type" field.
+func ScopeTypeEqualFold(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldEqualFold(FieldScopeType, v))
+}
+
+// ScopeTypeContainsFold applies the ContainsFold predicate on the "scope_type" field.
+func ScopeTypeContainsFold(v string) predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldContainsFold(FieldScopeType, v))
 }
 
 // VersaoEQ applies the EQ predicate on the "versao" field.
@@ -320,6 +390,16 @@ func AdministradoraIDHasPrefix(v string) predicate.GanchosRegra {
 // AdministradoraIDHasSuffix applies the HasSuffix predicate on the "administradora_id" field.
 func AdministradoraIDHasSuffix(v string) predicate.GanchosRegra {
 	return predicate.GanchosRegra(sql.FieldHasSuffix(FieldAdministradoraID, v))
+}
+
+// AdministradoraIDIsNil applies the IsNil predicate on the "administradora_id" field.
+func AdministradoraIDIsNil() predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldIsNull(FieldAdministradoraID))
+}
+
+// AdministradoraIDNotNil applies the NotNil predicate on the "administradora_id" field.
+func AdministradoraIDNotNil() predicate.GanchosRegra {
+	return predicate.GanchosRegra(sql.FieldNotNull(FieldAdministradoraID))
 }
 
 // AdministradoraIDEqualFold applies the EqualFold predicate on the "administradora_id" field.

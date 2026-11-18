@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useParams, useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { useEu } from '@/acesso/eu';
 import { type Ferramenta, FerramentaSchema } from '@/catalogo/contratos';
@@ -8,7 +9,6 @@ import { listaDoGo } from '@/shared/api/listaDoGo';
 /** Chave do mapeamento comum a todos os condomínios. */
 export const PADRAO = '*';
 
-/** Id da administradora do usuário (null = vê tudo): vai como ?administradora= em toda chamada. */
 export type Escopo = string | null;
 
 const AdministradoraSchema = z.object({ id: z.string(), nome: z.string() });
@@ -87,13 +87,25 @@ export type Sugestao = z.infer<typeof SugestaoSchema>;
 
 function caminhoAdmin(rota: string, escopo: Escopo, extras: Record<string, string> = {}): string {
   const consulta = new URLSearchParams(extras);
-  if (escopo !== null) consulta.set('administradora', escopo);
+  if (escopo !== null) consulta.set('company_id', escopo);
   const texto = consulta.toString();
   return texto === '' ? `/api/admin/${rota}` : `/api/admin/${rota}?${texto}`;
 }
 
 const gravar = (rota: string, escopo: Escopo, corpo: unknown): Promise<RespostaMapeamento> =>
-  apiEnviar('PUT', caminhoAdmin(rota, escopo), corpo, RespostaMapeamentoSchema);
+  apiEnviar(
+    'PUT',
+    caminhoAdmin(rota, escopo),
+    corpoNoEscopo(corpo, escopo),
+    RespostaMapeamentoSchema,
+  );
+
+function corpoNoEscopo(corpo: unknown, escopo: Escopo): unknown {
+  if (typeof corpo !== 'object' || corpo === null || !('condominio' in corpo)) return corpo;
+  const id = corpo.condominio;
+  const condoID = typeof id === 'string' && /^-?\d+$/.test(id) ? Number(id) : null;
+  return { ...corpo, company_id: escopo ?? '', condo_id: condoID };
+}
 
 const criar = (rota: string, escopo: Escopo, corpo: unknown): Promise<RespostaMapeamento> =>
   apiEnviar('POST', caminhoAdmin(rota, escopo), corpo, RespostaMapeamentoSchema);
@@ -159,36 +171,57 @@ export function sugerirAjustes(
   corpo: { condominio: string; recurso: string; texto: string; atual: Record<string, Valor> },
   escopo: Escopo,
 ): Promise<Sugestao> {
-  return apiEnviar('POST', caminhoAdmin('sugerir-payload', escopo), corpo, SugestaoSchema);
+  return apiEnviar(
+    'POST',
+    caminhoAdmin('sugerir-payload', escopo),
+    corpoNoEscopo(corpo, escopo),
+    SugestaoSchema,
+  );
 }
 
 export function useEscopo(): Escopo | undefined {
   const { data: eu } = useEu();
-  return eu?.administradoraId;
+  const [params] = useSearchParams();
+  return params.get('company_id') ?? eu?.administradoraId;
 }
 
-export const chaveDoEstado = (escopo: Escopo | undefined) =>
-  ['estado-condominios', escopo] as const;
+export const chaveDoEstado = (escopo: Escopo | undefined, condoID?: string) =>
+  ['estado-condominios', escopo, condoID ?? null] as const;
 
-export function buscarEstado(escopo: Escopo): Promise<Estado> {
-  return apiGet(caminhoAdmin('estado', escopo), EstadoSchema);
+export function buscarEstado(escopo: Escopo, condoID?: string): Promise<Estado> {
+  const extras: Record<string, string> = condoID && condoID !== PADRAO ? { condo_id: condoID } : {};
+  return apiGet(caminhoAdmin('estado', escopo, extras), EstadoSchema);
 }
 
-export function useEstado({ enabled = true }: { enabled?: boolean } = {}) {
-  const escopo = useEscopo();
+export interface AlvoDoEstado {
+  escopo?: Escopo;
+  condoID?: string;
+}
+
+export function useEstado({ enabled = true, ...alvo }: AlvoDoEstado & { enabled?: boolean } = {}) {
+  const escopoDaTela = useEscopo();
+  const { id } = useParams();
+  const escopo = alvo.escopo === undefined ? escopoDaTela : alvo.escopo;
+  const condoID = alvo.condoID ?? id;
   return useQuery({
-    queryKey: chaveDoEstado(escopo),
-    queryFn: () => buscarEstado(escopo ?? null),
+    queryKey: chaveDoEstado(escopo, condoID),
+    queryFn: () => buscarEstado(escopo ?? null, condoID),
     enabled: enabled && escopo !== undefined,
   });
 }
 
 /** Aplica no cache a resposta de uma gravação, sem refazer o GET (o formulário aberto não reinicia). */
-export function useAplicarMapeamento(): (resposta: RespostaMapeamento) => void {
+export function useAplicarMapeamento(
+  alvo: AlvoDoEstado = {},
+): (resposta: RespostaMapeamento) => void {
   const cliente = useQueryClient();
+  const escopoDaTela = useEscopo();
+  const { id } = useParams();
+  const escopo = alvo.escopo === undefined ? escopoDaTela : alvo.escopo;
+  const condoID = alvo.condoID ?? id;
   return (resposta) =>
     cliente.setQueriesData<Estado>(
-      { queryKey: ['estado-condominios'] },
+      { queryKey: chaveDoEstado(escopo, condoID), exact: true },
       (estado) => estado && comMapeamento(estado, resposta),
     );
 }
@@ -199,7 +232,6 @@ const comMapeamento = (estado: Estado, resposta: RespostaMapeamento): Estado => 
   administradoras: resposta.administradoras,
 });
 
-/** Decisão do condomínio; sem ela vale o padrão; sem o padrão, a skill está ligada para todos os papéis. */
 export function habilitacaoDe(
   mapeamento: Mapeamento,
   condominio: string,
@@ -208,7 +240,7 @@ export function habilitacaoDe(
   const propria = mapeamento.habilitacoes[condominio]?.[caso];
   if (propria) return { habilitacao: propria, propria: true };
   const doPadrao = condominio === PADRAO ? undefined : mapeamento.habilitacoes[PADRAO]?.[caso];
-  return { habilitacao: doPadrao ?? { habilitado: true, papeis: [] }, propria: false };
+  return { habilitacao: doPadrao ?? { habilitado: false, papeis: [] }, propria: false };
 }
 
 /** account, company_id ou tenant vazio (depois de trim) trava a integração deste condomínio. */

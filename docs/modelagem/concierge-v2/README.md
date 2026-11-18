@@ -2,14 +2,14 @@
 
 Data: 18/11/2026. Branch: `feat/refactor-identidade-canais-db`.
 
-**Status: baseline implementada de forma isolada.** As 24 tabelas, 197 campos e 24 FKs estão materializados nos [schemas Ent v2](../../../internal/banco/v2/ent/schema) e na [baseline Goose](../../../internal/banco/v2/migrations/00001_baseline.sql). A [documentação técnica](../../../internal/banco/v2/README.md) descreve geração offline, validação e limites. O bootstrap e o runtime continuam usando a modelagem legada; nenhum banco existente ou volume foi substituído. Como ajuste preparatório, o cache administrativo foi removido e o atendimento lê o mapeamento diretamente do Postgres.
+**Status: backend v2 em uso.** O modelo canônico de 24 tabelas, 197 campos e 24 FKs está materializado nos [schemas Ent v2](../../../internal/banco/v2/ent/schema) e na [baseline Goose](../../../internal/banco/v2/migrations/00001_baseline.sql), usada pelo bootstrap e pelo runtime em um banco novo dedicado. Nenhum banco legado ou volume preexistente foi substituído. Canais e ativações são configurados por SQL/seed nesta etapa; o Console consulta esses dados. As camadas publicadas compõem o conteúdo usado pelo runtime. Veja [runtime no banco v2](../../../internal/banco/v2/RUNTIME.md) e a [documentação técnica](../../../internal/banco/v2/README.md).
 
 ## Como ler
 
 - [Diagramas de relacionamentos](DIAGRAMAS.md): catálogo/canais/atendimento, configuração e acesso.
 - [Dicionário completo](DICIONARIO.md): campos, tipos, propriedade, chaves, FKs, índices e validações.
 - [Alcance do backdoor por tabela](BACKDOOR.md): edição de conteúdo/fluxos, configuração e operação; distingue telas, APIs e capacidades ainda não integradas.
-- [Mapa das 23 tabelas atuais](MAPA-ATUAL.md): o que permanece, muda ou deixa de existir.
+- [Mapa histórico das 23 tabelas legadas](MAPA-ATUAL.md): correspondência da modelagem anterior com o modelo v2.
 - [Modelo em JSON](modelo.json): representação estruturada do desenho materializado; não é schema de request nem DDL.
 
 O ponto de partida é: **empresa Nexus possui os dados empresariais; canal configura a entrada do atendimento; condomínio restringe o contexto aplicável; o usuário identifica a carteira pessoal.**
@@ -92,7 +92,7 @@ Seu UUID pode ocupar o papel de `feature_id` no contrato administrativo; `use_ca
 
 **Decisão aprovada pelo usuário:** ausência de linha empresarial significa “ainda não configurado/ativado”. O item continua no catálogo global, mas não fica disponível para execução por essa empresa. Criar a linha exige os valores explícitos de `enabled` e `default_available`; não inferir um padrão universal da origem.
 
-Essa decisão muda o default implícito do Go atual: [admin.Habilitado](../../../internal/admin/admin.go) permite o caso quando não encontra configuração. O comportamento novo foi aprovado para implementação; o runtime atual ainda não foi adaptado.
+Essa decisão mudou o default implícito do runtime legado: [admin.Habilitado](../../../internal/admin/admin.go) permitia o caso quando não encontrava configuração. O runtime v2 aplica a ausência de configuração empresarial como caso ainda não ativado.
 
 ### Canal e override: `channels` e `channel_use_cases`
 
@@ -270,43 +270,35 @@ Não estamos incorporando nesta etapa todo o modelo antigo de FORM, recursos ext
 
 Também ficam para as respectivas integrações: semântica de `account_id` enviado ao Nexus, eventual company Gruvi, autenticação M2M quando houver chamada entre serviços, operação de rotação de credenciais e integração visual do plugin. O `company_id` Nexus dono dos registros já está definido e não depende dessas respostas.
 
-### Banco novo ainda terá migration
+### Banco v2 e runtime
 
-A baseline inicial está versionada e é reproduzível em banco PostgreSQL 18 vazio. Ela substitui a necessidade de transformar registros antigos; não substitui o mecanismo de migrations. Sua aplicação permanece explícita e separada do bootstrap atual.
+A baseline está versionada e é aplicada pelo bootstrap a um banco PostgreSQL 18 novo e dedicado. A aplicação recusa tabelas legadas e não transforma registros antigos; consulte [runtime no banco v2](../../../internal/banco/v2/RUNTIME.md) para preparação e operação.
 
 ### Sequência do refactor e evolução do backdoor
 
-A direção para a etapa de código é adaptar primeiro o backend e o frontend atual ao novo modelo, preservando as capacidades existentes que continuam pertinentes. A separação física do frontend do backdoor fica para uma etapa bem futura; sua extração e uma revisão mais ampla de sua experiência não são requisitos para concluir o refactor do banco/backend.
+O backend e o frontend atual foram adaptados ao novo modelo nesta branch, preservando as capacidades pertinentes. A separação física do frontend do backdoor e uma revisão mais ampla de sua experiência ficam para uma etapa futura.
 
 Isso não obriga a manter cada tela ou formulário legado. Telas vinculadas aos cadastros locais de administradora/condomínio precisarão ser adaptadas ou retiradas conforme sua responsabilidade no novo modelo, sem reintroduzir essas entidades para manter a interface antiga. A revisão posterior definirá a organização do backdoor para Professional Services e operadores da plataforma; o plugin mantém a jornada própria de gestão do recurso pela empresa.
 
-O refactor já deve manter persistência, runtime, integrações e autorização no backend, com o frontend consumindo suas APIs. A futura extração do frontend não deverá exigir outra mudança na identidade empresarial ou duplicação das regras de disponibilidade.
+Persistência, runtime, integrações e autorização ficam no backend, com o frontend consumindo suas APIs. A futura extração do frontend não exige outra mudança na identidade empresarial ou duplicação das regras de disponibilidade.
 
 ### Banco, adaptação do backend e gestão de novos recursos
 
-Estas frentes têm entregas diferentes, embora compartilhem dependências:
+O estado das frentes é:
 
 | Frente | Entrega |
 |---|---|
-| Banco novo | Materializar todas as tabelas propostas, incluindo canais e disponibilidade; gerar a baseline e validar estrutura, constraints, índices e relações em banco isolado antes do commit desse marco. |
-| Adaptação do backend | Fazer as capacidades existentes funcionarem com os novos dados e fronteiras: persistência, tipos de contexto, autorização, JSONs, caches, locks, APIs existentes e runtime. Inclui o uso mínimo das novas tabelas exigido pelo atendimento. |
-| Gestão dos novos recursos — entrega futura | Novas APIs e telas para cadastrar/editar canais, credenciais, padrões empresariais e overrides de canal ficam fora do refactor atual. Nesta fase, configurar diretamente por SQL/seed, respeitando as relações do modelo. |
+| Banco v2 | As 24 tabelas, 197 campos e 24 FKs estão materializados na baseline aplicada pelo bootstrap ao banco novo dedicado. |
+| Backend v2 | O runtime usa canais, disponibilidade, identidade e persistência do modelo v2; o [documento de runtime](../../../internal/banco/v2/RUNTIME.md) descreve o fluxo atual. |
+| Gestão de canais e ativações | Nesta etapa, configurar por SQL/seed. O Console consulta os dados; novas APIs/telas de cadastro e edição ficam para entrega futura. |
 
 Adaptar o backend **não é apenas trocar queries ou acrescentar company_id**. A origem autorizada da empresa precisa ser propagada pelo contexto da operação; a restrição de condomínio deve alcançar leituras, escritas e dados em memória. Retirar entidades locais afeta tipos e resolvedores usados pelo atendimento, além dos repositórios.
 
-Como a sessão passa a referenciar canal e a habilitação passa a usar empresa/canal, o backend adaptado já precisa localizar o canal persistido, usar suas credenciais e resolver a disponibilidade na estrutura nova. A ausência de configuração empresarial deve bloquear o caso, como aprovado. Essa integração mínima é necessária mesmo antes de existir uma API completa de gestão; seed não substitui a leitura do banco nem cria uma segunda fonte de configuração no ambiente.
+O runtime localiza o canal persistido, usa suas credenciais e resolve a disponibilidade na estrutura nova. A ausência de configuração empresarial bloqueia o caso. A configuração por SQL/seed alimenta a mesma leitura do banco; não cria uma segunda fonte de configuração no ambiente.
 
-### Evolução da disponibilidade existente no runtime
+### Leitura de canal e disponibilidade
 
-O mecanismo atual já é persistido e aplicado ao agente:
-
-```text
-habilitacoes → admin.Postgres (leitura direta) → Mapeamento.Habilitado → cfg.Casos → filtro de casos do harness
-```
-
-Fontes: [leitura das habilitações](../../../internal/admin/postgres.go), [regra atual](../../../internal/admin/admin.go), [montagem da configuração do turno](../../../internal/atende/servico.go) e [aplicação do filtro](../../../internal/harness/harness.go). A regra atual usa condomínio/padrão e papéis; sem entrada, permite. Não implementa os modos de canal do modelo novo.
-
-A proposta para a etapa de backend é substituir a origem e o resolvedor desse mecanismo, preservando seu ponto de aplicação no runtime:
+O runtime v2 aplica a configuração persistida em cada turno:
 
 ```text
 canal validado → company_id + channel_id
@@ -315,13 +307,7 @@ canal validado → company_id + channel_id
               → casos disponíveis aplicados ao agente
 ```
 
-Portanto, consumir canal e disponibilidade é parte do refactor do atendimento; construir seu gerenciamento por API/tela não é. A identidade estável do caso deve substituir a dependência das chaves legadas de nome/pasta. Disponibilidade configurada continua distinta das verificações de identidade, papéis e autorização da execução.
-
-**SQL e cache:** o cache administrativo sem expiração foi removido do código atual; o atendimento usa diretamente o [repositório Postgres](../../../internal/admin/postgres.go). Isso permite observar mudanças por SQL nas leituras seguintes, sem reiniciar. No modelo novo, manter a leitura de configuração de canal/disponibilidade por mensagem/turno, com filtro da empresa/canal aplicável. Mudanças confirmadas antes da leitura do próximo turno devem ser observadas; não se exige interromper um turno já iniciado. Os caches de memória/pedidos continuam sendo avaliados conforme suas próprias responsabilidades e fronteiras.
-
-A remoção do cache não otimizou o carregamento legado: o repositório ainda lê as cinco tabelas do mapeamento completo e um turno normal faz três dessas leituras. Os testes registram 21 comandos administrativos antes do envio, contando transações. O refactor deverá evitar a repetição das leituras amplas e consultar o contexto da empresa/canal necessário, sem voltar ao cache permanente de todas as configurações. Reutilizar uma estrutura/grafo compilado futuramente exige manter a disponibilidade e as autorizações atuais do turno; uma compilação antiga não pode congelar a ativação dos casos.
-
-No SQL, ausência de override é ausência de linha: restaurar o padrão exige remover o vínculo específico. Gravar false mantém a exclusão explícita; `enabled = NULL` não representa reset e é recusado pelo schema. As convenções de deltas/expected_mode para uma futura API não exigem criar endpoints agora.
+O backend lê canais e ativações no banco v2. Na etapa atual, SQL/seed configura esses registros e o Console os consulta; não há API/tela nova para gerenciá-los. Conteúdo e casos publicados são servidos pelas camadas aplicáveis, em composição GLOBAL → COMPANY → CONDO. Disponibilidade não substitui as verificações de identidade, papéis e autorização da execução. Detalhes de resolução e integração estão em [runtime no banco v2](../../../internal/banco/v2/RUNTIME.md).
 
 ### Validação e sequência de execução
 
@@ -331,16 +317,7 @@ A [suíte da baseline](../../../internal/banco/v2/migrations/baseline_test.go) p
 
 Passaram ainda `TZ=UTC go test ./... -run '^$'` (compilação de todos os pacotes, sem executar a suíte legada), `go vet ./...`, formatação e validação do JSON e dos links locais. O banco e os volumes existentes não foram substituídos.
 
-O marco de banco valida a estrutura física; não comprova que o runtime foi adaptado. Gerar Ent/sqlc pode alterar contratos usados pelos repositórios. Preparar esse marco de forma isolada e coordenar a ativação do schema/código gerado com a adaptação, sem apontar o runtime antigo para o banco novo nem considerar uma compilação quebrada como backend concluído.
-
-Sequência de execução; os itens 1 e 2 compõem o marco isolado de banco, e os demais ficam para as próximas etapas:
-
-1. Materializar Ent/constraints e gerar uma nova baseline Goose/Atlas em banco isolado.
-2. Validar a estrutura vazia, FKs, CHECKs e unicidades, inclusive NULL, sem subir o runtime antigo contra ela.
-3. Adaptar sqlc, repositórios, tipos/JSONs, caches, locks, configuração e chamadas ao novo escopo; integrar leitura de canal e resolução de disponibilidade ao runtime.
-4. Adaptar APIs existentes e consumidores administrativos no necessário ao novo modelo, deixando novas APIs/telas de gestão de canal e disponibilidade para depois.
-5. Preparar seed mínimo global e configuração local por canal, importando credenciais do ambiente sem versionar seus valores.
-6. Rodar a suíte de comportamento e isolamento, obrigatoriamente incluindo a preservação de dados fora do alvo descrita na seção 4. Só então substituir o banco/volume local especificamente escolhido.
+O marco estrutural foi seguido pela adaptação do backend e pelo uso do runtime v2 em banco novo dedicado. O inventário de validação do runtime está em [runtime no banco v2](../../../internal/banco/v2/RUNTIME.md); a configuração de canais e ativações continua explícita por SQL/seed. A validação da baseline acima registra os checks da etapa de banco, sem substituir os checks funcionais documentados para o runtime atual.
 
 Trocar a branch não troca o banco Docker. Não foi executada exclusão ou reinicialização de recursos.
 

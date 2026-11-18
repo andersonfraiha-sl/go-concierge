@@ -29,6 +29,8 @@ describe('OrientacoesSecao', () => {
     await waitFor(() => expect(corpos).toHaveLength(1), { timeout: 3000 });
     expect(corpos[0]).toEqual({
       condominio: 'vila-verde',
+      company_id: 'adm-exemplo',
+      condo_id: null,
       geral: 'Fale com o zelador',
       por_caso: { 'agendar-mudanca': 'Zelador acompanha.' },
     });

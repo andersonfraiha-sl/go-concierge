@@ -12,45 +12,51 @@ const (
 	Label = "ganchos_auditoria"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldScopeType holds the string denoting the scope_type field in the database.
+	FieldScopeType = "scope_type"
+	// FieldChannelID holds the string denoting the channel_id field in the database.
+	FieldChannelID = "channel_id"
 	// FieldCriadoEm holds the string denoting the criado_em field in the database.
-	FieldCriadoEm = "criado_em"
+	FieldCriadoEm = "created_at"
 	// FieldOrigem holds the string denoting the origem field in the database.
-	FieldOrigem = "origem"
+	FieldOrigem = "origin"
 	// FieldEvento holds the string denoting the evento field in the database.
-	FieldEvento = "evento"
+	FieldEvento = "event"
 	// FieldGancho holds the string denoting the gancho field in the database.
-	FieldGancho = "gancho"
+	FieldGancho = "hook"
 	// FieldRegraID holds the string denoting the regra_id field in the database.
-	FieldRegraID = "regra_id"
+	FieldRegraID = "rule_id"
 	// FieldRegraVersao holds the string denoting the regra_versao field in the database.
-	FieldRegraVersao = "regra_versao"
+	FieldRegraVersao = "rule_version"
 	// FieldDecisao holds the string denoting the decisao field in the database.
-	FieldDecisao = "decisao"
+	FieldDecisao = "decision"
 	// FieldMotivo holds the string denoting the motivo field in the database.
-	FieldMotivo = "motivo"
+	FieldMotivo = "reason"
 	// FieldAdministradoraID holds the string denoting the administradora_id field in the database.
-	FieldAdministradoraID = "administradora_id"
+	FieldAdministradoraID = "company_id"
 	// FieldCondominioID holds the string denoting the condominio_id field in the database.
-	FieldCondominioID = "condominio_id"
+	FieldCondominioID = "condo_id"
 	// FieldSessaoID holds the string denoting the sessao_id field in the database.
-	FieldSessaoID = "sessao_id"
+	FieldSessaoID = "session_id"
 	// FieldProtocolo holds the string denoting the protocolo field in the database.
-	FieldProtocolo = "protocolo"
+	FieldProtocolo = "protocol"
 	// FieldUsuarioID holds the string denoting the usuario_id field in the database.
-	FieldUsuarioID = "usuario_id"
+	FieldUsuarioID = "user_id"
 	// FieldTela holds the string denoting the tela field in the database.
-	FieldTela = "tela"
+	FieldTela = "screen"
 	// FieldFerramenta holds the string denoting the ferramenta field in the database.
-	FieldFerramenta = "ferramenta"
+	FieldFerramenta = "tool"
 	// FieldQuantidade holds the string denoting the quantidade field in the database.
-	FieldQuantidade = "quantidade"
+	FieldQuantidade = "count"
 	// Table holds the table name of the ganchosauditoria in the database.
-	Table = "ganchos_auditoria"
+	Table = "hook_audit_logs"
 )
 
 // Columns holds all SQL columns for ganchosauditoria fields.
 var Columns = []string{
 	FieldID,
+	FieldScopeType,
+	FieldChannelID,
 	FieldCriadoEm,
 	FieldOrigem,
 	FieldEvento,
@@ -86,18 +92,10 @@ var (
 	EventoValidator func(string) error
 	// GanchoValidator is a validator for the "gancho" field. It is called by the builders before save.
 	GanchoValidator func(string) error
-	// DefaultRegraID holds the default value on creation for the "regra_id" field.
-	DefaultRegraID string
 	// DefaultRegraVersao holds the default value on creation for the "regra_versao" field.
 	DefaultRegraVersao int
 	// DecisaoValidator is a validator for the "decisao" field. It is called by the builders before save.
 	DecisaoValidator func(string) error
-	// DefaultAdministradoraID holds the default value on creation for the "administradora_id" field.
-	DefaultAdministradoraID string
-	// DefaultCondominioID holds the default value on creation for the "condominio_id" field.
-	DefaultCondominioID string
-	// DefaultSessaoID holds the default value on creation for the "sessao_id" field.
-	DefaultSessaoID string
 	// DefaultProtocolo holds the default value on creation for the "protocolo" field.
 	DefaultProtocolo string
 	// DefaultUsuarioID holds the default value on creation for the "usuario_id" field.
@@ -118,6 +116,16 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByScopeType orders the results by the scope_type field.
+func ByScopeType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldScopeType, opts...).ToFunc()
+}
+
+// ByChannelID orders the results by the channel_id field.
+func ByChannelID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldChannelID, opts...).ToFunc()
 }
 
 // ByCriadoEm orders the results by the criado_em field.

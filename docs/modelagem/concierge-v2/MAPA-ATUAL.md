@@ -1,12 +1,12 @@
-# Mapa das tabelas atuais para o banco v2
+# Mapa histórico da modelagem legada para o banco v2
 
-Data: 18/11/2026. Inventário de **23 schemas ativos** em [internal/banco/ent/schema](../../../internal/banco/ent/schema), comparados com **24 tabelas v2** no [dicionário](DICIONARIO.md), materializadas separadamente em [internal/banco/v2](../../../internal/banco/v2/README.md).
+Data: 18/11/2026. Este mapa registra o inventário histórico de **23 schemas legados** em [internal/banco/ent/schema](../../../internal/banco/ent/schema) antes da adaptação, comparado ao modelo canônico de **24 tabelas, 197 campos e 24 FKs** descrito no [dicionário](DICIONARIO.md). O backend atual usa a v2; os 23 schemas não representam o runtime vigente.
 
-A origem preserva os nomes reais em português para localizar o código existente. O destino usa a nomenclatura em inglês aprovada para a nova modelagem. “Preservar” refere-se à responsabilidade/estrutura, mesmo quando a tabela é renomeada. A baseline v2 foi implementada sem alterar os schemas ativos, o bootstrap ou os dados existentes; a substituição depende da adaptação futura do backend.
+A origem preserva os nomes reais em português para localizar o código da modelagem anterior. O destino usa a nomenclatura em inglês aprovada para a v2. “Preservar” refere-se à responsabilidade/estrutura, mesmo quando a tabela é renomeada. As ações abaixo documentam a correspondência da migração; para o estado operacional atual, consulte [runtime no banco v2](../../../internal/banco/v2/RUNTIME.md).
 
 Para distinguir o que o backdoor já edita, consulta ou opera e o que ainda é uma capacidade sem interface, consulte a [matriz por tabela](BACKDOOR.md#matriz-por-tabela). Cada destino também recebe a marcação no dicionário; o alcance não equivale a permissão de CRUD irrestrito.
 
-| Tabela atual | Destino v2 | Ação futura no runtime | Motivo |
+| Tabela legada | Destino v2 | Tratamento definido na migração | Motivo |
 |---|---|---|---|
 | `administradoras` | — | Remover | Empresa é referenciada pelo company_id Nexus, sem entidade local. |
 | `condominios` | — | Remover | Condomínio é condo_id ERP opcional; tenant/telefone migram conceitualmente para canais. |
@@ -38,8 +38,8 @@ A conta é: remover `administradoras`, `condominios` e `habilitacoes`; adicionar
 
 - `condominios.company_id` atual pertence ao domínio Gruvi. Não copiar para o novo `company_id` Nexus.
 - O `account` atual chega a `cfg.Identidade.AccountID` e é enviado ao Nexus em `account_id`. A semântica do contrato externo ainda precisa ser reconciliada; não concluir equivalência somente pelo nome.
-- `habilitacoes.caso` aceita hoje referências heterogêneas, inclusive caminho/nome de agente. A proposta exige identidade global de caso (`Caso.ID`); a adaptação precisa revisar fixtures e todos os consumidores, sem traduzir string por suposição.
-- `admin.Habilitado` hoje permite execução quando não encontra configuração. Ausência empresarial como “não ativado” altera esse default; a mudança foi aprovada pelo usuário para implementação, sem alteração do runtime nesta entrega.
+- `habilitacoes.caso` aceitava referências heterogêneas, inclusive caminho/nome de agente. O runtime v2 usa identidade global de caso (`Caso.ID`); nomes conhecidos são resolvidos sem normalizar chaves externas desconhecidas.
+- `admin.Habilitado` no runtime legado permitia execução sem configuração. O runtime v2 aplica a decisão aprovada: ausência empresarial significa não ativado.
 - Não renomear todo `condominio_id` mecanicamente: alguns campos atuais são IDs locais textuais, enquanto o novo `condo_id` é inteiro ERP.
 - `sessoes.dados`, `pedidos.dados`, snapshots e definições de ganchos ainda carregam identidades antigas. Colunas novas não corrigem o conteúdo desses JSONs.
 - A ausência de empresa em arquivos globais, papéis e definições base é deliberada; ela não autoriza consultas empresariais sem filtro.

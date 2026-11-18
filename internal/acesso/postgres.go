@@ -5,155 +5,188 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"go-concierge/internal/banco/ent"
-	"go-concierge/internal/banco/ent/atribuicao"
-	"go-concierge/internal/banco/ent/concessao"
-	"go-concierge/internal/banco/ent/usuario"
 	"go-concierge/internal/escopo"
-	"go-concierge/internal/falha"
 )
 
 const timeoutCarregar = 3 * time.Second
 
-// ErrUsuarioDesconhecido indica que o id não existe na tabela de usuários.
 var ErrUsuarioDesconhecido = errors.New("usuário desconhecido")
 
-// Postgres carrega o Acesso de um usuário a partir das tabelas de papéis e atribuições.
 type Postgres struct{ cli *ent.Client }
 
-// NovoPostgres usa cli, que o chamador abre e fecha.
 func NovoPostgres(cli *ent.Client) *Postgres { return &Postgres{cli: cli} }
 
-// Carregar monta o Acesso do usuário em 3 chamadas ao ent (cerca de 6 comandos SQL, pois cada
-// With* é uma consulta própria): o usuário com suas atribuições, todos os papéis com
-// permissões e concessões, e todos os condomínios com a administradora atual de cada um.
-// Papéis, concessões e condomínios vêm inteiros porque Permitido precisa da cadeia de herança
-// e do mapa condomínio → administradora para qualquer alvo. Herança cíclica no banco é erro:
-// o acesso falha fechado em vez de seguir com papéis incoerentes.
-func (p *Postgres) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (Acesso, error) {
+func (p *Postgres) Carregar(ctx context.Context, user string, imp escopo.Implantacao) (Acesso, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
 	defer cancel()
-
-	u, err := p.cli.Usuario.Query().Where(usuario.ID(usuarioID)).WithAtribuicoes().Only(ctx)
-	if ent.IsNotFound(err) {
-		return Acesso{}, fmt.Errorf("carregar acesso de %s: %w", usuarioID, ErrUsuarioDesconhecido)
-	}
+	a := Acesso{UsuarioID: user, Papeis: map[string]Papel{}, AdministradoraDe: map[string]string{}, Implantacao: imp}
+	rows, err := p.cli.QueryContext(ctx, `SELECT name FROM users WHERE id=$1`, user)
 	if err != nil {
-		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar usuário %s: %w", usuarioID, err))
+		return a, err
 	}
-	papeis, err := p.cli.Papel.Query().WithPermissoes().WithConcessoes().All(ctx)
+	if !rows.Next() {
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return a, err
+		}
+		return a, ErrUsuarioDesconhecido
+	}
+	if err := rows.Scan(&a.Nome); err != nil {
+		rows.Close()
+		return a, err
+	}
+	rows.Close()
+	rows, err = p.cli.QueryContext(ctx, `SELECT id,inherits_from FROM roles`)
 	if err != nil {
-		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar papéis: %w", err))
+		return a, err
 	}
-	// ponytail: lê todos os condomínios a cada Carregar; quando a tabela passar de alguns
-	// milhares, trocar por consulta só dos ids de atribuições e dos alvos da requisição.
-	condominios, err := p.cli.Condominio.Query().All(ctx)
+	for rows.Next() {
+		var id string
+		var parent sql.NullString
+		if err := rows.Scan(&id, &parent); err != nil {
+			rows.Close()
+			return a, err
+		}
+		a.Papeis[id] = Papel{ID: id, HerdaDe: parent.String}
+	}
+	err = rows.Err()
+	rows.Close()
 	if err != nil {
-		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar condomínios: %w", err))
+		return a, err
 	}
-	porID := papeisDe(papeis)
-	if err := ValidarHeranca(slices.Collect(maps.Values(porID))); err != nil {
-		return Acesso{}, falha.ComPilha(fmt.Errorf("carregar papéis: %w", err))
+	rows, err = p.cli.QueryContext(ctx, `SELECT role_id,permission FROM role_permissions`)
+	if err != nil {
+		return a, err
 	}
-	return Acesso{
-		UsuarioID:        usuarioID,
-		Nome:             u.Nome,
-		Papeis:           porID,
-		Atribuicoes:      atribuicoesDe(u.Edges.Atribuicoes),
-		Concessoes:       concessoesDe(papeis),
-		AdministradoraDe: administradorasPorCondominio(condominios),
-		Implantacao:      imp,
-	}, nil
+	for rows.Next() {
+		var id, permission string
+		if err := rows.Scan(&id, &permission); err != nil {
+			rows.Close()
+			return a, err
+		}
+		role := a.Papeis[id]
+		role.Permissoes = append(role.Permissoes, Permissao(permission))
+		a.Papeis[id] = role
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return a, err
+	}
+	var all []Papel
+	for _, role := range a.Papeis {
+		all = append(all, role)
+	}
+	if err := ValidarHeranca(all); err != nil {
+		return a, err
+	}
+	rows, err = p.cli.QueryContext(ctx, `SELECT role_id,scope_type,company_id,condo_id FROM role_assignments WHERE user_id=$1`, user)
+	if err != nil {
+		return a, err
+	}
+	for rows.Next() {
+		var role, scope string
+		var company sql.NullString
+		var condo sql.NullInt64
+		if err := rows.Scan(&role, &scope, &company, &condo); err != nil {
+			rows.Close()
+			return a, err
+		}
+		at := Atribuicao{PapelID: role, AdministradoraID: company.String}
+		switch scope {
+		case "PLATFORM":
+			at.Escopo = Escopo{Tipo: TipoSuperlogica}
+		case "COMPANY":
+			at.Escopo = Escopo{Tipo: TipoAdministradora, ID: company.String}
+		case "CONDO":
+			if !company.Valid || !condo.Valid {
+				rows.Close()
+				return a, fmt.Errorf("atribuição condominial inválida")
+			}
+			at.Escopo = EscopoCondominio(company.String, strconv.FormatInt(condo.Int64, 10))
+			a.AdministradoraDe[at.Escopo.ID] = company.String
+		default:
+			rows.Close()
+			return a, fmt.Errorf("escopo desconhecido")
+		}
+		a.Atribuicoes = append(a.Atribuicoes, at)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return a, err
+	}
+	rows, err = p.cli.QueryContext(ctx, `SELECT company_id,role_id,permission FROM company_role_grants WHERE company_id IN (SELECT company_id FROM role_assignments WHERE user_id=$1 AND company_id IS NOT NULL)`, user)
+	if err != nil {
+		return a, err
+	}
+	for rows.Next() {
+		var c Concessao
+		var permission string
+		if err := rows.Scan(&c.AdministradoraID, &c.PapelID, &permission); err != nil {
+			rows.Close()
+			return a, err
+		}
+		c.Permissao = Permissao(permission)
+		a.Concessoes = append(a.Concessoes, c)
+	}
+	err = rows.Err()
+	rows.Close()
+	return a, err
 }
 
-func papeisDe(rows []*ent.Papel) map[string]Papel {
-	out := make(map[string]Papel, len(rows))
-	for _, r := range rows {
-		papel := Papel{ID: r.ID}
-		if r.HerdaDe != nil {
-			papel.HerdaDe = *r.HerdaDe
-		}
-		for _, perm := range r.Edges.Permissoes {
-			papel.Permissoes = append(papel.Permissoes, Permissao(perm.Permissao))
-		}
-		out[r.ID] = papel
-	}
-	return out
-}
-
-func atribuicoesDe(rows []*ent.Atribuicao) []Atribuicao {
-	out := make([]Atribuicao, 0, len(rows))
-	for _, r := range rows {
-		at := Atribuicao{PapelID: r.PapelID, Escopo: Escopo{Tipo: TipoEscopo(r.EscopoTipo), ID: r.EscopoID}}
-		if r.AdministradoraID != nil {
-			at.AdministradoraID = *r.AdministradoraID
-		}
-		out = append(out, at)
-	}
-	return out
-}
-
-func concessoesDe(papeis []*ent.Papel) []Concessao {
-	var out []Concessao
-	for _, p := range papeis {
-		for _, c := range p.Edges.Concessoes {
-			out = append(out, Concessao{AdministradoraID: c.AdministradoraID, PapelID: c.PapelID, Permissao: Permissao(c.Permissao)})
-		}
-	}
-	return out
-}
-
-// administradorasPorCondominio mapeia condomínio → administradora atual; condomínio sem administradora
-// fica fora do mapa e Permitido o trata como desconhecido.
-func administradorasPorCondominio(rows []*ent.Condominio) map[string]string {
-	out := make(map[string]string, len(rows))
-	for _, r := range rows {
-		if r.AdministradoraID != nil {
-			out[r.ID] = *r.AdministradoraID
-		}
-	}
-	return out
-}
-
-// Conceder libera a permissão ao papel dentro da administradora (que já existe). Repetir a
-// mesma concessão não faz nada.
 func (p *Postgres) Conceder(ctx context.Context, c Concessao) error {
-	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
-	defer cancel()
-	err := p.cli.Concessao.Create().
-		SetAdministradoraID(c.AdministradoraID).SetPapelID(c.PapelID).SetPermissao(string(c.Permissao)).
-		OnConflictColumns(concessao.FieldAdministradoraID, concessao.FieldPapelID, concessao.FieldPermissao).
-		DoNothing().Exec(ctx)
-	// o ent devolve sql.ErrNoRows quando o DoNothing não insere nada
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return falha.ComPilha(fmt.Errorf("conceder %s a %s em %s: %w", c.Permissao, c.PapelID, c.AdministradoraID, err))
+	if strings.TrimSpace(c.AdministradoraID) == "" {
+		return fmt.Errorf("concessão exige empresa")
 	}
-	return nil
+	_, err := p.cli.ExecContext(ctx, `INSERT INTO company_role_grants(company_id,role_id,permission) VALUES($1,$2,$3) ON CONFLICT(company_id,role_id,permission) DO NOTHING`, c.AdministradoraID, c.PapelID, string(c.Permissao))
+	return err
 }
 
-// Atribuir garante o usuário e lhe dá o papel no escopo. Repetir não faz nada: o usuário e a
-// atribuição só são gravados se faltam. Em escopo de condomínio, AdministradoraID é obrigatório.
 func (p *Postgres) Atribuir(ctx context.Context, u Usuario, at Atribuicao) error {
-	ctx, cancel := context.WithTimeout(ctx, timeoutCarregar)
-	defer cancel()
-	err := p.cli.Usuario.Create().SetID(u.ID).SetNome(u.Nome).
-		OnConflictColumns(usuario.FieldID).DoNothing().Exec(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return falha.ComPilha(fmt.Errorf("criar usuário %s: %w", u.ID, err))
+	var company, condo any
+	scope := ""
+	switch at.Escopo.Tipo {
+	case TipoSuperlogica:
+		scope = "PLATFORM"
+	case TipoAdministradora:
+		scope = "COMPANY"
+		if strings.TrimSpace(at.Escopo.ID) == "" {
+			return fmt.Errorf("atribuição exige empresa")
+		}
+		company = at.Escopo.ID
+	case TipoCondominio:
+		scope = "CONDO"
+		c, id, ok := CondominioDoEscopo(at.Escopo)
+		if !ok || at.AdministradoraID != c {
+			return fmt.Errorf("atribuição condominial exige empresa e condomínio ERP explícitos")
+		}
+		n, err := strconv.Atoi(id)
+		if err != nil {
+			return err
+		}
+		company, condo = c, n
+	default:
+		return fmt.Errorf("escopo desconhecido")
 	}
-	criar := p.cli.Atribuicao.Create().SetUsuarioID(u.ID).SetPapelID(at.PapelID).
-		SetEscopoTipo(string(at.Escopo.Tipo)).SetEscopoID(at.Escopo.ID)
-	if at.AdministradoraID != "" {
-		criar.SetAdministradoraID(at.AdministradoraID)
+	tx, err := p.cli.Tx(ctx)
+	if err != nil {
+		return err
 	}
-	err = criar.OnConflictColumns(atribuicao.FieldUsuarioID, atribuicao.FieldPapelID, atribuicao.FieldEscopoTipo, atribuicao.FieldEscopoID).
-		DoNothing().Exec(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return falha.ComPilha(fmt.Errorf("atribuir %s a %s: %w", at.PapelID, u.ID, err))
+	cli := tx.Client()
+	if _, err := cli.ExecContext(ctx, `INSERT INTO users(id,name) VALUES($1,$2) ON CONFLICT(id) DO NOTHING`, u.ID, u.Nome); err != nil {
+		_ = tx.Rollback()
+		return err
 	}
-	return nil
+	if _, err := cli.ExecContext(ctx, `INSERT INTO role_assignments(user_id,role_id,scope_type,company_id,condo_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(user_id,role_id,scope_type,company_id,condo_id) DO NOTHING`, u.ID, at.PapelID, scope, company, condo); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }

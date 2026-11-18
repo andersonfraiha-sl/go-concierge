@@ -414,6 +414,11 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 		return nil, err
 	}
 	c := ag.resolverChamada(in)
+	if ag.cfg.ValidarFerramenta != nil {
+		if err := ag.cfg.ValidarFerramenta(c.nomeMCP, c.params); err != nil {
+			return erro("%s", err), nil
+		}
+	}
 	antes := ag.cfg.Turno.AntesDaFerramenta(ctx, ag.eventoAntes(ctx, c, confirmacao))
 	registrarGanchos(ctx, antes.Registros)
 	if recusa := recusaDeAntes(antes); recusa != "" {
@@ -425,6 +430,11 @@ func (ag *Agente) invocar(ctx context.Context, in *argsRecurso, confirmacao stri
 		return out, nil
 	}
 	c.params = antes.Evento.Params
+	if ag.cfg.ValidarFerramenta != nil {
+		if err := ag.cfg.ValidarFerramenta(c.nomeMCP, c.params); err != nil {
+			return erro("%s", err), nil
+		}
+	}
 	out, err := ag.executar(ctx, c)
 	if err != nil {
 		return nil, err

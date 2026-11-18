@@ -1,5 +1,5 @@
 import { lazy, type ReactNode, Suspense } from 'react';
-import { createBrowserRouter, Outlet, type RouteObject } from 'react-router';
+import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router';
 import { CopilotoProvider } from '@/copiloto/CopilotoProvider';
 import { LayoutDeDetalhe } from './detalhe/LayoutDeDetalhe';
 // Nome do arquivo difere de rotaInicial.ts por mais que o caso da letra:
@@ -28,9 +28,6 @@ const CondominiosPage = lazy(() =>
 const CondominioPage = lazy(() =>
   import('@/condominios/CondominioPage').then((m) => ({ default: m.CondominioPage })),
 );
-const AdministradorasPage = lazy(() =>
-  import('@/condominios/AdministradorasPage').then((m) => ({ default: m.AdministradorasPage })),
-);
 const GuardaAvancado = lazy(() =>
   import('@/acesso/GuardaAvancado').then((m) => ({ default: m.GuardaAvancado })),
 );
@@ -43,7 +40,7 @@ const ROTAS_DE_LISTA: RouteObject[] = [
   { path: 'concierge', element: tela(<ConciergePage />) },
   { path: 'ferramentas', element: tela(<FerramentasPage />) },
   { path: 'condominios', element: tela(<CondominiosPage />) },
-  { path: 'administradoras', element: tela(<AdministradorasPage />) },
+  { path: 'administradoras', element: <Navigate to="/condominios" replace /> },
   { path: 'avancado', element: tela(<GuardaAvancado />) },
 ];
 

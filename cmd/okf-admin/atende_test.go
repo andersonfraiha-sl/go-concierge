@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/escopo"
@@ -53,7 +55,7 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-1","type":"text","content":"posso fazer barulho depois das 22h?"}}}`
 	w := httptest.NewRecorder()
 	// o evento vem com um tenant que nenhum condomínio tem: o seletor do Console decide
-	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=cond-x", strings.NewReader(corpo)))
+	s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=101", strings.NewReader(corpo)))
 	if w.Code != 202 {
 		t.Fatalf("status HTTP %d: %s", w.Code, w.Body.String())
 	}
@@ -74,7 +76,7 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 			if saidas[0].Texto == "" {
 				t.Fatal("resposta vazia")
 			}
-			if sess := listarSessoes(t, s.atende.Sessoes)[0]; sess.Condominio != "cond-x" || sess.AdministradoraID != "adm-x" {
+			if sess := listarSessoes(t, s.atende.Sessoes)[0]; sess.Condominio != "101" || sess.AdministradoraID != "adm-x" {
 				t.Fatalf("condomínio da conversa: %s/%s", sess.AdministradoraID, sess.Condominio)
 			}
 			return
@@ -114,7 +116,7 @@ func TestWebhookEventoDuplicadoNaoRepeteTurno(t *testing.T) {
 	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-duplicado","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-dup"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-dup","type":"text","content":"posso fazer barulho depois das 22h?"}}}`
 	entregar := func() {
 		w := httptest.NewRecorder()
-		s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=cond-x", strings.NewReader(corpo)))
+		s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=101", strings.NewReader(corpo)))
 		if w.Code != 202 {
 			t.Fatalf("status HTTP %d: %s", w.Code, w.Body.String())
 		}
@@ -379,14 +381,14 @@ func TestBotaoIdentidadeDevolveContratoDaConsole(t *testing.T) {
 	}
 }
 
-// mapeamentoTeste: a administradora adm-x, dona do condomínio cond-x (tenant-x, company 123).
+// mapeamentoTeste: a administradora adm-x, dona do condomínio 101 (tenant-x, company 123).
 func mapeamentoTeste(t *testing.T) *admin.EmMemoria {
 	t.Helper()
 	repo := admin.NovaEmMemoria()
 	if _, err := repo.SalvarAdministradora(t.Context(), admin.Administradora{ID: "adm-x", Nome: "X"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := repo.SalvarCondominio(t.Context(), admin.Condominio{ID: "cond-x", Nome: "X", Administradora: "adm-x", Account: "cond-001", CompanyID: "123", Tenant: "tenant-x"}); err != nil {
+	if _, err := repo.SalvarCondominio(t.Context(), admin.Condominio{ID: "101", Nome: "X", Administradora: "adm-x", Account: "cond-001", CompanyID: "123", Tenant: "tenant-x"}); err != nil {
 		t.Fatal(err)
 	}
 	return repo
@@ -404,7 +406,7 @@ func TestWebhookEmuladoRecusaCondominioDesconhecido(t *testing.T) {
 
 func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 	st := memoria.NovoFake()
-	c, err := escopo.NovoContato("adm-x", admin.Padrao, "5519981621916")
+	c, err := escopo.NovoContato("adm-x", nil, "5519981621916")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,14 +420,14 @@ func TestRotasDeMemoriaExigemAdministradora(t *testing.T) {
 		status      int
 		trecho      string
 	}{
-		{"sem administradora", escopo.Implantacao{}, "/api/memoria?phone=5519981621916", 400, "ADMINISTRADORA_OBRIGATORIA"},
+		{"sem administradora", escopo.Implantacao{}, "/api/memoria?phone=5519981621916", 400, "COMPANY_ID_OBRIGATORIO"},
 		{"administradora informada", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=adm-x", 200, "tem um cachorro"},
 		{"outra administradora nao ve", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=adm-y", 200, `"fatos":[]`},
 		{"fixa vale por padrao", escopo.Implantacao{AdministradoraFixa: "adm-x"}, "/api/memoria?phone=5519981621916", 200, "tem um cachorro"},
 		{"fora da implantacao", escopo.Implantacao{AdministradoraFixa: "adm-x"}, "/api/memoria?phone=5519981621916&administradora=adm-y", 403, "FORA_DA_IMPLANTACAO"},
-		{"administradora com formato invalido", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&administradora=..%2Fx", 400, "ADMINISTRADORA_INVALIDA"},
-		{"listagem sem administradora", escopo.Implantacao{}, "/api/memorias", 400, "ADMINISTRADORA_OBRIGATORIA"},
-		{"pedidos sem administradora", escopo.Implantacao{}, "/api/pedidos?phone=5519981621916", 400, "ADMINISTRADORA_OBRIGATORIA"},
+		{"company opaca e aceita", escopo.Implantacao{}, "/api/memoria?phone=5519981621916&company_id=..%2Fx", 200, `"fatos":[]`},
+		{"listagem sem administradora", escopo.Implantacao{}, "/api/memorias", 400, "COMPANY_ID_OBRIGATORIO"},
+		{"pedidos sem administradora", escopo.Implantacao{}, "/api/pedidos?phone=5519981621916", 400, "COMPANY_ID_OBRIGATORIO"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -463,7 +465,7 @@ func servidorComSessoes(t *testing.T, implantacao escopo.Implantacao) *servidor 
 	t.Helper()
 	st := atende.NovaSessaoEmMemoria()
 	for id, adm := range map[string]string{"s-a": "adm-a", "s-b": "adm-b"} {
-		sess := &atende.Sessao{ID: id, AdministradoraID: adm, Protocolo: "P-" + id, Destino: entrada.Destino{Conector: "atende-emulado"}, AtualizadaEm: time.Now()}
+		sess := &atende.Sessao{ID: id, CompanyID: adm, ChannelID: uuid.New(), AdministradoraID: adm, Protocolo: "P-" + id, Origem: entrada.Origem{Conector: "atende-emulado"}, Contato: entrada.Contato{Phone: "5511999999999"}, Destino: entrada.Destino{Conector: "atende-emulado"}, AtualizadaEm: time.Now()}
 		r, err := sess.Registro()
 		if err != nil {
 			t.Fatal(err)
@@ -491,19 +493,19 @@ func TestSessoesFicamNaImplantacao(t *testing.T) {
 	}{
 		{"lista da fixa", fixa, "GET", "/api/atende/sessoes", "", 200, `"id":"s-a"`},
 		{"lista de outra administradora", fixa, "GET", "/api/atende/sessoes?administradora=adm-b", "", 403, "FORA_DA_IMPLANTACAO"},
-		{"lista com administradora invalida", fixa, "GET", "/api/atende/sessoes?administradora=..%2Fx", "", 400, "ADMINISTRADORA_INVALIDA"},
-		{"lista sem fixa traz todas", escopo.Implantacao{}, "GET", "/api/atende/sessoes", "", 200, `"id":"s-b"`},
+		{"company opaca fora da implantacao", fixa, "GET", "/api/atende/sessoes?company_id=..%2Fx", "", 403, "FORA_DA_IMPLANTACAO"},
+		{"lista sem company e recusada", escopo.Implantacao{}, "GET", "/api/atende/sessoes", "", 400, "COMPANY_ID_OBRIGATORIO"},
 		{"lista filtrada sem fixa", escopo.Implantacao{}, "GET", "/api/atende/sessoes?administradora=adm-b", "", 200, `"id":"s-b"`},
 		{"le a propria", fixa, "GET", "/api/atende/sessao?id=s-a", "", 200, `"id":"s-a"`},
-		{"le alheia", fixa, "GET", "/api/atende/sessao?id=s-b", "", 403, "SEM_PERMISSAO"},
-		{"le alheia por protocolo", fixa, "GET", "/api/atende/sessao?protocolo=P-s-b", "", 403, "SEM_PERMISSAO"},
+		{"le alheia", fixa, "GET", "/api/atende/sessao?id=s-b", "", 404, "NAO_ENCONTRADO"},
+		{"le alheia por protocolo", fixa, "GET", "/api/atende/sessao?protocolo=P-s-b", "", 404, "NAO_ENCONTRADO"},
 		{"le de outra administradora pedida", escopo.Implantacao{}, "GET", "/api/atende/sessao?id=s-a&administradora=adm-b", "", 404, ""},
-		{"saidas de alheia", fixa, "GET", "/api/atende/saidas?id=s-b", "", 403, "SEM_PERMISSAO"},
+		{"saidas de alheia", fixa, "GET", "/api/atende/saidas?id=s-b", "", 404, "NAO_ENCONTRADO"},
 		{"assume a propria", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-a","acao":"assumir"}`, 200, `"ativo":true`},
-		{"assume alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"assumir"}`, 403, "SEM_PERMISSAO"},
-		{"devolve alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"devolver"}`, 403, "SEM_PERMISSAO"},
-		{"preenche pedido de alheia", fixa, "POST", "/api/pedidos/acao", `{"sessao_id":"s-b","acao":"preencher"}`, 403, "SEM_PERMISSAO"},
-		{"apaga alheia", fixa, "DELETE", "/api/atende/sessao?id=s-b", "", 403, "SEM_PERMISSAO"},
+		{"assume alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"assumir"}`, 404, "NAO_ENCONTRADO"},
+		{"devolve alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"devolver"}`, 404, "NAO_ENCONTRADO"},
+		{"preenche pedido de alheia", fixa, "POST", "/api/pedidos/acao", `{"sessao_id":"s-b","acao":"preencher"}`, 404, "NAO_ENCONTRADO"},
+		{"apaga alheia", fixa, "DELETE", "/api/atende/sessao?id=s-b", "", 404, "NAO_ENCONTRADO"},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -518,7 +520,7 @@ func TestSessoesFicamNaImplantacao(t *testing.T) {
 			if c.status >= 400 && strings.Contains(w.Body.String(), "s-b") {
 				t.Fatalf("resposta revela a sessão alheia: %s", w.Body.String())
 			}
-			if _, ok, err := s.atende.Sessoes.Get(t.Context(), "s-b"); err != nil || !ok {
+			if _, ok, err := s.atende.Sessoes.Get(atende.ComEscopoSessao(t.Context(), "adm-b", uuid.Nil), "s-b"); err != nil || !ok {
 				t.Fatalf("sessão alheia sumiu do store: ok=%v err=%v", ok, err)
 			}
 		})
