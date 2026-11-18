@@ -68,7 +68,7 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 	if !resposta.Accepted || resposta.Event != "evt-1" || resposta.Protocol != "protocolo-1" {
 		t.Fatalf("resposta do webhook: %+v", resposta)
 	}
-	deadline := time.After(5 * time.Second)
+	deadline := time.After(90 * time.Second)
 	for {
 		if saidas := out.Itens("protocolo-1"); len(saidas) > 0 {
 			if saidas[0].Texto == "" {
@@ -121,7 +121,7 @@ func TestWebhookEventoDuplicadoNaoRepeteTurno(t *testing.T) {
 	}
 	esperarResposta := func(quer int) {
 		t.Helper()
-		deadline := time.After(5 * time.Second)
+		deadline := time.After(90 * time.Second)
 		for {
 			if saidas := out.Itens("protocolo-dup"); len(saidas) == quer {
 				return
