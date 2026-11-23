@@ -18,15 +18,16 @@ describe('StudioLayout', () => {
     responderCom({ 'GET /api/eu': () => json(eu) });
   });
 
-  it('mostraStudioNoTopoESeisItensDeNavegacao', async () => {
+  it('mostraStudioNoTopoECincoItensDeNavegacao', async () => {
     renderComProvedores(<StudioLayout />);
 
     expect(screen.getByText('Studio')).toBeInTheDocument();
     await screen.findByRole('link', { name: 'Casos de uso' });
-    const rotulos = ['Concierge', 'Casos de uso', 'Recursos', 'Conteúdo', 'Avançado', 'Atendente'];
+    const rotulos = ['Concierge', 'Casos de uso', 'Recursos', 'Conteúdo', 'Avançado'];
     for (const rotulo of rotulos) {
       expect(screen.getByRole('link', { name: rotulo })).toBeInTheDocument();
     }
+    expect(screen.queryByRole('link', { name: 'Atendente' })).not.toBeInTheDocument();
   });
 
   it('escondeAdministradorasSemPermissao', async () => {
@@ -80,11 +81,6 @@ describe('StudioLayout', () => {
       '/condominios?company_id=adm-a',
     );
     expect(screen.getByText('Gestor · Administradora')).toBeInTheDocument();
-  });
-
-  it('apontaAtendenteParaOConsoleForaDoSpa', () => {
-    renderComProvedores(<StudioLayout />);
-    expect(screen.getByRole('link', { name: 'Atendente' })).toHaveAttribute('href', '/console');
   });
 
   it('iniciaRecolhidoQuandoHaPreferenciaGravada', () => {

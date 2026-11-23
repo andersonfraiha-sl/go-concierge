@@ -44,13 +44,6 @@ const ITENS_SPA = [
   },
 ] as const satisfies readonly ItemSpa[];
 
-// Fora do SPA: navegação completa, sem o basename das rotas.
-const ITEM_ATENDENTE = {
-  rotulo: 'Atendente',
-  destino: '/console',
-  icone: 'atendente',
-} satisfies ItemMenu;
-
 type Props = {
   recolhido: boolean;
   aoAlternar: () => void;
@@ -79,13 +72,6 @@ export function Sidebar(props: Props): ReactNode {
   return (
     <Box component="nav" aria-label="Menu principal" sx={estiloDaSidebar(recolhido)}>
       <ItensDoSpa recolhido={recolhido} />
-      <Box sx={{ my: 2, mx: 1, borderTop: 1, borderColor: 'border.subtle' }} />
-      <ItemDoMenu
-        item={ITEM_ATENDENTE}
-        recolhido={recolhido}
-        selecionado={false}
-        aoNavegar={{ component: 'a', href: ITEM_ATENDENTE.destino }}
-      />
       <BotaoDeRecolher recolhido={recolhido} aoAlternar={aoAlternar} />
     </Box>
   );
@@ -159,10 +145,10 @@ type ItemProps = {
   item: ItemMenu;
   recolhido: boolean;
   selecionado: boolean;
-  aoNavegar: { component: typeof NavLink; to: string } | { component: 'a'; href: string };
+  aoNavegar: { component: typeof NavLink; to: string };
 };
 
-const estiloDoItem = (recolhido: boolean, externo: boolean): SxProps<Theme> => ({
+const estiloDoItem = (recolhido: boolean): SxProps<Theme> => ({
   flex: 'none',
   height: SHELL.alturaDoItemDoMenu,
   minHeight: 0,
@@ -171,29 +157,21 @@ const estiloDoItem = (recolhido: boolean, externo: boolean): SxProps<Theme> => (
   justifyContent: recolhido ? 'center' : 'flex-start',
   borderRadius: RAIO.menu,
   fontSize: TIPOS.body1,
-  color: externo ? 'text.secondary' : 'text.strong',
+  color: 'text.strong',
 });
 
 function ItemDoMenu({ item, recolhido, selecionado, aoNavegar }: ItemProps): ReactNode {
-  const { rotulo, icone, destino } = item;
-  const externo = destino === ITEM_ATENDENTE.destino;
+  const { rotulo, icone } = item;
   return (
     <Tooltip title={recolhido ? rotulo : ''} placement="right">
       <ListItemButton
         {...aoNavegar}
         selected={selecionado}
         aria-label={rotulo}
-        sx={estiloDoItem(recolhido, externo)}
+        sx={estiloDoItem(recolhido)}
       >
         <IconeDeLinha nome={icone} />
         {!recolhido && rotulo}
-        {!recolhido && externo && (
-          <IconeDeLinha
-            nome="linkExterno"
-            tamanho={ICONES.minimo}
-            sx={{ ml: 'auto', color: 'text.faint' }}
-          />
-        )}
       </ListItemButton>
     </Tooltip>
   );
