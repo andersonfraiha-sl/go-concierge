@@ -1,0 +1,81 @@
+name: go-concierge
+
+services:
+  concierge:
+    build:
+      context: ../..
+      dockerfile: apps/concierge/Dockerfile
+    user: "${CONCIERGE_UID:-65532}:${CONCIERGE_GID:-65532}"
+    env_file:
+      - path: ../../.env
+        required: false
+      - path: ./.env
+        required: false
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/credenciais/google_service_account.json
+      MCP_URL: ${MCP_URL:-http://127.0.0.1:3337/mcp/gruvi/bff}
+      MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:-}
+      DEFAULT_ACCOUNT_ID: ${DEFAULT_ACCOUNT_ID:-cond-001}
+      ORQUESTRACAO_MODO: ${ORQUESTRACAO_MODO:-}
+      DATABASE_URL: postgres://concierge:concierge@postgres:5432/concierge_v2?sslmode=disable
+      AMBIENTE: ${AMBIENTE:-dev}
+      BOOTSTRAP_DEV_ATENDE: ${BOOTSTRAP_DEV_ATENDE:-true}
+      AUTH_MODE: ${AUTH_MODE:-dev}
+      AUTH_DEV_USUARIO: ${AUTH_DEV_USUARIO:-admin-superlogica}
+      CONSOLE_REPLY_URL: ${CONSOLE_REPLY_URL:-http://console:8092/emulador/atende/messages}
+    volumes:
+      - ../../okf:/app/okf
+      - type: bind
+        source: ${CONCIERGE_GOOGLE_CREDENTIALS_FILE:-../../.temp/gcp/google_service_account.json}
+        target: /app/credenciais/google_service_account.json
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${CONCIERGE_PORT:-8090}:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: concierge
+      POSTGRES_PASSWORD: concierge
+      POSTGRES_DB: concierge_v2
+    volumes:
+      - pgdata_v2:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U concierge -d concierge_v2"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - default
+    restart: unless-stopped
+
+  mcp:
+    build: ../../mcp
+    env_file:
+      - path: ../../mcp/.env
+        required: false
+    environment:
+      MCP_CATALOG_AGENT_MCP_HOST: 127.0.0.1
+      MCP_CATALOG_AGENT_MCP_PORT: "3337"
+    network_mode: "service:concierge"
+    depends_on:
+      - concierge
+    restart: unless-stopped
+
+volumes:
+  pgdata_v2:
+    name: ${CONCIERGE_DB_VOLUME:-go-concierge_pgdata_v2}
+
+networks:
+  default:
+    name: ${CONCIERGE_NETWORK:-go-concierge_default}

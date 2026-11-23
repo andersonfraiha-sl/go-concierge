@@ -1,5 +1,22 @@
 # Continuidade do Concierge v2
 
+## Separação das aplicações concluída — 23/11/2026
+
+- Base anterior registrada, a pedido do usuário, no commit `efbcc2f`, na branch `feat/refactor-identidade-canais-db`; workspace estava limpo. A separação fica registrada na branch `feat/separacao-aplicacoes`, criada a partir dessa base. Sem push.
+- Marco 1 concluído: Backdoor e Console com frontend/API próprios, Concierge com runtime e persistência atual. Código em `apps/{backdoor,console,concierge}`, preservando `cmd`, `internal` e `web`; domínio e `go.mod` continuam na raiz. Guia operacional: `SEPARACAO-APLICACOES.md`.
+- Backdoor em `http://127.0.0.1:8091/studio/`, Console em `http://127.0.0.1:8092/console` e Concierge/API/webhook em 8090. As aplicações visuais consomem HTTP do núcleo, sem dependências de banco/runtime. O núcleo valida entregas emuladas antes de o Console armazená-las.
+- Três imagens finais construídas e Composes raiz/individuais válidos. `build.sh` e documentação atualizados. `.env` local recebeu somente `CONCIERGE_GOOGLE_CREDENTIALS_FILE`, com o caminho absoluto da credencial já utilizada; demais configurações preservadas.
+- Testes focados de infraestrutura HTTP, APIs visuais, arquitetura, autorização e envio passaram. `TestConsoleSeparadoProcessaConversa` passou com processo real do Console e LLM simulado. Typecheck/build do Studio, seis arquivos/90 testes, Biome dos arquivos alterados, `go vet` dos pacotes afetados e golangci-lint v2.15.0 (zero achados) passaram.
+- Smoke das imagens visuais finais aprovado: páginas, assets, readiness e APIs de leitura responderam 200. Somente GET contra o núcleo já ativo; sem autenticação B2C, conversas LLM ou operações de negócio reais. Containers temporários removidos; IDs/inícios dos serviços preexistentes permaneceram iguais. Evidência: `/tmp/concierge-separacao-20261123/smoke-imagens.json`.
+- Uma execução anterior do pacote principal inteiro revelou duas famílias de falhas de fixtures: `TestSessoesFicamNaImplantacao` e `TestE2EGanchosRegrasDeExemplo`. Ambas foram reproduzidas na base `efbcc2f` (`falhas-base.log`), sem relação com a separação. Expectativas de páginas extraídas foram adaptadas; testes HTTP finais passaram. Não executar novamente o pacote inteiro por retomada de contexto.
+- Demais evidências em `/tmp/concierge-separacao-20261123/`: `build-docker-final.log`, `testes-http-encerramento.log`, `http-focado-final.log`, `studio-checks.log`, `studio-biome.log`, `vet-afetados.log` e `lint-afetados-final.log`. Não foram usados subagentes nem executadas as suítes globais Go/Studio nesta rodada.
+- Stack existente não reiniciada, banco e volumes não alterados; rede `go-concierge_default` e volume `go-concierge_pgdata_v2` preservados. O usuário pode aplicar com `docker compose up -d --build` e testar pelas novas portas.
+- Próximo marco, ainda sem implementação: API de dados consumida por todos, incluindo o próprio runtime. Confirmar com o usuário antes de iniciar futuras implementações; ele autorizou concluir esta rodada e reforçou economia de tokens, ausência de subagentes e testes proporcionais. Não repetir checks aprovados sem mudança relevante.
+
+## Histórico anterior à separação
+
+Os registros abaixo preservam os caminhos, comandos e limites das rodadas anteriores. Para estrutura, execução e pendências atuais, usar a seção acima e `SEPARACAO-APLICACOES.md`.
+
 Branch: `feat/refactor-identidade-canais-db`
 Base do refactor: `8ad19a2` (baseline v2). Implementação e validação de fechamento concluídas; consulte `git log` para os commits desta etapa. Sem push e sem substituir bancos ou volumes preexistentes.
 

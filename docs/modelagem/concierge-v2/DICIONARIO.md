@@ -17,7 +17,7 @@ Este documento é gerado a partir de [modelo.json](modelo.json) e descreve 24 ta
 
 As marcações **Backdoor hoje** e **Gestão** descrevem o alcance atual da interface e das operações administrativas; a persistência e o runtime usam o modelo v2. Canais e ativações são configurados por SQL/seed nesta etapa e consultados pelo Console. Veja a [matriz de gestão do backdoor](BACKDOOR.md), com limites e fontes. São anotações documentais, sem novas colunas no schema.
 
-Esse alcance pertence à operação interna da plataforma, por Professional Services e outros operadores autorizados. O futuro frontend do backdoor, incluindo console/emulador, será separado do backend e do plugin cliente na interface Nexus. Escopos de empresa/condomínio identificam os dados administrados; não definem a audiência da tela nem concedem ao plugin as capacidades internas. Leia as [fronteiras das aplicações](README.md#fronteiras-das-aplicações-e-públicos).
+Esse alcance pertence à operação interna da plataforma, por Professional Services e outros operadores autorizados. Backdoor e Console/emulador possuem aplicações próprias, separadas do núcleo e do plugin cliente na interface Nexus; veja [Separação das aplicações](SEPARACAO-APLICACOES.md). Escopos de empresa/condomínio identificam os dados administrados; não definem a audiência da tela nem concedem ao plugin as capacidades internas. Leia as [fronteiras das aplicações](README.md#fronteiras-das-aplicações-e-públicos).
 
 ## Índice
 

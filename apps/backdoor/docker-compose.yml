@@ -1,0 +1,24 @@
+name: go-concierge
+
+services:
+  backdoor:
+    build:
+      context: ../..
+      dockerfile: apps/backdoor/Dockerfile
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      CONCIERGE_URL: ${CONCIERGE_INTERNAL_URL:-http://concierge:8090}
+      BACKDOOR_URL: ${BACKDOOR_URL:-http://127.0.0.1:8091}
+      CONSOLE_URL: ${CONSOLE_URL:-http://127.0.0.1:8092}
+    ports:
+      - "127.0.0.1:${BACKDOOR_PORT:-8091}:8091"
+    networks:
+      - default
+    restart: unless-stopped
+
+networks:
+  default:
+    name: ${CONCIERGE_NETWORK:-go-concierge_default}
+    external: true

@@ -15,7 +15,7 @@ Como o go-concierge sobe na plataforma interna (IDP Nexus), no mesmo padrão do 
 
 | Caminho | O que é |
 |---|---|
-| `cmd/okf-admin` | `AUTH_MODE=proxy` e `ACESSO_ADMIN_INICIAL` (detalhes no README, tabela "Acesso e papéis") |
+| `apps/concierge/cmd/concierge` | `AUTH_MODE=proxy` e `ACESSO_ADMIN_INICIAL` (detalhes no README, tabela "Acesso e papéis") |
 | `.github/k8s/base/` | manifestos planos: app, ConfigMap, ExternalSecret, NetworkPolicy, Ingress e o proxy de autenticação |
 | `.github/workflows/` | `setup`, `deploy`, `rollback`, `deploy-branch` e `destroy`, com guarda `github.repository_owner == 'idp-nexusapps'` em todo job |
 | `.dockerignore` | `.github` e `docs` fora do contexto de build |
@@ -25,7 +25,7 @@ O `ci.yml` não mudou. Os manifestos ficam sem subpasta porque o `deploy.yml` co
 Diferenças em relação aos repositórios de referência:
 
 - O `workspaces-registry` tem um patch de overlay que aponta para um `Rule` do Oathkeeper central, com nome diferente do real, e por isso não pega nada fora de dev. Aqui o proxy é dedicado e não há `Rule`, então o patch saiu. O `report-manager` não tem patch por ambiente. As regras do proxy não fixam o host, então um host novo só exige patch no Ingress. O `deploy-branch.yml` faz esse patch para o preview.
-- Sem o passo de `pnpm-lock` e sem o build-arg do Sonatype: não há `package.json` na raiz e o `Dockerfile` não usa o argumento.
+- Sem o passo de `pnpm-lock` e sem o build-arg do Sonatype: não há `package.json` na raiz e `apps/concierge/Dockerfile` não usa o argumento. Backdoor e Console possuem Dockerfiles próprios e não fazem parte da imagem do núcleo.
 - Os workflows só oferecem o ambiente `dev`.
 
 ## Passo a passo de quem opera
