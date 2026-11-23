@@ -34,7 +34,7 @@ case "${1:-}" in
     docker compose up -d --wait postgres
     # o DATABASE_URL do ambiente ou do .env vence; sem nenhum, o Postgres do compose
     if [ -z "${DATABASE_URL:-}" ] && ! grep -qs '^DATABASE_URL=.' .env; then
-      export DATABASE_URL="postgres://concierge:concierge@127.0.0.1:${POSTGRES_PORT:-5432}/concierge?sslmode=disable"
+      export DATABASE_URL="postgres://concierge:concierge@127.0.0.1:${POSTGRES_PORT:-5432}/concierge_v2?sslmode=disable"
     fi
     eval "$GO" sh -c "'go vet ./... && mkdir -p bin && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -o bin/okf-admin.exe ./cmd/okf-admin'"
     exec ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open

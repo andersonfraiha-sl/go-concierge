@@ -127,6 +127,28 @@ var escopoSuperlogica = acesso.Escopo{Tipo: acesso.TipoSuperlogica}
 
 func alvoSuperlogica(*http.Request) (acesso.Escopo, error) { return escopoSuperlogica, nil }
 
+func (s *servidor) alvoAtendeConsole(r *http.Request) (acesso.Escopo, error) {
+	company := strings.TrimSpace(s.implantacao.AdministradoraFixa)
+	if company == "" {
+		return escopoSuperlogica, nil
+	}
+	requested, err := empresaDaConsulta(r)
+	if err != nil {
+		return acesso.Escopo{}, err
+	}
+	if requested != "" && requested != company {
+		return acesso.Escopo{}, erroDeAlvo{http.StatusForbidden, "FORA_DA_IMPLANTACAO", "administradora fora desta implantação"}
+	}
+	return escopoAdministradora(company), nil
+}
+
+func (s *servidor) alvoAtendeIdentidade(r *http.Request) (acesso.Escopo, error) {
+	if s.atende == nil || s.atende.Canais == nil {
+		return escopoSuperlogica, nil
+	}
+	return s.alvoAdministradora(r)
+}
+
 func escopoAdministradora(id string) acesso.Escopo {
 	return acesso.Escopo{Tipo: acesso.TipoAdministradora, ID: id}
 }

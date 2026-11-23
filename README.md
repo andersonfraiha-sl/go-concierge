@@ -193,6 +193,8 @@ docker compose up -d --wait postgres   # Postgres 18 em 127.0.0.1:5432
 
 Abre em `http://127.0.0.1:8090/studio/`. Sem `DATABASE_URL` no ambiente nem no `.env`, o `--run` usa o Postgres do compose. Migrations rodam no boot com `AMBIENTE` vazio ou `dev` (`-migrar=false` desliga).
 
+Para rodar a stack inteira pelo Compose (`docker compose up -d --build`), preencha `NEXUS_COMPANY_ID` com a empresa real e explícita antes do primeiro boot. O Compose usa o banco `concierge_v2` e o volume novo `pgdata_v2`; em dev, cadastra o canal Atende e semeia as ativações do catálogo uma vez. Também são exigidas as credenciais e identificações ATENDE indicadas em `.env.example`. O volume legado não é tocado. `docker compose down -v` pode ser usado manualmente para reiniciar o banco local do zero; o `up` não apaga dados.
+
 **Studio em dev** (hot reload, `/api` via proxy pra 8090):
 
 ```bash
@@ -208,7 +210,7 @@ corepack pnpm run dev            # http://localhost:5173/studio/
 
 ```bash
 # binário à mão
-DATABASE_URL='postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable' \
+DATABASE_URL='postgres://concierge:concierge@127.0.0.1:5432/concierge_v2?sslmode=disable' \
   ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
 
 # stack inteira: concierge (8090) + postgres + mcp na rede do concierge
@@ -389,13 +391,13 @@ O papel vale no escopo atribuído (Superlógica, administradora ou condomínio).
 
 | Env | Efeito |
 |---|---|
-| `AUTH_MODE=dev` | usuário vem de `X-Dev-Usuario` ou, sem ele, de `AUTH_DEV_USUARIO`. Boot recusa com `AMBIENTE` fora de vazio ou `dev` |
+| `AUTH_MODE=dev` | usuário vem de `X-Dev-Usuario` ou, sem ele, de `AUTH_DEV_USUARIO`. Boot garante somente `admin-superlogica` e sua atribuição global `admin_superlogica`; outros IDs do cabeçalho precisam já estar em `users` e `role_assignments`. Boot recusa com `AMBIENTE` fora de vazio ou `dev` |
 | `AUTH_MODE=proxy` | usuário é o e-mail de `X-Authenticated-User-Email`, injetado pelo proxy de identidade (Oathkeeper) depois de validar o JWT. O e-mail, sem espaços e em minúsculas, é o id em `usuarios`. Cabeçalho ausente, vazio, repetido ou que não seja um e-mail dá 401; e-mail sem cadastro também. `X-Dev-Usuario` é ignorado e os usuários semeados de dev seguem recusados. Aceito em qualquer `AMBIENTE`, mas só é seguro se nada chega ao serviço sem passar pelo proxy (NetworkPolicy; ver `docs/deploy/idp-nexus.md`) |
 | `ACESSO_ADMIN_INICIAL` | e-mail que o boot garante como `admin_superlogica` no escopo Superlógica, sem repetir se já existe. Vazio não cria nada; valor que não é e-mail derruba o boot. Serve ao primeiro login num ambiente novo |
 | `AUTH_MODE` vazio | API fechada, ainda não há login |
 | `ADMINISTRADORA_ID` | fixa a implantação numa administradora; vazio atende todas. Memória e pedidos pedem `administradora` na query (400 `ADMINISTRADORA_OBRIGATORIA`) |
 
-Usuários semeados, só válidos com `AUTH_MODE=dev`: `admin-superlogica`, `construtor-superlogica`, `gestor-exemplo` (`adm-exemplo`) e `gestor-avancado` (`adm-avancado`, com a concessão criada no boot de dev, nunca por migration). Outro usuário: `curl -H 'X-Dev-Usuario: <id>' ...`, ou o seletor "Ver como" no Studio.
+IDs reservados ao modo `AUTH_MODE=dev`: `admin-superlogica`, `construtor-superlogica`, `gestor-exemplo` (`adm-exemplo`) e `gestor-avancado` (`adm-avancado`, com a concessão criada no boot de dev, nunca por migration). Em banco v2, o boot cria apenas `admin-superlogica`; o cabeçalho `X-Dev-Usuario` e o seletor "Ver como" não cadastram outros usuários.
 
 ## Ganchos
 

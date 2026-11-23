@@ -30,7 +30,7 @@ import (
 
 func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("POST /webhook/atende", s.webhookAtende) // público: confere o HMAC
-	mux.Handle("POST /emulador/atende/webhook", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.webhookEmulado))
+	mux.Handle("POST /emulador/atende/webhook", s.protegida(acesso.StudioAvancado, s.alvoAtendeConsole, s.webhookEmulado))
 	mux.HandleFunc("GET /console", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := fs.ReadFile(s.web, "console.html")
 		if err != nil {
@@ -43,12 +43,10 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	})
 	// a caixa de saída emulada recebe do próprio servidor (o HTTPSender passa pelo usuário
 	// padrão do modo dev)
-	mux.Handle("POST /emulador/atende/messages", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.emulador.Handler))
+	mux.Handle("POST /emulador/atende/messages", s.protegida(acesso.StudioAvancado, s.alvoAtendeConsole, s.atendeMensagemEmulada))
 	// conversas: a administradora pedida ou, quando há conversa, a gravada nela
-	// configuração da implantação e consulta de identidade no Gruvi (company global, qualquer
-	// telefone): só a Superlógica, como o emulador
-	mux.Handle("GET /api/atende/config", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeConfig))
-	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeIdentidade))
+	mux.Handle("GET /api/atende/config", s.protegida(acesso.StudioAvancado, s.alvoAtendeConsole, s.atendeConfig))
+	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.StudioAvancado, s.alvoAtendeIdentidade, s.atendeIdentidade))
 	mux.Handle("GET /api/atende/sessoes", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeSessoes))
 	mux.Handle("GET /api/atende/sessao", s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSessao))
 	mux.Handle("GET /api/atende/saidas", s.saidasPorEscopo())
@@ -60,6 +58,46 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.Handle("GET /api/memoria", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriaLer))
 	mux.Handle("GET /api/memorias", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriasListar))
 	mux.Handle("DELETE /api/memoria", s.protegida(acesso.MemoriaEsquecer, s.alvoAdministradora, s.memoriaEsquecer))
+}
+
+func (s *servidor) atendeMensagemEmulada(w http.ResponseWriter, r *http.Request) {
+	company := strings.TrimSpace(s.implantacao.AdministradoraFixa)
+	if company == "" {
+		s.emulador.Handler(w, r)
+		return
+	}
+	var corpo struct {
+		Protocol  string `json:"protocol"`
+		SessionID string `json:"session_id"`
+		Message   string `json:"message"`
+	}
+	if err := espiarCorpo(r, &corpo); err != nil {
+		responderErroDeAlvo(w, r, err)
+		return
+	}
+	if corpo.Protocol == "" || strings.TrimSpace(corpo.Message) == "" {
+		s.emulador.Handler(w, r)
+		return
+	}
+	identificador := corpo.SessionID
+	if identificador == "" {
+		identificador = corpo.Protocol
+	}
+	ctx := atende.ComEscopoSessao(r.Context(), company, uuid.Nil)
+	sess, ok, err := s.atende.Sessao(ctx, identificador)
+	if errors.Is(err, atende.ErrEscopoSessao) || err == nil && (!ok || sess == nil) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"codigo": "NAO_ENCONTRADO", "error": "sessão não encontrada"})
+		return
+	}
+	if err != nil {
+		s.responderErroInterno(w, r, "validar sessão da resposta emulada", err)
+		return
+	}
+	if sess.CompanyID != company || sess.Origem.Conector != "atende-emulado" || sess.Protocolo != corpo.Protocol || (s.atende.Canais != nil && sess.ChannelID == uuid.Nil) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"codigo": "NAO_ENCONTRADO", "error": "sessão não encontrada"})
+		return
+	}
+	s.emulador.Handler(w, r)
 }
 
 // ---- escopo das rotas de memória e pedidos -----------------------------
@@ -341,6 +379,7 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, r *http.Request) {
 		"nexus_origem":            s.nexus,
 		"modelo_provedor":         s.provedor,
 		"telefone_b2c":            s.atende.TelefoneB2C,
+		"ambiente_dev":            s.authMode == "dev",
 	})
 }
 

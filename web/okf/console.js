@@ -42,17 +42,6 @@
     if (condo) url.searchParams.set('condo_id', condo);
     return url.pathname + url.search;
   };
-  async function carregarCondominios() {
-    try {
-      const r = await api('/api/atende/config');
-      const condos = r.canais || [];
-      const sel = $('#formContato').condominio;
-      sel.innerHTML = '<option value="">selecione um canal</option>' + condos.map((c) => `<option value="${esc(c.id)}" data-adm="${esc(c.company_id)}" data-condo="${esc(c.condo_id ?? '')}" data-tenant="${esc(c.tenant)}" data-endpoint="${esc(c.endpoint)}">${esc(c.nome || c.endpoint)} · ${esc(c.company_id)}${c.habilitado ? '' : ' · desligado'}</option>`).join('');
-      if (condos.length) sel.value = condos[0].id;
-      atualizarCanalSelecionado();
-    } catch (err) { toast(err.message, true); }
-  }
-
   function atualizarCanalSelecionado() {
     const option = $('#formContato').condominio.selectedOptions[0];
     if (option?.dataset.tenant) $('#formContato').tenant.value = option.dataset.tenant;
@@ -401,6 +390,7 @@
 
   async function identificar() {
     const phone = $('#formContato').phone.value.trim();
+    if (!estado.config?.gruvi?.configurado) return;
     $('#btnIdentificar').disabled = true;
     try {
       const r = await api('/api/atende/identidade?phone=' + encodeURIComponent(phone));
@@ -446,12 +436,35 @@
       const c = await api('/api/atende/config');
       estado.config = c;
       const contato = $('#formContato').phone;
-      if (!contato.value.trim() && c.telefone_b2c) contato.value = c.telefone_b2c;
+      if (!contato.value.trim() && c.ambiente_dev && !c.telefone_b2c) contato.value = '5511999990001';
+      else if (!contato.value.trim() && c.telefone_b2c) contato.value = c.telefone_b2c;
       const set = (id, ok, txt, title) => { const el = $(id); el.querySelector('b').textContent = txt; el.classList.toggle('is-live', ok); el.classList.toggle('is-dev', !ok); el.title = title || ''; };
       set('#chipModelo', c.modelo_provedor !== 'mock', c.modelo_provedor, 'LLM_MODE do .env');
       set('#chipGruvi', c.gruvi.configurado, c.gruvi.configurado ? 'company ' + c.gruvi.company_id : 'não configurado', c.gruvi.bff_url);
-      set('#chipNexus', !String(c.nexus_origem).startsWith('nenhuma'), String(c.nexus_origem).startsWith('http') ? 'ao vivo' : String(c.nexus_origem).startsWith('instant') ? 'instantâneo' : 'nenhum', c.nexus_origem);
-    } catch (err) { toast(err.message, true); }
+      const origemNexus = String(c.nexus_origem || '');
+      const nexusAoVivo = origemNexus.startsWith('http') || origemNexus.includes('+ http');
+      const nexusInstantaneo = origemNexus.includes('instantâneo nexus/');
+      set('#chipNexus', nexusAoVivo, nexusAoVivo ? 'ao vivo' : nexusInstantaneo ? 'instantâneo local' : 'nenhum', origemNexus);
+      const identificarAtivo = c.gruvi?.configurado === true;
+      const btnIdentificar = $('#btnIdentificar');
+      btnIdentificar.hidden = !identificarAtivo;
+      btnIdentificar.disabled = !identificarAtivo;
+      $('#identidade').innerHTML = identificarAtivo
+        ? '<i data-lucide="user-search"></i>Clique em “Identificar no Gruvi” ou envie uma mensagem.'
+        : '<i data-lucide="user-search"></i>Identificação externa desativada. O contato será tratado como público, sem consulta ao Gruvi nem unidades autenticadas.';
+      const condos = c.canais || [];
+      const sel = $('#formContato').condominio;
+      sel.innerHTML = '<option value="">selecione um canal</option>' + condos.map((canal) => `<option value="${esc(canal.id)}" data-adm="${esc(canal.company_id)}" data-condo="${esc(canal.condo_id ?? '')}" data-tenant="${esc(canal.tenant)}" data-endpoint="${esc(canal.endpoint)}">${esc(canal.nome || canal.endpoint)} · ${esc(canal.company_id)}${canal.habilitado ? '' : ' · desligado'}</option>`).join('');
+      if (condos.length) sel.value = condos[0].id;
+      atualizarCanalSelecionado();
+      icons();
+    } catch (err) {
+      $('#btnIdentificar').hidden = true;
+      $('#btnIdentificar').disabled = true;
+      $('#identidade').innerHTML = '<i data-lucide="user-search"></i>Configuração indisponível; nenhuma consulta externa de identidade foi feita.';
+      icons();
+      toast(err.message, true);
+    }
   }
 
   // ---- eventos de tela --------------------------------------------------------------
@@ -474,6 +487,6 @@
 
   icons();
   novaConversa();
-  const configCarregada = Promise.all([carregarConfig(), carregarCondominios()]);
+  const configCarregada = carregarConfig();
   configCarregada.then(() => { carregarSessoes(); carregarMemoria(); carregarPedidos(); });
 })();

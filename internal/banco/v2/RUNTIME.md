@@ -4,9 +4,17 @@ O backend usa a baseline v2 em um banco novo. Não execute a baseline no banco l
 
 `NEXUS_COMPANY_ID` restringe opcionalmente o processo a uma empresa Nexus. É uma identificação opaca e explícita, independente de `DEFAULT_ACCOUNT_ID`, `account_id` do invoke e `GRUVI_COMPANY_ID`. Não existe cadastro local de empresa ou condomínio.
 
+## Bootstrap local do Compose
+
+O Compose usa `DATABASE_URL` e `POSTGRES_DB` iguais a `concierge_v2`, com o volume nomeado `pgdata_v2`; o volume legado `pgdata` não é reutilizado nem alterado. No ambiente Compose, `BOOTSTRAP_DEV_ATENDE` vem de `.env` e assume `true` por padrão; defina `false` depois da carga para desabilitar novas tentativas. A seed só roda com `AMBIENTE` vazio ou `dev`. Ela acontece depois da migration e da projeção do catálogo, exige `NEXUS_COMPANY_ID` explícito e os valores `ATENDE_API_BASE_URL`, `ATENDE_API_KEY`, `ATENDE_API_SECRET`, `ATENDE_TENANT_ID` e `ATENDE_TENANT_TELEFONE`.
+
+Quando a empresa ainda não tem canais nem configurações de casos, a seed cadastra um canal `Atende` com `condo_id = NULL` e ativa os casos que já estão em `use_cases`, com `roles` vazio. Canais adicionais da mesma empresa não reativam casos ausentes. A empresa é usada literalmente; não é deduzida de Gruvi, conta Nexus ou condomínio ERP. Os campos de integração `gruvi_company_id` e `nexus_account_id` recebem somente seus valores explícitos (`GRUVI_COMPANY_ID` e `DEFAULT_ACCOUNT_ID`); nenhum condomínio é inferido. Chaves e segredo de webhook ficam apenas em `channels`, sem logs. IDs determinísticos e inserções transacionais tornam o primeiro cadastro repetível sem sobrescrever estado já existente. Reinícios não recriam ativações removidas nem alteram credenciais, disponibilidade, roles ou overrides gerenciados por SQL.
+
+O bootstrap não roda fora de dev. Para começar de um banco local v2 vazio depois da primeira inicialização, `docker compose down -v` remove os volumes deste projeto; o próximo `docker compose up -d --build` cria novamente `pgdata_v2`. Esse reset é opcional e nunca acontece implicitamente no `up`.
+
 ## Preparação por SQL
 
-Depois de aplicar a baseline ao banco novo e importar o catálogo, configure cada canal e caso empresarial por SQL. Não foram acrescentadas APIs ou telas de cadastro de canais/disponibilidade.
+Sem o bootstrap local do Compose, configure cada canal e caso empresarial por SQL depois de aplicar a baseline e importar o catálogo. Não foram acrescentadas APIs ou telas de cadastro de canais/disponibilidade.
 
 ```sql
 BEGIN;

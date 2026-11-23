@@ -20,6 +20,7 @@ import (
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
+	"go-concierge/internal/canais"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/harness"
@@ -88,6 +89,33 @@ type ambienteRotas struct {
 	repo     *admin.EmMemoria
 	sessaoA  string // conversa resolvida em adm-a
 	sessaoA2 string // outra conversa de adm-a (a que a rota de reiniciar apaga)
+}
+
+type canaisConfigFake struct {
+	consultadas      []string
+	porIDConsultadas []string
+	porID            []uuid.UUID
+	resolverCalls    int
+}
+
+func (f *canaisConfigFake) Resolver(context.Context, canais.Identidade) (canais.Canal, error) {
+	f.resolverCalls++
+	return canais.Canal{}, canais.ErrDesconhecido
+}
+
+func (f *canaisConfigFake) PorID(_ context.Context, company string, id uuid.UUID) (canais.Canal, error) {
+	f.porIDConsultadas = append(f.porIDConsultadas, company)
+	f.porID = append(f.porID, id)
+	return canais.Canal{CompanyID: company}, nil
+}
+
+func (f *canaisConfigFake) Casos(context.Context, canais.Canal) ([]canais.Caso, error) {
+	return nil, nil
+}
+
+func (f *canaisConfigFake) ListarMetadados(_ context.Context, company string) ([]canais.Resumo, error) {
+	f.consultadas = append(f.consultadas, company)
+	return []canais.Resumo{{CompanyID: company, Nome: "Canal " + company}}, nil
 }
 
 // novoAmbienteRotas monta o servidor inteiro sobre uma cópia do catálogo: as escritas dos
@@ -264,6 +292,119 @@ func TestRotasExigemPermissao(t *testing.T) {
 				t.Fatalf("%s com permissão: status %d, quero %d: %s", c.com, w.Code, c.quer, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestAtendeConfigNoEscopoDaImplantacaoFixa(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+
+	w := amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/config", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("config da empresa fixa: status %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Canais []canais.Resumo `json:"canais"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Canais) != 1 || body.Canais[0].CompanyID != "adm-a" || len(canaisDB.consultadas) != 1 || canaisDB.consultadas[0] != "adm-a" {
+		t.Fatalf("config retornou canais fora da implantação: %+v, consultas %v", body.Canais, canaisDB.consultadas)
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/config?company_id=adm-b", "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("config de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.consultadas) != 1 {
+		t.Fatalf("empresa externa alcançou o repositório de canais: %v", canaisDB.consultadas)
+	}
+}
+
+func TestAtendeMensagemEmuladaNoEscopoDaImplantacaoFixa(t *testing.T) {
+	const company = "admin112698"
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = company
+	acessos := amb.s.acessos.(acessosFake)
+	acessos.atribuicoes["construtor-fixo"] = naAdministradora("construtor_superlogica", company)
+	acessos.atribuicoes["operador-fixo"] = naAdministradora("operador_administradora", company)
+	amb.s.acessos = acessos
+
+	sessaoFixa := sessaoEm(t, amb.s.atende.Sessoes, "protocolo-fixo", company)
+	sessaoExterna := sessaoEm(t, amb.s.atende.Sessoes, "protocolo-externo", "adm-b")
+	body := func(protocolo, sessao string) string {
+		return `{"protocol":"` + protocolo + `","session_id":"` + sessao + `","message":"resposta"}`
+	}
+
+	w := amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusOK || len(amb.s.emulador.Recebidas(sessaoFixa)) != 1 {
+		t.Fatalf("resposta da empresa fixa: status %d, recebidas %v: %s", w.Code, amb.s.emulador.Recebidas(sessaoFixa), w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages?company_id=adm-b", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("empresa externa na consulta: status %d: %s", w.Code, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-externo", sessaoExterna))
+	if w.Code != http.StatusNotFound || len(amb.s.emulador.Recebidas(sessaoExterna)) != 0 {
+		t.Fatalf("sessão de outra empresa alcançou o emulador: status %d, recebidas %v: %s", w.Code, amb.s.emulador.Recebidas(sessaoExterna), w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-externo", sessaoFixa))
+	if w.Code != http.StatusNotFound || len(amb.s.emulador.Recebidas(sessaoFixa)) != 1 {
+		t.Fatalf("protocolo divergente da sessão foi aceito: status %d, recebidas %v: %s", w.Code, amb.s.emulador.Recebidas(sessaoFixa), w.Body.String())
+	}
+
+	w = amb.pedir(t, "operador-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusForbidden || len(amb.s.emulador.Recebidas(sessaoFixa)) != 1 {
+		t.Fatalf("usuário sem studio.avancado foi aceito: status %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAtendeWebhookEmuladoNoEscopoDaImplantacaoFixa(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+	canal := uuid.NewString()
+	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-escopo","tenant":"tenant-a","data":{"protocol":{"number":"protocolo-escopo"},"contact":{"phone":"5511999990001"},"channel":{"type":"whatsapp","displayNumber":"551940402710"},"message":{"id":"msg-escopo","type":"text","content":"FAQ"}}}`
+	url := "/emulador/atende/webhook?company_id=adm-a&channel_id=" + canal
+	w := amb.pedir(t, "construtor-a", http.MethodPost, url, corpo)
+	if w.Code != http.StatusBadRequest || len(canaisDB.porIDConsultadas) != 1 || canaisDB.porIDConsultadas[0] != "adm-a" || len(canaisDB.porID) != 1 || canaisDB.porID[0].String() != canal {
+		t.Fatalf("webhook da empresa fixa não validou o canal por empresa e ID: status %d, empresas %v, canais %v: %s", w.Code, canaisDB.porIDConsultadas, canaisDB.porID, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodPost, "/emulador/atende/webhook?company_id=adm-b&channel_id="+canal, corpo)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("webhook de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.porIDConsultadas) != 1 {
+		t.Fatalf("webhook de empresa externa alcançou o repositório de canais: %v", canaisDB.porIDConsultadas)
+	}
+}
+
+func TestAtendeIdentidadeV2NoEscopoDoCanal(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+	canal := uuid.NewString()
+	url := "/api/atende/identidade?phone=5511999990001&company_id=adm-a&channel_id=" + canal
+	w := amb.pedir(t, "construtor-a", http.MethodGet, url, "")
+	if w.Code != http.StatusOK || len(canaisDB.porIDConsultadas) != 1 || canaisDB.porIDConsultadas[0] != "adm-a" {
+		t.Fatalf("identidade da empresa fixa: status %d, consultas %v: %s", w.Code, canaisDB.porIDConsultadas, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/identidade?phone=5511999990001&company_id=adm-b&channel_id="+canal, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("identidade de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.porIDConsultadas) != 1 {
+		t.Fatalf("identidade de empresa externa alcançou o repositório de canais: %v", canaisDB.porIDConsultadas)
 	}
 }
 

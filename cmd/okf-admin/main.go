@@ -163,9 +163,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := garantirAdminDev(context.Background(), cfg.Ambiente, cfg.AuthMode, acesso.NovoPostgres(db.Ent).Atribuir); err != nil {
+		log.Fatal(err)
+	}
 
 	cat, err := abrirCatalogo(*root, db)
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := semearBootstrapDevAtende(context.Background(), cfg.Ambiente, strings.EqualFold(strings.TrimSpace(os.Getenv("BOOTSTRAP_DEV_ATENDE")), "true"), db, configBootstrapDev{
+		CompanyID: os.Getenv("NEXUS_COMPANY_ID"), Tenant: os.Getenv("ATENDE_TENANT_ID"),
+		Telefone: os.Getenv("ATENDE_TENANT_TELEFONE"), Agente: os.Getenv("ATENDE_AGENTE"),
+		APIBaseURL: os.Getenv("ATENDE_API_BASE_URL"), APIKey: os.Getenv("ATENDE_API_KEY"),
+		WebhookSecret: os.Getenv("ATENDE_API_SECRET"), GruviCompany: os.Getenv("GRUVI_COMPANY_ID"),
+		NexusAccount: os.Getenv("DEFAULT_ACCOUNT_ID"),
+	}); err != nil {
 		log.Fatal(err)
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
@@ -417,7 +429,7 @@ func flagInformada(nome string) bool {
 }
 
 const comoSubirPostgres = "suba o Postgres com ./build.sh --run, ou com docker compose up -d postgres e " +
-	"DATABASE_URL=postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable"
+	"DATABASE_URL=postgres://concierge:concierge@127.0.0.1:5432/concierge_v2?sslmode=disable"
 
 func abrirBanco(url string, migrar bool) (banco.Banco, error) {
 	if url == "" {
