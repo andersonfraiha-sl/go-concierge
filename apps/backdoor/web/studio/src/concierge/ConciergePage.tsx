@@ -1,4 +1,4 @@
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useCopiloto } from '@/copiloto/CopilotoProvider';
@@ -6,7 +6,7 @@ import { useContextoDaTela } from '@/copiloto/useContextoDaTela';
 import { RegistroDeSalvamento } from '@/shared/autosave/registroDeSalvamento';
 import { formatarHora } from '@/shared/autosave/SaveIndicator';
 import { useSkills } from '@/skills/contratos';
-import { CONCIERGE, PESOS, RAIO, SHELL, TIPOS } from '@/theme/tokens';
+import { CONCIERGE, RAIO, SHELL, TIPOS } from '@/theme/tokens';
 import { BaseDeConhecimentoCard } from './BaseDeConhecimentoCard';
 import { BoasVindasAba, TransbordoAba } from './BoasVindasAba';
 import { IdentidadeCard } from './IdentidadeCard';
@@ -54,7 +54,6 @@ function Cabecalho({ salvoEm }: { salvoEm: Date | null }): ReactNode {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         {pendentes > 0 && <IndicadorDePendencia qtd={pendentes} />}
         {salvoEm && <SalvoAs em={salvoEm} />}
-        <TestarNoConsole />
       </Box>
     </Box>
   );
@@ -110,31 +109,6 @@ function SalvoAs({ em }: { em: Date }): ReactNode {
       />
       Salvo às {formatarHora(em)}
     </Box>
-  );
-}
-
-// O Console é a tela legada fora do SPA: navegação completa, sem o basename.
-function TestarNoConsole(): ReactNode {
-  return (
-    <Button
-      component="a"
-      href="/console"
-      sx={{
-        flexShrink: 0,
-        height: SHELL.alturaDoBotaoDoDetalhe,
-        px: `${SHELL.paddingDoBotaoDeTeste}px`,
-        border: 1,
-        borderColor: 'border.default',
-        borderRadius: RAIO.chip,
-        bgcolor: 'background.paper',
-        color: 'text.strong',
-        fontSize: TIPOS.body2,
-        fontWeight: PESOS.medio,
-        lineHeight: 'normal',
-      }}
-    >
-      Testar no Console
-    </Button>
   );
 }
 

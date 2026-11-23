@@ -183,13 +183,10 @@ describe('ConciergePage', () => {
     expect(await screen.findByText('concierge')).toBeInTheDocument();
   });
 
-  it('showsTestInConsoleLink', async () => {
+  it('doesNotShowTestLinkToConsole', async () => {
     responderCom(rotas(construtor));
     renderComProvedores(<ConciergePage />);
     await personaCom('Você é gentil.');
-    expect(screen.getByRole('link', { name: 'Testar no Console' })).toHaveAttribute(
-      'href',
-      '/console',
-    );
+    expect(screen.queryByRole('link', { name: 'Testar no Console' })).not.toBeInTheDocument();
   });
 });

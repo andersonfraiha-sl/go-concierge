@@ -169,7 +169,6 @@ function CabecalhoDaSkill({ nome, ...props }: PropsDoCabecalhoDaSkill): ReactNod
         )
       }
       subtitulo={resumo && `Skills · ${categoria}`}
-      testarNoConsole
       {...props}
     />
   );

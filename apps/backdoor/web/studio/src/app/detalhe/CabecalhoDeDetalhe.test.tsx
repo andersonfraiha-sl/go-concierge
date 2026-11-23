@@ -21,7 +21,6 @@ function Tela() {
         voltar={{ para: '/skills', rotulo: 'Voltar para Skills' }}
         titulo="Agendar mudança"
         subtitulo="Skills · registra no sistema"
-        testarNoConsole
       />
       <p>conteúdo da tela</p>
     </>
@@ -41,29 +40,26 @@ describe('CabecalhoDeDetalhe no LayoutDeDetalhe', () => {
       'href',
       '/skills',
     );
-    expect(within(cabecalho).getByRole('link', { name: 'Testar no Console' })).toHaveAttribute(
-      'href',
-      '/console',
-    );
+    expect(
+      within(cabecalho).queryByRole('link', { name: 'Testar no Console' }),
+    ).not.toBeInTheDocument();
     expect(within(cabecalho).getByRole('button', { name: 'Copiloto' })).toBeInTheDocument();
     expect(within(screen.getByRole('main')).getByText('conteúdo da tela')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Menu principal' })).toBeInTheDocument();
     expect(screen.queryByText(/Salvo às/)).not.toBeInTheDocument();
   });
 
-  it('showsReadOnlyBadgeInsteadOfConsoleForViewers', async () => {
+  it('showsReadOnlyBadgeForViewers', async () => {
     responderCom({ 'GET /api/eu': () => json(eu) });
     renderComProvedores(
       <CabecalhoDeDetalhe
         voltar={{ para: '/skills', rotulo: 'Voltar para Skills' }}
         titulo="Agendar mudança"
-        testarNoConsole
         somenteLeitura
       />,
     );
 
     const cabecalho = await screen.findByRole('banner');
     expect(within(cabecalho).getByText('Só leitura')).toBeInTheDocument();
-    expect(within(cabecalho).queryByRole('link', { name: 'Testar no Console' })).toBeNull();
   });
 });

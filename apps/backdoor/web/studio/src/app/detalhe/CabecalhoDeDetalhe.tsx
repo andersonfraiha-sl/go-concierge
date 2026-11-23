@@ -1,15 +1,6 @@
 import type { SvgIconComponent } from '@mui/icons-material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import {
-  Box,
-  Button,
-  IconButton,
-  type SxProps,
-  Tab,
-  Tabs,
-  type Theme,
-  Typography,
-} from '@mui/material';
+import { Box, IconButton, type SxProps, Tab, Tabs, type Theme, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router';
@@ -38,9 +29,6 @@ export type PropsDoCabecalho<Id extends string> = {
   subtitulo?: ReactNode;
   /** Itens extras à direita, antes do "Salvo às" (ex.: o aviso do Avançado). */
   acoes?: ReactNode;
-  /** Mostra "Testar no Console", link para o Console legado. */
-  testarNoConsole?: boolean;
-  /** Quem não pode editar vê o selo "Só leitura" no lugar de "Testar no Console". */
   somenteLeitura?: boolean;
   /** Abas em largura total logo abaixo do cabeçalho. */
   abas?: AbasDoDetalhe<Id>;
@@ -84,7 +72,7 @@ function Cabecalho<Id extends string>({
         <TituloESubtitulo titulo={props.titulo} subtitulo={props.subtitulo} />
         {props.acoes}
         {salvoEm && <SalvoAs em={salvoEm} />}
-        {props.somenteLeitura ? <SeloSoLeitura /> : props.testarNoConsole && <TestarNoConsole />}
+        {props.somenteLeitura && <SeloSoLeitura />}
         <BotaoDoCopiloto variante="detalhe" />
       </Box>
       {props.abas && <AbasEmFaixa {...props.abas} />}
@@ -217,31 +205,6 @@ function SeloSoLeitura(): ReactNode {
       <LockOutlinedIcon sx={{ fontSize: ICONES.minimo }} aria-hidden />
       Só leitura
     </Box>
-  );
-}
-
-// O Console é a tela legada fora do SPA: navegação completa, sem o basename.
-function TestarNoConsole(): ReactNode {
-  return (
-    <Button
-      component="a"
-      href="/console"
-      sx={{
-        flexShrink: 0,
-        height: SHELL.alturaDoBotaoDoDetalhe,
-        px: `${SHELL.paddingDoBotaoDeTeste}px`,
-        border: 1,
-        borderColor: 'border.default',
-        borderRadius: RAIO.chip,
-        bgcolor: 'background.paper',
-        color: 'text.strong',
-        fontSize: TIPOS.body2,
-        fontWeight: PESOS.medio,
-        lineHeight: 'normal',
-      }}
-    >
-      Testar no Console
-    </Button>
   );
 }
 
