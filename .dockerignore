@@ -9,8 +9,11 @@ okf-admin.log
 okf/var
 okf/**/.rag
 okf/**/__pycache__
-web/studio/node_modules
-web/studio/dist
+apps/backdoor/web/studio/node_modules
+apps/backdoor/web/studio/dist
 .pnpm-store
 .github
 docs
+
+**/.env
+**/node_modules

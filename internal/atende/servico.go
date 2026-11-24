@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"log/slog"
 	"net/http"
@@ -186,6 +187,14 @@ func (h *HTTPSender) Enviar(ctx context.Context, destino entrada.Destino, texto 
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	query := req.URL.Query()
+	if destino.CompanyID != "" {
+		query.Set("company_id", destino.CompanyID)
+	}
+	if destino.ChannelID != uuid.Nil {
+		query.Set("channel_id", destino.ChannelID.String())
+	}
+	req.URL.RawQuery = query.Encode()
 	if h.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+h.Token)
 	}

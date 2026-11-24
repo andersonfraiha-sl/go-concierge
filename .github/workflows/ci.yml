@@ -44,12 +44,12 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: web/studio
+        working-directory: apps/backdoor/web/studio
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version-file: web/studio/.nvmrc
+          node-version-file: apps/backdoor/web/studio/.nvmrc
       - name: corepack
         run: npm install -g corepack@latest && corepack enable
       - id: pnpm-store
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/cache@v6.1.0
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-${{ runner.os }}-${{ hashFiles('web/studio/pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/backdoor/web/studio/pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
         env:

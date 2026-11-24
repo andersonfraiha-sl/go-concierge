@@ -12,18 +12,18 @@ mcp/.env
 mcp/node_modules/
 mcp/**/session-*.json
 mcp/**/.session-*.json
-web/studio/node_modules/
-web/studio/dist/*
-!web/studio/dist/.gitkeep
-web/studio/*.tsbuildinfo
+apps/backdoor/web/studio/node_modules/
+apps/backdoor/web/studio/dist/*
+!apps/backdoor/web/studio/dist/.gitkeep
+apps/backdoor/web/studio/*.tsbuildinfo
 # content-addressable store do pnpm quando ./build.sh roda em contêiner (store e install
-# ficam no mesmo filesystem do bind mount, por isso cai na raiz do repo, não em web/studio/).
+# ficam no mesmo filesystem do bind mount, por isso cai na raiz do repo, não em apps/backdoor/web/studio/).
 .pnpm-store/
 *.log
 *.test
 *.out
 coverage/
-web/studio/coverage/
+apps/backdoor/web/studio/coverage/
 .vscode/
 .idea/
 .DS_Store
@@ -32,7 +32,9 @@ Thumbs.db
 /studio/
 go.work
 go.work.sum
-web/studio/e2e-results/
-web/studio/playwright-report/
-web/studio/stryker-report/
-web/studio/.stryker-tmp/
+apps/backdoor/web/studio/e2e-results/
+apps/backdoor/web/studio/playwright-report/
+apps/backdoor/web/studio/stryker-report/
+apps/backdoor/web/studio/.stryker-tmp/
+
+apps/*/.env

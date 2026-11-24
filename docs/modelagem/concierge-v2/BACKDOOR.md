@@ -8,9 +8,9 @@ O backdoor atual permite **editar o conteúdo e o fluxo dos casos de uso**, conf
 
 ## Público e separação futura do frontend
 
-O backdoor será um frontend próprio (`concierge-backdor-front`), voltado à operação da plataforma por Professional Services e outros usuários autorizados. Studio, console e emulador integram essa jornada interna. O `concierge-plugin`, separado e acessado na interface Nexus, concentra a gestão do recurso pela empresa cliente: canais e disponibilidade de casos. Ambos consomem as APIs do `concierge-back`, que mantém a persistência e executa o runtime e as integrações.
+O Backdoor (`apps/backdoor`) é uma aplicação própria, com frontend e API, voltada à operação da plataforma por Professional Services e outros usuários autorizados. O Studio pertence ao Backdoor; Console e emulador ficam em outra aplicação, `apps/console`, para a jornada interna de atendimento e testes. O `concierge-plugin`, separado e acessado na interface Nexus, concentra a gestão do recurso pela empresa cliente: canais e disponibilidade de casos. As interfaces consomem as APIs do `concierge-back`, que mantém a persistência e executa o runtime e as integrações.
 
-O backend atual já usa o banco v2. A separação da aplicação do backdoor e a revisão de sua organização ficam para uma etapa futura. Preservar capacidades não obriga a manter telas cujo cadastro ou vínculo deixou de existir. A matriz abaixo descreve o alcance atual da interface, não exige conservar sua navegação.
+O backend atual já usa o banco v2. A separação das aplicações está descrita em [Separação das aplicações](SEPARACAO-APLICACOES.md); uma revisão mais ampla da experiência fica para uma etapa futura. Preservar capacidades não obriga a manter telas cujo cadastro ou vínculo deixou de existir. A matriz abaixo descreve o alcance atual da interface, não exige conservar sua navegação.
 
 Uma tela interna pode trabalhar no contexto de uma empresa ou condomínio. Isso identifica o alvo da operação; não transforma o operador em cliente daquela empresa nem define que a mesma tela será oferecida no plugin. A organização atual da interface e seus perfis legados serão revistos na separação, sem serem tomados como requisito da nova jornada.
 

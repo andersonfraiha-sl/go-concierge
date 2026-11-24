@@ -1,6 +1,6 @@
 # go-concierge Constitution
 
-**Version**: 1.0 | **Created**: 2026-11-03 | **Last Amended**: 2026-11-03
+**Version**: 1.1 | **Created**: 2026-11-03 | **Last Amended**: 2026-11-23
 
 ## Core Principles
 
@@ -79,7 +79,7 @@ Todo erro é tratado ou propagado com contexto; toda chamada externa tem timeout
 
 ## Operational Boundaries
 
-- **Max services**: 3 (concierge Go, Postgres, servidor MCP)
+- **Serviços deste marco**: três aplicações Go (Concierge, Backdoor e Console), PostgreSQL e servidor MCP. Separação aprovada pelo usuário em 23/11/2026; a futura API de dados pertence ao próximo marco.
 - **Latency budget**: a definir (turno síncrono do ATENDE)
 - **Uptime SLA**: a definir
 - **Data residency**: a confirmar (LGPD)
@@ -91,3 +91,5 @@ Todo erro é tratado ou propagado com contexto; toda chamada externa tem timeout
 | 2026-11-03 | Initial constitution | Início da reestruturação (fundação, memória, Studio) | Felipe |
 | 2026-11-03 | Postgres 18, sem SQLite; regra de versões mais recentes | Pedido do Felipe | Felipe |
 | 2026-11-03 | ORM (ent) como padrão, sqlc nas exceções de desempenho | Pedido do Felipe: a ORM resolve a maioria dos casos | Felipe |
+
+| 2026-11-23 | Separar Backdoor e Console do núcleo em aplicações com build e execução próprios; manter persistência no Concierge neste marco | Separação aprovada em conversa | Usuário |

@@ -6,9 +6,9 @@
 
 [![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Postgres](https://img.shields.io/badge/Postgres-18-4169E1?logo=postgresql&logoColor=white)](docker-compose.yml)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](web/studio/package.json)
-[![pnpm](https://img.shields.io/badge/pnpm-12.16.1-F69220?logo=pnpm&logoColor=white)](web/studio/package.json)
-[![Node](https://img.shields.io/badge/Node-26.13-339933?logo=node.js&logoColor=white)](web/studio/.nvmrc)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](apps/backdoor/web/studio/package.json)
+[![pnpm](https://img.shields.io/badge/pnpm-12.16.1-F69220?logo=pnpm&logoColor=white)](apps/backdoor/web/studio/package.json)
+[![Node](https://img.shields.io/badge/Node-26.13-339933?logo=node.js&logoColor=white)](apps/backdoor/web/studio/.nvmrc)
 [![CI](https://github.com/andersonfraiha-sl/go-concierge/actions/workflows/ci.yml/badge.svg)](https://github.com/andersonfraiha-sl/go-concierge/actions/workflows/ci.yml)
 
 **0 idas ao banco antes da resposta (contato quente)** &bull; **0,13 ms de ganchos por turno** &bull; **6 pontos de gancho** &bull; **601 testes Go + 417 Vitest**
@@ -22,7 +22,7 @@
 - Webhook do ATENDE entra, o turno roda em memória, a resposta sai, e só depois sessão e auditoria vão ao Postgres.
 - Regra de segurança é gancho em Go, não frase no prompt. CPF e telefone saem mascarados antes de qualquer modelo ou log.
 - Studio (React) edita skills, condomínios e regras, com RBAC por papel e escopo.
-- Rodar: `cp .env.example .env && ./build.sh --run`, abre em `http://127.0.0.1:8090/studio/`.
+- Rodar: `cp .env.example .env && ./build.sh --run`, abre em `http://127.0.0.1:8091/studio/`.
 
 ## Sumário
 
@@ -51,9 +51,9 @@
 flowchart TB
     Morador(["Morador<br/>WhatsApp"]):::entry
     ATENDE["ATENDE<br/>protocolo e canal"]:::entry
-    Studio(["Studio<br/>React 19 · web/studio"]):::entry
+    Studio(["Studio<br/>React 19 · apps/backdoor/web/studio"]):::entry
 
-    subgraph GC ["go-concierge · cmd/okf-admin"]
+    subgraph GC ["Concierge · núcleo e APIs de domínio"]
         direction TB
         subgraph Borda ["Borda HTTP"]
             Webhook["POST /webhook/atende<br/>HMAC X-Atende-Signature"]:::entry
@@ -183,24 +183,25 @@ Pra escalar: invalidação entre réplicas (LISTEN/NOTIFY ou versão com prazo c
 
 ## Rodar local
 
+O monorepo possui três aplicações: **Backdoor** em `http://127.0.0.1:8091/studio/`, **Console** em `http://127.0.0.1:8092/console` e **Concierge** em `http://127.0.0.1:8090`. Cada uma tem Dockerfile e Compose próprios. [Responsabilidades e execução independente](docs/modelagem/concierge-v2/SEPARACAO-APLICACOES.md).
+
 Pré-requisitos: Docker e Git Bash. Go e Node rodam em contêiner (`golang:1.27-trixie`, `node:26.13-trixie-slim`).
 
 ```bash
 cp .env.example .env                   # AUTH_MODE=dev e DATABASE_URL já vêm prontos
-docker compose up -d --wait postgres   # Postgres 18 em 127.0.0.1:5432
-./build.sh --run                       # Studio compilado + okf-admin.exe em 127.0.0.1:8090
+./build.sh --run                       # Concierge 8090, Backdoor 8091 e Console 8092
 ```
 
-Abre em `http://127.0.0.1:8090/studio/`. Sem `DATABASE_URL` no ambiente nem no `.env`, o `--run` usa o Postgres do compose. Migrations rodam no boot com `AMBIENTE` vazio ou `dev` (`-migrar=false` desliga).
+Abre em `http://127.0.0.1:8091/studio/`. O `--run` constrói e inicia as três aplicações e a infraestrutura pelo Compose. Migrations rodam no boot com `AMBIENTE` vazio ou `dev` (`-migrar=false` desliga).
 
 Para rodar a stack inteira pelo Compose (`docker compose up -d --build`), preencha `NEXUS_COMPANY_ID` com a empresa real e explícita antes do primeiro boot. O Compose usa o banco `concierge_v2` e o volume novo `pgdata_v2`; em dev, cadastra o canal Atende e semeia as ativações do catálogo uma vez. Também são exigidas as credenciais e identificações ATENDE indicadas em `.env.example`. O volume legado não é tocado. `docker compose down -v` pode ser usado manualmente para reiniciar o banco local do zero; o `up` não apaga dados.
 
-**Studio em dev** (hot reload, `/api` via proxy pra 8090):
+**Studio em dev** (hot reload, `/api` via proxy para a API do Backdoor, em 8091):
 
 ```bash
 npm install -g corepack@latest   # uma vez: o Node 26 não traz o corepack
 corepack enable
-cd web/studio
+cd apps/backdoor/web/studio
 corepack pnpm install
 corepack pnpm run dev            # http://localhost:5173/studio/
 ```
@@ -211,17 +212,17 @@ corepack pnpm run dev            # http://localhost:5173/studio/
 ```bash
 # binário à mão
 DATABASE_URL='postgres://concierge:concierge@127.0.0.1:5432/concierge_v2?sslmode=disable' \
-  ./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open
+  CONSOLE_REPLY_URL=http://127.0.0.1:8092/emulador/atende/messages ./bin/concierge.exe -root ./okf -addr 127.0.0.1:8090
 
-# stack inteira: concierge (8090) + postgres + mcp na rede do concierge
+# stack inteira: concierge (8090), backdoor (8091), console (8092), postgres e mcp
 docker compose up -d --build
 
 # fora de dev o boot não semeia nada: leve os JSON da versão anterior antes do primeiro boot
-./bin/okf-admin.exe importar-json -dir okf/var -env .env
+./bin/concierge.exe importar-json -dir okf/var -env .env
 
 # o catálogo (agentes/, nexus/) mora no Postgres; -root é a semente do primeiro boot.
 # Para levar ao banco uma skill que chegou como arquivo (o banco passa a ser igual à pasta):
-./bin/okf-admin.exe importar-catalogo -dir okf -env .env
+./bin/concierge.exe importar-catalogo -dir okf -env .env
 ```
 
 O catálogo vive na tabela `catalogo_arquivos`. No boot, tabela vazia recebe a pasta de `-root`; com dado, o banco vale (e um WARN avisa se a pasta difere). O disco vira cópia de trabalho em `okf/var/catalogo`, refeita do banco a cada boot, e toda edição do Studio grava nos dois. `okf/` do repositório é só a semente.
@@ -279,15 +280,15 @@ Regras de boot: o webhook real confere sempre o HMAC com `ATENDE_API_SECRET`, fo
 | Build do Studio | `corepack pnpm run build` | sim |
 | gitleaks v8.30.1 | | sim |
 
-Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome nos staged e roda a suíte quando o commit toca `web/studio`.
+Comandos do Studio rodam em `apps/backdoor/web/studio`. O pre-commit (husky) aplica o Biome nos staged e roda a suíte quando o commit toca `apps/backdoor/web/studio`.
 
 ## Estrutura de pastas
 
 | Pasta | O que tem |
 |---|---|
-| `cmd/okf-admin` | servidor HTTP: webhook, `/api`, Studio embutido, telas antigas, subcomandos `importar-json`, `importar-catalogo` e `saude` |
-| `cmd/okf-run` | roda um agente pela linha de comando (harness Eino) |
-| `internal/atende` | turno, sessão, envio ao ATENDE, emulador |
+| `apps/concierge/cmd/concierge` | servidor do núcleo: webhook e `/api`, sem interfaces; subcomandos `importar-json`, `importar-catalogo` e `saude` |
+| `apps/concierge/cmd/okf-run` | roda um agente pela linha de comando (harness Eino) |
+| `internal/atende` | turno, sessão e envio ao ATENDE |
 | `internal/pedidos` | motor do caso, carteira por contato, cache |
 | `internal/harness` | agente Eino, tools nativas, `invocar`, modos de orquestração, Copiloto |
 | `internal/ganchos` | eventos, fixos, regras, PII, auditoria |
@@ -300,8 +301,9 @@ Comandos do Studio rodam em `web/studio`. O pre-commit (husky) aplica o Biome no
 | `internal/falha` | pilha de erro onde nasce |
 | `internal/gruvi`, `nexus`, `mcp`, `responses` | clientes externos |
 | `internal/copiloto` | quais propostas a pessoa pode aplicar na tela, sem side effect |
-| `web/studio` | Studio em React + MUI, compilado em `dist` e embutido no binário |
-| `web/okf` | Console e telas antigas, HTML e JS sem build |
+| `apps/backdoor` | API própria e interfaces administrativas; Studio React + MUI embutido somente no Backdoor |
+| `apps/console` | API própria, interface de conversa e recebimento de respostas emuladas |
+| `internal/httpapp` | infraestrutura HTTP compartilhada, sem dependência de banco ou runtime |
 | `okf/` | semente do catálogo: agentes, instantâneo do Nexus; `var/catalogo` é a cópia de trabalho |
 | `mcp/` | servidor MCP do catálogo Gruvi, Node (legado) |
 | `docs/superpowers` | specs, planos, medições, auditorias |
@@ -429,7 +431,7 @@ Um ponto único por fronteira do turno, o mesmo pra todas as camadas. Spec: [gan
 | Uma linha por falha | o erro sobe embrulhado e loga uma vez na borda de cima: 5xx com `request_id`, `usuario_id`, `operacao`, `erro`, `chamador`, `stack` |
 | Pânico | handler responde 500 `ERRO_INTERNO`; goroutine de fundo usa `falha.Recuperar`, ambos com a pilha |
 | Fonte | todo ERROR traz `fonte` (arquivo:linha) |
-| Studio | error boundaries em `web/studio/src/app/erro/LimiteDeErro.tsx`: `LimiteDeRota` por rota, `ErroDaRaiz` na raiz |
+| Studio | error boundaries em `apps/backdoor/web/studio/src/app/erro/LimiteDeErro.tsx`: `LimiteDeRota` por rota, `ErroDaRaiz` na raiz |
 
 Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, ocioso 120s) e desligamento gracioso que espera turnos e trabalhos de fundo (`DESLIGAMENTO_PRAZO`).
 
@@ -471,7 +473,7 @@ Ficam no ar pra comparação, cada uma com link a partir do Studio.
 | Backdoor | `/backdoor`, `/backdoor/administradoras`, `/backdoor/payloads`, `/backdoor/orquestracao` | casos de uso, administradoras, payload de cada recurso por condomínio |
 | Console | `/console` | emulador do ATENDE: conversa, identidade, rota, pedidos, memória, transbordo |
 
-Console e telas antigas moram em `web/okf`, sem build; com `-web web/okf` são servidas do disco e editadas sem rebuild.
+Console e telas antigas ficam em `apps/console/web/okf` e `apps/backdoor/web/okf`. São embutidos em suas próprias imagens. O Concierge não serve interfaces. Consulte o [guia das aplicações](docs/modelagem/concierge-v2/SEPARACAO-APLICACOES.md).
 
 <details>
 <summary><strong>mcp/: servidor MCP do catálogo Gruvi (Node, npm)</strong></summary>
@@ -502,4 +504,4 @@ cd mcp && npm ci && npm run start:mcp:catalog-agent        # fora do Docker, pra
 
 Integração com o app concierge do Nexus: [contrato do pacote](docs/integracao/nexus.md).
 
-Princípios do projeto: [constituição](docs/superpowers/constitution.md). Definições de partida: [DEFINICOES.md](DEFINICOES.md). Regras de código do front: [web/studio/README.md](web/studio/README.md).
+Princípios do projeto: [constituição](docs/superpowers/constitution.md). Definições de partida: [DEFINICOES.md](DEFINICOES.md). Regras de código do front: [apps/backdoor/web/studio/README.md](apps/backdoor/web/studio/README.md).

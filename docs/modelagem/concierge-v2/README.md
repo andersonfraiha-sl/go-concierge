@@ -38,7 +38,8 @@ O destino é **um backend compartilhado e dois frontends separados**, com jornad
 | Aplicação | Público e responsabilidade |
 |---|---|
 | `concierge-back` | Núcleo compartilhado: persistência, camadas de skills, sessões, memória, pedidos, ganchos, runtime Eino + OKF, integrações ATENDE/Gruvi/Nexus e APIs consumidas pelos frontends. |
-| `concierge-backdor-front` | Operação interna da plataforma por Professional Services e outros operadores autorizados: Studio, editor de fluxos, copiloto, gestão técnica, ganchos e console/emulador. O frontend atual será separado do backend; a separação ainda não foi implementada. |
+| `apps/backdoor` | Operação interna da plataforma: Studio, editor de fluxos, copiloto, gestão técnica e ganchos; frontend e API próprios. |
+| `apps/console` | Atendimento e testes internos: Console/emulador com frontend e API próprios; integra-se por HTTP ao Concierge. |
 | `concierge-plugin` | Gestão do recurso pela empresa cliente, na interface Nexus: configurar canais, consultar os casos disponíveis e controlar sua ativação na empresa/canais conforme a política definida. |
 
 O console/emulador pertence à jornada de operação interna. A navegação atual por administradora/condomínio e as futuras visões por empresa/condomínio são recortes de trabalho; não determinam que essas telas sejam a jornada do cliente nem que devam ser reproduzidas no plugin.
@@ -276,7 +277,7 @@ A baseline está versionada e é aplicada pelo bootstrap a um banco PostgreSQL 1
 
 ### Sequência do refactor e evolução do backdoor
 
-O backend e o frontend atual foram adaptados ao novo modelo nesta branch, preservando as capacidades pertinentes. A separação física do frontend do backdoor e uma revisão mais ampla de sua experiência ficam para uma etapa futura.
+O backend e o frontend atual foram adaptados ao novo modelo nesta branch, preservando as capacidades pertinentes. Backdoor e Console agora possuem aplicações próprias no monorepo, conforme [Separação das aplicações](SEPARACAO-APLICACOES.md). A revisão mais ampla da experiência continua sendo uma etapa futura.
 
 Isso não obriga a manter cada tela ou formulário legado. Telas vinculadas aos cadastros locais de administradora/condomínio precisarão ser adaptadas ou retiradas conforme sua responsabilidade no novo modelo, sem reintroduzir essas entidades para manter a interface antiga. A revisão posterior definirá a organização do backdoor para Professional Services e operadores da plataforma; o plugin mantém a jornada própria de gestão do recurso pela empresa.
 

@@ -38,8 +38,22 @@ func listarPacotes(t *testing.T, padrao string) []pacote {
 func TestInternalNaoImportaCmd(t *testing.T) {
 	for _, p := range listarPacotes(t, "go-concierge/internal/...") {
 		for _, d := range p.Deps {
-			if strings.HasPrefix(d, "go-concierge/cmd/") {
+			if strings.HasPrefix(d, "go-concierge/cmd/") || strings.HasPrefix(d, "go-concierge/apps/") {
 				t.Errorf("%s importa %s (internal/ não pode depender de cmd/)", p.ImportPath, d)
+			}
+		}
+	}
+}
+
+func TestAplicacoesVisuaisNaoImportamPersistenciaOuRuntime(t *testing.T) {
+	for _, app := range []string{"backdoor", "console"} {
+		for _, p := range listarPacotes(t, "go-concierge/apps/"+app+"/cmd/...") {
+			for _, d := range p.Deps {
+				for _, proibido := range []string{"go-concierge/internal/banco", "go-concierge/internal/atende", "go-concierge/internal/harness", "github.com/jackc/pgx"} {
+					if strings.HasPrefix(d, proibido) {
+						t.Errorf("%s depende de %s", p.ImportPath, d)
+					}
+				}
 			}
 		}
 	}

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concierge · Atendente</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=15">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="admin console">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i data-lucide="concierge-bell"></i></span>
+      <span class="brand-name">Superlógica</span>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-product">Concierge <em>Atendente</em></span>
+    </div>
+    <nav class="app-switch" aria-label="Área">
+      <a href="/console" class="is-active"><i data-lucide="messages-square" class="i-sm"></i>Atendente</a>
+    </nav>
+    <div class="env">
+      <span class="chip" id="chipModelo"><span class="led"></span>modelo <b>…</b></span>
+      <span class="chip" id="chipGruvi"><span class="led"></span>Gruvi <b>…</b></span>
+      <span class="chip" id="chipNexus"><span class="led"></span>Nexus <b>…</b></span>
+      <button type="button" class="topbar-btn" id="btnEmulador" title="Emulador do ATENDE: contato, tenant e identidade" aria-haspopup="dialog" aria-controls="modalEmulador"><i data-lucide="radio-tower"></i></button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <!-- esquerda: as conversas abertas neste servidor -->
+    <aside class="panel side">
+      <div class="block">
+        <div class="block-head"><h2>Conversas</h2><span class="block-sub">protocolos abertos neste servidor · a lixeira apaga a conversa</span></div>
+        <div id="sessoes" class="sub-list"></div>
+      </div>
+    </aside>
+
+    <!-- centro: o WhatsApp do morador -->
+    <section class="stage">
+      <div class="stage-caption"><span class="dot-live"></span>canal ATENDE · WhatsApp <span id="displayNumber" class="mono muted">551940402710</span></div>
+      <div class="phone">
+        <div class="phone-head">
+          <span class="avatar avatar-bot"><i data-lucide="concierge-bell"></i></span>
+          <div class="phone-title"><strong>Concierge</strong><span id="phoneSub">protocolo —</span></div>
+          <button class="icon-btn" id="btnReset" title="Nova conversa"><i data-lucide="rotate-ccw"></i></button>
+        </div>
+        <div class="chat" id="chat"><div class="day">hoje</div></div>
+        <form class="compose" id="formMensagem">
+          <textarea id="texto" rows="1" placeholder="Mensagem do morador…"></textarea>
+          <button type="submit" class="send" id="btnEnviar" aria-label="Enviar"><i data-lucide="send-horizontal"></i></button>
+        </form>
+      </div>
+    </section>
+
+    <!-- direita: bastidores -->
+    <section class="panel bastidores">
+      <nav class="guias">
+        <button class="guia is-active" data-aba="rota">Rota</button>
+        <button class="guia" data-aba="transbordo">Transbordo <span class="badge" id="badgeTransbordo" hidden>!</span></button>
+        <button class="guia" data-aba="memoria">Memória</button>
+        <button class="guia" data-aba="pedidos">Pedidos <span class="badge aviso" id="badgePedidos" hidden>0</span></button>
+      </nav>
+      <div class="aba-conteudo" id="abaRota"><div class="empty-state"><i data-lucide="route"></i>A rota da última resposta aparece aqui: orquestrador → subagente, tools chamadas, tokens.</div></div>
+      <div class="aba-conteudo" id="abaTransbordo" hidden>
+        <p class="notice info"><i data-lucide="life-buoy"></i>Quando o concierge não resolve, ele transfere o protocolo a um atendente humano (ou o atendente assume por conta própria). Daqui em diante o concierge cala e o atendente responde ao morador por este mesmo canal, até devolver.</p>
+        <div id="transbordoEstado"></div>
+        <div id="transbordoPedidos"></div>
+        <form id="formAtendente" class="transbordo-form" hidden>
+          <div class="form-row"><label>Atendente</label><input class="field-input" name="atendente" value="Atendente" placeholder="seu nome"></div>
+          <div class="form-row"><label>Responder ao morador</label><textarea class="field-area" name="texto" rows="3" placeholder="Oi, aqui é a Ana da administração. Vou cuidar disso pra você…"></textarea></div>
+          <div class="form-actions"><button type="button" class="btn btn-ghost" id="btnDevolver"><i data-lucide="undo-2"></i><span>Devolver ao concierge</span></button><span style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="send"></i><span>Enviar como atendente</span></button></div>
+        </form>
+      </div>
+      <div class="aba-conteudo" id="abaMemoria" hidden><p class="notice info"><i data-lucide="brain"></i>A memória relacional deste telefone: fatos duráveis que o morador afirmou sobre si, capturados a cada troca e levados ao prompt de toda a família na conversa seguinte. Comum a todos os agentes.</p><div id="memoriaTabela"></div></div>
+      <div class="aba-conteudo" id="abaPedidos" hidden><p class="notice info"><i data-lucide="clipboard-list"></i>Os pedidos deste telefone, de todas as conversas: cada um é um caso de uso com protocolo próprio e os parâmetros do <code>caso.yaml</code>. O estado vem dos parâmetros capturados e validados (não do texto): coletando → pronto → aguardando confirmação → executando → concluído. Pendências sem resposta vão ao atendente com o resumo do contexto.</p><div class="form-actions" style="margin:0 0 10px;justify-content:flex-end;gap:6px"><span class="muted" style="flex:1;font-size:12px" id="pedidosResumo"></span><a class="btn btn-ghost btn-sm" id="btnExportarCsv" href="#" download><i data-lucide="table" class="i-sm"></i>Exportar CSV</a><a class="btn btn-ghost btn-sm" id="btnExportarJson" href="#" download><i data-lucide="file-json" class="i-sm"></i>Exportar JSON</a></div><div id="pedidosLista"></div></div>
+    </section>
+  </div>
+
+  <!-- emulador do ATENDE: abre pelo ícone no canto superior direito -->
+  <div class="modal" id="modalEmulador" role="dialog" aria-modal="true" aria-labelledby="modalEmuladorTitulo" hidden>
+    <div class="modal-backdrop" data-fechar></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="block-head" style="margin:0"><h2 id="modalEmuladorTitulo">Emulador do ATENDE</h2><span class="block-sub">forja o evento <code>protocol.created</code> e manda ao webhook, como o ATENDE faria</span></div>
+        <button type="button" class="topbar-btn" title="Fechar" data-fechar><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="formContato" class="form-grid">
+          <div class="form-row"><label>Telefone do contato <small>vai no filter[mobile-number] do Gruvi</small></label><input class="field-input mono" name="phone" spellcheck="false"></div>
+          <div class="form-row"><label>Nome no WhatsApp</label><input class="field-input" name="name" value="Vanderlei Martins"></div>
+          <div class="form-row"><label>Canal <small>define a empresa e o contexto do atendimento</small></label><select class="field-select" name="condominio"><option value="">selecione um canal</option></select></div>
+          <div class="form-row"><label>Tenant do ATENDE</label><input class="field-input mono" name="tenant" value="69a5a131e67bd8e2f54e5981" spellcheck="false"></div>
+          <div class="form-row"><label>Protocolo <small>novo a cada conversa</small></label><input class="field-input mono" name="protocolo" spellcheck="false"></div>
+          <div class="form-actions" style="grid-column:1/-1;justify-content:flex-start;gap:8px">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnIdentificar" hidden disabled><i data-lucide="user-search" class="i-sm"></i>Identificar no Gruvi</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnNovaConversa"><i data-lucide="rotate-ccw" class="i-sm"></i>Nova conversa</button>
+          </div>
+        </form>
+        <div class="block-head" style="margin:18px 0 10px"><h2>Identidade</h2><span class="block-sub">o que o BFF do Gruvi devolve para o telefone</span></div>
+        <div id="identidade" class="empty-state" style="padding:12px" aria-live="polite"><i data-lucide="user-search"></i>A configuração será verificada antes de liberar uma consulta externa.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/console.js?v=9"></script>
+</body>
+</html>

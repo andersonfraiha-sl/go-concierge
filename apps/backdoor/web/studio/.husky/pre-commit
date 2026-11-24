@@ -1,0 +1,5 @@
+# O repositório é Go; o gancho só pesa quando o commit toca o Studio.
+git diff --no-ext-diff --cached --name-only --quiet -- apps/backdoor/web/studio && exit 0
+cd apps/backdoor/web/studio
+corepack pnpm exec lint-staged
+corepack pnpm test
