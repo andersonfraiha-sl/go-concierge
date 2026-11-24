@@ -72,7 +72,7 @@ ficha. O texto abaixo descreve a anatomia como ficou.
   filhos, o mais próximo vence; persona, rules, workflows, routers, evals e caso não
   descem) e **fronteira** (um agente só referencia a própria pasta ou um ancestral;
   irmão, sobrinho e fora da árvore são proibidos).
-- O código Go tem o **interpretador** (pacote `internal/okf`: carga, herança, fronteira,
+- O código Go tem o **interpretador** (pacote `internal/core/catalogo/arquivos`: carga, herança, fronteira,
   vínculos, conhecimento, projeção, rotas, escrita, catálogo) e a **interface de
   cadastro** (seção 7). O harness Eino receberá a **projeção** da pasta como instrução
   do agente e as caixinhas de capacidade como tools.
@@ -91,8 +91,8 @@ do **Gruvi**: `POST GRUVI_TOKEN_URL` com `Authorization: Basic <client>` e
 com o Bearer → condomínio e unidades (`id_fastpass`, bloco, morador). O telefone do
 contato do evento é o que vai no filtro.
 
-**Implementado:** `internal/gruvi` (token com cache + identidade por telefone),
-`internal/atende` (evento, sessão por protocolo com histórico, serviço que identifica,
+**Implementado:** `internal/core/clientes/gruvi` (token com cache + identidade por telefone),
+`internal/harness/atendimento` (evento, sessão por protocolo com histórico, serviço que identifica,
 roda o agente de primeiro nível pelo harness e responde pelo `Sender`), webhook
 `POST /webhook/atende` (202 e processamento em segundo plano; `ATENDE_WEBHOOK_TOKEN`
 opcional) e o **Console** (`/console`): o emulador forja o evento exatamente nesse
@@ -153,10 +153,10 @@ mapeamento, como um banco com RLS:
 Em tempo de execução, o condomínio da conversa é resolvido pela company do Gruvi, pelo
 tenant do ATENDE ou pela account; os casos desabilitados somem do roteador do concierge;
 o payload de R é **remontado na chamada** (preenche os params que o agente não passou)
-e entra no prompt como "Contexto do condomínio". Implementado em `internal/admin`
+e entra no prompt como "Contexto do condomínio". Implementado em `internal/harness/configuracao`
 (Postgres, tabelas administradoras, condominios, habilitacoes, payloads e orientacoes; o
 turno lê de um cache em processo que cada escrita do Admin atualiza), `harness.Config{Casos, Payloads}`,
-`internal/atende` e a tela Admin (`/`), com Backdoor em `/backdoor`. **A administradora
+`internal/harness/atendimento` e a tela Admin (`/`), com Backdoor em `/backdoor`. **A administradora
 não vê recursos do Nexus** (técnico demais): o payload por condomínio fica no Backdoor,
 em `/backdoor/payloads`; o Admin tem só Condomínios e a matriz de casos de uso.
 
@@ -334,13 +334,13 @@ Pacotes Go previstos (nomes provisórios):
 | `cmd/concierge` | API do canal (`/message`, `/health`), API do Admin, console de teste |
 | `cmd/atende-emulator` | Emulador do ATENDE (forma a definir pelas instruções futuras) |
 | `cmd/nexus-mock`, `cmd/nexus-gruvi` | Herdados: mock com personas e ponte Gruvi |
-| `internal/okf` | Parser, validação e carregador de agentes/subagentes OKF → agentes Eino |
+| `internal/core/catalogo/arquivos` | Parser, validação e carregador de agentes/subagentes OKF → agentes Eino |
 | `internal/harness` | Adaptador do Eino: modelo, registro de tools, execução do loop, usage/custo |
 | `internal/session` | Sessão, pendências, observador, encerramento, resumo |
 | `internal/orchestrator` | Intention Finder, roteamento, handoff humano |
 | `internal/usecase` | Interpretador dos passos do YAML (resource/choose/collect/form/confirm/compose) |
 | `internal/catalog`, `internal/forms`, `internal/policy`, `internal/persona`, `internal/knowledge` | Herdados do `sl-concierge` em conceito |
-| `internal/admin` | Administradoras, condomínios, usuários, permissões, habilitação de casos |
+| `internal/harness/configuracao` | Administradoras, condomínios, usuários, permissões, habilitação de casos |
 | `internal/nexus`, `internal/decider`, `internal/ledger`, `internal/audit`, `internal/media` | Herdados em conceito |
 | `internal/store` | Persistência (ver 4.6) |
 
@@ -418,7 +418,7 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
 - **Uso**: em toda conversa seguinte do telefone, a memória entra na instrução de toda
   a família como "Memória sobre o morador: use sem perguntar de novo". Um caso de uso
   que precise da unidade, por exemplo, não pergunta se a memória diz que há uma só.
-- **Onde**: `internal/memoria` (`Store` no Postgres, tabelas memoria_contatos e
+- **Onde**: `internal/harness/memoria` (`Store` no Postgres, tabelas memoria_contatos e
   memoria_fatos, com cache por contato no processo; trocável pelo recurso `memory` do
   Nexus), extração no harness,
   leitura/gravação no serviço do ATENDE, visualização e esquecimento no Console
@@ -426,7 +426,7 @@ formato de pasta do AgentAsFolder com o conhecimento tipado dentro (seção 1.2)
 
 ## 6. Estado e próximos passos
 
-Feito em 2026-10-16: módulo Go `go-concierge`, pacote `internal/okf` com testes, a
+Feito em 2026-10-16: módulo Go `go-concierge`, pacote `internal/core/catalogo/arquivos` com testes, a
 interface `okf-admin` (seção 7) e o catálogo de exemplo em `okf/`. Falta: as instruções
 do emulador do ATENDE (1.3); depois, na ordem, o harness Eino (tools + projeção dos
 agentes OKF), a sessão com pendências, o catálogo de casos de uso YAML e o Admin da
@@ -437,7 +437,7 @@ administradora (1.4), que passa a incluir esta interface como a seção "Skills"
 A barra tem só **Admin** (o cadastro de skills abaixo) e **Console** (o emulador do
 ATENDE, seção 1.3).
 
-`cmd/okf-admin` serve `web/okf` (embutida) e fala com `internal/okf`. Rodar:
+`cmd/okf-admin` serve `web/okf` (embutida) e fala com `internal/core/catalogo/arquivos`. Rodar:
 `./build.sh` e `./bin/okf-admin.exe -root ./okf -addr 127.0.0.1:8090 -open`.
 
 - **Árvore de agentes** com arrastar e soltar: mover (Shift = clonar), soltar no título
@@ -464,7 +464,7 @@ ATENDE, seção 1.3).
 
 O catálogo de recursos do Nexus pode vir do servidor MCP oficial (entrega `mcp-catalog-agent`,
 em `mcp/`): cada tool `gruvi.bff.<módulo>.<operação>` é um recurso de classe `api`, privado;
-o harness executa por `tools/call` (`internal/mcp`). Autenticação com Keycloak: `request_bearer`
+o harness executa por `tools/call` (`internal/core/clientes/mcp`). Autenticação com Keycloak: `request_bearer`
 (token B2C repassado ao BFF) hoje; `client_credentials` quando o servidor aceitar token de
 serviço. Precedência das fontes: MCP, depois Nexus ao vivo, depois o instantâneo. Empacotado
 em `docker compose` (serviços `mcp` e `concierge`).
@@ -490,7 +490,7 @@ em `docker compose` (serviços `mcp` e `concierge`).
   `persons`), que dura 5 minutos, e o pinava na subida. Pedido do usuário: o fluxo SMS de
   dev do Spaces (`/auth/sms` com `validation=dev` → `session_id`; `/auth/token` com
   `grant_type=password`, `sms_code=999999`) para obter o token.
-- Decisão: `MCP_AUTH=b2c` no concierge (`internal/mcp/b2c.go`): obtém pelo SMS, renova pelo
+- Decisão: `MCP_AUTH=b2c` no concierge (`internal/core/clientes/mcp/b2c.go`): obtém pelo SMS, renova pelo
   `refresh_token` (60 dias) 45 s antes de vencer e grava o token corrente em `okf/var/b2c.token`.
   O servidor MCP ganhou `B2C_TOKEN_FILE` (uma função a mais, opt-in) e lê esse arquivo a cada
   verificação. Nenhum token colado em `.env`. A renovação é sob demanda (na próxima chamada
@@ -507,7 +507,7 @@ em `docker compose` (serviços `mcp` e `concierge`).
 - Decisões (confirmadas pelo usuário): execução **determinística pelos passos do caso.yaml**
   (não pelo subagente conversacional) e os Pedidos como **espinha dorsal** da orquestração
   (planning/react deixam de mandar; o roteador atende só o "restante").
-- Estado em código: `internal/pedidos` (modelo, contrato do caso.yaml, motor, extrator
+- Estado em código: `internal/harness/pedidos` (modelo, contrato do caso.yaml, motor, extrator
   Regras, resumo); extração por LLM em `harness/pedidos.go`; pipeline em
   `atende/pedidos.go`; guia Pedidos e formulário do atendente no Console.
 

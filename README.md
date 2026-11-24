@@ -11,7 +11,7 @@
 [![Node](https://img.shields.io/badge/Node-26.13-339933?logo=node.js&logoColor=white)](apps/backdoor/web/studio/.nvmrc)
 [![CI](https://github.com/andersonfraiha-sl/go-concierge/actions/workflows/ci.yml/badge.svg)](https://github.com/andersonfraiha-sl/go-concierge/actions/workflows/ci.yml)
 
-**0 idas ao banco antes da resposta (contato quente)** &bull; **0,13 ms de ganchos por turno** &bull; **6 pontos de gancho** &bull; **601 testes Go + 417 Vitest**
+**Harness: comportamento do atendimento** &bull; **Core: APIs, dados e integrações** &bull; **6 pontos de gancho**
 
 </div>
 
@@ -42,7 +42,7 @@
 | **CPF e telefone** | iam inteiros pro LLM e pro histórico | mascarados em `mensagem_recebida`, no log e na auditoria |
 | **Regra por condomínio** ("reserva até 22h") | sem lugar | regra declarativa, editada no Studio, cache aquecido no boot |
 | **Escrita no mundo** | qualquer tool | só por passo do `caso.yaml`, depois do `confirm` |
-| **Idas ao banco antes da resposta** | 18 | Medição histórica: 0 quente, 1 a frio; atualmente há leitura direta do mapeamento |
+| **Acesso aos dados** | consultas nos consumidores | API de dados do core, inclusive para o runtime; medições históricas abaixo |
 | **Decisão de bloqueio** | some no log | linha em `ganchos_auditoria`, visível no Studio |
 
 ## Arquitetura
@@ -59,11 +59,11 @@ flowchart TB
             Webhook["POST /webhook/atende<br/>HMAC X-Atende-Signature"]:::entry
             API["/api · RBAC<br/>internal/acesso"]:::entry
         end
-        subgraph Turno ["Turno · internal/atende"]
+        subgraph Turno ["Turno · internal/harness/atendimento"]
             direction TB
             GIn["ganchos<br/>mensagem_recebida"]:::hook
-            Motor["motor do caso<br/>internal/pedidos"]:::core
-            Harness["harness LLM<br/>internal/harness"]:::core
+            Motor["motor do caso<br/>internal/harness/pedidos"]:::core
+            Harness["agentes LLM<br/>internal/harness/agentes"]:::core
             Invocar["invocar<br/>antes e depois_da_ferramenta"]:::hook
             GOut["ganchos<br/>antes_de_responder"]:::hook
             GIn --> Motor
@@ -74,15 +74,16 @@ flowchart TB
         end
         subgraph Estado ["Estado em processo"]
             Caches["memória · pedidos · sessões"]:::store
-            Regras["cache de regras<br/>internal/ganchos/regras"]:::store
+            Regras["cache de regras<br/>internal/core/administracao/regras"]:::store
         end
-        Audit["auditoria<br/>internal/ganchos/auditoria"]:::core
-        Copiloto["Copiloto<br/>internal/copiloto"]:::core
+        Audit["auditoria<br/>internal/harness/ganchos/auditoria"]:::core
+        Copiloto["Copiloto<br/>internal/core/administracao/copiloto"]:::core
+        Dados["API privada de dados<br/>HTTP em loopback"]:::store
     end
 
     subgraph Externos ["Sistemas externos"]
-        Gruvi["Gruvi BFF<br/>internal/gruvi"]:::ext
-        Nexus["Nexus · MCP Gruvi BFF<br/>internal/nexus · internal/mcp"]:::ext
+        Gruvi["Gruvi BFF<br/>internal/core/clientes/gruvi"]:::ext
+        Nexus["Nexus · MCP Gruvi BFF<br/>internal/core/clientes/nexus · internal/core/clientes/mcp"]:::ext
         LLM["LLM<br/>Gemini · OpenRouter · Luna"]:::ext
     end
     PG[("Postgres 18")]:::store
@@ -103,9 +104,10 @@ flowchart TB
     Harness -. "prompt e tools" .-> LLM
     Copiloto -. "propostas de edição" .-> LLM
 
-    Caches -- "1 lote a frio" --> PG
-    Audit -- "lote com sessão e carteira" --> PG
-    API --> PG
+    Caches --> Dados
+    Audit -- "lote com sessão e carteira" --> Dados
+    API --> Dados
+    Dados -- "consultas e transações" --> PG
 
     classDef entry fill:#111827,stroke:#f59e0b,stroke-width:3px,color:#f9fafb
     classDef core fill:#1f2937,stroke:#4b5563,color:#f9fafb
@@ -121,17 +123,17 @@ flowchart TB
 
 | Peça | Onde | Papel |
 |---|---|---|
-| Turno | `internal/atende` | abre sessão, roda ganchos, escolhe motor ou harness, envia, grava depois |
-| Motor do caso | `internal/pedidos` | passos do `caso.yaml`: coleta, valida, confirma, executa. Estado decidido em código |
-| Harness | `internal/harness` | agente Eino da pasta OKF: router, planning ou react |
-| `invocar` | `internal/harness/tools.go` | choke point de toda ferramenta: motor, planejador e `chamar_recurso` do LLM |
-| Copiloto | `internal/copiloto` | propostas do modelo no Studio, filtradas por tela, permissão e ganchos |
+| Turno | `internal/harness/atendimento` | abre sessão, roda ganchos, escolhe motor ou harness, envia, grava depois |
+| Motor do caso | `internal/harness/pedidos` | passos do `caso.yaml`: coleta, valida, confirma, executa. Estado decidido em código |
+| Agentes | `internal/harness/agentes` | agente Eino da pasta OKF: router, planning ou react |
+| `invocar` | `internal/harness/agentes/tools.go` | choke point de toda ferramenta: motor, planejador e `chamar_recurso` do LLM |
+| Copiloto | `internal/core/administracao/copiloto` | propostas do modelo no Studio, filtradas por tela, permissão e ganchos |
 
 ## Um turno
 
-As medições em [`medicoes/2026-11-03-turno.md`](docs/superpowers/medicoes/2026-11-03-turno.md) e [`medicoes/2026-11-03-ganchos.md`](docs/superpowers/medicoes/2026-11-03-ganchos.md) registraram **0 idas** ao Postgres antes do `Sender.Enviar` para contato quente sem mudança de pedido. São resultados históricos, anteriores à remoção do cache administrativo. Atualmente o turno consulta o mapeamento diretamente no Postgres, incluindo habilitações, payloads e orientações, para observar alterações por SQL sem reiniciar.
+O atendimento consome dados pela API privada do core, mesmo no processo único. O servidor executa consultas e transações; sessões em uso, locks e decisões permanecem no harness. Canal, casos e conteúdo publicado são relidos no escopo aplicável. Consulte os contratos em [harness/core](docs/modelagem/concierge-v2/SEPARACAO-HARNESS-CORE.md).
 
-O teste atual de consultas registra 21 comandos antes do envio para contato quente sem mudança de pedido: três leituras do mapeamento, cada uma com cinco SELECTs e abertura/fechamento da transação. Para contato frio ou abertura de pedido são 22; com bloqueio antecipado são 14. A latência após essa mudança ainda não foi medida. No refactor de identidade, essas leituras amplas deverão ser substituídas por consultas do contexto empresa/canal aplicável.
+As medições em [`medicoes/2026-11-03-turno.md`](docs/superpowers/medicoes/2026-11-03-turno.md) e [`medicoes/2026-11-03-ganchos.md`](docs/superpowers/medicoes/2026-11-03-ganchos.md) são históricas e não representam o custo da fronteira HTTP atual. A latência deste refactor ainda não foi medida.
 
 ```mermaid
 sequenceDiagram
@@ -142,6 +144,7 @@ sequenceDiagram
     participant T as Turno
     participant C as Caches em processo
     participant X as LLM e ferramentas
+    participant D as API de dados do core
     participant P as Postgres
 
     M->>A: mensagem no WhatsApp
@@ -149,14 +152,16 @@ sequenceDiagram
     W-->>A: 202, processa em segundo plano
     W->>T: Processar
     T->>C: sessão, memória, pedidos, regras
-    T->>P: leituras diretas do mapeamento administrativo
+    T->>D: canal, casos, conteúdo e dados do contato
+    D->>P: consultas autorizadas por empresa e canal
     T->>T: ganchos mensagem_recebida, mascara CPF e telefone
     T->>X: motor do caso ou harness, ferramentas via invocar
     T->>T: ganchos antes_de_responder
     T->>A: Sender.Enviar
     A->>M: resposta
-    T->>P: 1 lote com sessão, carteira adiada e auditoria
-    T--)P: extração de memória em segundo plano
+    T->>D: sessão, carteira adiada e auditoria
+    D->>P: transação coordenada
+    T--)D: memória extraída em segundo plano
 ```
 
 Medições históricas, com cache administrativo:
@@ -265,7 +270,7 @@ Regras de boot: o webhook real confere sempre o HMAC com `ATENDE_API_SECRET`, fo
 ./build.sh          # tudo acima + build do Studio + binários okf-admin e okf-run (Windows e Linux)
 ```
 
-`-p 1` porque `internal/banco` sobe Postgres por testcontainers: Docker precisa estar de pé.
+`-p 1` porque `internal/core/banco` sobe Postgres por testcontainers: Docker precisa estar de pé.
 
 | Checagem | Local | CI (`ci.yml`) |
 |---|---|---|
@@ -282,25 +287,30 @@ Regras de boot: o webhook real confere sempre o HMAC com `ATENDE_API_SECRET`, fo
 
 Comandos do Studio rodam em `apps/backdoor/web/studio`. O pre-commit (husky) aplica o Biome nos staged e roda a suíte quando o commit toca `apps/backdoor/web/studio`.
 
+Os módulos harness/core continuam no mesmo processo. O runtime consome dados por HTTP em loopback; só o servidor de dados e ferramentas de infraestrutura do core acessam PostgreSQL. [Arquitetura e contratos](docs/modelagem/concierge-v2/SEPARACAO-HARNESS-CORE.md).
+
 ## Estrutura de pastas
 
 | Pasta | O que tem |
 |---|---|
-| `apps/concierge/cmd/concierge` | servidor do núcleo: webhook e `/api`, sem interfaces; subcomandos `importar-json`, `importar-catalogo` e `saude` |
+| `apps/concierge/cmd/concierge` | entrada do executável; inicia a composição em `internal/core/api/concierge` |
 | `apps/concierge/cmd/okf-run` | roda um agente pela linha de comando (harness Eino) |
-| `internal/atende` | turno, sessão e envio ao ATENDE |
-| `internal/pedidos` | motor do caso, carteira por contato, cache |
-| `internal/harness` | agente Eino, tools nativas, `invocar`, modos de orquestração, Copiloto |
-| `internal/ganchos` | eventos, fixos, regras, PII, auditoria |
+| `internal/harness/atendimento` | turno, estado vivo, coordenação e contratos de persistência/entrega |
+| `internal/harness/pedidos` | motor do caso e carteira por contato, sem banco |
+| `internal/harness/agentes` | executor Eino, ferramentas, extração, planos e contratos de integração |
+| `internal/core/api` | entrada HTTP e rotas públicas; composição do processo Concierge |
+| `internal/core/dados` | API privada, clientes HTTP, autorização, consultas e transações |
+| `internal/core/dados/postgres` | persistência por domínio |
+| `internal/harness/ganchos` | eventos, fixos, regras, PII, auditoria |
 | `internal/acesso` | papéis, permissões, escopos |
-| `internal/memoria` | fatos por contato, cache |
-| `internal/admin` | mapeamento de administradoras e condomínios, leitura direta do Postgres |
-| `internal/okf` | pasta de agente: carga, herança, fronteira, projeção, conhecimento OKF |
-| `internal/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/, diferença, cópia de trabalho |
-| `internal/banco` | migrations, sqlc, ent, `Lote` (vários `:batch*` numa ida) |
+| `internal/harness/memoria` | fatos por contato e contratos, sem banco |
+| `internal/harness/configuracao` | modelos e regras puras da configuração de conteúdo |
+| `internal/core/catalogo/arquivos` | pasta de agente: carga, herança, fronteira, projeção, conhecimento OKF |
+| `internal/core/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/, diferença, cópia de trabalho |
+| `internal/core/banco` | migrations, sqlc, ent, `Lote` (vários `:batch*` numa ida) |
 | `internal/falha` | pilha de erro onde nasce |
-| `internal/gruvi`, `nexus`, `mcp`, `responses` | clientes externos |
-| `internal/copiloto` | quais propostas a pessoa pode aplicar na tela, sem side effect |
+| `internal/core/clientes` | adaptadores Gruvi, Nexus, MCP, LLM/Responses, Concierge e entrega |
+| `internal/core/administracao/copiloto` | quais propostas a pessoa pode aplicar na tela, sem side effect |
 | `apps/backdoor` | API própria e interfaces administrativas; Studio React + MUI embutido somente no Backdoor |
 | `apps/console` | API própria, interface de conversa e recebimento de respostas emuladas |
 | `internal/httpapp` | infraestrutura HTTP compartilhada, sem dependência de banco ou runtime |
@@ -415,8 +425,8 @@ Um ponto único por fronteira do turno, o mesmo pra todas as camadas. Spec: [gan
 | `copiloto_antes_de_aceitar` | por proposta do Copiloto |
 
 - **Desfechos**: deixar, bloquear com motivo, ajustar, pedir confirmação.
-- **Fixos** em Go (`internal/ganchos/fixos`): não desligam por API, banco, flag nem env. Conjunto sem eles é recusado no boot.
-- **Regras** declarativas por condomínio (`internal/ganchos/regras`): sem regex nem script, só a Superlógica edita, cache aquecido no boot. Nunca afrouxam um fixo nem impedem o transbordo.
+- **Fixos** em Go (`internal/harness/ganchos/fixos`): não desligam por API, banco, flag nem env. Conjunto sem eles é recusado no boot.
+- **Regras** declarativas por condomínio (`internal/core/administracao/regras`): sem regex nem script, só a Superlógica edita, cache aquecido no boot. Nunca afrouxam um fixo nem impedem o transbordo.
 - **Auditoria**: toda decisão diferente de deixar vira linha em `ganchos_auditoria`, sem texto, params nem PII, gravada depois do envio.
 - **Export e import** assinados com HMAC (`GANCHOS_SEGREDO_EXPORTACAO`).
 
@@ -465,7 +475,7 @@ catálogo de serviços, revisar seus detalhes e cadastrar recursos em
 URL pode ser alterada por `CATALOGO_NEXUS_MCP_URL`. Esses registros ficam separados
 dos recursos atuais e a execução das APIs descobertas ainda não está implementada.
 
-Ficam no ar pra comparação, cada uma com link a partir do Studio.
+Permanecem disponíveis nos endereços abaixo, com navegação separada por aplicação.
 
 | Tela | Rota | O que é |
 |---|---|---|
@@ -478,7 +488,7 @@ Console e telas antigas ficam em `apps/console/web/okf` e `apps/backdoor/web/okf
 <details>
 <summary><strong>mcp/: servidor MCP do catálogo Gruvi (Node, npm)</strong></summary>
 
-Única parte do repo que usa npm. Transforma as OpenAPIs do BFF do Gruvi (`building-operation.json`, `mobile.json`) em tools `gruvi.bff.<módulo>.<operação>` em `/mcp/gruvi/bff`. O concierge consome via `internal/mcp`: `tools/list` vira recursos da account e `chamar_recurso` executa por `tools/call`.
+Única parte do repo que usa npm. Transforma as OpenAPIs do BFF do Gruvi (`building-operation.json`, `mobile.json`) em tools `gruvi.bff.<módulo>.<operação>` em `/mcp/gruvi/bff`. O concierge consome via `internal/core/clientes/mcp`: `tools/list` vira recursos da account e `chamar_recurso` executa por `tools/call`.
 
 ```bash
 cp mcp/.env.example mcp/.env

@@ -31,9 +31,9 @@ jobs:
             exit 1
           fi
       - name: Conferir baseline do banco v2
-        run: go run ./internal/banco/v2/cmd/gerar-baseline -check
+        run: go run ./internal/core/banco/v2/cmd/gerar-baseline -check
       - run: go vet ./...
-      # -p 1: os testes de internal/banco sobem um Postgres por testcontainers (Docker do runner)
+      # -p 1: os testes de internal/core/banco sobem um Postgres por testcontainers (Docker do runner)
       - run: go test -p 1 -race ./...
       - uses: golangci/golangci-lint-action@v9.3.0
         with:

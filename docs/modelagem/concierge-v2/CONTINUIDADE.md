@@ -1,5 +1,18 @@
 # Continuidade do Concierge v2
 
+## Separação harness/core — implementação concluída em 24/11/2026
+
+Branch `feat/separacao-harness-core`, base `c60bbea`. Mesmo processo Concierge, três apps preservados. Referência atual: [SEPARACAO-HARNESS-CORE.md](SEPARACAO-HARNESS-CORE.md). As seções seguintes são histórico das rodadas anteriores.
+
+- `internal/harness/{atendimento,agentes,pedidos,memoria,ganchos,conteudo,configuracao,canais,sessoes,persistencia,identificacao}` contém comportamento e contratos. Teste de arquitetura verifica dependências transitivas, sem core/Ent/PostgreSQL.
+- `internal/core` contém APIs, clientes, consultas, transações, administração, catálogo e infraestrutura de banco. `apps/concierge/cmd/concierge` passou a ser a entrada curta do executável. Um único `go.mod`, sem cópia das implementações.
+- Runtime, estado administrativo, conteúdo, auditoria, catálogo, regras, retenção, entrega e CLI conectado usam as fronteiras HTTP. Credenciais efêmeras em loopback, prova administrativa assinada e recarga das permissões por operação. Operações que exigem resultado conhecido não repetem escritas incertas.
+- Boot/migrations/seed/materialização inicial/importação de infraestrutura permanecem no core. Banco v2 em `internal/core/banco`; geradores Ent/sqlc e baseline reproduzidos sem mudança do schema. Makefile, scripts e CI acompanham os novos caminhos.
+- Builds, vet, lint, arquitetura, geradores e testes focados aprovados. Smoke de processo com PostgreSQL descartável passou: boot, readiness, rotas administrativas, regras, configuração do CLI e encerramento por SIGTERM. CLI offline também passou com modelo mock. Evidências e seis falhas preexistentes da suíte global em [VALIDACAO-HARNESS-CORE.md](VALIDACAO-HARNESS-CORE.md); logs em `/tmp/concierge-harness-core/`. Não repetir checks aprovados por simples retomada.
+- Bwrap ainda falha com `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. Duas sessões Terra 6.1 high foram tentadas; principal assumiu conforme autorização do usuário. Comandos elevados locais de leitura/patch/validação funcionam. Erros literais em `.temp/ERROS-FERRAMENTAS-HARNESS-CORE.md`.
+- Nenhum restart, push ou deploy. As integrações reais e o banco da stack existente não foram usados nos testes.
+- Próximo passo: combinar a aplicação local e o teste manual pelo Console. O processo ativo ainda usa a imagem anterior. O schema foi preservado e este refactor não requer reset de banco nem remoção de volumes.
+
 ## Separação das aplicações concluída — 23/11/2026
 
 - Base anterior registrada, a pedido do usuário, no commit `efbcc2f`, na branch `feat/refactor-identidade-canais-db`; workspace estava limpo. A separação fica registrada na branch `feat/separacao-aplicacoes`, criada a partir dessa base. Sem push.

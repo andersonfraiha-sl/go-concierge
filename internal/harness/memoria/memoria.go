@@ -1,0 +1,245 @@
+// Package memoria é a memória relacional entre o concierge e cada contato
+// (telefone): fatos duráveis que os agentes vão capturando sobre a pessoa ao longo das
+// conversas ("só tem um apartamento", "prefere ser chamado de Van", "tem um cachorro").
+// Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
+// volta ao prompt em toda conversa seguinte daquele telefone.
+package memoria
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"regexp"
+	"slices"
+	"strings"
+	"time"
+
+	"go-concierge/internal/escopo"
+)
+
+// Fato é uma coisa durável sobre a pessoa, identificada por uma chave estável
+// (unidades, nome_preferido, pets, veiculo, horario_preferido…). A mesma chave
+// substitui o fato anterior.
+type Fato struct {
+	Chave string `json:"chave"`
+	Texto string `json:"texto"`
+	Fonte string `json:"fonte,omitempty"` // agente e protocolo que capturou
+	// CondominioID: o condomínio da conversa em que o fato foi capturado.
+	CondoID      *int      `json:"condo_id"`
+	CondominioID string    `json:"-"`
+	Quando       time.Time `json:"quando"`
+	Confianca    float64   `json:"confianca,omitempty"`
+}
+
+// Memoria é o que o concierge sabe de um contato dentro de uma administradora.
+type Memoria struct {
+	CompanyID        string    `json:"company_id"`
+	AdministradoraID string    `json:"-"`
+	Telefone         string    `json:"telefone"`
+	Nome             string    `json:"nome,omitempty"`
+	Fatos            []Fato    `json:"fatos"`
+	AtualizadaEm     time.Time `json:"atualizada_em"`
+}
+
+// Upsert devolve a memória com o fato posto ou substituído pela chave, e true se algo
+// mudou. Não altera o receptor: o fato sem Quando entra com o instante zero, quem chama
+// decide o relógio.
+func (m Memoria) Upsert(f Fato) (Memoria, bool) {
+	if f.CondoID != nil {
+		n := *f.CondoID
+		f.CondoID = &n
+	}
+	f.Chave = NormalizarChave(f.Chave)
+	f.Texto = strings.TrimSpace(f.Texto)
+	if f.Chave == "" || f.Texto == "" {
+		return m, false
+	}
+	i := slices.IndexFunc(m.Fatos, func(atual Fato) bool {
+		return atual.Chave == f.Chave && escopo.MesmoCondominio(atual.CondoID, f.CondoID)
+	})
+	if i >= 0 && m.Fatos[i].Texto == f.Texto {
+		return m, false
+	}
+	fatos := slices.Clone(m.Fatos)
+	if i >= 0 {
+		fatos[i] = f
+	} else {
+		fatos = append(fatos, f)
+	}
+	m.Fatos, m.AtualizadaEm = fatos, f.Quando
+	return m, true
+}
+
+// Esquecer devolve a memória sem o fato da chave, e true se ele existia. Não altera o receptor.
+func (m Memoria) Esquecer(chave string, condoID ...*int) (Memoria, bool) {
+	var alvo *int
+	if len(condoID) > 0 {
+		alvo = condoID[0]
+	}
+	chave = NormalizarChave(chave)
+	ehDaChave := func(f Fato) bool { return f.Chave == chave && escopo.MesmoCondominio(f.CondoID, alvo) }
+	if !slices.ContainsFunc(m.Fatos, ehDaChave) {
+		return m, false
+	}
+	m.Fatos = slices.DeleteFunc(slices.Clone(m.Fatos), ehDaChave)
+	return m, true
+}
+
+// vazia é a memória de um contato de quem nada se sabe.
+func Vazia(c escopo.Contato) Memoria {
+	c = c.Canonico()
+	return Memoria{CompanyID: c.CompanyID, AdministradoraID: c.CompanyID, Telefone: c.Telefone, Fatos: []Fato{}}
+}
+
+// comoGuardada é a memória como um Store a guarda: sob o contato, uma chave só por fato (a
+// última vence, no lugar da primeira) e AtualizadaEm preenchida com agora quando vier vazia.
+func ComoGuardada(c escopo.Contato, m Memoria, agora time.Time) Memoria {
+	c = c.Canonico()
+	m.CompanyID, m.AdministradoraID, m.Telefone = c.CompanyID, c.CompanyID, c.Telefone
+	m.Fatos = SemChavesRepetidas(m.Fatos)
+	if m.AtualizadaEm.IsZero() {
+		m.AtualizadaEm = agora
+	}
+	return m
+}
+
+func SemChavesRepetidas(fatos []Fato) []Fato {
+	out := make([]Fato, 0, len(fatos))
+	posicao := map[string]int{}
+	for _, f := range fatos {
+		chave := chaveContextual(f)
+		if i, repetida := posicao[chave]; repetida {
+			out[i] = f
+			continue
+		}
+		posicao[chave] = len(out)
+		out = append(out, f)
+	}
+	return out
+}
+
+// maisRecentesPrimeiro ordena a listagem: a memória atualizada por último primeiro, telefone no empate.
+func MaisRecentesPrimeiro(a, b Memoria) int {
+	if c := b.AtualizadaEm.Compare(a.AtualizadaEm); c != 0 {
+		return c
+	}
+	return strings.Compare(a.Telefone, b.Telefone)
+}
+
+// validarContato: a administradora tem o formato do Admin e o telefone não é vazio.
+func ValidarContato(c escopo.Contato) error {
+	if c.Validar() != nil {
+		return errContatoInvalido
+	}
+	return nil
+}
+
+func ValidarAdministradora(administradoraID string) error {
+	if !escopo.EmpresaValida(administradoraID) {
+		return fmt.Errorf("memória da administradora %q: %w", administradoraID, errContatoInvalido)
+	}
+	return nil
+}
+
+// Texto é como a memória entra no prompt.
+func (m Memoria) Texto() string {
+	if len(m.Fatos) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, f := range m.Fatos {
+		fmt.Fprintf(&b, "- %s", f.Chave)
+		if f.CondoID != nil {
+			fmt.Fprintf(&b, " (condomínio %d)", *f.CondoID)
+		}
+		fmt.Fprintf(&b, ": %s", f.Texto)
+		if !f.Quando.IsZero() {
+			fmt.Fprintf(&b, " (em %s)", f.Quando.Format("02/01/2006"))
+		}
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+var reChave = regexp.MustCompile(`[^a-z0-9_]+`)
+
+// NormalizarChave: minúsculas, sem acentos comuns, snake_case.
+func NormalizarChave(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	r := strings.NewReplacer("á", "a", "à", "a", "ã", "a", "â", "a", "é", "e", "ê", "e", "í", "i", "ó", "o", "ô", "o", "õ", "o", "ú", "u", "ç", "c", " ", "_", "-", "_")
+	s = r.Replace(s)
+	s = reChave.ReplaceAllString(s, "")
+	return strings.Trim(s, "_")
+}
+
+// Store guarda memórias por contato (administradora e telefone).
+type Store interface {
+	Ler(ctx context.Context, c escopo.Contato) (Memoria, error)
+	Gravar(ctx context.Context, c escopo.Contato, m Memoria) error
+	Listar(ctx context.Context, administradoraID string) ([]Memoria, error)
+}
+
+var errContatoInvalido = errors.New("contato sem administradora válida ou sem telefone")
+
+// ErrRespostaForaDoFormato: o extrator com modelo recebeu algo que não é o JSON pedido.
+var ErrRespostaForaDoFormato = errors.New("resposta do extrator fora do formato")
+
+// Extrator decide, a partir de uma troca (mensagem do morador e resposta), quais
+// fatos duráveis sobre a pessoa valem guardar. O harness fornece o extrator com
+// modelo; sem modelo, as Regras abaixo pegam os casos óbvios.
+type Extrator interface {
+	Extrair(ctx context.Context, mensagem, resposta string, atual Memoria) ([]Fato, error)
+}
+
+// Regras é um extrator por padrões, para rodar sem modelo (mock e testes).
+type Regras struct{}
+
+var padroes = []struct {
+	re    *regexp.Regexp
+	chave string
+	texto func(m []string) string
+}{
+	{regexp.MustCompile(`(?i)\b(s[oó] tenho|tenho s[oó]|tenho apenas|moro em)\s+(um|uma|1)\s+(ap(?:artamento|ê|to)?|unidade|casa|sala)\b`), "unidades", func(m []string) string { return "tem só uma unidade (" + strings.ToLower(m[3]) + ")" }},
+	{regexp.MustCompile(`(?i)\b(?:pode|podem) me chamar de\s+([A-Za-zÀ-ú]+)`), "nome_preferido", func(m []string) string { return "prefere ser chamado de " + m[1] }},
+	{regexp.MustCompile(`(?i)\btenho (um|uma|dois|duas|\d+)\s+(cachorros?|gatos?|pets?|animais?)\b`), "pets", func(m []string) string { return "tem " + strings.ToLower(m[1]+" "+m[2]) }},
+}
+
+func (Regras) Extrair(_ context.Context, mensagem, _ string, _ Memoria) ([]Fato, error) {
+	var out []Fato
+	for _, p := range padroes {
+		if m := p.re.FindStringSubmatch(mensagem); m != nil {
+			out = append(out, Fato{Chave: p.chave, Texto: p.texto(m), Confianca: 0.8})
+		}
+	}
+	return out, nil
+}
+
+func chaveContextual(f Fato) string {
+	if f.CondoID == nil {
+		return "null:" + f.Chave
+	}
+	return fmt.Sprintf("%d:%s", *f.CondoID, f.Chave)
+}
+
+func Preparar(c escopo.Contato, m Memoria) (Memoria, error) {
+	m = copia(m)
+	for i := range m.Fatos {
+		f := &m.Fatos[i]
+		if f.CondoID == nil && f.CondominioID != "" {
+			legado, err := escopo.NovoContato(c.CompanyID, f.CondominioID, c.Telefone)
+			if err != nil {
+				return Memoria{}, err
+			}
+			f.CondoID = legado.CondoID
+		}
+		if !escopo.CondominioValido(f.CondoID) || !c.Permite(f.CondoID) {
+			return Memoria{}, errors.New("fato fora do condomínio autorizado")
+		}
+		f.Chave = NormalizarChave(f.Chave)
+		f.Texto = strings.TrimSpace(f.Texto)
+		if f.Chave == "" || f.Texto == "" {
+			return Memoria{}, errors.New("fato exige chave e texto")
+		}
+	}
+	return m, nil
+}

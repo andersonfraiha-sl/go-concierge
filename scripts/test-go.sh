@@ -6,7 +6,7 @@ if (($# > 0)); then shift; fi
 
 case "$modo" in
   focado)
-    pacote=${1:-./internal/atende}
+    pacote=${1:-./internal/harness/atendimento}
     regex=${2:-^TestV2}
     if (($# > 2)) || [[ -z "$pacote" || -z "$regex" || "$pacote" == *...* ]]; then
       printf 'Uso: %s focado [pacote [regex]] (use completo para ./...)\n' "$0" >&2

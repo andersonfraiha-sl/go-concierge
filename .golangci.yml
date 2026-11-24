@@ -53,9 +53,12 @@ linters:
   exclusions:
     generated: lax
     paths:
-      - internal/banco/ent
-      - internal/banco/sqlc
+      - internal/core/banco/ent
+      - internal/core/banco/sqlc
     rules:
+      - linters: [gosec]
+        path: internal/core/dados/json\.go
+        text: "G704:"
       # FS local: caminho e permissão de arquivo são decisão do operador do okf-admin
       - linters: [gosec]
         text: "G(301|304|306|703|706):"
@@ -72,4 +75,4 @@ linters:
         text: "Error return value (of `[\\w.]*(Close|Write|Fprint|Fprintf|Fprintln|Encode)` )?is not checked"
       # nil intencional: caminho ausente no catálogo não é erro
       - linters: [nilerr]
-        path: internal/okf/
+        path: internal/core/catalogo/arquivos/

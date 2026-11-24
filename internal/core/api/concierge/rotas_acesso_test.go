@@ -1,0 +1,623 @@
+package conciergeapi
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/google/uuid"
+
+	"go-concierge/internal/acesso"
+	okf "go-concierge/internal/core/catalogo/arquivos"
+	acessopg "go-concierge/internal/core/dados/postgres/acesso"
+	"go-concierge/internal/entrada"
+	"go-concierge/internal/escopo"
+	harness "go-concierge/internal/harness/agentes"
+	atende "go-concierge/internal/harness/atendimento"
+	"go-concierge/internal/harness/canais"
+	admin "go-concierge/internal/harness/configuracao"
+	"go-concierge/internal/harness/memoria"
+)
+
+// acessosFake monta o Acesso como o Postgres: papéis iniciais, as atribuições do usuário e o
+// condomínio → administradora atual lido do mapeamento no momento da requisição.
+type acessosFake struct {
+	atribuicoes map[string][]acesso.Atribuicao
+	mapeamento  admin.Repositorio
+	concessoes  map[string][]acesso.Concessao // por usuário
+}
+
+func (f acessosFake) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (acesso.Acesso, error) {
+	ats, ok := f.atribuicoes[usuarioID]
+	if !ok {
+		return acesso.Acesso{}, acessopg.ErrUsuarioDesconhecido
+	}
+	m, err := f.mapeamento.Ler(ctx)
+	if err != nil {
+		return acesso.Acesso{}, err
+	}
+	donas := map[string]string{}
+	for _, c := range m.Condominios {
+		if c.Administradora != "" {
+			donas[c.ID] = c.Administradora
+		}
+	}
+	papeis := map[string]acesso.Papel{}
+	for _, p := range acesso.PapeisIniciais() {
+		papeis[p.ID] = p
+	}
+	return acesso.Acesso{UsuarioID: usuarioID, Nome: "Nome de " + usuarioID, Papeis: papeis, Atribuicoes: ats, Concessoes: f.concessoes[usuarioID], AdministradoraDe: donas, Implantacao: imp}, nil
+}
+
+func naAdministradora(papel, adm string) []acesso.Atribuicao {
+	return []acesso.Atribuicao{{PapelID: papel, Escopo: acesso.Escopo{Tipo: acesso.TipoAdministradora, ID: adm}}}
+}
+
+// usuariosTeste: admin na Superlógica; gestor e operador de adm-a; gestor de adm-b; um
+// construtor só em adm-a (tem as permissões, não o escopo da Superlógica); e um sem papel.
+func usuariosTeste() map[string][]acesso.Atribuicao {
+	return map[string][]acesso.Atribuicao{
+		"admin":                  {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor-a":               naAdministradora("gestor_administradora", "adm-a"),
+		"gestor-b":               naAdministradora("gestor_administradora", "adm-b"),
+		"operador-a":             naAdministradora("operador_administradora", "adm-a"),
+		"construtor-a":           naAdministradora("construtor_superlogica", "adm-a"),
+		"sem-papel":              {},
+		"gestor-av":              naAdministradora("gestor_administradora", "adm-av"),
+		"gestor-ab":              append(naAdministradora("gestor_administradora", "adm-a"), naAdministradora("gestor_administradora", "adm-b")...),
+		usuarioSemeadoDev:        {{PapelID: "admin_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"construtor-superlogica": {{PapelID: "construtor_superlogica", Escopo: acesso.Escopo{Tipo: acesso.TipoSuperlogica}}},
+		"gestor-exemplo":         naAdministradora("gestor_administradora", "adm-exemplo"),
+		"gestor-avancado":        naAdministradora("gestor_administradora", "adm-avancado"),
+		gestorDeUmCondominioDev:  naAdministradora("gestor_administradora", administradoraUnicaDev),
+		gestorDeCondominioDev:    {{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("adm-a", "101"), AdministradoraID: "adm-a"}},
+	}
+}
+
+type ambienteRotas struct {
+	s        *servidor
+	handler  http.Handler
+	repo     *admin.EmMemoria
+	sessaoA  string // conversa resolvida em adm-a
+	sessaoA2 string // outra conversa de adm-a (a que a rota de reiniciar apaga)
+}
+
+type canaisConfigFake struct {
+	consultadas      []string
+	porIDConsultadas []string
+	porID            []uuid.UUID
+	resolverCalls    int
+}
+
+func (f *canaisConfigFake) Resolver(context.Context, canais.Identidade) (canais.Canal, error) {
+	f.resolverCalls++
+	return canais.Canal{}, canais.ErrDesconhecido
+}
+
+func (f *canaisConfigFake) PorID(_ context.Context, company string, id uuid.UUID) (canais.Canal, error) {
+	f.porIDConsultadas = append(f.porIDConsultadas, company)
+	f.porID = append(f.porID, id)
+	return canais.Canal{CompanyID: company}, nil
+}
+
+func (f *canaisConfigFake) Casos(context.Context, canais.Canal) ([]canais.Caso, error) {
+	return nil, nil
+}
+
+func (f *canaisConfigFake) ListarMetadados(_ context.Context, company string) ([]canais.Resumo, error) {
+	f.consultadas = append(f.consultadas, company)
+	return []canais.Resumo{{CompanyID: company, Nome: "Canal " + company}}, nil
+}
+
+// novoAmbienteRotas monta o servidor inteiro sobre uma cópia do catálogo: as escritas dos
+// casos "com permissão" não tocam no okf do repositório.
+func novoAmbienteRotas(t *testing.T) ambienteRotas {
+	t.Helper()
+	raiz := t.TempDir()
+	for _, pasta := range []string{"agentes", "nexus"} {
+		origem := filepath.Join("..", "..", "..", "..", "okf", pasta)
+		destino := filepath.Join(raiz, pasta)
+		if err := os.CopyFS(destino, os.DirFS(origem)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cat, err := okf.NewCatalogo(raiz)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fix, err := okf.LerRecursosFixture(filepath.Join(raiz, "nexus", "cond-001.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat.Recursos = func() []okf.Recurso { return fix }
+	repo := admin.NovaEmMemoria()
+	for _, a := range []admin.Administradora{{ID: "adm-a", Nome: "A"}, {ID: "adm-b", Nome: "B"}} {
+		if _, err := repo.SalvarAdministradora(t.Context(), a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []admin.Condominio{{ID: "101", Nome: "Cond A", Administradora: "adm-a"}, {ID: "202", Nome: "Cond B", Administradora: "adm-b"}} {
+		if _, err := repo.SalvarCondominio(t.Context(), c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	memorias := memoria.NovoFake()
+	outbox := &atende.Outbox{}
+	sessoes := atende.NewSessoes(atende.NovaSessaoEmMemoria())
+	s := &servidor{
+		cat: cat, account: "cond-001", log: log.New(io.Discard, "", 0),
+		atende: &atende.Servico{
+			Cat: cat, Agente: "agentes/concierge", Mapeamento: repo, Sessoes: sessoes, Sender: outbox, Memorias: memorias,
+			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
+		},
+		outbox: outbox, memorias: memorias, admin: repo,
+		acessos:      acessosFake{atribuicoes: usuariosTeste(), mapeamento: repo, concessoes: map[string][]acesso.Concessao{"gestor-av": {{AdministradoraID: "adm-av", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}}}},
+		autenticador: autenticadorDev{}, authMode: authModeDev,
+		registro: slog.New(slog.NewJSONHandler(io.Discard, nil)),
+	}
+	mcp := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	return ambienteRotas{
+		s: s, handler: s.rotear(mcp), repo: repo,
+		sessaoA: sessaoEm(t, sessoes, "prot-a", "adm-a"), sessaoA2: sessaoEm(t, sessoes, "prot-a2", "adm-a"),
+	}
+}
+
+// sessaoEm abre uma conversa já resolvida para a administradora (o Processar faria isso).
+func sessaoEm(t *testing.T, sessoes *atende.Sessoes, protocolo, adm string) string {
+	t.Helper()
+	channel := uuid.NewSHA1(uuid.NameSpaceOID, []byte("canal-teste:"+adm))
+	ctx := atende.ComEscopoSessao(t.Context(), adm, channel)
+	sess, err := sessoes.Abrir(ctx, entrada.Mensagem{CompanyID: adm, ChannelID: channel, ConversaID: protocolo, Contato: entrada.Contato{Phone: "5511999990000"}, Origem: entrada.Origem{Conector: "atende-emulado", ConexaoID: "console"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.AdministradoraID = adm
+	sess.CompanyID = adm
+	sess.ChannelID = channel
+	if err := sessoes.Persistir(ctx, sess); err != nil {
+		t.Fatal(err)
+	}
+	return sess.ID
+}
+
+func (a ambienteRotas) pedir(t *testing.T, usuario, metodo, url, corpo string) *httptest.ResponseRecorder {
+	t.Helper()
+	r := httptest.NewRequest(metodo, url, strings.NewReader(corpo))
+	if usuario != "" {
+		r.Header.Set("X-Dev-Usuario", usuario)
+	}
+	w := httptest.NewRecorder()
+	a.handler.ServeHTTP(w, r)
+	return w
+}
+
+func TestRotasExigemPermissao(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	sess := func(id string) string { return strings.ReplaceAll(id, ":", "%3A") }
+	const tel = "5519999992710"
+	casos := []struct {
+		nome, metodo, url, corpo string
+		sem, com                 string
+		quer                     int // status do usuário com permissão
+	}{
+		// skills.ler em qualquer escopo
+		{nome: "agentes", metodo: "GET", url: "/api/agentes", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "agente", metodo: "GET", url: "/api/agente?agente=agentes/concierge", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "arquivo", metodo: "GET", url: "/api/arquivo?agente=agentes/concierge&caminho=persona.md", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "arquivo modelo", metodo: "GET", url: "/api/arquivo/modelo?caminho=persona.md", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "exportar", metodo: "GET", url: "/api/agentes/exportar?agente=agentes/concierge", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "anatomia", metodo: "GET", url: "/api/anatomia", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "projecao", metodo: "GET", url: "/api/projecao?agente=agentes/concierge", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "recursos", metodo: "GET", url: "/api/nexus/recursos", sem: "sem-papel", com: "operador-a", quer: 200},
+		// skills.editar_fluxo na Superlógica: o construtor de adm-a tem a permissão, não o escopo
+		{nome: "criar agente", metodo: "POST", url: "/api/agentes", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "config do agente", metodo: "PUT", url: "/api/agente/config", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "excluir agente", metodo: "DELETE", url: "/api/agente?agente=agentes/nao-existe", sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "mover agente", metodo: "POST", url: "/api/agentes/mover", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 410},
+		{nome: "importar agente", metodo: "POST", url: "/api/agentes/importar?caminho=x", sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "salvar arquivo", metodo: "PUT", url: "/api/arquivo", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "excluir arquivo", metodo: "DELETE", url: "/api/arquivo?agente=agentes/nao-existe&caminho=x.md", sem: "construtor-a", com: "admin", quer: 400},
+		// ferramentas.editar na Superlógica
+		{nome: "salvar recurso", metodo: "PUT", url: "/api/nexus/recurso", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "remover recurso", metodo: "DELETE", url: "/api/nexus/recurso?nome=nao-existe", sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "vincular recurso", metodo: "POST", url: "/api/agente/recursos", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		// studio.avancado na Superlógica
+		{nome: "ler orquestracao", metodo: "GET", url: "/api/admin/orquestracao", sem: "gestor-a", com: "gestor-av", quer: 200},
+		{nome: "salvar orquestracao", metodo: "PUT", url: "/api/admin/orquestracao", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "webhook emulado", metodo: "POST", url: "/emulador/atende/webhook", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "caixa do emulador", metodo: "POST", url: "/api/atende/entrega-emulada/validar", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "proxy mcp", metodo: "POST", url: "/mcp/gruvi/bff", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 200},
+		// estado: skills.ler em qualquer escopo
+		{nome: "estado", metodo: "GET", url: "/api/admin/estado?administradora=adm-a", sem: "sem-papel", com: "operador-a", quer: 200},
+		// skills do Studio
+		// copiloto: skills.ler em qualquer escopo (sem modelo ligado, 503 prova que passou do acesso)
+		{nome: "estado do copiloto", metodo: "GET", url: "/api/copiloto/estado", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "perguntar ao copiloto", metodo: "POST", url: "/api/copiloto", corpo: `{}`, sem: "sem-papel", com: "operador-a", quer: 503},
+		{nome: "listar skills", metodo: "GET", url: "/api/skills", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "textos da skill", metodo: "GET", url: "/api/skills/agendar-mudanca", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "fluxo da skill", metodo: "GET", url: "/api/skills/agendar-mudanca/fluxo", sem: "sem-papel", com: "operador-a", quer: 200},
+		{nome: "criar skill", metodo: "POST", url: "/api/skills", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "duplicar skill", metodo: "POST", url: "/api/skills/nao-existe/duplicar", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 400},
+		{nome: "salvar textos", metodo: "PUT", url: "/api/skills/nao-existe/textos", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 422},
+		{nome: "salvar fluxo", metodo: "PUT", url: "/api/skills/nao-existe/fluxo", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 404},
+		{nome: "excluir skill", metodo: "DELETE", url: "/api/skills/nao-existe", sem: "construtor-a", com: "admin", quer: 404},
+		// administradoras.editar na Superlógica
+		// condominios.editar na administradora do corpo (e na dona atual)
+		// condominios.habilitar no condomínio (padrão: Superlógica)
+		{nome: "orientacao", metodo: "PUT", url: "/api/admin/orientacao?company_id=adm-a", corpo: `{"condominio":"101","geral":"x"}`, sem: "gestor-b", com: "gestor-a", quer: 200},
+		{nome: "orientacao padrao", metodo: "PUT", url: "/api/admin/orientacao", corpo: `{"condominio":"*","geral":"x"}`, sem: "gestor-a", com: "admin", quer: 200},
+		{nome: "ajustes", metodo: "PUT", url: "/api/admin/ajustes?company_id=adm-a", corpo: `{"condominio":"101","ajustes":{}}`, sem: "gestor-b", com: "gestor-a", quer: 200},
+		{nome: "ajustes padrao", metodo: "PUT", url: "/api/admin/ajustes", corpo: `{"condominio":"*","ajustes":{}}`, sem: "gestor-a", com: "admin", quer: 200},
+		{nome: "sugerir payload", metodo: "POST", url: "/api/admin/sugerir-payload?company_id=adm-a", corpo: `{"condominio":"101","recurso":"nao-existe"}`, sem: "gestor-b", com: "gestor-a", quer: 404},
+		// ferramentas.editar no condomínio
+		{nome: "payload", metodo: "PUT", url: "/api/admin/payload?company_id=adm-a", corpo: `{"condominio":"101","recurso":"x","payload":{}}`, sem: "gestor-a", com: "construtor-a", quer: 200},
+		{nome: "payload padrao", metodo: "PUT", url: "/api/admin/payload", corpo: `{"condominio":"*","recurso":"x","payload":{}}`, sem: "construtor-a", com: "admin", quer: 200},
+		// conversas.ver na administradora pedida (a da sessão, quando há sessão)
+		{nome: "sessoes", metodo: "GET", url: "/api/atende/sessoes?administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "sessao", metodo: "GET", url: "/api/atende/sessao?id=" + sess(amb.sessaoA) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "saidas da sessao", metodo: "GET", url: "/api/atende/saidas?id=" + sess(amb.sessaoA) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		// studio.avancado na Superlógica: identidade (Gruvi com a company global), configuração
+		// da implantação e a caixa de saída inteira não são de uma administradora
+		{nome: "identidade", metodo: "GET", url: "/api/atende/identidade?phone=" + tel + "&administradora=adm-a", sem: "operador-a", com: "admin", quer: 200},
+		{nome: "identidade de quem tem studio só em A", metodo: "GET", url: "/api/atende/identidade?phone=" + tel + "&administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
+		{nome: "config do atende", metodo: "GET", url: "/api/atende/config?administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
+		{nome: "caixa de saida inteira", metodo: "GET", url: "/api/atende/saidas?administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
+		// conversas.atender na administradora da sessão
+		{nome: "transbordo", metodo: "POST", url: "/api/atende/transbordo?company_id=adm-a", corpo: `{"sessao_id":"` + amb.sessaoA + `","acao":"x"}`, sem: "gestor-b", com: "operador-a", quer: 400},
+		{nome: "reiniciar sessao", metodo: "DELETE", url: "/api/atende/sessao?id=" + sess(amb.sessaoA2) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		// pedidos
+		{nome: "pedidos", metodo: "GET", url: "/api/pedidos?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "exportar pedidos", metodo: "GET", url: "/api/pedidos/exportar?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 400},
+		{nome: "acao de pedido", metodo: "POST", url: "/api/pedidos/acao?administradora=adm-a", corpo: `{"acao":"x"}`, sem: "operador-a", com: "gestor-a", quer: 400},
+		// memória
+		{nome: "memoria", metodo: "GET", url: "/api/memoria?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "memorias", metodo: "GET", url: "/api/memorias?administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "esquecer memoria", metodo: "DELETE", url: "/api/memoria?phone=" + tel + "&administradora=adm-a&chave=x", sem: "operador-a", com: "gestor-a", quer: 404},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			if w := amb.pedir(t, c.sem, c.metodo, c.url, c.corpo); w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "SEM_PERMISSAO") {
+				t.Fatalf("%s sem permissão: status %d: %s", c.sem, w.Code, w.Body.String())
+			}
+			if w := amb.pedir(t, c.com, c.metodo, c.url, c.corpo); w.Code != c.quer {
+				t.Fatalf("%s com permissão: status %d, quero %d: %s", c.com, w.Code, c.quer, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestAtendeConfigNoEscopoDaImplantacaoFixa(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+
+	w := amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/config", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("config da empresa fixa: status %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Canais []canais.Resumo `json:"canais"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Canais) != 1 || body.Canais[0].CompanyID != "adm-a" || len(canaisDB.consultadas) != 1 || canaisDB.consultadas[0] != "adm-a" {
+		t.Fatalf("config retornou canais fora da implantação: %+v, consultas %v", body.Canais, canaisDB.consultadas)
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/config?company_id=adm-b", "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("config de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.consultadas) != 1 {
+		t.Fatalf("empresa externa alcançou o repositório de canais: %v", canaisDB.consultadas)
+	}
+}
+
+func TestAtendeMensagemEmuladaNoEscopoDaImplantacaoFixa(t *testing.T) {
+	const company = "admin112698"
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = company
+	acessos := amb.s.acessos.(acessosFake)
+	acessos.atribuicoes["construtor-fixo"] = naAdministradora("construtor_superlogica", company)
+	acessos.atribuicoes["operador-fixo"] = naAdministradora("operador_administradora", company)
+	amb.s.acessos = acessos
+
+	sessaoFixa := sessaoEm(t, amb.s.atende.Sessoes, "protocolo-fixo", company)
+	sessaoExterna := sessaoEm(t, amb.s.atende.Sessoes, "protocolo-externo", "adm-b")
+	body := func(protocolo, sessao string) string {
+		return `{"protocol":"` + protocolo + `","session_id":"` + sessao + `","message":"resposta"}`
+	}
+
+	w := amb.pedir(t, "construtor-fixo", http.MethodPost, "/api/atende/entrega-emulada/validar", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("resposta da empresa fixa: status %d: %s", w.Code, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/api/atende/entrega-emulada/validar?company_id=adm-b", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("empresa externa na consulta: status %d: %s", w.Code, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/api/atende/entrega-emulada/validar", body("protocolo-externo", sessaoExterna))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("sessão de outra empresa alcançou o emulador: status %d: %s", w.Code, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/api/atende/entrega-emulada/validar", body("protocolo-externo", sessaoFixa))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("protocolo divergente da sessão foi aceito: status %d: %s", w.Code, w.Body.String())
+	}
+
+	w = amb.pedir(t, "operador-fixo", http.MethodPost, "/api/atende/entrega-emulada/validar", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("usuário sem studio.avancado foi aceito: status %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAtendeWebhookEmuladoNoEscopoDaImplantacaoFixa(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+	canal := uuid.NewString()
+	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-escopo","tenant":"tenant-a","data":{"protocol":{"number":"protocolo-escopo"},"contact":{"phone":"5511999990001"},"channel":{"type":"whatsapp","displayNumber":"551940402710"},"message":{"id":"msg-escopo","type":"text","content":"FAQ"}}}`
+	url := "/emulador/atende/webhook?company_id=adm-a&channel_id=" + canal
+	w := amb.pedir(t, "construtor-a", http.MethodPost, url, corpo)
+	if w.Code != http.StatusBadRequest || len(canaisDB.porIDConsultadas) != 1 || canaisDB.porIDConsultadas[0] != "adm-a" || len(canaisDB.porID) != 1 || canaisDB.porID[0].String() != canal {
+		t.Fatalf("webhook da empresa fixa não validou o canal por empresa e ID: status %d, empresas %v, canais %v: %s", w.Code, canaisDB.porIDConsultadas, canaisDB.porID, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodPost, "/emulador/atende/webhook?company_id=adm-b&channel_id="+canal, corpo)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("webhook de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.porIDConsultadas) != 1 {
+		t.Fatalf("webhook de empresa externa alcançou o repositório de canais: %v", canaisDB.porIDConsultadas)
+	}
+}
+
+func TestAtendeIdentidadeV2NoEscopoDoCanal(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+	canal := uuid.NewString()
+	url := "/api/atende/identidade?phone=5511999990001&company_id=adm-a&channel_id=" + canal
+	w := amb.pedir(t, "construtor-a", http.MethodGet, url, "")
+	if w.Code != http.StatusOK || len(canaisDB.porIDConsultadas) != 1 || canaisDB.porIDConsultadas[0] != "adm-a" {
+		t.Fatalf("identidade da empresa fixa: status %d, consultas %v: %s", w.Code, canaisDB.porIDConsultadas, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/identidade?phone=5511999990001&company_id=adm-b&channel_id="+canal, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("identidade de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.porIDConsultadas) != 1 {
+		t.Fatalf("identidade de empresa externa alcançou o repositório de canais: %v", canaisDB.porIDConsultadas)
+	}
+}
+
+func TestRotearNaoEntraEmPanico(t *testing.T) {
+	for _, nome := range []string{"sem mcp", "com mcp"} {
+		t.Run(nome, func(t *testing.T) {
+			amb := novoAmbienteRotas(t)
+			var mcp http.Handler
+			if nome == "com mcp" {
+				mcp = http.NotFoundHandler()
+			}
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("rotear entrou em panic: %v", r)
+				}
+			}()
+			amb.s.rotear(mcp)
+		})
+	}
+}
+
+func TestRotasAutenticacao(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	casos := []struct {
+		nome, usuario, url string
+		status             int
+		trecho             string
+	}{
+		{nome: "sem cabeçalho e sem usuário padrão", url: "/api/agentes", status: http.StatusUnauthorized, trecho: "NAO_AUTENTICADO"},
+		{nome: "usuário desconhecido", usuario: "fantasma", url: "/api/agentes", status: http.StatusUnauthorized, trecho: "NAO_AUTENTICADO"},
+		{nome: "gestor de A pede memória de B", usuario: "gestor-a", url: "/api/memoria?phone=5519999992710&administradora=adm-b", status: http.StatusForbidden, trecho: "SEM_PERMISSAO"},
+		{nome: "núcleo não hospeda a raiz", url: "/", status: http.StatusNotFound},
+		{nome: "Admin antigo fica fora do núcleo", url: "/admin", status: http.StatusNotFound},
+		{nome: "arquivo do Admin fica fora do núcleo", url: "/admin.js", status: http.StatusNotFound},
+		{nome: "Studio fica fora do núcleo", url: "/studio/", status: http.StatusNotFound},
+		{nome: "Console fica fora do núcleo", url: "/console", status: http.StatusNotFound},
+		{nome: "Backdoor fica fora do núcleo", url: "/backdoor", status: http.StatusNotFound},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			w := amb.pedir(t, c.usuario, "GET", c.url, "")
+			if w.Code != c.status || !strings.Contains(w.Body.String(), c.trecho) {
+				t.Fatalf("status %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+	t.Run("usuário padrão do modo dev", func(t *testing.T) {
+		amb.s.autenticador = autenticadorDev{padrao: "operador-a"}
+		defer func() { amb.s.autenticador = autenticadorDev{} }()
+		if w := amb.pedir(t, "", "GET", "/api/agentes", ""); w.Code != http.StatusOK {
+			t.Fatalf("status %d: %s", w.Code, w.Body.String())
+		}
+	})
+}
+
+// TestSessaoFicaComAAdministradoraGravada: a conversa gravada em A continua de A depois que o
+// condomínio passa para B; o gestor de B não a vê.
+func TestSessaoFicaComAAdministradoraGravada(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	if _, err := amb.repo.SalvarCondominio(t.Context(), admin.Condominio{ID: "101", Nome: "Cond A", Administradora: "adm-b"}); err != nil {
+		t.Fatal(err)
+	}
+	url := "/api/atende/sessao?id=" + strings.ReplaceAll(amb.sessaoA, ":", "%3A") + "&administradora=adm-b"
+	if w := amb.pedir(t, "gestor-b", "GET", url, ""); w.Code != http.StatusNotFound {
+		t.Fatalf("gestor de B: status %d: %s", w.Code, w.Body.String())
+	}
+	urlDeA := "/api/atende/sessao?company_id=adm-a&id=" + strings.ReplaceAll(amb.sessaoA, ":", "%3A")
+	if w := amb.pedir(t, "gestor-b", "GET", urlDeA, ""); w.Code != http.StatusForbidden {
+		t.Fatalf("gestor de B não pode acessar empresa A: %d %s", w.Code, w.Body.String())
+	}
+	if w := amb.pedir(t, "gestor-a", "GET", urlDeA, ""); w.Code != http.StatusOK {
+		t.Fatalf("gestor de A: status %d: %s", w.Code, w.Body.String())
+	}
+	w := amb.pedir(t, "gestor-b", "GET", "/api/atende/sessoes?administradora=adm-b", "")
+	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "assuma o atendimento") {
+		t.Fatalf("lista de B traz a conversa de A: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestEstadoMostraSoAsAdministradorasVisiveis(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	var corpo struct {
+		Mapeamento      admin.Mapeamento       `json:"mapeamento"`
+		Administradoras []admin.Administradora `json:"administradoras"`
+	}
+	w := amb.pedir(t, "gestor-a", "GET", "/api/admin/estado", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpo.Administradoras) != 1 || corpo.Administradoras[0].ID != "adm-a" || len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "101" {
+		t.Fatalf("gestor de A vê além de A: %+v", corpo)
+	}
+	if w := amb.pedir(t, "gestor-a", "GET", "/api/admin/estado?administradora=adm-b", ""); w.Code != http.StatusForbidden {
+		t.Fatalf("gestor de A pedindo B: status %d", w.Code)
+	}
+	w = amb.pedir(t, "admin", "GET", "/api/admin/estado", "")
+	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpo.Administradoras) != 2 || len(corpo.Mapeamento.Condominios) != 2 {
+		t.Fatalf("admin da Superlógica vê tudo: %+v", corpo)
+	}
+}
+
+func TestEstadoDeQuemSoTemUmCondominio(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	var corpo struct {
+		Mapeamento      admin.Mapeamento       `json:"mapeamento"`
+		Administradoras []admin.Administradora `json:"administradoras"`
+	}
+	w := amb.pedir(t, gestorDeCondominioDev, "GET", "/api/admin/estado", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
+		t.Fatal(err)
+	}
+	if len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "101" {
+		t.Fatalf("quer só 101, veio %+v", corpo.Mapeamento.Condominios)
+	}
+	if len(corpo.Administradoras) != 1 || corpo.Administradoras[0].ID != "adm-a" {
+		t.Fatalf("quer só a dona adm-a, veio %+v", corpo.Administradoras)
+	}
+}
+
+func TestLogDoMiddleware(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	var buf bytes.Buffer
+	amb.s.registro = slog.New(slog.NewJSONHandler(&buf, nil))
+	amb.handler = amb.s.rotear(nil)
+	if w := amb.pedir(t, "operador-a", "GET", "/api/memoria?phone=5519999992710&administradora=adm-a", ""); w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	linhas := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(linhas) != 1 {
+		t.Fatalf("quero uma linha, veio:\n%s", buf.String())
+	}
+	var linha map[string]any
+	if err := json.Unmarshal([]byte(linhas[0]), &linha); err != nil {
+		t.Fatalf("linha não é JSON: %v: %s", err, linhas[0])
+	}
+	for _, campo := range []string{"request_id", "usuario_id", "operacao", "duracao_ms"} {
+		if _, ok := linha[campo]; !ok {
+			t.Fatalf("falta %s: %s", campo, linhas[0])
+		}
+	}
+	if linha["usuario_id"] != "operador-a" || linha["operacao"] != "GET /api/memoria" {
+		t.Fatalf("linha: %s", linhas[0])
+	}
+	if !strings.Contains(linhas[0], "5519****2710") || strings.Contains(linhas[0], "5519999992710") {
+		t.Fatalf("telefone sem máscara: %s", linhas[0])
+	}
+}
+
+// autenticadorFixo devolve sempre o mesmo usuário, como faria um login futuro.
+type autenticadorFixo string
+
+func (a autenticadorFixo) Autenticar(*http.Request) (string, error) { return string(a), nil }
+
+func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
+	modos := []struct {
+		nome     string
+		authMode string
+		quer     int
+	}{
+		{nome: "modo dev aceita", authMode: authModeDev, quer: http.StatusOK},
+		{nome: "fora de dev recusa", authMode: "", quer: http.StatusUnauthorized},
+		{nome: "modo proxy recusa", authMode: authModeProxy, quer: http.StatusUnauthorized},
+	}
+	for id := range usuariosSemeadosDev {
+		for _, m := range modos {
+			t.Run(id+"/"+m.nome, func(t *testing.T) {
+				amb := novoAmbienteRotas(t)
+				amb.s.autenticador, amb.s.authMode = autenticadorFixo(id), m.authMode
+				if w := amb.pedir(t, "", "GET", "/api/agentes", ""); w.Code != m.quer {
+					t.Fatalf("status %d: %s", w.Code, w.Body.String())
+				}
+			})
+		}
+	}
+}
+
+func TestTransbordoNaoEcoaErroInterno(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	// responder sem transbordo ativo é recusado pelo serviço; o erro dele não vai na resposta
+	w := amb.pedir(t, "admin", "POST", "/api/atende/transbordo?company_id=adm-a", `{"sessao_id":"`+amb.sessaoA+`","acao":"responder","texto":"oi"}`)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "TRANSBORDO_RECUSADO") || strings.Contains(w.Body.String(), "assuma o atendimento") {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLogDeRotaInexistenteDaAPI(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	var buf bytes.Buffer
+	amb.s.registro = slog.New(slog.NewJSONHandler(&buf, nil))
+	amb.handler = amb.s.rotear(nil)
+	amb.pedir(t, "admin", "GET", "/api/nao-existe", "")
+	amb.pedir(t, "", "GET", "/styles.css", "")
+	if n := strings.Count(buf.String(), "\n"); n != 2 || !strings.Contains(buf.String(), `"caminho":"/api/nao-existe"`) || !strings.Contains(buf.String(), `"caminho":"/styles.css"`) {
+		t.Fatalf("rotas inexistentes devem ser registradas no núcleo:\n%s", buf.String())
+	}
+}
+
+func TestOrquestracaoComAvancadoConcedido(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	if w := amb.pedir(t, "gestor-av", "GET", "/api/admin/orquestracao", ""); w.Code != http.StatusOK {
+		t.Fatalf("leitura: status %d: %s", w.Code, w.Body.String())
+	}
+	w := amb.pedir(t, "gestor-av", "PUT", "/api/admin/orquestracao", `{}`)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "SEM_PERMISSAO") {
+		t.Fatalf("escrita: status %d: %s", w.Code, w.Body.String())
+	}
+}
