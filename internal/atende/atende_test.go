@@ -395,7 +395,7 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	contexto = ag.Instrucao
-	if !strings.Contains(contexto, "Memória sobre o morador") || !strings.Contains(contexto, "unidades: tem só uma unidade") {
+	if !strings.Contains(contexto, "Memória sobre o morador") || !strings.Contains(contexto, "unidades (condomínio 101): tem só uma unidade") {
 		t.Fatalf("contexto sem a memória:\n%s", contexto[len(contexto)-400:])
 	}
 	if sub := ag.Subagentes["regimento"]; sub == nil || !strings.Contains(sub.Instrucao, "Memória sobre o morador") {

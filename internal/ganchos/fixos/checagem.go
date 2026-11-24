@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"go-concierge/internal/admin"
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 )
 
@@ -93,6 +94,13 @@ func CausaDoEscopo(e ganchos.MensagemRecebida) error {
 
 // resolverCondominio acha o condomínio da mensagem e recusa o que não é da conversa.
 func resolverCondominio(e ganchos.MensagemRecebida) (admin.Condominio, error) {
+	if e.CanalResolvido {
+		atual := e.ContatoDaSessao.Canonico()
+		if e.ChannelID == "" || e.CompanyID == "" || !e.Implantacao.Permite(e.CompanyID) || atual.CompanyID != e.CompanyID || !escopo.MesmoCondominio(atual.CondoID, e.CondoID) {
+			return admin.Condominio{}, ErrCondominioMudou
+		}
+		return e.Condominio, nil
+	}
 	condo, err := admin.ResolverCondominio(e.Mapeamento, e.Implantacao, e.CompanyID, e.Tenant)
 	if err != nil {
 		return admin.Condominio{}, err

@@ -10,15 +10,15 @@ const (
 	// Label holds the string label denoting the catalogoarquivo type in the database.
 	Label = "catalogo_arquivo"
 	// FieldID holds the string denoting the id field in the database.
-	FieldID = "caminho"
+	FieldID = "path"
 	// FieldConteudo holds the string denoting the conteudo field in the database.
-	FieldConteudo = "conteudo"
+	FieldConteudo = "content"
 	// FieldSha256 holds the string denoting the sha256 field in the database.
 	FieldSha256 = "sha256"
 	// FieldAtualizadoEm holds the string denoting the atualizado_em field in the database.
-	FieldAtualizadoEm = "atualizado_em"
+	FieldAtualizadoEm = "updated_at"
 	// Table holds the table name of the catalogoarquivo in the database.
-	Table = "catalogo_arquivos"
+	Table = "catalog_files"
 )
 
 // Columns holds all SQL columns for catalogoarquivo fields.

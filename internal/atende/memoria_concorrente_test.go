@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/escopo"
@@ -15,7 +16,7 @@ import (
 func TestGravarConcorrente(t *testing.T) {
 	const gravacoes = 20
 	s := &Servico{Memorias: memoria.NovoPostgres(bancotest.Novo(t))}
-	c, err := escopo.NovoContato("adm-a", "cond-1", "5519981621916")
+	c, err := escopo.NovoContato("adm-a", "101", "5519981621916")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,6 +47,6 @@ func gravarFato(t *testing.T, s *Servico, c escopo.Contato, chave string) error 
 	if err != nil {
 		return err
 	}
-	m, _ = m.Upsert(memoria.Fato{Chave: chave, Texto: "fato " + chave})
+	m, _ = m.Upsert(memoria.Fato{Chave: chave, Texto: "fato " + chave, CondoID: c.CondoID, Quando: time.Now()})
 	return s.Memorias.Gravar(t.Context(), c, m)
 }

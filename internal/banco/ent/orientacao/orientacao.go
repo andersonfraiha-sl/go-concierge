@@ -12,28 +12,34 @@ const (
 	Label = "orientacao"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldScopeType holds the string denoting the scope_type field in the database.
+	FieldScopeType = "scope_type"
+	// FieldCompanyID holds the string denoting the company_id field in the database.
+	FieldCompanyID = "company_id"
 	// FieldCondominioID holds the string denoting the condominio_id field in the database.
-	FieldCondominioID = "condominio_id"
+	FieldCondominioID = "condo_id"
 	// FieldGeral holds the string denoting the geral field in the database.
-	FieldGeral = "geral"
+	FieldGeral = "general_text"
 	// FieldPorCaso holds the string denoting the por_caso field in the database.
-	FieldPorCaso = "por_caso"
+	FieldPorCaso = "by_use_case"
 	// EdgeCondominio holds the string denoting the condominio edge name in mutations.
 	EdgeCondominio = "condominio"
 	// Table holds the table name of the orientacao in the database.
-	Table = "orientacoes"
+	Table = "guidelines"
 	// CondominioTable is the table that holds the condominio relation/edge.
-	CondominioTable = "orientacoes"
+	CondominioTable = "guidelines"
 	// CondominioInverseTable is the table name for the Condominio entity.
 	// It exists in this package in order to avoid circular dependency with the "condominio" package.
 	CondominioInverseTable = "condominios"
 	// CondominioColumn is the table column denoting the condominio relation/edge.
-	CondominioColumn = "condominio_id"
+	CondominioColumn = "condo_id"
 )
 
 // Columns holds all SQL columns for orientacao fields.
 var Columns = []string{
 	FieldID,
+	FieldScopeType,
+	FieldCompanyID,
 	FieldCondominioID,
 	FieldGeral,
 	FieldPorCaso,
@@ -60,6 +66,16 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByScopeType orders the results by the scope_type field.
+func ByScopeType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldScopeType, opts...).ToFunc()
+}
+
+// ByCompanyID orders the results by the company_id field.
+func ByCompanyID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCompanyID, opts...).ToFunc()
 }
 
 // ByCondominioID orders the results by the condominio_id field.

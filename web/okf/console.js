@@ -9,6 +9,7 @@
   const estado = { protocolo: '', sessaoID: '', ultimoEvento: null, sessao: null, config: null, poll: null };
 
   async function api(caminho, opts = {}) {
+	if (/^\/api\/(atende\/(sessao|sessoes|saidas|transbordo|identidade)|memoria|memorias|pedidos)(\?|\/|$)/.test(caminho)) caminho = comAdministradora(caminho);
     const r = await fetch(caminho, { headers: opts.body ? { 'Content-Type': 'application/json' } : {}, ...opts });
     const tipo = r.headers.get('content-type') || '';
     const dados = tipo.includes('json') ? await r.json() : await r.text();
@@ -31,17 +32,20 @@
   // a administradora dele às rotas de memória e pedidos
   const condominioEscolhido = () => $('#formContato').condominio.value;
   // sem condomínio no seletor, vale a administradora que o turno resolveu para a conversa aberta
-  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || estado.sessao?.administradora_id || '';
-  const comAdministradora = (caminho) => caminho + (caminho.includes('?') ? '&' : '?') + 'administradora=' + encodeURIComponent(administradora());
-  async function carregarCondominios() {
-    try {
-      const r = await api('/api/admin/estado');
-      const nomes = Object.fromEntries((r.administradoras || []).map((a) => [a.id, a.nome]));
-      const condos = (r.mapeamento.condominios || []).filter((c) => c.administradora_id);
-      const sel = $('#formContato').condominio;
-      sel.innerHTML = '<option value="">nenhum (usa o tenant abaixo)</option>' + condos.map((c) => `<option value="${esc(c.id)}" data-adm="${esc(c.administradora_id)}">${esc(c.nome)} · ${esc(nomes[c.administradora_id] || c.administradora_id)}</option>`).join('');
-      if (condos.length) sel.value = condos[0].id;
-    } catch (err) { toast(err.message, true); }
+  const administradora = () => $('#formContato').condominio.selectedOptions[0]?.dataset.adm || estado.sessao?.company_id || '';
+  const comAdministradora = (caminho) => {
+    const url = new URL(caminho, location.origin);
+    url.searchParams.set('company_id', administradora());
+    const channel = condominioEscolhido();
+    if (channel) url.searchParams.set('channel_id', channel);
+    const condo = $('#formContato').condominio.selectedOptions[0]?.dataset.condo;
+    if (condo) url.searchParams.set('condo_id', condo);
+    return url.pathname + url.search;
+  };
+  function atualizarCanalSelecionado() {
+    const option = $('#formContato').condominio.selectedOptions[0];
+    if (option?.dataset.tenant) $('#formContato').tenant.value = option.dataset.tenant;
+    if (option?.dataset.endpoint) $('#displayNumber').textContent = option.dataset.endpoint;
   }
 
   // ---- protocolo e evento -----------------------------------------------------
@@ -100,7 +104,8 @@
     $('#btnEnviar').disabled = true;
     try {
       const cond = condominioEscolhido();
-      const recebido = await api('/emulador/atende/webhook' + (cond ? '?condominio=' + encodeURIComponent(cond) : ''), { method: 'POST', body: JSON.stringify(ev) });
+      if (!cond) throw new Error('Selecione um canal persistido no emulador.');
+      const recebido = await api(comAdministradora('/emulador/atende/webhook?channel_id=' + encodeURIComponent(cond)), { method: 'POST', body: JSON.stringify(ev) });
       estado.sessaoID = recebido.session_id || estado.sessaoID;
       await acompanhar();
     } catch (err) { toast(err.message, true); digitando(false); }
@@ -381,10 +386,11 @@
     icons();
   }
   $('#formContato').phone.addEventListener('change', () => { carregarMemoria(); carregarPedidos(); });
-  $('#formContato').condominio.addEventListener('change', () => { estado.chaveMemoria = estado.chavePedidos = ''; carregarMemoria(); carregarPedidos(); });
+  $('#formContato').condominio.addEventListener('change', () => { atualizarCanalSelecionado(); novaConversa(); estado.chaveMemoria = estado.chavePedidos = ''; carregarMemoria(); carregarPedidos(); });
 
   async function identificar() {
     const phone = $('#formContato').phone.value.trim();
+    if (!estado.config?.gruvi?.configurado) return;
     $('#btnIdentificar').disabled = true;
     try {
       const r = await api('/api/atende/identidade?phone=' + encodeURIComponent(phone));
@@ -397,7 +403,7 @@
   async function carregarSessoes() {
     try {
       const r = await api('/api/atende/sessoes');
-      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}" data-condominio="${esc(s.condominio || '')}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
+      $('#sessoes').innerHTML = r.sessoes.length ? r.sessoes.map((s) => `<div class="sub ${s.id === estado.sessaoID ? 'is-on' : ''}" data-id="${esc(s.id)}" data-p="${esc(s.protocolo)}" data-phone="${esc(s.contato.phone)}" data-name="${esc(s.contato.name)}" data-tenant="${esc(s.tenant)}" data-channel="${esc(s.channel_id || '')}"><span class="res-icon"><i data-lucide="message-square"></i></span><strong>${esc(s.contato.name || s.contato.phone)}</strong><span class="badges"><span class="tag tag-locked">${s.turnos.length}</span></span><button type="button" class="sub-del" title="Excluir conversa" data-del="${esc(s.id)}"><i data-lucide="trash-2"></i></button><span>${esc(s.protocolo)} · ${hora(s.atualizada_em)}</span></div>`).join('') : '<div class="empty-state" style="padding:8px"><i data-lucide="inbox"></i>nenhuma conversa</div>';
       // lixeira: apaga a conversa no servidor; se era a aberta, começa uma nova
       $$('#sessoes .sub-del').forEach((b) => b.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -410,7 +416,7 @@
       }));
       $$('#sessoes .sub').forEach((d) => d.addEventListener('click', async () => {
         const f = $('#formContato');
-        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant; if (d.dataset.condominio) f.condominio.value = d.dataset.condominio;
+        estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant; if (d.dataset.channel) f.condominio.value = d.dataset.channel; atualizarCanalSelecionado();
         const r2 = await api('/api/atende/sessao?id=' + encodeURIComponent(d.dataset.id));
         estado.sessao = r2.sessao;
         estado.recebidas = r2.recebidas || [];
@@ -430,12 +436,35 @@
       const c = await api('/api/atende/config');
       estado.config = c;
       const contato = $('#formContato').phone;
-      if (!contato.value.trim() && c.telefone_b2c) contato.value = c.telefone_b2c;
+      if (!contato.value.trim() && c.ambiente_dev && !c.telefone_b2c) contato.value = '5511999990001';
+      else if (!contato.value.trim() && c.telefone_b2c) contato.value = c.telefone_b2c;
       const set = (id, ok, txt, title) => { const el = $(id); el.querySelector('b').textContent = txt; el.classList.toggle('is-live', ok); el.classList.toggle('is-dev', !ok); el.title = title || ''; };
       set('#chipModelo', c.modelo_provedor !== 'mock', c.modelo_provedor, 'LLM_MODE do .env');
       set('#chipGruvi', c.gruvi.configurado, c.gruvi.configurado ? 'company ' + c.gruvi.company_id : 'não configurado', c.gruvi.bff_url);
-      set('#chipNexus', !String(c.nexus_origem).startsWith('nenhuma'), String(c.nexus_origem).startsWith('http') ? 'ao vivo' : String(c.nexus_origem).startsWith('instant') ? 'instantâneo' : 'nenhum', c.nexus_origem);
-    } catch (err) { toast(err.message, true); }
+      const origemNexus = String(c.nexus_origem || '');
+      const nexusAoVivo = origemNexus.startsWith('http') || origemNexus.includes('+ http');
+      const nexusInstantaneo = origemNexus.includes('instantâneo nexus/');
+      set('#chipNexus', nexusAoVivo, nexusAoVivo ? 'ao vivo' : nexusInstantaneo ? 'instantâneo local' : 'nenhum', origemNexus);
+      const identificarAtivo = c.gruvi?.configurado === true;
+      const btnIdentificar = $('#btnIdentificar');
+      btnIdentificar.hidden = !identificarAtivo;
+      btnIdentificar.disabled = !identificarAtivo;
+      $('#identidade').innerHTML = identificarAtivo
+        ? '<i data-lucide="user-search"></i>Clique em “Identificar no Gruvi” ou envie uma mensagem.'
+        : '<i data-lucide="user-search"></i>Identificação externa desativada. O contato será tratado como público, sem consulta ao Gruvi nem unidades autenticadas.';
+      const condos = c.canais || [];
+      const sel = $('#formContato').condominio;
+      sel.innerHTML = '<option value="">selecione um canal</option>' + condos.map((canal) => `<option value="${esc(canal.id)}" data-adm="${esc(canal.company_id)}" data-condo="${esc(canal.condo_id ?? '')}" data-tenant="${esc(canal.tenant)}" data-endpoint="${esc(canal.endpoint)}">${esc(canal.nome || canal.endpoint)} · ${esc(canal.company_id)}${canal.habilitado ? '' : ' · desligado'}</option>`).join('');
+      if (condos.length) sel.value = condos[0].id;
+      atualizarCanalSelecionado();
+      icons();
+    } catch (err) {
+      $('#btnIdentificar').hidden = true;
+      $('#btnIdentificar').disabled = true;
+      $('#identidade').innerHTML = '<i data-lucide="user-search"></i>Configuração indisponível; nenhuma consulta externa de identidade foi feita.';
+      icons();
+      toast(err.message, true);
+    }
   }
 
   // ---- eventos de tela --------------------------------------------------------------
@@ -458,6 +487,6 @@
 
   icons();
   novaConversa();
-  const configCarregada = Promise.all([carregarConfig(), carregarCondominios()]);
-  configCarregada.then(() => { carregarMemoria(); carregarPedidos(); });
+  const configCarregada = carregarConfig();
+  configCarregada.then(() => { carregarSessoes(); carregarMemoria(); carregarPedidos(); });
 })();

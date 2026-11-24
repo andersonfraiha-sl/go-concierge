@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
 
 	"go-concierge/internal/banco"
 	"go-concierge/internal/entrada"
@@ -27,6 +28,9 @@ import (
 // e os turnos (mensagens do morador e respostas do concierge). Sessoes a grava no
 // SessaoStore ao fim de cada operação.
 type Sessao struct {
+	ChannelID         uuid.UUID         `json:"channel_id"`
+	CondoID           *int              `json:"condo_id"`
+	GruviCompanyID    string            `json:"gruvi_company_id,omitempty"`
 	ID                string            `json:"id"`
 	Origem            entrada.Origem    `json:"origem"`
 	Destino           entrada.Destino   `json:"destino"`
@@ -38,7 +42,7 @@ type Sessao struct {
 	IdentErro         string            `json:"identidade_erro,omitempty"`
 	Condominio        string            `json:"condominio,omitempty"` // id no Admin, resolvido pela mensagem
 	AdministradoraID  string            `json:"administradora_id,omitempty"`
-	CompanyID         string            `json:"company_id,omitempty"` // company do Gruvi do condomínio resolvido
+	CompanyID         string            `json:"company_id,omitempty"`
 	Turnos            []Turno           `json:"turnos"`
 	CriadaEm          time.Time         `json:"criada_em"`
 	AtualizadaEm      time.Time         `json:"atualizada_em"`
@@ -135,6 +139,9 @@ func (s *Sessoes) Abrir(ctx context.Context, msg entrada.Mensagem) (*Sessao, err
 	if !ok {
 		sess = s.adotar(novaSessao(id, msg))
 	}
+	if ok && msg.ChannelID != uuid.Nil && msg.Contato.Phone != "" && escopo.NormalizarTelefone(sess.Contato.Phone) != escopo.NormalizarTelefone(msg.Contato.Phone) {
+		return nil, ErrEscopoSessao
+	}
 	sess.mu.Lock()
 	if sess.Contato.Name == "" {
 		sess.Contato.Name = msg.Contato.Name
@@ -158,21 +165,31 @@ func (s *Sessoes) Existente(ctx context.Context, msg entrada.Mensagem) (*Sessao,
 // Get devolve a sessão pelo ID interno ou, entre as do cache, pelo protocolo (quando só
 // uma o usa).
 func (s *Sessoes) Get(ctx context.Context, id string) (*Sessao, bool, error) {
-	if sess, ok := s.porProtocolo(id); ok {
+	if sess, ok := s.porProtocolo(ctx, id); ok {
+		if err := sess.validarAcesso(ctx); err != nil {
+			return nil, false, err
+		}
 		return sess, true, nil
 	}
 	return s.carregar(ctx, id)
 }
 
-func (s *Sessoes) porProtocolo(protocolo string) (*Sessao, bool) {
+func (s *Sessoes) porProtocolo(ctx context.Context, protocolo string) (*Sessao, bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if _, ok := s.m[protocolo]; ok {
+		s.mu.Unlock()
 		return nil, false
 	}
-	var encontrado *Sessao
+	candidatas := make([]*Sessao, 0)
 	for _, sess := range s.m {
-		if sess.Protocolo != protocolo {
+		if sess.Protocolo == protocolo {
+			candidatas = append(candidatas, sess)
+		}
+	}
+	s.mu.Unlock()
+	var encontrado *Sessao
+	for _, sess := range candidatas {
+		if sess.validarAcesso(ctx) != nil {
 			continue
 		}
 		if encontrado != nil {
@@ -191,6 +208,9 @@ func (s *Sessoes) carregar(ctx context.Context, id string) (*Sessao, bool, error
 	delete(s.ausentes, id)
 	s.mu.Unlock()
 	if ok {
+		if err := sess.validarAcesso(ctx); err != nil {
+			return nil, false, err
+		}
 		return sess, true, nil
 	}
 	if ausente {
@@ -283,6 +303,9 @@ func (s *Sessoes) Lista(ctx context.Context, administradoraID string) ([]*Sessao
 	out := make([]*Sessao, 0, len(regs)+len(vivas))
 	for _, r := range regs {
 		if viva, ok := vivas[r.ID]; ok {
+			if err := viva.validarAcesso(ctx); err != nil {
+				return nil, err
+			}
 			out = append(out, viva)
 			delete(vivas, r.ID)
 			continue
@@ -295,6 +318,9 @@ func (s *Sessoes) Lista(ctx context.Context, administradoraID string) ([]*Sessao
 	}
 	for _, viva := range vivas {
 		if administradoraID == "" || viva.administradora() == administradoraID {
+			if err := viva.validarAcesso(ctx); err != nil {
+				continue
+			}
 			out = append(out, viva)
 		}
 	}
@@ -304,10 +330,29 @@ func (s *Sessoes) Lista(ctx context.Context, administradoraID string) ([]*Sessao
 
 // Remover apaga a sessão do cache e do store (o emulador reinicia a conversa).
 func (s *Sessoes) Remover(ctx context.Context, id string) error {
+	if sess, ok, err := s.Get(ctx, id); err != nil {
+		return err
+	} else if ok {
+		id = sess.ID
+	}
+	if err := s.store.Remover(ctx, id); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	delete(s.m, id)
 	s.mu.Unlock()
-	return s.store.Remover(ctx, id)
+	return nil
+}
+
+func (sess *Sessao) validarAcesso(ctx context.Context) error {
+	if sess.ChannelID == uuid.Nil {
+		return nil
+	}
+	r, err := sess.Registro()
+	if err != nil {
+		return err
+	}
+	return ValidarEscopoSessao(ctx, r)
 }
 
 func maisRecentesPrimeiro(a, b *Sessao) int { return b.atualizadaEm().Compare(a.atualizadaEm()) }
@@ -349,6 +394,7 @@ func (sess *Sessao) Registro() (RegistroSessao, error) {
 		return RegistroSessao{}, fmt.Errorf("serializar sessão %s: %w", sess.ID, err)
 	}
 	return RegistroSessao{
+		CompanyID: sess.CompanyID, ChannelID: sess.ChannelID, CondoID: sess.CondoID, Connector: sess.Origem.Conector, UserPhone: sess.Contato.Phone,
 		ID: sess.ID, AdministradoraID: sess.AdministradoraID, CondominioID: sess.Condominio, Protocolo: sess.Protocolo,
 		AtualizadaEm: sess.AtualizadaEm, Dados: dados,
 	}, nil
@@ -362,7 +408,18 @@ func RestaurarSessao(r RegistroSessao) (*Sessao, error) {
 	if err := json.Unmarshal(r.Dados, &gravada); err != nil {
 		return nil, fmt.Errorf("restaurar sessão %s: %w", r.ID, err)
 	}
-	sess.escopo, sess.historico, sess.mcpResultados, sess.revisaoEstado = gravada.Escopo, gravada.Historico, gravada.MCPResultados, gravada.RevisaoEstado
+	sess.escopo, sess.historico, sess.mcpResultados, sess.revisaoEstado = gravada.Escopo.Canonico(), gravada.Historico, gravada.MCPResultados, gravada.RevisaoEstado
+	if r.ChannelID != uuid.Nil {
+		if err := ValidarRegistroSessao(r); err != nil {
+			return nil, err
+		}
+		sess.AdministradoraID = r.CompanyID
+		sess.Condominio = ""
+		if r.CondoID != nil {
+			sess.Condominio = fmt.Sprint(*r.CondoID)
+		}
+		sess.escopo = sess.escopo.Canonico()
+	}
 	sess.Processando = false
 	return sess, nil
 }
@@ -437,10 +494,14 @@ func (sess *Sessao) Administradora() string {
 func (sess *Sessao) companyDoCondominio() string {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.ChannelID != uuid.Nil {
+		return sess.GruviCompanyID
+	}
 	return sess.CompanyID
 }
 
 func (sess *Sessao) fixarContato(c escopo.Contato, companyID string) {
+	c = c.Canonico()
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	sess.escopo, sess.AdministradoraID, sess.Condominio, sess.CompanyID = c, c.AdministradoraID, c.CondominioID, companyID

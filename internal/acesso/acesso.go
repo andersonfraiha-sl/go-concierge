@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"go-concierge/internal/escopo"
 )
@@ -57,6 +59,29 @@ const (
 type Escopo struct {
 	Tipo TipoEscopo
 	ID   string
+}
+
+func EscopoCondominio(company, condo string) Escopo {
+	return Escopo{Tipo: TipoCondominio, ID: escopo.ChaveCondominio(company, condo)}
+}
+
+func CondominioDoEscopo(e Escopo) (company, condo string, ok bool) {
+	if e.Tipo != TipoCondominio {
+		return "", "", false
+	}
+	tamanho, resto, existe := strings.Cut(e.ID, ":")
+	n, err := strconv.Atoi(tamanho)
+	if !existe || err != nil || n < 1 || len(resto) <= n || resto[n] != ':' {
+		return "", "", false
+	}
+	company, condo = resto[:n], resto[n+1:]
+	if strings.TrimSpace(company) == "" || condo == "" {
+		return "", "", false
+	}
+	if _, err := strconv.Atoi(condo); err != nil {
+		return "", "", false
+	}
+	return company, condo, true
 }
 
 type Papel struct {
@@ -222,6 +247,9 @@ func administradoraDe(a Acesso, e Escopo) string {
 	case TipoAdministradora:
 		return e.ID
 	case TipoCondominio:
+		if company, _, ok := CondominioDoEscopo(e); ok {
+			return company
+		}
 		return a.AdministradoraDe[e.ID]
 	}
 	return ""
@@ -234,6 +262,9 @@ func vigente(a Acesso, at Atribuicao) bool {
 	case TipoSuperlogica, TipoAdministradora:
 		return true
 	case TipoCondominio:
+		if company, _, ok := CondominioDoEscopo(at.Escopo); ok {
+			return company == at.AdministradoraID
+		}
 		return at.AdministradoraID != "" && a.AdministradoraDe[at.Escopo.ID] == at.AdministradoraID
 	}
 	return false

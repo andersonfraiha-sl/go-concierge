@@ -8,8 +8,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/escopo"
+	"reflect"
 )
 
 func TestMain(m *testing.M) {
@@ -23,7 +25,7 @@ func TestContratoMemoria(t *testing.T) {
 }
 
 func TestContratoPostgres(t *testing.T) {
-	testarRepositorio(t, func(t *testing.T) Repositorio { return NovoPostgres(bancotest.Novo(t).Ent) })
+	testarRepositorioPostgresV2(t)
 }
 
 // testarRepositorio é o contrato que toda implementação de Repositorio cumpre.
@@ -186,8 +188,8 @@ func cenarioMapeamento(t *testing.T, r Repositorio) {
 	if c, achou := m.Condominio("cond-x"); !achou || c.Account != "cond-001" || c.CompanyID != "5982" || c.Tenant != "t1" {
 		t.Fatalf("condomínio gravado: %+v %v", c, achou)
 	}
-	if !m.Habilitado("cond-x", "liberacao_visitante", "morador") {
-		t.Fatal("sem entrada = habilitado")
+	if m.Habilitado("cond-x", "liberacao_visitante", "morador") {
+		t.Fatal("sem entrada empresarial = desabilitado")
 	}
 	if m.Habilitado("cond-outro", "reserva_area_comum", "morador") {
 		t.Fatal("padrão desabilitou")
@@ -220,7 +222,7 @@ func cenarioMapeamento(t *testing.T, r Repositorio) {
 	if len(m.Condominios) != 0 || m.Payloads["cond-x"] != nil || m.Habilitacoes["cond-x"] != nil {
 		t.Fatal("remover deveria limpar tudo do condomínio")
 	}
-	if !m.Habilitado("cond-x", "liberacao_visitante", "") || m.Payloads[Padrao]["areas.reservar"] == nil {
+	if m.Habilitado("cond-x", "liberacao_visitante", "") || m.Payloads[Padrao]["areas.reservar"] == nil {
 		t.Fatal("padrão continua")
 	}
 }
@@ -329,4 +331,134 @@ func cenarioPadraoRegravado(t *testing.T, r Repositorio) {
 	if m.Payloads[Padrao]["areas.reservar"]["max_dias"] != float64(20) || m.OrientacaoDe("qualquer").Geral != "Olá." {
 		t.Fatalf("padrão regravado: %+v %+v", m.Payloads, m.Orientacoes)
 	}
+}
+
+func testarRepositorioPostgresV2(t *testing.T) {
+	t.Run("cadastros e habilitações exigem origem externa", func(t *testing.T) {
+		b := bancotest.Novo(t)
+		r := NovoPostgres(b.Ent)
+		ctx := t.Context()
+		actions := []struct {
+			name string
+			run  func() (Mapeamento, error)
+		}{
+			{"salvar empresa", func() (Mapeamento, error) { return r.SalvarAdministradora(ctx, Administradora{ID: "A", Nome: "A"}) }},
+			{"criar empresa", func() (Mapeamento, error) { return r.CriarAdministradora(ctx, Administradora{ID: "A", Nome: "A"}) }},
+			{"editar empresa", func() (Mapeamento, error) { return r.EditarAdministradora(ctx, Administradora{ID: "A", Nome: "A"}) }},
+			{"excluir empresa", func() (Mapeamento, error) { return r.RemoverAdministradora(ctx, "A") }},
+			{"salvar condomínio", func() (Mapeamento, error) { return r.SalvarCondominio(ctx, Condominio{ID: "101", Administradora: "A"}) }},
+			{"criar condomínio", func() (Mapeamento, error) { return r.CriarCondominio(ctx, Condominio{ID: "101", Administradora: "A"}) }},
+			{"editar condomínio", func() (Mapeamento, error) {
+				return r.EditarCondominio(ctx, Condominio{ID: "101", Administradora: "A"}, Chaves{})
+			}},
+			{"excluir condomínio", func() (Mapeamento, error) { return r.RemoverCondominio(ctx, Alvo{Dona: "A", Condominio: "101"}) }},
+			{"habilitar caso", func() (Mapeamento, error) {
+				return r.SalvarHabilitacao(ctx, Alvo{Dona: "A", Condominio: "101"}, "faq", Habilitacao{Habilitado: true}, false)
+			}},
+		}
+		for _, action := range actions {
+			t.Run(action.name, func(t *testing.T) {
+				if _, err := action.run(); !errors.Is(err, ErrCadastroExterno) {
+					t.Fatalf("operação=%v", err)
+				}
+			})
+		}
+		m, err := r.Ler(ctx)
+		if err != nil || len(m.Administradoras) != 0 || len(m.Condominios) != 0 {
+			t.Fatalf("cadastro local recriado: %+v (%v)", m, err)
+		}
+		var absent bool
+		if err := b.Pool.QueryRow(ctx, `SELECT to_regclass('administradoras') IS NULL AND to_regclass('condominios') IS NULL`).Scan(&absent); err != nil || !absent {
+			t.Fatalf("tabelas locais recriadas: %v (%v)", absent, err)
+		}
+	})
+	t.Run("visão deriva somente identidades externas dos canais", func(t *testing.T) {
+		b := bancotest.Novo(t)
+		r := NovoPostgres(b.Ent)
+		for _, entry := range []struct {
+			company string
+			condo   any
+		}{{"Nexus / A", nil}, {"Nexus / A", 101}, {"B", 101}} {
+			id := uuid.New()
+			if _, err := b.Pool.Exec(t.Context(), `INSERT INTO channels(id,company_id,condo_id,channel_type,provider,endpoint_identifier,feature_mode,enabled,root_agent,updated_at) VALUES($1,$2,$3,'WEB','test',$4,'INHERIT',true,'root',now())`, id, entry.company, entry.condo, id.String()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		m, err := r.Ler(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(m.Administradoras) != 2 || len(m.Condominios) != 2 {
+			t.Fatalf("projeção de escopos=%+v", m)
+		}
+		for _, company := range []string{"Nexus / A", "B"} {
+			view := m.Visao(company)
+			if len(view.Administradoras) != 1 || len(view.Condominios) != 1 || view.Condominios[0].ID != "101" || view.Condominios[0].Administradora != company {
+				t.Fatalf("visão %s=%+v", company, view)
+			}
+		}
+	})
+	t.Run("ajustes parciais e exclusões preservam outros alvos", func(t *testing.T) {
+		b := bancotest.Novo(t)
+		r := NovoPostgres(b.Ent)
+		ctx := t.Context()
+		alpha := Alvo{Dona: "Nexus / A", Condominio: "101"}
+		for _, alvo := range []Alvo{{Condominio: Padrao}, {Dona: "Nexus / A", Condominio: Padrao}, alpha, {Dona: "Nexus / A", Condominio: "202"}, {Dona: "B", Condominio: "101"}} {
+			exigir(t)(r.SalvarPayload(ctx, alvo, "resource", map[string]any{"intacto": true, "alterar": 1, "remover": "antes"}))
+			exigir(t)(r.SalvarOrientacao(ctx, alvo, Orientacao{Geral: "intacta", PorCaso: map[string]string{"faq": "orientação"}}))
+		}
+		exigir(t)(r.SalvarAjustes(ctx, alpha, map[string]map[string]any{"resource": {"alterar": 2, "remover": nil}}))
+		exigir(t)(r.SalvarAjustes(ctx, alpha, map[string]map[string]any{}))
+		m, err := r.ConteudoConfigurado(ctx, "Nexus / A", func() *int { n := 101; return &n }())
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]any{"intacto": true, "alterar": float64(2)}
+		if !reflect.DeepEqual(m.PayloadsDe("101")["resource"], want) {
+			t.Fatalf("delta perdeu chaves: %#v", m.Payloads)
+		}
+		exigir(t)(r.SalvarPayload(ctx, alpha, "resource", nil))
+		exigir(t)(r.SalvarOrientacao(ctx, alpha, Orientacao{Geral: "  "}))
+		m, err = r.ConteudoConfigurado(ctx, "Nexus / A", func() *int { n := 101; return &n }())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := m.Payloads["101"]["resource"]; ok {
+			t.Fatal("recurso alvo não excluído")
+		}
+		if _, ok := m.Orientacoes["101"]; ok {
+			t.Fatal("orientação alvo não excluída")
+		}
+		for _, entry := range []struct {
+			company string
+			condo   *int
+			key     string
+		}{{"", nil, Padrao}, {"Nexus / A", nil, Padrao}, {"Nexus / A", func() *int { n := 202; return &n }(), "202"}, {"B", func() *int { n := 101; return &n }(), "101"}} {
+			got, err := r.ConteudoConfigurado(ctx, entry.company, entry.condo)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.PayloadsDe(entry.key)["resource"]["intacto"] != true || got.Orientacoes[entry.key].Geral != "intacta" {
+				t.Fatalf("outro alvo alterado: %+v", got)
+			}
+		}
+	})
+	t.Run("lote de ajustes inválido reverte tudo", func(t *testing.T) {
+		b := bancotest.Novo(t)
+		r := NovoPostgres(b.Ent)
+		ctx := t.Context()
+		alvo := Alvo{Dona: "A", Condominio: "101"}
+		exigir(t)(r.SalvarPayload(ctx, alvo, "resource", map[string]any{"valor": "original"}))
+		if _, err := r.SalvarAjustes(ctx, alvo, map[string]map[string]any{"resource": {"valor": "não persistir"}, "": {"invalido": true}}); err == nil {
+			t.Fatal("ajuste inválido aceito")
+		}
+		condo := 101
+		m, err := r.ConteudoConfigurado(ctx, "A", &condo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := m.PayloadsDe("101")["resource"]["valor"]; got != "original" {
+			t.Fatalf("escrita parcial persistida=%v", got)
+		}
+	})
 }

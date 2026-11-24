@@ -36,7 +36,7 @@ describe('acesso na barra lateral e no topo', () => {
 
     expect(await screen.findByRole('link', { name: 'Casos de uso' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Avançado' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Condomínios' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Conteúdo' })).not.toBeInTheDocument();
   });
 
   it('showsAdvancedAndUserNameWithPermission', async () => {
@@ -45,7 +45,7 @@ describe('acesso na barra lateral e no topo', () => {
     renderComProvedores(<StudioLayout />);
 
     expect(await screen.findByRole('link', { name: 'Avançado' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Condomínios' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Conteúdo' })).toBeInTheDocument();
     expect(screen.getByText('Ana')).toBeInTheDocument();
   });
 

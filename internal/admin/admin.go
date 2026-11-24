@@ -197,7 +197,11 @@ func filtrarChaves[V any](m map[string]V, manter map[string]bool) map[string]V {
 // por caso, os dois textos também, quando existem.
 func (m Mapeamento) OrientacaoDe(condoID string) Orientacao {
 	out := Orientacao{PorCaso: map[string]string{}}
-	for _, origem := range []string{Padrao, condoID} {
+	origens := []string{Padrao}
+	if condoID != "" && condoID != Padrao {
+		origens = append(origens, condoID)
+	}
+	for _, origem := range origens {
 		o, ok := m.Orientacoes[origem]
 		if !ok {
 			continue
@@ -288,7 +292,7 @@ func (m Mapeamento) Habilitado(condoID, caso, papel string) bool {
 		h, ok = m.Habilitacoes[Padrao][caso]
 	}
 	if !ok {
-		return true
+		return false
 	}
 	if !h.Habilitado {
 		return false
@@ -313,7 +317,7 @@ func (m Mapeamento) HabilitacaoEfetiva(condoID, caso string) (Habilitacao, strin
 	if h, ok := m.Habilitacoes[Padrao][caso]; ok {
 		return h, Padrao
 	}
-	return Habilitacao{Habilitado: true, Papeis: []string{}}, ""
+	return Habilitacao{Habilitado: false, Papeis: []string{}}, ""
 }
 
 // PayloadsDe remonta os payloads do condomínio: o padrão sobreposto, chave a chave,

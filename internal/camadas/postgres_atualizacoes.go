@@ -2,7 +2,6 @@ package camadas
 
 import (
 	"context"
-	"encoding/json"
 	"encoding/json/jsontext"
 	"fmt"
 	"time"
@@ -19,11 +18,11 @@ import (
 type EstadoAtualizacao string
 
 const (
-	EstadoPendente    EstadoAtualizacao = "pendente"
-	EstadoAceita      EstadoAtualizacao = "aceita"
-	EstadoRecusada    EstadoAtualizacao = "recusada"
-	EstadoParcial     EstadoAtualizacao = "parcial"
-	EstadoSubstituida EstadoAtualizacao = "substituida"
+	EstadoPendente    EstadoAtualizacao = "PENDING"
+	EstadoAceita      EstadoAtualizacao = "ACCEPTED"
+	EstadoRecusada    EstadoAtualizacao = "REJECTED"
+	EstadoParcial     EstadoAtualizacao = "PARTIAL"
+	EstadoSubstituida EstadoAtualizacao = "SUPERSEDED"
 )
 
 var (
@@ -67,6 +66,17 @@ func (r Repo) CriarAtualizacao(ctx context.Context, c Camada, deID, paraID int, 
 	camadaID, err := r.idDaCamada(ctx, c)
 	if err != nil {
 		return 0, err
+	}
+	de, err := r.versao(ctx, deID)
+	if err != nil {
+		return 0, err
+	}
+	para, err := r.versao(ctx, paraID)
+	if err != nil {
+		return 0, err
+	}
+	if !mesmaCamada(de.Camada, para.Camada) || !ancestralCompativel(c, para.Camada) {
+		return 0, fmt.Errorf("atualização de outra ancestralidade: %w", ErrCamadaInvalida)
 	}
 	_, err = r.cli.SkillAtualizacao.Update().
 		Where(skillatualizacao.CamadaID(camadaID), skillatualizacao.EstadoIn(estadosAbertos...)).
@@ -127,7 +137,7 @@ func (r Repo) AtualizacoesVencidas(ctx context.Context, agora time.Time, limite 
 func (r Repo) RegistrarDecisao(ctx context.Context, id int, e EstadoAtualizacao, ds []Decisao, por string, em time.Time) error {
 	ctx, cancel := comPrazo(ctx)
 	defer cancel()
-	bruto, err := json.Marshal(ds)
+	bruto, err := codificarDecisoes(ds)
 	if err != nil {
 		return fmt.Errorf("codificar decisões da atualização %d: %w", id, err)
 	}
@@ -161,6 +171,13 @@ func (r Repo) CriarAviso(ctx context.Context, a NovoAviso) error {
 	camadaID, err := r.idDaCamada(ctx, a.Camada)
 	if err != nil {
 		return err
+	}
+	version, err := r.versao(ctx, a.VersaoID)
+	if err != nil {
+		return err
+	}
+	if !ancestralCompativel(a.Camada, version.Camada) && !mesmaCamada(a.Camada, version.Camada) {
+		return fmt.Errorf("aviso de outra empresa ou skill: %w", ErrCamadaInvalida)
 	}
 	trechos := a.Trechos
 	if trechos == nil {
@@ -217,7 +234,7 @@ func atualizacaoDe(a *ent.SkillAtualizacao) (Atualizacao, error) {
 	}
 	var decisoes []Decisao
 	if len(a.Decisoes) > 0 {
-		if err := json.Unmarshal(a.Decisoes, &decisoes); err != nil {
+		if err := decodificarDecisoes(a.Decisoes, &decisoes); err != nil {
 			return Atualizacao{}, fmt.Errorf("decisões da atualização %d: %w", a.ID, err)
 		}
 	}

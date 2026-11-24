@@ -13,20 +13,20 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldPapelID holds the string denoting the papel_id field in the database.
-	FieldPapelID = "papel_id"
+	FieldPapelID = "role_id"
 	// FieldPermissao holds the string denoting the permissao field in the database.
-	FieldPermissao = "permissao"
+	FieldPermissao = "permission"
 	// EdgePapel holds the string denoting the papel edge name in mutations.
 	EdgePapel = "papel"
 	// Table holds the table name of the papelpermissao in the database.
-	Table = "papel_permissoes"
+	Table = "role_permissions"
 	// PapelTable is the table that holds the papel relation/edge.
-	PapelTable = "papel_permissoes"
+	PapelTable = "role_permissions"
 	// PapelInverseTable is the table name for the Papel entity.
 	// It exists in this package in order to avoid circular dependency with the "papel" package.
-	PapelInverseTable = "papeis"
+	PapelInverseTable = "roles"
 	// PapelColumn is the table column denoting the papel relation/edge.
-	PapelColumn = "papel_id"
+	PapelColumn = "role_id"
 )
 
 // Columns holds all SQL columns for papelpermissao fields.

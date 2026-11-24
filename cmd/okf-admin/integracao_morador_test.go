@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"go-concierge/internal/admin"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/memoria"
 	"go-concierge/internal/pedidos"
@@ -20,7 +19,7 @@ const telefoneDoMorador = "5519981621916"
 func ambienteDeMorador(t *testing.T) ambienteRotas {
 	t.Helper()
 	amb := ambienteDeIntegracao(t)
-	contato, err := escopo.NovoContato("adm-a", admin.Padrao, telefoneDoMorador)
+	contato, err := escopo.NovoContato("adm-a", nil, telefoneDoMorador)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,13 +71,13 @@ func TestRotasDeMoradorExigemAdministradora(t *testing.T) {
 	} {
 		t.Run(rota.metodo+" "+rota.url, func(t *testing.T) {
 			w := chamarIntegracao(amb, rota.metodo, rota.url, "")
-			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "ADMINISTRADORA_OBRIGATORIA") {
+			if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "COMPANY_ID_OBRIGATORIO") {
 				t.Fatalf("status %d: %s", w.Code, w.Body.String())
 			}
 		})
 	}
-	if w := chamarIntegracao(amb, http.MethodGet, "/integracao/v1/memoria?administradora=../x&phone="+telefoneDoMorador, ""); w.Code != http.StatusBadRequest {
-		t.Fatalf("administradora inválida: status %d", w.Code)
+	if w := chamarIntegracao(amb, http.MethodGet, "/integracao/v1/memoria?company_id=outra&administradora=adm-a&phone="+telefoneDoMorador, ""); w.Code != http.StatusBadRequest {
+		t.Fatalf("empresas conflitantes: status %d", w.Code)
 	}
 	if w := chamarIntegracao(amb, http.MethodGet, "/integracao/v1/memoria?administradora=adm-a", ""); w.Code != http.StatusBadRequest {
 		t.Fatalf("sem phone: status %d", w.Code)
@@ -146,7 +145,7 @@ func TestPedidosPelaIntegracao(t *testing.T) {
 
 	registro := pedidos.NovoFake()
 	amb.s.atende.Pedidos = registro
-	contato, err := escopo.NovoContato("adm-a", admin.Padrao, telefoneDoMorador)
+	contato, err := escopo.NovoContato("adm-a", nil, telefoneDoMorador)
 	if err != nil {
 		t.Fatal(err)
 	}

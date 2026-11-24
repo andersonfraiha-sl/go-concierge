@@ -35,10 +35,10 @@ const respostaComProposta = {
       id: '0',
       resumo: 'Ligar Reserva de Área Comum em Vila Verde',
       operacao: {
-        tipo: 'habilitar_skill',
+        tipo: 'orientar',
         skill: 'reserva',
         condominio: 'vila-verde',
-        habilitado: true,
+        texto: 'Reserve com antecedência.',
       },
     },
   ],

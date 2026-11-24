@@ -3,7 +3,7 @@
   "evento": "antes_da_ferramenta",
   "alvo": {
     "condominios": [
-      "cond-flores"
+      "101"
     ]
   },
   "condicoes": [

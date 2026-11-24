@@ -28,12 +28,12 @@ const (
 	// CondominiosColumn is the table column denoting the condominios relation/edge.
 	CondominiosColumn = "administradora_id"
 	// SkillCamadasTable is the table that holds the skill_camadas relation/edge.
-	SkillCamadasTable = "skill_camadas"
+	SkillCamadasTable = "skill_layers"
 	// SkillCamadasInverseTable is the table name for the SkillCamada entity.
 	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
-	SkillCamadasInverseTable = "skill_camadas"
+	SkillCamadasInverseTable = "skill_layers"
 	// SkillCamadasColumn is the table column denoting the skill_camadas relation/edge.
-	SkillCamadasColumn = "administradora_id"
+	SkillCamadasColumn = "company_id"
 )
 
 // Columns holds all SQL columns for administradora fields.

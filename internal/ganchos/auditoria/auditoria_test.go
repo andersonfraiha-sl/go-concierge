@@ -28,7 +28,7 @@ func TestLinhasDeUsaOMotivoDoGanchoESoRegistraOQueMexeu(t *testing.T) {
 		}},
 		{Evento: ganchos.EventoAntesDaFerramenta, Falhou: true, Causa: ganchos.CausaPrazo, Decisao: ganchos.Decisao{
 			Tipo: ganchos.Bloquear, Motivo: ganchos.MotivoDeFalha,
-			Origem: ganchos.Origem{Gancho: "regra", RegraID: "r-1", RegraVersao: 3},
+			Origem: ganchos.Origem{Gancho: "regra", RegraID: "00000000-0000-0000-0000-000000000001", RegraVersao: 3},
 		}},
 	}
 	base := auditoria.Linha{Origem: ganchos.OrigemConcierge, AdministradoraID: "adm-a", SessaoID: "s-1"}
@@ -42,7 +42,7 @@ func TestLinhasDeUsaOMotivoDoGanchoESoRegistraOQueMexeu(t *testing.T) {
 		g.Quantidade != 2 || g.Evento != "mensagem_recebida" || g.AdministradoraID != "adm-a" || g.SessaoID != "s-1" {
 		t.Errorf("linha 0 = %+v", g)
 	}
-	if g := got[1]; g.Decisao != "falhou" || g.RegraID != "r-1" || g.RegraVersao != 3 || g.Motivo != ganchos.MotivoDeFalha {
+	if g := got[1]; g.Decisao != "falhou" || g.RegraID != "00000000-0000-0000-0000-000000000001" || g.RegraVersao != 3 || g.Motivo != ganchos.MotivoDeFalha {
 		t.Errorf("linha 1 = %+v", g)
 	}
 }
@@ -78,7 +78,7 @@ func TestNoLoteGravaNLinhasNumaIda(t *testing.T) {
 		t.Fatalf("gravadas = %d, quer 3", n)
 	}
 	gravada, err := b.Ent.GanchosAuditoria.Query().Where(ganchosauditoria.Gancho("b")).Only(t.Context())
-	if err != nil || gravada.Decisao != "bloquear" || gravada.Quantidade != 1 || gravada.AdministradoraID != "adm-a" {
+	if err != nil || gravada.Decisao != "BLOCK" || gravada.Quantidade != 1 || gravada.AdministradoraID != "adm-a" {
 		t.Errorf("linha b = %+v, err %v", gravada, err)
 	}
 }
@@ -212,5 +212,24 @@ func TestLinhasDeUsaOMotivoDeAuditoria(t *testing.T) {
 	linhas := auditoria.LinhasDe(regs, auditoria.Linha{CriadoEm: time.Now()})
 	if len(linhas) != 1 || linhas[0].Motivo != "escrita sem confirmação explícita do morador" {
 		t.Fatalf("linhas = %+v, want o motivo de auditoria, sem o texto do morador", linhas)
+	}
+}
+
+func TestAuditoriaV2CodificaEventoETraduzFiltroDoHistorico(t *testing.T) {
+	b := bancotest.Novo(t)
+	agora := time.Now().UTC().Truncate(time.Microsecond)
+	if err := auditoria.Gravar(t.Context(), b, []auditoria.Linha{linha("evento-v2", agora)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	row, err := b.Ent.GanchosAuditoria.Query().Only(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Evento != "MESSAGE_RECEIVED" || row.Decisao != "BLOCK" || row.Origem != "CONCIERGE" {
+		t.Fatalf("evento persistido: %s", row.Evento)
+	}
+	linhas, _, err := auditoria.Listar(t.Context(), b.Ent, auditoria.Escopo{Tudo: true}, auditoria.Filtro{Desde: agora.Add(-time.Second), Ate: agora.Add(time.Second), Evento: "mensagem_recebida"}, nil, 10)
+	if err != nil || len(linhas) != 1 || linhas[0].Evento != "mensagem_recebida" {
+		t.Fatalf("histórico: %+v %v", linhas, err)
 	}
 }

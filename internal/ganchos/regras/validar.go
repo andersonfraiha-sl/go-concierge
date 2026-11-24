@@ -3,11 +3,13 @@ package regras
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // fuso da regra existe mesmo em imagem sem zoneinfo
 	"unicode/utf8"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/pii"
 )
@@ -80,7 +82,7 @@ func ValidarRegra(r Regra, cat Catalogo) []Problema {
 	if !eventoOK {
 		ps = append(ps, Problema{"evento", "EVENTO_INVALIDO", "evento desconhecido: " + string(r.Evento)})
 	}
-	ps = append(ps, validarAlvo(r.Alvo, cat)...)
+	ps = append(ps, validarAlvo(r.Alvo)...)
 	ps = append(ps, validarFuso(r.Fuso)...)
 	ps = append(ps, validarCondicoes(r, ev.condicoes, eventoOK, cat)...)
 	return append(ps, validarDecisao(r.Decisao, ev.decisoes, eventoOK)...)
@@ -97,18 +99,15 @@ func validarNome(nome string, fixos []string) []Problema {
 	return ps
 }
 
-func validarAlvo(a Alvo, cat Catalogo) []Problema {
+func validarAlvo(a Alvo) []Problema {
 	var ps []Problema
-	if len(a.Condominios) > 0 && a.Administradora == "" {
-		ps = append(ps, Problema{"alvo.administradora", "ALVO_SEM_ADMINISTRADORA", "condomínios exigem a administradora do alvo"})
+	if len(a.Condominios) > 0 && strings.TrimSpace(a.Administradora) == "" {
+		ps = append(ps, Problema{"alvo.administradora", "ALVO_SEM_ADMINISTRADORA", "condomínios exigem company_id Nexus explícita no alvo"})
 	}
 	for _, c := range a.Condominios {
-		adm, existe := cat.AdministradoraDe[c]
-		switch {
-		case !existe:
-			ps = append(ps, Problema{"alvo.condominios", "CONDOMINIO_DESCONHECIDO", "condomínio fora do catálogo: " + c})
-		case a.Administradora != "" && adm != a.Administradora:
-			ps = append(ps, Problema{"alvo.condominios", "CONDOMINIO_DE_OUTRA_ADMINISTRADORA", "o condomínio " + c + " não é da administradora do alvo"})
+		n, err := strconv.Atoi(c)
+		if err != nil || !escopo.CondominioValido(&n) || strconv.Itoa(n) != c {
+			ps = append(ps, Problema{"alvo.condominios", "CONDOMINIO_INVALIDO", "condomínio deve ser ID inteiro do ERP: " + c})
 		}
 	}
 	return ps
@@ -289,29 +288,6 @@ func validarTexto(campo, texto string) []Problema {
 	return ps
 }
 
-// alcanca diz se a regra vale para o condomínio c: alvo explícito, ou a administradora
-// dele, ou todos.
-func alcanca(r Regra, c string, cat Catalogo) bool {
-	if len(r.Alvo.Condominios) > 0 {
-		return slices.Contains(r.Alvo.Condominios, c)
-	}
-	return r.Alvo.Administradora == "" || cat.AdministradoraDe[c] == r.Alvo.Administradora
-}
-
-// condominiosDaNova lista os condomínios que a nova regra alcança, pelo catálogo.
-func condominiosDaNova(nova Regra, cat Catalogo) []string {
-	if len(nova.Alvo.Condominios) > 0 {
-		return nova.Alvo.Condominios
-	}
-	var out []string
-	for c := range cat.AdministradoraDe {
-		if alcanca(nova, c, cat) {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
 // ValidarLimites confere 20 ativas efetivas por evento e condomínio (as dele, as da
 // administradora e as globais, contando a nova) e 10 mil no total. Regra com o mesmo ID
 // da nova (edição) e regra inativa não contam.
@@ -328,22 +304,66 @@ func ValidarLimites(ativas []Regra, nova Regra, cat Catalogo) []Problema {
 		ps = append(ps, Problema{"ativa", "LIMITE_TOTAL", fmt.Sprintf("já existem %d regras ativas", limiteAtivasTotal)})
 	}
 	mesmoEvento := slices.DeleteFunc(outras, func(r Regra) bool { return r.Evento != nova.Evento })
-	if c, ok := primeiroCondominioCheio(mesmoEvento, nova, cat); ok {
+	if c, ok := primeiroCondominioCheio(mesmoEvento, nova); ok {
 		ps = append(ps, Problema{"ativa", "LIMITE_POR_EVENTO", fmt.Sprintf("o condomínio %s já tem %d regras ativas neste evento", c, limiteAtivasPorEvento)})
 	}
 	return ps
 }
 
-func primeiroCondominioCheio(mesmoEvento []Regra, nova Regra, cat Catalogo) (string, bool) {
-	for _, c := range condominiosDaNova(nova, cat) {
-		n := 1
-		for _, r := range mesmoEvento {
-			if alcanca(r, c, cat) {
-				n++
+func primeiroCondominioCheio(ativas []Regra, nova Regra) (string, bool) {
+	type alvo struct{ company, condo string }
+	globais := 0
+	empresas := map[string]int{}
+	condominios := map[alvo]int{}
+	for _, r := range ativas {
+		switch {
+		case r.Alvo.Administradora == "":
+			globais++
+		case len(r.Alvo.Condominios) == 0:
+			empresas[r.Alvo.Administradora]++
+		default:
+			vistos := map[string]bool{}
+			for _, c := range r.Alvo.Condominios {
+				if !vistos[c] {
+					condominios[alvo{r.Alvo.Administradora, c}]++
+					vistos[c] = true
+				}
 			}
 		}
-		if n > limiteAtivasPorEvento {
-			return c, true
+	}
+	company := nova.Alvo.Administradora
+	base := globais + 1
+	if company != "" {
+		base += empresas[company]
+	}
+	if base > limiteAtivasPorEvento {
+		return company, true
+	}
+	if len(nova.Alvo.Condominios) > 0 {
+		for _, c := range nova.Alvo.Condominios {
+			if base+condominios[alvo{company, c}] > limiteAtivasPorEvento {
+				return c, true
+			}
+		}
+		return "", false
+	}
+	if company == "" {
+		for empresa, n := range empresas {
+			if base+n > limiteAtivasPorEvento {
+				return empresa, true
+			}
+		}
+	}
+	for a, n := range condominios {
+		if company != "" && a.company != company {
+			continue
+		}
+		count := base + n
+		if company == "" {
+			count += empresas[a.company]
+		}
+		if count > limiteAtivasPorEvento {
+			return a.condo, true
 		}
 	}
 	return "", false

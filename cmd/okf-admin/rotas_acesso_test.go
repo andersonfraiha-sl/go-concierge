@@ -15,9 +15,12 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/google/uuid"
+
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
+	"go-concierge/internal/canais"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/harness"
@@ -76,7 +79,7 @@ func usuariosTeste() map[string][]acesso.Atribuicao {
 		"gestor-exemplo":         naAdministradora("gestor_administradora", "adm-exemplo"),
 		"gestor-avancado":        naAdministradora("gestor_administradora", "adm-avancado"),
 		gestorDeUmCondominioDev:  naAdministradora("gestor_administradora", administradoraUnicaDev),
-		gestorDeCondominioDev:    {{PapelID: "gestor_administradora", Escopo: acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "cond-a"}, AdministradoraID: "adm-a"}},
+		gestorDeCondominioDev:    {{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("adm-a", "101"), AdministradoraID: "adm-a"}},
 	}
 }
 
@@ -86,6 +89,33 @@ type ambienteRotas struct {
 	repo     *admin.EmMemoria
 	sessaoA  string // conversa resolvida em adm-a
 	sessaoA2 string // outra conversa de adm-a (a que a rota de reiniciar apaga)
+}
+
+type canaisConfigFake struct {
+	consultadas      []string
+	porIDConsultadas []string
+	porID            []uuid.UUID
+	resolverCalls    int
+}
+
+func (f *canaisConfigFake) Resolver(context.Context, canais.Identidade) (canais.Canal, error) {
+	f.resolverCalls++
+	return canais.Canal{}, canais.ErrDesconhecido
+}
+
+func (f *canaisConfigFake) PorID(_ context.Context, company string, id uuid.UUID) (canais.Canal, error) {
+	f.porIDConsultadas = append(f.porIDConsultadas, company)
+	f.porID = append(f.porID, id)
+	return canais.Canal{CompanyID: company}, nil
+}
+
+func (f *canaisConfigFake) Casos(context.Context, canais.Canal) ([]canais.Caso, error) {
+	return nil, nil
+}
+
+func (f *canaisConfigFake) ListarMetadados(_ context.Context, company string) ([]canais.Resumo, error) {
+	f.consultadas = append(f.consultadas, company)
+	return []canais.Resumo{{CompanyID: company, Nome: "Canal " + company}}, nil
 }
 
 // novoAmbienteRotas monta o servidor inteiro sobre uma cópia do catálogo: as escritas dos
@@ -115,7 +145,7 @@ func novoAmbienteRotas(t *testing.T) ambienteRotas {
 			t.Fatal(err)
 		}
 	}
-	for _, c := range []admin.Condominio{{ID: "cond-a", Nome: "Cond A", Administradora: "adm-a"}, {ID: "cond-b", Nome: "Cond B", Administradora: "adm-b"}} {
+	for _, c := range []admin.Condominio{{ID: "101", Nome: "Cond A", Administradora: "adm-a"}, {ID: "202", Nome: "Cond B", Administradora: "adm-b"}} {
 		if _, err := repo.SalvarCondominio(t.Context(), c); err != nil {
 			t.Fatal(err)
 		}
@@ -144,12 +174,16 @@ func novoAmbienteRotas(t *testing.T) ambienteRotas {
 // sessaoEm abre uma conversa já resolvida para a administradora (o Processar faria isso).
 func sessaoEm(t *testing.T, sessoes *atende.Sessoes, protocolo, adm string) string {
 	t.Helper()
-	sess, err := sessoes.Abrir(t.Context(), entrada.Mensagem{ConversaID: protocolo, Origem: entrada.Origem{Conector: "atende-emulado", ConexaoID: "console"}})
+	channel := uuid.NewSHA1(uuid.NameSpaceOID, []byte("canal-teste:"+adm))
+	ctx := atende.ComEscopoSessao(t.Context(), adm, channel)
+	sess, err := sessoes.Abrir(ctx, entrada.Mensagem{CompanyID: adm, ChannelID: channel, ConversaID: protocolo, Contato: entrada.Contato{Phone: "5511999990000"}, Origem: entrada.Origem{Conector: "atende-emulado", ConexaoID: "console"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	sess.AdministradoraID = adm
-	if err := sessoes.Persistir(t.Context(), sess); err != nil {
+	sess.CompanyID = adm
+	sess.ChannelID = channel
+	if err := sessoes.Persistir(ctx, sess); err != nil {
 		t.Fatal(err)
 	}
 	return sess.ID
@@ -217,32 +251,20 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "salvar fluxo", metodo: "PUT", url: "/api/skills/nao-existe/fluxo", corpo: `{}`, sem: "construtor-a", com: "admin", quer: 404},
 		{nome: "excluir skill", metodo: "DELETE", url: "/api/skills/nao-existe", sem: "construtor-a", com: "admin", quer: 404},
 		// administradoras.editar na Superlógica
-		{nome: "criar administradora", metodo: "POST", url: "/api/admin/administradora", corpo: `{"id":"adm-c","nome":"C"}`, sem: "construtor-a", com: "admin", quer: 201},
-		{nome: "editar administradora", metodo: "PUT", url: "/api/admin/administradora", corpo: `{"id":"adm-a","nome":"A"}`, sem: "construtor-a", com: "admin", quer: 200},
-		{nome: "remover administradora", metodo: "DELETE", url: "/api/admin/administradora?id=adm-zz", sem: "construtor-a", com: "admin", quer: 200},
 		// condominios.editar na administradora do corpo (e na dona atual)
-		{nome: "criar condominio", metodo: "POST", url: "/api/admin/condominio", corpo: `{"id":"cond-n","nome":"N","administradora_id":"adm-a"}`, sem: "gestor-a", com: "construtor-a", quer: 201},
-		{nome: "criar condominio em outra administradora", metodo: "POST", url: "/api/admin/condominio", corpo: `{"id":"cond-m","nome":"M","administradora_id":"adm-b"}`, sem: "construtor-a", com: "admin", quer: 201},
-		{nome: "criar condominio sem dona", metodo: "POST", url: "/api/admin/condominio", corpo: `{"id":"cond-s","nome":"S"}`, sem: "construtor-a", com: "admin", quer: 201},
-		{nome: "editar condominio", metodo: "PUT", url: "/api/admin/condominio", corpo: `{"id":"cond-a","nome":"Cond A","administradora_id":"adm-a"}`, sem: "gestor-a", com: "construtor-a", quer: 200},
-		{nome: "tomar condominio de outra", metodo: "PUT", url: "/api/admin/condominio", corpo: `{"id":"cond-b","nome":"Cond B","administradora_id":"adm-a"}`, sem: "construtor-a", com: "admin", quer: 200},
-		{nome: "remover condominio", metodo: "DELETE", url: "/api/admin/condominio?id=cond-zz", sem: "construtor-a", com: "admin", quer: 200},
 		// condominios.habilitar no condomínio (padrão: Superlógica)
-		{nome: "habilitacao", metodo: "PUT", url: "/api/admin/habilitacao", corpo: `{"condominio":"cond-a","caso":"faq","habilitado":true}`, sem: "gestor-b", com: "gestor-a", quer: 200},
-		{nome: "habilitacao padrao", metodo: "PUT", url: "/api/admin/habilitacao", corpo: `{"condominio":"*","caso":"faq","habilitado":true}`, sem: "gestor-a", com: "admin", quer: 200},
-		{nome: "habilitacao sem condominio vale o padrao", metodo: "PUT", url: "/api/admin/habilitacao", corpo: `{"caso":"faq","habilitado":true}`, sem: "gestor-a", com: "admin", quer: 200},
-		{nome: "orientacao", metodo: "PUT", url: "/api/admin/orientacao", corpo: `{"condominio":"cond-a","geral":"x"}`, sem: "gestor-b", com: "gestor-a", quer: 200},
+		{nome: "orientacao", metodo: "PUT", url: "/api/admin/orientacao?company_id=adm-a", corpo: `{"condominio":"101","geral":"x"}`, sem: "gestor-b", com: "gestor-a", quer: 200},
 		{nome: "orientacao padrao", metodo: "PUT", url: "/api/admin/orientacao", corpo: `{"condominio":"*","geral":"x"}`, sem: "gestor-a", com: "admin", quer: 200},
-		{nome: "ajustes", metodo: "PUT", url: "/api/admin/ajustes", corpo: `{"condominio":"cond-a","ajustes":{}}`, sem: "gestor-b", com: "gestor-a", quer: 200},
+		{nome: "ajustes", metodo: "PUT", url: "/api/admin/ajustes?company_id=adm-a", corpo: `{"condominio":"101","ajustes":{}}`, sem: "gestor-b", com: "gestor-a", quer: 200},
 		{nome: "ajustes padrao", metodo: "PUT", url: "/api/admin/ajustes", corpo: `{"condominio":"*","ajustes":{}}`, sem: "gestor-a", com: "admin", quer: 200},
-		{nome: "sugerir payload", metodo: "POST", url: "/api/admin/sugerir-payload", corpo: `{"condominio":"cond-a","recurso":"nao-existe"}`, sem: "gestor-b", com: "gestor-a", quer: 404},
+		{nome: "sugerir payload", metodo: "POST", url: "/api/admin/sugerir-payload?company_id=adm-a", corpo: `{"condominio":"101","recurso":"nao-existe"}`, sem: "gestor-b", com: "gestor-a", quer: 404},
 		// ferramentas.editar no condomínio
-		{nome: "payload", metodo: "PUT", url: "/api/admin/payload", corpo: `{"condominio":"cond-a","recurso":"x","payload":{}}`, sem: "gestor-a", com: "construtor-a", quer: 200},
+		{nome: "payload", metodo: "PUT", url: "/api/admin/payload?company_id=adm-a", corpo: `{"condominio":"101","recurso":"x","payload":{}}`, sem: "gestor-a", com: "construtor-a", quer: 200},
 		{nome: "payload padrao", metodo: "PUT", url: "/api/admin/payload", corpo: `{"condominio":"*","recurso":"x","payload":{}}`, sem: "construtor-a", com: "admin", quer: 200},
 		// conversas.ver na administradora pedida (a da sessão, quando há sessão)
 		{nome: "sessoes", metodo: "GET", url: "/api/atende/sessoes?administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
-		{nome: "sessao", metodo: "GET", url: "/api/atende/sessao?id=" + sess(amb.sessaoA), sem: "gestor-b", com: "operador-a", quer: 200},
-		{nome: "saidas da sessao", metodo: "GET", url: "/api/atende/saidas?id=" + sess(amb.sessaoA), sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "sessao", metodo: "GET", url: "/api/atende/sessao?id=" + sess(amb.sessaoA) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "saidas da sessao", metodo: "GET", url: "/api/atende/saidas?id=" + sess(amb.sessaoA) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
 		// studio.avancado na Superlógica: identidade (Gruvi com a company global), configuração
 		// da implantação e a caixa de saída inteira não são de uma administradora
 		{nome: "identidade", metodo: "GET", url: "/api/atende/identidade?phone=" + tel + "&administradora=adm-a", sem: "operador-a", com: "admin", quer: 200},
@@ -250,13 +272,12 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "config do atende", metodo: "GET", url: "/api/atende/config?administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
 		{nome: "caixa de saida inteira", metodo: "GET", url: "/api/atende/saidas?administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
 		// conversas.atender na administradora da sessão
-		{nome: "transbordo", metodo: "POST", url: "/api/atende/transbordo", corpo: `{"sessao_id":"` + amb.sessaoA + `","acao":"x"}`, sem: "gestor-b", com: "operador-a", quer: 400},
-		{nome: "reiniciar sessao", metodo: "DELETE", url: "/api/atende/sessao?id=" + sess(amb.sessaoA2), sem: "gestor-b", com: "operador-a", quer: 200},
+		{nome: "transbordo", metodo: "POST", url: "/api/atende/transbordo?company_id=adm-a", corpo: `{"sessao_id":"` + amb.sessaoA + `","acao":"x"}`, sem: "gestor-b", com: "operador-a", quer: 400},
+		{nome: "reiniciar sessao", metodo: "DELETE", url: "/api/atende/sessao?id=" + sess(amb.sessaoA2) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
 		// pedidos
 		{nome: "pedidos", metodo: "GET", url: "/api/pedidos?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
 		{nome: "exportar pedidos", metodo: "GET", url: "/api/pedidos/exportar?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 400},
 		{nome: "acao de pedido", metodo: "POST", url: "/api/pedidos/acao?administradora=adm-a", corpo: `{"acao":"x"}`, sem: "operador-a", com: "gestor-a", quer: 400},
-		{nome: "preencher pedido de outra sessao", metodo: "POST", url: "/api/pedidos/acao?administradora=adm-b", corpo: `{"acao":"preencher","sessao_id":"` + amb.sessaoA + `"}`, sem: "gestor-b", com: "gestor-a", quer: 404},
 		// memória
 		{nome: "memoria", metodo: "GET", url: "/api/memoria?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
 		{nome: "memorias", metodo: "GET", url: "/api/memorias?administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
@@ -271,6 +292,119 @@ func TestRotasExigemPermissao(t *testing.T) {
 				t.Fatalf("%s com permissão: status %d, quero %d: %s", c.com, w.Code, c.quer, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestAtendeConfigNoEscopoDaImplantacaoFixa(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+
+	w := amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/config", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("config da empresa fixa: status %d: %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Canais []canais.Resumo `json:"canais"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Canais) != 1 || body.Canais[0].CompanyID != "adm-a" || len(canaisDB.consultadas) != 1 || canaisDB.consultadas[0] != "adm-a" {
+		t.Fatalf("config retornou canais fora da implantação: %+v, consultas %v", body.Canais, canaisDB.consultadas)
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/config?company_id=adm-b", "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("config de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.consultadas) != 1 {
+		t.Fatalf("empresa externa alcançou o repositório de canais: %v", canaisDB.consultadas)
+	}
+}
+
+func TestAtendeMensagemEmuladaNoEscopoDaImplantacaoFixa(t *testing.T) {
+	const company = "admin112698"
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = company
+	acessos := amb.s.acessos.(acessosFake)
+	acessos.atribuicoes["construtor-fixo"] = naAdministradora("construtor_superlogica", company)
+	acessos.atribuicoes["operador-fixo"] = naAdministradora("operador_administradora", company)
+	amb.s.acessos = acessos
+
+	sessaoFixa := sessaoEm(t, amb.s.atende.Sessoes, "protocolo-fixo", company)
+	sessaoExterna := sessaoEm(t, amb.s.atende.Sessoes, "protocolo-externo", "adm-b")
+	body := func(protocolo, sessao string) string {
+		return `{"protocol":"` + protocolo + `","session_id":"` + sessao + `","message":"resposta"}`
+	}
+
+	w := amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusOK || len(amb.s.emulador.Recebidas(sessaoFixa)) != 1 {
+		t.Fatalf("resposta da empresa fixa: status %d, recebidas %v: %s", w.Code, amb.s.emulador.Recebidas(sessaoFixa), w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages?company_id=adm-b", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("empresa externa na consulta: status %d: %s", w.Code, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-externo", sessaoExterna))
+	if w.Code != http.StatusNotFound || len(amb.s.emulador.Recebidas(sessaoExterna)) != 0 {
+		t.Fatalf("sessão de outra empresa alcançou o emulador: status %d, recebidas %v: %s", w.Code, amb.s.emulador.Recebidas(sessaoExterna), w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-externo", sessaoFixa))
+	if w.Code != http.StatusNotFound || len(amb.s.emulador.Recebidas(sessaoFixa)) != 1 {
+		t.Fatalf("protocolo divergente da sessão foi aceito: status %d, recebidas %v: %s", w.Code, amb.s.emulador.Recebidas(sessaoFixa), w.Body.String())
+	}
+
+	w = amb.pedir(t, "operador-fixo", http.MethodPost, "/emulador/atende/messages", body("protocolo-fixo", sessaoFixa))
+	if w.Code != http.StatusForbidden || len(amb.s.emulador.Recebidas(sessaoFixa)) != 1 {
+		t.Fatalf("usuário sem studio.avancado foi aceito: status %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAtendeWebhookEmuladoNoEscopoDaImplantacaoFixa(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+	canal := uuid.NewString()
+	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-escopo","tenant":"tenant-a","data":{"protocol":{"number":"protocolo-escopo"},"contact":{"phone":"5511999990001"},"channel":{"type":"whatsapp","displayNumber":"551940402710"},"message":{"id":"msg-escopo","type":"text","content":"FAQ"}}}`
+	url := "/emulador/atende/webhook?company_id=adm-a&channel_id=" + canal
+	w := amb.pedir(t, "construtor-a", http.MethodPost, url, corpo)
+	if w.Code != http.StatusBadRequest || len(canaisDB.porIDConsultadas) != 1 || canaisDB.porIDConsultadas[0] != "adm-a" || len(canaisDB.porID) != 1 || canaisDB.porID[0].String() != canal {
+		t.Fatalf("webhook da empresa fixa não validou o canal por empresa e ID: status %d, empresas %v, canais %v: %s", w.Code, canaisDB.porIDConsultadas, canaisDB.porID, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodPost, "/emulador/atende/webhook?company_id=adm-b&channel_id="+canal, corpo)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("webhook de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.porIDConsultadas) != 1 {
+		t.Fatalf("webhook de empresa externa alcançou o repositório de canais: %v", canaisDB.porIDConsultadas)
+	}
+}
+
+func TestAtendeIdentidadeV2NoEscopoDoCanal(t *testing.T) {
+	amb := novoAmbienteRotas(t)
+	amb.s.implantacao.AdministradoraFixa = "adm-a"
+	canaisDB := &canaisConfigFake{}
+	amb.s.atende.Canais = canaisDB
+	canal := uuid.NewString()
+	url := "/api/atende/identidade?phone=5511999990001&company_id=adm-a&channel_id=" + canal
+	w := amb.pedir(t, "construtor-a", http.MethodGet, url, "")
+	if w.Code != http.StatusOK || len(canaisDB.porIDConsultadas) != 1 || canaisDB.porIDConsultadas[0] != "adm-a" {
+		t.Fatalf("identidade da empresa fixa: status %d, consultas %v: %s", w.Code, canaisDB.porIDConsultadas, w.Body.String())
+	}
+
+	w = amb.pedir(t, "construtor-a", http.MethodGet, "/api/atende/identidade?phone=5511999990001&company_id=adm-b&channel_id="+canal, "")
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORA_DA_IMPLANTACAO") {
+		t.Fatalf("identidade de empresa externa: status %d: %s", w.Code, w.Body.String())
+	}
+	if len(canaisDB.porIDConsultadas) != 1 {
+		t.Fatalf("identidade de empresa externa alcançou o repositório de canais: %v", canaisDB.porIDConsultadas)
 	}
 }
 
@@ -335,14 +469,17 @@ func TestRotasAutenticacao(t *testing.T) {
 // condomínio passa para B; o gestor de B não a vê.
 func TestSessaoFicaComAAdministradoraGravada(t *testing.T) {
 	amb := novoAmbienteRotas(t)
-	if _, err := amb.repo.SalvarCondominio(t.Context(), admin.Condominio{ID: "cond-a", Nome: "Cond A", Administradora: "adm-b"}); err != nil {
+	if _, err := amb.repo.SalvarCondominio(t.Context(), admin.Condominio{ID: "101", Nome: "Cond A", Administradora: "adm-b"}); err != nil {
 		t.Fatal(err)
 	}
 	url := "/api/atende/sessao?id=" + strings.ReplaceAll(amb.sessaoA, ":", "%3A") + "&administradora=adm-b"
-	if w := amb.pedir(t, "gestor-b", "GET", url, ""); w.Code != http.StatusForbidden {
+	if w := amb.pedir(t, "gestor-b", "GET", url, ""); w.Code != http.StatusNotFound {
 		t.Fatalf("gestor de B: status %d: %s", w.Code, w.Body.String())
 	}
-	urlDeA := "/api/atende/sessao?id=" + strings.ReplaceAll(amb.sessaoA, ":", "%3A")
+	urlDeA := "/api/atende/sessao?company_id=adm-a&id=" + strings.ReplaceAll(amb.sessaoA, ":", "%3A")
+	if w := amb.pedir(t, "gestor-b", "GET", urlDeA, ""); w.Code != http.StatusForbidden {
+		t.Fatalf("gestor de B não pode acessar empresa A: %d %s", w.Code, w.Body.String())
+	}
 	if w := amb.pedir(t, "gestor-a", "GET", urlDeA, ""); w.Code != http.StatusOK {
 		t.Fatalf("gestor de A: status %d: %s", w.Code, w.Body.String())
 	}
@@ -350,42 +487,6 @@ func TestSessaoFicaComAAdministradoraGravada(t *testing.T) {
 	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "assuma o atendimento") {
 		t.Fatalf("lista de B traz a conversa de A: %d %s", w.Code, w.Body.String())
 	}
-}
-
-func TestEscritasDoMapeamento(t *testing.T) {
-	casos := []struct {
-		nome, usuario, metodo, url, corpo string
-		status                            int
-		codigo                            string
-	}{
-		{nome: "criar condomínio repetido", usuario: "admin", metodo: "POST", url: "/api/admin/condominio", corpo: `{"id":"cond-a","nome":"Intruso","administradora_id":"adm-b"}`, status: http.StatusConflict, codigo: "JA_EXISTE"},
-		{nome: "criar administradora repetida", usuario: "admin", metodo: "POST", url: "/api/admin/administradora", corpo: `{"id":"adm-a","nome":"Outra"}`, status: http.StatusConflict, codigo: "JA_EXISTE"},
-		{nome: "editar condomínio inexistente", usuario: "admin", metodo: "PUT", url: "/api/admin/condominio", corpo: `{"id":"cond-zz","nome":"Z"}`, status: http.StatusNotFound, codigo: "NAO_ENCONTRADO"},
-		{nome: "editar administradora inexistente", usuario: "admin", metodo: "PUT", url: "/api/admin/administradora", corpo: `{"id":"adm-zz","nome":"Z"}`, status: http.StatusNotFound, codigo: "NAO_ENCONTRADO"},
-		{nome: "criar condomínio novo", usuario: "construtor-a", metodo: "POST", url: "/api/admin/condominio", corpo: `{"id":"cond-n","nome":"N","administradora_id":"adm-a"}`, status: http.StatusCreated},
-		{nome: "gestor de A escreve o padrão", usuario: "gestor-a", metodo: "PUT", url: "/api/admin/orientacao", corpo: `{"condominio":"*","geral":"x"}`, status: http.StatusForbidden, codigo: "SEM_PERMISSAO"},
-		{nome: "gestor de A escreve condomínio de B", usuario: "gestor-a", metodo: "PUT", url: "/api/admin/habilitacao", corpo: `{"condominio":"cond-b","caso":"faq"}`, status: http.StatusForbidden, codigo: "SEM_PERMISSAO"},
-	}
-	for _, c := range casos {
-		t.Run(c.nome, func(t *testing.T) {
-			amb := novoAmbienteRotas(t)
-			w := amb.pedir(t, c.usuario, c.metodo, c.url, c.corpo)
-			if w.Code != c.status || !strings.Contains(w.Body.String(), c.codigo) {
-				t.Fatalf("status %d: %s", w.Code, w.Body.String())
-			}
-		})
-	}
-	t.Run("criar repetido não sobrescreve", func(t *testing.T) {
-		amb := novoAmbienteRotas(t)
-		amb.pedir(t, "admin", "POST", "/api/admin/condominio", `{"id":"cond-a","nome":"Intruso","administradora_id":"adm-b"}`)
-		m, err := amb.repo.Ler(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if c, _ := m.Condominio("cond-a"); c.Nome != "Cond A" || c.Administradora != "adm-a" {
-			t.Fatalf("cond-a sobrescrito: %+v", c)
-		}
-	})
 }
 
 func TestEstadoMostraSoAsAdministradorasVisiveis(t *testing.T) {
@@ -401,7 +502,7 @@ func TestEstadoMostraSoAsAdministradorasVisiveis(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
 		t.Fatal(err)
 	}
-	if len(corpo.Administradoras) != 1 || corpo.Administradoras[0].ID != "adm-a" || len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "cond-a" {
+	if len(corpo.Administradoras) != 1 || corpo.Administradoras[0].ID != "adm-a" || len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "101" {
 		t.Fatalf("gestor de A vê além de A: %+v", corpo)
 	}
 	if w := amb.pedir(t, "gestor-a", "GET", "/api/admin/estado?administradora=adm-b", ""); w.Code != http.StatusForbidden {
@@ -429,8 +530,8 @@ func TestEstadoDeQuemSoTemUmCondominio(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
 		t.Fatal(err)
 	}
-	if len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "cond-a" {
-		t.Fatalf("quer só cond-a, veio %+v", corpo.Mapeamento.Condominios)
+	if len(corpo.Mapeamento.Condominios) != 1 || corpo.Mapeamento.Condominios[0].ID != "101" {
+		t.Fatalf("quer só 101, veio %+v", corpo.Mapeamento.Condominios)
 	}
 	if len(corpo.Administradoras) != 1 || corpo.Administradoras[0].ID != "adm-a" {
 		t.Fatalf("quer só a dona adm-a, veio %+v", corpo.Administradoras)
@@ -494,101 +595,10 @@ func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
 	}
 }
 
-// TestEscritaRecusadaAntesDeGravar: o recorte da resposta é decidido antes da escrita; quem
-// tem duas administradoras e não diz qual recebe 400 sem que nada seja gravado.
-func TestEscritaRecusadaAntesDeGravar(t *testing.T) {
-	amb := novoAmbienteRotas(t)
-	corpo := `{"condominio":"cond-a","caso":"faq","habilitado":false}`
-	w := amb.pedir(t, "gestor-ab", "PUT", "/api/admin/habilitacao", corpo)
-	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "ADMINISTRADORA_OBRIGATORIA") {
-		t.Fatalf("status %d: %s", w.Code, w.Body.String())
-	}
-	m, err := amb.repo.Ler(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, gravou := m.Habilitacoes["cond-a"]; gravou {
-		t.Fatalf("a escrita foi gravada antes do 400: %+v", m.Habilitacoes)
-	}
-	if w := amb.pedir(t, "gestor-ab", "PUT", "/api/admin/habilitacao?administradora=adm-a", corpo); w.Code != http.StatusOK {
-		t.Fatalf("com a administradora pedida: status %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestChavesDeRoteamentoSoComASuperlogica(t *testing.T) {
-	casos := []struct {
-		nome, usuario, metodo, corpo string
-		quer                         int
-	}{
-		{nome: "criar com company", usuario: "construtor-a", metodo: "POST", corpo: `{"id":"cond-n","nome":"N","administradora_id":"adm-a","company_id":"5982"}`, quer: http.StatusForbidden},
-		{nome: "criar com tenant", usuario: "construtor-a", metodo: "POST", corpo: `{"id":"cond-n","nome":"N","administradora_id":"adm-a","tenant":"t"}`, quer: http.StatusForbidden},
-		{nome: "criar sem chaves", usuario: "construtor-a", metodo: "POST", corpo: `{"id":"cond-n","nome":"N","administradora_id":"adm-a"}`, quer: http.StatusCreated},
-		{nome: "editar mudando tenant", usuario: "construtor-a", metodo: "PUT", corpo: `{"id":"cond-a","nome":"Cond A","administradora_id":"adm-a","tenant":"outro"}`, quer: http.StatusForbidden},
-		{nome: "editar mantendo as chaves", usuario: "construtor-a", metodo: "PUT", corpo: `{"id":"cond-a","nome":"Novo nome","administradora_id":"adm-a"}`, quer: http.StatusOK},
-		{nome: "superlógica muda tenant", usuario: "admin", metodo: "PUT", corpo: `{"id":"cond-a","nome":"Cond A","administradora_id":"adm-a","tenant":"outro"}`, quer: http.StatusOK},
-		{nome: "superlógica cria com company", usuario: "admin", metodo: "POST", corpo: `{"id":"cond-n","nome":"N","administradora_id":"adm-a","company_id":"5982"}`, quer: http.StatusCreated},
-	}
-	for _, c := range casos {
-		t.Run(c.nome, func(t *testing.T) {
-			amb := novoAmbienteRotas(t)
-			if w := amb.pedir(t, c.usuario, c.metodo, "/api/admin/condominio", c.corpo); w.Code != c.quer {
-				t.Fatalf("status %d: %s", w.Code, w.Body.String())
-			}
-		})
-	}
-}
-
-// acessosQueMovem carrega o Acesso e, logo depois, passa o condomínio para outra dona: a
-// escrita já autorizada tem de ser recusada pelo repositório.
-type acessosQueMovem struct {
-	acessosFake
-	condominio admin.Condominio
-}
-
-func (a acessosQueMovem) Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (acesso.Acesso, error) {
-	acc, err := a.acessosFake.Carregar(ctx, usuarioID, imp)
-	if err != nil {
-		return acc, err
-	}
-	_, err = a.mapeamento.SalvarCondominio(ctx, a.condominio)
-	return acc, err
-}
-
-func TestCondominioMovidoNoMeioDaRequisicao(t *testing.T) {
-	escritas := []struct{ nome, metodo, url, corpo string }{
-		{nome: "habilitação", metodo: "PUT", url: "/api/admin/habilitacao", corpo: `{"condominio":"cond-a","caso":"faq"}`},
-		{nome: "orientação", metodo: "PUT", url: "/api/admin/orientacao", corpo: `{"condominio":"cond-a","geral":"x"}`},
-		{nome: "ajustes", metodo: "PUT", url: "/api/admin/ajustes", corpo: `{"condominio":"cond-a","ajustes":{"r":{"x":1}}}`},
-		{nome: "payload", metodo: "PUT", url: "/api/admin/payload", corpo: `{"condominio":"cond-a","recurso":"r","payload":{"x":1}}`},
-		{nome: "remover", metodo: "DELETE", url: "/api/admin/condominio?id=cond-a"},
-		{nome: "editar", metodo: "PUT", url: "/api/admin/condominio", corpo: `{"id":"cond-a","nome":"Cond A","administradora_id":"adm-a"}`},
-	}
-	for _, e := range escritas {
-		t.Run(e.nome, func(t *testing.T) {
-			amb := novoAmbienteRotas(t)
-			amb.s.acessos = acessosQueMovem{
-				acessosFake: acessosFake{atribuicoes: usuariosTeste(), mapeamento: amb.repo},
-				condominio:  admin.Condominio{ID: "cond-a", Nome: "Cond A", Administradora: "adm-b"},
-			}
-			w := amb.pedir(t, "construtor-a", e.metodo, e.url, e.corpo)
-			if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "CONFLITO_CONCORRENTE") {
-				t.Fatalf("status %d: %s", w.Code, w.Body.String())
-			}
-			m, err := amb.repo.Ler(t.Context())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if c, ok := m.Condominio("cond-a"); !ok || c.Administradora != "adm-b" || len(m.Habilitacoes["cond-a"])+len(m.Payloads["cond-a"]) > 0 {
-				t.Fatalf("a escrita passou depois da mudança de dona: %+v", m)
-			}
-		})
-	}
-}
-
 func TestTransbordoNaoEcoaErroInterno(t *testing.T) {
 	amb := novoAmbienteRotas(t)
 	// responder sem transbordo ativo é recusado pelo serviço; o erro dele não vai na resposta
-	w := amb.pedir(t, "admin", "POST", "/api/atende/transbordo", `{"sessao_id":"`+amb.sessaoA+`","acao":"responder","texto":"oi"}`)
+	w := amb.pedir(t, "admin", "POST", "/api/atende/transbordo?company_id=adm-a", `{"sessao_id":"`+amb.sessaoA+`","acao":"responder","texto":"oi"}`)
 	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "TRANSBORDO_RECUSADO") || strings.Contains(w.Body.String(), "assuma o atendimento") {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}

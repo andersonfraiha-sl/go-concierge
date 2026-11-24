@@ -4,7 +4,6 @@ package banco
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,13 +19,11 @@ import (
 
 	"go-concierge/internal/banco/ent"
 	"go-concierge/internal/banco/sqlc"
+	v2 "go-concierge/internal/banco/v2"
 	"go-concierge/internal/falha"
 )
 
 const timeoutConexao = 5 * time.Second
-
-//go:embed migrations/*.sql
-var migrations embed.FS
 
 // Banco reúne os clientes que falam com o Postgres. Todos usam o mesmo pool.
 type Banco struct {
@@ -57,6 +54,10 @@ func Abrir(ctx context.Context, url string, ajustes ...func(*pgxpool.Config)) (B
 		pool.Close()
 		return Banco{}, falha.ComPilha(fmt.Errorf("ping no postgres: %w", err))
 	}
+	if err := validarDestino(ctx, pool); err != nil {
+		pool.Close()
+		return Banco{}, err
+	}
 	drv := entsql.OpenDB(dialect.Postgres, stdlib.OpenDBFromPool(pool))
 	return Banco{Pool: pool, Ent: ent.NewClient(ent.Driver(drv)), SQL: sqlc.New(pool)}, nil
 }
@@ -74,11 +75,14 @@ func (b Banco) Fechar() error {
 // Migrar aplica as migrations pendentes. Um advisory lock do Postgres impede que duas
 // instâncias migrem ao mesmo tempo.
 func Migrar(ctx context.Context, b Banco) (err error) {
+	if err := validarDestino(ctx, b.Pool); err != nil {
+		return err
+	}
 	trava, err := lock.NewPostgresSessionLocker()
 	if err != nil {
 		return fmt.Errorf("criar trava das migrations: %w", err)
 	}
-	arquivos, err := fs.Sub(migrations, "migrations")
+	arquivos, err := fs.Sub(v2.Migrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("ler migrations embutidas: %w", err)
 	}
@@ -94,6 +98,21 @@ func Migrar(ctx context.Context, b Banco) (err error) {
 	}()
 	if _, err := p.Up(ctx); err != nil {
 		return falha.ComPilha(fmt.Errorf("aplicar migrations: %w", err))
+	}
+	return nil
+}
+
+func validarDestino(ctx context.Context, pool *pgxpool.Pool) error {
+	var legado, existe bool
+	err := pool.QueryRow(ctx, `SELECT
+ EXISTS (SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = current_schema() AND tablename IN ('administradoras','condominios','habilitacoes','catalogo_arquivos','sessoes','skill_camadas','ganchos_regras')),
+ EXISTS (SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = current_schema() AND tablename NOT IN ('goose_db_version'))
+ AND to_regclass('channels') IS NULL`).Scan(&legado, &existe)
+	if err != nil {
+		return fmt.Errorf("validar banco v2: %w", err)
+	}
+	if legado || existe {
+		return errors.New("banco incompatível com Concierge v2: configure DATABASE_URL para banco novo e vazio ou já inicializado com a baseline v2; banco legado preservado")
 	}
 	return nil
 }

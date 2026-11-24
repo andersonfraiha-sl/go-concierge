@@ -16,25 +16,25 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldCamadaID holds the string denoting the camada_id field in the database.
-	FieldCamadaID = "camada_id"
+	FieldCamadaID = "layer_id"
 	// FieldDeID holds the string denoting the de_id field in the database.
-	FieldDeID = "de_id"
+	FieldDeID = "from_version_id"
 	// FieldParaID holds the string denoting the para_id field in the database.
-	FieldParaID = "para_id"
+	FieldParaID = "to_version_id"
 	// FieldEstado holds the string denoting the estado field in the database.
-	FieldEstado = "estado"
+	FieldEstado = "status"
 	// FieldPrazoEm holds the string denoting the prazo_em field in the database.
-	FieldPrazoEm = "prazo_em"
+	FieldPrazoEm = "deadline_at"
 	// FieldPrazoAplicado holds the string denoting the prazo_aplicado field in the database.
-	FieldPrazoAplicado = "prazo_aplicado"
+	FieldPrazoAplicado = "deadline_applied"
 	// FieldDecisoes holds the string denoting the decisoes field in the database.
-	FieldDecisoes = "decisoes"
+	FieldDecisoes = "decisions"
 	// FieldDecididaPor holds the string denoting the decidida_por field in the database.
-	FieldDecididaPor = "decidida_por"
+	FieldDecididaPor = "decided_by"
 	// FieldDecididaEm holds the string denoting the decidida_em field in the database.
-	FieldDecididaEm = "decidida_em"
+	FieldDecididaEm = "decided_at"
 	// FieldCriadoEm holds the string denoting the criado_em field in the database.
-	FieldCriadoEm = "criado_em"
+	FieldCriadoEm = "created_at"
 	// EdgeCamada holds the string denoting the camada edge name in mutations.
 	EdgeCamada = "camada"
 	// EdgeDe holds the string denoting the de edge name in mutations.
@@ -42,28 +42,28 @@ const (
 	// EdgePara holds the string denoting the para edge name in mutations.
 	EdgePara = "para"
 	// Table holds the table name of the skillatualizacao in the database.
-	Table = "skill_atualizacoes"
+	Table = "skill_updates"
 	// CamadaTable is the table that holds the camada relation/edge.
-	CamadaTable = "skill_atualizacoes"
+	CamadaTable = "skill_updates"
 	// CamadaInverseTable is the table name for the SkillCamada entity.
 	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
-	CamadaInverseTable = "skill_camadas"
+	CamadaInverseTable = "skill_layers"
 	// CamadaColumn is the table column denoting the camada relation/edge.
-	CamadaColumn = "camada_id"
+	CamadaColumn = "layer_id"
 	// DeTable is the table that holds the de relation/edge.
-	DeTable = "skill_atualizacoes"
+	DeTable = "skill_updates"
 	// DeInverseTable is the table name for the SkillVersao entity.
 	// It exists in this package in order to avoid circular dependency with the "skillversao" package.
-	DeInverseTable = "skill_versoes"
+	DeInverseTable = "skill_versions"
 	// DeColumn is the table column denoting the de relation/edge.
-	DeColumn = "de_id"
+	DeColumn = "from_version_id"
 	// ParaTable is the table that holds the para relation/edge.
-	ParaTable = "skill_atualizacoes"
+	ParaTable = "skill_updates"
 	// ParaInverseTable is the table name for the SkillVersao entity.
 	// It exists in this package in order to avoid circular dependency with the "skillversao" package.
-	ParaInverseTable = "skill_versoes"
+	ParaInverseTable = "skill_versions"
 	// ParaColumn is the table column denoting the para relation/edge.
-	ParaColumn = "para_id"
+	ParaColumn = "to_version_id"
 )
 
 // Columns holds all SQL columns for skillatualizacao fields.
@@ -108,11 +108,11 @@ const DefaultEstado = EstadoPendente
 
 // Estado values.
 const (
-	EstadoPendente    Estado = "pendente"
-	EstadoAceita      Estado = "aceita"
-	EstadoRecusada    Estado = "recusada"
-	EstadoParcial     Estado = "parcial"
-	EstadoSubstituida Estado = "substituida"
+	EstadoPendente    Estado = "PENDING"
+	EstadoAceita      Estado = "ACCEPTED"
+	EstadoRecusada    Estado = "REJECTED"
+	EstadoParcial     Estado = "PARTIAL"
+	EstadoSubstituida Estado = "SUPERSEDED"
 )
 
 func (e Estado) String() string {

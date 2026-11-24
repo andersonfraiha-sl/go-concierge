@@ -2,7 +2,6 @@ import { Box, Link as MuiLink, Typography } from '@mui/material';
 import type { ComponentProps, ReactNode } from 'react';
 import { type Control, Controller, useWatch } from 'react-hook-form';
 import { Link as RouterLink } from 'react-router';
-import { type Estado, habilitacaoDe, useEstado } from '@/condominios/contratos';
 import { type EstiloDoRealce, useRealceDoCopiloto } from '@/copiloto/CopilotoProvider';
 import type { Informacao } from '@/fluxo/modelo/tipos';
 import { TIPOS_DE_INFORMACAO, tipoMostrado } from '@/fluxo/painel/InformacoesPainel';
@@ -229,46 +228,6 @@ function LinhaDaInformacao({ info, passo }: { info: Informacao; passo: number | 
   );
 }
 
-/** Quantos condomínios ligam esta skill (decisão própria ou herdada do Padrão). */
-function contarCondominiosLigados(
-  estado: Estado,
-  caso: string,
-): { ligados: number; total: number } {
-  const condominios = estado.mapeamento.condominios;
-  const ligados = condominios.filter(
-    (c) => habilitacaoDe(estado.mapeamento, c.id, caso).habilitacao.habilitado,
-  ).length;
-  return { ligados, total: condominios.length };
-}
-
-/** "Onde está ligada": em quantos condomínios a skill está ativa. */
-function OndeEstaLigada({ nome }: PropsDasInformacoes): ReactNode {
-  const estado = useEstado();
-  if (!estado.data) return null;
-  const { ligados, total } = contarCondominiosLigados(estado.data, nome);
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-      <RotuloDoPainel>Onde está ligada</RotuloDoPainel>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-        <Typography sx={{ fontSize: TIPOS.h4, fontWeight: PESOS.negrito, color: 'secondary.main' }}>
-          {ligados}
-        </Typography>
-        <Typography sx={{ fontSize: TIPOS.body2, color: 'text.secondary' }}>
-          de {total} condomínios
-        </Typography>
-      </Box>
-      <MuiLink
-        component={RouterLink}
-        to="/condominios"
-        sx={{ fontSize: TIPOS.body2, fontWeight: PESOS.semi }}
-      >
-        Ver por condomínio
-      </MuiLink>
-    </Box>
-  );
-}
-
-/** Coluna lateral "Esta skill": o que ela pede, quem pode usar, onde está ligada e se grava algo. */
 function PainelDaSkill({ nome, control }: Props): ReactNode {
   const visibilidade = useWatch({ control, name: 'visibilidade' });
   const skill = useSkills().data?.skills.find((s) => s.nome === nome);
@@ -299,7 +258,6 @@ function PainelDaSkill({ nome, control }: Props): ReactNode {
           {visivelParaTodos ? 'Qualquer contato' : 'Morador identificado'}
         </Box>
       </Box>
-      <OndeEstaLigada nome={nome} />
       {skill?.escrita && (
         <Box
           sx={{

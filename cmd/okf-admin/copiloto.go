@@ -492,8 +492,6 @@ func resumoDaProposta(op copiloto.Operacao, ret retrato) string {
 		resumo = "Criar a skill " + op.Titulo
 	case copiloto.ExcluirSkill:
 		resumo = "Excluir a skill " + skill
-	case copiloto.HabilitarSkill:
-		resumo = verboDeHabilitar(op.Habilitado) + " " + skill + " em " + condominio
 	case copiloto.Orientar:
 		resumo = "Orientar o Concierge em " + condominio
 		if op.Skill != "" {
@@ -509,13 +507,6 @@ func resumoDaProposta(op copiloto.Operacao, ret retrato) string {
 		resumo = "Proposta do Copiloto"
 	}
 	return cortarResumo(resumo)
-}
-
-func verboDeHabilitar(habilitado *bool) string {
-	if habilitado != nil && *habilitado {
-		return "Ligar"
-	}
-	return "Desligar"
 }
 
 func nomeOuChave(nomes map[string]string, chave string) string {

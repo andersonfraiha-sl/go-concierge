@@ -3,29 +3,24 @@ package pedidos
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"go-concierge/internal/banco"
-	"go-concierge/internal/banco/ent"
-	"go-concierge/internal/banco/ent/pedido"
 	"go-concierge/internal/banco/sqlc"
 	"go-concierge/internal/escopo"
-	comfalha "go-concierge/internal/falha" // falha já nomeia o tipo do motor
 )
 
-// timeoutConsulta limita cada leitura ou gravação dos pedidos.
 const timeoutConsulta = 3 * time.Second
 
-// Postgres guarda cada pedido numa linha de pedidos (o pedido inteiro em dados) e o
-// histórico em pedido_eventos, só acrescentado. Ler e Gravar são queries do sqlc (cabem nos
-// lotes do turno); Listar vai pelo ent.
 type Postgres struct {
 	b       banco.Banco
-	sortear func() string // protocolo para o pedido novo que colide
+	sortear func() string
 }
 
 func NovoPostgres(b banco.Banco) *Postgres { return &Postgres{b: b, sortear: NovoProtocolo} }
@@ -34,56 +29,100 @@ func (p *Postgres) Ler(ctx context.Context, c escopo.Contato) (Carteira, error) 
 	if err := validarContato(c); err != nil {
 		return Carteira{}, err
 	}
+	c = c.Canonico()
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
 	var cart Carteira
 	lote := banco.NovoLote()
 	p.LerNoLote(ctx, lote, c, func(lida Carteira) { cart = lida })
 	if err := lote.Enviar(ctx, p.b.Pool); err != nil {
-		return Carteira{}, comfalha.ComPilha(fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err))
+		return Carteira{}, fmt.Errorf("ler pedidos de %s: %w", c.Mascarado(), err)
 	}
 	return cart, nil
 }
 
-// LerNoLote põe no lote a leitura da carteira do contato (LerPedidos); guardar recebe a
-// carteira quando o lote roda. Um erro volta no Enviar do lote.
 func (p *Postgres) LerNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, guardar func(Carteira)) {
+	if err := validarContato(c); err != nil {
+		lote.Erro(err)
+		return
+	}
+	c = c.Canonico()
 	lote.Por(func(q *sqlc.Queries) func() error {
-		res := q.LerPedidos(ctx, []sqlc.LerPedidosParams{{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}})
+		res := q.LoadRequests(ctx, []sqlc.LoadRequestsParams{{CompanyID: c.CompanyID, PhoneNumber: c.Telefone, AllCondos: c.CondoID == nil, CondoID: inteiro(c.CondoID)}})
 		return func() error {
 			var errLer error
-			res.Query(func(_ int, linhas []sqlc.LerPedidosRow, err error) {
+			res.Query(func(_ int, linhas []sqlc.LoadRequestsRow, err error) {
 				if err != nil {
 					errLer = err
 					return
 				}
-				dados := make([]dadosDoPedido, 0, len(linhas))
-				for _, l := range linhas {
-					dados = append(dados, dadosDoPedido{protocolo: l.Protocolo, json: l.Dados})
+				cart, err := carteiraDasLinhas(c, linhas)
+				if err != nil {
+					errLer = err
+					return
 				}
-				var cart Carteira
-				if cart, errLer = carteiraDe(c, dados); errLer == nil {
-					guardar(cart)
-				}
+				guardar(cart)
 			})
 			return errLer
 		}
 	})
 }
 
-// Gravar troca os pedidos do contato pelos da carteira (os que saíram são apagados) e
-// acrescenta ao histórico os eventos novos, numa ida ao banco. A administradora e o telefone
-// são os do contato. Se um pedido novo sorteou o protocolo de outro contato, nada foi gravado:
-// o protocolo é redesenhado e a gravação refeita (raro; uma ida a mais por tentativa).
+func carteiraDasLinhas(c escopo.Contato, linhas []sqlc.LoadRequestsRow) (Carteira, error) {
+	pedidos := make([]*Pedido, 0, len(linhas))
+	for _, l := range linhas {
+		var snapshot pedidoSnapshot
+		if err := json.Unmarshal(l.Data, &snapshot); err != nil {
+			return Carteira{}, err
+		}
+		ped := snapshot.State
+		condo := ponteiro(l.CondoID)
+		companyUseCaseID := uuid.UUID(l.CompanyUseCaseID.Bytes).String()
+		if snapshot.SchemaVersion != 2 || snapshot.Protocol != l.Protocol || snapshot.CompanyID != l.CompanyID || snapshot.PhoneNumber != l.PhoneNumber || !escopo.MesmoCondominio(snapshot.CondoID, condo) || snapshot.CompanyUseCaseID != companyUseCaseID || snapshot.UseCaseID != l.UseCaseID || snapshot.Status != l.Status || !snapshot.CreatedAt.Equal(l.CreatedAt.Time) || !snapshot.UpdatedAt.Equal(l.UpdatedAt.Time) {
+			return Carteira{}, errors.New("metadados do snapshot do pedido incompatíveis com as colunas")
+		}
+		if l.SourceSessionID.Valid && (snapshot.SourceSessionID == nil || *snapshot.SourceSessionID != l.SourceSessionID.String) {
+			return Carteira{}, errors.New("sessão de origem do snapshot incompatível")
+		}
+		if snapshot.SourceSessionID == nil && ped.SourceSessionID != "" || snapshot.SourceSessionID != nil && *snapshot.SourceSessionID != ped.SourceSessionID {
+			return Carteira{}, errors.New("origem do estado incompatível com snapshot")
+		}
+		if !ped.CriadoEm.Truncate(time.Microsecond).Equal(snapshot.CreatedAt) || !ped.AtualizadoEm.Truncate(time.Microsecond).Equal(snapshot.UpdatedAt) {
+			return Carteira{}, errors.New("datas do estado incompatíveis com snapshot")
+		}
+		if ped.CompanyUseCaseID != "" && ped.CompanyUseCaseID != companyUseCaseID {
+			return Carteira{}, errors.New("caso empresarial do estado incompatível")
+		}
+		if ped.Caso != snapshot.UseCaseID {
+			return Carteira{}, errors.New("caso estável do estado incompatível")
+		}
+		if ped.Protocolo != l.Protocol || ped.CompanyID != l.CompanyID || ped.Telefone != l.PhoneNumber || !escopo.MesmoCondominio(ped.CondoID, condo) || statusSQL(ped.Estado) != l.Status {
+			return Carteira{}, errors.New("colunas e JSON do pedido incompatíveis")
+		}
+		if !escopo.CondominioValido(ped.CondoID) || !c.Permite(ped.CondoID) {
+			return Carteira{}, errors.New("pedido fora do condomínio autorizado")
+		}
+		ped.CompanyUseCaseID = companyUseCaseID
+		ped.SourceSessionID = l.SourceSessionID.String
+		ped.AdministradoraID = ped.CompanyID
+		if ped.CondoID != nil {
+			ped.CondominioID = fmt.Sprint(*ped.CondoID)
+		}
+		pedidos = append(pedidos, &ped)
+	}
+	return montar(c, pedidos), nil
+}
+
 func (p *Postgres) Gravar(ctx context.Context, c escopo.Contato, cart Carteira) error {
 	if err := validarContato(c); err != nil {
 		return err
 	}
+	c = c.Canonico()
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
 	pedidos, err := p.gravarRedesenhando(ctx, c, copiasDoContato(c, cart.Pedidos))
 	if err != nil {
-		return comfalha.ComPilha(fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err))
+		return fmt.Errorf("gravar pedidos de %s: %w", c.Mascarado(), err)
 	}
 	adotarProtocolos(cart.Pedidos, pedidos)
 	return nil
@@ -93,24 +132,29 @@ func (p *Postgres) gravarRedesenhando(ctx context.Context, c escopo.Contato, ped
 	for tentativa := 0; ; tentativa++ {
 		var alheios []string
 		lote := banco.NovoLote()
-		err := p.enfileirarGravacao(ctx, lote, c, pedidos, func(a []string) error { alheios = a; return nil })
+		err := p.enfileirarGravacao(ctx, lote, c, pedidos, func(a []string) error {
+			alheios = a
+			if len(a) > 0 {
+				return ErrProtocoloEmUso
+			}
+			return nil
+		})
 		if err == nil {
 			err = lote.Enviar(ctx, p.b.Pool)
 		}
-		if err != nil || len(alheios) == 0 {
+		if !errors.Is(err, ErrProtocoloEmUso) || len(alheios) == 0 {
 			return pedidos, err
 		}
 		if tentativa == tentativasProtocolo {
 			return nil, ErrProtocoloEmUso
 		}
-		// a gravação já conferiu os donos: um sorteio fora de alheios é checado na próxima
-		if pedidos, err = redesenharColisoes(pedidos, conhecidos(alheios), p.sortear); err != nil {
+		pedidos, err = redesenharColisoes(pedidos, conhecidos(alheios), p.sortear)
+		if err != nil {
 			return nil, err
 		}
 	}
 }
 
-// conhecidos responde deOutros com os protocolos que a gravação devolveu como alheios.
 func conhecidos(alheios []string) deOutros {
 	return func(protocolos []string) (map[string]bool, error) {
 		out := map[string]bool{}
@@ -123,13 +167,11 @@ func conhecidos(alheios []string) deOutros {
 	}
 }
 
-// GravarNoLote põe no lote a gravação da carteira, sem redesenhar protocolo: se algum for de
-// outro contato, nada dos pedidos é gravado e o Enviar do lote devolve ErrProtocoloEmUso;
-// quem chamou grava de novo por Gravar.
 func (p *Postgres) GravarNoLote(ctx context.Context, lote *banco.Lote, c escopo.Contato, cart Carteira) error {
 	if err := validarContato(c); err != nil {
 		return err
 	}
+	c = c.Canonico()
 	return p.enfileirarGravacao(ctx, lote, c, copiasDoContato(c, cart.Pedidos), func(alheios []string) error {
 		if len(alheios) > 0 {
 			return ErrProtocoloEmUso
@@ -138,24 +180,25 @@ func (p *Postgres) GravarNoLote(ctx context.Context, lote *banco.Lote, c escopo.
 	})
 }
 
-// enfileirarGravacao põe no lote o GravarPedidos; aoGravar recebe os protocolos que não
-// foram gravados por serem de outro contato (vazio: a carteira inteira foi gravada).
-func (p *Postgres) enfileirarGravacao(ctx context.Context, lote *banco.Lote, c escopo.Contato, pedidos []Pedido, aoGravar func(alheios []string) error) error {
+func (p *Postgres) enfileirarGravacao(ctx context.Context, lote *banco.Lote, c escopo.Contato, pedidos []Pedido, aoGravar func([]string) error) error {
 	params, err := paramsDeGravacao(c, pedidos)
 	if err != nil {
 		return err
 	}
 	lote.Por(func(q *sqlc.Queries) func() error {
-		res := q.GravarPedidos(ctx, []sqlc.GravarPedidosParams{params})
+		res := q.SaveRequests(ctx, []sqlc.SaveRequestsParams{params})
 		return func() error {
 			var errGravar error
-			res.QueryRow(func(_ int, r sqlc.GravarPedidosRow, err error) {
+			res.QueryRow(func(_ int, r sqlc.SaveRequestsRow, err error) {
 				if err != nil {
 					errGravar = err
 					return
 				}
-				// faltando só vem com alheios vazio: outro contato gravou o protocolo no meio
-				errGravar = aoGravar(append(r.Alheios, r.Faltando...))
+				if len(r.Unresolved) > 0 {
+					errGravar = errors.New("caso não ativado na empresa")
+					return
+				}
+				errGravar = aoGravar(append(r.Conflicts, r.Missing...))
 			})
 			return errGravar
 		}
@@ -163,30 +206,33 @@ func (p *Postgres) enfileirarGravacao(ctx context.Context, lote *banco.Lote, c e
 	return nil
 }
 
-// Listar devolve as carteiras da administradora com algum pedido, a atualizada por último
-// primeiro.
-func (p *Postgres) Listar(ctx context.Context, administradoraID string) ([]Carteira, error) {
-	if err := validarAdministradora(administradoraID); err != nil {
+func (p *Postgres) Listar(ctx context.Context, companyID string) ([]Carteira, error) {
+	if err := validarAdministradora(companyID); err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeoutConsulta)
 	defer cancel()
-	// ponytail: lista a administradora inteira, como a interface pede; paginar quando o Console listar
-	linhas, err := p.b.Ent.Pedido.Query().
-		Where(pedido.AdministradoraID(administradoraID)).
-		Order(ent.Asc(pedido.FieldTelefone)).
-		All(ctx)
+	rows, err := p.b.Pool.Query(ctx, `SELECT DISTINCT phone_number FROM requests WHERE company_id=$1 ORDER BY phone_number`, companyID)
 	if err != nil {
-		return nil, comfalha.ComPilha(fmt.Errorf("listar pedidos da administradora %s: %w", administradoraID, err))
+		return nil, err
 	}
-	out := []Carteira{}
-	for doTelefone := range porTelefone(linhas) {
-		c := escopo.Contato{AdministradoraID: administradoraID, Telefone: doTelefone[0].Telefone}
-		dados := make([]dadosDoPedido, 0, len(doTelefone))
-		for _, l := range doTelefone {
-			dados = append(dados, dadosDoPedido{protocolo: l.ID, json: l.Dados})
+	var telefones []string
+	for rows.Next() {
+		var phone string
+		if err := rows.Scan(&phone); err != nil {
+			rows.Close()
+			return nil, err
 		}
-		cart, err := carteiraDe(c, dados)
+		telefones = append(telefones, phone)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Carteira, 0, len(telefones))
+	for _, phone := range telefones {
+		cart, err := p.Ler(ctx, escopo.Contato{CompanyID: companyID, Telefone: phone})
 		if err != nil {
 			return nil, err
 		}
@@ -196,75 +242,79 @@ func (p *Postgres) Listar(ctx context.Context, administradoraID string) ([]Carte
 	return out, nil
 }
 
-// porTelefone percorre as linhas, já ordenadas por telefone, um contato por vez.
-func porTelefone(linhas []*ent.Pedido) func(yield func([]*ent.Pedido) bool) {
-	return func(yield func([]*ent.Pedido) bool) {
-		for inicio := 0; inicio < len(linhas); {
-			fim := inicio + 1
-			for fim < len(linhas) && linhas[fim].Telefone == linhas[inicio].Telefone {
-				fim++
-			}
-			if !yield(linhas[inicio:fim]) {
-				return
-			}
-			inicio = fim
-		}
+func inteiro(n *int) pgtype.Int4 {
+	if n == nil {
+		return pgtype.Int4{}
 	}
+	return pgtype.Int4{Int32: int32(*n), Valid: true}
+}
+func ponteiro(n pgtype.Int4) *int {
+	if !n.Valid {
+		return nil
+	}
+	v := int(n.Int32)
+	return &v
 }
 
-// dadosDoPedido é a coluna dados de uma linha de pedidos.
-type dadosDoPedido struct {
-	protocolo string
-	json      []byte
-}
-
-func carteiraDe(c escopo.Contato, linhas []dadosDoPedido) (Carteira, error) {
-	pedidos := make([]*Pedido, 0, len(linhas))
-	for _, l := range linhas {
-		var ped Pedido
-		if err := json.Unmarshal(l.json, &ped); err != nil {
-			return Carteira{}, comfalha.ComPilha(fmt.Errorf("ler pedido %s de %s: %w", l.protocolo, c.Mascarado(), err))
-		}
-		pedidos = append(pedidos, &ped)
+func paramsDeGravacao(c escopo.Contato, pedidos []Pedido) (sqlc.SaveRequestsParams, error) {
+	c = c.Canonico()
+	type requestSQL struct {
+		Protocol        string         `json:"protocol"`
+		CondoID         *int           `json:"condo_id"`
+		UseCaseID       string         `json:"use_case_id"`
+		SourceSessionID *string        `json:"source_session_id"`
+		Status          string         `json:"status"`
+		Data            pedidoSnapshot `json:"data"`
+		CreatedAt       time.Time      `json:"created_at"`
+		UpdatedAt       time.Time      `json:"updated_at"`
 	}
-	return montar(c, pedidos), nil
-}
-
-// paramsDeGravacao põe os pedidos e o histórico de cada um em colunas; seq é a posição no
-// histórico, contando de 1. Os arrays nunca são nil: nil vira NULL e "protocolo <> ALL(NULL)"
-// não apagaria nada.
-func paramsDeGravacao(c escopo.Contato, pedidos []Pedido) (sqlc.GravarPedidosParams, error) {
-	n := len(pedidos)
-	p := sqlc.GravarPedidosParams{
-		AdministradoraID: c.AdministradoraID, Telefone: c.Telefone,
-		Protocolos: make([]string, 0, n), Condominios: make([]string, 0, n), Casos: make([]string, 0, n),
-		Estados: make([]string, 0, n), Dados: make([]string, 0, n),
-		Criados: make([]pgtype.Timestamptz, 0, n), Atualizados: make([]pgtype.Timestamptz, 0, n),
-		EventoProtocolos: []string{}, EventoSeqs: []int64{}, EventoTipos: []string{},
-		EventoTextos: []string{}, EventoPors: []string{}, EventoQuandos: []pgtype.Timestamptz{},
+	type eventSQL struct {
+		Protocol   string    `json:"protocol"`
+		Sequence   int       `json:"sequence"`
+		Type       string    `json:"type"`
+		Text       string    `json:"text"`
+		Actor      string    `json:"actor"`
+		OccurredAt time.Time `json:"occurred_at"`
 	}
+	requests := make([]requestSQL, 0, len(pedidos))
+	events := []eventSQL{}
+	seen := map[string]bool{}
 	for _, ped := range pedidos {
-		dados, err := json.Marshal(ped)
-		if err != nil {
-			return sqlc.GravarPedidosParams{}, fmt.Errorf("codificar pedido %s: %w", ped.Protocolo, err)
+		if ped.CondoID == nil && ped.CondominioID != "" {
+			legado, err := escopo.NovoContato(c.CompanyID, ped.CondominioID, c.Telefone)
+			if err != nil {
+				return sqlc.SaveRequestsParams{}, err
+			}
+			ped.CondoID = legado.CondoID
 		}
-		p.Protocolos = append(p.Protocolos, ped.Protocolo)
-		p.Condominios = append(p.Condominios, ped.CondominioID)
-		p.Casos = append(p.Casos, ped.Caso)
-		p.Estados = append(p.Estados, ped.Estado)
-		p.Dados = append(p.Dados, string(dados))
-		p.Criados = append(p.Criados, quando(ped.CriadoEm))
-		p.Atualizados = append(p.Atualizados, quando(ped.AtualizadoEm))
+		if !escopo.CondominioValido(ped.CondoID) || !c.Permite(ped.CondoID) {
+			return sqlc.SaveRequestsParams{}, errors.New("pedido fora do condomínio autorizado")
+		}
+		if ped.Protocolo == "" || ped.Caso == "" || statusSQL(ped.Estado) == "" || seen[ped.Protocolo] {
+			return sqlc.SaveRequestsParams{}, errors.New("pedido inválido ou protocolo repetido")
+		}
+		seen[ped.Protocolo] = true
+		ped.CompanyID, ped.AdministradoraID, ped.Telefone = c.CompanyID, c.CompanyID, c.Telefone
+		var source *string
+		if ped.SourceSessionID != "" {
+			source = &ped.SourceSessionID
+		}
+		requests = append(requests, requestSQL{ped.Protocolo, ped.CondoID, ped.Caso, source, statusSQL(ped.Estado), snapshotDoPedido(ped, source), ped.CriadoEm.Truncate(time.Microsecond), ped.AtualizadoEm.Truncate(time.Microsecond)})
 		for i, e := range ped.Historico {
-			p.EventoProtocolos = append(p.EventoProtocolos, ped.Protocolo)
-			p.EventoSeqs = append(p.EventoSeqs, int64(i+1))
-			p.EventoTipos = append(p.EventoTipos, e.Tipo)
-			p.EventoTextos = append(p.EventoTextos, e.Texto)
-			p.EventoPors = append(p.EventoPors, e.Por)
-			p.EventoQuandos = append(p.EventoQuandos, quando(e.Quando))
+			events = append(events, eventSQL{ped.Protocolo, i + 1, e.Tipo, e.Texto, e.Por, e.Quando.Truncate(time.Microsecond)})
 		}
 	}
-	return p, nil
+	raw, err := json.Marshal(requests)
+	if err != nil {
+		return sqlc.SaveRequestsParams{}, err
+	}
+	history, err := json.Marshal(events)
+	if err != nil {
+		return sqlc.SaveRequestsParams{}, err
+	}
+	return sqlc.SaveRequestsParams{CompanyID: c.CompanyID, PhoneNumber: c.Telefone, TargetCondoID: inteiro(c.CondoID), Requests: raw, Events: history}, nil
 }
 
-func quando(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
+func statusSQL(estado string) string {
+	return map[string]string{Coletando: "COLLECTING", Pronto: "READY", Confirmando: "AWAITING_CONFIRMATION", Executando: "EXECUTING", Concluido: "COMPLETED", ComAtendente: "WITH_AGENT", Cancelado: "CANCELED", Falhou: "FAILED"}[estado]
+}

@@ -229,7 +229,7 @@
     ],
     "condominios": [
       {
-        "id": "cond-a",
+        "id": "101",
         "nome": "Cond A",
         "administradora_id": "adm-a",
         "account": "",

@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"go-concierge/internal/banco"
 	"go-concierge/internal/banco/bancotest"
-	"go-concierge/internal/banco/ent"
-	"go-concierge/internal/banco/ent/pedidoevento"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/okf"
 )
@@ -30,25 +30,23 @@ func TestContratoFake(t *testing.T) {
 }
 
 func TestContratoPostgres(t *testing.T) {
-	testarStore(t, func(t *testing.T) Store { return NovoPostgres(bancotest.Novo(t)) })
+	testarStore(t, func(t *testing.T) Store { return NovoPostgres(bancoDeTeste(t)) })
 }
 
 func TestContratoCache(t *testing.T) {
-	testarStore(t, func(t *testing.T) Store { return NovoCache(NovoPostgres(bancotest.Novo(t))) })
+	testarStore(t, func(t *testing.T) Store { return NovoCache(NovoPostgres(bancoDeTeste(t))) })
 }
 
-// Gravar a mesma carteira de novo não vai ao banco: a linha apagada por fora continua apagada.
-func TestCacheNaoRegravaCarteiraIgual(t *testing.T) {
-	b := bancotest.Novo(t)
+func TestCacheRefleteGravacaoExterna(t *testing.T) {
+	b := bancoDeTeste(t)
 	st := NovoCache(NovoPostgres(b))
 	c := contatoDeTeste("adm-a", "5519981621916")
 	gravarCarteira(t, st, c, pedidoDeTeste(c, "P-AAAAA", diaDeTeste))
-	if _, err := b.Ent.Pedido.Delete().Exec(t.Context()); err != nil {
-		t.Fatalf("apagar por fora: %v", err)
+	if _, err := b.Pool.Exec(t.Context(), `UPDATE requests SET data=jsonb_set(data,'{state,resumo}','"atualizado"') WHERE protocol='P-AAAAA'`); err != nil {
+		t.Fatal(err)
 	}
-	gravarCarteira(t, st, c, lerCarteira(t, st, c).Pedidos...)
-	if n, err := b.Ent.Pedido.Query().Count(t.Context()); err != nil || n != 0 {
-		t.Fatalf("pedidos no banco = %d (%v), want 0: a carteira igual foi regravada", n, err)
+	if got := lerCarteira(t, st, c).Pedidos[0].Resumo; got != "atualizado" {
+		t.Fatalf("Resumo = %q", got)
 	}
 }
 
@@ -71,8 +69,8 @@ func testarStore(t *testing.T, novo func(t *testing.T) Store) {
 func cenarioFilaNaOrdemDeAbertura(t *testing.T, st Store) {
 	c := contatoDeTeste("adm-a", "5519981621916")
 	cart := Carteira{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone}
-	reserva := cart.Novo(&Contrato{Caso: &okf.Caso{ID: "reserva", Name: "Reserva"}}, "reservas", "cond-1", Origem{})
-	mudanca := cart.Novo(&Contrato{Caso: &okf.Caso{ID: "mudanca", Name: "Mudança"}}, "mudancas", "cond-1", Origem{})
+	reserva := cart.Novo(&Contrato{Caso: &okf.Caso{ID: "reserva", Name: "Reserva"}}, "reservas", "101", Origem{})
+	mudanca := cart.Novo(&Contrato{Caso: &okf.Caso{ID: "mudanca", Name: "Mudança"}}, "mudancas", "101", Origem{})
 	reserva.Protocolo, mudanca.Protocolo = "P-ZZZZZZZZ", "P-AAAAAAAA"
 	mudanca.CriadoEm = reserva.CriadoEm
 	if err := st.Gravar(t.Context(), c, cart); err != nil {
@@ -91,14 +89,18 @@ func cenarioFilaNaOrdemDeAbertura(t *testing.T, st Store) {
 var diaDeTeste = time.Date(2026, 11, 3, 10, 0, 0, 123456789, time.UTC)
 
 func contatoDeTeste(administradoraID, telefone string) escopo.Contato {
-	return escopo.Contato{AdministradoraID: administradoraID, CondominioID: "cond-1", Telefone: telefone}
+	c, err := escopo.NovoContato(administradoraID, nil, telefone)
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 // pedidoDeTeste só usa valores que voltam iguais do JSON (números float64, horas em UTC).
 func pedidoDeTeste(c escopo.Contato, protocolo string, criado time.Time) *Pedido {
 	entregue := true
 	return &Pedido{
-		Protocolo: protocolo, AdministradoraID: c.AdministradoraID, CondominioID: "cond-1", Telefone: c.Telefone,
+		Protocolo: protocolo, CompanyID: c.Canonico().CompanyID, AdministradoraID: c.Canonico().CompanyID, Telefone: c.Canonico().Telefone,
 		Caso: "reserva", CasoNome: "Reserva de espaço", Agente: "reservas", Estado: Concluido,
 		Valores:     map[string]any{"espaco": "salao", "convidados": float64(30)},
 		Rotulos:     map[string]string{"espaco": "Salão de festas"},
@@ -145,6 +147,7 @@ func cenarioGravarLer(t *testing.T, st Store) {
 	gravarCarteira(t, st, c, primeiro, segundo)
 
 	got := lerCarteira(t, st, c)
+	primeiro.CompanyUseCaseID, segundo.CompanyUseCaseID = got.Pedidos[0].CompanyUseCaseID, got.Pedidos[1].CompanyUseCaseID
 	if want := []*Pedido{primeiro, segundo}; !reflect.DeepEqual(got.Pedidos, want) {
 		t.Fatalf("Ler devolveu outros pedidos:\n got %+v\nwant %+v", got.Pedidos, want)
 	}
@@ -200,7 +203,9 @@ func cenarioProtocoloAlheio(t *testing.T, st Store) {
 	if got := protocolos(lerCarteira(t, st, outro)); !slices.Equal(got, []string{novo.Protocolo}) {
 		t.Fatalf("carteira do outro contato = %v, want [%s]", got, novo.Protocolo)
 	}
-	if got := lerCarteira(t, st, dono).Pedidos; !reflect.DeepEqual(got, []*Pedido{original}) {
+	gotOriginal := lerCarteira(t, st, dono).Pedidos
+	original.CompanyUseCaseID = gotOriginal[0].CompanyUseCaseID
+	if got := gotOriginal; !reflect.DeepEqual(got, []*Pedido{original}) {
 		t.Fatalf("pedido do dono mudou: %+v", got)
 	}
 	redesenhado := novo.Protocolo
@@ -241,7 +246,7 @@ func cenarioContatoInvalido(t *testing.T, st Store) {
 	if err := st.Gravar(t.Context(), escopo.Contato{AdministradoraID: "adm-a"}, Carteira{}); err == nil {
 		t.Fatal("Gravar sem telefone deveria falhar")
 	}
-	if _, err := st.Listar(t.Context(), "../x"); err == nil {
+	if _, err := st.Listar(t.Context(), " "); err == nil {
 		t.Fatal("Listar de administradora inválida deveria falhar")
 	}
 }
@@ -289,7 +294,7 @@ func protocolos(cart Carteira) []string {
 
 // Gravar a mesma carteira de novo só acrescenta em pedido_eventos o que é novo.
 func TestPostgresAcrescentaSoEventosNovos(t *testing.T) {
-	b := bancotest.Novo(t)
+	b := bancoDeTeste(t)
 	st := NovoPostgres(b)
 	c := contatoDeTeste("adm-a", "5519981621916")
 	p := pedidoDeTeste(c, "P-AAAAA", diaDeTeste)
@@ -303,14 +308,22 @@ func TestPostgresAcrescentaSoEventosNovos(t *testing.T) {
 		}
 	}
 
-	eventos, err := b.Ent.PedidoEvento.Query().
-		Where(pedidoevento.Protocolo("P-AAAAA")).Order(ent.Asc(pedidoevento.FieldSeq)).All(t.Context())
+	rows, err := b.Pool.Query(t.Context(), `SELECT sequence,type,text FROM request_events WHERE protocol='P-AAAAA' ORDER BY sequence`)
 	if err != nil {
-		t.Fatalf("ler pedido_eventos: %v", err)
+		t.Fatal(err)
 	}
+	defer rows.Close()
 	got := []string{}
-	for _, e := range eventos {
-		got = append(got, fmt.Sprintf("%d:%s:%s", e.Seq, e.Tipo, e.Texto))
+	for rows.Next() {
+		var seq int
+		var tipo, texto string
+		if err := rows.Scan(&seq, &tipo, &texto); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, fmt.Sprintf("%d:%s:%s", seq, tipo, texto))
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	want := []string{"1:criado:Reserva de espaço", "2:estado:" + Concluido, "3:valor:espaco = Churrasqueira"}
 	if !slices.Equal(got, want) {
@@ -326,7 +339,7 @@ func TestProtocoloSempreEmUso(t *testing.T) {
 		novo func(t *testing.T) Store
 	}{
 		{"fake", func(*testing.T) Store { f := NovoFake(); f.sortear = sempreOMesmo; return f }},
-		{"postgres", func(t *testing.T) Store { p := NovoPostgres(bancotest.Novo(t)); p.sortear = sempreOMesmo; return p }},
+		{"postgres", func(t *testing.T) Store { p := NovoPostgres(bancoDeTeste(t)); p.sortear = sempreOMesmo; return p }},
 	}
 	for _, tt := range stores {
 		t.Run(tt.nome, func(t *testing.T) {
@@ -354,19 +367,20 @@ func TestProtocoloSempreEmUso(t *testing.T) {
 
 // As colunas de filtro repetem o que está em dados.
 func TestPostgresColunasIguaisAosDados(t *testing.T) {
-	b := bancotest.Novo(t)
+	b := bancoDeTeste(t)
 	c := contatoDeTeste("adm-a", "5519981621916")
 	p := pedidoDeTeste(c, "P-AAAAA", diaDeTeste)
 	gravarCarteira(t, NovoPostgres(b), c, p)
 
-	l, err := b.Ent.Pedido.Get(t.Context(), "P-AAAAA")
+	var company, phone, casoID, status string
+	var created, updated time.Time
+	var condo *int
+	err := b.Pool.QueryRow(t.Context(), `SELECT r.company_id,r.condo_id,r.phone_number,c.use_case_id,r.status,r.created_at,r.updated_at FROM requests r JOIN company_use_cases c ON c.id=r.company_use_case_id WHERE protocol='P-AAAAA'`).Scan(&company, &condo, &phone, &casoID, &status, &created, &updated)
 	if err != nil {
-		t.Fatalf("ler linha: %v", err)
+		t.Fatal(err)
 	}
-	got := []any{l.AdministradoraID, l.CondominioID, l.Telefone, l.Caso, l.Estado, l.CriadoEm.UTC(), l.AtualizadoEm.UTC()}
-	// timestamptz guarda microssegundos; dados guarda o horário inteiro
-	want := []any{c.AdministradoraID, p.CondominioID, c.Telefone, p.Caso, p.Estado,
-		p.CriadoEm.Truncate(time.Microsecond), p.AtualizadoEm.Truncate(time.Microsecond)}
+	got := []any{company, condo, phone, casoID, status, created.UTC(), updated.UTC()}
+	want := []any{c.CompanyID, p.CondoID, c.Telefone, p.Caso, statusSQL(p.Estado), p.CriadoEm.Truncate(time.Microsecond), p.AtualizadoEm.Truncate(time.Microsecond)}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("colunas = %v, want %v", got, want)
 	}
@@ -376,4 +390,23 @@ func TestNovoProtocoloTemOitoCaracteres(t *testing.T) {
 	if p := NovoProtocolo(); !regexp.MustCompile(`^P-[A-HJ-NP-Z2-9]{8}$`).MatchString(p) {
 		t.Fatalf("NovoProtocolo() = %q", p)
 	}
+}
+
+func bancoDeTeste(t *testing.T) banco.Banco {
+	t.Helper()
+	b := bancotest.Novo(t)
+	for _, caso := range []string{"reserva", "mudanca"} {
+		if _, err := b.Pool.Exec(t.Context(), `INSERT INTO catalog_files(path,content,sha256,updated_at) VALUES($1,'','test',now()) ON CONFLICT DO NOTHING`, "agentes/"+caso+"/caso.yaml"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := b.Pool.Exec(t.Context(), `INSERT INTO use_cases(id,file_path,agent_path,name,summary,visibility,source_sha256,updated_at) VALUES($1,$2,'agent',$1,'','PUBLIC','test',now())`, caso, "agentes/"+caso+"/caso.yaml"); err != nil {
+			t.Fatal(err)
+		}
+		for _, company := range []string{"adm-a", "adm-b", "adm-c"} {
+			if _, err := b.Pool.Exec(t.Context(), `INSERT INTO company_use_cases(id,company_id,use_case_id,enabled,default_available,updated_at) VALUES($1,$2,$3,true,true,now())`, uuid.New(), company, caso); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return b
 }

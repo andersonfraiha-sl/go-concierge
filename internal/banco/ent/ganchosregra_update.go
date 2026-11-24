@@ -32,6 +32,20 @@ func (_u *GanchosRegraUpdate) Where(ps ...predicate.GanchosRegra) *GanchosRegraU
 	return _u
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_u *GanchosRegraUpdate) SetScopeType(v string) *GanchosRegraUpdate {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *GanchosRegraUpdate) SetNillableScopeType(v *string) *GanchosRegraUpdate {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
 // SetVersao sets the "versao" field.
 func (_u *GanchosRegraUpdate) SetVersao(v int) *GanchosRegraUpdate {
 	_u.mutation.ResetVersao()
@@ -92,6 +106,12 @@ func (_u *GanchosRegraUpdate) SetNillableAdministradoraID(v *string) *GanchosReg
 	if v != nil {
 		_u.SetAdministradoraID(*v)
 	}
+	return _u
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (_u *GanchosRegraUpdate) ClearAdministradoraID() *GanchosRegraUpdate {
+	_u.mutation.ClearAdministradoraID()
 	return _u
 }
 
@@ -250,6 +270,9 @@ func (_u *GanchosRegraUpdate) sqlSave(ctx context.Context) (_node int, err error
 			}
 		}
 	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(ganchosregra.FieldScopeType, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Versao(); ok {
 		_spec.SetField(ganchosregra.FieldVersao, field.TypeInt, value)
 	}
@@ -264,6 +287,9 @@ func (_u *GanchosRegraUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.AdministradoraID(); ok {
 		_spec.SetField(ganchosregra.FieldAdministradoraID, field.TypeString, value)
+	}
+	if _u.mutation.AdministradoraIDCleared() {
+		_spec.ClearField(ganchosregra.FieldAdministradoraID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Condominios(); ok {
 		_spec.SetField(ganchosregra.FieldCondominios, field.TypeOther, value)
@@ -350,6 +376,20 @@ type GanchosRegraUpdateOne struct {
 	mutation *GanchosRegraMutation
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_u *GanchosRegraUpdateOne) SetScopeType(v string) *GanchosRegraUpdateOne {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *GanchosRegraUpdateOne) SetNillableScopeType(v *string) *GanchosRegraUpdateOne {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
 // SetVersao sets the "versao" field.
 func (_u *GanchosRegraUpdateOne) SetVersao(v int) *GanchosRegraUpdateOne {
 	_u.mutation.ResetVersao()
@@ -410,6 +450,12 @@ func (_u *GanchosRegraUpdateOne) SetNillableAdministradoraID(v *string) *Ganchos
 	if v != nil {
 		_u.SetAdministradoraID(*v)
 	}
+	return _u
+}
+
+// ClearAdministradoraID clears the value of the "administradora_id" field.
+func (_u *GanchosRegraUpdateOne) ClearAdministradoraID() *GanchosRegraUpdateOne {
+	_u.mutation.ClearAdministradoraID()
 	return _u
 }
 
@@ -598,6 +644,9 @@ func (_u *GanchosRegraUpdateOne) sqlSave(ctx context.Context) (_node *GanchosReg
 			}
 		}
 	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(ganchosregra.FieldScopeType, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Versao(); ok {
 		_spec.SetField(ganchosregra.FieldVersao, field.TypeInt, value)
 	}
@@ -612,6 +661,9 @@ func (_u *GanchosRegraUpdateOne) sqlSave(ctx context.Context) (_node *GanchosReg
 	}
 	if value, ok := _u.mutation.AdministradoraID(); ok {
 		_spec.SetField(ganchosregra.FieldAdministradoraID, field.TypeString, value)
+	}
+	if _u.mutation.AdministradoraIDCleared() {
+		_spec.ClearField(ganchosregra.FieldAdministradoraID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Condominios(); ok {
 		_spec.SetField(ganchosregra.FieldCondominios, field.TypeOther, value)

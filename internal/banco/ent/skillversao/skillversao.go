@@ -16,42 +16,42 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldCamadaID holds the string denoting the camada_id field in the database.
-	FieldCamadaID = "camada_id"
+	FieldCamadaID = "layer_id"
 	// FieldNumero holds the string denoting the numero field in the database.
-	FieldNumero = "numero"
+	FieldNumero = "number"
 	// FieldDocumento holds the string denoting the documento field in the database.
-	FieldDocumento = "documento"
+	FieldDocumento = "document"
 	// FieldCasoYaml holds the string denoting the caso_yaml field in the database.
-	FieldCasoYaml = "caso_yaml"
+	FieldCasoYaml = "case_yaml"
 	// FieldAcimaID holds the string denoting the acima_id field in the database.
-	FieldAcimaID = "acima_id"
+	FieldAcimaID = "parent_version_id"
 	// FieldAtualizacaoID holds the string denoting the atualizacao_id field in the database.
-	FieldAtualizacaoID = "atualizacao_id"
+	FieldAtualizacaoID = "update_id"
 	// FieldOrigem holds the string denoting the origem field in the database.
-	FieldOrigem = "origem"
+	FieldOrigem = "origin"
 	// FieldAutor holds the string denoting the autor field in the database.
-	FieldAutor = "autor"
+	FieldAutor = "author"
 	// FieldResumo holds the string denoting the resumo field in the database.
-	FieldResumo = "resumo"
+	FieldResumo = "summary"
 	// FieldMotivo holds the string denoting the motivo field in the database.
-	FieldMotivo = "motivo"
+	FieldMotivo = "reason"
 	// FieldObrigatorios holds the string denoting the obrigatorios field in the database.
-	FieldObrigatorios = "obrigatorios"
+	FieldObrigatorios = "mandatory_sections"
 	// FieldEncerraEm holds the string denoting the encerra_em field in the database.
-	FieldEncerraEm = "encerra_em"
+	FieldEncerraEm = "expires_at"
 	// FieldCriadoEm holds the string denoting the criado_em field in the database.
-	FieldCriadoEm = "criado_em"
+	FieldCriadoEm = "created_at"
 	// EdgeCamada holds the string denoting the camada edge name in mutations.
 	EdgeCamada = "camada"
 	// Table holds the table name of the skillversao in the database.
-	Table = "skill_versoes"
+	Table = "skill_versions"
 	// CamadaTable is the table that holds the camada relation/edge.
-	CamadaTable = "skill_versoes"
+	CamadaTable = "skill_versions"
 	// CamadaInverseTable is the table name for the SkillCamada entity.
 	// It exists in this package in order to avoid circular dependency with the "skillcamada" package.
-	CamadaInverseTable = "skill_camadas"
+	CamadaInverseTable = "skill_layers"
 	// CamadaColumn is the table column denoting the camada relation/edge.
-	CamadaColumn = "camada_id"
+	CamadaColumn = "layer_id"
 )
 
 // Columns holds all SQL columns for skillversao fields.
@@ -98,13 +98,13 @@ type Origem string
 
 // Origem values.
 const (
-	OrigemImportacao  Origem = "importacao"
-	OrigemInicial     Origem = "inicial"
-	OrigemPublicacao  Origem = "publicacao"
-	OrigemDecisao     Origem = "decisao"
-	OrigemObrigatorio Origem = "obrigatorio"
-	OrigemPrazo       Origem = "prazo"
-	OrigemVolta       Origem = "volta"
+	OrigemImportacao  Origem = "IMPORT"
+	OrigemInicial     Origem = "INITIAL"
+	OrigemPublicacao  Origem = "PUBLICATION"
+	OrigemDecisao     Origem = "DECISION"
+	OrigemObrigatorio Origem = "MANDATORY"
+	OrigemPrazo       Origem = "DEADLINE"
+	OrigemVolta       Origem = "ROLLBACK"
 )
 
 func (o Origem) String() string {

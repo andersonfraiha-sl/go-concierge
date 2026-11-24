@@ -24,18 +24,19 @@ type GanchosRegra struct {
 
 func (GanchosRegra) Fields() []ent.Field {
 	return []ent.Field{
+		field.String("scope_type"),
 		field.UUID("id", uuid.New()).Default(uuid.New).Immutable(),
-		field.Int("versao"),
-		field.String("nome").NotEmpty(),
-		field.String("evento").NotEmpty(),
-		field.String("administradora_id").Default(""),
-		field.Other("condominios", GanchosCondominios{}).
+		field.Int("versao").StorageKey("version"),
+		field.String("nome").StorageKey("name").NotEmpty(),
+		field.String("evento").StorageKey("event").NotEmpty(),
+		field.String("administradora_id").StorageKey("company_id").Optional(),
+		field.Other("condominios", GanchosCondominios{}).StorageKey("condo_ids").
 			SchemaType(map[string]string{dialect.Postgres: "text[]"}).
 			Default(GanchosCondominios{}),
-		field.Bool("ativa"),
-		field.JSON("definicao", json.RawMessage{}),
-		field.String("alterada_por").Default(""),
-		field.Time("alterada_em").SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Bool("ativa").StorageKey("enabled"),
+		field.JSON("definicao", json.RawMessage{}).StorageKey("definition"),
+		field.String("alterada_por").StorageKey("updated_by").Default(""),
+		field.Time("alterada_em").StorageKey("updated_at").SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 	}
 }
 
@@ -54,7 +55,7 @@ func (GanchosRegra) Indexes() []ent.Index {
 }
 
 func (GanchosRegra) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "ganchos_regras"}}
+	return []schema.Annotation{entsql.Annotation{Table: "hook_rules"}}
 }
 
 // GanchosCondominios é a coluna text[] dos condomínios alvo da regra; vazia vale para todos

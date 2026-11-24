@@ -7,19 +7,19 @@ import (
 	"errors"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
 	"go-concierge/internal/banco/bancotest"
+	"go-concierge/internal/canais"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
-	"go-concierge/internal/gruvi"
-	"go-concierge/internal/harness"
-	"go-concierge/internal/okf"
 )
 
 func TestMain(m *testing.M) {
@@ -33,91 +33,114 @@ func TestContratoSessaoStoreEmMemoria(t *testing.T) {
 }
 
 func TestContratoSessaoStorePostgres(t *testing.T) {
-	testarSessaoStore(t, func(t *testing.T) SessaoStore { return NovoSessaoPostgres(bancotest.Novo(t)) })
+	testarSessaoStore(t, func(t *testing.T) SessaoStore { return novoSessaoStorePostgres(t) })
 }
 
 // testarSessaoStore é o contrato que toda implementação de SessaoStore cumpre.
-func testarSessaoStore(t *testing.T, novo func(t *testing.T) SessaoStore) {
-	base := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
-	registro := func(id, adm string, minutos int, dados string) RegistroSessao {
-		return RegistroSessao{ID: id, AdministradoraID: adm, CondominioID: "cond-" + id, Protocolo: "P-" + id,
-			AtualizadaEm: base.Add(time.Duration(minutos) * time.Minute), Dados: []byte(dados)}
-	}
+var channelStoreA = uuid.MustParse("a1000000-0000-0000-0000-000000000001")
+var channelStoreB = uuid.MustParse("b1000000-0000-0000-0000-000000000001")
 
-	t.Run("salva, carrega e sobrescreve", func(t *testing.T) {
-		st, ctx := novo(t), t.Context()
-		if _, ok, err := st.Carregar(ctx, "s1"); err != nil || ok {
-			t.Fatalf("sessão inexistente: ok=%v err=%v", ok, err)
-		}
-		if err := st.Salvar(ctx, registro("s1", "adm-a", 0, `{"v":1}`)); err != nil {
+func novoSessaoStorePostgres(t *testing.T) SessaoStore {
+	t.Helper()
+	b := bancotest.Novo(t)
+	for company, id := range map[string]uuid.UUID{"adm-a": channelStoreA, "adm-b": channelStoreB} {
+		if _, err := b.Pool.Exec(t.Context(), `INSERT INTO channels(id,company_id,channel_type,provider,endpoint_identifier,feature_mode,enabled,root_agent,updated_at) VALUES($1,$2,'WEB','test',$3,'INHERIT',true,'root',now())`, id, company, id.String()); err != nil {
 			t.Fatal(err)
 		}
-		novoRegistro := registro("s1", "adm-b", 5, `{"v":2}`)
-		if err := st.Salvar(ctx, novoRegistro); err != nil {
+	}
+	return NovoSessaoPostgres(b)
+}
+
+func testarSessaoStore(t *testing.T, novo func(*testing.T) SessaoStore) {
+	base := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	registro := func(t *testing.T, id, company string, minutos int) RegistroSessao {
+		channel := channelStoreA
+		if company == "adm-b" {
+			channel = channelStoreB
+		}
+		r := registroSessaoV2(t, id, company, channel, nil)
+		r.Protocolo = "P-" + id
+		r.AtualizadaEm = base.Add(time.Duration(minutos) * time.Minute)
+		r.Dados = serializarRegistroV2(t, r, "nome")
+		return r
+	}
+	contextFor := func(t *testing.T, company string) context.Context {
+		return ComEscopoSessao(t.Context(), company, uuid.Nil)
+	}
+	t.Run("salva carrega e atualiza estado mantendo identidade", func(t *testing.T) {
+		store := novo(t)
+		ctx := contextFor(t, "adm-a")
+		if _, ok, err := store.Carregar(ctx, "s1"); err != nil || ok {
+			t.Fatalf("inexistente=%v (%v)", ok, err)
+		}
+		r := registro(t, "s1", "adm-a", 0)
+		if err := store.Salvar(ctx, r); err != nil {
 			t.Fatal(err)
 		}
-		got, ok, err := st.Carregar(ctx, "s1")
-		if err != nil || !ok {
-			t.Fatalf("carregar: ok=%v err=%v", ok, err)
+		updated := registro(t, "s1", "adm-a", 5)
+		updated.Dados = serializarRegistroV2(t, updated, "atualizado")
+		if err := store.Salvar(ctx, updated); err != nil {
+			t.Fatal(err)
 		}
-		if !mesmoRegistro(got, novoRegistro) {
-			t.Fatalf("registro carregado = %+v, esperado %+v", got, novoRegistro)
+		got, ok, err := store.Carregar(ctx, "s1")
+		if err != nil || !ok || !mesmoRegistro(got, updated) {
+			t.Fatalf("registro=%+v (%v)", got, err)
+		}
+		if err := store.Salvar(contextFor(t, "adm-b"), registro(t, "s1", "adm-b", 6)); err == nil {
+			t.Fatal("reatribuição empresarial aceita")
+		}
+		got, ok, err = store.Carregar(ctx, "s1")
+		if err != nil || !ok || !mesmoRegistro(got, updated) {
+			t.Fatalf("original alterado=%+v (%v)", got, err)
 		}
 	})
-
-	t.Run("lista por administradora, mais recentes primeiro, com limite", func(t *testing.T) {
-		st, ctx := novo(t), t.Context()
-		for _, r := range []RegistroSessao{
-			registro("a1", "adm-a", 1, `{}`), registro("a2", "adm-a", 3, `{}`),
-			registro("a3", "adm-a", 2, `{}`), registro("b1", "adm-b", 9, `{}`),
-		} {
-			if err := st.Salvar(ctx, r); err != nil {
+	t.Run("lista empresa autorizada ordenada e limitada", func(t *testing.T) {
+		store := novo(t)
+		for _, r := range []RegistroSessao{registro(t, "a1", "adm-a", 1), registro(t, "a2", "adm-a", 3), registro(t, "a3", "adm-a", 2), registro(t, "b1", "adm-b", 9)} {
+			if err := store.Salvar(contextFor(t, r.CompanyID), r); err != nil {
 				t.Fatal(err)
 			}
 		}
-		casos := []struct {
-			nome   string
-			adm    string
-			limite int
-			ids    []string
-		}{
-			{"uma administradora", "adm-a", 10, []string{"a2", "a3", "a1"}},
-			{"limite", "adm-a", 2, []string{"a2", "a3"}},
-			{"sem administradora lista todas", "", 10, []string{"b1", "a2", "a3", "a1"}},
-			{"administradora sem sessões", "adm-z", 10, nil},
+		for _, tt := range []struct {
+			company string
+			limit   int
+			ids     []string
+		}{{"adm-a", 10, []string{"a2", "a3", "a1"}}, {"adm-a", 2, []string{"a2", "a3"}}, {"adm-b", 10, []string{"b1"}}, {"adm-z", 10, nil}} {
+			rows, err := store.Listar(contextFor(t, tt.company), tt.company, tt.limit)
+			if err != nil || !slices.Equal(idsDe(rows), tt.ids) {
+				t.Fatalf("lista %s=%v (%v)", tt.company, idsDe(rows), err)
+			}
 		}
-		for _, c := range casos {
-			t.Run(c.nome, func(t *testing.T) {
-				regs, err := st.Listar(ctx, c.adm, c.limite)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if got := idsDe(regs); strings.Join(got, ",") != strings.Join(c.ids, ",") {
-					t.Fatalf("ids = %v, esperado %v", got, c.ids)
-				}
-			})
+		if _, err := store.Listar(contextFor(t, ""), "", 10); !errors.Is(err, ErrEscopoSessao) {
+			t.Fatalf("listagem sem empresa=%v", err)
 		}
 	})
-
-	t.Run("remove de forma idempotente", func(t *testing.T) {
-		st, ctx := novo(t), t.Context()
-		if err := st.Salvar(ctx, registro("s1", "adm-a", 0, `{}`)); err != nil {
+	t.Run("remove idempotente preservando outra empresa", func(t *testing.T) {
+		store := novo(t)
+		ctx := contextFor(t, "adm-a")
+		r := registro(t, "s1", "adm-a", 0)
+		if err := store.Salvar(ctx, r); err != nil {
 			t.Fatal(err)
+		}
+		if err := store.Remover(contextFor(t, "adm-b"), "s1"); err != nil && !errors.Is(err, ErrEscopoSessao) {
+			t.Fatal(err)
+		}
+		if _, ok, err := store.Carregar(ctx, "s1"); err != nil || !ok {
+			t.Fatalf("sessão alheia removida=%v (%v)", ok, err)
 		}
 		for range 2 {
-			if err := st.Remover(ctx, "s1"); err != nil {
+			if err := store.Remover(ctx, "s1"); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if _, ok, err := st.Carregar(ctx, "s1"); err != nil || ok {
-			t.Fatalf("sessão removida ainda carrega: ok=%v err=%v", ok, err)
+		if _, ok, err := store.Carregar(ctx, "s1"); err != nil || ok {
+			t.Fatalf("removida=%v (%v)", ok, err)
 		}
 	})
 }
 
 func mesmoRegistro(a, b RegistroSessao) bool {
-	return a.ID == b.ID && a.AdministradoraID == b.AdministradoraID && a.CondominioID == b.CondominioID &&
-		a.Protocolo == b.Protocolo && a.AtualizadaEm.Equal(b.AtualizadaEm) && mesmoJSON(a.Dados, b.Dados)
+	return a.ID == b.ID && a.CompanyID == b.CompanyID && a.ChannelID == b.ChannelID && a.Connector == b.Connector && a.UserPhone == b.UserPhone && escopo.MesmoCondominio(a.CondoID, b.CondoID) && a.Protocolo == b.Protocolo && a.AtualizadaEm.Equal(b.AtualizadaEm) && mesmoJSON(a.Dados, b.Dados)
 }
 
 // mesmoJSON compara pelo conteúdo: o jsonb do Postgres reformata o texto.
@@ -139,7 +162,7 @@ func TestRestaurarDestrava(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess.fixarContato(contatoDeTeste(t, "adm-a"), "company-1")
+	sess.fixarContato(contatoDeTeste(t, "company-1"), "company-1")
 	sess.Processando = true
 	r, err := sess.Registro()
 	if err != nil {
@@ -152,10 +175,10 @@ func TestRestaurarDestrava(t *testing.T) {
 	if restaurada.Processando {
 		t.Fatal("sessão restaurada não pode continuar travada em processamento")
 	}
-	if restaurada.AdministradoraID != "adm-a" || restaurada.CompanyID != "company-1" || restaurada.contato() != sess.contato() {
+	if restaurada.AdministradoraID != "company-1" || restaurada.CompanyID != "company-1" || restaurada.contato().Canonico() != sess.contato().Canonico() {
 		t.Fatalf("restaurada sem o condomínio resolvido: adm=%q company=%q contato=%+v", restaurada.AdministradoraID, restaurada.CompanyID, restaurada.contato())
 	}
-	if r.AdministradoraID != "adm-a" || r.CondominioID != sess.Condominio || r.Protocolo != "P-9" || r.ID != sess.ID {
+	if r.AdministradoraID != "company-1" || r.CondominioID != sess.Condominio || r.Protocolo != "P-9" || r.ID != sess.ID {
 		t.Fatalf("colunas do registro: %+v", r)
 	}
 }
@@ -166,67 +189,51 @@ func TestSessaoSobreviveRestart(t *testing.T) {
 		novo func(t *testing.T) SessaoStore
 	}{
 		{"em memória", func(*testing.T) SessaoStore { return NovaSessaoEmMemoria() }},
-		{"postgres", func(t *testing.T) SessaoStore { return NovoSessaoPostgres(bancotest.Novo(t)) }},
+		{"postgres", func(t *testing.T) SessaoStore { return novoSessaoStorePostgres(t) }},
 	}
 	for _, c := range stores {
 		t.Run(c.nome, func(t *testing.T) { sessaoSobreviveRestart(t, c.novo(t)) })
 	}
 }
 
-func sessaoSobreviveRestart(t *testing.T, st SessaoStore) {
-	cat, err := okf.NewCatalogo(filepath.Join(raizDoRepo(t), "okf"))
+func sessaoSobreviveRestart(t *testing.T, store SessaoStore) {
+	ctx := ComEscopoSessao(t.Context(), "adm-a", channelStoreA)
+	msg := entrada.Mensagem{CompanyID: "adm-a", ChannelID: channelStoreA, ConversaID: "P-RESTART", Contato: entrada.Contato{Phone: "5511999998888"}, Origem: entrada.Origem{Conector: "test", Meio: "web", ConexaoID: channelStoreA.String()}}
+	manager := NewSessoes(store)
+	session, err := manager.Abrir(ctx, msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fix, err := okf.LerRecursosFixture(filepath.Join(cat.Root, "nexus", "cond-001.yaml"))
-	if err != nil {
+	if err := session.fixarCanal(canais.Canal{ID: channelStoreA, CompanyID: "adm-a"}, msg.Contato.Phone); err != nil {
 		t.Fatal(err)
 	}
-	cat.Recursos = func() []okf.Recurso { return fix }
-	adicionarToolsMCP(cat)
-	novoServico := func() *Servico {
-		return &Servico{
-			Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoDeTeste(t), Sessoes: NewSessoes(st), Sender: &Outbox{},
-			Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: &mcpServicoFalso{}},
-			TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
-		}
-	}
-	svc := novoServico()
-	ev := parseEvento(t, eventoExemplo)
-	if _, err := svc.Processar(t.Context(), ev.Normalizar()); err != nil {
+	session.registrar(Turno{Quem: "morador", Texto: "primeira mensagem"})
+	session.registrar(Turno{Quem: "concierge", Texto: "primeira resposta"})
+	session.historico = []*schema.Message{{Role: schema.User, Content: "primeira mensagem"}, {Role: schema.Assistant, Content: "primeira resposta"}}
+	session.mcpResultados = map[string]any{"recurso": map[string]any{"resultado": "preservado"}}
+	session.Processando = true
+	if err := manager.Persistir(ctx, session); err != nil {
 		t.Fatal(err)
 	}
-	ev2 := parseEvento(t, strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "até que horas a piscina abre?", 1))
-	ev2.ID = "evt_2"
-	antes, err := svc.Processar(t.Context(), ev2.Normalizar())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	depois, ok, err := novoServico().Sessoes.Get(t.Context(), antes.ID)
+	restored, ok, err := NewSessoes(store).Get(ctx, session.ID)
 	if err != nil || !ok {
-		t.Fatalf("sessão não sobreviveu ao restart: ok=%v err=%v", ok, err)
+		t.Fatalf("restart=%v (%v)", ok, err)
 	}
-	if len(depois.Turnos) != 4 || len(depois.Turnos) != len(antes.Turnos) {
-		t.Fatalf("turnos depois do restart = %d, antes = %d", len(depois.Turnos), len(antes.Turnos))
+	if restored.Processando || len(restored.Turnos) != 2 || !reflect.DeepEqual(restored.historicoSnapshot(), session.historicoSnapshot()) || !reflect.DeepEqual(restored.resultadosMCP(), session.resultadosMCP()) {
+		t.Fatalf("estado perdido no restart: %+v", restored)
 	}
-	if n := len(depois.historicoSnapshot()); n == 0 || n != len(antes.historicoSnapshot()) {
-		t.Fatalf("histórico depois do restart = %d mensagens, antes = %d", n, len(antes.historicoSnapshot()))
-	}
-	if depois.contato() != antes.contato() || depois.CompanyID != antes.CompanyID {
-		t.Fatalf("condomínio resolvido perdido: %+v / %q", depois.contato(), depois.CompanyID)
-	}
-
-	// a próxima mensagem depois do restart continua a mesma conversa
-	svc3 := novoServico()
-	ev3 := parseEvento(t, strings.Replace(eventoExemplo, "posso fazer barulho depois das 22h?", "e a academia?", 1))
-	ev3.ID = "evt_3"
-	continuada, err := svc3.Processar(context.Background(), ev3.Normalizar())
+	manager = NewSessoes(store)
+	continued, err := manager.Abrir(ctx, msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(continuada.Turnos) != 6 {
-		t.Fatalf("conversa recomeçou depois do restart: %d turnos", len(continuada.Turnos))
+	continued.registrar(Turno{Quem: "morador", Texto: "continuação"})
+	if err := manager.Persistir(ctx, continued); err != nil {
+		t.Fatal(err)
+	}
+	final, ok, err := NewSessoes(store).Get(ctx, session.ID)
+	if err != nil || !ok || len(final.Turnos) != 3 {
+		t.Fatalf("conversa reiniciada=%+v (%v)", final, err)
 	}
 }
 
@@ -276,15 +283,6 @@ func encerrar(t testing.TB, svc *Servico, msg entrada.Mensagem) bool {
 		t.Errorf("encerrar: %v", err)
 	}
 	return ok
-}
-
-func parseEvento(t *testing.T, raw string) *Evento {
-	t.Helper()
-	ev, err := Parse([]byte(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ev
 }
 
 // storeFalho falha as primeiras `falhas` gravações; o resto vai ao store em memória.

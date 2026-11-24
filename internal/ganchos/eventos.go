@@ -32,6 +32,9 @@ type Identidade struct {
 // MensagemRecebida dispara antes da camada 0 da cascata. Condominio chega vazio e é
 // preenchido pelo fixo escopo_da_conversa; as regras saem dele.
 type MensagemRecebida struct {
+	CanalResolvido           bool
+	ChannelID                string
+	CondoID                  *int
 	Agora                    time.Time
 	Texto, CompanyID, Tenant string
 	Mapeamento               admin.Mapeamento

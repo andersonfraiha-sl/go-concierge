@@ -34,7 +34,7 @@ func TestPermissaoDeCadaOperacao(t *testing.T) {
 		{TrocarFluxo, "skills.editar_fluxo"},
 		{CriarSkill, "skills.criar"},
 		{ExcluirSkill, "skills.excluir"},
-		{HabilitarSkill, "condominios.habilitar"},
+		{HabilitarSkill, ""},
 		{Orientar, "condominios.habilitar"},
 		{Ajustar, "condominios.habilitar"},
 		{EditarPersona, "skills.editar_textos"},
@@ -57,7 +57,7 @@ func TestValidarForma(t *testing.T) {
 		querErr bool
 	}{
 		{"habilitar sem habilitado", Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c1"}, true},
-		{"habilitar completo", Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c1", Habilitado: ptr(false)}, false},
+		{"habilitar completo indisponivel", Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c1", Habilitado: ptr(false)}, true},
 		{"orientar sem condominio", Operacao{Tipo: Orientar, Texto: "Seja breve."}, true},
 		{"orientar geral sem skill", Operacao{Tipo: Orientar, Condominio: "c1", Texto: "Seja breve."}, false},
 		{"editar arquivo sem caminho", Operacao{Tipo: EditarArquivo, Conteudo: ptr("x")}, true},
@@ -97,9 +97,9 @@ func TestFiltrarPorPermissaoEEscopo(t *testing.T) {
 		motivo string // "" = aceita
 	}{
 		{"habilita em condominio dele", Contexto{Tela: TelaCondominios},
-			Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c-dele", Habilitado: ptr(true)}, ""},
+			Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c-dele", Habilitado: ptr(true)}, motivoIndisponivel},
 		{"habilita em condominio de outra administradora", Contexto{Tela: TelaCondominios},
-			Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c-outra", Habilitado: ptr(true)}, motivoForaDoEscopo},
+			Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c-outra", Habilitado: ptr(true)}, motivoIndisponivel},
 		{"troca fluxo sem permissao", Contexto{Tela: TelaFluxo, Skill: "boleto"},
 			Operacao{Tipo: TrocarFluxo, Skill: "boleto", Fluxo: fluxoValido()}, motivoSemPermissao},
 		{"edita arquivo sem permissao", Contexto{Tela: TelaAvancado},
@@ -111,7 +111,7 @@ func TestFiltrarPorPermissaoEEscopo(t *testing.T) {
 		{"orienta a ficha aberta", Contexto{Tela: TelaCondominio, Condominio: "c-dele"},
 			Operacao{Tipo: Orientar, Condominio: "c-dele", Texto: "t"}, ""},
 		{"habilita incompleto", Contexto{Tela: TelaCondominios},
-			Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c-dele"}, motivoIncompleta},
+			Operacao{Tipo: HabilitarSkill, Skill: "boleto", Condominio: "c-dele"}, motivoIndisponivel},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -193,12 +193,15 @@ func TestCadaTipoTemRegraCompleta(t *testing.T) {
 		t.Fatalf("achou %d tipos em operacoes.go, quer ao menos 9", len(tipos))
 	}
 	for _, tipo := range tipos {
+		if tipo == HabilitarSkill {
+			continue
+		}
 		r, ok := regras[tipo]
 		if !ok || !r.completa() {
 			t.Errorf("tipo %q sem regra completa (permissão, alcance e campos): %+v", tipo, r)
 		}
 	}
-	if len(regras) != len(tipos) {
+	if len(regras) != len(tipos)-1 {
 		t.Errorf("regras tem %d entradas, há %d tipos declarados", len(regras), len(tipos))
 	}
 }

@@ -24,16 +24,13 @@ const skillMudanca = "agendar_mudanca"
 var (
 	camadaBase = Camada{Skill: skillMudanca, Tipo: TipoBase}
 	camadaAdm  = Camada{Skill: skillMudanca, Tipo: TipoAdministradora, ID: "A"}
-	camadaCond = Camada{Skill: skillMudanca, Tipo: TipoCondominio, ID: "c1"}
+	camadaCond = Camada{Skill: skillMudanca, Tipo: TipoCondominio, ID: "101", CompanyID: "A"}
 	instante   = time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
 )
 
 func novoBanco(t *testing.T) (*Postgres, *ent.Client) {
 	t.Helper()
 	b := bancotest.Novo(t)
-	ctx := t.Context()
-	b.Ent.Administradora.Create().SetID("A").SetNome("Adm A").SaveX(ctx)
-	b.Ent.Condominio.Create().SetID("c1").SetNome("C1").SetAdministradoraID("A").SaveX(ctx)
 	return NovoPostgres(b.Ent), b.Ent
 }
 
@@ -303,7 +300,7 @@ func TestLerRetratoTrazSoCabecas(t *testing.T) {
 	if a := got.Administradoras[skillMudanca]["A"]; a.VersaoID != admNova.ID || a.Documento.Orientacao != "A2" {
 		t.Errorf("administradora = %+v; quer a cabeça %d", a, admNova.ID)
 	}
-	if c := got.Condominios[skillMudanca]["c1"]; c.VersaoID != cond.ID {
+	if c := got.Condominios[skillMudanca][chaveCondominio("A", "101")]; c.VersaoID != cond.ID {
 		t.Errorf("condomínio = %+v; quer a cabeça %d", c, cond.ID)
 	}
 }
@@ -339,22 +336,27 @@ func TestTemBaseSoComBasePublicada(t *testing.T) {
 	}
 }
 
-func TestRemoverCondominioApagaACamada(t *testing.T) {
+func TestCondominioExternoHomonomoPreservaCamadasDeCadaEmpresa(t *testing.T) {
 	pg, cli := novoBanco(t)
 	r, ctx := pg.Repo(), t.Context()
-	cond := inserir(t, r, camadaCond, 0, documentoDeTeste())
-	inserir(t, r, camadaAdm, 0, documentoDeTeste())
-
-	cli.Condominio.DeleteOneID("c1").ExecX(ctx)
-
-	if estado, err := r.Camada(ctx, camadaCond); err != nil || estado.Cabeca != nil {
-		t.Errorf("camada do condomínio = %+v (err %v); quer sumida", estado, err)
+	a := inserir(t, r, camadaCond, 0, documentoDeTeste())
+	camadaB := Camada{Skill: skillMudanca, Tipo: TipoCondominio, ID: "101", CompanyID: "B"}
+	b := inserir(t, r, camadaB, 0, com(func(d *Documento) { d.Orientacao = "B" }))
+	if _, err := r.SalvarRascunho(ctx, camadaB, "", documentoDeTeste()); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := r.Versao(ctx, cond.ID); !errors.Is(err, ErrVersaoNaoEncontrada) {
-		t.Errorf("versão do condomínio: erro = %v; quer ErrVersaoNaoEncontrada", err)
+	state, err := r.Camada(ctx, camadaCond)
+	if err != nil || state.Cabeca == nil || state.Cabeca.ID != a.ID || state.Rascunho != nil {
+		t.Fatalf("camada A alterada: %+v %v", state, err)
 	}
-	if estado, err := r.Camada(ctx, camadaAdm); err != nil || estado.Cabeca == nil {
-		t.Errorf("camada da administradora = %+v (err %v); quer intacta", estado, err)
+	if _, err := cli.ExecContext(ctx, `UPDATE skill_layers SET head_version_id=$1 WHERE company_id='B' AND condo_id=101`, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Camada(ctx, camadaB); !errors.Is(err, ErrCamadaInvalida) {
+		t.Fatalf("cabeça alheia aceita: %v", err)
+	}
+	if _, err := r.Versao(ctx, b.ID); err != nil {
+		t.Fatalf("versão B perdida: %v", err)
 	}
 }
 

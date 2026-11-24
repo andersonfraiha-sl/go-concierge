@@ -74,7 +74,10 @@ func TestSubstituirAplicaSoADiferenca(t *testing.T) {
 	antesFica := atualizadoEm(t, p, "agentes/fica.md")
 	time.Sleep(5 * time.Millisecond)
 
-	m := substituir(t, p, Arquivo{"agentes/fica.md", []byte("fica")}, Arquivo{"agentes/muda.md", []byte("novo")}, Arquivo{"agentes/chega.md", []byte("chega")})
+	m, err := p.Substituir(t.Context(), []Arquivo{{"agentes/fica.md", []byte("fica")}, {"agentes/muda.md", []byte("novo")}, {"agentes/chega.md", []byte("chega")}}, "agentes/some.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if m != (Mudanca{Gravados: 2, Removidos: 1}) {
 		t.Fatalf("mudança = %+v", m)
@@ -94,14 +97,14 @@ func TestSubstituirAplicaSoADiferenca(t *testing.T) {
 	}
 }
 
-func TestSubstituirComDiscoVazioEsvaziaOBanco(t *testing.T) {
+func TestSubstituirComDiscoVazioPreservaOBanco(t *testing.T) {
 	p := novoStore(t)
 	substituir(t, p, Arquivo{"agentes/a.md", []byte("a")})
 
 	substituir(t, p)
 
 	vazio, err := p.Vazio(t.Context())
-	if err != nil || !vazio {
+	if err != nil || vazio {
 		t.Fatalf("Vazio = %v, %v", vazio, err)
 	}
 }
@@ -160,4 +163,118 @@ func atualizadoEm(t *testing.T, p *Postgres, caminho string) time.Time {
 		t.Fatal(err)
 	}
 	return linha.AtualizadoEm
+}
+
+func TestCatalogoV2ProjetaCasoComIdentidadeGlobalNaMesmaTransacao(t *testing.T) {
+	p := novoStore(t)
+	ctx := t.Context()
+	a := Arquivo{"agentes/a/caso.yaml", []byte("id: global-a\nname: Caso A\nsummary: Resumo\nsteps:\n  - collect: [nome]\n")}
+	substituir(t, p, a)
+	rows, err := p.cli.QueryContext(ctx, `SELECT id,file_path,agent_path,name,visibility,source_sha256 FROM use_cases`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows.Next() {
+		t.Fatal("caso não projetado")
+	}
+	var id, file, agent, name, visibility, sha string
+	if err := rows.Scan(&id, &file, &agent, &name, &visibility, &sha); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if id != "global-a" || file != a.Caminho || agent != "agentes/a" || name != "Caso A" || visibility != "private" || sha != SHA256(a.Conteudo) {
+		t.Fatalf("projeção incorreta: %s %s %s %s %s %s", id, file, agent, name, visibility, sha)
+	}
+	duplicate := Arquivo{"agentes/b/caso.yaml", a.Conteudo}
+	if _, err := p.Substituir(ctx, []Arquivo{a, duplicate}); err == nil {
+		t.Fatal("ID global duplicado aceito")
+	}
+	files, err := p.Listar(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].Caminho != a.Caminho {
+		t.Fatal("catálogo parcialmente alterado")
+	}
+	invalid := Arquivo{a.Caminho, []byte("id: global-b\nsteps: []\n")}
+	if _, err := p.Substituir(ctx, []Arquivo{invalid}); err == nil {
+		t.Fatal("caso inválido aceito")
+	}
+	files, err = p.Listar(ctx)
+	if err != nil || len(files) != 1 || string(files[0].Conteudo) != string(a.Conteudo) {
+		t.Fatal("conteúdo canônico alterado na falha")
+	}
+}
+
+func TestSubstituirParcialPreservaCasosForaDosAlvosERemoveSomenteCasoExplicitoSemUso(t *testing.T) {
+	p := novoStore(t)
+	a := Arquivo{"agentes/a/caso.yaml", []byte("id: caso-a\nsteps:\n  - collect: [nome]\n")}
+	b := Arquivo{"agentes/b/caso.yaml", []byte("id: caso-b\nsteps:\n  - collect: [nome]\n")}
+	substituir(t, p, a, b)
+	if _, err := p.Substituir(t.Context(), []Arquivo{a}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Substituir(t.Context(), nil); err != nil {
+		t.Fatal(err)
+	}
+	arquivos, err := p.Listar(t.Context())
+	if err != nil || len(arquivos) != 2 {
+		t.Fatalf("snapshot parcial removeu outro caso: %v %v", arquivos, err)
+	}
+	m, err := p.Substituir(t.Context(), nil, a.Caminho)
+	if err != nil || m.Removidos != 1 {
+		t.Fatalf("remoção explícita sem uso: %+v %v", m, err)
+	}
+	arquivos, err = p.Listar(t.Context())
+	if err != nil || len(arquivos) != 1 || arquivos[0].Caminho != b.Caminho {
+		t.Fatalf("alvo externo removido: %v %v", arquivos, err)
+	}
+	rows, err := p.cli.QueryContext(t.Context(), `SELECT id FROM use_cases ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var id string
+	if !rows.Next() {
+		t.Fatal("caso b ausente")
+	}
+	if err := rows.Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if id != "caso-b" || rows.Next() {
+		t.Fatalf("projeções incorretas: %s", id)
+	}
+}
+
+func TestSubstituirRecusaCasoEmUsoEDesfazTodoOLote(t *testing.T) {
+	p := novoStore(t)
+	a := Arquivo{"agentes/a/caso.yaml", []byte("id: caso-a\nsteps:\n  - collect: [nome]\n")}
+	b := Arquivo{"agentes/b/caso.yaml", []byte("id: caso-b\nsteps:\n  - collect: [nome]\n")}
+	substituir(t, p, a, b)
+	if _, err := p.cli.ExecContext(t.Context(), `INSERT INTO company_use_cases(id,company_id,use_case_id,enabled,default_available,updated_at) VALUES('00000000-0000-4000-8000-000000000001','outra-empresa','caso-b',true,false,now())`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := p.Substituir(t.Context(), []Arquivo{{"agentes/novo.md", []byte("novo")}}, a.Caminho, b.Caminho)
+	if err == nil {
+		t.Fatal("remoção de caso configurado aceita")
+	}
+	arquivos, err := p.Listar(t.Context())
+	if err != nil || len(arquivos) != 2 {
+		t.Fatalf("lote parcialmente aplicado: %v %v", arquivos, err)
+	}
+	rows, err := p.cli.QueryContext(t.Context(), `SELECT count(*) FROM use_cases`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var total int
+	if !rows.Next() {
+		t.Fatal("contagem ausente")
+	}
+	if err := rows.Scan(&total); err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 {
+		t.Fatalf("rollback perdeu projeção: %d", total)
+	}
 }

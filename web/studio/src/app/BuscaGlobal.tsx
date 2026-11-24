@@ -53,7 +53,7 @@ function useAchados(emUso: boolean): Achado[] {
   const achadosDeCondominios: Achado[] = condominios.map((condominio) => ({
     grupo: 'Condomínios',
     rotulo: condominio.nome,
-    destino: `/condominios/${encodeURIComponent(condominio.id)}`,
+    destino: `/condominios/${encodeURIComponent(condominio.id)}?company_id=${encodeURIComponent(condominio.administradora_id)}`,
   }));
   return [...(veSkills ? achadosDeSkills : []), ...(veCondominios ? achadosDeCondominios : [])];
 }

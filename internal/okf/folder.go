@@ -124,7 +124,8 @@ type Catalogo struct {
 	// Persistir, se definido, roda depois de toda escrita que deu certo, sob a trava; o erro
 	// volta para quem escreveu. O okf-admin o liga para levar o disco ao Postgres. Sem ele
 	// (testes, okf-run) o disco é a única cópia.
-	Persistir func() error
+	Persistir         func() error
+	remocoesPendentes []string
 	// trava do processo: as escritas e o gancho andam uma de cada vez
 	mu sync.Mutex
 }

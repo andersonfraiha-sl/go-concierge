@@ -13,18 +13,18 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldNome holds the string denoting the nome field in the database.
-	FieldNome = "nome"
+	FieldNome = "name"
 	// EdgeAtribuicoes holds the string denoting the atribuicoes edge name in mutations.
 	EdgeAtribuicoes = "atribuicoes"
 	// Table holds the table name of the usuario in the database.
-	Table = "usuarios"
+	Table = "users"
 	// AtribuicoesTable is the table that holds the atribuicoes relation/edge.
-	AtribuicoesTable = "atribuicoes"
+	AtribuicoesTable = "role_assignments"
 	// AtribuicoesInverseTable is the table name for the Atribuicao entity.
 	// It exists in this package in order to avoid circular dependency with the "atribuicao" package.
-	AtribuicoesInverseTable = "atribuicoes"
+	AtribuicoesInverseTable = "role_assignments"
 	// AtribuicoesColumn is the table column denoting the atribuicoes relation/edge.
-	AtribuicoesColumn = "usuario_id"
+	AtribuicoesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for usuario fields.

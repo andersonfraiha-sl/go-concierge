@@ -3,9 +3,6 @@
 // conversas ("só tem um apartamento", "prefere ser chamado de Van", "tem um cachorro").
 // Tudo o que um agente aprende sobre o morador fica aqui, comum à família inteira, e
 // volta ao prompt em toda conversa seguinte daquele telefone.
-//
-// O armazenamento é o Postgres, em duas tabelas: memoria_contatos (nome e quando mudou)
-// e memoria_fatos (um fato por linha).
 package memoria
 
 import (
@@ -28,14 +25,16 @@ type Fato struct {
 	Texto string `json:"texto"`
 	Fonte string `json:"fonte,omitempty"` // agente e protocolo que capturou
 	// CondominioID: o condomínio da conversa em que o fato foi capturado.
-	CondominioID string    `json:"condominio_id,omitempty"`
+	CondoID      *int      `json:"condo_id"`
+	CondominioID string    `json:"-"`
 	Quando       time.Time `json:"quando"`
 	Confianca    float64   `json:"confianca,omitempty"`
 }
 
 // Memoria é o que o concierge sabe de um contato dentro de uma administradora.
 type Memoria struct {
-	AdministradoraID string    `json:"administradora_id"`
+	CompanyID        string    `json:"company_id"`
+	AdministradoraID string    `json:"-"`
 	Telefone         string    `json:"telefone"`
 	Nome             string    `json:"nome,omitempty"`
 	Fatos            []Fato    `json:"fatos"`
@@ -46,12 +45,18 @@ type Memoria struct {
 // mudou. Não altera o receptor: o fato sem Quando entra com o instante zero, quem chama
 // decide o relógio.
 func (m Memoria) Upsert(f Fato) (Memoria, bool) {
+	if f.CondoID != nil {
+		n := *f.CondoID
+		f.CondoID = &n
+	}
 	f.Chave = NormalizarChave(f.Chave)
 	f.Texto = strings.TrimSpace(f.Texto)
 	if f.Chave == "" || f.Texto == "" {
 		return m, false
 	}
-	i := slices.IndexFunc(m.Fatos, func(atual Fato) bool { return atual.Chave == f.Chave })
+	i := slices.IndexFunc(m.Fatos, func(atual Fato) bool {
+		return atual.Chave == f.Chave && escopo.MesmoCondominio(atual.CondoID, f.CondoID)
+	})
 	if i >= 0 && m.Fatos[i].Texto == f.Texto {
 		return m, false
 	}
@@ -66,9 +71,13 @@ func (m Memoria) Upsert(f Fato) (Memoria, bool) {
 }
 
 // Esquecer devolve a memória sem o fato da chave, e true se ele existia. Não altera o receptor.
-func (m Memoria) Esquecer(chave string) (Memoria, bool) {
+func (m Memoria) Esquecer(chave string, condoID ...*int) (Memoria, bool) {
+	var alvo *int
+	if len(condoID) > 0 {
+		alvo = condoID[0]
+	}
 	chave = NormalizarChave(chave)
-	ehDaChave := func(f Fato) bool { return f.Chave == chave }
+	ehDaChave := func(f Fato) bool { return f.Chave == chave && escopo.MesmoCondominio(f.CondoID, alvo) }
 	if !slices.ContainsFunc(m.Fatos, ehDaChave) {
 		return m, false
 	}
@@ -78,13 +87,15 @@ func (m Memoria) Esquecer(chave string) (Memoria, bool) {
 
 // vazia é a memória de um contato de quem nada se sabe.
 func vazia(c escopo.Contato) Memoria {
-	return Memoria{AdministradoraID: c.AdministradoraID, Telefone: c.Telefone, Fatos: []Fato{}}
+	c = c.Canonico()
+	return Memoria{CompanyID: c.CompanyID, AdministradoraID: c.CompanyID, Telefone: c.Telefone, Fatos: []Fato{}}
 }
 
 // comoGuardada é a memória como um Store a guarda: sob o contato, uma chave só por fato (a
 // última vence, no lugar da primeira) e AtualizadaEm preenchida com agora quando vier vazia.
 func comoGuardada(c escopo.Contato, m Memoria, agora time.Time) Memoria {
-	m.AdministradoraID, m.Telefone = c.AdministradoraID, c.Telefone
+	c = c.Canonico()
+	m.CompanyID, m.AdministradoraID, m.Telefone = c.CompanyID, c.CompanyID, c.Telefone
 	m.Fatos = semChavesRepetidas(m.Fatos)
 	if m.AtualizadaEm.IsZero() {
 		m.AtualizadaEm = agora
@@ -96,11 +107,12 @@ func semChavesRepetidas(fatos []Fato) []Fato {
 	out := make([]Fato, 0, len(fatos))
 	posicao := map[string]int{}
 	for _, f := range fatos {
-		if i, repetida := posicao[f.Chave]; repetida {
+		chave := chaveContextual(f)
+		if i, repetida := posicao[chave]; repetida {
 			out[i] = f
 			continue
 		}
-		posicao[f.Chave] = len(out)
+		posicao[chave] = len(out)
 		out = append(out, f)
 	}
 	return out
@@ -116,14 +128,14 @@ func maisRecentesPrimeiro(a, b Memoria) int {
 
 // validarContato: a administradora tem o formato do Admin e o telefone não é vazio.
 func validarContato(c escopo.Contato) error {
-	if !escopo.AdministradoraValida(c.AdministradoraID) || c.Telefone == "" {
+	if c.Validar() != nil {
 		return errContatoInvalido
 	}
 	return nil
 }
 
 func validarAdministradora(administradoraID string) error {
-	if !escopo.AdministradoraValida(administradoraID) {
+	if !escopo.EmpresaValida(administradoraID) {
 		return fmt.Errorf("memória da administradora %q: %w", administradoraID, errContatoInvalido)
 	}
 	return nil
@@ -136,7 +148,11 @@ func (m Memoria) Texto() string {
 	}
 	var b strings.Builder
 	for _, f := range m.Fatos {
-		fmt.Fprintf(&b, "- %s: %s", f.Chave, f.Texto)
+		fmt.Fprintf(&b, "- %s", f.Chave)
+		if f.CondoID != nil {
+			fmt.Fprintf(&b, " (condomínio %d)", *f.CondoID)
+		}
+		fmt.Fprintf(&b, ": %s", f.Texto)
 		if !f.Quando.IsZero() {
 			fmt.Fprintf(&b, " (em %s)", f.Quando.Format("02/01/2006"))
 		}
@@ -196,4 +212,34 @@ func (Regras) Extrair(_ context.Context, mensagem, _ string, _ Memoria) ([]Fato,
 		}
 	}
 	return out, nil
+}
+
+func chaveContextual(f Fato) string {
+	if f.CondoID == nil {
+		return "null:" + f.Chave
+	}
+	return fmt.Sprintf("%d:%s", *f.CondoID, f.Chave)
+}
+
+func preparar(c escopo.Contato, m Memoria) (Memoria, error) {
+	m = copia(m)
+	for i := range m.Fatos {
+		f := &m.Fatos[i]
+		if f.CondoID == nil && f.CondominioID != "" {
+			legado, err := escopo.NovoContato(c.CompanyID, f.CondominioID, c.Telefone)
+			if err != nil {
+				return Memoria{}, err
+			}
+			f.CondoID = legado.CondoID
+		}
+		if !escopo.CondominioValido(f.CondoID) || !c.Permite(f.CondoID) {
+			return Memoria{}, errors.New("fato fora do condomínio autorizado")
+		}
+		f.Chave = NormalizarChave(f.Chave)
+		f.Texto = strings.TrimSpace(f.Texto)
+		if f.Chave == "" || f.Texto == "" {
+			return Memoria{}, errors.New("fato exige chave e texto")
+		}
+	}
+	return m, nil
 }

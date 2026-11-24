@@ -123,7 +123,7 @@ func mensagensAoModelo(p PedidoAoCopiloto) []*schema.Message {
 const promptBaseDoCopiloto = `Você é o Copiloto do Studio da Superlógica. Quem fala com você configura o Concierge,
 o atendente virtual que conversa com os moradores dos condomínios pelo WhatsApp. Você ajuda a
 entender e a mudar o que está na tela: skills (o que o Concierge sabe fazer), o fluxo de cada
-skill (blocos em ordem), os condomínios (que skills ficam ligadas, orientação e ajustes) e o
+skill (blocos em ordem), os condomínios (orientação e ajustes) e o
 jeito de falar do Concierge.
 
 Fale em português do Brasil, simples e curto, como um colega. Use só estas palavras para as
@@ -150,8 +150,6 @@ func formaDaOperacao(t copiloto.TipoDeOperacao) string {
 		return `{"tipo":"criar_skill","titulo":"..."}`
 	case copiloto.ExcluirSkill:
 		return `{"tipo":"excluir_skill","skill":"<nome>"}`
-	case copiloto.HabilitarSkill:
-		return `{"tipo":"habilitar_skill","skill":"<nome>","condominio":"<id>","habilitado":true,"papeis":["..."]} (papeis vazio = todos)`
 	case copiloto.Orientar:
 		return `{"tipo":"orientar","condominio":"<id>","skill":"<nome, ou vazio para a orientação geral>","texto":"..."}`
 	case copiloto.Ajustar:
@@ -172,6 +170,9 @@ func promptDoCopiloto(p PedidoAoCopiloto) string {
 		b.WriteString("- nenhuma: aqui você só explica; mande \"operacoes\": [].\n")
 	}
 	for _, t := range p.Operacoes {
+		if copiloto.PermissaoDe(t) == "" {
+			continue
+		}
 		fmt.Fprintf(&b, "- %s\n", formaDaOperacao(t))
 	}
 	b.WriteString("\nO que está aberto na tela:\n")

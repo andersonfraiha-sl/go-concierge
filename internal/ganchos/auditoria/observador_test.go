@@ -17,14 +17,14 @@ import (
 func bloqueioNaResposta(ctx context.Context, aud *auditoria.Auditor, previa bool) {
 	r := &ganchostest.Roteiro[ganchos.AntesDeResponder]{Decisao: ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "não"}}
 	g := ganchostest.Gancho("regra", r)
-	g.Origem = ganchos.Origem{RegraID: "r-1", RegraVersao: 2}
+	g.Origem = ganchos.Origem{RegraID: "00000000-0000-0000-0000-000000000001", RegraVersao: 2}
 	idx := &ganchos.Indice{AntesDeResponder: ganchos.Nivel[ganchos.AntesDeResponder]{Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{g}}}
 	conjunto := ganchos.NovoConjunto(fixos.Todos(), func() *ganchos.Indice { return idx }, aud.Observador())
 	turno := conjunto.Turno()
 	if previa {
 		turno = conjunto.TurnoDePrevia()
 	}
-	turno.AntesDeResponder(ctx, ganchos.AntesDeResponder{CondominioID: "cond-1", AdministradoraID: "adm-a"})
+	turno.AntesDeResponder(ctx, ganchos.AntesDeResponder{CondominioID: "101", AdministradoraID: "adm-a"})
 }
 
 func TestAuditorGravaCadaObservacaoNumDestinoSo(t *testing.T) {
@@ -62,7 +62,7 @@ func TestAuditorGravaCadaObservacaoNumDestinoSo(t *testing.T) {
 				t.Fatalf("coletadas = %d, want %d", len(coletadas), tt.coletadas)
 			}
 			for _, l := range coletadas {
-				if l.SessaoID != "s-1" || l.CondominioID != "cond-1" || l.RegraID != "r-1" || l.Origem != ganchos.OrigemConcierge || l.CriadoEm.IsZero() {
+				if l.SessaoID != "s-1" || l.CondominioID != "101" || l.RegraID != "00000000-0000-0000-0000-000000000001" || l.Origem != ganchos.OrigemConcierge || l.CriadoEm.IsZero() {
 					t.Errorf("linha coletada = %+v", l)
 				}
 			}

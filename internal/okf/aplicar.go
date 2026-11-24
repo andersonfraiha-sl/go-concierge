@@ -109,7 +109,7 @@ func (c *Catalogo) AplicarArquivos(gravar []ArquivoBruto, remover []string) (Res
 		}
 		return ResultadoDoLote{Problemas: novos}, nil
 	}
-	if err := c.persistir(); err != nil {
+	if err := c.persistir(remover...); err != nil {
 		return ResultadoDoLote{}, c.desfazerComErro(foto, err, true)
 	}
 	return ResultadoDoLote{Gravados: len(gravar), Removidos: removidos}, nil
@@ -124,7 +124,13 @@ func (c *Catalogo) desfazerComErro(foto fotografia, causa error, repersistir boo
 		return errors.Join(erro, fmt.Errorf("desfazer: %w", err))
 	}
 	if repersistir {
-		if err := c.persistir(); err != nil {
+		var criados []string
+		for caminho, estado := range foto.arquivos {
+			if !estado.existia {
+				criados = append(criados, caminho)
+			}
+		}
+		if err := c.persistir(criados...); err != nil {
 			erro = errors.Join(erro, fmt.Errorf("repersistir depois de desfazer: %w", err))
 		}
 	}

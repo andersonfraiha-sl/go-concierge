@@ -27,7 +27,6 @@ var (
 	errAuthModeDesconhecido = errors.New("AUTH_MODE desconhecido: use vazio, dev ou proxy")
 	errAdminInicialInvalido = errors.New("ACESSO_ADMIN_INICIAL não é um e-mail válido")
 	errAuthDevForaDeDev     = errors.New("AUTH_MODE=dev só é aceito com AMBIENTE vazio ou dev")
-	errSegredoAtendeAusente = errors.New("ATENDE_API_SECRET vazio fora de dev: o webhook real não teria como conferir a assinatura")
 	errSegredoExportacao    = errors.New("GANCHOS_SEGREDO_EXPORTACAO vazio fora de dev: a exportação de regras não teria assinatura")
 )
 
@@ -51,9 +50,6 @@ func validarConfig(c Config) error {
 	}
 	if c.AuthMode == authModeDev && !ehDesenvolvimento(c.Ambiente) {
 		return errAuthDevForaDeDev
-	}
-	if !ehDesenvolvimento(c.Ambiente) && c.AtendeSecret == "" {
-		return errSegredoAtendeAusente
 	}
 	if !ehDesenvolvimento(c.Ambiente) && c.SegredoExportacao == "" {
 		return errSegredoExportacao

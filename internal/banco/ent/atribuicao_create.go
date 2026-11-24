@@ -92,7 +92,6 @@ func (_c *AtribuicaoCreate) Mutation() *AtribuicaoMutation {
 
 // Save creates the Atribuicao in the database.
 func (_c *AtribuicaoCreate) Save(ctx context.Context) (*Atribuicao, error) {
-	_c.defaults()
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -115,14 +114,6 @@ func (_c *AtribuicaoCreate) Exec(ctx context.Context) error {
 func (_c *AtribuicaoCreate) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
 		panic(err)
-	}
-}
-
-// defaults sets the default values of the builder before save.
-func (_c *AtribuicaoCreate) defaults() {
-	if _, ok := _c.mutation.EscopoID(); !ok {
-		v := atribuicao.DefaultEscopoID
-		_c.mutation.SetEscopoID(v)
 	}
 }
 
@@ -151,9 +142,6 @@ func (_c *AtribuicaoCreate) check() error {
 		if err := atribuicao.EscopoTipoValidator(v); err != nil {
 			return &ValidationError{Name: "escopo_tipo", err: fmt.Errorf(`ent: validator failed for field "Atribuicao.escopo_tipo": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.EscopoID(); !ok {
-		return &ValidationError{Name: "escopo_id", err: errors.New(`ent: missing required field "Atribuicao.escopo_id"`)}
 	}
 	if len(_c.mutation.UsuarioIDs()) == 0 {
 		return &ValidationError{Name: "usuario", err: errors.New(`ent: missing required edge "Atribuicao.usuario"`)}
@@ -347,6 +335,12 @@ func (u *AtribuicaoUpsert) UpdateEscopoID() *AtribuicaoUpsert {
 	return u
 }
 
+// ClearEscopoID clears the value of the "escopo_id" field.
+func (u *AtribuicaoUpsert) ClearEscopoID() *AtribuicaoUpsert {
+	u.SetNull(atribuicao.FieldEscopoID)
+	return u
+}
+
 // SetAdministradoraID sets the "administradora_id" field.
 func (u *AtribuicaoUpsert) SetAdministradoraID(v string) *AtribuicaoUpsert {
 	u.Set(atribuicao.FieldAdministradoraID, v)
@@ -461,6 +455,13 @@ func (u *AtribuicaoUpsertOne) UpdateEscopoID() *AtribuicaoUpsertOne {
 	})
 }
 
+// ClearEscopoID clears the value of the "escopo_id" field.
+func (u *AtribuicaoUpsertOne) ClearEscopoID() *AtribuicaoUpsertOne {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.ClearEscopoID()
+	})
+}
+
 // SetAdministradoraID sets the "administradora_id" field.
 func (u *AtribuicaoUpsertOne) SetAdministradoraID(v string) *AtribuicaoUpsertOne {
 	return u.Update(func(s *AtribuicaoUpsert) {
@@ -534,7 +535,6 @@ func (_c *AtribuicaoCreateBulk) Save(ctx context.Context) ([]*Atribuicao, error)
 	for i := range _c.builders {
 		func(i int, root context.Context) {
 			builder := _c.builders[i]
-			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*AtribuicaoMutation)
 				if !ok {
@@ -739,6 +739,13 @@ func (u *AtribuicaoUpsertBulk) SetEscopoID(v string) *AtribuicaoUpsertBulk {
 func (u *AtribuicaoUpsertBulk) UpdateEscopoID() *AtribuicaoUpsertBulk {
 	return u.Update(func(s *AtribuicaoUpsert) {
 		s.UpdateEscopoID()
+	})
+}
+
+// ClearEscopoID clears the value of the "escopo_id" field.
+func (u *AtribuicaoUpsertBulk) ClearEscopoID() *AtribuicaoUpsertBulk {
+	return u.Update(func(s *AtribuicaoUpsert) {
+		s.ClearEscopoID()
 	})
 }
 

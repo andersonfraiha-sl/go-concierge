@@ -9,10 +9,14 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"go-concierge/internal/acesso"
 	"go-concierge/internal/admin"
+	"go-concierge/internal/atende"
 	"go-concierge/internal/escopo"
 )
 
@@ -123,31 +127,71 @@ var escopoSuperlogica = acesso.Escopo{Tipo: acesso.TipoSuperlogica}
 
 func alvoSuperlogica(*http.Request) (acesso.Escopo, error) { return escopoSuperlogica, nil }
 
+func (s *servidor) alvoAtendeConsole(r *http.Request) (acesso.Escopo, error) {
+	company := strings.TrimSpace(s.implantacao.AdministradoraFixa)
+	if company == "" {
+		return escopoSuperlogica, nil
+	}
+	requested, err := empresaDaConsulta(r)
+	if err != nil {
+		return acesso.Escopo{}, err
+	}
+	if requested != "" && requested != company {
+		return acesso.Escopo{}, erroDeAlvo{http.StatusForbidden, "FORA_DA_IMPLANTACAO", "administradora fora desta implantação"}
+	}
+	return escopoAdministradora(company), nil
+}
+
+func (s *servidor) alvoAtendeIdentidade(r *http.Request) (acesso.Escopo, error) {
+	if s.atende == nil || s.atende.Canais == nil {
+		return escopoSuperlogica, nil
+	}
+	return s.alvoAdministradora(r)
+}
+
 func escopoAdministradora(id string) acesso.Escopo {
 	return acesso.Escopo{Tipo: acesso.TipoAdministradora, ID: id}
 }
 
 // escopoCondominio: o padrão "*" (ou vazio) é da Superlógica; um condomínio vale pela dona
 // atual dele, que o Acesso já traz.
-func escopoCondominio(id string) acesso.Escopo {
+func escopoCondominio(companyID, id string) acesso.Escopo {
 	if id == "" || id == admin.Padrao {
+		if companyID != "" {
+			return escopoAdministradora(companyID)
+		}
 		return escopoSuperlogica
 	}
-	return acesso.Escopo{Tipo: acesso.TipoCondominio, ID: id}
+	return acesso.EscopoCondominio(companyID, id)
+}
+
+func empresaDaConsulta(r *http.Request) (string, error) {
+	company := strings.TrimSpace(r.URL.Query().Get("company_id"))
+	alias := strings.TrimSpace(r.URL.Query().Get("administradora"))
+	if company != "" && alias != "" && company != alias {
+		return "", erroDeAlvo{http.StatusBadRequest, "EMPRESA_AMBIGUA", "company_id e administradora indicam empresas diferentes"}
+	}
+	if company == "" {
+		company = alias
+	}
+	return company, nil
 }
 
 // administradoraPedida: a do parâmetro ?administradora=, ou a fixa da implantação. Sem
 // nenhuma ou fora do formato, 400; fora da implantação, 403.
 func administradoraPedida(r *http.Request, imp escopo.Implantacao) (string, error) {
-	adm := strings.TrimSpace(r.URL.Query().Get("administradora"))
+	adm, err := empresaDaConsulta(r)
+	if err != nil {
+		return "", err
+	}
 	if adm == "" {
 		adm = imp.AdministradoraFixa
 	}
 	if adm == "" {
-		return "", erroDeAlvo{http.StatusBadRequest, "ADMINISTRADORA_OBRIGATORIA", "informe administradora"}
+		return "", erroDeAlvo{http.StatusBadRequest, "COMPANY_ID_OBRIGATORIO", "informe company_id"}
 	}
-	if !escopo.AdministradoraValida(adm) {
-		return "", erroDeAlvo{http.StatusBadRequest, "ADMINISTRADORA_INVALIDA", "administradora com formato inválido"}
+	if !escopo.EmpresaValida(adm) {
+		return "", erroDeAlvo{http.StatusBadRequest, "COMPANY_ID_INVALIDO", "company_id inválido"}
 	}
 	if !imp.Permite(adm) {
 		return "", erroDeAlvo{http.StatusForbidden, "FORA_DA_IMPLANTACAO", "administradora fora desta implantação"}
@@ -173,21 +217,43 @@ func (s *servidor) alvoAdministradoraOuSuperlogica(r *http.Request) (acesso.Esco
 }
 
 func (s *servidor) temAdministradoraPedida(r *http.Request) bool {
-	return strings.TrimSpace(r.URL.Query().Get("administradora")) != "" || s.implantacao.AdministradoraFixa != ""
+	return strings.TrimSpace(r.URL.Query().Get("company_id")) != "" || strings.TrimSpace(r.URL.Query().Get("administradora")) != "" || s.implantacao.AdministradoraFixa != ""
 }
 
 // escopoDaSessao: a administradora gravada na conversa quando ela resolveu o condomínio; ela
 // não muda se o condomínio trocar de dona. Conversa sem administradora, ou que não existe,
 // só a Superlógica vê (e não se revela a existência a quem não pode).
 func (s *servidor) escopoDaSessao(ctx context.Context, identificador string) (acesso.Escopo, error) {
+	company, _, scoped := atende.EscopoSessaoDoContexto(ctx)
+	if !scoped || company == "" {
+		return acesso.Escopo{}, erroDeAlvo{http.StatusBadRequest, "COMPANY_ID_OBRIGATORIO", "informe company_id"}
+	}
+	if strings.TrimSpace(identificador) == "" {
+		return acesso.Escopo{}, erroDeAlvo{http.StatusBadRequest, "SESSAO_OBRIGATORIA", "informe a sessão ou protocolo"}
+	}
 	sess, ok, err := s.atende.Sessao(ctx, identificador)
+	if errors.Is(err, atende.ErrEscopoSessao) {
+		return acesso.Escopo{}, erroDeAlvo{http.StatusNotFound, "NAO_ENCONTRADO", "sessão não encontrada"}
+	}
 	if err != nil {
 		return acesso.Escopo{}, fmt.Errorf("sessão %s: %w", identificador, err)
 	}
-	if !ok || sess.Administradora() == "" {
-		return escopoSuperlogica, nil
+	if !ok || sess.CompanyID != company {
+		return acesso.Escopo{}, erroDeAlvo{http.StatusNotFound, "NAO_ENCONTRADO", "sessão não encontrada"}
 	}
-	return escopoAdministradora(sess.Administradora()), nil
+	if sess.CondoID != nil {
+		return escopoCondominio(company, strconv.Itoa(*sess.CondoID)), nil
+	}
+	return escopoAdministradora(company), nil
+}
+
+func (s *servidor) alvoDaSessao(r *http.Request, identificador string) (acesso.Escopo, error) {
+	company, err := administradoraPedida(r, s.implantacao)
+	if err != nil {
+		return acesso.Escopo{}, err
+	}
+	*r = *r.WithContext(atende.ComEscopoSessao(r.Context(), company, uuid.Nil))
+	return s.escopoDaSessao(r.Context(), identificador)
 }
 
 func identificadorDaSessao(r *http.Request) string {
@@ -199,7 +265,7 @@ func identificadorDaSessao(r *http.Request) string {
 }
 
 func (s *servidor) alvoSessaoDaConsulta(r *http.Request) (acesso.Escopo, error) {
-	return s.escopoDaSessao(r.Context(), identificadorDaSessao(r))
+	return s.alvoDaSessao(r, identificadorDaSessao(r))
 }
 
 type corpoComSessao struct {
@@ -220,7 +286,7 @@ func (s *servidor) alvoSessaoDoCorpo(r *http.Request) (acesso.Escopo, error) {
 	if err := espiarCorpo(r, &c); err != nil {
 		return acesso.Escopo{}, err
 	}
-	return s.escopoDaSessao(r.Context(), c.identificador())
+	return s.alvoDaSessao(r, c.identificador())
 }
 
 // alvoAcaoDePedido: preencher age sobre a conversa (o contato vem dela); cancelar e remover,
@@ -231,7 +297,7 @@ func (s *servidor) alvoAcaoDePedido(r *http.Request) (acesso.Escopo, error) {
 		return acesso.Escopo{}, err
 	}
 	if c.Acao == "preencher" {
-		return s.escopoDaSessao(r.Context(), c.identificador())
+		return s.alvoDaSessao(r, c.identificador())
 	}
 	return s.alvoAdministradora(r)
 }
@@ -239,35 +305,52 @@ func (s *servidor) alvoAcaoDePedido(r *http.Request) (acesso.Escopo, error) {
 func alvoCondominioDoCorpo(r *http.Request) (acesso.Escopo, error) {
 	var c struct {
 		Condominio string `json:"condominio"`
+		CondoID    *int   `json:"condo_id"`
+		CompanyID  string `json:"company_id"`
 	}
 	if err := espiarCorpo(r, &c); err != nil {
 		return acesso.Escopo{}, err
 	}
-	return escopoCondominio(normalizarID(c.Condominio)), nil
-}
-
-func alvoCondominioDaConsulta(r *http.Request) (acesso.Escopo, error) {
-	return escopoCondominio(normalizarID(r.URL.Query().Get("id"))), nil
-}
-
-// alvoDonaDoCorpo: a administradora que o corpo põe como dona do condomínio; sem dona, só a
-// Superlógica.
-func alvoDonaDoCorpo(r *http.Request) (acesso.Escopo, error) {
-	var c struct {
-		Administradora string `json:"administradora_id"`
+	id := normalizarID(c.Condominio)
+	if c.CondoID != nil {
+		canonical := strconv.Itoa(*c.CondoID)
+		if id != "" && id != canonical {
+			return acesso.Escopo{}, erroDeAlvo{http.StatusBadRequest, "CONDOMINIO_AMBIGUO", "identificadores de condomínio diferentes"}
+		}
+		id = canonical
 	}
-	if err := espiarCorpo(r, &c); err != nil {
+	company, err := empresaDaConsulta(r)
+	if err != nil {
 		return acesso.Escopo{}, err
 	}
-	if adm := strings.TrimSpace(c.Administradora); adm != "" {
-		return escopoAdministradora(adm), nil
+	if bodyCompany := strings.TrimSpace(c.CompanyID); bodyCompany != "" {
+		if company != "" && company != bodyCompany {
+			return acesso.Escopo{}, erroDeAlvo{http.StatusBadRequest, "EMPRESA_AMBIGUA", "empresa do corpo difere da consulta"}
+		}
+		company = bodyCompany
+		q := r.URL.Query()
+		q.Set("company_id", company)
+		r.URL.RawQuery = q.Encode()
 	}
-	return escopoSuperlogica, nil
+	return alvoCondominial(company, id)
+}
+
+func alvoCondominial(company, condo string) (acesso.Escopo, error) {
+	if condo != "" && condo != admin.Padrao {
+		if company == "" {
+			return acesso.Escopo{}, erroDeAlvo{http.StatusBadRequest, "COMPANY_ID_OBRIGATORIO", "informe company_id"}
+		}
+		n, err := strconv.Atoi(condo)
+		if err != nil || strconv.Itoa(n) != condo {
+			return acesso.Escopo{}, erroDeAlvo{http.StatusBadRequest, "CONDO_ID_INVALIDO", "condo_id deve ser inteiro do ERP"}
+		}
+	}
+	return escopoCondominio(company, condo), nil
 }
 
 // normalizarID segue a regra de id do mapeamento (minúsculas, sem espaços nas pontas), para o
 // alvo conferido ser o mesmo que a escrita grava.
-func normalizarID(id string) string { return strings.ToLower(strings.TrimSpace(id)) }
+func normalizarID(id string) string { return strings.TrimSpace(id) }
 
 // espiarCorpo decodifica o corpo JSON para resolver o alvo e o devolve intacto à requisição,
 // para o handler ler de novo. Só espia corpos JSON do Admin e do Console (o importar, zip, não
@@ -301,7 +384,10 @@ func recorteDoUsuario(r *http.Request, adms []admin.Administradora) (string, err
 	if !ok {
 		return "", erroDeAlvo{http.StatusUnauthorized, "NAO_AUTENTICADO", "usuário não autenticado"}
 	}
-	pedida := strings.TrimSpace(r.URL.Query().Get("administradora"))
+	pedida, err := empresaDaConsulta(r)
+	if err != nil {
+		return "", err
+	}
 	if acesso.Permitido(a, acesso.SkillsLer, escopoSuperlogica) {
 		return pedida, nil
 	}
@@ -335,9 +421,30 @@ func visaoPara(r *http.Request, m admin.Mapeamento, recorte string) (admin.Mapea
 // inteira mas tem condomínios atribuídos recebe só esses condomínios.
 func visaoDoEstado(r *http.Request, m admin.Mapeamento) (admin.Mapeamento, []admin.Administradora, error) {
 	a, _ := acessoDe(r.Context())
-	if soCondominios := condominiosVisiveis(a, m.Condominios); len(soCondominios) > 0 && len(administradorasVisiveis(a, m.Administradoras)) == 0 {
-		v := m.VisaoDosCondominios(soCondominios)
-		return v, v.Administradoras, nil
+	if len(administradorasVisiveis(a, m.Administradoras)) == 0 {
+		company, err := empresaDaConsulta(r)
+		if err != nil {
+			return admin.Mapeamento{}, nil, err
+		}
+		empresas := map[string]bool{}
+		for _, c := range m.Condominios {
+			if acesso.Permitido(a, acesso.SkillsLer, acesso.EscopoCondominio(c.Administradora, c.ID)) {
+				empresas[c.Administradora] = true
+			}
+		}
+		if company == "" && len(empresas) == 1 {
+			for id := range empresas {
+				company = id
+			}
+		}
+		if company == "" && len(empresas) > 1 {
+			return admin.Mapeamento{}, nil, erroDeAlvo{http.StatusBadRequest, "COMPANY_ID_OBRIGATORIO", "informe company_id"}
+		}
+		if company != "" && empresas[company] {
+			v := m.Visao(company)
+			v = v.VisaoDosCondominios(condominiosVisiveis(a, v.Condominios))
+			return v, v.Administradoras, nil
+		}
 	}
 	recorte, err := recorteDoUsuario(r, m.Administradoras)
 	if err != nil {
@@ -350,7 +457,7 @@ func visaoDoEstado(r *http.Request, m admin.Mapeamento) (admin.Mapeamento, []adm
 func condominiosVisiveis(a acesso.Acesso, conds []admin.Condominio) []string {
 	var ids []string
 	for _, c := range conds {
-		if acesso.Permitido(a, acesso.SkillsLer, acesso.Escopo{Tipo: acesso.TipoCondominio, ID: c.ID}) {
+		if acesso.Permitido(a, acesso.SkillsLer, acesso.EscopoCondominio(c.Administradora, c.ID)) {
 			ids = append(ids, c.ID)
 		}
 	}
@@ -366,6 +473,6 @@ func administradorasVisiveis(a acesso.Acesso, adms []admin.Administradora) []adm
 // alvoDaEscrita é o condomínio da escrita com a dona que a autorização viu (o repositório
 // recusa se ela mudou no meio).
 func alvoDaEscrita(r *http.Request, condoID string) admin.Alvo {
-	a, _ := acessoDe(r.Context())
-	return admin.Alvo{Condominio: condoID, Dona: a.AdministradoraDe[condoID]}
+	company, _ := empresaDaConsulta(r)
+	return admin.Alvo{Condominio: condoID, Dona: company}
 }

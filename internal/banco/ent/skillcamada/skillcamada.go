@@ -17,19 +17,19 @@ const (
 	// FieldSkill holds the string denoting the skill field in the database.
 	FieldSkill = "skill"
 	// FieldTipo holds the string denoting the tipo field in the database.
-	FieldTipo = "tipo"
+	FieldTipo = "type"
 	// FieldAdministradoraID holds the string denoting the administradora_id field in the database.
-	FieldAdministradoraID = "administradora_id"
+	FieldAdministradoraID = "company_id"
 	// FieldCondominioID holds the string denoting the condominio_id field in the database.
-	FieldCondominioID = "condominio_id"
+	FieldCondominioID = "condo_id"
 	// FieldCabecaID holds the string denoting the cabeca_id field in the database.
-	FieldCabecaID = "cabeca_id"
+	FieldCabecaID = "head_version_id"
 	// FieldAcimaID holds the string denoting the acima_id field in the database.
-	FieldAcimaID = "acima_id"
+	FieldAcimaID = "parent_version_id"
 	// FieldRascunho holds the string denoting the rascunho field in the database.
-	FieldRascunho = "rascunho"
+	FieldRascunho = "draft"
 	// FieldRascunhoVersao holds the string denoting the rascunho_versao field in the database.
-	FieldRascunhoVersao = "rascunho_versao"
+	FieldRascunhoVersao = "draft_version"
 	// EdgeAdministradora holds the string denoting the administradora edge name in mutations.
 	EdgeAdministradora = "administradora"
 	// EdgeCondominio holds the string denoting the condominio edge name in mutations.
@@ -41,42 +41,42 @@ const (
 	// EdgeAvisos holds the string denoting the avisos edge name in mutations.
 	EdgeAvisos = "avisos"
 	// Table holds the table name of the skillcamada in the database.
-	Table = "skill_camadas"
+	Table = "skill_layers"
 	// AdministradoraTable is the table that holds the administradora relation/edge.
-	AdministradoraTable = "skill_camadas"
+	AdministradoraTable = "skill_layers"
 	// AdministradoraInverseTable is the table name for the Administradora entity.
 	// It exists in this package in order to avoid circular dependency with the "administradora" package.
 	AdministradoraInverseTable = "administradoras"
 	// AdministradoraColumn is the table column denoting the administradora relation/edge.
-	AdministradoraColumn = "administradora_id"
+	AdministradoraColumn = "company_id"
 	// CondominioTable is the table that holds the condominio relation/edge.
-	CondominioTable = "skill_camadas"
+	CondominioTable = "skill_layers"
 	// CondominioInverseTable is the table name for the Condominio entity.
 	// It exists in this package in order to avoid circular dependency with the "condominio" package.
 	CondominioInverseTable = "condominios"
 	// CondominioColumn is the table column denoting the condominio relation/edge.
-	CondominioColumn = "condominio_id"
+	CondominioColumn = "condo_id"
 	// VersoesTable is the table that holds the versoes relation/edge.
-	VersoesTable = "skill_versoes"
+	VersoesTable = "skill_versions"
 	// VersoesInverseTable is the table name for the SkillVersao entity.
 	// It exists in this package in order to avoid circular dependency with the "skillversao" package.
-	VersoesInverseTable = "skill_versoes"
+	VersoesInverseTable = "skill_versions"
 	// VersoesColumn is the table column denoting the versoes relation/edge.
-	VersoesColumn = "camada_id"
+	VersoesColumn = "layer_id"
 	// AtualizacoesTable is the table that holds the atualizacoes relation/edge.
-	AtualizacoesTable = "skill_atualizacoes"
+	AtualizacoesTable = "skill_updates"
 	// AtualizacoesInverseTable is the table name for the SkillAtualizacao entity.
 	// It exists in this package in order to avoid circular dependency with the "skillatualizacao" package.
-	AtualizacoesInverseTable = "skill_atualizacoes"
+	AtualizacoesInverseTable = "skill_updates"
 	// AtualizacoesColumn is the table column denoting the atualizacoes relation/edge.
-	AtualizacoesColumn = "camada_id"
+	AtualizacoesColumn = "layer_id"
 	// AvisosTable is the table that holds the avisos relation/edge.
-	AvisosTable = "skill_avisos"
+	AvisosTable = "skill_notices"
 	// AvisosInverseTable is the table name for the SkillAviso entity.
 	// It exists in this package in order to avoid circular dependency with the "skillaviso" package.
-	AvisosInverseTable = "skill_avisos"
+	AvisosInverseTable = "skill_notices"
 	// AvisosColumn is the table column denoting the avisos relation/edge.
-	AvisosColumn = "camada_id"
+	AvisosColumn = "layer_id"
 )
 
 // Columns holds all SQL columns for skillcamada fields.
@@ -114,9 +114,9 @@ type Tipo string
 
 // Tipo values.
 const (
-	TipoBase           Tipo = "base"
-	TipoAdministradora Tipo = "administradora"
-	TipoCondominio     Tipo = "condominio"
+	TipoBase           Tipo = "BASE"
+	TipoAdministradora Tipo = "COMPANY"
+	TipoCondominio     Tipo = "CONDO"
 )
 
 func (t Tipo) String() string {

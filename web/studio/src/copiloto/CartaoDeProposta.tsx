@@ -1,6 +1,7 @@
 import { Box, Button, Typography } from '@mui/material';
 import { type ReactNode, useId, useState } from 'react';
 import { useEu } from '@/acesso/eu';
+import { useEscopo } from '@/condominios/contratos';
 import { mensagemDe } from '@/shared/api/mensagemDe';
 import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
 import { PESOS, RAIOS, TIPOS } from '@/theme/tokens';
@@ -111,6 +112,7 @@ type RodapeProps = {
 function RodapeDaProposta({ proposta, situacao, onAplicar }: RodapeProps): ReactNode {
   const { aplicadas, emCurso, descartar } = useCopiloto();
   const { data: eu } = useEu();
+  const escopo = useEscopo();
   const descartarEsta = () => descartar(proposta.id);
 
   if (aplicadas.has(proposta.id)) {
@@ -143,7 +145,7 @@ function RodapeDaProposta({ proposta, situacao, onAplicar }: RodapeProps): React
           size="small"
           fullWidth
           disabled={!eu || emCurso !== null}
-          onClick={() => eu && void onAplicar(eu.administradoraId)}
+          onClick={() => eu && escopo !== undefined && void onAplicar(escopo)}
         >
           {rotuloDoAplicar(emCurso, proposta.id)}
         </Button>

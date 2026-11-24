@@ -109,7 +109,7 @@ describe('linhasDeSkills, filtrarLinhas, agruparPorCategoria e contarLigadas', (
   });
 
   it('countsEnabled', () => {
-    expect(contarLigadas(linhas)).toEqual({ ligadas: 1, total: 2 });
+    expect(contarLigadas(linhas)).toEqual({ ligadas: 0, total: 2 });
   });
 });
 

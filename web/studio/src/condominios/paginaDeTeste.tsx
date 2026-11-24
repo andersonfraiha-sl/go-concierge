@@ -24,6 +24,6 @@ export function gravador(rota: string): {
 
 export const abrirCondominio = (id = 'vila-verde') =>
   renderComProvedores(<CondominioPage />, {
-    rota: `/condominios/${id}`,
+    rota: `/condominios/${id}${id === '*' ? '' : '?company_id=adm-exemplo'}`,
     caminho: '/condominios/:id',
   });

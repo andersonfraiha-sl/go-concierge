@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"go-concierge/internal/escopo"
 	"go-concierge/internal/ganchos"
 )
 
@@ -60,7 +61,7 @@ func catalogoDaPropriaRegra(r Regra) Catalogo {
 		}
 	}
 	for _, condominio := range r.Alvo.Condominios {
-		cat.AdministradoraDe[condominio] = r.Alvo.Administradora
+		cat.AdministradoraDe[escopo.ChaveCondominio(r.Alvo.Administradora, condominio)] = r.Alvo.Administradora
 	}
 	return cat
 }
@@ -147,7 +148,8 @@ func colocar[E ganchos.Ocorrencia](n *ganchos.Nivel[E], alvo Alvo, g ganchos.Gan
 			n.PorCondominio = map[string][]ganchos.Gancho[E]{}
 		}
 		for _, c := range alvo.Condominios {
-			n.PorCondominio[c] = append(n.PorCondominio[c], g)
+			key := escopo.ChaveCondominio(alvo.Administradora, c)
+			n.PorCondominio[key] = append(n.PorCondominio[key], g)
 		}
 	case alvo.Administradora != "":
 		if n.PorAdministradora == nil {

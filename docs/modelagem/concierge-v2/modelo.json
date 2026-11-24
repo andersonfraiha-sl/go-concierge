@@ -1,0 +1,2603 @@
+{
+  "version": "baseline-1",
+  "date": "2026-11-18",
+  "branch": "feat/refactor-identidade-canais-db",
+  "status": "Modelo canônico de 24 tabelas, 197 campos e 24 FKs em uso pelo backend v2, em banco novo dedicado; sem migração de registros legados. Canais e ativações são configurados por SQL/seed e consultados pelo Console. Camadas publicadas participam do runtime.",
+  "tables": [
+    {
+      "name": "catalog_files",
+      "group": "catalog",
+      "ownership": "global",
+      "description": "Fonte canônica do conteúdo OKF; cópia de trabalho em disco é derivada.",
+      "columns": [
+        {
+          "name": "path",
+          "type": "text",
+          "nullable": false,
+          "description": "PK; caminho agentes/** ou nexus/**.",
+          "primary": true
+        },
+        {
+          "name": "content",
+          "type": "bytea",
+          "nullable": false,
+          "description": "Conteúdo canônico do arquivo."
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "Hash do conteúdo."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última alteração."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [],
+      "rules": [
+        "CHECK de caminho na raiz do catálogo; edição e atualização das projeções na mesma transação.",
+        "Global é o conteúdo base compartilhado; conteúdo empresarial fica nas camadas de skill autorizadas, sem sobrescrever um caminho global."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "UI_EDIT"
+        ],
+        "area": "Autoria de casos e conteúdo do Concierge",
+        "management": "Criar, duplicar e excluir skills; editar textos, fluxo procedural, persona, regras, conhecimento, orquestração, arquivos e referências de recursos. A persistência atual passa pelo catálogo.",
+        "runtime_use": "Fonte canônica do conteúdo que o agente carrega; inclui o procedimento completo, além dos nomes exibidos."
+      }
+    },
+    {
+      "name": "use_cases",
+      "group": "catalog",
+      "ownership": "global",
+      "description": "Índice relacional do catálogo comum; metadados derivados de caso.yaml, sem uma segunda definição executável.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "PK estável; corresponde a Caso.ID.",
+          "primary": true,
+          "generation": "Caso.ID da fonte canônica"
+        },
+        {
+          "name": "file_path",
+          "type": "text",
+          "nullable": false,
+          "description": "Arquivo canônico caso.yaml."
+        },
+        {
+          "name": "agent_path",
+          "type": "text",
+          "nullable": false,
+          "description": "Agente/skill que contém o caso."
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "description": "Projeção do name do caso."
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "nullable": false,
+          "description": "Projeção da descrição curta."
+        },
+        {
+          "name": "icon",
+          "type": "text",
+          "nullable": true,
+          "description": "Projeção do ícone."
+        },
+        {
+          "name": "visibility",
+          "type": "text",
+          "nullable": false,
+          "description": "Projeção da visibilidade existente."
+        },
+        {
+          "name": "source_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "Hash da revisão indexada."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Atualização da projeção."
+        }
+      ],
+      "uniques": [
+        [
+          "file_path"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "file_path"
+          ],
+          "table": "catalog_files",
+          "target": [
+            "path"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Metadados são somente projeção; alterações passam pelo catálogo canônico.",
+        "IDs de variantes procedurais são distintos; nome não é chave única.",
+        "Impedir exclusão enquanto houver referências; nenhuma cópia de steps/params nesta tabela.",
+        "Caso.ID não vazio e globalmente único; rejeitar colisão ao importar/publicar. Visibilidade atual é preservada na listagem; existir globalmente não implica exposição irrestrita."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "DERIVED_PROJECTION"
+        ],
+        "area": "Listagem comum de casos",
+        "management": "O catálogo já é listado/editado pelo Studio via arquivos. Esta tabela é nova: seus metadados serão projetados de caso.yaml, sem editor independente.",
+        "runtime_use": "Identidade estável e metadados usados na listagem e nos vínculos de ativação."
+      }
+    },
+    {
+      "name": "channels",
+      "group": "channels",
+      "ownership": "company",
+      "description": "Cadastro técnico compartilhado pelo backdoor, plugin e runtime. Mesmo UUID do canal apresentado ao plugin.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "UUID único do canal no cadastro compartilhado; preservar o ID se fornecido por integração autorizada"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": true,
+          "description": "Rótulo opcional para identificação do canal."
+        },
+        {
+          "name": "service_profile",
+          "type": "text",
+          "nullable": true,
+          "description": "Perfil de atuação; configuração do canal, sem cadastro de administradora/imobiliária."
+        },
+        {
+          "name": "channel_type",
+          "type": "text",
+          "nullable": false,
+          "description": "WHATSAPP, WEB ou GRUVI; criação inicial WhatsApp.",
+          "values": [
+            "WHATSAPP",
+            "WEB",
+            "GRUVI"
+          ]
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "nullable": false,
+          "description": "ATENDE no caminho inicial; identidade do provider."
+        },
+        {
+          "name": "endpoint_identifier",
+          "type": "text",
+          "nullable": false,
+          "description": "Telefone do canal/bot normalizado; não é o telefone do usuário."
+        },
+        {
+          "name": "external_channel_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Tenant Atende; não duplicar em config_jsonb."
+        },
+        {
+          "name": "feature_mode",
+          "type": "text",
+          "nullable": false,
+          "description": "INHERIT, CUSTOM ou EXPLICIT.",
+          "application_default": "INHERIT na criação; PATCH preserva se omitido",
+          "values": [
+            "INHERIT",
+            "CUSTOM",
+            "EXPLICIT"
+          ]
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Habilitação administrativa do canal.",
+          "application_default": "true na criação; PATCH preserva se omitido"
+        },
+        {
+          "name": "root_agent",
+          "type": "text",
+          "nullable": false,
+          "description": "Referência ao agente raiz atual, sem remodelar prompt.",
+          "application_default": "agentes/concierge"
+        },
+        {
+          "name": "api_base_url",
+          "type": "text",
+          "nullable": true,
+          "description": "Override opcional da URL Atende; configuração comum pode permanecer no ambiente."
+        },
+        {
+          "name": "api_key",
+          "type": "text",
+          "nullable": true,
+          "description": "Credencial operacional por canal; cifra adiada."
+        },
+        {
+          "name": "webhook_secret",
+          "type": "text",
+          "nullable": true,
+          "description": "Secret HMAC por canal; cifra adiada."
+        },
+        {
+          "name": "config_jsonb",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "Configuração complementar do canal/provider; sem duplicar campos de identidade."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação.",
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última alteração."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "id"
+        ],
+        [
+          "company_id",
+          "provider",
+          "endpoint_identifier"
+        ],
+        [
+          "provider",
+          "channel_type",
+          "external_channel_id",
+          "endpoint_identifier"
+        ]
+      ],
+      "foreignKeys": [],
+      "rules": [
+        "UUID único, sem outro nexus_channel_id espelhando o mesmo canal.",
+        "UNIQUE operacional com NULLS NOT DISTINCT; identidade recebida não pode apontar a duas empresas.",
+        "Provider não nulo no modelo novo; canal legado com provider vazio não é transportado, pois banco será novo.",
+        "Condo no canal é restrição de contexto. Decisão aprovada por ora: company, condo restritivo e identidade operacional não mudam após início de uso; alterações que reatribuam histórico passam por novo cadastro.",
+        "Enabled não comprova credenciais presentes/conexão testada. Antes de processar, runtime verifica os campos exigidos pelo provider.",
+        "Não devolver api_key/webhook_secret em listagens; não inserir valores reais na baseline versionada.",
+        "Canal com histórico é desativado; não apagar em cascata sessões/pedidos.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela.",
+        "CHECK dos valores permitidos em feature_mode; channel_type/provider validados pelo contrato suportado. external_channel_id e credenciais podem estar ausentes no cadastro incompleto; runtime ATENDE exige todos antes de operar."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "enabled"
+        ],
+        [
+          "company_id",
+          "condo_id"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "NEW"
+        ],
+        "area": "Cadastro operacional de canal",
+        "management": "Canais e credenciais são configurados por SQL/seed nesta etapa. O Console consulta o cadastro persistido; não há API ou tela de gestão de canais.",
+        "runtime_use": "Empresa, entrada, restrição condominial, perfil e credenciais do atendimento."
+      }
+    },
+    {
+      "name": "company_use_cases",
+      "group": "catalog",
+      "ownership": "company",
+      "description": "Ativação e configuração de um caso na empresa; equivalente ao papel empresarial da feature atual.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "UUID atribuído na criação pela aplicação"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "use_case_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Caso global configurado."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Bloqueio/permissão na empresa; valor explícito."
+        },
+        {
+          "name": "default_available",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Inclusão no padrão da empresa; valor explícito e independente."
+        },
+        {
+          "name": "roles",
+          "type": "text[]",
+          "nullable": false,
+          "description": "Papéis de execução permitidos, preservando habilitações atuais; vazio não adiciona restrição.",
+          "default": "{}"
+        },
+        {
+          "name": "config_jsonb",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "Configuração empresarial; não é metadado global."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação.",
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última alteração."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "id"
+        ],
+        [
+          "company_id",
+          "use_case_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "use_case_id"
+          ],
+          "table": "use_cases",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Sem defaults SQL universais para enabled/default_available; criação informa os dois.",
+        "Decisão aprovada pelo usuário: ausência de configuração empresarial significa ainda não ativado; catálogo global continua listável.",
+        "Desativar preserva vínculos e pedidos. Não apagar registro referenciado por pedido.",
+        "feature_id do DTO pode corresponder a este UUID; feature_key corresponde a use_cases.id.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela.",
+        "No runtime legado, admin.Habilitado permitia execução quando não encontrava configuração (internal/admin/admin.go:290-291). O runtime v2 aplica a decisão aprovada: ausência empresarial significa não ativado."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "LEGACY_EQUIVALENT"
+        ],
+        "area": "Disponibilidade e configuração empresarial",
+        "management": "A configuração empresarial é feita por SQL/seed nesta etapa. O Console consulta a disponibilidade persistida; não há API ou tela nova para editar ativações.",
+        "runtime_use": "Ativação, bloqueio, padrão e parâmetros do caso na empresa."
+      }
+    },
+    {
+      "name": "channel_use_cases",
+      "group": "channels",
+      "ownership": "company",
+      "description": "Override do caso empresarial em um canal; presença true/false, ausência representada pela falta da linha.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "UUID atribuído na criação pela aplicação"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "channel_id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Canal da mesma empresa."
+        },
+        {
+          "name": "company_use_case_id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Ativação/configuração da mesma empresa."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Override explícito; NULL não é armazenado."
+        },
+        {
+          "name": "config_jsonb",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "JSON existente do vínculo; preservado ao atualizar só enabled."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação.",
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última alteração."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "channel_id",
+          "company_use_case_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id",
+            "channel_id"
+          ],
+          "table": "channels",
+          "target": [
+            "company_id",
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "company_id",
+            "company_use_case_id"
+          ],
+          "table": "company_use_cases",
+          "target": [
+            "company_id",
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Preservar modos do gateway; mudança de modo não remove linhas.",
+        "Null na mutation remove a linha e o seu JSON.",
+        "Não fazer merge automático do JSON do vínculo com o da empresa.",
+        "Deltas são transacionais; preservar validações de modo, empresa e habilitação global existentes.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "NEW"
+        ],
+        "area": "Exceções de disponibilidade por canal",
+        "management": "Overrides são configurados por SQL/seed nesta etapa. O Console consulta as regras resolvidas; não há API ou tela de gestão de overrides.",
+        "runtime_use": "Overrides true/false aplicados conforme INHERIT/CUSTOM/EXPLICIT, mantendo ausência distinta de false."
+      }
+    },
+    {
+      "name": "contact_memories",
+      "group": "conversations",
+      "ownership": "company",
+      "description": "Cabeçalho da memória do usuário na empresa; não é um cadastro canônico de cliente nem de vínculos ERP.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "phone_number",
+          "type": "text",
+          "nullable": false,
+          "description": "Telefone do usuário normalizado."
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "description": "Nome conhecido na memória.",
+          "default": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última atualização."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "phone_number"
+        ]
+      ],
+      "foreignKeys": [],
+      "rules": [
+        "Sem channel_id ou condo_id na identidade do contato.",
+        "Nome é atributo de identificação do contato; fatos, preferências ou informações específicas de condomínio pertencem a memory_facts e seguem seu recorte.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "UI_READ"
+        ],
+        "area": "Inspeção de memória do contato",
+        "management": "O console mostra nome/cabeçalho do contato. Não foi encontrado editor genérico desse cadastro; as ações de esquecer são descritas em memory_facts.",
+        "runtime_use": "Identidade básica do contato dentro da empresa; não é cadastro ERP."
+      }
+    },
+    {
+      "name": "sessions",
+      "group": "conversations",
+      "ownership": "company",
+      "description": "Um atendimento por canal/conector/protocolo; histórico permanece no JSON atual.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "PK; composição estável usando o canal UUID, conector e protocolo.",
+          "primary": true
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "channel_id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Canal que recebe e responde este atendimento."
+        },
+        {
+          "name": "connector",
+          "type": "text",
+          "nullable": false,
+          "description": "Distingue atende real de atende-emulado."
+        },
+        {
+          "name": "protocol",
+          "type": "text",
+          "nullable": false,
+          "description": "Identificador externo da conversa/atendimento."
+        },
+        {
+          "name": "phone_number",
+          "type": "text",
+          "nullable": false,
+          "description": "Usuário desta sessão."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "data",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Estado e histórico serializados, com os novos identificadores."
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última atividade."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "id"
+        ],
+        [
+          "company_id",
+          "channel_id",
+          "connector",
+          "protocol"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id",
+            "channel_id"
+          ],
+          "table": "channels",
+          "target": [
+            "company_id",
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Sem nova tabela de thread/mensagens nesta etapa; preservar a separação atual.",
+        "Trocar de canal cria outro atendimento, sem esconder memória/pedidos pertinentes.",
+        "Condo NULL permitido; em canal estrito o contexto efetivo vem do cadastro, não do JSON recebido.",
+        "No banco: garantir que sessões associadas a canal estrito não declarem outro condo não nulo; recomendada validação de integridade na escrita/transação.",
+        "Não há FK obrigatória para contact_memories; atendimento não depende da criação de memória.",
+        "Em canal estrito, estado/histórico/ferramentas e coleções no JSON não podem reintroduzir contexto de outro condomínio; validar também na desserialização.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "phone_number",
+          "updated_at"
+        ],
+        [
+          "company_id",
+          "condo_id",
+          "updated_at"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "UI_OPERATE"
+        ],
+        "area": "Operação do atendimento",
+        "management": "Consultar conversa/estado, assumir atendimento, responder, devolver ao agente e reiniciar/excluir a sessão por ações específicas do console. Sem editor livre de todo JSON.",
+        "runtime_use": "Histórico e estado do atendimento por canal/conector/protocolo."
+      }
+    },
+    {
+      "name": "memory_facts",
+      "group": "conversations",
+      "ownership": "company",
+      "description": "Fatos por empresa/usuário/condomínio opcional; canal não limita seu compartilhamento.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "phone_number",
+          "type": "text",
+          "nullable": false,
+          "description": "Usuário dono da memória."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "nullable": false,
+          "description": "Chave lógica do fato dentro de seu escopo."
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "nullable": false,
+          "description": "Conteúdo do fato."
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "nullable": false,
+          "description": "Origem textual atual.",
+          "default": ""
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Momento do aprendizado."
+        },
+        {
+          "name": "confidence",
+          "type": "real",
+          "nullable": false,
+          "description": "Confiança extraída.",
+          "default": "0"
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "phone_number",
+          "condo_id",
+          "key"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id",
+            "phone_number"
+          ],
+          "table": "contact_memories",
+          "target": [
+            "company_id",
+            "phone_number"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "UNIQUE NULLS NOT DISTINCT permite uma chave geral e chaves homônimas em Alpha/Beta.",
+        "Não exigir condo para gravar; não inventar associação automática para registros NULL.",
+        "Canal estrito projeta só fatos com condo correspondente; sem fallback que amplie para outros contextos.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela.",
+        "Condo e company do fato não são inferidos de dados arbitrários da mensagem; escopo de escrita validado pelo servidor."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "phone_number",
+          "condo_id"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "UI_OPERATE"
+        ],
+        "area": "Inspeção e esquecimento de fatos",
+        "management": "Consultar fatos e esquecer um fato ou todos do alvo pelo console. Não é editor arbitrário da memória; o novo recorte de company/usuário/condo terá de governar essas ações.",
+        "runtime_use": "Fatos recuperados para o contexto autorizado do usuário, compartilháveis entre canais."
+      }
+    },
+    {
+      "name": "requests",
+      "group": "conversations",
+      "ownership": "company",
+      "description": "Carteira compartilhada entre atendimentos da empresa e usuário; condo identifica o contexto aplicável.",
+      "columns": [
+        {
+          "name": "protocol",
+          "type": "text",
+          "nullable": false,
+          "description": "PK do pedido; preservar geração atual.",
+          "primary": true
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "phone_number",
+          "type": "text",
+          "nullable": false,
+          "description": "Usuário dono do pedido."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "company_use_case_id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Caso configurado na empresa; identidade global obtida pelo relacionamento."
+        },
+        {
+          "name": "source_session_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Proveniência inicial; não é filtro de visibilidade."
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "description": "Estado do motor atual representado em inglês; preservar as mesmas transições e mapear o domínio interno na persistência.",
+          "values": [
+            "COLLECTING",
+            "READY",
+            "AWAITING_CONFIRMATION",
+            "EXECUTING",
+            "COMPLETED",
+            "WITH_AGENT",
+            "CANCELED",
+            "FAILED"
+          ]
+        },
+        {
+          "name": "data",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Estado operacional e snapshots atuais do pedido."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação.",
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última alteração."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "protocol"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id",
+            "company_use_case_id"
+          ],
+          "table": "company_use_cases",
+          "target": [
+            "company_id",
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "company_id",
+            "source_session_id"
+          ],
+          "table": "sessions",
+          "target": [
+            "company_id",
+            "id"
+          ],
+          "description": "",
+          "onDelete": {
+            "action": "SET NULL",
+            "columns": [
+              "source_session_id"
+            ]
+          }
+        }
+      ],
+      "rules": [
+        "Pedido continua existindo se caso/canal for desativado; disponibilidade atual continua governando execução.",
+        "Condo NULL pode ser salvo e avaliado nos cenários posteriores.",
+        "Não duplicar channel_id: origem pode ser obtida pela sessão; a carteira não é separada por canal.",
+        "Origem é opcional: se uma sessão for removida pelo reset, limpar só source_session_id (ON DELETE SET NULL da coluna de origem); company e pedido permanecem.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "phone_number",
+          "condo_id"
+        ],
+        [
+          "company_id",
+          "status"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "UI_OPERATE"
+        ],
+        "area": "Operação da carteira de pedidos",
+        "management": "Consultar/exportar pedidos, preencher pendências e confirmar quando aplicável, cancelar e remover pedidos encerrados por ações próprias do console. Sem CRUD livre do JSON.",
+        "runtime_use": "Pendências e pedidos do usuário, preservados entre atendimentos no escopo aplicável."
+      }
+    },
+    {
+      "name": "request_events",
+      "group": "conversations",
+      "ownership": "company",
+      "description": "Histórico incremental do pedido; company explícita para consulta e FK com propriedade.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "protocol",
+          "type": "text",
+          "nullable": false,
+          "description": "Pedido da mesma empresa."
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "nullable": false,
+          "description": "Sequência no pedido."
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false,
+          "description": "Tipo do evento."
+        },
+        {
+          "name": "text",
+          "type": "text",
+          "nullable": false,
+          "description": "Texto do evento."
+        },
+        {
+          "name": "actor",
+          "type": "text",
+          "nullable": false,
+          "description": "Autor atual.",
+          "default": ""
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Data do evento."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "protocol",
+          "sequence"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id",
+            "protocol"
+          ],
+          "table": "requests",
+          "target": [
+            "company_id",
+            "protocol"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Append-only; contexto condo vem do pedido, sem cópia obrigatória em cada evento.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "UI_READ",
+          "INDIRECT_WRITE"
+        ],
+        "area": "Histórico de pedidos",
+        "management": "O console exibe o histórico do pedido; ações operacionais geram eventos indiretamente. Não há editor arbitrário de eventos.",
+        "runtime_use": "Histórico incremental das mudanças do pedido, no mesmo escopo empresarial."
+      }
+    },
+    {
+      "name": "payloads",
+      "group": "configuration",
+      "ownership": "explicit_scope",
+      "description": "Configuração de parâmetros de recurso; substitui padrão global/condomínio local por escopos explícitos.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "scope_type",
+          "type": "text",
+          "nullable": false,
+          "description": "GLOBAL, COMPANY ou CONDO.",
+          "values": [
+            "GLOBAL",
+            "COMPANY",
+            "CONDO"
+          ]
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Obrigatório em escopos empresariais; NULL só no GLOBAL."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "resource_key",
+          "type": "text",
+          "nullable": false,
+          "description": "Chave do recurso."
+        },
+        {
+          "name": "data",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Parâmetros configurados."
+        }
+      ],
+      "uniques": [
+        [
+          "scope_type",
+          "company_id",
+          "condo_id",
+          "resource_key"
+        ]
+      ],
+      "foreignKeys": [],
+      "rules": [
+        "CHECK de escopo: GLOBAL=(company NULL,condo NULL); COMPANY=(company preenchida,condo NULL); CONDO=(company preenchida,condo preenchido).",
+        "UNIQUE NULLS NOT DISTINCT.",
+        "Recomendação técnica: preservar sobreposição por chave, GLOBAL → COMPANY → CONDO; sem nova camada por canal.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "UI_EDIT"
+        ],
+        "area": "Parâmetros e integrações de recursos",
+        "management": "Tela de payloads e configuração de parâmetros por recurso/contexto; mantém configurações além de ligar/desligar um caso.",
+        "runtime_use": "Parâmetros utilizados na execução das integrações, conforme o escopo autorizado."
+      }
+    },
+    {
+      "name": "guidelines",
+      "group": "configuration",
+      "ownership": "explicit_scope",
+      "description": "Orientações existentes, com propriedade explícita e sem remodelar prompts nesta etapa.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "scope_type",
+          "type": "text",
+          "nullable": false,
+          "description": "GLOBAL, COMPANY ou CONDO.",
+          "values": [
+            "GLOBAL",
+            "COMPANY",
+            "CONDO"
+          ]
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Obrigatório em escopos empresariais; NULL só no GLOBAL."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "general_text",
+          "type": "text",
+          "nullable": false,
+          "description": "Texto geral existente.",
+          "default": ""
+        },
+        {
+          "name": "by_use_case",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Mapa atual por caso.",
+          "default": "{}"
+        }
+      ],
+      "uniques": [
+        [
+          "scope_type",
+          "company_id",
+          "condo_id"
+        ]
+      ],
+      "foreignKeys": [],
+      "rules": [
+        "Mesmo CHECK de escopo dos payloads; UNIQUE NULLS NOT DISTINCT.",
+        "Recomendação técnica: preservar composição atual, acrescentando a empresa como escopo explícito; textos do condomínio limitados ao contexto aplicável.",
+        "Mapa by_use_case usa IDs estáveis; não criar novas instruções ou alterar prompts nesta entrega de desenho.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "UI_EDIT"
+        ],
+        "area": "Orientações e ajustes por contexto",
+        "management": "Telas administrativas editam orientação geral, orientação por caso e ajustes do contexto legado; serão adaptadas aos escopos GLOBAL/COMPANY/CONDO.",
+        "runtime_use": "Orientações de conteúdo/configuração consumidas na montagem do atendimento."
+      }
+    },
+    {
+      "name": "skill_layers",
+      "group": "configuration",
+      "ownership": "explicit_scope",
+      "description": "Herança/versionamento de conteúdo existente; independente da seleção de funcionalidades.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "skill",
+          "type": "text",
+          "nullable": false,
+          "description": "Caminho/identificador da skill atual."
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false,
+          "description": "BASE, COMPANY ou CONDO.",
+          "values": [
+            "BASE",
+            "COMPANY",
+            "CONDO"
+          ]
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Preenchido em COMPANY/CONDO; NULL apenas BASE."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "head_version_id",
+          "type": "bigint",
+          "nullable": true,
+          "description": "Versão publicada da própria camada."
+        },
+        {
+          "name": "parent_version_id",
+          "type": "bigint",
+          "nullable": true,
+          "description": "Versão da camada ancestral adotada."
+        },
+        {
+          "name": "draft",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "Documento em edição, fora do turno."
+        },
+        {
+          "name": "draft_version",
+          "type": "text",
+          "nullable": false,
+          "description": "Controle de edição atual.",
+          "default": ""
+        }
+      ],
+      "uniques": [
+        [
+          "skill",
+          "type",
+          "company_id",
+          "condo_id"
+        ]
+      ],
+      "foreignKeys": [],
+      "rules": [
+        "CHECK BASE=(company NULL,condo NULL); COMPANY=(company preenchida,condo NULL); CONDO=(company preenchida,condo preenchido).",
+        "UNIQUE NULLS NOT DISTINCT; substituir o índice por IDs locais.",
+        "head_version_id e parent_version_id permanecem ponteiros controlados pelo repositório, como hoje; publicação valida camada/skill/ancestralidade e proíbe ancestral empresarial de outra company.",
+        "Versionamento não cria um segundo cadastro do mesmo caso executável; snapshots imutáveis têm revisão/origem.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "condo_id",
+          "skill"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "BACKEND_ONLY"
+        ],
+        "area": "Personalização e composição de conteúdo",
+        "management": "O backend persiste camadas e rascunhos; esta etapa não inclui API ou tela administrativa para editar camadas.",
+        "runtime_use": "Camadas publicadas compõem o conteúdo do runtime nos escopos global, empresa e condomínio."
+      }
+    },
+    {
+      "name": "skill_versions",
+      "group": "configuration",
+      "ownership": "inherited",
+      "description": "Versões imutáveis; propriedade herdada da camada, consultada obrigatoriamente por join.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "layer_id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Camada proprietária."
+        },
+        {
+          "name": "number",
+          "type": "integer",
+          "nullable": false,
+          "description": "Versão na camada."
+        },
+        {
+          "name": "document",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Snapshot composto publicado."
+        },
+        {
+          "name": "case_yaml",
+          "type": "bytea",
+          "nullable": true,
+          "description": "Snapshot derivado da revisão canônica da base, sem escrita independente."
+        },
+        {
+          "name": "parent_version_id",
+          "type": "bigint",
+          "nullable": true,
+          "description": "Versão ancestral usada."
+        },
+        {
+          "name": "update_id",
+          "type": "bigint",
+          "nullable": true,
+          "description": "Atualização que originou a versão, quando existir."
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "nullable": false,
+          "description": "Origem da versão; equivalentes em inglês dos valores atuais, sem mudar o ciclo de publicação.",
+          "values": [
+            "IMPORT",
+            "INITIAL",
+            "PUBLICATION",
+            "DECISION",
+            "MANDATORY",
+            "DEADLINE",
+            "ROLLBACK"
+          ]
+        },
+        {
+          "name": "author",
+          "type": "text",
+          "nullable": false,
+          "description": "Autor da publicação."
+        },
+        {
+          "name": "summary",
+          "type": "text",
+          "nullable": false,
+          "description": "Resumo.",
+          "default": ""
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": false,
+          "description": "Motivo.",
+          "default": ""
+        },
+        {
+          "name": "mandatory_sections",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Trechos obrigatórios.",
+          "default": "[]"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "Encerramento informado."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação."
+        }
+      ],
+      "uniques": [
+        [
+          "layer_id",
+          "number"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "layer_id"
+          ],
+          "table": "skill_layers",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "parent_version_id"
+          ],
+          "table": "skill_versions",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "update_id"
+          ],
+          "table": "skill_updates",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Propriedade não se informa no body: deriva da camada autorizada.",
+        "Ancestral global é permitido; ancestral empresarial deve ter mesma company e escopo ancestral válido; validar na publicação transacional."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "BACKEND_ONLY"
+        ],
+        "area": "Versões publicadas de conteúdo",
+        "management": "O backend persiste versões e snapshots; esta etapa não inclui jornada de publicação/rollback no backdoor.",
+        "runtime_use": "Versões publicadas fornecem snapshots imutáveis consumidos pelo runtime."
+      }
+    },
+    {
+      "name": "skill_updates",
+      "group": "configuration",
+      "ownership": "inherited",
+      "description": "Decisões de atualização existentes, herdando o escopo da camada afetada.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "layer_id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Camada afetada."
+        },
+        {
+          "name": "from_version_id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Versão antiga da camada de cima."
+        },
+        {
+          "name": "to_version_id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Versão nova da camada de cima."
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "description": "Estado da atualização; mesmos estados atuais com valores persistidos em inglês.",
+          "default": "PENDING",
+          "values": [
+            "PENDING",
+            "ACCEPTED",
+            "REJECTED",
+            "PARTIAL",
+            "SUPERSEDED"
+          ]
+        },
+        {
+          "name": "deadline_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Prazo atual."
+        },
+        {
+          "name": "deadline_applied",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Aplicação automática já realizada.",
+          "default": "false"
+        },
+        {
+          "name": "decisions",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "Decisões por trecho."
+        },
+        {
+          "name": "decided_by",
+          "type": "text",
+          "nullable": false,
+          "description": "Autor.",
+          "default": ""
+        },
+        {
+          "name": "decided_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "Momento da decisão."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "columns": [
+            "layer_id"
+          ],
+          "table": "skill_layers",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "from_version_id"
+          ],
+          "table": "skill_versions",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "to_version_id"
+          ],
+          "table": "skill_versions",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Validar que from_version_id/to_version_id são revisões da mesma camada ancestral permitida; nunca aceitar referências empresariais cruzadas."
+      ],
+      "indexes": [
+        [
+          "layer_id",
+          "status"
+        ],
+        [
+          "status",
+          "deadline_at"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "BACKEND_ONLY"
+        ],
+        "area": "Decisões de atualização de conteúdo",
+        "management": "Há persistência de atualizações/decisões no pacote de camadas. Não foi encontrada tela/API administrativa que a exponha.",
+        "runtime_use": "Proposta: decisões sobre revisões da camada, distintas da ativação do caso."
+      }
+    },
+    {
+      "name": "skill_notices",
+      "group": "configuration",
+      "ownership": "inherited",
+      "description": "Avisos existentes por camada; propriedade herdada.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "layer_id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Camada destinatária."
+        },
+        {
+          "name": "version_id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Versão que motivou o aviso."
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": false,
+          "description": "Motivo.",
+          "default": ""
+        },
+        {
+          "name": "sections",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Trechos afetados.",
+          "default": "[]"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "Encerramento."
+        },
+        {
+          "name": "acknowledged_by",
+          "type": "text",
+          "nullable": false,
+          "description": "Autor da ciência.",
+          "default": ""
+        },
+        {
+          "name": "acknowledged_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "Ciência."
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Criação."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "columns": [
+            "layer_id"
+          ],
+          "table": "skill_layers",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "version_id"
+          ],
+          "table": "skill_versions",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Versão do aviso deve ser da própria camada ou de ancestral permitido; validar escopo na transação."
+      ],
+      "indexes": [
+        [
+          "layer_id",
+          "acknowledged_at"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "BACKEND_ONLY"
+        ],
+        "area": "Avisos de atualização de conteúdo",
+        "management": "Há persistência de avisos por camada. Não foi encontrada tela/API administrativa; avisos diagnósticos dos cards atuais não são estes registros.",
+        "runtime_use": "Proposta: avisos associados às versões/camadas e à sua gestão futura."
+      }
+    },
+    {
+      "name": "hook_rules",
+      "group": "hooks",
+      "ownership": "explicit_scope",
+      "description": "Regras declarativas atuais globais ou empresariais, com alvos ERP opcionais.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "UUID atribuído na criação pela aplicação"
+        },
+        {
+          "name": "scope_type",
+          "type": "text",
+          "nullable": false,
+          "description": "GLOBAL ou COMPANY.",
+          "values": [
+            "GLOBAL",
+            "COMPANY"
+          ]
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Obrigatória para COMPANY, NULL somente GLOBAL."
+        },
+        {
+          "name": "condo_ids",
+          "type": "integer[]",
+          "nullable": false,
+          "description": "Condomínios ERP alvo; vazio significa toda a empresa.",
+          "default": "{}"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "Versão atual."
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "description": "Nome da regra."
+        },
+        {
+          "name": "event",
+          "type": "text",
+          "nullable": false,
+          "description": "Evento do gancho."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "nullable": false,
+          "description": "Estado atual."
+        },
+        {
+          "name": "definition",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Definição canônica, com os novos IDs."
+        },
+        {
+          "name": "updated_by",
+          "type": "text",
+          "nullable": false,
+          "description": "Autor.",
+          "default": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Última alteração."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [],
+      "rules": [
+        "CHECK GLOBAL=(company NULL e condo_ids vazio); COMPANY exige company preenchida.",
+        "IDs no JSON e nas colunas devem ser derivados da mesma escrita atômica; nenhuma tradução para cadastro local.",
+        "Não criar camada de canal para regras sem requisito; preservar índice compilado por empresa/condo.",
+        "Validação de condo_ids deve impedir elementos NULL; lista vazia só significa toda a empresa nas regras COMPANY.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [
+        [
+          "event",
+          "enabled"
+        ],
+        [
+          "company_id",
+          "event"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "ADMIN_API_EDIT"
+        ],
+        "area": "Regras de ganchos",
+        "management": "API administrativa lista, consulta, cria, edita e importa/exporta regras. Não foi encontrado cliente dessas rotas nas telas inspecionadas.",
+        "runtime_use": "Regras que influenciam o comportamento nos pontos de gancho do runtime."
+      }
+    },
+    {
+      "name": "hook_rule_versions",
+      "group": "hooks",
+      "ownership": "inherited",
+      "description": "Histórico imutável da regra; escopo consultado via regra proprietária.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "rule_id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Regra proprietária."
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "Revisão da regra."
+        },
+        {
+          "name": "definition",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "Snapshot imutável."
+        },
+        {
+          "name": "updated_by",
+          "type": "text",
+          "nullable": false,
+          "description": "Autor.",
+          "default": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Data da revisão."
+        }
+      ],
+      "uniques": [
+        [
+          "rule_id",
+          "version"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "rule_id"
+          ],
+          "table": "hook_rules",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Regra empresarial não troca de empresa; isso preserva a propriedade de todas as revisões."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "ADMIN_API_READ",
+          "INDIRECT_WRITE"
+        ],
+        "area": "Revisões de regras de ganchos",
+        "management": "API consulta revisão; alterações de regra geram revisões indiretamente. Sem edição livre de snapshots e sem tela encontrada.",
+        "runtime_use": "Histórico imutável de definições, com propriedade herdada da regra."
+      }
+    },
+    {
+      "name": "hook_audit_logs",
+      "group": "hooks",
+      "ownership": "explicit_scope",
+      "description": "Eventos atuais de decisão; contexto identificado quando conhecido.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "UUID atribuído na criação pela aplicação"
+        },
+        {
+          "name": "scope_type",
+          "type": "text",
+          "nullable": false,
+          "description": "GLOBAL ou COMPANY; evento de turno é COMPANY.",
+          "values": [
+            "GLOBAL",
+            "COMPANY"
+          ]
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Obrigatória em evento empresarial."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        },
+        {
+          "name": "channel_id",
+          "type": "uuid",
+          "nullable": true,
+          "description": "Canal quando o evento pertence a atendimento."
+        },
+        {
+          "name": "session_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Snapshot de correlação, sem FK de retenção."
+        },
+        {
+          "name": "protocol",
+          "type": "text",
+          "nullable": false,
+          "description": "Snapshot do protocolo.",
+          "default": ""
+        },
+        {
+          "name": "rule_id",
+          "type": "uuid",
+          "nullable": true,
+          "description": "Snapshot do ID de regra; gancho fixo pode não ter."
+        },
+        {
+          "name": "rule_version",
+          "type": "integer",
+          "nullable": false,
+          "description": "Versão da regra.",
+          "default": "0"
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "nullable": false,
+          "description": "Origem do evento."
+        },
+        {
+          "name": "event",
+          "type": "text",
+          "nullable": false,
+          "description": "Ponto do gancho."
+        },
+        {
+          "name": "hook",
+          "type": "text",
+          "nullable": false,
+          "description": "Nome do gancho."
+        },
+        {
+          "name": "decision",
+          "type": "text",
+          "nullable": false,
+          "description": "Decisão."
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "nullable": false,
+          "description": "Motivo saneado atual."
+        },
+        {
+          "name": "user_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Operador, quando houver.",
+          "default": ""
+        },
+        {
+          "name": "screen",
+          "type": "text",
+          "nullable": false,
+          "description": "Tela.",
+          "default": ""
+        },
+        {
+          "name": "tool",
+          "type": "text",
+          "nullable": false,
+          "description": "Ferramenta.",
+          "default": ""
+        },
+        {
+          "name": "count",
+          "type": "integer",
+          "nullable": false,
+          "description": "Quantidade.",
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "Data do evento."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "columns": [
+            "company_id",
+            "channel_id"
+          ],
+          "table": "channels",
+          "target": [
+            "company_id",
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "GLOBAL exige company, condo e channel NULL; COMPANY exige company.",
+        "Sem mensagens, telefone ou params brutos neste histórico, preservando contrato atual.",
+        "Snapshots sem FK (sessao/regra) não são caminhos de autorização; suas correlações devem ser preenchidas pelo servidor e sempre consultadas com company.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "created_at"
+        ],
+        [
+          "company_id",
+          "condo_id",
+          "created_at"
+        ],
+        [
+          "created_at"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "ADMIN_API_READ"
+        ],
+        "area": "Auditoria de ganchos",
+        "management": "API administrativa consulta histórico de decisões; eventos são gravados pelos caminhos de execução/auditoria. Sem CRUD livre e sem tela encontrada.",
+        "runtime_use": "Rastreabilidade de decisões no contexto autorizado; não é configuração de casos."
+      }
+    },
+    {
+      "name": "users",
+      "group": "access",
+      "ownership": "global",
+      "description": "Identidade do operador do backdoor; não representa usuário final/cliente ERP.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "PK do operador; manter compatibilidade com identidade externa adotada.",
+          "primary": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "description": "Nome exibido."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [],
+      "rules": [
+        "Não criar cadastro local de morador; o telefone pertence aos registros de atendimento.",
+        "Integração futura com identidade Nexus não é redefinida por este desenho."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "INTERNAL_SUPPORT"
+        ],
+        "area": "Identidade de operadores",
+        "management": "Usada na autorização e na identificação do operador. Há bootstrap e identificação de sessão; não foi encontrado CRUD de usuários no backdoor.",
+        "runtime_use": "Autoriza operadores das APIs administrativas; não representa o morador atendido."
+      }
+    },
+    {
+      "name": "roles",
+      "group": "access",
+      "ownership": "global",
+      "description": "Definições de papéis compartilhadas da plataforma.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "PK do papel.",
+          "primary": true
+        },
+        {
+          "name": "inherits_from",
+          "type": "text",
+          "nullable": true,
+          "description": "Papel ancestral."
+        }
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "columns": [
+            "inherits_from"
+          ],
+          "table": "roles",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Substituir nomes vinculados à entidade administradora por papéis empresariais na adaptação; não redefinir a autenticação agora."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "INTERNAL_SUPPORT"
+        ],
+        "area": "Papéis administrativos",
+        "management": "Papéis usados pelo controle de acesso e seeds. O seletor de papel de desenvolvimento não é um editor deste cadastro.",
+        "runtime_use": "Base de autorização administrativa, distinta dos papéis de execução de um caso."
+      }
+    },
+    {
+      "name": "role_permissions",
+      "group": "access",
+      "ownership": "global",
+      "description": "Permissões base dos papéis compartilhados.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "role_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Papel."
+        },
+        {
+          "name": "permission",
+          "type": "text",
+          "nullable": false,
+          "description": "Permissão."
+        }
+      ],
+      "uniques": [
+        [
+          "role_id",
+          "permission"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "role_id"
+          ],
+          "table": "roles",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "INTERNAL_SUPPORT"
+        ],
+        "area": "Permissões dos papéis",
+        "management": "Permissões carregadas pelo controle de acesso; sem editor específico encontrado.",
+        "runtime_use": "Permissões base de acesso às operações administrativas."
+      }
+    },
+    {
+      "name": "role_assignments",
+      "group": "access",
+      "ownership": "explicit_scope",
+      "description": "Papel do operador em plataforma, empresa ou contexto condominial.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Operador."
+        },
+        {
+          "name": "role_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Papel atribuído."
+        },
+        {
+          "name": "scope_type",
+          "type": "text",
+          "nullable": false,
+          "description": "PLATFORM, COMPANY ou CONDO.",
+          "values": [
+            "PLATFORM",
+            "COMPANY",
+            "CONDO"
+          ]
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Obrigatória em COMPANY/CONDO."
+        },
+        {
+          "name": "condo_id",
+          "type": "integer",
+          "nullable": true,
+          "description": "Contexto condominial ERP; NULL é permitido."
+        }
+      ],
+      "uniques": [
+        [
+          "user_id",
+          "role_id",
+          "scope_type",
+          "company_id",
+          "condo_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        },
+        {
+          "columns": [
+            "role_id"
+          ],
+          "table": "roles",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "CHECK PLATFORM=(company NULL,condo NULL); COMPANY=(company preenchida,condo NULL); CONDO=(company preenchida,condo preenchido).",
+        "UNIQUE NULLS NOT DISTINCT; remover escopo_id polimórfico e vínculo de administradora local.",
+        "Empresa é validada no contexto autenticado; existência do ID não concede acesso.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [
+        [
+          "company_id",
+          "user_id"
+        ]
+      ],
+      "backdoor": {
+        "current_access": [
+          "INTERNAL_SUPPORT"
+        ],
+        "area": "Atribuição de papéis",
+        "management": "Vínculos usados para autorizar operador/escopo; sem CRUD administrativo específico encontrado.",
+        "runtime_use": "Restringe acesso do operador à plataforma/empresa/condomínio autorizado."
+      }
+    },
+    {
+      "name": "company_role_grants",
+      "group": "access",
+      "ownership": "company",
+      "description": "Permissão extra de um papel dentro da empresa, preservando o recurso existente.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "description": "Identificador próprio.",
+          "primary": true,
+          "generation": "identity"
+        },
+        {
+          "name": "company_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Empresa dona no Nexus; sem FK para cadastro local."
+        },
+        {
+          "name": "role_id",
+          "type": "text",
+          "nullable": false,
+          "description": "Papel."
+        },
+        {
+          "name": "permission",
+          "type": "text",
+          "nullable": false,
+          "description": "Permissão adicional."
+        }
+      ],
+      "uniques": [
+        [
+          "company_id",
+          "role_id",
+          "permission"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "columns": [
+            "role_id"
+          ],
+          "table": "roles",
+          "target": [
+            "id"
+          ],
+          "description": ""
+        }
+      ],
+      "rules": [
+        "Substitui administradora_id sem cadastrar uma empresa local.",
+        "company_id empresarial é string não vazia, obtida do contexto autorizado; NULL só é admitido nos escopos globais/plataforma descritos nesta tabela."
+      ],
+      "indexes": [],
+      "backdoor": {
+        "current_access": [
+          "INTERNAL_SUPPORT"
+        ],
+        "area": "Concessões empresariais",
+        "management": "Concessões carregadas pelo controle de acesso; sem editor específico encontrado.",
+        "runtime_use": "Permissões adicionais por papel e empresa, além das permissões base."
+      }
+    }
+  ],
+  "oldMap": [
+    {
+      "source": "administradoras",
+      "targets": [],
+      "action": "Remover",
+      "reason": "Empresa é referenciada pelo company_id Nexus, sem entidade local."
+    },
+    {
+      "source": "condominios",
+      "targets": [],
+      "action": "Remover",
+      "reason": "Condomínio é condo_id ERP opcional; tenant/telefone migram conceitualmente para canais."
+    },
+    {
+      "source": "habilitacoes",
+      "targets": [
+        "company_use_cases",
+        "channel_use_cases"
+      ],
+      "action": "Substituir",
+      "reason": "Separar empresa/default/papéis e override por canal."
+    },
+    {
+      "source": "catalogo_arquivos",
+      "targets": [
+        "catalog_files",
+        "use_cases"
+      ],
+      "action": "Manter e indexar",
+      "reason": "Conteúdo continua canônico; use_cases é projeção transacional."
+    },
+    {
+      "source": "sessoes",
+      "targets": [
+        "sessions"
+      ],
+      "action": "Adaptar",
+      "reason": "Empresa/canal/conector/protocolo; histórico por atendimento."
+    },
+    {
+      "source": "memoria_contatos",
+      "targets": [
+        "contact_memories"
+      ],
+      "action": "Adaptar",
+      "reason": "Administradora → company Nexus; empresa + usuário."
+    },
+    {
+      "source": "memoria_fatos",
+      "targets": [
+        "memory_facts"
+      ],
+      "action": "Adaptar",
+      "reason": "Escopo opcional condo participa da chave para evitar sobrescrita entre condomínios."
+    },
+    {
+      "source": "pedidos",
+      "targets": [
+        "requests"
+      ],
+      "action": "Adaptar",
+      "reason": "Empresa/usuário/condo, caso empresarial e origem sem isolamento por canal."
+    },
+    {
+      "source": "pedido_eventos",
+      "targets": [
+        "request_events"
+      ],
+      "action": "Adaptar",
+      "reason": "FK com company e protocolo do pedido."
+    },
+    {
+      "source": "payloads",
+      "targets": [
+        "payloads"
+      ],
+      "action": "Adaptar",
+      "reason": "GLOBAL/COMPANY/CONDO explícitos; sem entidades locais."
+    },
+    {
+      "source": "orientacoes",
+      "targets": [
+        "guidelines"
+      ],
+      "action": "Adaptar",
+      "reason": "Escopos explícitos; sem remodelagem do texto/prompt."
+    },
+    {
+      "source": "skill_camadas",
+      "targets": [
+        "skill_layers"
+      ],
+      "action": "Adaptar",
+      "reason": "BASE/COMPANY/CONDO com IDs externos."
+    },
+    {
+      "source": "skill_versoes",
+      "targets": [
+        "skill_versions"
+      ],
+      "action": "Preservar e adaptar referências",
+      "reason": "Propriedade herdada da camada; snapshots da mesma fonte."
+    },
+    {
+      "source": "skill_atualizacoes",
+      "targets": [
+        "skill_updates"
+      ],
+      "action": "Preservar e adaptar referências",
+      "reason": "Escopo herdado, com validação de ancestralidade."
+    },
+    {
+      "source": "skill_avisos",
+      "targets": [
+        "skill_notices"
+      ],
+      "action": "Preservar e adaptar referências",
+      "reason": "Escopo herdado e validação da versão referenciada."
+    },
+    {
+      "source": "ganchos_regras",
+      "targets": [
+        "hook_rules"
+      ],
+      "action": "Adaptar",
+      "reason": "Global ou company; condo_ids ERP em vez de IDs locais."
+    },
+    {
+      "source": "ganchos_regras_versoes",
+      "targets": [
+        "hook_rule_versions"
+      ],
+      "action": "Adaptar",
+      "reason": "Snapshot com novos identificadores; escopo pela regra."
+    },
+    {
+      "source": "ganchos_auditoria",
+      "targets": [
+        "hook_audit_logs"
+      ],
+      "action": "Adaptar",
+      "reason": "Company/condo/canal e global explícito para operação da plataforma."
+    },
+    {
+      "source": "usuarios",
+      "targets": [
+        "users"
+      ],
+      "action": "Preservar",
+      "reason": "Operadores globais, não usuários finais."
+    },
+    {
+      "source": "papeis",
+      "targets": [
+        "roles"
+      ],
+      "action": "Preservar estrutura",
+      "reason": "Definições globais; nomes/permissões de administradora serão revistos na adaptação."
+    },
+    {
+      "source": "papel_permissoes",
+      "targets": [
+        "role_permissions"
+      ],
+      "action": "Preservar estrutura",
+      "reason": "Permissões base globais."
+    },
+    {
+      "source": "atribuicoes",
+      "targets": [
+        "role_assignments"
+      ],
+      "action": "Adaptar",
+      "reason": "Escopo company/condo explícito, removendo IDs de entidade local."
+    },
+    {
+      "source": "concessoes",
+      "targets": [
+        "company_role_grants"
+      ],
+      "action": "Adaptar",
+      "reason": "Permissões extras por company."
+    }
+  ],
+  "notes": [
+    "Modelo documental com tipos PostgreSQL materializados em internal/banco/v2; não é DDL executável nem schema de validação de requests.",
+    "Regras e propriedade herdada exigem as validações transacionais descritas; não são todas cobertas por foreignKeys.",
+    "As unicidades NULLS NOT DISTINCT indicadas nas regras são materializadas pelo gerador da baseline PostgreSQL 18 a partir das anotações Ent.",
+    "Fora da ação SET NULL explicitada, FKs locais usam NO ACTION por padrão, sem exclusão em cascata de negócio.",
+    "Não há tabela local para company Nexus ou condo ERP.",
+    "Tabelas, colunas e valores técnicos controlados pela aplicação estão em inglês; descrições e interface continuam em pt-BR. Referências a schemas/arquivos legados mantêm seus nomes reais.",
+    "O objeto backdoor de cada tabela é metadado documental sobre o alcance atual verificado; não acrescenta colunas, rotas ou permissões ao banco proposto.",
+    "Arquitetura de destino: concierge-back concentra persistência, runtime, integrações e APIs; concierge-backdor-front será o frontend separado de operação da plataforma por Professional Services/operadores autorizados, incluindo Studio/console/emulador; concierge-plugin será a gestão de canais e disponibilidade pela empresa cliente na interface Nexus.",
+    "Escopos de company/condo identificam propriedade e alvo autorizado dos dados, não a audiência do frontend. Alcance no backdoor não concede a mesma capacidade ao plugin; navegação/perfis legados não fixam a futura jornada dos dois públicos.",
+    "Decisão aprovada: personalização de conteúdo nos níveis base global, empresa e condomínio, sem nível por canal nesta fase; independente da disponibilidade INHERIT/CUSTOM/EXPLICIT.",
+    "Estado do refactor: o backend lê canais e disponibilidade do modelo v2 e os aplica ao runtime. Canais e ativações são configurados diretamente por SQL/seed e consultados pelo Console; novas APIs e telas de gestão ficam para depois.",
+    "Requisito obrigatório da implementação: nenhuma escrita/exclusão pode alterar dados fora do alvo autorizado. Em dados pessoais, aplicar company + usuário + recorte condominial; coleções parciais ou vazias não autorizam apagar outros recortes. Validar também JSONs e operações indiretas."
+  ],
+  "naming": {
+    "language": "en",
+    "identifier_style": "snake_case",
+    "table_names": "plural",
+    "enum_style": "UPPER_SNAKE_CASE",
+    "documentation_language": "pt-BR"
+  }
+}

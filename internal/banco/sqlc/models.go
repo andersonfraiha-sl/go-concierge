@@ -8,11 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type SessaoGravada struct {
-	ID               string
-	AdministradoraID string
-	CondominioID     string
-	Protocolo        string
-	AtualizadaEm     pgtype.Timestamptz
-	Dados            []byte
+type Session struct {
+	ID          string
+	CompanyID   string
+	ChannelID   pgtype.UUID
+	Connector   string
+	Protocol    string
+	PhoneNumber string
+	CondoID     pgtype.Int4
+	Data        []byte
+	UpdatedAt   pgtype.Timestamptz
 }

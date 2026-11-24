@@ -14,7 +14,14 @@ import {
 import { type ReactNode, useState } from 'react';
 import type { Ferramenta } from '@/catalogo/contratos';
 import { ComEstado } from '@/condominios/ComEstado';
-import { type Estado, PADRAO, salvarPayload, useEstado } from '@/condominios/contratos';
+import {
+  type Escopo,
+  type Estado,
+  PADRAO,
+  salvarPayload,
+  useEscopo,
+  useEstado,
+} from '@/condominios/contratos';
 import { useExecutar } from '@/condominios/useExecutar';
 import { tituloDe } from '@/ferramentas/contratos';
 import { PESOS } from '@/theme/tokens';
@@ -41,22 +48,43 @@ export function AjustesTecnicosAba({ editar }: { editar: boolean }): ReactNode {
   );
 }
 
-type Opcao = { id: string; nome: string };
+type Opcao = { id: string; nome: string; escopo: Escopo; condominio: string };
+
+function opcoesDeConteudo(estado: Estado, escopo: Escopo): Opcao[] {
+  return [
+    ...(escopo === null
+      ? [{ id: 'global', nome: 'Conteúdo global', escopo: null, condominio: PADRAO }]
+      : []),
+    ...estado.administradoras.map((company) => ({
+      id: JSON.stringify([company.id, null]),
+      nome: `${company.nome} · Empresa`,
+      escopo: company.id,
+      condominio: PADRAO,
+    })),
+    ...estado.mapeamento.condominios.map((condo) => ({
+      id: JSON.stringify([condo.administradora_id, condo.id]),
+      nome: `${condo.nome} · ${condo.administradora_id}`,
+      escopo: condo.administradora_id,
+      condominio: condo.id,
+    })),
+  ];
+}
 
 function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): ReactNode {
-  const { executar, gravando } = useExecutar();
-  const [condominio, setCondominio] = useState(PADRAO);
+  const escopo = useEscopo() ?? null;
+  const opcoes = opcoesDeConteudo(estado, escopo);
+  const [selecionado, setSelecionado] = useState<string>();
+  const alvo = opcoes.find((opcao) => opcao.id === selecionado) ?? opcoes[0];
   const [aberto, setAberto] = useState<Ferramenta | null>(null);
-  const opcoes = [
-    { id: PADRAO, nome: 'Padrão (todos os condomínios)' },
-    ...estado.mapeamento.condominios,
-  ];
-  const nomeAtual = opcoes.find((opcao) => opcao.id === condominio)?.nome ?? condominio;
-
+  const alvoDaConsulta = alvo ? { escopo: alvo.escopo, condoID: alvo.condominio } : {};
+  const consultaDoAlvo = useEstado({ enabled: alvo !== undefined, ...alvoDaConsulta });
+  const { executar, gravando } = useExecutar(alvoDaConsulta);
+  if (!alvo) return null;
+  const { condominio } = alvo;
   const gravar = async (recurso: Ferramenta, pares: readonly ParDoPayload[], apagar: boolean) => {
     const payload = apagar ? {} : paresEmPayload(pares);
     const ok = await executar(
-      (escopo) => salvarPayload({ condominio, recurso: recurso.name, payload, apagar }, escopo),
+      (company) => salvarPayload({ condominio, recurso: recurso.name, payload, apagar }, company),
       apagar ? 'Ajustes limpos.' : 'Ajustes salvos.',
     );
     if (ok) setAberto(null);
@@ -64,28 +92,41 @@ function Conteudo({ estado, editar }: { estado: Estado; editar: boolean }): Reac
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <SeletorDeCondominio opcoes={opcoes} valor={condominio} onMudar={setCondominio} />
-      {estado.recursos.length === 0 && (
-        <Typography color="textSecondary">Ainda não há ferramentas cadastradas.</Typography>
-      )}
-      <TabelaDeFerramentas
-        recursos={estado.recursos}
-        origemDe={(recurso) => origemDe(estado, condominio, recurso.name)}
-        onAbrir={setAberto}
+      <SeletorDeCondominio
+        opcoes={opcoes}
+        valor={alvo.id}
+        onMudar={(id) => {
+          setAberto(null);
+          setSelecionado(id);
+        }}
       />
-      {aberto && (
-        <PayloadDoCondominioDrawer
-          key={`${condominio}/${aberto.name}`}
-          recurso={aberto}
-          nomeDoCondominio={nomeAtual}
-          payload={estado.mapeamento.payloads[condominio]?.[aberto.name] ?? {}}
-          podeEditar={editar}
-          gravando={gravando}
-          onSalvar={(pares) => void gravar(aberto, pares, false)}
-          onLimpar={() => void gravar(aberto, [], true)}
-          onFechar={() => setAberto(null)}
-        />
-      )}
+      <ComEstado consulta={consultaDoAlvo}>
+        {(configurado) => (
+          <>
+            {estado.recursos.length === 0 && (
+              <Typography color="textSecondary">Ainda não há ferramentas cadastradas.</Typography>
+            )}
+            <TabelaDeFerramentas
+              recursos={estado.recursos}
+              origemDe={(recurso) => origemDe(configurado, condominio, recurso.name)}
+              onAbrir={setAberto}
+            />
+            {aberto && (
+              <PayloadDoCondominioDrawer
+                key={`${alvo.id}/${aberto.name}`}
+                recurso={aberto}
+                nomeDoCondominio={alvo.nome}
+                payload={configurado.mapeamento.payloads[condominio]?.[aberto.name] ?? {}}
+                podeEditar={editar}
+                gravando={gravando}
+                onSalvar={(pares) => void gravar(aberto, pares, false)}
+                onLimpar={() => void gravar(aberto, [], true)}
+                onFechar={() => setAberto(null)}
+              />
+            )}
+          </>
+        )}
+      </ComEstado>
     </Box>
   );
 }
@@ -97,7 +138,7 @@ function SeletorDeCondominio({ opcoes, valor, onMudar }: SeletorProps): ReactNod
     <TextField
       select
       size="small"
-      label="Condomínio"
+      label="Alvo do conteúdo"
       value={valor}
       onChange={(evento) => onMudar(evento.target.value)}
       sx={{ maxWidth: 480 }}

@@ -98,8 +98,8 @@ func escopoDoHistorico(a acesso.Acesso, m admin.Mapeamento) auditoria.Escopo {
 	}
 	for _, c := range m.Condominios {
 		coberto := slices.Contains(esc.Administradoras, c.Administradora)
-		if !coberto && acesso.Permitido(a, acesso.GanchosHistorico, escopoCondominio(c.ID)) {
-			esc.Condominios = append(esc.Condominios, c.ID)
+		if !coberto && acesso.Permitido(a, acesso.GanchosHistorico, escopoCondominio(c.Administradora, c.ID)) {
+			esc.Condominios = append(esc.Condominios, acesso.EscopoCondominio(c.Administradora, c.ID).ID)
 		}
 	}
 	return esc
@@ -109,7 +109,7 @@ func podeVerProtocolo(a acesso.Acesso, l auditoria.Linha) bool {
 	alvo := escopoSuperlogica
 	switch {
 	case l.CondominioID != "":
-		alvo = escopoCondominio(l.CondominioID)
+		alvo = escopoCondominio(l.AdministradoraID, l.CondominioID)
 	case l.AdministradoraID != "":
 		alvo = escopoAdministradora(l.AdministradoraID)
 	}

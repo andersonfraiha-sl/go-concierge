@@ -18,6 +18,7 @@ type Lote struct {
 	batch      pgx.Batch
 	resultados *resultadosDoEnvio
 	leituras   []func() error
+	erros      []error
 }
 
 func NovoLote() *Lote { return &Lote{resultados: &resultadosDoEnvio{}} }
@@ -34,14 +35,32 @@ func (l *Lote) Vazio() bool { return l.batch.Len() == 0 }
 
 // Enviar manda o lote numa ida e roda as leituras na ordem. O lote roda numa transação
 // implícita: um erro em qualquer comando desfaz todos.
+func (l *Lote) Erro(err error) {
+	if err != nil {
+		l.erros = append(l.erros, err)
+	}
+}
+
 func (l *Lote) Enviar(ctx context.Context, pool *pgxpool.Pool) error {
-	envio := pool.SendBatch(ctx, &l.batch)
+	if err := errors.Join(l.erros...); err != nil {
+		return err
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	envio := tx.SendBatch(ctx, &l.batch)
 	l.resultados.envio = envio
 	errs := make([]error, 0, len(l.leituras)+1)
 	for _, ler := range l.leituras {
 		errs = append(errs, ler())
 	}
-	return errors.Join(append(errs, envio.Close())...)
+	errs = append(errs, envio.Close())
+	if err := errors.Join(errs...); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 var errSoLote = errors.New("dentro de um Lote só cabem queries :batch* do sqlc")

@@ -24,6 +24,26 @@ type GanchosAuditoriaCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_c *GanchosAuditoriaCreate) SetScopeType(v string) *GanchosAuditoriaCreate {
+	_c.mutation.SetScopeType(v)
+	return _c
+}
+
+// SetChannelID sets the "channel_id" field.
+func (_c *GanchosAuditoriaCreate) SetChannelID(v string) *GanchosAuditoriaCreate {
+	_c.mutation.SetChannelID(v)
+	return _c
+}
+
+// SetNillableChannelID sets the "channel_id" field if the given value is not nil.
+func (_c *GanchosAuditoriaCreate) SetNillableChannelID(v *string) *GanchosAuditoriaCreate {
+	if v != nil {
+		_c.SetChannelID(*v)
+	}
+	return _c
+}
+
 // SetCriadoEm sets the "criado_em" field.
 func (_c *GanchosAuditoriaCreate) SetCriadoEm(v time.Time) *GanchosAuditoriaCreate {
 	_c.mutation.SetCriadoEm(v)
@@ -249,25 +269,9 @@ func (_c *GanchosAuditoriaCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *GanchosAuditoriaCreate) defaults() {
-	if _, ok := _c.mutation.RegraID(); !ok {
-		v := ganchosauditoria.DefaultRegraID
-		_c.mutation.SetRegraID(v)
-	}
 	if _, ok := _c.mutation.RegraVersao(); !ok {
 		v := ganchosauditoria.DefaultRegraVersao
 		_c.mutation.SetRegraVersao(v)
-	}
-	if _, ok := _c.mutation.AdministradoraID(); !ok {
-		v := ganchosauditoria.DefaultAdministradoraID
-		_c.mutation.SetAdministradoraID(v)
-	}
-	if _, ok := _c.mutation.CondominioID(); !ok {
-		v := ganchosauditoria.DefaultCondominioID
-		_c.mutation.SetCondominioID(v)
-	}
-	if _, ok := _c.mutation.SessaoID(); !ok {
-		v := ganchosauditoria.DefaultSessaoID
-		_c.mutation.SetSessaoID(v)
 	}
 	if _, ok := _c.mutation.Protocolo(); !ok {
 		v := ganchosauditoria.DefaultProtocolo
@@ -297,6 +301,9 @@ func (_c *GanchosAuditoriaCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *GanchosAuditoriaCreate) check() error {
+	if _, ok := _c.mutation.ScopeType(); !ok {
+		return &ValidationError{Name: "scope_type", err: errors.New(`ent: missing required field "GanchosAuditoria.scope_type"`)}
+	}
 	if _, ok := _c.mutation.CriadoEm(); !ok {
 		return &ValidationError{Name: "criado_em", err: errors.New(`ent: missing required field "GanchosAuditoria.criado_em"`)}
 	}
@@ -324,9 +331,6 @@ func (_c *GanchosAuditoriaCreate) check() error {
 			return &ValidationError{Name: "gancho", err: fmt.Errorf(`ent: validator failed for field "GanchosAuditoria.gancho": %w`, err)}
 		}
 	}
-	if _, ok := _c.mutation.RegraID(); !ok {
-		return &ValidationError{Name: "regra_id", err: errors.New(`ent: missing required field "GanchosAuditoria.regra_id"`)}
-	}
 	if _, ok := _c.mutation.RegraVersao(); !ok {
 		return &ValidationError{Name: "regra_versao", err: errors.New(`ent: missing required field "GanchosAuditoria.regra_versao"`)}
 	}
@@ -340,15 +344,6 @@ func (_c *GanchosAuditoriaCreate) check() error {
 	}
 	if _, ok := _c.mutation.Motivo(); !ok {
 		return &ValidationError{Name: "motivo", err: errors.New(`ent: missing required field "GanchosAuditoria.motivo"`)}
-	}
-	if _, ok := _c.mutation.AdministradoraID(); !ok {
-		return &ValidationError{Name: "administradora_id", err: errors.New(`ent: missing required field "GanchosAuditoria.administradora_id"`)}
-	}
-	if _, ok := _c.mutation.CondominioID(); !ok {
-		return &ValidationError{Name: "condominio_id", err: errors.New(`ent: missing required field "GanchosAuditoria.condominio_id"`)}
-	}
-	if _, ok := _c.mutation.SessaoID(); !ok {
-		return &ValidationError{Name: "sessao_id", err: errors.New(`ent: missing required field "GanchosAuditoria.sessao_id"`)}
 	}
 	if _, ok := _c.mutation.Protocolo(); !ok {
 		return &ValidationError{Name: "protocolo", err: errors.New(`ent: missing required field "GanchosAuditoria.protocolo"`)}
@@ -400,6 +395,14 @@ func (_c *GanchosAuditoriaCreate) createSpec() (*GanchosAuditoria, *sqlgraph.Cre
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = &id
+	}
+	if value, ok := _c.mutation.ScopeType(); ok {
+		_spec.SetField(ganchosauditoria.FieldScopeType, field.TypeString, value)
+		_node.ScopeType = value
+	}
+	if value, ok := _c.mutation.ChannelID(); ok {
+		_spec.SetField(ganchosauditoria.FieldChannelID, field.TypeString, value)
+		_node.ChannelID = value
 	}
 	if value, ok := _c.mutation.CriadoEm(); ok {
 		_spec.SetField(ganchosauditoria.FieldCriadoEm, field.TypeTime, value)
@@ -472,7 +475,7 @@ func (_c *GanchosAuditoriaCreate) createSpec() (*GanchosAuditoria, *sqlgraph.Cre
 // of the `INSERT` statement. For example:
 //
 //	client.GanchosAuditoria.Create().
-//		SetCriadoEm(v).
+//		SetScopeType(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -481,7 +484,7 @@ func (_c *GanchosAuditoriaCreate) createSpec() (*GanchosAuditoria, *sqlgraph.Cre
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.GanchosAuditoriaUpsert) {
-//			SetCriadoEm(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *GanchosAuditoriaCreate) OnConflict(opts ...sql.ConflictOption) *GanchosAuditoriaUpsertOne {
@@ -517,6 +520,18 @@ type (
 	}
 )
 
+// SetScopeType sets the "scope_type" field.
+func (u *GanchosAuditoriaUpsert) SetScopeType(v string) *GanchosAuditoriaUpsert {
+	u.Set(ganchosauditoria.FieldScopeType, v)
+	return u
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *GanchosAuditoriaUpsert) UpdateScopeType() *GanchosAuditoriaUpsert {
+	u.SetExcluded(ganchosauditoria.FieldScopeType)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create except the ID field.
 // Using this option is equivalent to using:
 //
@@ -533,6 +548,9 @@ func (u *GanchosAuditoriaUpsertOne) UpdateNewValues() *GanchosAuditoriaUpsertOne
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.ID(); exists {
 			s.SetIgnore(ganchosauditoria.FieldID)
+		}
+		if _, exists := u.create.mutation.ChannelID(); exists {
+			s.SetIgnore(ganchosauditoria.FieldChannelID)
 		}
 		if _, exists := u.create.mutation.CriadoEm(); exists {
 			s.SetIgnore(ganchosauditoria.FieldCriadoEm)
@@ -611,6 +629,20 @@ func (u *GanchosAuditoriaUpsertOne) Update(set func(*GanchosAuditoriaUpsert)) *G
 		set(&GanchosAuditoriaUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetScopeType sets the "scope_type" field.
+func (u *GanchosAuditoriaUpsertOne) SetScopeType(v string) *GanchosAuditoriaUpsertOne {
+	return u.Update(func(s *GanchosAuditoriaUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *GanchosAuditoriaUpsertOne) UpdateScopeType() *GanchosAuditoriaUpsertOne {
+	return u.Update(func(s *GanchosAuditoriaUpsert) {
+		s.UpdateScopeType()
+	})
 }
 
 // Exec executes the query.
@@ -749,7 +781,7 @@ func (_c *GanchosAuditoriaCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.GanchosAuditoriaUpsert) {
-//			SetCriadoEm(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *GanchosAuditoriaCreateBulk) OnConflict(opts ...sql.ConflictOption) *GanchosAuditoriaUpsertBulk {
@@ -795,6 +827,9 @@ func (u *GanchosAuditoriaUpsertBulk) UpdateNewValues() *GanchosAuditoriaUpsertBu
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(ganchosauditoria.FieldID)
+			}
+			if _, exists := b.mutation.ChannelID(); exists {
+				s.SetIgnore(ganchosauditoria.FieldChannelID)
 			}
 			if _, exists := b.mutation.CriadoEm(); exists {
 				s.SetIgnore(ganchosauditoria.FieldCriadoEm)
@@ -874,6 +909,20 @@ func (u *GanchosAuditoriaUpsertBulk) Update(set func(*GanchosAuditoriaUpsert)) *
 		set(&GanchosAuditoriaUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetScopeType sets the "scope_type" field.
+func (u *GanchosAuditoriaUpsertBulk) SetScopeType(v string) *GanchosAuditoriaUpsertBulk {
+	return u.Update(func(s *GanchosAuditoriaUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *GanchosAuditoriaUpsertBulk) UpdateScopeType() *GanchosAuditoriaUpsertBulk {
+	return u.Update(func(s *GanchosAuditoriaUpsert) {
+		s.UpdateScopeType()
+	})
 }
 
 // Exec executes the query.

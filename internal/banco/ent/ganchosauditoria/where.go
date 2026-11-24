@@ -55,6 +55,16 @@ func IDLTE(id uuid.UUID) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldLTE(FieldID, id))
 }
 
+// ScopeType applies equality check predicate on the "scope_type" field. It's identical to ScopeTypeEQ.
+func ScopeType(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldEQ(FieldScopeType, v))
+}
+
+// ChannelID applies equality check predicate on the "channel_id" field. It's identical to ChannelIDEQ.
+func ChannelID(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldEQ(FieldChannelID, v))
+}
+
 // CriadoEm applies equality check predicate on the "criado_em" field. It's identical to CriadoEmEQ.
 func CriadoEm(v time.Time) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldEQ(FieldCriadoEm, v))
@@ -133,6 +143,146 @@ func Ferramenta(v string) predicate.GanchosAuditoria {
 // Quantidade applies equality check predicate on the "quantidade" field. It's identical to QuantidadeEQ.
 func Quantidade(v int) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldEQ(FieldQuantidade, v))
+}
+
+// ScopeTypeEQ applies the EQ predicate on the "scope_type" field.
+func ScopeTypeEQ(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldEQ(FieldScopeType, v))
+}
+
+// ScopeTypeNEQ applies the NEQ predicate on the "scope_type" field.
+func ScopeTypeNEQ(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNEQ(FieldScopeType, v))
+}
+
+// ScopeTypeIn applies the In predicate on the "scope_type" field.
+func ScopeTypeIn(vs ...string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeNotIn applies the NotIn predicate on the "scope_type" field.
+func ScopeTypeNotIn(vs ...string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotIn(FieldScopeType, vs...))
+}
+
+// ScopeTypeGT applies the GT predicate on the "scope_type" field.
+func ScopeTypeGT(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldGT(FieldScopeType, v))
+}
+
+// ScopeTypeGTE applies the GTE predicate on the "scope_type" field.
+func ScopeTypeGTE(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldGTE(FieldScopeType, v))
+}
+
+// ScopeTypeLT applies the LT predicate on the "scope_type" field.
+func ScopeTypeLT(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldLT(FieldScopeType, v))
+}
+
+// ScopeTypeLTE applies the LTE predicate on the "scope_type" field.
+func ScopeTypeLTE(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldLTE(FieldScopeType, v))
+}
+
+// ScopeTypeContains applies the Contains predicate on the "scope_type" field.
+func ScopeTypeContains(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldContains(FieldScopeType, v))
+}
+
+// ScopeTypeHasPrefix applies the HasPrefix predicate on the "scope_type" field.
+func ScopeTypeHasPrefix(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldHasPrefix(FieldScopeType, v))
+}
+
+// ScopeTypeHasSuffix applies the HasSuffix predicate on the "scope_type" field.
+func ScopeTypeHasSuffix(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldHasSuffix(FieldScopeType, v))
+}
+
+// ScopeTypeEqualFold applies the EqualFold predicate on the "scope_type" field.
+func ScopeTypeEqualFold(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldEqualFold(FieldScopeType, v))
+}
+
+// ScopeTypeContainsFold applies the ContainsFold predicate on the "scope_type" field.
+func ScopeTypeContainsFold(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldContainsFold(FieldScopeType, v))
+}
+
+// ChannelIDEQ applies the EQ predicate on the "channel_id" field.
+func ChannelIDEQ(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldEQ(FieldChannelID, v))
+}
+
+// ChannelIDNEQ applies the NEQ predicate on the "channel_id" field.
+func ChannelIDNEQ(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNEQ(FieldChannelID, v))
+}
+
+// ChannelIDIn applies the In predicate on the "channel_id" field.
+func ChannelIDIn(vs ...string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIn(FieldChannelID, vs...))
+}
+
+// ChannelIDNotIn applies the NotIn predicate on the "channel_id" field.
+func ChannelIDNotIn(vs ...string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotIn(FieldChannelID, vs...))
+}
+
+// ChannelIDGT applies the GT predicate on the "channel_id" field.
+func ChannelIDGT(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldGT(FieldChannelID, v))
+}
+
+// ChannelIDGTE applies the GTE predicate on the "channel_id" field.
+func ChannelIDGTE(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldGTE(FieldChannelID, v))
+}
+
+// ChannelIDLT applies the LT predicate on the "channel_id" field.
+func ChannelIDLT(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldLT(FieldChannelID, v))
+}
+
+// ChannelIDLTE applies the LTE predicate on the "channel_id" field.
+func ChannelIDLTE(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldLTE(FieldChannelID, v))
+}
+
+// ChannelIDContains applies the Contains predicate on the "channel_id" field.
+func ChannelIDContains(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldContains(FieldChannelID, v))
+}
+
+// ChannelIDHasPrefix applies the HasPrefix predicate on the "channel_id" field.
+func ChannelIDHasPrefix(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldHasPrefix(FieldChannelID, v))
+}
+
+// ChannelIDHasSuffix applies the HasSuffix predicate on the "channel_id" field.
+func ChannelIDHasSuffix(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldHasSuffix(FieldChannelID, v))
+}
+
+// ChannelIDIsNil applies the IsNil predicate on the "channel_id" field.
+func ChannelIDIsNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIsNull(FieldChannelID))
+}
+
+// ChannelIDNotNil applies the NotNil predicate on the "channel_id" field.
+func ChannelIDNotNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotNull(FieldChannelID))
+}
+
+// ChannelIDEqualFold applies the EqualFold predicate on the "channel_id" field.
+func ChannelIDEqualFold(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldEqualFold(FieldChannelID, v))
+}
+
+// ChannelIDContainsFold applies the ContainsFold predicate on the "channel_id" field.
+func ChannelIDContainsFold(v string) predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldContainsFold(FieldChannelID, v))
 }
 
 // CriadoEmEQ applies the EQ predicate on the "criado_em" field.
@@ -425,6 +575,16 @@ func RegraIDHasSuffix(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldHasSuffix(FieldRegraID, v))
 }
 
+// RegraIDIsNil applies the IsNil predicate on the "regra_id" field.
+func RegraIDIsNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIsNull(FieldRegraID))
+}
+
+// RegraIDNotNil applies the NotNil predicate on the "regra_id" field.
+func RegraIDNotNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotNull(FieldRegraID))
+}
+
 // RegraIDEqualFold applies the EqualFold predicate on the "regra_id" field.
 func RegraIDEqualFold(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldEqualFold(FieldRegraID, v))
@@ -660,6 +820,16 @@ func AdministradoraIDHasSuffix(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldHasSuffix(FieldAdministradoraID, v))
 }
 
+// AdministradoraIDIsNil applies the IsNil predicate on the "administradora_id" field.
+func AdministradoraIDIsNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIsNull(FieldAdministradoraID))
+}
+
+// AdministradoraIDNotNil applies the NotNil predicate on the "administradora_id" field.
+func AdministradoraIDNotNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotNull(FieldAdministradoraID))
+}
+
 // AdministradoraIDEqualFold applies the EqualFold predicate on the "administradora_id" field.
 func AdministradoraIDEqualFold(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldEqualFold(FieldAdministradoraID, v))
@@ -725,6 +895,16 @@ func CondominioIDHasSuffix(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldHasSuffix(FieldCondominioID, v))
 }
 
+// CondominioIDIsNil applies the IsNil predicate on the "condominio_id" field.
+func CondominioIDIsNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIsNull(FieldCondominioID))
+}
+
+// CondominioIDNotNil applies the NotNil predicate on the "condominio_id" field.
+func CondominioIDNotNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotNull(FieldCondominioID))
+}
+
 // CondominioIDEqualFold applies the EqualFold predicate on the "condominio_id" field.
 func CondominioIDEqualFold(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldEqualFold(FieldCondominioID, v))
@@ -788,6 +968,16 @@ func SessaoIDHasPrefix(v string) predicate.GanchosAuditoria {
 // SessaoIDHasSuffix applies the HasSuffix predicate on the "sessao_id" field.
 func SessaoIDHasSuffix(v string) predicate.GanchosAuditoria {
 	return predicate.GanchosAuditoria(sql.FieldHasSuffix(FieldSessaoID, v))
+}
+
+// SessaoIDIsNil applies the IsNil predicate on the "sessao_id" field.
+func SessaoIDIsNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldIsNull(FieldSessaoID))
+}
+
+// SessaoIDNotNil applies the NotNil predicate on the "sessao_id" field.
+func SessaoIDNotNil() predicate.GanchosAuditoria {
+	return predicate.GanchosAuditoria(sql.FieldNotNull(FieldSessaoID))
 }
 
 // SessaoIDEqualFold applies the EqualFold predicate on the "sessao_id" field.

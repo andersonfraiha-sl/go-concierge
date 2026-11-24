@@ -15,40 +15,43 @@ const (
 	Label = "ganchos_regra"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldScopeType holds the string denoting the scope_type field in the database.
+	FieldScopeType = "scope_type"
 	// FieldVersao holds the string denoting the versao field in the database.
-	FieldVersao = "versao"
+	FieldVersao = "version"
 	// FieldNome holds the string denoting the nome field in the database.
-	FieldNome = "nome"
+	FieldNome = "name"
 	// FieldEvento holds the string denoting the evento field in the database.
-	FieldEvento = "evento"
+	FieldEvento = "event"
 	// FieldAdministradoraID holds the string denoting the administradora_id field in the database.
-	FieldAdministradoraID = "administradora_id"
+	FieldAdministradoraID = "company_id"
 	// FieldCondominios holds the string denoting the condominios field in the database.
-	FieldCondominios = "condominios"
+	FieldCondominios = "condo_ids"
 	// FieldAtiva holds the string denoting the ativa field in the database.
-	FieldAtiva = "ativa"
+	FieldAtiva = "enabled"
 	// FieldDefinicao holds the string denoting the definicao field in the database.
-	FieldDefinicao = "definicao"
+	FieldDefinicao = "definition"
 	// FieldAlteradaPor holds the string denoting the alterada_por field in the database.
-	FieldAlteradaPor = "alterada_por"
+	FieldAlteradaPor = "updated_by"
 	// FieldAlteradaEm holds the string denoting the alterada_em field in the database.
-	FieldAlteradaEm = "alterada_em"
+	FieldAlteradaEm = "updated_at"
 	// EdgeVersoes holds the string denoting the versoes edge name in mutations.
 	EdgeVersoes = "versoes"
 	// Table holds the table name of the ganchosregra in the database.
-	Table = "ganchos_regras"
+	Table = "hook_rules"
 	// VersoesTable is the table that holds the versoes relation/edge.
-	VersoesTable = "ganchos_regras_versoes"
+	VersoesTable = "hook_rule_versions"
 	// VersoesInverseTable is the table name for the GanchosRegraVersao entity.
 	// It exists in this package in order to avoid circular dependency with the "ganchosregraversao" package.
-	VersoesInverseTable = "ganchos_regras_versoes"
+	VersoesInverseTable = "hook_rule_versions"
 	// VersoesColumn is the table column denoting the versoes relation/edge.
-	VersoesColumn = "regra_id"
+	VersoesColumn = "rule_id"
 )
 
 // Columns holds all SQL columns for ganchosregra fields.
 var Columns = []string{
 	FieldID,
+	FieldScopeType,
 	FieldVersao,
 	FieldNome,
 	FieldEvento,
@@ -75,8 +78,6 @@ var (
 	NomeValidator func(string) error
 	// EventoValidator is a validator for the "evento" field. It is called by the builders before save.
 	EventoValidator func(string) error
-	// DefaultAdministradoraID holds the default value on creation for the "administradora_id" field.
-	DefaultAdministradoraID string
 	// DefaultCondominios holds the default value on creation for the "condominios" field.
 	DefaultCondominios schema.GanchosCondominios
 	// DefaultAlteradaPor holds the default value on creation for the "alterada_por" field.
@@ -91,6 +92,11 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByScopeType orders the results by the scope_type field.
+func ByScopeType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldScopeType, opts...).ToFunc()
 }
 
 // ByVersao orders the results by the versao field.

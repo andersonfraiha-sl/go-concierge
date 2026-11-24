@@ -18,6 +18,10 @@ type GanchosAuditoria struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID uuid.UUID `json:"id,omitempty"`
+	// ScopeType holds the value of the "scope_type" field.
+	ScopeType string `json:"scope_type,omitempty"`
+	// ChannelID holds the value of the "channel_id" field.
+	ChannelID string `json:"channel_id,omitempty"`
 	// CriadoEm holds the value of the "criado_em" field.
 	CriadoEm time.Time `json:"criado_em,omitempty"`
 	// Origem holds the value of the "origem" field.
@@ -60,7 +64,7 @@ func (*GanchosAuditoria) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case ganchosauditoria.FieldRegraVersao, ganchosauditoria.FieldQuantidade:
 			values[i] = new(sql.NullInt64)
-		case ganchosauditoria.FieldOrigem, ganchosauditoria.FieldEvento, ganchosauditoria.FieldGancho, ganchosauditoria.FieldRegraID, ganchosauditoria.FieldDecisao, ganchosauditoria.FieldMotivo, ganchosauditoria.FieldAdministradoraID, ganchosauditoria.FieldCondominioID, ganchosauditoria.FieldSessaoID, ganchosauditoria.FieldProtocolo, ganchosauditoria.FieldUsuarioID, ganchosauditoria.FieldTela, ganchosauditoria.FieldFerramenta:
+		case ganchosauditoria.FieldScopeType, ganchosauditoria.FieldChannelID, ganchosauditoria.FieldOrigem, ganchosauditoria.FieldEvento, ganchosauditoria.FieldGancho, ganchosauditoria.FieldRegraID, ganchosauditoria.FieldDecisao, ganchosauditoria.FieldMotivo, ganchosauditoria.FieldAdministradoraID, ganchosauditoria.FieldCondominioID, ganchosauditoria.FieldSessaoID, ganchosauditoria.FieldProtocolo, ganchosauditoria.FieldUsuarioID, ganchosauditoria.FieldTela, ganchosauditoria.FieldFerramenta:
 			values[i] = new(sql.NullString)
 		case ganchosauditoria.FieldCriadoEm:
 			values[i] = new(sql.NullTime)
@@ -86,6 +90,18 @@ func (_m *GanchosAuditoria) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value != nil {
 				_m.ID = *value
+			}
+		case ganchosauditoria.FieldScopeType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field scope_type", values[i])
+			} else if value.Valid {
+				_m.ScopeType = value.String
+			}
+		case ganchosauditoria.FieldChannelID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field channel_id", values[i])
+			} else if value.Valid {
+				_m.ChannelID = value.String
 			}
 		case ganchosauditoria.FieldCriadoEm:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -219,6 +235,12 @@ func (_m *GanchosAuditoria) String() string {
 	var builder strings.Builder
 	builder.WriteString("GanchosAuditoria(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("scope_type=")
+	builder.WriteString(_m.ScopeType)
+	builder.WriteString(", ")
+	builder.WriteString("channel_id=")
+	builder.WriteString(_m.ChannelID)
+	builder.WriteString(", ")
 	builder.WriteString("criado_em=")
 	builder.WriteString(_m.CriadoEm.Format(time.ANSIC))
 	builder.WriteString(", ")

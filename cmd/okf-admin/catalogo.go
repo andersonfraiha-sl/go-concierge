@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"go-concierge/internal/banco"
@@ -34,7 +35,7 @@ func abrirCatalogo(semente string, db banco.Banco) (*okf.Catalogo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("abrir catálogo: %w", err)
 	}
-	cat.Persistir = persistirNoBanco(pg, cat.Root)
+	cat.Persistir = persistirNoBanco(pg, cat.Root, cat.RemocoesDaEscrita)
 	return cat, nil
 }
 
@@ -91,18 +92,50 @@ func semearOuAvisar(ctx context.Context, pg *catalogo.Postgres, semente string) 
 	return nil
 }
 
-// persistirNoBanco é o gancho do okf.Catalogo: lê a cópia de trabalho inteira e deixa o banco
-// igual. A comparação é do catálogo todo, então uma falha de banco se corrige na próxima
-// escrita que der certo.
-func persistirNoBanco(pg *catalogo.Postgres, copia string) func() error {
+func persistirNoBanco(pg *catalogo.Postgres, copia string, remocoes ...func() []string) func() error {
+	conhecidos, inicialErr := catalogo.LerDisco(copia)
+	pendentes := map[string]bool{}
 	return func() error {
+		if inicialErr != nil {
+			return inicialErr
+		}
 		noDisco, err := catalogo.LerDisco(copia)
 		if err != nil {
 			return err
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeoutPersistir)
 		defer cancel()
-		_, err = pg.Substituir(ctx, noDisco)
+		var remover []string
+		if len(remocoes) > 0 {
+			remover = remocoes[0]()
+		}
+		presentes := make(map[string]bool, len(noDisco))
+		for _, a := range noDisco {
+			presentes[a.Caminho] = true
+		}
+		remover = slices.DeleteFunc(remover, func(caminho string) bool { return presentes[caminho] })
+		resumos := make(map[string]string, len(conhecidos))
+		for _, a := range conhecidos {
+			resumos[a.Caminho] = catalogo.SHA256(a.Conteudo)
+		}
+		alterados, _ := catalogo.Diferenca(resumos, noDisco)
+		for _, a := range alterados {
+			pendentes[a.Caminho] = true
+		}
+		for _, caminho := range remover {
+			pendentes[caminho] = true
+		}
+		var gravar []catalogo.Arquivo
+		for _, a := range noDisco {
+			if pendentes[a.Caminho] {
+				gravar = append(gravar, a)
+			}
+		}
+		_, err = pg.Substituir(ctx, gravar, remover...)
+		if err == nil {
+			conhecidos = noDisco
+			clear(pendentes)
+		}
 		return err
 	}
 }

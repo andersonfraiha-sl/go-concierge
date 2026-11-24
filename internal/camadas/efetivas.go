@@ -174,7 +174,7 @@ func (e *Efetivas) DoCondominio(administradora, condominio string, agora time.Ti
 	if c == nil {
 		return nil
 	}
-	doCondominio, daAdministradora := c.condominios[condominio], c.administradoras[administradora]
+	doCondominio, daAdministradora := c.condominios[chaveCondominio(administradora, condominio)], c.administradoras[administradora]
 	return func(skill string) (okf.SkillEfetiva, bool) {
 		base, ok := c.bases[skill]
 		if !ok || encerrada(base, agora) {

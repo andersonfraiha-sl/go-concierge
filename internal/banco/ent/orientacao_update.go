@@ -28,6 +28,40 @@ func (_u *OrientacaoUpdate) Where(ps ...predicate.Orientacao) *OrientacaoUpdate 
 	return _u
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_u *OrientacaoUpdate) SetScopeType(v string) *OrientacaoUpdate {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *OrientacaoUpdate) SetNillableScopeType(v *string) *OrientacaoUpdate {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
+// SetCompanyID sets the "company_id" field.
+func (_u *OrientacaoUpdate) SetCompanyID(v string) *OrientacaoUpdate {
+	_u.mutation.SetCompanyID(v)
+	return _u
+}
+
+// SetNillableCompanyID sets the "company_id" field if the given value is not nil.
+func (_u *OrientacaoUpdate) SetNillableCompanyID(v *string) *OrientacaoUpdate {
+	if v != nil {
+		_u.SetCompanyID(*v)
+	}
+	return _u
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (_u *OrientacaoUpdate) ClearCompanyID() *OrientacaoUpdate {
+	_u.mutation.ClearCompanyID()
+	return _u
+}
+
 // SetCondominioID sets the "condominio_id" field.
 func (_u *OrientacaoUpdate) SetCondominioID(v string) *OrientacaoUpdate {
 	_u.mutation.SetCondominioID(v)
@@ -120,6 +154,15 @@ func (_u *OrientacaoUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 			}
 		}
 	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(orientacao.FieldScopeType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CompanyID(); ok {
+		_spec.SetField(orientacao.FieldCompanyID, field.TypeString, value)
+	}
+	if _u.mutation.CompanyIDCleared() {
+		_spec.ClearField(orientacao.FieldCompanyID, field.TypeString)
+	}
 	if value, ok := _u.mutation.Geral(); ok {
 		_spec.SetField(orientacao.FieldGeral, field.TypeString, value)
 	}
@@ -173,6 +216,40 @@ type OrientacaoUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *OrientacaoMutation
+}
+
+// SetScopeType sets the "scope_type" field.
+func (_u *OrientacaoUpdateOne) SetScopeType(v string) *OrientacaoUpdateOne {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *OrientacaoUpdateOne) SetNillableScopeType(v *string) *OrientacaoUpdateOne {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
+// SetCompanyID sets the "company_id" field.
+func (_u *OrientacaoUpdateOne) SetCompanyID(v string) *OrientacaoUpdateOne {
+	_u.mutation.SetCompanyID(v)
+	return _u
+}
+
+// SetNillableCompanyID sets the "company_id" field if the given value is not nil.
+func (_u *OrientacaoUpdateOne) SetNillableCompanyID(v *string) *OrientacaoUpdateOne {
+	if v != nil {
+		_u.SetCompanyID(*v)
+	}
+	return _u
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (_u *OrientacaoUpdateOne) ClearCompanyID() *OrientacaoUpdateOne {
+	_u.mutation.ClearCompanyID()
+	return _u
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -296,6 +373,15 @@ func (_u *OrientacaoUpdateOne) sqlSave(ctx context.Context) (_node *Orientacao, 
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(orientacao.FieldScopeType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.CompanyID(); ok {
+		_spec.SetField(orientacao.FieldCompanyID, field.TypeString, value)
+	}
+	if _u.mutation.CompanyIDCleared() {
+		_spec.ClearField(orientacao.FieldCompanyID, field.TypeString)
 	}
 	if value, ok := _u.mutation.Geral(); ok {
 		_spec.SetField(orientacao.FieldGeral, field.TypeString, value)

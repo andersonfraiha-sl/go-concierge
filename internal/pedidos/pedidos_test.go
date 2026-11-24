@@ -148,8 +148,8 @@ func TestMotorDaReserva(t *testing.T) {
 	ct := casoReserva(t)
 	amb := &ambienteFalso{unidades: []any{map[string]any{"id": "109", "label": "Jataí - 101"}}}
 	cart := &Carteira{AdministradoraID: "adm-a", Telefone: "5511999"}
-	p := cart.Novo(ct, "reserva-area-comum", "cond-1", Origem{ProtocoloAtende: "ATD-1"})
-	if p.AdministradoraID != "adm-a" || p.CondominioID != "cond-1" {
+	p := cart.Novo(ct, "reserva-area-comum", "101", Origem{ProtocoloAtende: "ATD-1"})
+	if p.AdministradoraID != "adm-a" || p.CondominioID != "101" {
 		t.Fatalf("escopo do pedido: %+v", p)
 	}
 	if !strings.HasPrefix(p.Protocolo, "P-") || len(p.Protocolo) != len("P-")+8 || p.Estado != Coletando {
@@ -216,7 +216,7 @@ func TestMotorDaReserva(t *testing.T) {
 
 	// um segundo pedido reaproveita a unidade (reuse: always) mesmo com duas unidades
 	amb.unidades = append(amb.unidades, map[string]any{"id": "110", "label": "Jataí - 102"})
-	p2 := cart.Novo(ct, "reserva-area-comum", "cond-1", Origem{})
+	p2 := cart.Novo(ct, "reserva-area-comum", "101", Origem{})
 	s = Avancar(ctx, ct, p2, cart, amb)
 	if p2.Valores["unidade"] != "109" || p2.Origens["unidade"] != OrigemMemoria || s.Slot != "area" {
 		t.Fatalf("unidade reutilizada do pedido anterior: %+v %+v", p2.Valores, s)
@@ -384,7 +384,7 @@ func slots(ct *Contrato) []*Slot {
 func TestResumoParaAtendente(t *testing.T) {
 	ct := casoReserva(t)
 	var c Carteira
-	p := c.Novo(ct, "reserva-area-comum", "cond-1", Origem{ProtocoloAtende: "ATD-9"})
+	p := c.Novo(ct, "reserva-area-comum", "101", Origem{ProtocoloAtende: "ATD-9"})
 	p.Valor("area", "salao", "Salão de festas", OrigemMorador)
 	p.Pendencia = &Pendencia{Slot: "data", Pergunta: "Para qual data? (dd/mm)", Vezes: 2, Motivo: "data inválida"}
 	r := ResumoParaAtendente(ct, p, []string{"morador: dia trinta e dois", "concierge: Não consegui usar a resposta"})

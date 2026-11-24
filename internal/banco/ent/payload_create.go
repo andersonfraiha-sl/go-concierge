@@ -22,6 +22,26 @@ type PayloadCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_c *PayloadCreate) SetScopeType(v string) *PayloadCreate {
+	_c.mutation.SetScopeType(v)
+	return _c
+}
+
+// SetCompanyID sets the "company_id" field.
+func (_c *PayloadCreate) SetCompanyID(v string) *PayloadCreate {
+	_c.mutation.SetCompanyID(v)
+	return _c
+}
+
+// SetNillableCompanyID sets the "company_id" field if the given value is not nil.
+func (_c *PayloadCreate) SetNillableCompanyID(v *string) *PayloadCreate {
+	if v != nil {
+		_c.SetCompanyID(*v)
+	}
+	return _c
+}
+
 // SetCondominioID sets the "condominio_id" field.
 func (_c *PayloadCreate) SetCondominioID(v string) *PayloadCreate {
 	_c.mutation.SetCondominioID(v)
@@ -87,6 +107,9 @@ func (_c *PayloadCreate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *PayloadCreate) check() error {
+	if _, ok := _c.mutation.ScopeType(); !ok {
+		return &ValidationError{Name: "scope_type", err: errors.New(`ent: missing required field "Payload.scope_type"`)}
+	}
 	if _, ok := _c.mutation.Recurso(); !ok {
 		return &ValidationError{Name: "recurso", err: errors.New(`ent: missing required field "Payload.recurso"`)}
 	}
@@ -125,6 +148,14 @@ func (_c *PayloadCreate) createSpec() (*Payload, *sqlgraph.CreateSpec) {
 		_spec = sqlgraph.NewCreateSpec(payload.Table, sqlgraph.NewFieldSpec(payload.FieldID, field.TypeInt))
 	)
 	_spec.OnConflict = _c.conflict
+	if value, ok := _c.mutation.ScopeType(); ok {
+		_spec.SetField(payload.FieldScopeType, field.TypeString, value)
+		_node.ScopeType = value
+	}
+	if value, ok := _c.mutation.CompanyID(); ok {
+		_spec.SetField(payload.FieldCompanyID, field.TypeString, value)
+		_node.CompanyID = value
+	}
 	if value, ok := _c.mutation.Recurso(); ok {
 		_spec.SetField(payload.FieldRecurso, field.TypeString, value)
 		_node.Recurso = value
@@ -157,7 +188,7 @@ func (_c *PayloadCreate) createSpec() (*Payload, *sqlgraph.CreateSpec) {
 // of the `INSERT` statement. For example:
 //
 //	client.Payload.Create().
-//		SetCondominioID(v).
+//		SetScopeType(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -166,7 +197,7 @@ func (_c *PayloadCreate) createSpec() (*Payload, *sqlgraph.CreateSpec) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.PayloadUpsert) {
-//			SetCondominioID(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *PayloadCreate) OnConflict(opts ...sql.ConflictOption) *PayloadUpsertOne {
@@ -201,6 +232,36 @@ type (
 		*sql.UpdateSet
 	}
 )
+
+// SetScopeType sets the "scope_type" field.
+func (u *PayloadUpsert) SetScopeType(v string) *PayloadUpsert {
+	u.Set(payload.FieldScopeType, v)
+	return u
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *PayloadUpsert) UpdateScopeType() *PayloadUpsert {
+	u.SetExcluded(payload.FieldScopeType)
+	return u
+}
+
+// SetCompanyID sets the "company_id" field.
+func (u *PayloadUpsert) SetCompanyID(v string) *PayloadUpsert {
+	u.Set(payload.FieldCompanyID, v)
+	return u
+}
+
+// UpdateCompanyID sets the "company_id" field to the value that was provided on create.
+func (u *PayloadUpsert) UpdateCompanyID() *PayloadUpsert {
+	u.SetExcluded(payload.FieldCompanyID)
+	return u
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (u *PayloadUpsert) ClearCompanyID() *PayloadUpsert {
+	u.SetNull(payload.FieldCompanyID)
+	return u
+}
 
 // SetCondominioID sets the "condominio_id" field.
 func (u *PayloadUpsert) SetCondominioID(v string) *PayloadUpsert {
@@ -282,6 +343,41 @@ func (u *PayloadUpsertOne) Update(set func(*PayloadUpsert)) *PayloadUpsertOne {
 		set(&PayloadUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetScopeType sets the "scope_type" field.
+func (u *PayloadUpsertOne) SetScopeType(v string) *PayloadUpsertOne {
+	return u.Update(func(s *PayloadUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *PayloadUpsertOne) UpdateScopeType() *PayloadUpsertOne {
+	return u.Update(func(s *PayloadUpsert) {
+		s.UpdateScopeType()
+	})
+}
+
+// SetCompanyID sets the "company_id" field.
+func (u *PayloadUpsertOne) SetCompanyID(v string) *PayloadUpsertOne {
+	return u.Update(func(s *PayloadUpsert) {
+		s.SetCompanyID(v)
+	})
+}
+
+// UpdateCompanyID sets the "company_id" field to the value that was provided on create.
+func (u *PayloadUpsertOne) UpdateCompanyID() *PayloadUpsertOne {
+	return u.Update(func(s *PayloadUpsert) {
+		s.UpdateCompanyID()
+	})
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (u *PayloadUpsertOne) ClearCompanyID() *PayloadUpsertOne {
+	return u.Update(func(s *PayloadUpsert) {
+		s.ClearCompanyID()
+	})
 }
 
 // SetCondominioID sets the "condominio_id" field.
@@ -467,7 +563,7 @@ func (_c *PayloadCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.PayloadUpsert) {
-//			SetCondominioID(v+v).
+//			SetScopeType(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *PayloadCreateBulk) OnConflict(opts ...sql.ConflictOption) *PayloadUpsertBulk {
@@ -534,6 +630,41 @@ func (u *PayloadUpsertBulk) Update(set func(*PayloadUpsert)) *PayloadUpsertBulk 
 		set(&PayloadUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetScopeType sets the "scope_type" field.
+func (u *PayloadUpsertBulk) SetScopeType(v string) *PayloadUpsertBulk {
+	return u.Update(func(s *PayloadUpsert) {
+		s.SetScopeType(v)
+	})
+}
+
+// UpdateScopeType sets the "scope_type" field to the value that was provided on create.
+func (u *PayloadUpsertBulk) UpdateScopeType() *PayloadUpsertBulk {
+	return u.Update(func(s *PayloadUpsert) {
+		s.UpdateScopeType()
+	})
+}
+
+// SetCompanyID sets the "company_id" field.
+func (u *PayloadUpsertBulk) SetCompanyID(v string) *PayloadUpsertBulk {
+	return u.Update(func(s *PayloadUpsert) {
+		s.SetCompanyID(v)
+	})
+}
+
+// UpdateCompanyID sets the "company_id" field to the value that was provided on create.
+func (u *PayloadUpsertBulk) UpdateCompanyID() *PayloadUpsertBulk {
+	return u.Update(func(s *PayloadUpsert) {
+		s.UpdateCompanyID()
+	})
+}
+
+// ClearCompanyID clears the value of the "company_id" field.
+func (u *PayloadUpsertBulk) ClearCompanyID() *PayloadUpsertBulk {
+	return u.Update(func(s *PayloadUpsert) {
+		s.ClearCompanyID()
+	})
 }
 
 // SetCondominioID sets the "condominio_id" field.

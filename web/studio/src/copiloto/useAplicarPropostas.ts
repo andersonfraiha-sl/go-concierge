@@ -40,10 +40,10 @@ async function aplicarUma(
   proposta: Proposta,
   { escopo, confirmar }: PedidoDeAplicacao,
 ): Promise<void> {
-  const lerEstado = () =>
+  const lerEstado = (condominio?: string) =>
     cliente.fetchQuery({
-      queryKey: chaveDoEstado(escopo),
-      queryFn: () => buscarEstado(escopo),
+      queryKey: chaveDoEstado(escopo, condominio),
+      queryFn: () => buscarEstado(escopo, condominio),
       staleTime: 0,
     });
   const operacao = operacaoDaVez(proposta.operacao, criadas.get(proposta.id));

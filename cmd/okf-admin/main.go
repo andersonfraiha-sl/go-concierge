@@ -16,7 +16,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,6 +46,8 @@ import (
 	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
 	"go-concierge/internal/banco"
+	"go-concierge/internal/camadas"
+	"go-concierge/internal/canais"
 	"go-concierge/internal/catalogonexus"
 	"go-concierge/internal/env"
 	"go-concierge/internal/escopo"
@@ -162,9 +163,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := garantirAdminDev(context.Background(), cfg.Ambiente, cfg.AuthMode, acesso.NovoPostgres(db.Ent).Atribuir); err != nil {
+		log.Fatal(err)
+	}
 
 	cat, err := abrirCatalogo(*root, db)
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := semearBootstrapDevAtende(context.Background(), cfg.Ambiente, strings.EqualFold(strings.TrimSpace(os.Getenv("BOOTSTRAP_DEV_ATENDE")), "true"), db, configBootstrapDev{
+		CompanyID: os.Getenv("NEXUS_COMPANY_ID"), Tenant: os.Getenv("ATENDE_TENANT_ID"),
+		Telefone: os.Getenv("ATENDE_TENANT_TELEFONE"), Agente: os.Getenv("ATENDE_AGENTE"),
+		APIBaseURL: os.Getenv("ATENDE_API_BASE_URL"), APIKey: os.Getenv("ATENDE_API_KEY"),
+		WebhookSecret: os.Getenv("ATENDE_API_SECRET"), GruviCompany: os.Getenv("GRUVI_COMPANY_ID"),
+		NexusAccount: os.Getenv("DEFAULT_ACCOUNT_ID"),
+	}); err != nil {
 		log.Fatal(err)
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
@@ -192,7 +205,7 @@ func main() {
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
 	s := &servidor{cat: cat, web: web.OKF, studio: web.Studio, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
 		prazoDoCatalogo:   prazoCatalogo,
-		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("ADMINISTRADORA_ID"))},
+		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("NEXUS_COMPANY_ID"))},
 		autenticador:      novoAutenticador(cfg.AuthMode, os.Getenv("AUTH_DEV_USUARIO")),
 		authMode:          cfg.AuthMode,
 		acessos:           acesso.NovoPostgres(db.Ent),
@@ -239,12 +252,10 @@ func main() {
 	s.replyURL = "http://" + *addr + "/emulador/atende/messages"
 	s.replyEmulada = true
 	s.outbox.Emulado = &atende.HTTPSender{URL: s.replyURL, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
-	if s.atendeBaseURL != "" && s.atendeAPIKey != "" {
-		s.outbox.ATENDE = &atende.ATENDESender{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
-		transferidores.ATENDE = &atende.ATENDETransferidor{BaseURL: s.atendeBaseURL, APIKey: s.atendeAPIKey}
-	} else if replyURLLegada != "" {
-		s.outbox.ATENDE = &atende.HTTPSender{URL: replyURLLegada, Token: os.Getenv("ATENDE_REPLY_TOKEN")}
-	}
+	_ = replyURLLegada
+	canaisPG := canais.NovoPostgres(db.Pool)
+	s.outbox.ATENDE = atende.SenderPorCanal{Canais: canaisPG}
+	transferidores.ATENDE = atende.TransferidorPorCanal{Canais: canaisPG}
 	// o sinal de desligamento cancela o ctx do servidor: o HTTP para de aceitar conexões e a
 	// retenção da auditoria para. Um segundo sinal volta ao padrão e mata na hora.
 	prazoDesligar, err := prazoDeDesligamento(os.Getenv("DESLIGAMENTO_PRAZO"))
@@ -275,11 +286,36 @@ func main() {
 	// o Studio e o turno dividem o cache: as escritas de um aparecem no outro
 	s.memorias = memoria.NovoCache(memoria.NovoPostgres(db))
 	s.atende = &atende.Servico{
-		Cat: cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
+		Canais: canaisPG,
+		Cat:    cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
 		Gruvi:  s.gruvi, Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(atende.NovoSessaoPostgres(db)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 		Pool: db.Pool, Ganchos: conjunto, Auditoria: auditor,
+	}
+	repoCamadas := camadas.NovoPostgres(db.Ent).Repo()
+	s.atende.CamadasDe = func(ctx context.Context, company string, condo *int, agora time.Time) (harness.SkillPublicadaFunc, error) {
+		retrato, err := repoCamadas.LerRetratoDoEscopo(ctx, company, condo)
+		if err != nil {
+			return nil, err
+		}
+		if len(retrato.Bases) == 0 {
+			return nil, nil
+		}
+		efetivas := camadas.NovasEfetivas(s.registro)
+		efetivas.Trocar(retrato)
+		id := ""
+		if condo != nil {
+			id = fmt.Sprint(*condo)
+		}
+		consulta := efetivas.DoCondominio(company, id, agora)
+		return func(skill string) (okf.SkillEfetiva, bool, bool) {
+			if _, ok := retrato.Bases[skill]; !ok {
+				return okf.SkillEfetiva{}, false, false
+			}
+			v, ok := consulta(skill)
+			return v, ok, true
+		}, nil
 	}
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
@@ -295,32 +331,12 @@ func main() {
 		s.atende.ExtratorPedidos = harness.NovoExtratorPedidos(context.Background(), cfgHarness)
 	}
 
-	// Admin das administradoras: mapeamento condomínio × casos de uso × payloads. O
-	// condomínio de exemplo (DEFAULT_ACCOUNT_ID) só existe para o emulador em dev. Sem
-	// GRUVI_COMPANY_ID ele ganha a company "exemplo": condomínio sem company não é atendido,
-	// e sem Gruvi configurado a identidade não é consultada.
 	adminPG := admin.NovoPostgres(db.Ent)
 	s.admin = adminPG
-	exemplo := admin.Condominio{ID: account, Nome: "Condomínio exemplo", Administradora: "adm-exemplo", Account: account, CompanyID: cmp.Or(s.gruviCompany, "exemplo"), Tenant: env.Ou("ATENDE_TENANT_ID", env.Ou("ATENDE_TENANT", "69a5a131e67bd8e2f54e5981"))}
-	if err := semearMapeamento(s.admin, cfg.Ambiente, exemplo); err != nil {
-		log.Fatal(err)
-	}
 	if err := garantirAdminInicial(context.Background(), cfg.AdminInicial, acesso.NovoPostgres(db.Ent).Atribuir); err != nil {
 		log.Fatal(err)
 	}
-	if ehDesenvolvimento(cfg.Ambiente) && cfg.AuthMode == authModeDev {
-		rbac := acesso.NovoPostgres(db.Ent)
-		if err := semearAcessoDev(context.Background(), adminPG, acessoDev{conceder: rbac.Conceder, atribuir: rbac.Atribuir}, exemplo.ID); err != nil {
-			log.Fatal(err)
-		}
-	}
-	// o turno lê o mapeamento do cache (cada escrita do Admin o atualiza); Admin e RBAC leem
-	// direto do banco. Aquecido aqui para nenhum turno pagar a primeira leitura.
-	mapeamento := admin.NovoCache(adminPG)
-	if _, err := mapeamento.Ler(context.Background()); err != nil {
-		log.Printf("okf-admin: mapeamento não aquecido no boot, o primeiro turno lê do banco: %v", err)
-	}
-	s.atende.Mapeamento = mapeamento
+	s.atende.Mapeamento = adminPG
 	if c, ok := harness.NovoCopiloto(s.atende.Config); ok {
 		s.copiloto = c
 	}
@@ -413,7 +429,7 @@ func flagInformada(nome string) bool {
 }
 
 const comoSubirPostgres = "suba o Postgres com ./build.sh --run, ou com docker compose up -d postgres e " +
-	"DATABASE_URL=postgres://concierge:concierge@127.0.0.1:5432/concierge?sslmode=disable"
+	"DATABASE_URL=postgres://concierge:concierge@127.0.0.1:5432/concierge_v2?sslmode=disable"
 
 func abrirBanco(url string, migrar bool) (banco.Banco, error) {
 	if url == "" {

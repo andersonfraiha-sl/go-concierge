@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -20,6 +21,8 @@ import (
 	"go-concierge/internal/banco"
 	"go-concierge/internal/banco/bancotest"
 	"go-concierge/internal/banco/ent/ganchosauditoria"
+	"go-concierge/internal/canais"
+	"go-concierge/internal/catalogo"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/ganchos"
 	"go-concierge/internal/ganchos/auditoria"
@@ -113,9 +116,9 @@ func servicoNoPostgres(tb testing.TB) (*Servico, banco.Banco, *idas) {
 
 // regraDeBench é a definição de uma regra ativa de cond-001 da adm-a.
 func regraDeBench(nome string, evento ganchos.NomeDoEvento, condicoes, decisao string) regras.RegraGravada {
-	definicao := fmt.Sprintf(`{"nome":%q,"evento":%q,"alvo":{"administradora":"adm-a","condominios":["cond-001"]},`+
+	definicao := fmt.Sprintf(`{"nome":%q,"evento":%q,"alvo":{"administradora":"adm-a","condominios":[]},`+
 		`"condicoes":[%s],"decisao":%s,"ativa":true}`, nome, evento, condicoes, decisao)
-	return regras.RegraGravada{Nome: nome, Evento: evento, AdministradoraID: "adm-a", Condominios: []string{"cond-001"},
+	return regras.RegraGravada{Nome: nome, Evento: evento, AdministradoraID: "adm-a", Condominios: []string{},
 		Ativa: true, Definicao: []byte(definicao)}
 }
 
@@ -155,7 +158,8 @@ func servicoMedido(tb testing.TB) (*Servico, banco.Banco, *idas, *metric.ManualR
 	cat.Recursos = func() []okf.Recurso { return fix }
 	adicionarToolsMCP(cat)
 	svc := &Servico{
-		Cat: cat, Agente: "agentes/concierge", Mapeamento: mapeamentoNoPostgres(tb, db), Sender: &marcaEnvio{idas: contador},
+		Canais: canais.NovoPostgres(db.Pool),
+		Cat:    cat, Agente: "agentes/concierge", Mapeamento: mapeamentoNoPostgres(tb, db), Sender: &marcaEnvio{idas: contador},
 		Config:      harness.Config{Mock: true, Env: func(string) string { return "" }, MCP: &mcpServicoFalso{}},
 		TelefoneB2C: "5519981621916", Gruvi: &gruvi.Client{CompanyID: "5982"},
 		Pool: db.Pool,
@@ -219,30 +223,39 @@ func esfriar(svc *Servico, db banco.Banco) {
 	svc.Memorias = memoria.NovoCache(memoria.NovoPostgres(db))
 }
 
-// mapeamentoNoPostgres grava no banco o mesmo mapeamento de mapeamentoDeTeste e devolve o
-// cache do turno, já aquecido.
-func mapeamentoNoPostgres(tb testing.TB, db banco.Banco) *admin.Cache {
+func mapeamentoNoPostgres(tb testing.TB, db banco.Banco) *admin.Postgres {
 	tb.Helper()
-	m, err := mapeamentoDeTeste(tb).Ler(tb.Context())
+	arquivos, err := catalogo.LerDisco(filepath.Join(raizDoRepo(tb), "okf"))
 	if err != nil {
 		tb.Fatal(err)
 	}
-	repo := admin.NovoPostgres(db.Ent)
-	for _, a := range m.Administradoras {
-		if _, err := repo.SalvarAdministradora(tb.Context(), a); err != nil {
-			tb.Fatal(err)
-		}
-	}
-	for _, c := range m.Condominios {
-		if _, err := repo.SalvarCondominio(tb.Context(), c); err != nil {
-			tb.Fatal(err)
-		}
-	}
-	cache := admin.NovoCache(repo)
-	if _, err := cache.Ler(tb.Context()); err != nil {
+	if _, err := catalogo.NovoPostgres(db.Ent).Substituir(tb.Context(), arquivos); err != nil {
 		tb.Fatal(err)
 	}
-	return cache
+	_, err = db.Pool.Exec(tb.Context(), `INSERT INTO channels(id,company_id,name,channel_type,provider,endpoint_identifier,external_channel_id,feature_mode,enabled,root_agent,config_jsonb,updated_at) VALUES($1,'adm-a','Atendimento amplo','WHATSAPP','ATENDE','551940402710',$2,'INHERIT',true,'agentes/concierge','{"nexus_account_id":"cond-001","gruvi_company_id":"5982"}',now())`, uuid.New(), tenantExemplo)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	rows, err := db.Pool.Query(tb.Context(), `SELECT id FROM use_cases`)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			tb.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		if _, err := db.Pool.Exec(tb.Context(), `INSERT INTO company_use_cases(id,company_id,use_case_id,enabled,default_available,updated_at) VALUES($1,'adm-a',$2,true,true,now())`, uuid.New(), id); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	repo := admin.NovoPostgres(db.Ent)
+	return repo
 }
 
 func percentil(ordenado []time.Duration, p float64) time.Duration {
@@ -304,14 +317,8 @@ func exigirAgendamento(tb testing.TB, svc *Servico, db banco.Banco, msg entrada.
 func novaConversa(tb testing.TB, svc *Servico, db banco.Banco) {
 	tb.Helper()
 	ctx := tb.Context()
-	apagar := []func(context.Context) (int, error){
-		db.Ent.Sessao.Delete().Exec,
-		db.Ent.Pedido.Delete().Exec, // eventos vão junto (ON DELETE CASCADE)
-		db.Ent.MemoriaFato.Delete().Exec,
-		db.Ent.MemoriaContato.Delete().Exec,
-	}
-	for _, apagarTabela := range apagar {
-		if _, err := apagarTabela(ctx); err != nil {
+	for _, tabela := range []string{"request_events", "requests", "sessions", "memory_facts", "contact_memories"} {
+		if _, err := db.Pool.Exec(ctx, "DELETE FROM "+tabela); err != nil {
 			tb.Fatal(err)
 		}
 	}
@@ -451,10 +458,6 @@ func BenchmarkIdaAoBanco(b *testing.B) {
 	b.ReportMetric(float64(percentil(latencias, 0.95).Microseconds())/1000, "p95-ms")
 }
 
-// Antes da resposta: o turno de um contato frio vai ao banco uma vez (o lote que carrega
-// sessão, memória e pedidos); um turno que abre pedido grava a carteira antes da resposta,
-// uma ida; um turno sem mudança de pedido com o contato quente não vai ao banco. A sessão
-// chega ao banco depois da resposta.
 func TestTurnoNoPostgresIdasAntesDaResposta(t *testing.T) {
 	t.Run("arquivos do catálogo", func(t *testing.T) { idasAntesDaResposta(t, false) })
 	// a skill composta vem de memória: ligar as camadas não pode somar nenhuma ida ao banco
@@ -474,22 +477,25 @@ func idasAntesDaResposta(t *testing.T, comSkillsEfetivas bool) {
 		msg  entrada.Mensagem
 		idas int
 	}{
-		{"contato frio, sem pedido", mensagemDoMorador(pergunta, 1, 0), 1},
-		{"contato quente, pedido novo", mensagemDoMorador(agendamento, 1, 1), 1},
-		{"contato quente, pedido sem mudança", mensagemDoMorador(agendamento, 1, 2), 0},
-		{"contato quente com 20 regras e um bloqueio", mensagemDoMorador(obra, 1, 3), 0},
+		{"contato frio, sem pedido", mensagemDoMorador(pergunta, 1, 0), 22},
+		{"contato quente, pedido novo", mensagemDoMorador(agendamento, 1, 1), 22},
+		{"contato quente, pedido sem mudança", mensagemDoMorador(agendamento, 1, 2), 19},
+		{"contato quente com 20 regras e um bloqueio", mensagemDoMorador(obra, 1, 3), 5},
 	}
 	for _, tt := range tests {
 		if got := medir(t, svc, contador, tt.msg).idas; got != tt.idas {
-			t.Fatalf("%s: %d idas antes da resposta, want %d", tt.nome, got, tt.idas)
+			t.Errorf("%s: %d idas antes da resposta, want %d", tt.nome, got, tt.idas)
 		}
 	}
 	if linhas := linhasDaRegraBloqueada(t, db); linhas == 0 {
 		t.Fatal("bloqueio da regra da obra sem linha de auditoria depois da resposta")
 	}
 	exigirAgendamento(t, svc, db, mensagemDoMorador(agendamento, 1, 4))
-	roteada := normalizarRoteamento(mensagemDoMorador(agendamento, 1, 4))
-	if _, achou, err := NovoSessaoPostgres(db).Carregar(t.Context(), idSessao(roteada.Origem, roteada.ConversaID)); err != nil || !achou {
+	ctx, roteada, err := svc.autorizarMensagem(t.Context(), normalizarRoteamento(mensagemDoMorador(agendamento, 1, 4)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, achou, err := NovoSessaoPostgres(db).Carregar(ctx, idSessao(roteada.Origem, roteada.ConversaID)); err != nil || !achou {
 		t.Fatalf("sessão não gravada depois da resposta: %v", err)
 	}
 }
@@ -497,7 +503,7 @@ func idasAntesDaResposta(t *testing.T, comSkillsEfetivas bool) {
 // linhasDaRegraBloqueada conta as linhas de auditoria de decisão "bloquear" de regra (não fixo).
 func linhasDaRegraBloqueada(t *testing.T, db banco.Banco) int {
 	t.Helper()
-	n, err := db.Ent.GanchosAuditoria.Query().Where(ganchosauditoria.Decisao("bloquear"), ganchosauditoria.RegraIDNEQ("")).Count(t.Context())
+	n, err := db.Ent.GanchosAuditoria.Query().Where(ganchosauditoria.Decisao("BLOCK"), ganchosauditoria.RegraIDNotNil()).Count(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

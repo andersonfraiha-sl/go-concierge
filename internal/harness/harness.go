@@ -30,6 +30,7 @@ import (
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"go-concierge/internal/ganchos"
@@ -56,6 +57,11 @@ const (
 // Config ajusta a construção do agente. O zero funciona: provedor e chave do
 // ambiente (LLM_MODE, GEMINI_API_KEY, OPENROUTER_API_KEY), e sem chave o Mock.
 type Config struct {
+	SkillPublicada    SkillPublicadaFunc
+	CompanyID         string
+	CondoID           *int
+	ChannelID         uuid.UUID
+	ValidarFerramenta func(string, map[string]any) error
 	// Modelo é o id no provedor; vazio usa `modelo:` do agent.yaml, senão o padrão do provedor.
 	Modelo string
 	// APIKey do provedor; vazio lê a chave do provedor resolvido em Env. Vertex usa ADC.
@@ -113,6 +119,8 @@ type Config struct {
 	Agora func() time.Time
 }
 
+type SkillPublicadaFunc func(string) (okf.SkillEfetiva, bool, bool)
+
 // Identidade é o que o AUTH (Nexus) disse do morador: identificado ou não, em
 // qual account e com qual papel. Recurso `private` só com Authenticated.
 type Identidade struct {
@@ -168,6 +176,9 @@ func Build(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config) (*A
 func construir(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config, efetiva *okf.SkillEfetiva) (*Agente, error) {
 	if cat == nil || a == nil {
 		return nil, errors.New("harness: catálogo e agente são obrigatórios")
+	}
+	if cfg.CompanyID != "" && a.Caso != nil && cfg.Casos != nil && !cfg.Casos(a.Nome, a.Caso.ID) {
+		return nil, errors.New("caso de uso indisponível para o canal e papel atuais")
 	}
 	if cfg.MaxIteracoes <= 0 {
 		cfg.MaxIteracoes = maxIteracoesPadrao
@@ -250,10 +261,23 @@ func construir(ctx context.Context, cat *okf.Catalogo, a *okf.Agent, cfg Config,
 // skill efetiva (o arquivo da pasta não é tocado); sem efetiva, o caso não é oferecido.
 func subagenteUsado(s *okf.Agent, raiz bool, cfg Config) (*okf.Agent, *okf.SkillEfetiva, bool) {
 	if !raiz {
+		if cfg.CompanyID != "" && s.Caso != nil && cfg.Casos != nil && !cfg.Casos(s.Nome, s.Caso.ID) {
+			return nil, nil, false
+		}
 		return s, nil, true
 	}
 	var efetiva *okf.SkillEfetiva
-	if cfg.Skills != nil {
+	if cfg.SkillPublicada != nil {
+		composta, disponivel, configurada := cfg.SkillPublicada(s.Rel)
+		if configurada {
+			if !disponivel {
+				return nil, nil, false
+			}
+			copia := *s
+			copia.Caso, copia.Descricao = composta.Caso, composta.Descricao
+			s, efetiva = &copia, &composta
+		}
+	} else if cfg.Skills != nil {
 		composta, ok := cfg.Skills(s.Nome)
 		if !ok {
 			return nil, nil, false
@@ -281,6 +305,9 @@ func orientacaoDe(cfg Config, a *okf.Agent, efetiva *okf.SkillEfetiva) string {
 		if o := strings.TrimSpace(efetiva.Orientacao); o != "" {
 			return o
 		}
+	}
+	if cfg.CompanyID != "" {
+		return strings.TrimSpace(cfg.Orientacoes[casoIDDe(a)])
 	}
 	return strings.TrimSpace(cfg.Orientacoes[a.Nome])
 }

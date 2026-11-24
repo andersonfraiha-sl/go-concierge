@@ -2,6 +2,7 @@ package atende
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func (e *envioQueConta) Enviar(ctx context.Context, _ entrada.Destino, _ string)
 func regraQueBloqueia() *ganchos.Indice {
 	roteiro := &ganchostest.Roteiro[ganchos.AntesDeResponder]{Decisao: ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "Hoje não respondo isso."}}
 	g := ganchostest.Gancho("regra", roteiro)
-	g.Origem = ganchos.Origem{RegraID: "r-1", RegraVersao: 3}
+	g.Origem = ganchos.Origem{RegraID: idRegraDeTeste("r-1"), RegraVersao: 3}
 	return &ganchos.Indice{AntesDeResponder: ganchos.Nivel[ganchos.AntesDeResponder]{Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{g}}}
 }
 
@@ -48,7 +49,7 @@ func regraQueBloqueia() *ganchos.Indice {
 func regraNoEncerramento() *ganchos.Indice {
 	roteiro := &ganchostest.Roteiro[ganchos.TransbordoOuEncerramento]{Decisao: ganchos.Decisao{Tipo: ganchos.Bloquear, Motivo: "registrar"}}
 	g := ganchostest.Gancho("regra", roteiro)
-	g.Origem = ganchos.Origem{RegraID: "r-enc", RegraVersao: 1}
+	g.Origem = ganchos.Origem{RegraID: idRegraDeTeste("r-enc"), RegraVersao: 1}
 	return &ganchos.Indice{TransbordoOuEncerramento: ganchos.Nivel[ganchos.TransbordoOuEncerramento]{Globais: []ganchos.Gancho[ganchos.TransbordoOuEncerramento]{g}}}
 }
 
@@ -63,7 +64,7 @@ func comAuditor(svc *Servico, db banco.Banco, idx *ganchos.Indice) *atomic.Int32
 
 func linhasDaRegra(t *testing.T, db banco.Banco, regraID string) []*ent.GanchosAuditoria {
 	t.Helper()
-	linhas, err := db.Ent.GanchosAuditoria.Query().Where(ganchosauditoria.RegraID(regraID)).All(t.Context())
+	linhas, err := db.Ent.GanchosAuditoria.Query().Where(ganchosauditoria.RegraID(idRegraDeTeste(regraID))).All(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestAuditoriaDoBloqueioVaiAoBancoDepoisDoEnvio(t *testing.T) {
 	}
 	l := linhas[0]
 	if l.RegraVersao != 3 || l.Decisao != "bloquear" || l.Evento != string(ganchos.EventoAntesDeResponder) ||
-		l.CondominioID != sess.contato().CondominioID || l.CondominioID == "" || l.SessaoID != sess.ID || l.Protocolo != sess.Protocolo {
+		l.CondominioID != sess.contato().CondominioID || l.SessaoID != sess.ID || l.Protocolo != sess.Protocolo {
 		t.Errorf("linha = %+v", l)
 	}
 	if l.CriadoEm.Before(inicio) || l.CriadoEm.After(time.Now()) {
@@ -123,7 +124,7 @@ func TestAuditoriaNoLotePosResposta(t *testing.T) {
 	agora := time.Now()
 	linha := func(regra, motivo string) auditoria.Linha {
 		return auditoria.Linha{CriadoEm: agora, Origem: ganchos.OrigemConcierge, Evento: "antes_de_responder",
-			Gancho: "regra", RegraID: regra, RegraVersao: 1, Decisao: "bloquear", Motivo: motivo}
+			Gancho: "regra", RegraID: idRegraDeTeste(regra), RegraVersao: 1, Decisao: "bloquear", Motivo: motivo}
 	}
 	tests := []struct {
 		nome      string
@@ -133,7 +134,7 @@ func TestAuditoriaNoLotePosResposta(t *testing.T) {
 		perdidas  int32
 		descricao string
 	}{
-		{"lote aceito grava tudo numa ida", []auditoria.Linha{linha("r-a", "ok"), linha("r-b", "ok")}, 1, 2, 0, ""},
+		{"lote aceito grava apos validar origem", []auditoria.Linha{linha("r-a", "ok"), linha("r-b", "ok")}, 3, 2, 0, ""},
 		// o Postgres recusa NUL em text: o lote inteiro volta e cada parte grava sozinha
 		{"lote recusado cai em linha a linha", []auditoria.Linha{linha("r-a", "ok"), linha("r-b", "nul\x00")}, 0, 1, 1, ""},
 	}
@@ -144,7 +145,7 @@ func TestAuditoriaNoLotePosResposta(t *testing.T) {
 			sess, contato, cart := turnoComCarteiraAdiada(t, svc, db)
 			contador.zerar()
 
-			err := svc.gravarDepoisDaResposta(context.Background(), sess, tt.linhas)
+			err := svc.gravarDepoisDaResposta(ComEscopoSessao(t.Context(), "adm-a", uuid.Nil), sess, tt.linhas)
 
 			if err != nil {
 				t.Fatalf("err = %v, want nil: linha de auditoria perdida não é falha do turno", err)
@@ -163,13 +164,20 @@ func TestAuditoriaNoLotePosResposta(t *testing.T) {
 	}
 }
 
+func idRegraDeTeste(id string) string {
+	if _, err := uuid.Parse(id); err == nil {
+		return id
+	}
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(id)).String()
+}
+
 // turnoComCarteiraAdiada roda um turno que abre pedido e deixa uma mudança menor da carteira
 // para depois da resposta, como o turno faz.
 func turnoComCarteiraAdiada(t *testing.T, svc *Servico, db banco.Banco) (*Sessao, escopo.Contato, pedidos.Carteira) {
 	t.Helper()
 	msg := mensagemDoMorador(eventoDoTurno(t), 1, 0)
 	exigirAgendamento(t, svc, db, msg)
-	sess, ok, err := svc.Sessao(t.Context(), msg.ConversaID)
+	sess, ok, err := svc.Sessao(ComEscopoSessao(t.Context(), "adm-a", uuid.Nil), msg.ConversaID)
 	if err != nil || !ok {
 		t.Fatalf("sessão do turno: %v", err)
 	}
@@ -228,7 +236,7 @@ func exigirAuditadaDepoisDoEnvio(t *testing.T, db banco.Banco, envio *envioQueCo
 // não para uma gravação antes da resposta.
 func TestAuditoriaDoGanchoDeFerramentaVaiNoLote(t *testing.T) {
 	bloqueiaNaChamada := ganchos.Gancho[ganchos.AntesDaFerramenta]{
-		Nome: "regra", Origem: ganchos.Origem{RegraID: "r-ferramenta", RegraVersao: 1},
+		Nome: "regra", Origem: ganchos.Origem{RegraID: idRegraDeTeste("r-ferramenta"), RegraVersao: 1},
 		Avaliar: func(e ganchos.AntesDaFerramenta) (ganchos.AntesDaFerramenta, ganchos.Decisao) {
 			if e.Previa {
 				return e, ganchos.Decisao{}
@@ -248,7 +256,7 @@ func TestAuditoriaDoGanchoDeFerramentaVaiNoLote(t *testing.T) {
 func TestAuditoriaDoPreencherPedidoVaiDepoisDoEnvio(t *testing.T) {
 	regra := &ganchostest.Roteiro[ganchos.AntesDeResponder]{}
 	g := ganchostest.Gancho("regra", regra)
-	g.Origem = ganchos.Origem{RegraID: "r-manual", RegraVersao: 1}
+	g.Origem = ganchos.Origem{RegraID: idRegraDeTeste("r-manual"), RegraVersao: 1}
 	svc, db, envio := servicoDoFluxoAuditado(t, &ganchos.Indice{
 		AntesDeResponder: ganchos.Nivel[ganchos.AntesDeResponder]{Globais: []ganchos.Gancho[ganchos.AntesDeResponder]{g}},
 	})

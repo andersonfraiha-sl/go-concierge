@@ -13,7 +13,7 @@ const (
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldHerdaDe holds the string denoting the herda_de field in the database.
-	FieldHerdaDe = "herda_de"
+	FieldHerdaDe = "inherits_from"
 	// EdgeFilhos holds the string denoting the filhos edge name in mutations.
 	EdgeFilhos = "filhos"
 	// EdgeHerda holds the string denoting the herda edge name in mutations.
@@ -23,29 +23,29 @@ const (
 	// EdgeConcessoes holds the string denoting the concessoes edge name in mutations.
 	EdgeConcessoes = "concessoes"
 	// Table holds the table name of the papel in the database.
-	Table = "papeis"
+	Table = "roles"
 	// FilhosTable is the table that holds the filhos relation/edge.
-	FilhosTable = "papeis"
+	FilhosTable = "roles"
 	// FilhosColumn is the table column denoting the filhos relation/edge.
-	FilhosColumn = "herda_de"
+	FilhosColumn = "inherits_from"
 	// HerdaTable is the table that holds the herda relation/edge.
-	HerdaTable = "papeis"
+	HerdaTable = "roles"
 	// HerdaColumn is the table column denoting the herda relation/edge.
-	HerdaColumn = "herda_de"
+	HerdaColumn = "inherits_from"
 	// PermissoesTable is the table that holds the permissoes relation/edge.
-	PermissoesTable = "papel_permissoes"
+	PermissoesTable = "role_permissions"
 	// PermissoesInverseTable is the table name for the PapelPermissao entity.
 	// It exists in this package in order to avoid circular dependency with the "papelpermissao" package.
-	PermissoesInverseTable = "papel_permissoes"
+	PermissoesInverseTable = "role_permissions"
 	// PermissoesColumn is the table column denoting the permissoes relation/edge.
-	PermissoesColumn = "papel_id"
+	PermissoesColumn = "role_id"
 	// ConcessoesTable is the table that holds the concessoes relation/edge.
-	ConcessoesTable = "concessoes"
+	ConcessoesTable = "company_role_grants"
 	// ConcessoesInverseTable is the table name for the Concessao entity.
 	// It exists in this package in order to avoid circular dependency with the "concessao" package.
-	ConcessoesInverseTable = "concessoes"
+	ConcessoesInverseTable = "company_role_grants"
 	// ConcessoesColumn is the table column denoting the concessoes relation/edge.
-	ConcessoesColumn = "papel_id"
+	ConcessoesColumn = "role_id"
 )
 
 // Columns holds all SQL columns for papel fields.

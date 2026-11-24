@@ -77,7 +77,7 @@ func retratoDeTeste(t *testing.T) Retrato {
 			"A": {VersaoID: 2, Documento: comTitulo(base, "Adm A")},
 		}},
 		Condominios: map[string]map[string]Cabeca{skillMudanca: {
-			"c1": {VersaoID: 3, Documento: comTitulo(base, "Cond c1")},
+			chaveCondominio("A", "101"): {VersaoID: 3, Documento: comTitulo(base, "Cond c1")},
 		}},
 	}
 }
@@ -159,10 +159,10 @@ func TestDoCondominioPrefereCondominioDepoisAdministradoraDepoisBase(t *testing.
 		administradora, condominio string
 		want                       string
 	}{
-		{"condomínio com camada própria", "A", "c1", "Cond c1"},
-		{"condomínio sem camada herda a administradora", "A", "c2", "Adm A"},
+		{"condomínio com camada própria", "A", "101", "Cond c1"},
+		{"condomínio sem camada herda a administradora", "A", "102", "Adm A"},
 		{"administradora sem camada herda a base", "B", "c9", "Base"},
-		{"condomínio com camada vale mesmo sem administradora conhecida", "B", "c1", "Cond c1"},
+		{"condomínio homônimo de outra empresa recebe somente a base", "B", "101", "Base"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestDoCondominioEscondeSkillEncerrada(t *testing.T) {
 			e := NovasEfetivas(nil)
 			e.Trocar(r)
 
-			_, got := e.DoCondominio("A", "c1", tt.agora)(tt.skill)
+			_, got := e.DoCondominio("A", "101", tt.agora)(tt.skill)
 
 			if got != tt.want {
 				t.Errorf("oferecida = %v, quer %v", got, tt.want)
@@ -214,13 +214,13 @@ func TestDoCondominioEscondeCamadaDeSkillSemBase(t *testing.T) {
 	e := NovasEfetivas(nil)
 	e.Trocar(r)
 
-	if _, ok := e.DoCondominio("A", "c1", time.Now())(skillMudanca); ok {
+	if _, ok := e.DoCondominio("A", "101", time.Now())(skillMudanca); ok {
 		t.Error("camada sem base foi oferecida")
 	}
 }
 
 func TestDoCondominioAntesDeTrocarDevolveNil(t *testing.T) {
-	if consulta := NovasEfetivas(nil).DoCondominio("A", "c1", time.Now()); consulta != nil {
+	if consulta := NovasEfetivas(nil).DoCondominio("A", "101", time.Now()); consulta != nil {
 		t.Error("antes da primeira troca a consulta deveria ser nil (o turno usa os arquivos)")
 	}
 }
@@ -245,10 +245,10 @@ func TestMontarCaiParaACamadaDeCimaQuandoAComposicaoFalha(t *testing.T) {
 			e.Trocar(Retrato{
 				Bases:           map[string]VersaoBase{skillMudanca: {Cabeca: Cabeca{VersaoID: 1, Documento: base}, CasoYAML: []byte(casoDeTeste)}},
 				Administradoras: map[string]map[string]Cabeca{skillMudanca: {"A": *tt.administradora}},
-				Condominios:     map[string]map[string]Cabeca{skillMudanca: {"c1": *tt.cond}},
+				Condominios:     map[string]map[string]Cabeca{skillMudanca: {chaveCondominio("A", "101"): *tt.cond}},
 			})
 
-			got := tituloEfetivo(t, e.DoCondominio("A", "c1", time.Now()), skillMudanca)
+			got := tituloEfetivo(t, e.DoCondominio("A", "101", time.Now()), skillMudanca)
 
 			if got != tt.wantTitulo {
 				t.Errorf("título efetivo = %q, quer %q", got, tt.wantTitulo)
@@ -307,12 +307,12 @@ func TestTrocarCompoeCadaVersaoUmaVez(t *testing.T) {
 		t.Fatalf("composições depois de duas trocas iguais = %d, quer 3 (base, administradora, condomínio)", got)
 	}
 
-	r.Condominios[skillMudanca]["c1"] = Cabeca{VersaoID: 4, Documento: comTitulo(base, "Cond novo")}
+	r.Condominios[skillMudanca][chaveCondominio("A", "101")] = Cabeca{VersaoID: 4, Documento: comTitulo(base, "Cond novo")}
 	e.Trocar(r)
 	if got := chamadas.Load(); got != 4 {
 		t.Errorf("composições depois de mudar só o condomínio = %d, quer 4", got)
 	}
-	if got := tituloEfetivo(t, e.DoCondominio("A", "c1", time.Now()), skillMudanca); got != "Cond novo" {
+	if got := tituloEfetivo(t, e.DoCondominio("A", "101", time.Now()), skillMudanca); got != "Cond novo" {
 		t.Errorf("título efetivo = %q, quer Cond novo", got)
 	}
 }
@@ -338,7 +338,7 @@ func TestTrocarNaoRepeteALogDeUmaCamadaQuebradaJaConhecida(t *testing.T) {
 	var saida bytes.Buffer
 	e := NovasEfetivas(slog.New(slog.NewJSONHandler(&saida, nil)))
 	r := retratoDeTeste(t)
-	r.Condominios[skillMudanca]["c1"] = Cabeca{VersaoID: 3, Documento: blocoInvalido(documentoDoCaso(t, "Cond"))}
+	r.Condominios[skillMudanca][chaveCondominio("A", "101")] = Cabeca{VersaoID: 3, Documento: blocoInvalido(documentoDoCaso(t, "Cond"))}
 
 	e.Trocar(r)
 	e.Trocar(r)
@@ -350,15 +350,15 @@ func TestConsultaJaEntregueNaoVeTrocaPosterior(t *testing.T) {
 	e := NovasEfetivas(nil)
 	r := retratoDeTeste(t)
 	e.Trocar(r)
-	consulta := e.DoCondominio("A", "c1", time.Now())
+	consulta := e.DoCondominio("A", "101", time.Now())
 
-	r.Condominios[skillMudanca]["c1"] = Cabeca{VersaoID: 4, Documento: comTitulo(documentoDoCaso(t, "x"), "Depois")}
+	r.Condominios[skillMudanca][chaveCondominio("A", "101")] = Cabeca{VersaoID: 4, Documento: comTitulo(documentoDoCaso(t, "x"), "Depois")}
 	e.Trocar(r)
 
 	if got := tituloEfetivo(t, consulta, skillMudanca); got != "Cond c1" {
 		t.Errorf("consulta antiga = %q, quer Cond c1 (o turno termina com o que começou)", got)
 	}
-	if got := tituloEfetivo(t, e.DoCondominio("A", "c1", time.Now()), skillMudanca); got != "Depois" {
+	if got := tituloEfetivo(t, e.DoCondominio("A", "101", time.Now()), skillMudanca); got != "Depois" {
 		t.Errorf("consulta nova = %q, quer Depois", got)
 	}
 }
@@ -372,7 +372,7 @@ func TestRecarregarTrocaPeloRetratoLido(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Recarregar: %v", err)
 	}
-	if got := tituloEfetivo(t, e.DoCondominio("A", "c1", time.Now()), skillMudanca); got != "Cond c1" {
+	if got := tituloEfetivo(t, e.DoCondominio("A", "101", time.Now()), skillMudanca); got != "Cond c1" {
 		t.Errorf("título efetivo = %q, quer Cond c1", got)
 	}
 }
@@ -387,7 +387,7 @@ func TestRecarregarComLeituraQueFalhaMantemAComposicaoAnterior(t *testing.T) {
 	if !errors.Is(err, falhou) {
 		t.Errorf("erro = %v, quer o da leitura", err)
 	}
-	if got := tituloEfetivo(t, e.DoCondominio("A", "c1", time.Now()), skillMudanca); got != "Cond c1" {
+	if got := tituloEfetivo(t, e.DoCondominio("A", "101", time.Now()), skillMudanca); got != "Cond c1" {
 		t.Errorf("título efetivo = %q, quer a composição anterior", got)
 	}
 }
@@ -405,7 +405,7 @@ func retratoDaGeracao(t *testing.T, geracao string) Retrato {
 	for i, skill := range []string{"s1", "s2", "s3"} {
 		r.Bases[skill] = VersaoBase{Cabeca: Cabeca{VersaoID: 10 + i, Documento: base}, CasoYAML: []byte(casoDeTeste)}
 		r.Administradoras[skill] = map[string]Cabeca{"A": {VersaoID: 20 + i, Documento: base}}
-		r.Condominios[skill] = map[string]Cabeca{"c1": {VersaoID: 30 + i, Documento: base}}
+		r.Condominios[skill] = map[string]Cabeca{chaveCondominio("A", "101"): {VersaoID: 30 + i, Documento: base}}
 	}
 	return r
 }
@@ -431,7 +431,7 @@ func TestDoCondominioEmParaleloComTrocar(t *testing.T) {
 	for range 8 {
 		leitores.Go(func() {
 			for range 2000 {
-				consulta := e.DoCondominio("A", "c1", time.Now())
+				consulta := e.DoCondominio("A", "101", time.Now())
 				titulos := map[string]bool{}
 				for _, skill := range []string{"s1", "s2", "s3"} {
 					ef, ok := consulta(skill)

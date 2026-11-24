@@ -61,8 +61,8 @@ func testarStore(t *testing.T, novo func(t *testing.T) Store) {
 
 func fatosDeTeste() []Fato {
 	return []Fato{
-		{Chave: "unidades", Texto: "tem só uma unidade", Fonte: "P-1", CondominioID: "cond-1", Quando: dia, Confianca: 0.8},
-		{Chave: "pets", Texto: "tem um cachorro", Fonte: "P-2", CondominioID: "cond-2", Quando: dia.Add(time.Hour)},
+		{Chave: "unidades", Texto: "tem só uma unidade", Fonte: "P-1", Quando: dia, Confianca: 0.8},
+		{Chave: "pets", Texto: "tem um cachorro", Fonte: "P-2", Quando: dia.Add(time.Hour)},
 	}
 }
 
@@ -198,7 +198,7 @@ func cenarioContatoInvalido(t *testing.T, st Store) {
 	if err := st.Gravar(t.Context(), escopo.Contato{AdministradoraID: "adm-a"}, Memoria{}); err == nil {
 		t.Fatal("Gravar sem telefone deveria falhar")
 	}
-	if _, err := st.Listar(t.Context(), "../x"); err == nil {
+	if _, err := st.Listar(t.Context(), " "); err == nil {
 		t.Fatal("Listar de administradora inválida deveria falhar")
 	}
 }

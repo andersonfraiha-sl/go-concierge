@@ -27,6 +27,20 @@ func (_u *GanchosAuditoriaUpdate) Where(ps ...predicate.GanchosAuditoria) *Ganch
 	return _u
 }
 
+// SetScopeType sets the "scope_type" field.
+func (_u *GanchosAuditoriaUpdate) SetScopeType(v string) *GanchosAuditoriaUpdate {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *GanchosAuditoriaUpdate) SetNillableScopeType(v *string) *GanchosAuditoriaUpdate {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
+}
+
 // Mutation returns the GanchosAuditoriaMutation object of the builder.
 func (_u *GanchosAuditoriaUpdate) Mutation() *GanchosAuditoriaMutation {
 	return _u.mutation
@@ -68,6 +82,24 @@ func (_u *GanchosAuditoriaUpdate) sqlSave(ctx context.Context) (_node int, err e
 			}
 		}
 	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(ganchosauditoria.FieldScopeType, field.TypeString, value)
+	}
+	if _u.mutation.ChannelIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldChannelID, field.TypeString)
+	}
+	if _u.mutation.RegraIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldRegraID, field.TypeString)
+	}
+	if _u.mutation.AdministradoraIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldAdministradoraID, field.TypeString)
+	}
+	if _u.mutation.CondominioIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldCondominioID, field.TypeString)
+	}
+	if _u.mutation.SessaoIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldSessaoID, field.TypeString)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{ganchosauditoria.Label}
@@ -86,6 +118,20 @@ type GanchosAuditoriaUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *GanchosAuditoriaMutation
+}
+
+// SetScopeType sets the "scope_type" field.
+func (_u *GanchosAuditoriaUpdateOne) SetScopeType(v string) *GanchosAuditoriaUpdateOne {
+	_u.mutation.SetScopeType(v)
+	return _u
+}
+
+// SetNillableScopeType sets the "scope_type" field if the given value is not nil.
+func (_u *GanchosAuditoriaUpdateOne) SetNillableScopeType(v *string) *GanchosAuditoriaUpdateOne {
+	if v != nil {
+		_u.SetScopeType(*v)
+	}
+	return _u
 }
 
 // Mutation returns the GanchosAuditoriaMutation object of the builder.
@@ -158,6 +204,24 @@ func (_u *GanchosAuditoriaUpdateOne) sqlSave(ctx context.Context) (_node *Gancho
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.ScopeType(); ok {
+		_spec.SetField(ganchosauditoria.FieldScopeType, field.TypeString, value)
+	}
+	if _u.mutation.ChannelIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldChannelID, field.TypeString)
+	}
+	if _u.mutation.RegraIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldRegraID, field.TypeString)
+	}
+	if _u.mutation.AdministradoraIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldAdministradoraID, field.TypeString)
+	}
+	if _u.mutation.CondominioIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldCondominioID, field.TypeString)
+	}
+	if _u.mutation.SessaoIDCleared() {
+		_spec.ClearField(ganchosauditoria.FieldSessaoID, field.TypeString)
 	}
 	_node = &GanchosAuditoria{config: _u.config}
 	_spec.Assign = _node.assignValues

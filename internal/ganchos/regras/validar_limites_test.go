@@ -2,6 +2,7 @@ package regras
 
 import (
 	"fmt"
+	"go-concierge/internal/escopo"
 	"slices"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ func TestJuntaTodosOsProblemas(t *testing.T) {
 	r.Condicoes = nil
 	r.Decisao.Mensagem = "oi {{nome}}"
 	got := codigos(ValidarRegra(r, catalogoDeTeste()))
-	quer := []string{"NOME_TAMANHO", "EVENTO_INVALIDO", "ALVO_SEM_ADMINISTRADORA", "CONDOMINIO_DESCONHECIDO", "FUSO_INVALIDO", "CONDICOES_QUANTIDADE", "TEXTO_NAO_FIXO"}
+	quer := []string{"NOME_TAMANHO", "EVENTO_INVALIDO", "ALVO_SEM_ADMINISTRADORA", "CONDOMINIO_INVALIDO", "FUSO_INVALIDO", "CONDICOES_QUANTIDADE", "TEXTO_NAO_FIXO"}
 	for _, c := range quer {
 		if !slices.Contains(got, c) {
 			t.Errorf("faltou %s em %v", c, got)
@@ -128,9 +129,9 @@ func inativas(rs []Regra) []Regra {
 
 func TestLimites(t *testing.T) {
 	cat := catalogoDeTeste()
-	cat.AdministradoraDe["cond-rosas"] = "adm-aurora"
-	flores := Alvo{Administradora: "adm-aurora", Condominios: []string{"cond-flores"}}
-	rosas := Alvo{Administradora: "adm-aurora", Condominios: []string{"cond-rosas"}}
+	cat.AdministradoraDe[escopo.ChaveCondominio("adm-aurora", "103")] = "adm-aurora"
+	flores := Alvo{Administradora: "adm-aurora", Condominios: []string{"101"}}
+	rosas := Alvo{Administradora: "adm-aurora", Condominios: []string{"103"}}
 	aurora := Alvo{Administradora: "adm-aurora"}
 	ev := ganchos.EventoAntesDaFerramenta
 	nova := Regra{ID: "nova", Evento: ev, Alvo: flores, Ativa: true}
@@ -170,6 +171,27 @@ func TestLimites(t *testing.T) {
 			got := codigos(ValidarLimites(c.ativas, c.nova, cat))
 			if c.codigo == "" && len(got) > 0 || c.codigo != "" && !slices.Contains(got, c.codigo) {
 				t.Fatalf("códigos = %v, quer %q", got, c.codigo)
+			}
+		})
+	}
+}
+
+func TestLimitesSemCadastroLocal(t *testing.T) {
+	ev := ganchos.EventoAntesDaFerramenta
+	for _, tc := range []struct {
+		nome   string
+		ativas []Regra
+		nova   Regra
+		recusa bool
+	}{
+		{"empresa sem condominios", ativas(20, ev, Alvo{Administradora: "A"}), Regra{Evento: ev, Alvo: Alvo{Administradora: "A"}, Ativa: true}, true},
+		{"global considera empresa sem condominios", ativas(20, ev, Alvo{Administradora: "A"}), Regra{Evento: ev, Ativa: true}, true},
+		{"mesmo ERP de outra empresa nao conta", ativas(20, ev, Alvo{Administradora: "B", Condominios: []string{"102"}}), Regra{Evento: ev, Alvo: Alvo{Administradora: "A", Condominios: []string{"102"}}, Ativa: true}, false},
+	} {
+		t.Run(tc.nome, func(t *testing.T) {
+			ps := ValidarLimites(tc.ativas, tc.nova, Catalogo{})
+			if (len(ps) > 0) != tc.recusa {
+				t.Fatalf("problemas=%v recusa=%v", ps, tc.recusa)
 			}
 		})
 	}

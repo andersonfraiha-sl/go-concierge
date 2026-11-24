@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
-	"go-concierge/internal/escopo"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,13 +40,8 @@ func TestExecutarImportacaoCodigoDeSaida(t *testing.T) {
 		querNaSaida string
 		querNoErro  string
 	}{
-		{"tudo gravado", testdata, destinosEmMemoria, 0, "pedidos: lidos=2 gravados=2", ""},
-		{"pasta inexistente é pasta vazia", filepath.Join(t.TempDir(), "nada"), destinosEmMemoria, 0, "mapeamento: lidos=0 gravados=0", ""},
-		{"store que não guarda", testdata, func() importacao.Destinos {
-			d := destinosEmMemoria()
-			d.Pedidos = pedidosQueNaoGuarda{d.Pedidos}
-			return d
-		}, 1, "pedidos: lidos=2 gravados=0", "gravou menos"},
+		{"dados legados", testdata, destinosEmMemoria, 1, "pedidos: lidos=0 gravados=0", "banco v2 inicia vazio"},
+		{"pasta inexistente", filepath.Join(t.TempDir(), "nada"), destinosEmMemoria, 1, "mapeamento: lidos=0 gravados=0", "banco v2 inicia vazio"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.nome, func(t *testing.T) {
@@ -77,16 +70,9 @@ func TestExecutarImportacaoErroSaiComUm(t *testing.T) {
 
 	codigo := executarImportacao(t.Context(), dir, destinosEmMemoria(), &saida, &erro)
 
-	if codigo != 1 || !strings.Contains(erro.String(), "sem-dono") {
-		t.Errorf("código = %d, stderr %q; quer 1 listando a account órfã", codigo, erro.String())
+	if codigo != 1 || !strings.Contains(erro.String(), "banco v2 inicia vazio") {
+		t.Errorf("código = %d, stderr %q; quer 1 recusando dados legados", codigo, erro.String())
 	}
-}
-
-// pedidosQueNaoGuarda aceita a gravação e não guarda nada.
-type pedidosQueNaoGuarda struct{ pedidos.Store }
-
-func (pedidosQueNaoGuarda) Gravar(context.Context, escopo.Contato, pedidos.Carteira) error {
-	return nil
 }
 
 func escreverArquivo(t *testing.T, caminho, conteudo string) {

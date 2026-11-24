@@ -223,11 +223,18 @@ func TestGanchosListaPaginadaComDisparos(t *testing.T) {
 	}
 }
 
-// A versão vale pelo alvo gravado nela: gestor de A vê a versão 1 (alvo A), não a 2 (alvo B).
 func TestGanchosVersaoUsaOAlvoDaDefinicaoGravada(t *testing.T) {
 	amb := novoAmbienteGanchos(t, "", segredoGanchos)
-	regra := amb.criar(t, regraJSON("Reserva até 22h", "adm-a", ""))
-	if w := amb.alterar(t, regra.ID, regraJSON("Reserva até 22h", "adm-b", `,"versao":1`)); w.Code != http.StatusOK {
+	usuarios := usuariosTeste()
+	usuarios["gestor-condo-101"] = []acesso.Atribuicao{{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("adm-a", "101"), AdministradoraID: "adm-a"}}
+	usuarios["gestor-condo-102"] = []acesso.Atribuicao{{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("adm-a", "102"), AdministradoraID: "adm-a"}}
+	amb.s.acessos = acessosFake{atribuicoes: usuarios, mapeamento: amb.repo}
+	amb.handler = amb.s.rotear(nil)
+	definicao := func(condo, extra string) string {
+		return strings.Replace(regraJSON("Reserva até 22h", "adm-a", extra), `"administradora":"adm-a"`, `"administradora":"adm-a","condominios":["`+condo+`"]`, 1)
+	}
+	regra := amb.criar(t, definicao("101", ""))
+	if w := amb.alterar(t, regra.ID, definicao("102", `,"versao":1`)); w.Code != http.StatusOK {
 		t.Fatalf("mudar alvo = %d %s", w.Code, w.Body)
 	}
 	base := "/api/ganchos/regras/" + regra.ID + "/versoes/"
@@ -235,10 +242,10 @@ func TestGanchosVersaoUsaOAlvoDaDefinicaoGravada(t *testing.T) {
 		usuario, versao string
 		quer            int
 	}{
-		{"gestor-a", "1", 200},
-		{"gestor-a", "2", 403},
-		{"gestor-b", "1", 403},
-		{"gestor-b", "2", 200},
+		{"gestor-condo-101", "1", 200},
+		{"gestor-condo-101", "2", 403},
+		{"gestor-condo-102", "1", 403},
+		{"gestor-condo-102", "2", 200},
 		{"admin", "9", 404},
 		{"admin", "zero", 400},
 	}
@@ -249,8 +256,8 @@ func TestGanchosVersaoUsaOAlvoDaDefinicaoGravada(t *testing.T) {
 			}
 		})
 	}
-	v1 := corpoDe[map[string]any](t, amb.pedir(t, "gestor-a", "GET", base+"1", ""))
-	if v1["alterada_por"] != "admin" || !strings.Contains(fmt.Sprint(v1["definicao"]), "adm-a") {
+	v1 := corpoDe[map[string]any](t, amb.pedir(t, "gestor-condo-101", "GET", base+"1", ""))
+	if v1["alterada_por"] != "admin" || !strings.Contains(fmt.Sprint(v1["definicao"]), "101") {
 		t.Fatalf("versão 1 = %v", v1)
 	}
 }

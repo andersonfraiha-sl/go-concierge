@@ -21,14 +21,14 @@ func DisparosPorRegra(ctx context.Context, cli *ent.Client, desde time.Time, ids
 	ctx, cancel := context.WithTimeout(ctx, timeoutContagem)
 	defer cancel()
 	var linhas []struct {
-		RegraID string `json:"regra_id"`
+		RegraID string `json:"rule_id"`
 		Count   int    `json:"count"`
 	}
 	err := cli.GanchosAuditoria.Query().
 		Where(
 			ganchosauditoria.RegraIDIn(ids...),
 			ganchosauditoria.CriadoEmGTE(desde),
-			ganchosauditoria.DecisaoNEQ(decisaoFalhou),
+			ganchosauditoria.DecisaoNEQ(valorNoBanco(decisaoFalhou, decisoesDoBanco)),
 		).
 		GroupBy(ganchosauditoria.FieldRegraID).
 		Aggregate(ent.Count()).

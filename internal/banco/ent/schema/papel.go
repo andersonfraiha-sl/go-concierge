@@ -16,7 +16,7 @@ type Papel struct {
 func (Papel) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("id").NotEmpty().Immutable(),
-		field.String("herda_de").Optional().Nillable(),
+		field.String("herda_de").StorageKey("inherits_from").Optional().Nillable(),
 	}
 }
 
@@ -31,5 +31,5 @@ func (Papel) Edges() []ent.Edge {
 }
 
 func (Papel) Annotations() []schema.Annotation {
-	return []schema.Annotation{entsql.Annotation{Table: "papeis"}}
+	return []schema.Annotation{entsql.Annotation{Table: "roles"}}
 }

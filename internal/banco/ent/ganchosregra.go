@@ -21,6 +21,8 @@ type GanchosRegra struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID uuid.UUID `json:"id,omitempty"`
+	// ScopeType holds the value of the "scope_type" field.
+	ScopeType string `json:"scope_type,omitempty"`
 	// Versao holds the value of the "versao" field.
 	Versao int `json:"versao,omitempty"`
 	// Nome holds the value of the "nome" field.
@@ -76,7 +78,7 @@ func (*GanchosRegra) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case ganchosregra.FieldVersao:
 			values[i] = new(sql.NullInt64)
-		case ganchosregra.FieldNome, ganchosregra.FieldEvento, ganchosregra.FieldAdministradoraID, ganchosregra.FieldAlteradaPor:
+		case ganchosregra.FieldScopeType, ganchosregra.FieldNome, ganchosregra.FieldEvento, ganchosregra.FieldAdministradoraID, ganchosregra.FieldAlteradaPor:
 			values[i] = new(sql.NullString)
 		case ganchosregra.FieldAlteradaEm:
 			values[i] = new(sql.NullTime)
@@ -102,6 +104,12 @@ func (_m *GanchosRegra) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value != nil {
 				_m.ID = *value
+			}
+		case ganchosregra.FieldScopeType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field scope_type", values[i])
+			} else if value.Valid {
+				_m.ScopeType = value.String
 			}
 		case ganchosregra.FieldVersao:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -200,6 +208,9 @@ func (_m *GanchosRegra) String() string {
 	var builder strings.Builder
 	builder.WriteString("GanchosRegra(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("scope_type=")
+	builder.WriteString(_m.ScopeType)
+	builder.WriteString(", ")
 	builder.WriteString("versao=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Versao))
 	builder.WriteString(", ")

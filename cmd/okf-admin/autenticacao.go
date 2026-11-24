@@ -21,13 +21,12 @@ const (
 	cabecalhoUsuarioDev   = "X-Dev-Usuario"
 	cabecalhoUsuarioProxy = "X-Authenticated-User-Email"
 	tamanhoMaximoEmail    = 254 // limite do RFC 5321
-	// usuarioSemeadoDev é o admin da Superlógica que a migration semeia para desenvolvimento,
-	// o padrão de AUTH_DEV_USUARIO.
+	// usuarioSemeadoDev é o único usuário administrativo criado pelo boot em AUTH_MODE=dev e o padrão de AUTH_DEV_USUARIO.
 	usuarioSemeadoDev = "admin-superlogica"
 )
 
-// usuariosSemeadosDev são os usuários que as migrations semeiam para desenvolvimento: fora de
-// AUTH_MODE=dev ninguém entra com eles, venha de que autenticador vier. Só lido, nunca escrito.
+// usuariosSemeadosDev são ids reservados ao login de desenvolvimento; fora de AUTH_MODE=dev
+// ninguém entra com eles, venha de que autenticador vier.
 var usuariosSemeadosDev = map[string]bool{
 	usuarioSemeadoDev: true, "construtor-superlogica": true, "gestor-exemplo": true, "gestor-avancado": true,
 	gestorDeCondominioDev: true, gestorDeUmCondominioDev: true,

@@ -262,7 +262,7 @@ func TestEscritaDevolveErroQuandoOBancoFalhaEACorrecaoVemNaProxima(t *testing.T)
 	}
 }
 
-func TestImportarCatalogoDeixaOBancoIgualAPasta(t *testing.T) {
+func TestImportarCatalogoPreservaArquivosAusentesDaPasta(t *testing.T) {
 	pg := catalogo.NovoPostgres(bancotest.Novo(t).Ent)
 	pasta := t.TempDir()
 	gravarArquivo(t, pasta, "agentes/a/agent.yaml", "nome: a\n")
@@ -280,10 +280,10 @@ func TestImportarCatalogoDeixaOBancoIgualAPasta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m != (catalogo.Mudanca{Gravados: 1, Removidos: 1}) {
+	if m != (catalogo.Mudanca{Gravados: 1}) {
 		t.Fatalf("mudança = %+v", m)
 	}
-	if got := caminhosDoBanco(t, pg); !slices.Equal(got, []string{"agentes/a/agent.yaml", "agentes/c/agent.yaml"}) {
+	if got := caminhosDoBanco(t, pg); !slices.Equal(got, []string{"agentes/a/agent.yaml", "agentes/b/agent.yaml", "agentes/c/agent.yaml"}) {
 		t.Fatalf("banco = %v", got)
 	}
 }
@@ -314,5 +314,58 @@ func TestWriteErrTrataFalhaDePersistirComoErroDoServidorSemExporOBanco(t *testin
 	}
 	if strings.Contains(rec.Body.String(), "10.0.0.5") {
 		t.Fatalf("a resposta expôs o texto do banco: %s", rec.Body)
+	}
+}
+
+func TestPersistirCatalogoPreservaAusenciasSemRemocaoDeliberadaEAdicoesConcorrentes(t *testing.T) {
+	db := bancotest.Novo(t)
+	pg := catalogo.NovoPostgres(db.Ent)
+	semente := sementeDoRepositorio(t)
+	cat := abrirCatalogoDeTeste(t, semente, db)
+	antigo := relConcierge + "/" + okf.PersonaMD
+	antes, err := os.ReadFile(filepath.Join(cat.Root, antigo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(cat.Root, antigo)); err != nil {
+		t.Fatal(err)
+	}
+	extra := catalogo.Arquivo{Caminho: "agentes/externo.md", Conteudo: []byte("alteração concorrente")}
+	if _, err := pg.Substituir(t.Context(), []catalogo.Arquivo{extra}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cat.Persistir(); err != nil {
+		t.Fatal(err)
+	}
+	arquivos, err := pg.Listar(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(arquivos, func(a catalogo.Arquivo) bool { return a.Caminho == antigo && bytes.Equal(a.Conteudo, antes) }) || !slices.ContainsFunc(arquivos, func(a catalogo.Arquivo) bool { return a.Caminho == extra.Caminho }) {
+		t.Fatal("ausência de snapshot ou escrita concorrente apagou dados")
+	}
+	concorrente := catalogo.Arquivo{Caminho: relConcierge + "/assets/rodape-administracao.md", Conteudo: []byte("nome: Alteração concorrente\n")}
+	if _, err := pg.Substituir(t.Context(), []catalogo.Arquivo{concorrente}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cat.ExcluirSkill(relMudanca); err != nil {
+		t.Fatal(err)
+	}
+	arquivos, err = pg.Listar(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(arquivos, func(a catalogo.Arquivo) bool { return strings.HasPrefix(a.Caminho, relMudanca+"/") }) {
+		t.Fatal("remoção deliberada da skill não persistiu")
+	}
+	if !slices.ContainsFunc(arquivos, func(a catalogo.Arquivo) bool {
+		return a.Caminho == concorrente.Caminho && bytes.Equal(a.Conteudo, concorrente.Conteudo)
+	}) {
+		t.Fatal("alteração concorrente fora do alvo sobrescrita")
+	}
+	for _, preservado := range []string{extra.Caminho, antigo, concorrente.Caminho} {
+		if !slices.ContainsFunc(arquivos, func(a catalogo.Arquivo) bool { return a.Caminho == preservado }) {
+			t.Fatalf("remoção da skill alcançou outro alvo: %s", preservado)
+		}
 	}
 }

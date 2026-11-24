@@ -48,10 +48,7 @@ const SUGESTOES_PARA_CONSTRUTOR: Record<(typeof TELAS)[number], string[]> = {
     'Adicione um Confirmar antes de gravar',
     'Pergunte o horário antes de reservar',
   ],
-  condominios: [
-    'Quais condomínios estão sem ids?',
-    'Desligue a reserva de área comum onde não há área',
-  ],
+  condominios: ['Explique os níveis de conteúdo global, da empresa e do condomínio'],
   condominio: [
     'O que muda deste condomínio para o Padrão?',
     'Escreva uma orientação sobre mudanças aos domingos',
@@ -123,12 +120,6 @@ const SUGESTOES_QUE_PROPOEM_OPERACAO: readonly Caso[] = [
     texto: 'Pergunte o horário antes de reservar',
     permissao: 'skills.editar_fluxo',
     alcance: 'catalogo',
-  },
-  {
-    tela: 'condominios',
-    texto: 'Desligue a reserva de área comum onde não há área',
-    permissao: 'condominios.habilitar',
-    alcance: 'condominio',
   },
   {
     tela: 'condominio',

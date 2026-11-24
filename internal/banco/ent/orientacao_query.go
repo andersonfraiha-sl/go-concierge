@@ -298,12 +298,12 @@ func (_q *OrientacaoQuery) WithCondominio(opts ...func(*CondominioQuery)) *Orien
 // Example:
 //
 //	var v []struct {
-//		CondominioID string `json:"condominio_id,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.Orientacao.Query().
-//		GroupBy(orientacao.FieldCondominioID).
+//		GroupBy(orientacao.FieldScopeType).
 //		Aggregate(ent.Count()).
 //		Scan(ctx, &v)
 func (_q *OrientacaoQuery) GroupBy(field string, fields ...string) *OrientacaoGroupBy {
@@ -321,11 +321,11 @@ func (_q *OrientacaoQuery) GroupBy(field string, fields ...string) *OrientacaoGr
 // Example:
 //
 //	var v []struct {
-//		CondominioID string `json:"condominio_id,omitempty"`
+//		ScopeType string `json:"scope_type,omitempty"`
 //	}
 //
 //	client.Orientacao.Query().
-//		Select(orientacao.FieldCondominioID).
+//		Select(orientacao.FieldScopeType).
 //		Scan(ctx, &v)
 func (_q *OrientacaoQuery) Select(fields ...string) *OrientacaoSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

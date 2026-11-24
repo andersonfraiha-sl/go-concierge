@@ -9,12 +9,10 @@ version: "2"
 sql:
   - engine: postgresql
     queries: internal/banco/queries
-    schema: internal/banco/migrations
+    schema: internal/banco/v2/migrations
     gen:
       go:
         package: sqlc
         out: internal/banco/sqlc
         sql_package: pgx/v5
         omit_unused_structs: true
-        rename:
-          sesso: SessaoGravada # o sqlc singulariza "sessoes" como "sesso"

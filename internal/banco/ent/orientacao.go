@@ -18,6 +18,10 @@ type Orientacao struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int `json:"id,omitempty"`
+	// ScopeType holds the value of the "scope_type" field.
+	ScopeType string `json:"scope_type,omitempty"`
+	// CompanyID holds the value of the "company_id" field.
+	CompanyID string `json:"company_id,omitempty"`
 	// CondominioID holds the value of the "condominio_id" field.
 	CondominioID *string `json:"condominio_id,omitempty"`
 	// Geral holds the value of the "geral" field.
@@ -59,7 +63,7 @@ func (*Orientacao) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case orientacao.FieldID:
 			values[i] = new(sql.NullInt64)
-		case orientacao.FieldCondominioID, orientacao.FieldGeral:
+		case orientacao.FieldScopeType, orientacao.FieldCompanyID, orientacao.FieldCondominioID, orientacao.FieldGeral:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -82,6 +86,18 @@ func (_m *Orientacao) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int(value.Int64)
+		case orientacao.FieldScopeType:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field scope_type", values[i])
+			} else if value.Valid {
+				_m.ScopeType = value.String
+			}
+		case orientacao.FieldCompanyID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field company_id", values[i])
+			} else if value.Valid {
+				_m.CompanyID = value.String
+			}
 		case orientacao.FieldCondominioID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field condominio_id", values[i])
@@ -144,6 +160,12 @@ func (_m *Orientacao) String() string {
 	var builder strings.Builder
 	builder.WriteString("Orientacao(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("scope_type=")
+	builder.WriteString(_m.ScopeType)
+	builder.WriteString(", ")
+	builder.WriteString("company_id=")
+	builder.WriteString(_m.CompanyID)
+	builder.WriteString(", ")
 	if v := _m.CondominioID; v != nil {
 		builder.WriteString("condominio_id=")
 		builder.WriteString(*v)

@@ -25,8 +25,9 @@ services:
       # router (padrão) | planning | react — vence o `orquestracao:` do agent.yaml
       ORQUESTRACAO_MODO: ${ORQUESTRACAO_MODO:-}
       # vence o DATABASE_URL do .env, que aponta para 127.0.0.1 (uso fora do compose)
-      DATABASE_URL: postgres://concierge:concierge@postgres:5432/concierge?sslmode=disable
+      DATABASE_URL: postgres://concierge:concierge@postgres:5432/concierge_v2?sslmode=disable
       AMBIENTE: ${AMBIENTE:-dev}
+      BOOTSTRAP_DEV_ATENDE: ${BOOTSTRAP_DEV_ATENDE:-true}
       # dev: o usuário vem do cabeçalho X-Dev-Usuario ou, sem ele, de AUTH_DEV_USUARIO
       AUTH_MODE: ${AUTH_MODE:-dev}
       AUTH_DEV_USUARIO: ${AUTH_DEV_USUARIO:-admin-superlogica}
@@ -63,13 +64,13 @@ services:
     environment:
       POSTGRES_USER: concierge
       POSTGRES_PASSWORD: concierge
-      POSTGRES_DB: concierge
+      POSTGRES_DB: concierge_v2
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata_v2:/var/lib/postgresql
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U concierge -d concierge"]
+      test: ["CMD-SHELL", "pg_isready -U concierge -d concierge_v2"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -94,4 +95,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  pgdata_v2:

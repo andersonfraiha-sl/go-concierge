@@ -3,12 +3,12 @@ package camadas
 import (
 	"context"
 	stdsql "database/sql"
-	"encoding/json"
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -37,13 +37,13 @@ const (
 type Origem string
 
 const (
-	OrigemImportacao  Origem = "importacao"
-	OrigemInicial     Origem = "inicial"
-	OrigemPublicacao  Origem = "publicacao"
-	OrigemDecisao     Origem = "decisao"
-	OrigemObrigatorio Origem = "obrigatorio"
-	OrigemPrazo       Origem = "prazo"
-	OrigemVolta       Origem = "volta"
+	OrigemImportacao  Origem = "IMPORT"
+	OrigemInicial     Origem = "INITIAL"
+	OrigemPublicacao  Origem = "PUBLICATION"
+	OrigemDecisao     Origem = "DECISION"
+	OrigemObrigatorio Origem = "MANDATORY"
+	OrigemPrazo       Origem = "DEADLINE"
+	OrigemVolta       Origem = "ROLLBACK"
 )
 
 // Versao é uma versão publicada de uma camada. AcimaID e AtualizacaoID valem 0 quando não há.
@@ -190,6 +190,9 @@ func (r Repo) Camada(ctx context.Context, c Camada) (EstadoDaCamada, error) {
 		if err != nil {
 			return EstadoDaCamada{}, err
 		}
+		if !mesmaCamada(v.Camada, c) {
+			return EstadoDaCamada{}, fmt.Errorf("cabeça de outra camada: %w", ErrCamadaInvalida)
+		}
 		cabeca = &v
 	}
 	return estadoDe(linha, cabeca)
@@ -265,7 +268,7 @@ func (r Repo) SalvarRascunho(ctx context.Context, c Camada, versaoVista string, 
 	if !ok {
 		return "", ErrVersaoDesatualizada
 	}
-	bruto, err := json.Marshal(d)
+	bruto, err := codificarDocumento(d)
 	if err != nil {
 		return "", fmt.Errorf("codificar rascunho de %s: %w", c.Skill, err)
 	}
@@ -307,6 +310,9 @@ func proximaVersaoDoRascunho(vista string) (string, bool) {
 func (r Repo) InserirVersao(ctx context.Context, nv NovaVersao) (Versao, error) {
 	ctx, cancel := comPrazo(ctx)
 	defer cancel()
+	if err := r.validarReferencias(ctx, nv); err != nil {
+		return Versao{}, err
+	}
 	linha, err := r.camadaOuCria(ctx, nv.Camada)
 	if err != nil {
 		return Versao{}, err
@@ -315,7 +321,7 @@ func (r Repo) InserirVersao(ctx context.Context, nv NovaVersao) (Versao, error) 
 	if err != nil {
 		return Versao{}, err
 	}
-	bruto, err := json.Marshal(nv.Documento)
+	bruto, err := codificarDocumento(nv.Documento)
 	if err != nil {
 		return Versao{}, fmt.Errorf("codificar versão de %s: %w", nv.Camada.Skill, err)
 	}
@@ -443,6 +449,30 @@ func (r Repo) LerRetrato(ctx context.Context) (Retrato, error) {
 	return montarRetrato(versoes), nil
 }
 
+func (r Repo) LerRetratoDoEscopo(ctx context.Context, company string, condo *int) (Retrato, error) {
+	if strings.TrimSpace(company) == "" {
+		return Retrato{}, fmt.Errorf("composição exige empresa")
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutRetrato)
+	defer cancel()
+	alvos := []predicate.SkillCamada{
+		skillcamada.TipoEQ(skillcamada.TipoBase),
+		skillcamada.And(skillcamada.TipoEQ(skillcamada.TipoAdministradora), skillcamada.AdministradoraIDEQ(company)),
+	}
+	if condo != nil {
+		alvos = append(alvos, skillcamada.And(skillcamada.TipoEQ(skillcamada.TipoCondominio), skillcamada.AdministradoraIDEQ(company), skillcamada.CondominioIDEQ(strconv.Itoa(*condo))))
+	}
+	rows, err := r.cli.SkillVersao.Query().Where(ehCabeca(), skillversao.HasCamadaWith(skillcamada.Or(alvos...))).WithCamada().All(ctx)
+	if err != nil {
+		return Retrato{}, erroDeBanco("ler composição do escopo", err)
+	}
+	versions, err := converterTodas(rows, versaoDe)
+	if err != nil {
+		return Retrato{}, err
+	}
+	return montarRetrato(versions), nil
+}
+
 func ehCabeca() predicate.SkillVersao {
 	return predicate.SkillVersao(func(s *sql.Selector) {
 		cabecas := sql.Select(skillcamada.FieldCabecaID).From(sql.Table(skillcamada.Table)).
@@ -477,7 +507,11 @@ func guardarCabeca(destino map[string]map[string]Cabeca, c Camada, cabeca Cabeca
 	if destino[c.Skill] == nil {
 		destino[c.Skill] = map[string]Cabeca{}
 	}
-	destino[c.Skill][c.ID] = cabeca
+	chave := c.ID
+	if c.Tipo == TipoCondominio {
+		chave = chaveCondominio(c.CompanyID, c.ID)
+	}
+	destino[c.Skill][chave] = cabeca
 }
 
 // camadaOuCria devolve a linha da camada, criando-a se ainda não existe.
@@ -518,7 +552,7 @@ func (r Repo) novaLinha(c Camada) *ent.SkillCamadaCreate {
 	case TipoAdministradora:
 		criar.SetAdministradoraID(c.ID)
 	case TipoCondominio:
-		criar.SetCondominioID(c.ID)
+		criar.SetCondominioID(c.ID).SetAdministradoraID(c.CompanyID)
 	}
 	return criar
 }
@@ -533,21 +567,33 @@ func daCamada(c Camada) (predicate.SkillCamada, error) {
 		return base, nil
 	case c.Tipo == TipoAdministradora && c.ID != "":
 		return skillcamada.And(base, skillcamada.AdministradoraIDEQ(c.ID)), nil
-	case c.Tipo == TipoCondominio && c.ID != "":
-		return skillcamada.And(base, skillcamada.CondominioIDEQ(c.ID)), nil
+	case c.Tipo == TipoCondominio && c.ID != "" && strings.TrimSpace(c.CompanyID) != "":
+		if _, err := strconv.Atoi(c.ID); err != nil {
+			return nil, fmt.Errorf("condomínio ERP inválido: %w", ErrCamadaInvalida)
+		}
+		return skillcamada.And(base, skillcamada.AdministradoraIDEQ(c.CompanyID), skillcamada.CondominioIDEQ(c.ID)), nil
 	}
 	return nil, fmt.Errorf("%s %q de %s: %w", c.Tipo, c.ID, c.Skill, ErrCamadaInvalida)
 }
 
 func camadaDe(linha *ent.SkillCamada) Camada {
 	c := Camada{Skill: linha.Skill, Tipo: Tipo(linha.Tipo)}
-	switch {
-	case linha.AdministradoraID != nil:
+	if c.Tipo == TipoCondominio {
+		if linha.CondominioID != nil {
+			c.ID = *linha.CondominioID
+		}
+		if linha.AdministradoraID != nil {
+			c.CompanyID = *linha.AdministradoraID
+		}
+	} else if linha.AdministradoraID != nil {
 		c.ID = *linha.AdministradoraID
-	case linha.CondominioID != nil:
-		c.ID = *linha.CondominioID
+
 	}
 	return c
+}
+
+func chaveCondominio(company, condo string) string {
+	return strconv.Itoa(len(company)) + ":" + company + ":" + condo
 }
 
 func estadoDe(linha *ent.SkillCamada, cabeca *Versao) (EstadoDaCamada, error) {
@@ -557,7 +603,7 @@ func estadoDe(linha *ent.SkillCamada, cabeca *Versao) (EstadoDaCamada, error) {
 	}
 	if len(linha.Rascunho) > 0 {
 		var rascunho Documento
-		if err := json.Unmarshal(linha.Rascunho, &rascunho); err != nil {
+		if err := decodificarDocumento(linha.Rascunho, &rascunho); err != nil {
 			return EstadoDaCamada{}, fmt.Errorf("rascunho de %s: %w", linha.Skill, err)
 		}
 		estado.Rascunho = &rascunho
@@ -570,7 +616,7 @@ func versaoDe(v *ent.SkillVersao) (Versao, error) {
 		return Versao{}, fmt.Errorf("versão %d sem camada carregada", v.ID)
 	}
 	var documento Documento
-	if err := json.Unmarshal(v.Documento, &documento); err != nil {
+	if err := decodificarDocumento(v.Documento, &documento); err != nil {
 		return Versao{}, fmt.Errorf("documento da versão %d: %w", v.ID, err)
 	}
 	obrigatorios := make([]TrechoID, len(v.Obrigatorios))
@@ -617,4 +663,46 @@ func ouInstanteZero(t *time.Time) time.Time {
 		return time.Time{}
 	}
 	return *t
+}
+
+func mesmaCamada(a, b Camada) bool {
+	return a.Skill == b.Skill && a.Tipo == b.Tipo && a.ID == b.ID && (a.Tipo != TipoCondominio || a.CompanyID == b.CompanyID)
+}
+
+func ancestralCompativel(filha, acima Camada) bool {
+	if filha.Skill != acima.Skill {
+		return false
+	}
+	switch filha.Tipo {
+	case TipoAdministradora:
+		return acima.Tipo == TipoBase
+	case TipoCondominio:
+		return acima.Tipo == TipoBase || (acima.Tipo == TipoAdministradora && acima.ID == filha.CompanyID)
+	}
+	return false
+}
+
+func (r Repo) validarReferencias(ctx context.Context, nv NovaVersao) error {
+	if _, err := daCamada(nv.Camada); err != nil {
+		return err
+	}
+	if nv.AcimaID != 0 {
+		above, err := r.versao(ctx, nv.AcimaID)
+		if err != nil {
+			return err
+		}
+		if !ancestralCompativel(nv.Camada, above.Camada) {
+			return fmt.Errorf("versão ancestral de outra empresa, skill ou nível: %w", ErrCamadaInvalida)
+		}
+	}
+	if nv.AtualizacaoID != 0 {
+		update, err := r.Atualizacao(ctx, nv.AtualizacaoID)
+		if err != nil {
+			return err
+		}
+		if !mesmaCamada(update.Camada, nv.Camada) || update.ParaID != nv.AcimaID {
+			return fmt.Errorf("atualização incompatível com a camada: %w", ErrCamadaInvalida)
+		}
+	}
+	return nil
 }

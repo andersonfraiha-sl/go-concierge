@@ -35,7 +35,7 @@ func novoPedidoDaReserva(t *testing.T) (*Contrato, *Pedido, *Carteira) {
 	t.Cleanup(func() { Agora = time.Now })
 	ct := casoReserva(t)
 	cart := &Carteira{AdministradoraID: "adm-a", Telefone: "5511999"}
-	return ct, cart.Novo(ct, "reserva-area-comum", "cond-1", Origem{ProtocoloAtende: "ATD-1"}), cart
+	return ct, cart.Novo(ct, "reserva-area-comum", "101", Origem{ProtocoloAtende: "ATD-1"}), cart
 }
 
 func TestPreviaBloqueiaAntesDaPrimeiraPergunta(t *testing.T) {

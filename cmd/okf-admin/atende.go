@@ -6,16 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"go-concierge/internal/acesso"
-	"go-concierge/internal/admin"
 	"go-concierge/internal/atende"
+	"go-concierge/internal/canais"
 	"go-concierge/internal/entrada"
 	"go-concierge/internal/escopo"
 	"go-concierge/internal/falha"
@@ -28,7 +30,7 @@ import (
 
 func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.HandleFunc("POST /webhook/atende", s.webhookAtende) // público: confere o HMAC
-	mux.Handle("POST /emulador/atende/webhook", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.webhookEmulado))
+	mux.Handle("POST /emulador/atende/webhook", s.protegida(acesso.StudioAvancado, s.alvoAtendeConsole, s.webhookEmulado))
 	mux.HandleFunc("GET /console", func(w http.ResponseWriter, r *http.Request) {
 		raw, err := fs.ReadFile(s.web, "console.html")
 		if err != nil {
@@ -41,12 +43,10 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	})
 	// a caixa de saída emulada recebe do próprio servidor (o HTTPSender passa pelo usuário
 	// padrão do modo dev)
-	mux.Handle("POST /emulador/atende/messages", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.emulador.Handler))
+	mux.Handle("POST /emulador/atende/messages", s.protegida(acesso.StudioAvancado, s.alvoAtendeConsole, s.atendeMensagemEmulada))
 	// conversas: a administradora pedida ou, quando há conversa, a gravada nela
-	// configuração da implantação e consulta de identidade no Gruvi (company global, qualquer
-	// telefone): só a Superlógica, como o emulador
-	mux.Handle("GET /api/atende/config", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeConfig))
-	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.atendeIdentidade))
+	mux.Handle("GET /api/atende/config", s.protegida(acesso.StudioAvancado, s.alvoAtendeConsole, s.atendeConfig))
+	mux.Handle("GET /api/atende/identidade", s.protegida(acesso.StudioAvancado, s.alvoAtendeIdentidade, s.atendeIdentidade))
 	mux.Handle("GET /api/atende/sessoes", s.protegida(acesso.ConversasVer, s.alvoAdministradoraOuSuperlogica, s.atendeSessoes))
 	mux.Handle("GET /api/atende/sessao", s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSessao))
 	mux.Handle("GET /api/atende/saidas", s.saidasPorEscopo())
@@ -58,6 +58,46 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.Handle("GET /api/memoria", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriaLer))
 	mux.Handle("GET /api/memorias", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriasListar))
 	mux.Handle("DELETE /api/memoria", s.protegida(acesso.MemoriaEsquecer, s.alvoAdministradora, s.memoriaEsquecer))
+}
+
+func (s *servidor) atendeMensagemEmulada(w http.ResponseWriter, r *http.Request) {
+	company := strings.TrimSpace(s.implantacao.AdministradoraFixa)
+	if company == "" {
+		s.emulador.Handler(w, r)
+		return
+	}
+	var corpo struct {
+		Protocol  string `json:"protocol"`
+		SessionID string `json:"session_id"`
+		Message   string `json:"message"`
+	}
+	if err := espiarCorpo(r, &corpo); err != nil {
+		responderErroDeAlvo(w, r, err)
+		return
+	}
+	if corpo.Protocol == "" || strings.TrimSpace(corpo.Message) == "" {
+		s.emulador.Handler(w, r)
+		return
+	}
+	identificador := corpo.SessionID
+	if identificador == "" {
+		identificador = corpo.Protocol
+	}
+	ctx := atende.ComEscopoSessao(r.Context(), company, uuid.Nil)
+	sess, ok, err := s.atende.Sessao(ctx, identificador)
+	if errors.Is(err, atende.ErrEscopoSessao) || err == nil && (!ok || sess == nil) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"codigo": "NAO_ENCONTRADO", "error": "sessão não encontrada"})
+		return
+	}
+	if err != nil {
+		s.responderErroInterno(w, r, "validar sessão da resposta emulada", err)
+		return
+	}
+	if sess.CompanyID != company || sess.Origem.Conector != "atende-emulado" || sess.Protocolo != corpo.Protocol || (s.atende.Canais != nil && sess.ChannelID == uuid.Nil) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"codigo": "NAO_ENCONTRADO", "error": "sessão não encontrada"})
+		return
+	}
+	s.emulador.Handler(w, r)
 }
 
 // ---- escopo das rotas de memória e pedidos -----------------------------
@@ -73,24 +113,21 @@ func (s *servidor) administradoraDaRota(w http.ResponseWriter, r *http.Request) 
 	return adm, true
 }
 
-// administradoraOpcional: como administradoraDaRota, mas sem nenhuma (nem pedida nem
-// fixa) devolve "" (todas as administradoras).
-func (s *servidor) administradoraOpcional(w http.ResponseWriter, r *http.Request) (string, bool) {
-	if !s.temAdministradoraPedida(r) {
-		return "", true
-	}
-	return s.administradoraDaRota(w, r)
-}
-
-// contatoDaRota: o contato (administradora + telefone) que a rota consulta. Memória e
-// pedidos são guardados por administradora e telefone; o condomínio não entra na
-// chave, e o Console não o conhece aqui: vale o padrão.
 func (s *servidor) contatoDaRota(w http.ResponseWriter, r *http.Request, phone string) (escopo.Contato, bool) {
 	adm, ok := s.administradoraDaRota(w, r)
 	if !ok {
 		return escopo.Contato{}, false
 	}
-	c, err := escopo.NovoContato(adm, admin.Padrao, phone)
+	var condo *int
+	if raw := r.URL.Query().Get("condo_id"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			writeErr(w, 400, errors.New("condo_id deve ser inteiro"))
+			return escopo.Contato{}, false
+		}
+		condo = &n
+	}
+	c, err := escopo.NovoContato(adm, condo, phone)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, errTelefone)
 		return escopo.Contato{}, false
@@ -167,7 +204,7 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, 400, err)
 		return
 	}
-	if !emulado {
+	if !emulado && (s.atende == nil || s.atende.Canais == nil) {
 		if err := atende.VerificarAssinatura(s.atendeAPISecret, r.Header.Get("X-Atende-Signature"), raw); err != nil {
 			writeErr(w, http.StatusUnauthorized, errUnauthorized)
 			return
@@ -187,11 +224,24 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	if !emulado && (s.atendeTenant == "" || s.atendeTelefoneCanal == "" || s.atendeBaseURL == "" || s.atendeAPIKey == "") {
+	msg := ev.Normalizar()
+	if !emulado && s.atende != nil && s.atende.Canais != nil {
+		canal, err := s.atende.ResolverCanal(r.Context(), msg)
+		if err != nil {
+			writeErr(w, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+		if err := atende.VerificarAssinatura(canal.WebhookSecret, r.Header.Get("X-Atende-Signature"), raw); err != nil {
+			writeErr(w, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+		msg.ChannelID, msg.CompanyID = canal.ID, canal.CompanyID
+	}
+	if !emulado && s.atende.Canais == nil && (s.atendeTenant == "" || s.atendeTelefoneCanal == "" || s.atendeBaseURL == "" || s.atendeAPIKey == "") {
 		writeErr(w, http.StatusServiceUnavailable, errors.New("configuração real do ATENDE incompleta"))
 		return
 	}
-	if !emulado {
+	if !emulado && s.atende.Canais == nil {
 		if err := ev.ValidarConexao(s.atendeTenant, s.atendeTelefoneCanal); err != nil {
 			writeErr(w, http.StatusForbidden, err)
 			return
@@ -201,7 +251,6 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "ignored": true, "event": ev.ID})
 		return
 	}
-	msg := ev.Normalizar()
 	if !emulado && s.telefoneMockB2C != "" {
 		// só em dev: o token B2C é de um telefone só, então todo morador vira ele
 		msg.Contato.Phone = s.telefoneMockB2C
@@ -213,6 +262,8 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		}
 		msg.Origem = entrada.Origem{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console"}
 		msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: ev.Data.Protocol.Number, Telefone: ev.Data.Contact.Phone, Canal: msg.Canal}
+		msg.Destino.ChannelID = msg.ChannelID
+		msg.Destino.CompanyID = msg.CompanyID
 	}
 	if tipo == atende.EventoHumano {
 		if _, err := s.atende.RegistrarHumano(r.Context(), msg); err != nil {
@@ -257,6 +308,31 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 // condominioEmulado: com ?condominio=, a mensagem forjada pelo Console sai com o tenant
 // e a company daquele condomínio (é por eles que o concierge resolve o condomínio).
 func (s *servidor) condominioEmulado(w http.ResponseWriter, r *http.Request, msg *entrada.Mensagem) bool {
+	if s.atende != nil && s.atende.Canais != nil {
+		id, err := uuid.Parse(r.URL.Query().Get("channel_id"))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, errors.New("informe channel_id válido do canal persistido"))
+			return false
+		}
+		msg.ChannelID = id
+		company, err := empresaDaConsulta(r)
+		if err != nil {
+			responderErroDeAlvo(w, r, err)
+			return false
+		}
+		if company == "" {
+			writeErr(w, 400, errors.New("informe company_id"))
+			return false
+		}
+		msg.CompanyID = company
+		candidata := *msg
+		candidata.Origem.Conector = "atende-emulado"
+		if _, err := s.atende.ResolverCanal(r.Context(), candidata); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return false
+		}
+		return true
+	}
 	id := strings.TrimSpace(r.URL.Query().Get("condominio"))
 	if id == "" {
 		return true
@@ -275,8 +351,20 @@ func (s *servidor) condominioEmulado(w http.ResponseWriter, r *http.Request, msg
 	return true
 }
 
-func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
+func (s *servidor) atendeConfig(w http.ResponseWriter, r *http.Request) {
+	var metadados []canais.Resumo
+	if repo, ok := s.atende.Canais.(interface {
+		ListarMetadados(context.Context, string) ([]canais.Resumo, error)
+	}); ok {
+		var err error
+		metadados, err = repo.ListarMetadados(r.Context(), s.implantacao.AdministradoraFixa)
+		if err != nil {
+			s.responderErroInterno(w, r, "ler metadados dos canais", err)
+			return
+		}
+	}
 	writeJSON(w, 200, map[string]any{
+		"canais":                  metadados,
 		"agente":                  s.atende.Agente,
 		"account":                 s.account,
 		"gruvi":                   map[string]any{"configurado": s.gruviOK, "bff_url": s.gruviBFF, "company_id": s.gruviCompany},
@@ -291,17 +379,18 @@ func (s *servidor) atendeConfig(w http.ResponseWriter, _ *http.Request) {
 		"nexus_origem":            s.nexus,
 		"modelo_provedor":         s.provedor,
 		"telefone_b2c":            s.atende.TelefoneB2C,
+		"ambiente_dev":            s.authMode == "dev",
 	})
 }
 
 // atendeSessoes: as sessões da administradora pedida (?administradora=) ou da fixa da
 // implantação; sem nenhuma, todas.
 func (s *servidor) atendeSessoes(w http.ResponseWriter, r *http.Request) {
-	adm, ok := s.administradoraOpcional(w, r)
+	adm, ok := s.administradoraDaRota(w, r)
 	if !ok {
 		return
 	}
-	sessoes, err := s.atende.Sessoes.Lista(r.Context(), adm)
+	sessoes, err := s.atende.Sessoes.Lista(atende.ComEscopoSessao(r.Context(), adm, uuid.Nil), adm)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -451,6 +540,27 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 	phone := strings.TrimSpace(r.URL.Query().Get("phone"))
 	if phone == "" {
 		writeErr(w, 400, errTelefone)
+		return
+	}
+	if s.atende != nil && s.atende.Canais != nil {
+		company, err := empresaDaConsulta(r)
+		if err != nil {
+			responderErroDeAlvo(w, r, err)
+			return
+		}
+		channel, err := uuid.Parse(r.URL.Query().Get("channel_id"))
+		if err != nil || company == "" {
+			writeErr(w, 400, errors.New("informe company_id e channel_id"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		id, err := s.atende.IdentificarCanal(ctx, company, channel, phone)
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"configurado": true, "erro": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"configurado": true, "identidade": id})
 		return
 	}
 	if !s.gruviOK || s.gruvi == nil || !s.gruvi.PermiteTelefone(phone) {
