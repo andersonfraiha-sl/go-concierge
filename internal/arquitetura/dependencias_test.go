@@ -12,6 +12,7 @@ import (
 type pacote struct {
 	ImportPath string
 	Deps       []string
+	Imports    []string
 }
 
 func listarPacotes(t *testing.T, padrao string) []pacote {
@@ -49,11 +50,24 @@ func TestAplicacoesVisuaisNaoImportamPersistenciaOuRuntime(t *testing.T) {
 	for _, app := range []string{"backdoor", "console"} {
 		for _, p := range listarPacotes(t, "go-concierge/apps/"+app+"/cmd/...") {
 			for _, d := range p.Deps {
-				for _, proibido := range []string{"go-concierge/internal/banco", "go-concierge/internal/atende", "go-concierge/internal/harness", "github.com/jackc/pgx"} {
+				for _, proibido := range []string{"go-concierge/internal/core/banco", "go-concierge/internal/core/dados", "go-concierge/internal/harness/", "github.com/jackc/pgx"} {
 					if strings.HasPrefix(d, proibido) {
 						t.Errorf("%s depende de %s", p.ImportPath, d)
 					}
 				}
+			}
+		}
+	}
+}
+
+func TestHarnessNaoImportaCoreOuPersistencia(t *testing.T) {
+	for _, p := range listarPacotes(t, "go-concierge/internal/harness/...") {
+		if !strings.HasPrefix(p.ImportPath, "go-concierge/internal/harness/") {
+			continue
+		}
+		for _, d := range p.Deps {
+			if strings.HasPrefix(d, "go-concierge/internal/core/") || strings.HasPrefix(d, "github.com/jackc/pgx") || strings.HasPrefix(d, "entgo.io/ent") || d == "database/sql" {
+				t.Errorf("%s depende de infraestrutura %s", p.ImportPath, d)
 			}
 		}
 	}

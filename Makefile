@@ -2,7 +2,7 @@
 .PHONY: test-focado test-integracao test-completo
 
 LOG_DIR ?= /tmp
-PKG ?= ./internal/atende
+PKG ?= ./internal/harness/atendimento
 TEST ?= ^TestV2
 INTEGRACAO_PKG ?=
 INTEGRACAO_TEST ?=

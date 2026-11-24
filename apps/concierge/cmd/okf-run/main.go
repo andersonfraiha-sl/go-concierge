@@ -24,14 +24,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go-concierge/internal/admin"
-	"go-concierge/internal/banco"
-	"go-concierge/internal/canais"
-	"go-concierge/internal/catalogo"
-	"go-concierge/internal/harness"
-	"go-concierge/internal/mcp"
-	"go-concierge/internal/nexus"
-	"go-concierge/internal/okf"
+	"go-concierge/internal/core/catalogo"
+	okf "go-concierge/internal/core/catalogo/arquivos"
+	conciergeapi "go-concierge/internal/core/clientes/concierge"
+	"go-concierge/internal/core/clientes/llm"
+	"go-concierge/internal/core/clientes/mcp"
+	"go-concierge/internal/core/clientes/nexus"
+	harness "go-concierge/internal/harness/agentes"
+	"go-concierge/internal/harness/canais"
+	admin "go-concierge/internal/harness/configuracao"
 )
 
 func main() {
@@ -59,12 +60,13 @@ func executar() int {
 	sessao := flag.String("sessao", "", "id da conversa para a chave de idempotência (padrão: local)")
 	channelID := flag.String("channel", "", "UUID do canal persistido no banco v2")
 	companyID := flag.String("company", "", "empresa Nexus dona do canal; padrão NEXUS_COMPANY_ID")
+	apiURL := flag.String("api-url", "", "API pública do Concierge; padrão CONCIERGE_API_URL ou http://localhost:8090; credenciais limitadas a loopback:8090 e studio.avancado global")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "uso: okf-run [-root okf] [-agente agentes/x] [-modelo id] [-mock] [-json] [-phone n | -autenticado] \"mensagem\"\n     okf-run [-root okf] [-agente agentes/x] --inspecionar\n\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	harness.CarregarDotEnv(*dotenv)
+	llm.CarregarDotEnv(*dotenv)
 	ctx := context.Background()
 	var canal *canais.Canal
 	var casos []canais.Caso
@@ -79,26 +81,22 @@ func executar() int {
 		}
 		id, err := uuid.Parse(*channelID)
 		falha(err)
-		db, err := banco.Abrir(ctx, os.Getenv("DATABASE_URL"))
-		falha(err)
-		limpar = func() { _ = db.Fechar() }
-		repo := canais.NovoPostgres(db.Pool)
-		c, err := repo.PorID(ctx, company, id)
-		falha(err)
-		if !c.Habilitado {
-			falha(canais.ErrDesabilitado)
+		base := strings.TrimSpace(*apiURL)
+		if base == "" {
+			base = strings.TrimSpace(os.Getenv("CONCIERGE_API_URL"))
 		}
-		canal = &c
-		casos, err = repo.Casos(ctx, c)
+		if base == "" {
+			base = "http://localhost:8090"
+		}
+		api := conciergeapi.Cliente{BaseURL: base, Token: os.Getenv("CONCIERGE_TOKEN"), UsuarioDev: os.Getenv("AUTH_DEV_USUARIO")}
+		config, err := api.Configuracao(ctx, company, id)
 		falha(err)
-		conteudo, err = admin.NovoPostgres(db.Ent).Conteudo(ctx, c.CompanyID, c.CondoID)
-		falha(err)
-		arquivos, err := catalogo.NovoPostgres(db.Ent).Listar(ctx)
-		falha(err)
+		c := config.Canal
+		canal, casos, conteudo = &c, config.Casos, config.Conteudo
 		copia, err := os.MkdirTemp("", "concierge-run-")
 		falha(err)
-		limpar = func() { _ = os.RemoveAll(copia); _ = db.Fechar() }
-		falha(catalogo.Materializar(copia, arquivos))
+		limpar = func() { _ = os.RemoveAll(copia) }
+		falha(catalogo.Materializar(copia, config.Arquivos))
 		*root = copia
 		*agente = c.Agente
 	}
@@ -152,6 +150,7 @@ func executar() int {
 	}
 
 	cfg := harness.Config{
+		Modelos:    llm.Fabrica{},
 		Modelo:     *modelo,
 		Mock:       *mock || *inspecionar,
 		Nexus:      cli,

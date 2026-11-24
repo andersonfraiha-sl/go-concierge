@@ -1,0 +1,175 @@
+package conciergeapi
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/mail"
+	"strings"
+
+	"go-concierge/internal/acesso"
+	acessopg "go-concierge/internal/core/dados/postgres/acesso"
+	"go-concierge/internal/escopo"
+	"go-concierge/internal/identidade"
+)
+
+// Autenticador diz quem fez a requisição.
+type Autenticador interface {
+	Autenticar(r *http.Request) (usuarioID string, err error)
+}
+
+const (
+	cabecalhoUsuarioDev   = "X-Dev-Usuario"
+	cabecalhoUsuarioProxy = "X-Authenticated-User-Email"
+	tamanhoMaximoEmail    = 254 // limite do RFC 5321
+	// usuarioSemeadoDev é o único usuário administrativo criado pelo boot em AUTH_MODE=dev e o padrão de AUTH_DEV_USUARIO.
+	usuarioSemeadoDev = "admin-superlogica"
+)
+
+// usuariosSemeadosDev são ids reservados ao login de desenvolvimento; fora de AUTH_MODE=dev
+// ninguém entra com eles, venha de que autenticador vier.
+var usuariosSemeadosDev = map[string]bool{
+	usuarioSemeadoDev: true, "construtor-superlogica": true, "gestor-exemplo": true, "gestor-avancado": true,
+	gestorDeCondominioDev: true, gestorDeUmCondominioDev: true,
+}
+
+func semeadoDev(id string) bool { return usuariosSemeadosDev[id] }
+
+var (
+	errSemUsuario      = errors.New("requisição sem usuário")
+	errSemAutenticacao = errors.New("AUTH_MODE sem autenticação disponível")
+)
+
+// autenticadorDev confia no cabeçalho X-Dev-Usuario; sem ele, usa o padrão (AUTH_DEV_USUARIO).
+// validarConfig impede este modo em produção.
+type autenticadorDev struct{ padrao string }
+
+func (a autenticadorDev) Autenticar(r *http.Request) (string, error) {
+	if u := strings.TrimSpace(r.Header.Get(cabecalhoUsuarioDev)); u != "" {
+		return u, nil
+	}
+	if a.padrao != "" {
+		return a.padrao, nil
+	}
+	return "", errSemUsuario
+}
+
+// autenticadorProxy confia no e-mail que o proxy de identidade (Oathkeeper) injeta depois de
+// validar o JWT. Só é seguro se nada alcança o serviço sem passar pelo proxy; quem garante é a
+// NetworkPolicy do deploy. O e-mail normalizado é o id do usuário.
+type autenticadorProxy struct{}
+
+func (autenticadorProxy) Autenticar(r *http.Request) (string, error) {
+	valores := r.Header.Values(cabecalhoUsuarioProxy)
+	if len(valores) != 1 {
+		return "", errSemUsuario
+	}
+	email, ok := normalizarEmail(valores[0])
+	if !ok {
+		return "", errSemUsuario
+	}
+	return email, nil
+}
+
+// normalizarEmail tira espaços e caixa e confere a forma de um endereço simples (sem nome de
+// exibição nem lista). O valor original nunca vai para mensagem de erro nem para log.
+func normalizarEmail(bruto string) (string, bool) {
+	email := strings.ToLower(strings.TrimSpace(bruto))
+	if email == "" || len(email) > tamanhoMaximoEmail {
+		return "", false
+	}
+	enderecoLido, err := mail.ParseAddress(email)
+	if err != nil || enderecoLido.Address != email {
+		return "", false
+	}
+	return email, true
+}
+
+// autenticadorFechado recusa todos: sem AUTH_MODE a API fica fechada (o webhook do ATENDE e
+// o healthz não passam por aqui).
+type autenticadorFechado struct{}
+
+func (autenticadorFechado) Autenticar(*http.Request) (string, error) { return "", errSemAutenticacao }
+
+func novoAutenticador(authMode, usuarioPadrao string) Autenticador {
+	switch authMode {
+	case authModeDev:
+		return autenticadorDev{padrao: strings.TrimSpace(usuarioPadrao)}
+	case authModeProxy:
+		return autenticadorProxy{}
+	default:
+		return autenticadorFechado{}
+	}
+}
+
+// carregadorAcesso é o acessopg.Postgres; os testes usam um fake.
+type carregadorAcesso interface {
+	Carregar(ctx context.Context, usuarioID string, imp escopo.Implantacao) (acesso.Acesso, error)
+}
+
+type chaveAcesso struct{}
+
+func acessoDe(ctx context.Context) (acesso.Acesso, bool) {
+	a, ok := ctx.Value(chaveAcesso{}).(acesso.Acesso)
+	return a, ok
+}
+
+// autenticado identifica o usuário, carrega o Acesso dele e o põe no contexto. Falha de
+// identificação e usuário desconhecido são 401; erro ao carregar é 500 sem detalhe.
+func (s *servidor) autenticado(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		usuarioID, err := s.autenticador.Autenticar(r)
+		if err != nil || (semeadoDev(usuarioID) && s.authMode != authModeDev) {
+			s.recusarLogin(w)
+			return
+		}
+		anotarUsuario(r.Context(), usuarioID)
+		ctx := identidade.ComUsuario(r.Context(), usuarioID)
+		if s.autoridade != nil {
+			prova, err := s.autoridade.Emitir(usuarioID)
+			if err != nil {
+				s.responderErroInterno(w, r, "emitir identidade interna", err)
+				return
+			}
+			ctx = identidade.ComProva(ctx, prova)
+		}
+		a, err := s.acessos.Carregar(ctx, usuarioID, s.implantacao)
+		if errors.Is(err, acessopg.ErrUsuarioDesconhecido) {
+			s.recusarLogin(w)
+			return
+		}
+		if err != nil {
+			s.responderErroInterno(w, r, "carregar acesso", err)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, chaveAcesso{}, a)))
+	})
+}
+
+// naoAutenticado é o corpo do 401. Dev diz ao Studio que pode oferecer o "Ver como" mesmo sem
+// /api/eu; fora de AUTH_MODE=dev o campo nem aparece.
+type naoAutenticado struct {
+	Codigo string `json:"codigo"`
+	Error  string `json:"error"`
+	Dev    bool   `json:"dev,omitempty"`
+}
+
+func responderNaoAutenticado(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado"})
+}
+
+// recusarLogin é o 401 do middleware: o único ponto em que o usuário ainda não foi reconhecido.
+func (s *servidor) recusarLogin(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, naoAutenticado{Codigo: "NAO_AUTENTICADO", Error: "usuário não autenticado", Dev: s.authMode == authModeDev})
+}
+
+func responderSemPermissao(w http.ResponseWriter) {
+	writeJSON(w, http.StatusForbidden, map[string]string{"codigo": "SEM_PERMISSAO", "error": "sem permissão para esta operação"})
+}
+
+// responderErroInterno: o erro vai só para o log; o cliente recebe uma mensagem fixa.
+func (s *servidor) responderErroInterno(w http.ResponseWriter, r *http.Request, operacao string, err error) {
+	anotarFalha(r.Context(), w, fmt.Errorf("%s: %w", operacao, err), 1)
+	writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
+}

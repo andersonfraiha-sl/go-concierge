@@ -7,7 +7,7 @@
 #   ./build.sh --test     # só os testes: Studio (lint + typecheck + test), gofmt, vet, govulncheck e Go
 #   ./build.sh --run      # constrói e inicia as três aplicações pelo Compose
 #
-# Os testes de internal/banco sobem um Postgres por testcontainers: o contêiner de build fala
+# Os testes de internal/core/banco sobem um Postgres por testcontainers: o contêiner de build fala
 # com o Docker do host pelo socket e alcança as portas publicadas por host.docker.internal.
 set -euo pipefail
 cd "$(dirname "$0")"

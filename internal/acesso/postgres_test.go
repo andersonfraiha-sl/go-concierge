@@ -9,8 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"go-concierge/internal/acesso"
-	"go-concierge/internal/banco/bancotest"
-	"go-concierge/internal/banco/ent"
+	"go-concierge/internal/core/banco/bancotest"
+	"go-concierge/internal/core/banco/ent"
+	acessopg "go-concierge/internal/core/dados/postgres/acesso"
 	"go-concierge/internal/escopo"
 )
 
@@ -18,7 +19,7 @@ func TestMain(m *testing.M) { codigo := m.Run(); bancotest.Encerrar(); os.Exit(c
 
 func semear(t *testing.T, cli *ent.Client) {
 	t.Helper()
-	repo := acesso.NovoPostgres(cli)
+	repo := acessopg.NovoPostgres(cli)
 	if err := repo.Atribuir(t.Context(), acesso.Usuario{ID: "u1", Nome: "Ana"}, acesso.Atribuicao{PapelID: "gestor_administradora", Escopo: acesso.Escopo{Tipo: acesso.TipoAdministradora, ID: "Nexus / A"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +31,7 @@ func semear(t *testing.T, cli *ent.Client) {
 func TestCarregarMontaAcessoDoBanco(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	a, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestCarregarMontaAcessoDoBanco(t *testing.T) {
 func TestCarregarNaoDependeDeCadastroLocalDeCondominio(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	a, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +74,8 @@ func TestCarregarNaoDependeDeCadastroLocalDeCondominio(t *testing.T) {
 
 func TestCarregarUsuarioDesconhecido(t *testing.T) {
 	b := bancotest.Novo(t)
-	_, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "ninguem", escopo.Implantacao{})
-	if !errors.Is(err, acesso.ErrUsuarioDesconhecido) {
+	_, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "ninguem", escopo.Implantacao{})
+	if !errors.Is(err, acessopg.ErrUsuarioDesconhecido) {
 		t.Fatalf("Carregar=%v", err)
 	}
 }
@@ -82,7 +83,7 @@ func TestCarregarUsuarioDesconhecido(t *testing.T) {
 func TestBancoNovoNaoConcedeOperadoresDeDesenvolvimento(t *testing.T) {
 	b := bancotest.Novo(t)
 	for _, id := range []string{"admin-superlogica", "construtor-superlogica", "gestor-exemplo", "gestor-avancado"} {
-		if _, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), id, escopo.Implantacao{}); !errors.Is(err, acesso.ErrUsuarioDesconhecido) {
+		if _, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), id, escopo.Implantacao{}); !errors.Is(err, acessopg.ErrUsuarioDesconhecido) {
 			t.Fatalf("operador %s criado implicitamente: %v", id, err)
 		}
 	}
@@ -91,7 +92,7 @@ func TestBancoNovoNaoConcedeOperadoresDeDesenvolvimento(t *testing.T) {
 func TestConcederEIdempotente(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	repo := acesso.NovoPostgres(b.Ent)
+	repo := acessopg.NovoPostgres(b.Ent)
 	grant := acesso.Concessao{AdministradoraID: "B", PapelID: "gestor_administradora", Permissao: acesso.StudioAvancado}
 	for range 2 {
 		if err := repo.Conceder(t.Context(), grant); err != nil {
@@ -120,7 +121,7 @@ func TestConcederEIdempotente(t *testing.T) {
 func TestPapeisSemeadosIguaisAosIniciais(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	a, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestBancoRecusaEscopoInvalido(t *testing.T) {
 func TestAtribuicaoCondominialNaoAtravessaEmpresaComMesmoID(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	repo := acesso.NovoPostgres(b.Ent)
+	repo := acessopg.NovoPostgres(b.Ent)
 	at := acesso.Atribuicao{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("Nexus / A", "101"), AdministradoraID: "Nexus / A"}
 	if err := repo.Atribuir(t.Context(), acesso.Usuario{ID: "u2", Nome: "Bia"}, at); err != nil {
 		t.Fatal(err)
@@ -191,7 +192,7 @@ func TestPapeisIrmaosHerdamDoMesmoPai(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	a, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +209,7 @@ func TestCarregarFalhaFechadoComCicloDeHeranca(t *testing.T) {
 	if _, err := b.Pool.Exec(t.Context(), `UPDATE roles SET inherits_from='admin_superlogica' WHERE id='operador_administradora'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{}); !errors.Is(err, acesso.ErrCicloHeranca) {
+	if _, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{}); !errors.Is(err, acesso.ErrCicloHeranca) {
 		t.Fatalf("Carregar=%v", err)
 	}
 }
@@ -216,7 +217,7 @@ func TestCarregarFalhaFechadoComCicloDeHeranca(t *testing.T) {
 func TestCarregarTrazNome(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	a, err := acesso.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
+	a, err := acessopg.NovoPostgres(b.Ent).Carregar(t.Context(), "u1", escopo.Implantacao{})
 	if err != nil || a.Nome != "Ana" {
 		t.Fatalf("Nome=%q (%v)", a.Nome, err)
 	}
@@ -225,7 +226,7 @@ func TestCarregarTrazNome(t *testing.T) {
 func TestAtribuirRestringeAoCondominioEIdempotente(t *testing.T) {
 	b := bancotest.Novo(t)
 	semear(t, b.Ent)
-	repo := acesso.NovoPostgres(b.Ent)
+	repo := acessopg.NovoPostgres(b.Ent)
 	user := acesso.Usuario{ID: "sindico", Nome: "Síndico Alpha"}
 	at := acesso.Atribuicao{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("Nexus / A", "101"), AdministradoraID: "Nexus / A"}
 	for range 2 {
@@ -252,7 +253,7 @@ func TestAtribuirRestringeAoCondominioEIdempotente(t *testing.T) {
 
 func TestAtribuirRecusaCondominioSemEmpresaExplicita(t *testing.T) {
 	b := bancotest.Novo(t)
-	repo := acesso.NovoPostgres(b.Ent)
+	repo := acessopg.NovoPostgres(b.Ent)
 	for _, at := range []acesso.Atribuicao{
 		{PapelID: "gestor_administradora", Escopo: acesso.Escopo{Tipo: acesso.TipoCondominio, ID: "101"}, AdministradoraID: "A"},
 		{PapelID: "gestor_administradora", Escopo: acesso.EscopoCondominio("A", "101"), AdministradoraID: "B"},
@@ -261,7 +262,7 @@ func TestAtribuirRecusaCondominioSemEmpresaExplicita(t *testing.T) {
 			t.Fatal("atribuição inválida aceita")
 		}
 	}
-	if _, err := repo.Carregar(t.Context(), "nao-criar", escopo.Implantacao{}); !errors.Is(err, acesso.ErrUsuarioDesconhecido) {
+	if _, err := repo.Carregar(t.Context(), "nao-criar", escopo.Implantacao{}); !errors.Is(err, acessopg.ErrUsuarioDesconhecido) {
 		t.Fatalf("falha criou usuário parcial: %v", err)
 	}
 }
