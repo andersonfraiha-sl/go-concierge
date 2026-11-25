@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { EXTENSOES } from './extensoes';
 import { abrir, salvar } from './markdownFiel';
 
-const CATALOGO = resolve(import.meta.dirname, '../../../../../okf/agentes');
+const CATALOGO = resolve(import.meta.dirname, '../../../../../../../okf/agentes');
 
 const arquivosMarkdown = (pasta: string): string[] =>
   readdirSync(pasta, { withFileTypes: true }).flatMap((item) => {

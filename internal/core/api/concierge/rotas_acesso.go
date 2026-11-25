@@ -283,14 +283,6 @@ func (c corpoComSessao) identificador() string {
 	return c.Protocolo
 }
 
-func (s *servidor) alvoSessaoDoCorpo(r *http.Request) (acesso.Escopo, error) {
-	var c corpoComSessao
-	if err := espiarCorpo(r, &c); err != nil {
-		return acesso.Escopo{}, err
-	}
-	return s.alvoDaSessao(r, c.identificador())
-}
-
 // alvoAcaoDePedido: preencher age sobre a conversa (o contato vem dela); cancelar e remover,
 // sobre o contato da administradora pedida.
 func (s *servidor) alvoAcaoDePedido(r *http.Request) (acesso.Escopo, error) {

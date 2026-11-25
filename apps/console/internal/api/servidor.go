@@ -24,7 +24,7 @@ func novo(cfg httpapp.Config, emulador *Emulador) (http.Handler, error) {
 		return nil, err
 	}
 	proxy.ModifyResponse = func(resp *http.Response) error {
-		if resp.StatusCode != http.StatusOK || (resp.Request.URL.Path != "/api/atende/sessao" && resp.Request.URL.Path != "/api/atende/transbordo" && resp.Request.URL.Path != "/api/pedidos/acao") {
+		if resp.StatusCode != http.StatusOK || (resp.Request.URL.Path != "/api/atende/sessao" && resp.Request.URL.Path != "/api/pedidos/acao") {
 			return nil
 		}
 		defer resp.Body.Close()

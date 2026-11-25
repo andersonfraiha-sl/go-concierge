@@ -52,25 +52,6 @@ func TestAutorDaMensagemNoAtendimentoHumano(t *testing.T) {
 	}
 }
 
-func TestResponderVazioNaoBloqueiaSessao(t *testing.T) {
-	svc := &Servico{Sessoes: NewSessoes(NovaSessaoEmMemoria())}
-	msg := entrada.Mensagem{ConversaID: "protocolo", Origem: entrada.Origem{Conector: "atende-emulado", ConexaoID: "console"}}
-	sess := abrir(t, svc.Sessoes, msg)
-	if _, err := svc.Assumir(context.Background(), sess.ID, "atendente", "teste"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Responder(context.Background(), sess.ID, "atendente", " "); err == nil {
-		t.Fatal("resposta vazia deveria falhar")
-	}
-	terminou := make(chan struct{})
-	go func() { _, _ = svc.Sessoes.Lista(context.Background(), ""); close(terminou) }()
-	select {
-	case <-terminou:
-	case <-time.After(time.Second):
-		t.Fatal("a sessão permaneceu bloqueada")
-	}
-}
-
 func TestEntregaContinuaEntrePartesAposTransicaoHumana(t *testing.T) {
 	var mu sync.Mutex
 	permitido := true

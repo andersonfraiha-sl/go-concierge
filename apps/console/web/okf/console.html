@@ -67,13 +67,13 @@
       </nav>
       <div class="aba-conteudo" id="abaRota"><div class="empty-state"><i data-lucide="route"></i>A rota da última resposta aparece aqui: orquestrador → subagente, tools chamadas, tokens.</div></div>
       <div class="aba-conteudo" id="abaTransbordo" hidden>
-        <p class="notice info"><i data-lucide="life-buoy"></i>Quando o concierge não resolve, ele transfere o protocolo a um atendente humano (ou o atendente assume por conta própria). Daqui em diante o concierge cala e o atendente responde ao morador por este mesmo canal, até devolver.</p>
+        <p class="notice info"><i data-lucide="life-buoy"></i>Simule uma mensagem enviada pelo atendente no ATENDE. O evento chega ao concierge pelo webhook e registra a intervenção humana.</p>
         <div id="transbordoEstado"></div>
         <div id="transbordoPedidos"></div>
         <form id="formAtendente" class="transbordo-form" hidden>
           <div class="form-row"><label>Atendente</label><input class="field-input" name="atendente" value="Atendente" placeholder="seu nome"></div>
-          <div class="form-row"><label>Responder ao morador</label><textarea class="field-area" name="texto" rows="3" placeholder="Oi, aqui é a Ana da administração. Vou cuidar disso pra você…"></textarea></div>
-          <div class="form-actions"><button type="button" class="btn btn-ghost" id="btnDevolver"><i data-lucide="undo-2"></i><span>Devolver ao concierge</span></button><span style="flex:1"></span><button type="submit" class="btn btn-primary"><i data-lucide="send"></i><span>Enviar como atendente</span></button></div>
+          <div class="form-row"><label>Mensagem do atendente</label><textarea class="field-area" name="texto" rows="3" placeholder="Oi, vou cuidar disso pra você…"></textarea></div>
+          <div class="form-actions"><button type="submit" class="btn btn-primary"><i data-lucide="send"></i><span>Simular mensagem do atendente</span></button></div>
         </form>
       </div>
       <div class="aba-conteudo" id="abaMemoria" hidden><p class="notice info"><i data-lucide="brain"></i>A memória relacional deste telefone: fatos duráveis que o morador afirmou sobre si, capturados a cada troca e levados ao prompt de toda a família na conversa seguinte. Comum a todos os agentes.</p><div id="memoriaTabela"></div></div>
@@ -108,6 +108,6 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/console.js?v=9"></script>
+  <script src="/console.js?v=11"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@
   const estado = { protocolo: '', sessaoID: '', ultimoEvento: null, sessao: null, config: null, poll: null };
 
   async function api(caminho, opts = {}) {
-	if (/^\/api\/(atende\/(sessao|sessoes|saidas|transbordo|identidade)|memoria|memorias|pedidos)(\?|\/|$)/.test(caminho)) caminho = comAdministradora(caminho);
+	if (/^\/api\/(atende\/(sessao|sessoes|saidas|identidade)|memoria|memorias|pedidos)(\?|\/|$)/.test(caminho)) caminho = comAdministradora(caminho);
     const r = await fetch(caminho, { headers: opts.body ? { 'Content-Type': 'application/json' } : {}, ...opts });
     const tipo = r.headers.get('content-type') || '';
     const dados = tipo.includes('json') ? await r.json() : await r.text();
@@ -63,7 +63,7 @@
       specversion: '1.0',
       tenant: f.tenant.value.trim(),
       data: {
-        protocol: { number: estado.protocolo, status: 'open', isHumanAttendance: false, isReceptive: true, attendant: null, createdAt: agora, updatedAt: agora, closedAt: null, attendanceStartedAt: null, tag: null, tags: [] },
+        protocol: { number: estado.protocolo, status: 'open', isHumanAttendance: !!(estado.sessao?.atendimento_humano || estado.sessao?.transbordo?.ativo), isReceptive: true, attendant: null, createdAt: agora, updatedAt: agora, closedAt: null, attendanceStartedAt: null, tag: null, tags: [] },
         contact: { phone: f.phone.value.trim(), name: f.name.value.trim(), email: null },
         channel: { type: 'whatsapp', wabaId: '806679752450694', phoneNumberId: '1049048231621427', displayNumber: $('#displayNumber').textContent.trim() },
         creation: { createdBy: 'user', trigger: 'incoming_message', createdByUser: null, externalReference: null },
@@ -76,6 +76,8 @@
     estado.protocolo = novoProtocolo();
     estado.sessaoID = '';
     estado.sessao = null;
+    estado.replyEmulada = false;
+    estado.chaveTb = '';
     estado.ultimoEvento = null;
     estado.desenhados = 0;
     estado.enviadaLocal = false;
@@ -119,15 +121,17 @@
       estado.poll = setInterval(async () => {
         tentativas++;
         try {
+          const sessaoConsultada = estado.sessaoID;
           const chave = estado.sessaoID ? 'id=' + encodeURIComponent(estado.sessaoID) : 'protocolo=' + encodeURIComponent(estado.protocolo);
           const r = await api('/api/atende/sessao?' + chave);
+          if (estado.sessaoID !== sessaoConsultada) return;
           estado.sessao = r.sessao;
           estado.sessaoID = r.sessao.id;
           estado.recebidas = r.recebidas || [];
           estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
-          const emTransbordo = r.sessao.transbordo && r.sessao.transbordo.ativo;
-          if (!r.sessao.processando && r.sessao.turnos.length && (emTransbordo || r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador')) { clearInterval(estado.poll); carregarSessoes(); carregarMemoria(); carregarPedidos(); res(); }
+          const emAtendimentoHumano = r.sessao.atendimento_humano || r.sessao.transbordo?.ativo;
+          if (!r.sessao.processando && r.sessao.turnos.length && (emAtendimentoHumano || r.sessao.encerrada || r.sessao.turnos[r.sessao.turnos.length - 1].quem !== 'morador')) { clearInterval(estado.poll); carregarSessoes(); carregarMemoria(); carregarPedidos(); res(); }
         } catch (err) { /* ainda não abriu */ }
         if (tentativas > 160) { clearInterval(estado.poll); toast('o concierge não respondeu em 160 s', true); digitando(false); res(); }
       }, 1000);
@@ -168,7 +172,7 @@
       const m = porTexto.get(b.dataset.texto);
       if (m) { const t = b.querySelector('time'); if (t && !t.dataset.ok) { t.dataset.ok = '1'; t.innerHTML = `${hora(m.receivedAt)} <i data-lucide="check-check" class="i-sm" title="recebida pelo ATENDE ${estado.replyEmulada ? 'emulado' : ''} · ${esc(m.id)}"></i>`; } }
     });
-    const chaveTb = JSON.stringify(s.transbordo || null);
+    const chaveTb = JSON.stringify([s.transbordo || null, s.atendimento_humano, s.encerrada, s.id, estado.replyEmulada]);
     if (estado.chaveTb !== chaveTb) { estado.chaveTb = chaveTb; desenharTransbordo(s.transbordo || null); }
     icons();
     chat.scrollTop = chat.scrollHeight;
@@ -176,40 +180,48 @@
 
   // ---- transbordo: o atendente humano assume o protocolo ---------------------------------
   function desenharTransbordo(tb) {
-    const ativo = !!(tb && tb.ativo);
+    const ativo = !!(tb && tb.ativo || estado.sessao?.atendimento_humano);
     $('#badgeTransbordo').hidden = !ativo;
-    $('#formAtendente').hidden = !ativo;
+    $('#formAtendente').hidden = !podeSimularAtendente();
     $('.phone').classList.toggle('em-transbordo', ativo);
     const el = $('#transbordoEstado');
     if (!estado.sessao && !tb) { el.innerHTML = '<div class="empty-state"><i data-lucide="life-buoy"></i>Nenhuma conversa aberta.</div>'; icons(); return; }
-    if (ativo) {
-      el.innerHTML = `<div class="tb-estado is-ativo"><span class="res-icon ri-hooks"><i data-lucide="headset"></i></span><div><strong>Em atendimento humano${tb.atendente ? ' · ' + esc(tb.atendente) : ' · aguardando atendente'}</strong><span>${tb.pedido_por === 'concierge' ? 'o concierge transferiu' : 'o atendente assumiu'} às ${hora(tb.quando)} — ${esc(tb.motivo)}</span><span class="muted">O concierge não responde até ser devolvido. As mensagens do morador chegam aqui para você.</span></div></div>`;
+    if (estado.sessao.encerrada) {
+      el.innerHTML = '<div class="tb-estado"><strong>Protocolo encerrado pelo canal</strong></div>';
+    } else if (ativo) {
+      el.innerHTML = `<div class="tb-estado is-ativo"><span class="res-icon ri-hooks"><i data-lucide="headset"></i></span><div><strong>Em atendimento humano</strong><span>${tb?.ativo ? 'Transferência registrada: ' + esc(tb.motivo) : 'Mensagem do atendente registrada pelo webhook.'}</span></div></div>`;
     } else {
-      el.innerHTML = `<div class="tb-estado"><span class="res-icon"><i data-lucide="bot"></i></span><div><strong>Com o concierge</strong><span>${tb && tb.devolvido ? 'devolvido ao concierge às ' + hora(tb.devolvido) + ' (antes: ' + esc(tb.motivo) + ')' : 'o concierge transfere sozinho quando não resolve (tool transferir_atendente); você também pode assumir agora.'}</span></div><button class="btn btn-primary btn-sm" id="btnAssumir"><i data-lucide="headset" class="i-sm"></i>Assumir atendimento</button></div>`;
-      $('#btnAssumir').addEventListener('click', () => transbordo('assumir', { atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', motivo: 'o atendente assumiu pelo Console' }));
+      el.innerHTML = '<div class="tb-estado"><span class="res-icon"><i data-lucide="bot"></i></span><div><strong>Com o concierge</strong><span>O concierge pode solicitar a transferência ao atendimento humano.</span></div></div>';
     }
     desenharPedidosAtendente();
     icons();
   }
-  async function transbordo(acao, extra = {}) {
-    if (!estado.protocolo) return toast('abra uma conversa primeiro', true);
-    try {
-      const r = await api('/api/atende/transbordo', { method: 'POST', body: JSON.stringify({ sessao_id: estado.sessaoID, protocolo: estado.protocolo, acao, ...extra }) });
-      estado.sessao = r.sessao; estado.recebidas = r.recebidas || [];
-      desenharSessao(r.sessao, r.saidas);
-      toast(acao === 'assumir' ? 'você assumiu o protocolo' : acao === 'devolver' ? 'devolvido ao concierge' : 'enviado ao morador');
-      carregarSessoes();
-    } catch (err) { toast(err.message, true); }
+  function podeSimularAtendente() {
+    return !!(estado.sessao && estado.sessao.id === estado.sessaoID && estado.replyEmulada && !estado.sessao.encerrada);
   }
   $('#formAtendente').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     const texto = f.texto.value.trim();
     if (!texto) return;
-    f.texto.value = '';
-    await transbordo('responder', { atendente: f.atendente.value.trim() || 'Atendente', texto });
+    if (!podeSimularAtendente()) return toast('abra uma conversa emulada e não encerrada', true);
+    const sessaoID = estado.sessaoID;
+    try {
+      const evento = montarEvento(texto, false);
+      evento.event = 'com.echo.atende.attendant.message';
+      evento.data.protocol.isHumanAttendance = true;
+      delete evento.data.message.direction;
+      await api(comAdministradora('/emulador/atende/webhook'), { method: 'POST', body: JSON.stringify(evento) });
+      f.texto.value = '';
+      if (estado.sessaoID !== sessaoID) return;
+      const r = await api('/api/atende/sessao?id=' + encodeURIComponent(sessaoID));
+      if (estado.sessaoID !== sessaoID) return;
+      estado.sessao = r.sessao; estado.recebidas = r.recebidas || []; estado.replyEmulada = !!r.reply_emulada;
+      desenharSessao(r.sessao, r.saidas);
+      carregarSessoes();
+      toast('evento de mensagem do atendente recebido');
+    } catch (err) { toast(err.message, true); }
   });
-  $('#btnDevolver').addEventListener('click', () => transbordo('devolver'));
   function nota(texto) {
     const d = document.createElement('div');
     d.className = 'day nota-sistema';
@@ -345,7 +357,7 @@
         f.querySelectorAll('input, select').forEach((i) => { if (i.name && i.value.trim() !== '') valores[i.name] = i.value.trim(); });
         try {
           const r = await api('/api/pedidos/acao', { method: 'POST', body: JSON.stringify({ acao: 'preencher', sessao_id: estado.sessaoID, protocolo: estado.protocolo, pedido: f.dataset.pedido, atendente: $('#formAtendente').atendente.value.trim() || 'Atendente', valores, confirmar: f.dataset.confirmar === '1' }) });
-          estado.sessao = r.sessao; estado.recebidas = r.recebidas || [];
+          estado.sessao = r.sessao; estado.recebidas = r.recebidas || []; estado.replyEmulada = !!r.reply_emulada;
           desenharSessao(r.sessao, r.saidas);
           estado.chavePedidos = ''; estado.chavePedAtend = '';
           await carregarPedidos();
@@ -416,8 +428,11 @@
       }));
       $$('#sessoes .sub').forEach((d) => d.addEventListener('click', async () => {
         const f = $('#formContato');
+        estado.sessao = null; estado.replyEmulada = false; estado.chaveTb = '';
+        desenharTransbordo(null);
         estado.protocolo = d.dataset.p; estado.sessaoID = d.dataset.id; f.protocolo.value = d.dataset.p; f.phone.value = d.dataset.phone; f.name.value = d.dataset.name; f.tenant.value = d.dataset.tenant; if (d.dataset.channel) f.condominio.value = d.dataset.channel; atualizarCanalSelecionado();
         const r2 = await api('/api/atende/sessao?id=' + encodeURIComponent(d.dataset.id));
+        if (estado.sessaoID !== d.dataset.id) return;
         estado.sessao = r2.sessao;
         estado.recebidas = r2.recebidas || [];
         estado.replyEmulada = !!r2.reply_emulada;

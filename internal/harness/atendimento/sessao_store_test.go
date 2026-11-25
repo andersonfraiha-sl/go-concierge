@@ -369,17 +369,4 @@ func TestSessaoDeOutraAdministradoraNaoAparece(t *testing.T) {
 	if _, ok, err := svc.Sessao(t.Context(), "s-b"); err != nil || ok {
 		t.Fatalf("sessão de outra administradora visível: ok=%v err=%v", ok, err)
 	}
-	operacoes := map[string]func() error{
-		"assumir":  func() error { _, err := svc.Assumir(t.Context(), "s-b", "Ana", "teste"); return err },
-		"devolver": func() error { _, err := svc.Devolver(t.Context(), "s-b"); return err },
-		"responder": func() error {
-			_, err := svc.Responder(t.Context(), "s-b", "Ana", "oi")
-			return err
-		},
-	}
-	for nome, op := range operacoes {
-		if err := op(); !errors.Is(err, ErrProtocoloDesconhecido) {
-			t.Fatalf("%s numa sessão alheia: %v", nome, err)
-		}
-	}
 }

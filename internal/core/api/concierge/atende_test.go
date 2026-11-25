@@ -102,12 +102,24 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 			if sess := listarSessoes(t, s.atende.Sessoes)[0]; sess.Condominio != "101" || sess.AdministradoraID != "adm-x" {
 				t.Fatalf("condomínio da conversa: %s/%s", sess.AdministradoraID, sess.Condominio)
 			}
+			humano := strings.Replace(corpo, "com.echo.atende.user.protocol.created", atendeapi.EventoMensagemAtendente, 1)
+			humano = strings.Replace(humano, "evt-1", "evt-humano", 1)
+			humano = strings.Replace(humano, "posso fazer barulho depois das 22h?", "Vou cuidar disso", 1)
+			w = httptest.NewRecorder()
+			s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook?condominio=101", strings.NewReader(humano)))
+			if w.Code != http.StatusAccepted {
+				t.Fatalf("evento humano: status=%d corpo=%s", w.Code, w.Body.String())
+			}
+			sess := listarSessoes(t, s.atende.Sessoes)[0]
+			if !sess.AtendimentoHumano || !strings.Contains(corpoJSON(t, sess), "Vou cuidar disso") {
+				t.Fatalf("intervenção não registrada: %+v", sess)
+			}
 			ctx, cancelar := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancelar()
 			if err := servidorHarness.Fechar(ctx); err != nil {
 				t.Fatal(err)
 			}
-			sess := listarSessoes(t, s.atende.Sessoes)[0]
+			sess = listarSessoes(t, s.atende.Sessoes)[0]
 			registro, ok, err := store.Carregar(ctx, sess.ID)
 			if err != nil || !ok || !strings.Contains(string(registro.Dados), `"historico"`) {
 				t.Fatalf("histórico não persistido: encontrado=%v erro=%v", ok, err)
@@ -539,9 +551,6 @@ func TestSessoesFicamNaImplantacao(t *testing.T) {
 		{"le alheia por protocolo", fixa, "GET", "/api/atende/sessao?protocolo=P-s-b", "", 404, "NAO_ENCONTRADO"},
 		{"le de outra administradora pedida", escopo.Implantacao{}, "GET", "/api/atende/sessao?id=s-a&administradora=adm-b", "", 404, ""},
 		{"saidas de alheia", fixa, "GET", "/api/atende/saidas?id=s-b", "", 404, "NAO_ENCONTRADO"},
-		{"assume a propria", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-a","acao":"assumir"}`, 200, `"ativo":true`},
-		{"assume alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"assumir"}`, 404, "NAO_ENCONTRADO"},
-		{"devolve alheia", fixa, "POST", "/api/atende/transbordo", `{"sessao_id":"s-b","acao":"devolver"}`, 404, "NAO_ENCONTRADO"},
 		{"preenche pedido de alheia", fixa, "POST", "/api/pedidos/acao", `{"sessao_id":"s-b","acao":"preencher"}`, 404, "NAO_ENCONTRADO"},
 		{"apaga alheia", fixa, "DELETE", "/api/atende/sessao?id=s-b", "", 404, "NAO_ENCONTRADO"},
 	}
@@ -586,18 +595,6 @@ func TestFalhaAoPersistirResponde500(t *testing.T) {
 		s := novo(t)
 		w := httptest.NewRecorder()
 		s.webhookEmulado(w, httptest.NewRequest("POST", "/emulador/atende/webhook", strings.NewReader(corpoEventoTeste(atendeapi.EventoMensagemAtendente, "tenant-1", "551940402710"))))
-		if w.Code != 500 {
-			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
-		}
-	})
-	t.Run("transbordo", func(t *testing.T) {
-		s := novo(t)
-		sessoes := listarSessoes(t, s.atende.Sessoes)
-		if len(sessoes) != 1 {
-			t.Fatalf("sessões: %d", len(sessoes))
-		}
-		w := httptest.NewRecorder()
-		s.atendeTransbordo(w, httptest.NewRequest("POST", "/api/atende/transbordo", strings.NewReader(`{"sessao_id":"`+sessoes[0].ID+`","acao":"assumir"}`)))
 		if w.Code != 500 {
 			t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 		}

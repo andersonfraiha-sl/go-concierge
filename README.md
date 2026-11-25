@@ -459,7 +459,7 @@ Servidor com prazos contra slowloris (cabeçalho 10s, leitura 60s, escrita 70s, 
 | Agentes OKF | `GET\|POST /api/agentes`, `GET\|DELETE /api/agente`, `PUT /api/agente/config`, `POST /api/agente/recursos`, `POST /api/agentes/importar`, `GET /api/agentes/exportar`, `POST /api/agentes/mover` (410), `GET\|PUT\|DELETE /api/arquivo`, `GET /api/arquivo/modelo`, `GET /api/projecao`, `GET /api/anatomia` |
 | Nexus | `GET /api/nexus/recursos`, `PUT\|DELETE /api/nexus/recurso` |
 | Admin | `GET /api/admin/estado`, `POST\|PUT\|DELETE /api/admin/administradora`, `POST\|PUT\|DELETE /api/admin/condominio`, `PUT /api/admin/habilitacao`, `PUT /api/admin/orientacao`, `PUT /api/admin/ajustes`, `PUT /api/admin/payload`, `POST /api/admin/sugerir-payload`, `GET\|PUT /api/admin/orquestracao` |
-| Conversas | `GET /api/atende/sessoes`, `GET\|DELETE /api/atende/sessao`, `GET /api/atende/saidas`, `POST /api/atende/transbordo`, `GET /api/atende/config`, `GET /api/atende/identidade` |
+| Conversas | `GET /api/atende/sessoes`, `GET\|DELETE /api/atende/sessao`, `GET /api/atende/saidas`, `GET /api/atende/config`, `GET /api/atende/identidade` |
 | Pedidos e memória | `GET /api/pedidos`, `GET /api/pedidos/exportar`, `POST /api/pedidos/acao`, `GET\|DELETE /api/memoria`, `GET /api/memorias` |
 | Ganchos | `GET /api/ganchos/fixos`, `GET\|POST /api/ganchos/regras`, `GET\|PUT /api/ganchos/regras/{id}`, `GET /api/ganchos/regras/{id}/versoes/{versao}`, `GET /api/ganchos/regras/exportar`, `POST /api/ganchos/regras/importar`, `GET /api/ganchos/historico` |
 | Emulador | `POST /emulador/atende/webhook`, `POST /emulador/atende/messages` |
