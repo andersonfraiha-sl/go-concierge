@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -81,17 +80,19 @@ func caminhosDe(arquivos []ArquivoBruto) []string {
 	return out
 }
 
-// AplicarArquivos grava e remove o lote como uma unidade, sob a trava do catálogo: guarda o
-// estado anterior, escreve, recarrega a árvore e, se ela não carrega ou ganhou problema de
-// nível erro, desfaz e devolve os problemas novos. Se carrega, persiste; falha do gancho
-// também desfaz. Depois de desfazer, disco e banco estão como antes da chamada. O erro
-// devolvido é falha do servidor (disco, banco, desfazer); pedido inaceitável é ErrLoteInvalido.
+// AplicarArquivos valida o lote contra os erros preexistentes e persiste as alterações juntas.
+// Em caso de resultado incerto, o erro é propagado sem tentar outra gravação.
 func (c *Catalogo) AplicarArquivos(gravar []ArquivoBruto, remover []string) (ResultadoDoLote, error) {
 	if err := ValidarLote(gravar, remover); err != nil {
 		return ResultadoDoLote{}, err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	fim, err := c.iniciarEscrita()
+	if err != nil {
+		return ResultadoDoLote{}, err
+	}
+	defer fim()
 
 	foto, conflitos, err := c.fotografar(caminhosDe(gravar), remover)
 	if err != nil || len(conflitos) > 0 {
@@ -115,9 +116,7 @@ func (c *Catalogo) AplicarArquivos(gravar []ArquivoBruto, remover []string) (Res
 	return ResultadoDoLote{Gravados: len(gravar), Removidos: removidos}, nil
 }
 
-// desfazerComErro desfaz no disco e devolve causa; se o desfazer falha, o erro dele vai junto.
-// Com repersistir, devolve o banco ao estado do disco restaurado: a falha de persistência pode
-// ter sido depois do commit (timeout), e o gancho compara o catálogo inteiro.
+// desfazerComErro restaura o retrato e tenta compensar falhas que não sejam incertas.
 func (c *Catalogo) desfazerComErro(foto fotografia, causa error, repersistir bool) error {
 	erro := causa
 	if err := c.desfazer(foto); err != nil {
@@ -161,11 +160,11 @@ func (c *Catalogo) fotografar(gravar, remover []string) (fotografia, []Problema,
 		if err != nil {
 			return fotografia{}, nil, err
 		}
-		if pai, ok := paiQueNaoEPasta(abs, c.Root); ok {
+		if pai, ok := c.paiQueNaoEPasta(abs, c.Root); ok {
 			conflitos = append(conflitos, conflito(rel, fmt.Sprintf("%s existe e não é uma pasta", pai)))
 			continue
 		}
-		estado, texto, err := lerEstado(abs)
+		estado, texto, err := c.lerEstado(abs)
 		if err != nil {
 			return fotografia{}, nil, fmt.Errorf("ler estado anterior de %s: %w", rel, err)
 		}
@@ -187,8 +186,8 @@ func conflito(rel, texto string) Problema {
 }
 
 // lerEstado devolve o estado de abs; texto não vazio é o motivo de não ser um arquivo comum.
-func lerEstado(abs string) (estado estadoDoArquivo, texto string, err error) {
-	info, err := os.Lstat(abs)
+func (c *Catalogo) lerEstado(abs string) (estado estadoDoArquivo, texto string, err error) {
+	info, err := c.lstat(abs)
 	switch {
 	case ausente(err):
 		return estadoDoArquivo{}, "", nil
@@ -197,7 +196,7 @@ func lerEstado(abs string) (estado estadoDoArquivo, texto string, err error) {
 	case !info.Mode().IsRegular():
 		return estadoDoArquivo{}, "já existe e não é um arquivo comum", nil
 	}
-	conteudo, err := os.ReadFile(abs)
+	conteudo, err := c.readFile(abs)
 	return estadoDoArquivo{existia: true, conteudo: conteudo}, "", err
 }
 
@@ -207,9 +206,9 @@ func ausente(err error) bool {
 
 // paiQueNaoEPasta acha, subindo de abs até a raiz do catálogo, um ancestral que existe e não
 // é pasta (gravar sob um arquivo).
-func paiQueNaoEPasta(abs, raiz string) (string, bool) {
+func (c *Catalogo) paiQueNaoEPasta(abs, raiz string) (string, bool) {
 	for pai := filepath.Dir(abs); pai != raiz && dentro(raiz, pai); pai = filepath.Dir(pai) {
-		info, err := os.Lstat(pai)
+		info, err := c.lstat(pai)
 		if err != nil {
 			continue
 		}
@@ -228,7 +227,7 @@ func (c *Catalogo) pastasQueFaltam(caminhos []string) []string {
 	faltam := map[string]bool{}
 	for _, rel := range caminhos {
 		for pasta := filepath.Dir(filepath.Join(c.Root, filepath.FromSlash(rel))); pasta != base && dentro(base, pasta); pasta = filepath.Dir(pasta) {
-			if dirExists(pasta) {
+			if c.dirExists(pasta) {
 				break
 			}
 			faltam[pasta] = true
@@ -264,10 +263,10 @@ func (c *Catalogo) escreverLote(gravar []ArquivoBruto, foto fotografia, remover 
 		if err != nil {
 			return 0, err
 		}
-		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		if err := c.mkdirAll(filepath.Dir(abs), 0o755); err != nil {
 			return 0, fmt.Errorf("criar pasta de %s: %w", a.Caminho, err)
 		}
-		if err := escreverArquivoAtomico(abs, a.Conteudo, 0o644); err != nil {
+		if err := c.escreverArquivoAtomico(abs, a.Conteudo, 0o644); err != nil {
 			return 0, fmt.Errorf("gravar %s: %w", a.Caminho, err)
 		}
 	}
@@ -280,7 +279,7 @@ func (c *Catalogo) escreverLote(gravar []ArquivoBruto, foto fotografia, remover 
 		if err != nil {
 			return removidos, err
 		}
-		if err := os.Remove(abs); err != nil {
+		if err := c.remove(abs); err != nil {
 			return removidos, fmt.Errorf("remover %s: %w", rel, err)
 		}
 		removidos++
@@ -294,7 +293,7 @@ func (c *Catalogo) escreverLote(gravar []ArquivoBruto, foto fotografia, remover 
 func (c *Catalogo) podarPastasVazias(abs string) {
 	base := filepath.Join(c.Root, DirAgentes)
 	for pasta := filepath.Dir(abs); pasta != base && dentro(base, pasta); pasta = filepath.Dir(pasta) {
-		if os.Remove(pasta) != nil {
+		if c.remove(pasta) != nil {
 			return
 		}
 	}
@@ -310,29 +309,29 @@ func (c *Catalogo) desfazer(foto fotografia) error {
 			erros = append(erros, err)
 			continue
 		}
-		if err := restaurar(abs, estado); err != nil {
+		if err := c.restaurar(abs, estado); err != nil {
 			erros = append(erros, fmt.Errorf("restaurar %s: %w", rel, err))
 		}
 	}
 	for _, pasta := range foto.pastasNovas {
-		if err := os.Remove(pasta); err != nil && !ausente(err) {
+		if err := c.remove(pasta); err != nil && !ausente(err) {
 			erros = append(erros, fmt.Errorf("remover pasta criada pelo lote: %w", err))
 		}
 	}
 	return errors.Join(erros...)
 }
 
-func restaurar(abs string, estado estadoDoArquivo) error {
+func (c *Catalogo) restaurar(abs string, estado estadoDoArquivo) error {
 	if !estado.existia {
-		if err := os.Remove(abs); err != nil && !ausente(err) {
+		if err := c.remove(abs); err != nil && !ausente(err) {
 			return err
 		}
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+	if err := c.mkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return err
 	}
-	return escreverArquivoAtomico(abs, estado.conteudo, 0o644)
+	return c.escreverArquivoAtomico(abs, estado.conteudo, 0o644)
 }
 
 // ---- problemas da árvore ---------------------------------------------------------

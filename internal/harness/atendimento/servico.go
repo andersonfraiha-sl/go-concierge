@@ -1644,6 +1644,14 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 	if err != nil {
 		return nil, err
 	}
+	if s.Catalogos != nil {
+		contato := sess.contato()
+		cat, err := s.Catalogos.Carregar(ctx, contato.CompanyID, contato.CondoID)
+		if err != nil {
+			return nil, err
+		}
+		ctx = context.WithValue(ctx, chaveCatalogoExecucao{}, cat)
+	}
 	m, condo, err := s.condominioDaSessao(ctx, sess, sess.contato())
 	if err != nil {
 		return nil, err
@@ -1652,11 +1660,12 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 	if err != nil {
 		return nil, err
 	}
-	def, err := s.Cat.Load(dir)
+	cat := s.catalogoDoContexto(ctx)
+	def, err := cat.Load(dir)
 	if err != nil {
 		return nil, err
 	}
-	return harness.Build(ctx, s.Cat, def, cfg)
+	return harness.Build(ctx, cat, def, cfg)
 }
 
 // fixarCondominio fixa na sessão o condomínio que o escopo_da_conversa resolveu e o

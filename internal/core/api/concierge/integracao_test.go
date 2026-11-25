@@ -12,6 +12,7 @@ import (
 
 	"go-concierge/internal/core/administracao/regras"
 	"go-concierge/internal/core/banco/bancotest"
+	"go-concierge/internal/core/catalogo"
 )
 
 const chaveDeTeste = "chave-de-integracao-com-32-caracteres!"
@@ -149,10 +150,11 @@ func TestArquivosDoCatalogo(t *testing.T) {
 	gravar("agentes/a/.rascunho/segredo.md", []byte("fora"))
 	gravar("agentes/.oculto.md", []byte("fora"))
 
-	arquivos, err := arquivosDoCatalogo(raiz)
+	lidos, err := catalogo.LerDisco(raiz)
 	if err != nil {
 		t.Fatal(err)
 	}
+	arquivos := arquivosParaPacote(lidos)
 
 	quer := map[string]arquivoDoPacote{
 		"agentes/a/persona.md":        {Conteudo: "olá"},

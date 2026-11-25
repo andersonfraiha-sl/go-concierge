@@ -64,7 +64,7 @@ type estadoDoCopiloto struct {
 
 func (s *servidor) rotasCopiloto(mux *http.ServeMux) {
 	mux.Handle("GET /api/copiloto/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.copilotoEstado))
-	mux.Handle("POST /api/copiloto", s.protegidaEmAlgum(acesso.SkillsLer, s.copilotoPerguntar))
+	mux.Handle("POST /api/copiloto", s.protegidaEmAlgum(acesso.SkillsLer, s.comCatalogo((*servidor).copilotoPerguntar)))
 }
 
 func (s *servidor) copilotoEstado(w http.ResponseWriter, _ *http.Request) {

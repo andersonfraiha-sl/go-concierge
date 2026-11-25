@@ -2,7 +2,6 @@ package arquivos
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -16,16 +15,16 @@ import (
 func (c *Catalogo) Ler(a *Agent, f Arquivo) ([]byte, error) {
 	base := a.Path
 	if f.HerdadoDe != "" {
-		base = ancestralPorNome(a.Path, f.HerdadoDe)
+		base = c.ancestralPorNome(a.Path, f.HerdadoDe)
 		if base == "" {
 			return nil, fmt.Errorf("ancestral %q não encontrado para %s", f.HerdadoDe, f.Caminho)
 		}
 	}
 	p := filepath.Join(base, filepath.FromSlash(f.Caminho))
-	if !dentro(base, p) || !Permitido(a.Path, p) {
+	if !dentro(base, p) || !c.Permitido(a.Path, p) {
 		return nil, fmt.Errorf("fora da fronteira do agente: %s", f.Caminho)
 	}
-	return os.ReadFile(p)
+	return c.readFile(p)
 }
 
 // LerDado localiza um dado do agente pelo caminho e o lê. Aceita tudo do índice

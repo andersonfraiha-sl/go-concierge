@@ -26,7 +26,7 @@ type loteDeArquivos struct {
 var errArquivoComOmitido = errors.New("arquivo com campo omitido não tem conteúdo; envie o conteúdo")
 
 func (s *servidor) rotasIntegracaoArquivos(mux *http.ServeMux) {
-	mux.HandleFunc(padraoArquivos, s.comChaveDeIntegracao(s.integracaoArquivos))
+	mux.HandleFunc(padraoArquivos, s.comChaveDeIntegracao(s.comCatalogo((*servidor).integracaoArquivos)))
 }
 
 func (s *servidor) integracaoArquivos(w http.ResponseWriter, r *http.Request) {

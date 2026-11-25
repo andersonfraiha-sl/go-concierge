@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"testing/fstest"
 )
 
 // Caixinha é uma das subpastas padronizadas de um agente.
@@ -47,14 +48,15 @@ func CaixinhaPorNome(nome string) (Caixinha, bool) {
 
 // Catalogo é a raiz do formato (agentes/) mais a fonte de recursos do Nexus.
 type Catalogo struct {
-	Root string
+	Root     string
+	arquivos fstest.MapFS
 	// Recursos devolve os recursos do Nexus da account (tools, conteúdos, memórias).
 	// nil = Nexus indisponível: as declarações não são conferidas.
 	Recursos func() []Recurso
-	// Persistir, se definido, roda depois de toda escrita que deu certo, sob a trava; o erro
-	// volta para quem escreveu. O okf-admin o liga para levar o disco ao Postgres. Sem ele
-	// (testes, okf-run) o disco é a única cópia.
+	// Persistir roda depois de uma escrita validada, sob a trava do catálogo.
 	Persistir         func() error
+	PrepararEscrita   func() (func(), error)
+	PrepararRecursos  func() func() []Recurso
 	remocoesPendentes []string
 	// trava do processo: as escritas e o gancho andam uma de cada vez
 	mu sync.Mutex
@@ -134,10 +136,56 @@ func dentro(base, alvo string) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
+func (c *Catalogo) IsAgent(dir string) bool {
+	return c.fileExists(filepath.Join(dir, AgentYAML)) || c.fileExists(filepath.Join(dir, "workflows", "principal.md"))
+}
+
+func (c *Catalogo) fileExists(p string) bool {
+	st, err := c.stat(p)
+	return err == nil && !st.IsDir()
+}
+
+func (c *Catalogo) dirExists(p string) bool {
+	st, err := c.stat(p)
+	return err == nil && st.IsDir()
+}
+
+// Ancestrais lista as pastas de AGENTE acima desta (pai, avô…), subindo pelos
+// níveis agentes/. Para quando o nível acima não é agente (a raiz).
+func (c *Catalogo) ancestrais(dir string) []string {
+	var out []string
+	atual := filepath.Clean(dir)
+	for filepath.Base(filepath.Dir(atual)) == DirAgentes {
+		pai := filepath.Dir(filepath.Dir(atual))
+		if !c.IsAgent(pai) {
+			break
+		}
+		out = append(out, pai)
+		atual = pai
+	}
+	return out
+}
+
+// Permitido aplica a fronteira: dentro da própria pasta, ou recurso PRÓPRIO de um
+// ancestral (nunca a área agentes/ dele, que é dos irmãos).
+func (c *Catalogo) Permitido(agente, alvo string) bool {
+	agente = filepath.Clean(agente)
+	alvo = filepath.Clean(alvo)
+	if dentro(agente, alvo) {
+		return true
+	}
+	for _, anc := range c.ancestrais(agente) {
+		if dentro(anc, alvo) && !dentro(filepath.Join(anc, DirAgentes), alvo) {
+			return true
+		}
+	}
+	return false
+}
+
 // Tree carrega todos os agentes de primeiro nível com seus filhos.
 func (c *Catalogo) Tree() ([]*Agent, error) {
 	base := filepath.Join(c.Root, DirAgentes)
-	entradas, err := os.ReadDir(base)
+	entradas, err := c.readDir(base)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +195,7 @@ func (c *Catalogo) Tree() ([]*Agent, error) {
 			continue
 		}
 		dir := filepath.Join(base, e.Name())
-		if !IsAgent(dir) {
+		if !c.IsAgent(dir) {
 			continue
 		}
 		a, err := c.Load(dir)
@@ -208,10 +256,10 @@ func SlugOK(s string) bool {
 // Load carrega uma pasta de agente (e, recursivamente, os subagentes).
 func (c *Catalogo) Load(dir string) (*Agent, error) {
 	dir = filepath.Clean(dir)
-	if !dirExists(dir) {
+	if !c.dirExists(dir) {
 		return nil, fmt.Errorf("pasta de agente não existe: %s", dir)
 	}
-	if !IsAgent(dir) {
+	if !c.IsAgent(dir) {
 		return nil, fmt.Errorf("%s não é uma pasta de agente: precisa de agent.yaml ou workflows/principal.md", dir)
 	}
 	rel, _ := filepath.Rel(c.Root, dir)
@@ -227,8 +275,8 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 		Problemas:  []Problema{},
 	}
 
-	if cfgPath := filepath.Join(dir, AgentYAML); fileExists(cfgPath) {
-		raw, err := os.ReadFile(cfgPath)
+	if cfgPath := filepath.Join(dir, AgentYAML); c.fileExists(cfgPath) {
+		raw, err := c.readFile(cfgPath)
 		if err != nil {
 			return nil, err
 		}
@@ -265,9 +313,9 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 	}
 
 	// caixinhas próprias e herdadas (do pai ao avô: o mais próximo entra primeiro)
-	ancs := Ancestrais(dir)
+	ancs := c.ancestrais(dir)
 	for _, cx := range Caixinhas {
-		a.Arquivos[cx.Nome] = listar(dir, cx, "")
+		a.Arquivos[cx.Nome] = c.listar(dir, cx, "")
 		if a.Arquivos[cx.Nome] == nil {
 			a.Arquivos[cx.Nome] = []Arquivo{}
 		}
@@ -280,7 +328,7 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 			vistos[f.Caminho] = true
 		}
 		for _, anc := range ancs {
-			for _, f := range listar(anc, cx, filepath.Base(anc)) {
+			for _, f := range c.listar(anc, cx, filepath.Base(anc)) {
 				if vistos[f.Caminho] {
 					continue
 				}
@@ -291,7 +339,7 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 	}
 	// caixinhas do formato antigo
 	for _, velha := range []string{"data", "skills", "schemas", "mcps", "bash", "scripts", "rag", "hooks"} {
-		if dirExists(filepath.Join(dir, velha)) {
+		if c.dirExists(filepath.Join(dir, velha)) {
 			a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: velha + "/", Texto: "caixinha do formato antigo; não entra na projeção", Solucao: "conhecimento vai em knowledge/, templates em assets/, tools vêm do Nexus"})
 		}
 	}
@@ -301,16 +349,16 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 	// persona nem a herdam; a voz é aplicada pelo orquestrador na entrega. Um
 	// persona.md num subagente é ignorado.
 	if len(ancs) == 0 {
-		if raw, err := os.ReadFile(filepath.Join(dir, PersonaMD)); err == nil {
+		if raw, err := c.readFile(filepath.Join(dir, PersonaMD)); err == nil {
 			a.Persona = string(raw)
 		}
-	} else if fileExists(filepath.Join(dir, PersonaMD)) {
+	} else if c.fileExists(filepath.Join(dir, PersonaMD)) {
 		a.Problemas = append(a.Problemas, Problema{Nivel: "aviso", Onde: PersonaMD, Texto: "persona só existe no agente de primeiro nível; este arquivo é ignorado", Solucao: "apague-o: a voz é a de " + filepath.Base(ancs[len(ancs)-1]) + ", aplicada na entrega"})
 	}
 
 	// caso de uso
-	if p := filepath.Join(dir, CasoYAML); fileExists(p) {
-		caso, err := LoadCaso(p)
+	if p := filepath.Join(dir, CasoYAML); c.fileExists(p) {
+		caso, err := c.loadCaso(p)
 		if err != nil {
 			a.Problemas = append(a.Problemas, Problema{Nivel: "erro", Onde: CasoYAML, Texto: err.Error()})
 		} else {
@@ -320,14 +368,14 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 
 	// subagentes
 	ninho := filepath.Join(dir, DirAgentes)
-	if dirExists(ninho) {
-		entradas, _ := os.ReadDir(ninho)
+	if c.dirExists(ninho) {
+		entradas, _ := c.readDir(ninho)
 		for _, e := range entradas {
 			if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 				continue
 			}
 			sub := filepath.Join(ninho, e.Name())
-			if !IsAgent(sub) {
+			if !c.IsAgent(sub) {
 				continue
 			}
 			s, err := c.Load(sub)
@@ -345,18 +393,19 @@ func (c *Catalogo) Load(dir string) (*Agent, error) {
 			a.Tipo = Operador
 		}
 	}
+
 	a.Problemas = append(a.Problemas, c.validar(a)...)
 	return a, nil
 }
 
 // listar enumera os arquivos de uma caixinha numa pasta de agente.
-func listar(dir string, cx Caixinha, herdadoDe string) []Arquivo {
+func (c *Catalogo) listar(dir string, cx Caixinha, herdadoDe string) []Arquivo {
 	base := filepath.Join(dir, cx.Nome)
-	if !dirExists(base) {
+	if !c.dirExists(base) {
 		return nil
 	}
 	var out []Arquivo
-	_ = filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+	_ = c.walkDir(base, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -374,7 +423,7 @@ func listar(dir string, cx Caixinha, herdadoDe string) []Arquivo {
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, p)
-		out = append(out, Arquivo{Caminho: filepath.ToSlash(rel), Bytes: info.Size(), Resumo: Resumo(p), HerdadoDe: herdadoDe})
+		out = append(out, Arquivo{Caminho: filepath.ToSlash(rel), Bytes: info.Size(), Resumo: c.Resumo(p), HerdadoDe: herdadoDe})
 		return nil
 	})
 	sort.Slice(out, func(i, j int) bool { return out[i].Caminho < out[j].Caminho })
@@ -409,8 +458,8 @@ func Frontmatter(texto string) map[string]any {
 }
 
 // Resumo: uma linha curta sobre o arquivo, para o índice do prompt e a interface.
-func Resumo(p string) string {
-	raw, err := os.ReadFile(p)
+func (c *Catalogo) Resumo(p string) string {
+	raw, err := c.readFile(p)
 	if err != nil {
 		return ""
 	}
@@ -480,8 +529,8 @@ func corta(s string, n int) string {
 }
 
 // Descrever: a descrição curta de uma pasta (índice de subagentes e rotas).
-func Descrever(dir string) string {
-	if raw, err := os.ReadFile(filepath.Join(dir, AgentYAML)); err == nil {
+func (c *Catalogo) Descrever(dir string) string {
+	if raw, err := c.readFile(filepath.Join(dir, AgentYAML)); err == nil {
 		var m map[string]any
 		if yaml.Unmarshal(raw, &m) == nil {
 			if d, ok := m["descricao"].(string); ok && strings.TrimSpace(d) != "" {
@@ -489,11 +538,15 @@ func Descrever(dir string) string {
 			}
 		}
 	}
-	if p := filepath.Join(dir, "workflows", "principal.md"); fileExists(p) {
-		return Resumo(p)
+	if p := filepath.Join(dir, "workflows", "principal.md"); c.fileExists(p) {
+		return c.Resumo(p)
 	}
 	return ""
 }
+
+func Resumo(p string) string { return (&Catalogo{}).Resumo(p) }
+
+func Descrever(dir string) string { return (&Catalogo{}).Descrever(dir) }
 
 // Pai devolve a pasta do agente pai, ou "" na raiz.
 func Pai(dir string) string {
@@ -516,4 +569,11 @@ func Find(tree []*Agent, rel string) *Agent {
 	return nil
 }
 
-func (c *Catalogo) Ancestrais(dir string) []string { return Ancestrais(dir) }
+func (c *Catalogo) Ancestrais(dir string) []string { return c.ancestrais(dir) }
+
+func (c *Catalogo) pai(dir string) string {
+	if ancestrais := c.ancestrais(dir); len(ancestrais) > 0 {
+		return ancestrais[0]
+	}
+	return ""
+}

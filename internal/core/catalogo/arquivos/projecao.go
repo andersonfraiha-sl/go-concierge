@@ -2,7 +2,6 @@ package arquivos
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -118,7 +117,7 @@ func (c *Catalogo) ProjecaoCom(a *Agent, principal *string) string {
 	if len(a.Subagentes) > 0 {
 		var linhas []string
 		for _, s := range a.Subagentes {
-			linhas = append(linhas, fmt.Sprintf("- `%s` — %s", filepath.Base(s.Path), Descrever(s.Path)))
+			linhas = append(linhas, fmt.Sprintf("- `%s` — %s", filepath.Base(s.Path), c.Descrever(s.Path)))
 		}
 		cab := "## Subtasks (tool invocar_agente — chame quando o SEU workflow mandar; você continua dono da resposta final)"
 		if a.Tipo == Orquestrador {
@@ -198,7 +197,7 @@ func corpo(texto string) string {
 }
 
 func (c *Catalogo) lerProprio(a *Agent, rel string) string {
-	raw, err := os.ReadFile(filepath.Join(a.Path, filepath.FromSlash(rel)))
+	raw, err := c.readFile(filepath.Join(a.Path, filepath.FromSlash(rel)))
 	if err != nil {
 		return ""
 	}
@@ -248,7 +247,7 @@ func (c *Catalogo) IndiceCompleto(a *Agent) []Arquivo {
 // Procedimentos lista workflows/ exceto principal.md.
 func (c *Catalogo) Procedimentos(a *Agent) []Procedimento {
 	base := filepath.Join(a.Path, "workflows")
-	entradas, err := os.ReadDir(base)
+	entradas, err := c.readDir(base)
 	if err != nil {
 		return nil
 	}
@@ -258,9 +257,9 @@ func (c *Catalogo) Procedimentos(a *Agent) []Procedimento {
 		case e.Name() == "principal.md" || strings.HasPrefix(e.Name(), "."):
 			continue
 		case !e.IsDir() && strings.HasSuffix(e.Name(), ".md"):
-			out = append(out, Procedimento{Nome: strings.TrimSuffix(e.Name(), ".md"), Resumo: Resumo(filepath.Join(base, e.Name())), Etapas: []string{}})
+			out = append(out, Procedimento{Nome: strings.TrimSuffix(e.Name(), ".md"), Resumo: c.Resumo(filepath.Join(base, e.Name())), Etapas: []string{}})
 		case e.IsDir():
-			sub, _ := os.ReadDir(filepath.Join(base, e.Name()))
+			sub, _ := c.readDir(filepath.Join(base, e.Name()))
 			var etapas []string
 			for _, s := range sub {
 				if !s.IsDir() && strings.HasSuffix(s.Name(), ".md") {
@@ -271,7 +270,7 @@ func (c *Catalogo) Procedimentos(a *Agent) []Procedimento {
 				continue
 			}
 			sort.Strings(etapas)
-			out = append(out, Procedimento{Nome: e.Name(), Resumo: Resumo(filepath.Join(base, e.Name(), etapas[0]+".md")), Etapas: etapas})
+			out = append(out, Procedimento{Nome: e.Name(), Resumo: c.Resumo(filepath.Join(base, e.Name(), etapas[0]+".md")), Etapas: etapas})
 		}
 	}
 	return out

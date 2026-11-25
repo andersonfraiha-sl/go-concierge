@@ -1,14 +1,19 @@
 package arquivos
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"go-concierge/internal/core/catalogo"
+	"go-concierge/internal/harness/persistencia"
 )
 
 var (
@@ -19,8 +24,15 @@ var (
 var catalogoNexusLocks sync.Map
 
 type CatalogoNexusStore struct {
-	path string
-	mu   *sync.Mutex
+	path    string
+	mu      *sync.Mutex
+	banco   bancoCatalogoNexus
+	incerta error
+}
+
+type bancoCatalogoNexus interface {
+	Listar(context.Context) ([]catalogo.Arquivo, error)
+	Substituir(context.Context, []catalogo.Arquivo, ...string) (catalogo.Mudanca, error)
 }
 
 func NewCatalogoNexusStore(root, account string) (*CatalogoNexusStore, error) {
@@ -34,6 +46,19 @@ func NewCatalogoNexusStore(root, account string) (*CatalogoNexusStore, error) {
 	}
 	lock, _ := catalogoNexusLocks.LoadOrStore(path, &sync.Mutex{})
 	return &CatalogoNexusStore{path: path, mu: lock.(*sync.Mutex)}, nil
+}
+
+func NewCatalogoNexusStorePostgres(account string, banco bancoCatalogoNexus) (*CatalogoNexusStore, error) {
+	account = strings.TrimSpace(account)
+	if account == "" || account == "." || account == ".." || strings.ContainsAny(account, "/\\\x00") {
+		return nil, fmt.Errorf("account inválida para o catálogo Nexus")
+	}
+	path := "nexus/catalogo-nexus/" + account + ".yaml"
+	if err := catalogo.ValidarCaminho(path); err != nil {
+		return nil, err
+	}
+	lock, _ := catalogoNexusLocks.LoadOrStore("postgres:"+path, &sync.Mutex{})
+	return &CatalogoNexusStore{path: path, mu: lock.(*sync.Mutex), banco: banco}, nil
 }
 
 func (s *CatalogoNexusStore) Path() string { return s.path }
@@ -105,7 +130,25 @@ func (s *CatalogoNexusStore) Remover(nome string) error {
 }
 
 func (s *CatalogoNexusStore) ler() ([]Recurso, error) {
-	raw, err := os.ReadFile(s.path)
+	var raw []byte
+	var err error
+	if s.banco == nil {
+		raw, err = os.ReadFile(s.path)
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var arquivos []catalogo.Arquivo
+		arquivos, err = s.banco.Listar(ctx)
+		if err == nil {
+			err = os.ErrNotExist
+			for _, arquivo := range arquivos {
+				if arquivo.Caminho == s.path {
+					raw, err = arquivo.Conteudo, nil
+					break
+				}
+			}
+		}
+	}
 	if errors.Is(err, os.ErrNotExist) {
 		return []Recurso{}, nil
 	}
@@ -125,10 +168,22 @@ func (s *CatalogoNexusStore) ler() ([]Recurso, error) {
 }
 
 func (s *CatalogoNexusStore) gravar(lista []Recurso) error {
+	if s.incerta != nil {
+		return s.incerta
+	}
 	corpo, err := yaml.Marshal(struct {
 		Recursos []Recurso `yaml:"recursos"`
 	}{Recursos: lista})
 	if err != nil {
+		return err
+	}
+	if s.banco != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err = s.banco.Substituir(ctx, []catalogo.Arquivo{{Caminho: s.path, Conteudo: corpo}})
+		if errors.Is(err, persistencia.ErrGravacaoIncerta) {
+			s.incerta = err
+		}
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {

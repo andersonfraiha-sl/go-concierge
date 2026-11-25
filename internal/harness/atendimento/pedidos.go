@@ -17,6 +17,7 @@ import (
 
 	"go-concierge/internal/escopo"
 	harness "go-concierge/internal/harness/agentes"
+	okf "go-concierge/internal/harness/conteudo"
 	"go-concierge/internal/harness/ganchos"
 	"go-concierge/internal/harness/ganchos/pii"
 	"go-concierge/internal/harness/pedidos"
@@ -825,6 +826,21 @@ func (s *Servico) Carteira(ctx context.Context, contato escopo.Contato) (pedidos
 	if s.Pedidos == nil {
 		return pedidos.Carteira{}, nil, errors.New("pedidos desligados")
 	}
+	cat := s.catalogoDoContexto(ctx)
+	if s.Catalogos != nil {
+		var err error
+		cat, err = s.Catalogos.Carregar(ctx, contato.CompanyID, contato.CondoID)
+		if err != nil {
+			return pedidos.Carteira{}, nil, err
+		}
+	}
+	return s.CarteiraComCatalogo(ctx, contato, cat)
+}
+
+func (s *Servico) CarteiraComCatalogo(ctx context.Context, contato escopo.Contato, cat okf.Catalogo) (pedidos.Carteira, map[string][]*pedidos.Slot, error) {
+	if s.Pedidos == nil {
+		return pedidos.Carteira{}, nil, errors.New("pedidos desligados")
+	}
 	desbloquear := s.bloquearPedidos(contato)
 	defer desbloquear()
 	cart, err := s.carregarCarteira(ctx, contato)
@@ -832,7 +848,6 @@ func (s *Servico) Carteira(ctx context.Context, contato escopo.Contato) (pedidos
 		return cart, nil, err
 	}
 	slots := map[string][]*pedidos.Slot{}
-	cat := s.catalogoDoContexto(ctx)
 	dir, err := cat.ResolveAgente(s.Agente)
 	if err != nil {
 		return cart, slots, nil

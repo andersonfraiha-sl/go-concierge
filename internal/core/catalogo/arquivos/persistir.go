@@ -9,14 +9,21 @@ import (
 	"slices"
 )
 
-// ErrPersistir marca o erro do gancho Persistir: a escrita foi para o disco, mas o catálogo
-// não chegou ao banco. Quem responde ao cliente trata como falha do servidor.
+// ErrPersistir marca uma falha ao preparar ou persistir uma escrita.
 var ErrPersistir = errors.New("persistir catálogo")
 
-// Os métodos públicos de escrita ficam aqui: cada um segura c.mu, faz a escrita no disco e,
-// se deu certo, chama Persistir ainda sob a trava, para duas escritas não se misturarem na
-// leitura que o gancho faz do disco. Quem já segura c.mu (skills.go) chama os privados e
-// persiste por conta própria; os privados não travam nem persistem.
+func (c *Catalogo) iniciarEscrita() (func(), error) {
+	if c.PrepararEscrita == nil {
+		return func() {}, nil
+	}
+	fim, err := c.PrepararEscrita()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrPersistir, err)
+	}
+	return fim, nil
+}
+
+// Os métodos públicos de escrita mantêm a trava durante preparação, alteração e persistência.
 
 // persistir roda o gancho, se houver. O erro volta para quem chamou a escrita.
 func (c *Catalogo) persistir(remover ...string) error {
@@ -40,7 +47,7 @@ func (c *Catalogo) arquivosDoAlvo(rel string) ([]string, error) {
 		return nil, err
 	}
 	var out []string
-	err = filepath.WalkDir(dir, func(caminho string, d fs.DirEntry, err error) error {
+	err = c.walkDir(dir, func(caminho string, d fs.DirEntry, err error) error {
 		if os.IsNotExist(err) && caminho == dir {
 			return nil
 		}
@@ -66,6 +73,11 @@ func (c *Catalogo) arquivosDoAlvo(rel string) ([]string, error) {
 func (c *Catalogo) Escrever(fn func() error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	fim, err := c.iniciarEscrita()
+	if err != nil {
+		return err
+	}
+	defer fim()
 	if err := fn(); err != nil {
 		return err
 	}
@@ -76,6 +88,11 @@ func (c *Catalogo) Escrever(fn func() error) error {
 func (c *Catalogo) CriarAgente(n NovoAgente) (string, []string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	fim, err := c.iniciarEscrita()
+	if err != nil {
+		return "", nil, err
+	}
+	defer fim()
 	rel, mudancas, err := c.criarAgente(n)
 	if err != nil {
 		return "", nil, err
@@ -95,6 +112,11 @@ func (c *Catalogo) SalvarArquivo(agenteRel, rel string, conteudo []byte) error {
 func (c *Catalogo) ExcluirArquivo(agenteRel, rel string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	fim, err := c.iniciarEscrita()
+	if err != nil {
+		return err
+	}
+	defer fim()
 	if err := c.excluirArquivo(agenteRel, rel); err != nil {
 		return err
 	}
@@ -114,6 +136,11 @@ func (c *Catalogo) SalvarConfig(agenteRel string, campos map[string]any) error {
 func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	fim, err := c.iniciarEscrita()
+	if err != nil {
+		return nil, err
+	}
+	defer fim()
 	mudancas, err := c.vincularRecurso(agenteRel, nome, ligar)
 	if err != nil {
 		return nil, err
@@ -128,6 +155,11 @@ func (c *Catalogo) VincularRecurso(agenteRel, nome string, ligar bool) ([]string
 func (c *Catalogo) ImportarZip(agenteRel string, dados []byte) ([]string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	fim, err := c.iniciarEscrita()
+	if err != nil {
+		return nil, err
+	}
+	defer fim()
 	remover, err := c.arquivosDoAlvo(agenteRel)
 	if err != nil {
 		return nil, err

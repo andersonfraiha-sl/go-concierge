@@ -167,4 +167,4 @@ O boot recusa chave com menos de 32 caracteres. Gerar: `openssl rand -hex 32`.
 - **Escrita de `nexus/`.** O instantâneo de recursos não é aceito por `PUT /integracao/v1/arquivos`; só `agentes/`.
 - **Conversas.** Sessões e transcrições não saem pela integração.
 - **Licença do Nexus.** A administradora daqui ainda não guarda o id da licença do Nexus; quem chama passa o id da administradora do go-concierge.
-- **Catálogo em arquivo.** As skills moram na tabela `catalogo_arquivos` do Postgres; `okf/` é só a semente e a cópia de trabalho fica em `okf/var/catalogo`. O pacote lê dessa cópia, que o banco refaz a cada boot.
+- **Catálogo em arquivo.** As skills moram na tabela `catalog_files` do Postgres; `okf/` é a semente e a entrada de importação explícita. O pacote usa um retrato do catálogo carregado do banco.

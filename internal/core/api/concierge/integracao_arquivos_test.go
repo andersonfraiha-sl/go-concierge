@@ -1,6 +1,7 @@
 package conciergeapi
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -20,13 +21,9 @@ const (
 	arquivoDoCaso  = "agentes/concierge/agentes/agendar-mudanca/caso.yaml"
 )
 
-// ambienteDeArquivos liga o catálogo do servidor ao Postgres do ambiente, como no main: a
-// pasta é a cópia de trabalho e todo lote aplicado tem de chegar à tabela.
 func ambienteDeArquivos(t *testing.T) (ambienteRotas, *catalogo.Postgres) {
 	t.Helper()
-	amb := ambienteDeIntegracao(t)
-	amb.s.cat = abrirCatalogoDeTeste(t, sementeDoRepositorio(t), amb.s.banco)
-	return amb, catalogo.NovoPostgres(amb.s.banco.Ent)
+	return ambienteCatalogoPostgres(t)
 }
 
 func putArquivos(amb ambienteRotas, query, corpo string) *httptest.ResponseRecorder {
@@ -46,32 +43,22 @@ func arquivoTexto(caminho, conteudo string) arquivoDoPacote {
 	return arquivoDoPacote{Caminho: caminho, Conteudo: conteudo}
 }
 
-// estadoDoCatalogo é o que o disco e o banco guardam agora, para comparar antes e depois.
-type estadoDoCatalogo struct{ disco, banco map[string]string }
+type estadoDoCatalogo map[string]string
 
-func fotografarCatalogo(t *testing.T, pg *catalogo.Postgres, raiz string) estadoDoCatalogo {
+func fotografarCatalogo(t *testing.T, pg *catalogo.Postgres, _ string) estadoDoCatalogo {
 	t.Helper()
-	noDisco, err := catalogo.LerDisco(raiz)
+	arquivos, err := pg.Listar(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	noBanco, err := pg.Listar(t.Context())
-	if err != nil {
-		t.Fatal(err)
+	estado := make(estadoDoCatalogo, len(arquivos))
+	for _, arquivo := range arquivos {
+		estado[arquivo.Caminho] = string(arquivo.Conteudo)
 	}
-	conteudos := func(arquivos []catalogo.Arquivo) map[string]string {
-		m := make(map[string]string, len(arquivos))
-		for _, a := range arquivos {
-			m[a.Caminho] = string(a.Conteudo)
-		}
-		return m
-	}
-	return estadoDoCatalogo{disco: conteudos(noDisco), banco: conteudos(noBanco)}
+	return estado
 }
 
-func (e estadoDoCatalogo) igual(o estadoDoCatalogo) bool {
-	return maps.Equal(e.disco, o.disco) && maps.Equal(e.banco, o.banco)
-}
+func (e estadoDoCatalogo) igual(outro estadoDoCatalogo) bool { return maps.Equal(e, outro) }
 
 func respostaEmMapa(t *testing.T, corpo []byte) map[string]any {
 	t.Helper()
@@ -82,7 +69,7 @@ func respostaEmMapa(t *testing.T, corpo []byte) map[string]any {
 	return m
 }
 
-func TestArquivosGravaAlteraERemoveNoDiscoENoBancoEOPacoteRefleteAEscrita(t *testing.T) {
+func TestArquivosGravaAlteraERemoveNoBancoEOPacoteRefleteAEscrita(t *testing.T) {
 	amb, pg := ambienteDeArquivos(t)
 	binario := []byte{0x89, 'P', 'N', 'G', 0xff, 0x00, 0x1a}
 
@@ -102,7 +89,6 @@ func TestArquivosGravaAlteraERemoveNoDiscoENoBancoEOPacoteRefleteAEscrita(t *tes
 		t.Errorf("resposta = %v, quer gravados 3 e removidos 1", resp)
 	}
 
-	bancoIgualAoDisco(t, pg, amb.s.cat.Root)
 	noBanco, err := pg.Listar(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -320,63 +306,61 @@ func TestArquivosQueQuebramOCatalogoResponde422ENadaMuda(t *testing.T) {
 			}
 			depois := fotografarCatalogo(t, pg, amb.s.cat.Root)
 			if !antes.igual(depois) {
-				t.Error("o lote recusado mudou o disco ou o banco")
+				t.Error("o lote recusado mudou o banco")
 			}
 		})
 	}
 }
 
-func TestArquivosComFalhaDeBancoResponde500GenericoERestauraDiscoEBanco(t *testing.T) {
+type bancoComFalhaCatalogo struct {
+	armazenamentoCatalogo
+	substituir func(context.Context, []catalogo.Arquivo, ...string) (catalogo.Mudanca, error)
+}
+
+func (b bancoComFalhaCatalogo) Substituir(ctx context.Context, gravar []catalogo.Arquivo, remover ...string) (catalogo.Mudanca, error) {
+	return b.substituir(ctx, gravar, remover...)
+}
+
+func TestArquivosComFalhaDeBancoResponde500GenericoESemAlteracao(t *testing.T) {
 	amb, pg := ambienteDeArquivos(t)
-	gancho := persistirNoBanco(pg, amb.s.cat.Root)
 	chamadas := 0
-	amb.s.cat.Persistir = func() error {
+	amb.s.catalogoStudio.banco = bancoComFalhaCatalogo{armazenamentoCatalogo: pg, substituir: func(ctx context.Context, gravar []catalogo.Arquivo, remover ...string) (catalogo.Mudanca, error) {
 		chamadas++
 		if chamadas == 1 {
-			return errors.New("conexão com 10.0.0.5 recusada")
+			return catalogo.Mudanca{}, errors.New("conexão com 10.0.0.5 recusada")
 		}
-		return gancho()
-	}
-	antes := fotografarCatalogo(t, pg, amb.s.cat.Root)
-
-	w := putArquivos(amb, "", loteJSON(t,
-		[]arquivoDoPacote{arquivoTexto(arquivoNovo, "# novo\n"), arquivoTexto(arquivoPersona, "# outra\n"), arquivoTexto("agentes/pasta-nova/agent.yaml", "nome: pasta-nova\n")},
-		[]string{arquivoDoCaso},
-	))
-
-	if w.Code != http.StatusInternalServerError {
+		return pg.Substituir(ctx, gravar, remover...)
+	}}
+	antes := fotografarCatalogo(t, pg, "")
+	w := putArquivos(amb, "", loteJSON(t, []arquivoDoPacote{arquivoTexto(arquivoNovo, "# novo\n"), arquivoTexto(arquivoPersona, "# outra\n"), arquivoTexto("agentes/pasta-nova/agent.yaml", "nome: pasta-nova\n")}, []string{arquivoDoCaso}))
+	if w.Code != http.StatusInternalServerError || strings.Contains(w.Body.String(), "10.0.0.5") {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
-	if strings.Contains(w.Body.String(), "10.0.0.5") {
-		t.Errorf("a resposta expôs o erro do banco: %s", w.Body.String())
+	if !antes.igual(fotografarCatalogo(t, pg, "")) {
+		t.Fatal("falha alterou o banco")
 	}
-	depois := fotografarCatalogo(t, pg, amb.s.cat.Root)
-	if !antes.igual(depois) {
-		t.Error("depois da falha, disco e banco não voltaram ao estado anterior")
-	}
-	bancoIgualAoDisco(t, pg, amb.s.cat.Root)
 }
 
 func TestArquivosRestauraBancoQuandoFalhaReportadaDepoisDoCommit(t *testing.T) {
 	amb, pg := ambienteDeArquivos(t)
-	gancho := persistirNoBanco(pg, amb.s.cat.Root, amb.s.cat.RemocoesDaEscrita)
 	chamadas := 0
-	amb.s.cat.Persistir = func() error {
+	amb.s.catalogoStudio.banco = bancoComFalhaCatalogo{armazenamentoCatalogo: pg, substituir: func(ctx context.Context, gravar []catalogo.Arquivo, remover ...string) (catalogo.Mudanca, error) {
 		chamadas++
-		if err := gancho(); err != nil {
-			return err
+		mudanca, err := pg.Substituir(ctx, gravar, remover...)
+		if err != nil {
+			return mudanca, err
 		}
 		if chamadas == 1 {
-			return errors.New("resposta perdida depois da gravação")
+			return mudanca, errors.New("falha reportada depois da gravação")
 		}
-		return nil
-	}
-	antes := fotografarCatalogo(t, pg, amb.s.cat.Root)
+		return mudanca, nil
+	}}
+	antes := fotografarCatalogo(t, pg, "")
 	w := putArquivos(amb, "", loteJSON(t, []arquivoDoPacote{arquivoTexto(arquivoNovo, "novo"), arquivoTexto(arquivoPersona, "alterado")}, []string{arquivoDoCaso}))
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
-	if !antes.igual(fotografarCatalogo(t, pg, amb.s.cat.Root)) {
-		t.Fatal("compensação perdeu o estado anterior após commit")
+	if chamadas != 2 || !antes.igual(fotografarCatalogo(t, pg, "")) {
+		t.Fatalf("compensação não restaurou o banco; chamadas=%d", chamadas)
 	}
 }

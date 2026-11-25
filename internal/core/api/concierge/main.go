@@ -70,6 +70,7 @@ type servidor struct {
 		Listar(context.Context) ([]catalogo.Arquivo, error)
 	}
 	cat                *okf.Catalogo
+	catalogoStudio     *repositorioCatalogo
 	account            string
 	nexus              string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	catalogoNexusStore *okf.CatalogoNexusStore
@@ -145,7 +146,7 @@ func Executar() {
 	if len(os.Args) > 1 && os.Args[1] == subcomandoSaude {
 		os.Exit(saude(os.Args[2:], os.Stderr))
 	}
-	root := flag.String("root", "okf", "semente do catálogo (agentes/, nexus/); a cópia de trabalho fica em <root>/var/catalogo")
+	root := flag.String("root", "okf", "semente do catálogo (agentes/, nexus/) para banco vazio")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	dotenv := flag.String("env", ".env", "arquivo NOME=valor (LLM_MODE e chaves, NEXUS_*, DEFAULT_ACCOUNT_ID, GRUVI_*, ATENDE_*)")
@@ -187,8 +188,11 @@ func Executar() {
 		log.Fatal(err)
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
-	catalogoNexusStore, err := okf.NewCatalogoNexusStore(*root, account)
+	catalogoNexusStore, err := okf.NewCatalogoNexusStorePostgres(account, catalogo.NovoPostgres(db.Ent))
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := migrarCatalogoNexusLegado(*root, account, catalogo.NovoPostgres(db.Ent)); err != nil {
 		log.Fatal(err)
 	}
 	var catalogoNexusMCP *catalogonexus.Service
@@ -208,8 +212,16 @@ func Executar() {
 		log.Fatal(err)
 	}
 	nexusAoVivo := nexus.FonteAoVivo(cli, account)
-	fonteNexus := nexus.FonteComNexus(nexusAoVivo, account, filepath.Join(cat.Root, "nexus"))
-	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
+	fonteMCP := mcp.Fonte(mcpCli, time.Minute, log.Printf)
+	fonteDoRetrato := func(c *okf.Catalogo) func() []okf.Recurso {
+		fonteNexus := fonteNexusDoRetrato(c, account, nexusAoVivo)
+		return mcp.Combinar(fonteMCP, fonteNexus)
+	}
+	prepararRecursos := func(c *okf.Catalogo) func() func() []okf.Recurso {
+		return prepararRecursosDoRetrato(c, account, fonteMCP, nexusAoVivo)
+	}
+	cat.Recursos = fonteDoRetrato(cat)
+	temFixture := cat.TemInstantaneoDaConta(account)
 	s := &servidor{cat: cat, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
 		prazoDoCatalogo:   prazoCatalogo,
 		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("NEXUS_COMPANY_ID"))},
@@ -228,7 +240,7 @@ func Executar() {
 	switch {
 	case cli.BaseURL != "":
 		origens = append(origens, cli.BaseURL)
-	case fonteNexus != nil:
+	case temFixture:
 		origens = append(origens, "instantâneo nexus/"+account+".yaml")
 	}
 	if len(origens) > 0 {
@@ -269,7 +281,11 @@ func Executar() {
 	}
 	s.dadosProntos = servidorDados.Pronto
 	s.regras = dados.NovasRegrasAdministrativas(gravacaoTurno)
-	cat.Persistir = persistirNoBanco(servidorDados.Catalogo(), cat.Root, cat.RemocoesDaEscrita)
+	s.catalogoStudio = &repositorioCatalogo{banco: servidorDados.Catalogo(), recursos: fonteDoRetrato, prepararRecursos: prepararRecursos}
+	s.catalogoNexusStore, err = okf.NewCatalogoNexusStorePostgres(account, servidorDados.Catalogo())
+	if err != nil {
+		log.Fatal(err)
+	}
 	s.autoridade, s.acessos = autoridade, gravacaoTurno
 	s.entradaDados, s.canaisMetadados = dados.NovaEntradaLocal(canaisPG), dados.NovasConsultas(gravacaoTurno)
 	s.consultas = dados.NovasConsultas(gravacaoTurno)
@@ -590,13 +606,13 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	// leitura do catálogo: skills.ler em qualquer escopo
 	for padrao, h := range map[string]http.HandlerFunc{
 		"GET /api/anatomia":                s.anatomia,
-		"GET /api/agentes":                 s.arvore,
-		"GET /api/agente":                  s.agente,
-		"GET /api/agentes/exportar":        s.exportar,
-		"GET /api/arquivo":                 s.lerArquivo,
+		"GET /api/agentes":                 s.comCatalogo((*servidor).arvore),
+		"GET /api/agente":                  s.comCatalogo((*servidor).agente),
+		"GET /api/agentes/exportar":        s.comCatalogo((*servidor).exportar),
+		"GET /api/arquivo":                 s.comCatalogo((*servidor).lerArquivo),
 		"GET /api/arquivo/modelo":          s.modelo,
-		"GET /api/projecao":                s.projecao,
-		"GET /api/nexus/recursos":          s.recursos,
+		"GET /api/projecao":                s.comCatalogo((*servidor).projecao),
+		"GET /api/nexus/recursos":          s.comCatalogo((*servidor).recursos),
 		"GET /api/catalogo-nexus/recursos": s.listarCatalogoNexus,
 		"POST /api/catalogo-nexus/search":  s.buscarCatalogoNexus,
 		"POST /api/catalogo-nexus/detail":  s.detalharCatalogoNexus,
@@ -605,21 +621,21 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	}
 	// fluxo dos agentes: skills.editar_fluxo na Superlógica
 	for padrao, h := range map[string]http.HandlerFunc{
-		"POST /api/agentes":          s.criar,
-		"PUT /api/agente/config":     s.config,
-		"DELETE /api/agente":         s.excluir,
+		"POST /api/agentes":          s.comCatalogo((*servidor).criar),
+		"PUT /api/agente/config":     s.comCatalogo((*servidor).config),
+		"DELETE /api/agente":         s.comCatalogo((*servidor).excluir),
 		"POST /api/agentes/mover":    s.mover,
-		"POST /api/agentes/importar": s.importar,
-		"PUT /api/arquivo":           s.salvarArquivo,
-		"DELETE /api/arquivo":        s.excluirArquivo,
+		"POST /api/agentes/importar": s.comCatalogo((*servidor).importar),
+		"PUT /api/arquivo":           s.comCatalogo((*servidor).salvarArquivo),
+		"DELETE /api/arquivo":        s.comCatalogo((*servidor).excluirArquivo),
 	} {
 		mux.Handle(padrao, s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, h))
 	}
 	// recursos do Nexus: ferramentas.editar na Superlógica
 	for padrao, h := range map[string]http.HandlerFunc{
-		"PUT /api/nexus/recurso":             s.salvarRecurso,
-		"DELETE /api/nexus/recurso":          s.removerRecurso,
-		"POST /api/agente/recursos":          s.vincular,
+		"PUT /api/nexus/recurso":             s.comCatalogo((*servidor).salvarRecurso),
+		"DELETE /api/nexus/recurso":          s.comCatalogo((*servidor).removerRecurso),
+		"POST /api/agente/recursos":          s.comCatalogo((*servidor).vincular),
 		"PUT /api/catalogo-nexus/recurso":    s.salvarCatalogoNexus,
 		"DELETE /api/catalogo-nexus/recurso": s.removerCatalogoNexus,
 	} {
@@ -714,7 +730,7 @@ func (s *servidor) carregar(rel string) (*okf.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !okf.IsAgent(dir) {
+	if !s.cat.IsAgent(dir) {
 		return nil, fmt.Errorf("agente não existe: %s", rel)
 	}
 	return s.cat.Load(dir)
@@ -733,15 +749,15 @@ func (s *servidor) agente(w http.ResponseWriter, r *http.Request) {
 		"conhecimento":  s.cat.Conhecimento(a),
 		"indice":        s.cat.Indice(a),
 		"procedimentos": s.cat.Procedimentos(a),
-		"workflow":      workflowPrincipal(a),
+		"workflow":      workflowPrincipal(s.cat, a),
 		"pai":           paiRel(a.Rel),
 	})
 }
 
 // workflowPrincipal devolve o texto de workflows/principal.md (sem frontmatter), que a
 // ficha mostra como "a ordem do acontecimento" do agente.
-func workflowPrincipal(a *okf.Agent) string {
-	raw, err := os.ReadFile(filepath.Join(a.Path, "workflows", "principal.md"))
+func workflowPrincipal(cat *okf.Catalogo, a *okf.Agent) string {
+	raw, err := cat.LerArquivo(a.Rel, "workflows/principal.md")
 	if err != nil {
 		return ""
 	}
@@ -944,11 +960,11 @@ func (s *servidor) recursos(w http.ResponseWriter, _ *http.Request) {
 
 // instantaneoEditavel: o catálogo só se edita aqui quando vem do instantâneo YAML; ao
 // vivo, o dono é o Nexus.
-func (s *servidor) instantaneoEditavel() (string, error) {
+func (s *servidor) instantaneoEditavel() error {
 	if strings.HasPrefix(s.nexus, "http") || strings.Contains(s.nexus, "+ http") {
-		return "", errors.New("catálogo ao vivo do Nexus: edite o recurso lá")
+		return errors.New("catálogo ao vivo do Nexus: edite o recurso lá")
 	}
-	return filepath.Join(s.cat.Root, "nexus", s.account+".yaml"), nil
+	return nil
 }
 
 func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
@@ -960,27 +976,28 @@ func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	p, err := s.instantaneoEditavel()
-	if err != nil {
+	if err := s.instantaneoEditavel(); err != nil {
 		writeErr(w, 409, err)
 		return
 	}
-	err = s.cat.Escrever(func() error { return okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso) })
+	err := s.cat.SalvarRecursoDaConta(s.account, corpo.Original, corpo.Recurso)
 	if err != nil {
 		writeErr(w, 400, err)
 		return
+	}
+	if s.catalogoStudio != nil && s.catalogoStudio.recursos != nil {
+		s.cat.Recursos = s.catalogoStudio.recursos(s.cat)
 	}
 	s.recursos(w, r)
 }
 
 func (s *servidor) removerRecurso(w http.ResponseWriter, r *http.Request) {
 	nome := r.URL.Query().Get("nome")
-	p, err := s.instantaneoEditavel()
-	if err != nil {
+	if err := s.instantaneoEditavel(); err != nil {
 		writeErr(w, 409, err)
 		return
 	}
-	err = s.cat.Escrever(func() error { return okf.RemoverRecursoFixture(p, nome) })
+	err := s.cat.RemoverRecursoDaConta(s.account, nome)
 	if err != nil {
 		writeErr(w, 400, err)
 		return

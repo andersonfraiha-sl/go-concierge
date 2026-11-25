@@ -226,11 +226,11 @@ docker compose up -d --build
 ./bin/concierge.exe importar-json -dir okf/var -env .env
 
 # o catálogo (agentes/, nexus/) mora no Postgres; -root é a semente do primeiro boot.
-# Para levar ao banco uma skill que chegou como arquivo (o banco passa a ser igual à pasta):
+# Para atualizar no banco os arquivos presentes na pasta:
 ./bin/concierge.exe importar-catalogo -dir okf -env .env
 ```
 
-O catálogo vive na tabela `catalogo_arquivos`. No boot, tabela vazia recebe a pasta de `-root`; com dado, o banco vale (e um WARN avisa se a pasta difere). O disco vira cópia de trabalho em `okf/var/catalogo`, refeita do banco a cada boot, e toda edição do Studio grava nos dois. `okf/` do repositório é só a semente.
+O catálogo vive na tabela `catalog_files`. No boot, um banco vazio recebe a semente de `-root`; com dados, o banco vale e a semente pode estar ausente. O Studio lê retratos em memória e grava as alterações no banco. A importação explícita atualiza os arquivos presentes na pasta e preserva os demais.
 
 Em dev, um banco sem mapeamento ganha uma administradora e um condomínio de exemplo (ligado ao `DEFAULT_ACCOUNT_ID`). Sem `DATABASE_URL` o boot falha dizendo como subir o Postgres. `/studio/` sem compilar responde 503 `STUDIO_NAO_COMPILADO`.
 
@@ -306,7 +306,7 @@ Os módulos harness/core continuam no mesmo processo. O runtime consome dados po
 | `internal/harness/memoria` | fatos por contato e contratos, sem banco |
 | `internal/harness/configuracao` | modelos e regras puras da configuração de conteúdo |
 | `internal/core/catalogo/arquivos` | pasta de agente: carga, herança, fronteira, projeção, conhecimento OKF |
-| `internal/core/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/, diferença, cópia de trabalho |
+| `internal/core/catalogo` | catálogo no Postgres: arquivos de agentes/ e nexus/ e persistência transacional |
 | `internal/core/banco` | migrations, sqlc, ent, `Lote` (vários `:batch*` numa ida) |
 | `internal/falha` | pilha de erro onde nasce |
 | `internal/core/clientes` | adaptadores Gruvi, Nexus, MCP, LLM/Responses, Concierge e entrega |
@@ -314,7 +314,7 @@ Os módulos harness/core continuam no mesmo processo. O runtime consome dados po
 | `apps/backdoor` | API própria e interfaces administrativas; Studio React + MUI embutido somente no Backdoor |
 | `apps/console` | API própria, interface de conversa e recebimento de respostas emuladas |
 | `internal/httpapp` | infraestrutura HTTP compartilhada, sem dependência de banco ou runtime |
-| `okf/` | semente do catálogo: agentes, instantâneo do Nexus; `var/catalogo` é a cópia de trabalho |
+| `okf/` | semente do catálogo: agentes e instantâneo do Nexus |
 | `mcp/` | servidor MCP do catálogo Gruvi, Node (legado) |
 | `docs/superpowers` | specs, planos, medições, auditorias |
 

@@ -74,7 +74,7 @@ func (s *servidor) rotasIntegracao(mux *http.ServeMux) {
 	if len(s.chaveDeIntegracao) == 0 {
 		return
 	}
-	mux.HandleFunc(padraoPacote, s.comChaveDeIntegracao(s.integracaoPacote))
+	mux.HandleFunc(padraoPacote, s.comChaveDeIntegracao(s.comCatalogo((*servidor).integracaoPacote)))
 	s.rotasIntegracaoArquivos(mux)
 	s.rotasIntegracaoMorador(mux)
 }
@@ -124,10 +124,11 @@ func (s *servidor) montarPacote(r *http.Request, adm string) (pacote, error) {
 	if err != nil {
 		return pacote{}, err
 	}
-	arquivos, err := arquivosDoCatalogo(s.cat.Root)
+	lidos, err := s.cat.Arquivos()
 	if err != nil {
 		return pacote{}, err
 	}
+	arquivos := arquivosParaPacote(lidos)
 	casos, err := s.casosDeUso()
 	if err != nil {
 		return pacote{}, err
@@ -178,20 +179,14 @@ func regrasDoPacote(gravadas []regras.RegraGravada, adm string) []regraVisao {
 	return out
 }
 
-// arquivosDoCatalogo lê agentes/ inteiro da cópia de trabalho, em ordem alfabética. Pastas
-// e arquivos ocultos ficam fora; nexus/ não vai no pacote (os recursos já vão em Recursos).
-func arquivosDoCatalogo(raiz string) ([]arquivoDoPacote, error) {
-	lidos, err := catalogo.LerDisco(raiz)
-	if err != nil {
-		return nil, err
-	}
+func arquivosParaPacote(lidos []catalogo.Arquivo) []arquivoDoPacote {
 	out := []arquivoDoPacote{}
 	for _, a := range lidos {
 		if strings.HasPrefix(a.Caminho, okf.DirAgentes+"/") {
 			out = append(out, arquivoParaOPacote(a))
 		}
 	}
-	return out, nil
+	return out
 }
 
 func arquivoParaOPacote(a catalogo.Arquivo) arquivoDoPacote {

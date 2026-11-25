@@ -23,6 +23,7 @@ import (
 	harness "go-concierge/internal/harness/agentes"
 	atende "go-concierge/internal/harness/atendimento"
 	"go-concierge/internal/harness/canais"
+	"go-concierge/internal/harness/pedidos"
 )
 
 // Canal ATENDE: o webhook que recebe os eventos, e a API do Console (emulador):
@@ -41,8 +42,8 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.Handle("GET /api/atende/sessao", s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSessao))
 	mux.Handle("GET /api/atende/saidas", s.saidasPorEscopo())
 	mux.Handle("DELETE /api/atende/sessao", s.protegida(acesso.ConversasAtender, s.alvoSessaoDaConsulta, s.atendeReiniciar))
-	mux.Handle("GET /api/pedidos", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosLer))
-	mux.Handle("GET /api/pedidos/exportar", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosExportar))
+	mux.Handle("GET /api/pedidos", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.comCatalogoDePedidos((*servidor).pedidosLer)))
+	mux.Handle("GET /api/pedidos/exportar", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.comCatalogoDePedidos((*servidor).pedidosExportar)))
 	mux.Handle("POST /api/pedidos/acao", s.protegida(acesso.PedidosEditar, s.alvoAcaoDePedido, s.pedidosAcao))
 	mux.Handle("GET /api/memoria", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriaLer))
 	mux.Handle("GET /api/memorias", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriasListar))
@@ -568,6 +569,24 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 
 // ---- pedidos: o registro por contato e as ações do atendente ----
 
+func (s *servidor) comCatalogoDePedidos(h func(*servidor, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	comCatalogo := s.comCatalogo(h)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.atende.Pedidos == nil {
+			h(s, w, r)
+			return
+		}
+		comCatalogo(w, r)
+	}
+}
+
+func (s *servidor) carteiraAtual(ctx context.Context, contato escopo.Contato) (pedidos.Carteira, map[string][]*pedidos.Slot, error) {
+	if s.catalogoStudio != nil {
+		return s.atende.CarteiraComCatalogo(ctx, contato, s.cat)
+	}
+	return s.atende.Carteira(ctx, contato)
+}
+
 func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
 	contato, ok := s.contatoDaRota(w, r, r.URL.Query().Get("phone"))
 	if !ok {
@@ -577,7 +596,7 @@ func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ligado": false})
 		return
 	}
-	cart, slots, err := s.atende.Carteira(r.Context(), contato)
+	cart, slots, err := s.carteiraAtual(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -655,7 +674,7 @@ func (s *servidor) pedidosExportar(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, errors.New("registro de pedidos desligado"))
 		return
 	}
-	cart, slots, err := s.atende.Carteira(r.Context(), contato)
+	cart, slots, err := s.carteiraAtual(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
