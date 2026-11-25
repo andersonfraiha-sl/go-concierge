@@ -25,7 +25,14 @@ const naLista = (realce: EstiloDoRealce) => ({ '& > .MuiPaper-root': realce });
 
 export function QuandoUsarAba(props: Props): ReactNode {
   return (
-    <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        gap: 3,
+        alignItems: { xs: 'stretch', md: 'flex-start' },
+      }}
+    >
       <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <SecaoDoResumo {...props} />
         <SecaoQuandoUsar {...props} />
@@ -236,7 +243,13 @@ function PainelDaSkill({ nome, control }: Props): ReactNode {
   return (
     <Box
       component="aside"
-      sx={{ width: 331, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
+      sx={{
+        width: { xs: '100%', md: 331 },
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+      }}
     >
       <RotuloDoPainel>Esta skill</RotuloDoPainel>
       <InformacoesDoFluxo nome={nome} />

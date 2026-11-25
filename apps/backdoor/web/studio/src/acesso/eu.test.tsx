@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { StudioLayout } from '@/app/StudioLayout';
 import { json, responderCom } from '@/test/fetchFalso';
 import { renderComProvedores } from '@/test/render';
-import { type Eu, pode, podeNoCatalogo, useEu, usePodeEditar } from './eu';
+import { type Eu, pode, podeNoCatalogo, useEu, usePodeEditar, usePodeEditarCondominio } from './eu';
 
 const construtor: Eu = {
   id: 'u1',
@@ -40,8 +40,11 @@ describe('permissões', () => {
 function Probe() {
   const { data: eu } = useEu();
   const edita = usePodeEditar('skills.editar_fluxo');
+  const editaCondominio = usePodeEditarCondominio('condominios.habilitar');
   if (!eu) return <span>carregando</span>;
-  return <span>{`${eu.nome}: ${edita ? 'edita' : 'le'}`}</span>;
+  return (
+    <span>{`${eu.nome}: ${edita ? 'edita' : 'le'} / ${editaCondominio ? 'edita' : 'le'}`}</span>
+  );
 }
 
 function simularTela(estreita: boolean) {
@@ -53,19 +56,26 @@ function simularTela(estreita: boolean) {
   }));
 }
 
-describe('usePodeEditar', () => {
-  it('narrowScreenDisablesEditing', async () => {
-    responderCom({ 'GET /api/eu': () => json(construtor) });
-    simularTela(true);
-    renderComProvedores(<Probe />);
-    expect(await screen.findByText('Ana: le')).toBeInTheDocument();
-  });
+describe('permissões de edição por largura e escopo', () => {
+  const autorizado = {
+    ...construtor,
+    permissoes: [...construtor.permissoes, 'condominios.habilitar'],
+  };
+  const vinculado = { ...autorizado, administradoraId: 'adm-1' };
+  const leitor = { ...autorizado, permissoes: ['skills.ler'] };
 
-  it('allowsEditingOnWideScreen', async () => {
-    responderCom({ 'GET /api/eu': () => json(construtor) });
-    simularTela(false);
-    renderComProvedores(<Probe />);
-    expect(await screen.findByText('Ana: edita')).toBeInTheDocument();
+  it.each([true, false])('mantém as permissões com tela estreita=%s', async (estreita) => {
+    simularTela(estreita);
+    for (const [eu, esperado] of [
+      [autorizado, 'Ana: edita / edita'],
+      [vinculado, 'Ana: le / edita'],
+      [leitor, 'Ana: le / le'],
+    ] as const) {
+      responderCom({ 'GET /api/eu': () => json(eu) });
+      const tela = renderComProvedores(<Probe />);
+      expect(await screen.findByText(esperado)).toBeInTheDocument();
+      tela.unmount();
+    }
   });
 });
 

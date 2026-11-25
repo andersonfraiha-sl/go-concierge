@@ -50,7 +50,7 @@ export function LayoutDeDetalhe(): ReactNode {
  */
 export const ESTILO_DO_CONTEUDO_DE_DETALHE = {
   py: 4,
-  px: 5,
+  px: { xs: 2, md: 5 },
   display: 'flex',
   flexDirection: 'column',
   gap: 3,

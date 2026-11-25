@@ -20,7 +20,7 @@ export function GrupoDeSkills({ skills, colunas, renderCartao, ...cabecalho }: P
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))`,
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: `repeat(${colunas}, minmax(0, 1fr))` },
           gap: 1.5,
         }}
       >

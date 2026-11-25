@@ -38,7 +38,10 @@ describe('CondominioPage', () => {
       }),
     );
 
-    it('staysReadOnlyBelow900px', async () => {
+    it.each([
+      ['autorizado', construtor, true],
+      ['leitor', { ...construtor, permissoes: [] as string[] }, false],
+    ] as const)('%s mantém a permissão de edição', async (_papel, eu, editavel) => {
       Object.defineProperty(window, 'matchMedia', {
         configurable: true,
         writable: true,
@@ -53,12 +56,12 @@ describe('CondominioPage', () => {
           onchange: null,
         }),
       });
-      responderCom(rotasBase(construtor));
+      responderCom(rotasBase(eu));
       abrirCondominio();
 
       expect(
         await screen.findByRole('textbox', { name: 'Orientações para este condomínio' }),
-      ).toHaveAttribute('aria-readonly', 'true');
+      ).toHaveAttribute('aria-readonly', String(!editavel));
       expect(screen.queryByText('Identificação')).not.toBeInTheDocument();
     });
   });

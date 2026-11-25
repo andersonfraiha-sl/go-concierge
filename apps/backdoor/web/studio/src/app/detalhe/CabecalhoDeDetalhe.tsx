@@ -53,8 +53,8 @@ const ESTILO_DA_FAIXA: SxProps<Theme> = {
   boxSizing: 'content-box',
   display: 'flex',
   alignItems: 'center',
-  gap: 2,
-  px: 4,
+  gap: { xs: 1, md: 2 },
+  px: { xs: 1, md: 4 },
   borderBottom: 1,
   borderColor: 'border.default',
   bgcolor: 'background.paper',
@@ -120,7 +120,10 @@ const CORES_DO_TOM: Record<TomDaEntidade, { bgcolor: string; color: string }> = 
 
 export function IconeDaEntidade({ Icone, tom }: { Icone: SvgIconComponent; tom: TomDaEntidade }) {
   return (
-    <Box aria-hidden sx={{ ...ESTILO_DO_QUADRADO, ...CORES_DO_TOM[tom] }}>
+    <Box
+      aria-hidden
+      sx={{ ...ESTILO_DO_QUADRADO, ...CORES_DO_TOM[tom], display: { xs: 'none', sm: 'flex' } }}
+    >
       <Icone sx={{ fontSize: ICONES.entidade }} />
     </Box>
   );

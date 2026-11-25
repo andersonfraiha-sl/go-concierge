@@ -38,7 +38,14 @@ export function SkillsPage(): ReactNode {
 function CabecalhoDaPagina({ onNova }: { onNova: () => void }): ReactNode {
   const podeCriar = usePodeEditar('skills.criar');
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'flex-start', sm: 'center' },
+        gap: 2,
+      }}
+    >
       <Box sx={{ flex: 1 }}>
         <Typography variant="h4" component="h1" sx={{ color: 'secondary.main' }}>
           Casos de uso

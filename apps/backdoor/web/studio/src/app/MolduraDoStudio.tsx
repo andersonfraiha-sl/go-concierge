@@ -22,7 +22,12 @@ const ESTILO_DA_TELA: SxProps<Theme> = {
   bgcolor: 'background.default',
 };
 
-const ESTILO_DO_MIOLO: SxProps<Theme> = { flex: 1, minHeight: 0, display: 'flex' };
+const ESTILO_DO_MIOLO: SxProps<Theme> = {
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  position: 'relative',
+};
 
 /** Moldura comum: topo, menu opcional, Copiloto e a área da rota; 401 vira a tela própria. */
 export function MolduraDoStudio({ topo, lateral, estiloDoConteudo }: Props): ReactNode {

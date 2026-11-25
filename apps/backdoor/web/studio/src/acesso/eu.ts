@@ -1,4 +1,3 @@
-import { useMediaQuery, useTheme } from '@mui/material';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { type ApiError, apiGet } from '@/shared/api/http';
@@ -60,20 +59,12 @@ export function podeNoCatalogo(eu: Eu, permissao: Permissao): boolean {
   return pode(eu, permissao) && eu.administradoraId === null;
 }
 
-// Somente leitura abaixo do breakpoint `md`, para qualquer papel.
-function useTelaEstreita(): boolean {
-  const { breakpoints } = useTheme();
-  return useMediaQuery(breakpoints.down('md'), { noSsr: true });
-}
-
 export function usePodeEditar(permissao: Permissao): boolean {
   const { data: eu } = useEu();
-  const telaEstreita = useTelaEstreita();
-  return eu !== undefined && !telaEstreita && podeNoCatalogo(eu, permissao);
+  return eu !== undefined && podeNoCatalogo(eu, permissao);
 }
 
 export function usePodeEditarCondominio(permissao: Permissao): boolean {
   const { data: eu } = useEu();
-  const telaEstreita = useTelaEstreita();
-  return eu !== undefined && !telaEstreita && pode(eu, permissao);
+  return eu !== undefined && pode(eu, permissao);
 }

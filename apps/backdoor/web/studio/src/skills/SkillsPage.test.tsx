@@ -569,7 +569,10 @@ describe('SkillsPage', () => {
 });
 
 describe('SkillsPage em tela estreita', () => {
-  it('narrowScreenHidesStructureButtons', async () => {
+  it.each([
+    ['autorizado', construtor, true],
+    ['leitor', { ...construtor, permissoes: ['skills.ler'] }, false],
+  ] as const)('%s mantém as ações permitidas', async (_papel, eu, podeCriar) => {
     const original = window.matchMedia;
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
@@ -577,18 +580,17 @@ describe('SkillsPage em tela estreita', () => {
       value: (query: string) => ({ ...original(query), matches: true }),
     });
     try {
-      responderCom({
-        'GET /api/eu': () => json(construtor),
-        'GET /api/skills': () => lista([faq]),
-      });
+      responderCom({ 'GET /api/eu': () => json(eu), 'GET /api/skills': () => lista([faq]) });
       montar();
       await screen.findByRole('article', { name: 'Perguntas frequentes' });
       expect(
         screen.getByRole('button', { name: 'Abrir Perguntas frequentes' }),
       ).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Nova skill' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Duplicar/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Excluir/ })).not.toBeInTheDocument();
+      expect(Boolean(screen.queryByRole('button', { name: 'Nova skill' }))).toBe(podeCriar);
+      if (!podeCriar) {
+        expect(screen.queryByRole('button', { name: /Duplicar/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Excluir/ })).not.toBeInTheDocument();
+      }
     } finally {
       Object.defineProperty(window, 'matchMedia', {
         configurable: true,
