@@ -9,7 +9,29 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"go-concierge/internal/entrada"
 )
+
+type tokenContatoTeste struct{ telefone string }
+
+func (t *tokenContatoTeste) Token(context.Context) (string, error) { return "token", nil }
+func (t *tokenContatoTeste) TokenParaContato(_ context.Context, telefone string) (string, error) {
+	t.telefone = telefone
+	return "token", nil
+}
+
+func TestClienteEncaminhaTelefoneOriginalAoProvider(t *testing.T) {
+	provider := &tokenContatoTeste{}
+	cliente := New("", provider)
+	ctx := entrada.ComTelefoneOriginal(t.Context(), "5511888888888")
+	if err := cliente.ValidarToken(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if provider.telefone != "5511888888888" {
+		t.Fatalf("telefone recebido: %q", provider.telefone)
+	}
+}
 
 // O fluxo de dev (SMS → token), o cache até perto do vencimento, a renovação pelo
 // refresh_token e a gravação do token corrente no arquivo que o servidor MCP lê.
@@ -64,7 +86,7 @@ func TestB2CSMSRefreshEArquivo(t *testing.T) {
 	arquivo := filepath.Join(t.TempDir(), "var", "b2c.token")
 	b := &B2C{BaseURL: srv.URL, Basic: "Basic abc", Mobile: "5511999", Fingerprint: "fp", File: arquivo, Now: func() time.Time { return agora }}
 	ctx := context.Background()
-	tok, err := b.Token(ctx)
+	tok, err := b.TokenParaContato(ctx, "5511888888888")
 	if err != nil || tok != "tok-1" || sms != 1 || password != 1 {
 		t.Fatalf("primeiro token pelo SMS: %q %v (sms=%d password=%d)", tok, err, sms, password)
 	}

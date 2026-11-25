@@ -58,9 +58,6 @@ func (a *ATENDESender) Enviar(ctx context.Context, destino entrada.Destino, text
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("x-api-key", a.APIKey)
-		if !entrada.AutorizarEntrega(ctx) {
-			return falha(fmt.Errorf("ATENDE: parte %d de %d: %w", i+1, len(partes), entrada.ErrEntregaSuprimida))
-		}
 		res, err := client.Do(req)
 		if err != nil {
 			return falha(comfalha.ComPilha(fmt.Errorf("ATENDE: parte %d de %d falhou: %w", i+1, len(partes), err)))

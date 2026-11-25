@@ -15,6 +15,7 @@ import (
 	"go-concierge/internal/harness/ganchos/auditoria"
 	"go-concierge/internal/harness/ganchos/fixos"
 	"go-concierge/internal/harness/ganchos/pii"
+	regrasruntime "go-concierge/internal/harness/ganchos/regras"
 	"go-concierge/internal/harness/memoria"
 )
 
@@ -61,6 +62,26 @@ func (s *Servico) abrirTurno(sess *Sessao) (ganchos.Turno, error) {
 		return ganchos.Turno{}, err
 	}
 	return conjunto.TurnoAPartirDe(sess.proximoMarcador()), nil
+}
+
+func (s *Servico) abrirTurnoDaExecucao(ctx context.Context, sess *Sessao) (ganchos.Turno, error) {
+	if s.Regras == nil {
+		return s.abrirTurno(sess)
+	}
+	conjunto, err := s.ganchos()
+	if err != nil {
+		return ganchos.Turno{}, err
+	}
+	contato := sess.contato().Canonico()
+	gravadas, err := s.Regras.AtivasDoEscopo(ctx, contato.CompanyID, contato.CondoID)
+	if err != nil {
+		return ganchos.Turno{}, fmt.Errorf("carregar regras da execução: %w", err)
+	}
+	indice, erros := regrasruntime.Compilar(gravadas)
+	for _, falha := range erros {
+		slog.ErrorContext(ctx, "regra fora do índice", "operacao", "compilar_regras", "regra_id", falha.RegraID, "erro", falha.Err)
+	}
+	return conjunto.TurnoComIndice(sess.proximoMarcador(), indice), nil
 }
 
 // mascararForaDoTurno mascara a fala que chega sem turno (atendimento humano, revisão

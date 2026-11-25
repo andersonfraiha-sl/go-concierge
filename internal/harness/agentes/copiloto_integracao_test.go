@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	administracaollm "go-concierge/internal/core/administracao/llm"
-	"go-concierge/internal/core/clientes/llm"
 	harness "go-concierge/internal/harness/agentes"
+	"go-concierge/internal/harness/provedores/llm"
 )
 
 func TestCopilotoVertexSemAPIKey(t *testing.T) {

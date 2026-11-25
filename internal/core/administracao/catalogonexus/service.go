@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	okf "go-concierge/internal/core/catalogo/arquivos"
-	"go-concierge/internal/core/clientes/mcp"
+	"go-concierge/internal/harness/provedores/mcp"
 )
 
 const (

@@ -278,3 +278,47 @@ func TestSubstituirRecusaCasoEmUsoEDesfazTodoOLote(t *testing.T) {
 		t.Fatalf("rollback perdeu projeção: %d", total)
 	}
 }
+
+func TestListarParaExecucaoSelecionaArvoreAncestraisEFixture(t *testing.T) {
+	p := novoStore(t)
+	arquivos := []Arquivo{
+		{"agentes/pai_1/agent.yaml", []byte("pai")},
+		{"agentes/pai_1/knowledge/heranca.md", []byte("herança")},
+		{"agentes/pai_1/agentes/filho_2/agent.yaml", []byte("filho")},
+		{"agentes/pai_1/agentes/filho_2/workflows/visita.md", []byte("visita")},
+		{"agentes/pai_1/agentes/filho_2/agentes/neto/agent.yaml", []byte("neto")},
+		{"agentes/pai_1/agentes/filhoZ2/agent.yaml", []byte("irmão")},
+		{"agentes/paiX1/agent.yaml", []byte("outro pai")},
+		{"agentes/paiX1/knowledge/heranca.md", []byte("outra herança")},
+		{"agentes/outro/agent.yaml", []byte("outro")},
+		{"nexus/conta_1.yaml", []byte("fixture")},
+		{"nexus/contaZ1.yaml", []byte("outra fixture")},
+	}
+	substituir(t, p, arquivos...)
+	lidos, err := p.ListarParaExecucao(t.Context(), "agentes/pai_1/agentes/filho_2", "conta_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	quer := []string{
+		"agentes/pai_1/agent.yaml", "agentes/pai_1/agentes/filho_2/agent.yaml",
+		"agentes/pai_1/agentes/filho_2/agentes/neto/agent.yaml", "agentes/pai_1/agentes/filho_2/workflows/visita.md",
+		"agentes/pai_1/knowledge/heranca.md", "nexus/conta_1.yaml",
+	}
+	slices.Sort(quer)
+	if got := caminhos(lidos); !slices.Equal(got, quer) {
+		t.Fatalf("recorte = %v, esperado %v", got, quer)
+	}
+	todos, err := p.Listar(t.Context())
+	if err != nil || len(todos) != len(arquivos) {
+		t.Fatalf("listagem administrativa: arquivos=%d erro=%v", len(todos), err)
+	}
+}
+
+func TestListarParaExecucaoRecusaAgenteInvalido(t *testing.T) {
+	p := &Postgres{}
+	for _, agente := range []string{"", "agentes/../outro", "agentes/a/agentes", "agentes/a/outro/b", "agentes/a%"} {
+		if _, err := p.ListarParaExecucao(t.Context(), agente, "conta"); err == nil {
+			t.Fatalf("agente inválido aceito: %q", agente)
+		}
+	}
+}

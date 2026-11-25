@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"gopkg.in/yaml.v3"
 
 	"go-concierge/internal/core/banco/ent"
 	entcatalogo "go-concierge/internal/core/banco/ent/catalogoarquivo"
+	"go-concierge/internal/core/banco/ent/predicate"
 	"go-concierge/internal/falha"
 	"go-concierge/internal/harness/persistencia"
 )
@@ -46,6 +48,34 @@ func (p *Postgres) Listar(ctx context.Context) ([]Arquivo, error) {
 		out[i] = Arquivo{Caminho: l.ID, Conteudo: l.Conteudo}
 	}
 	return out, nil
+}
+
+func (p *Postgres) ListarParaExecucao(ctx context.Context, agente, conta string) ([]Arquivo, error) {
+	selecao, err := SelecionarExecucao(agente, conta)
+	if err != nil {
+		return nil, err
+	}
+	porPrefixo := func(prefixo string) predicate.CatalogoArquivo {
+		return func(s *entsql.Selector) { s.Where(entsql.HasPrefix(s.C(entcatalogo.FieldID), prefixo)) }
+	}
+	filtros := []predicate.CatalogoArquivo{porPrefixo(selecao.Raiz + "/")}
+	for _, ancestral := range selecao.Ancestrais {
+		filtros = append(filtros, entcatalogo.And(porPrefixo(ancestral+"/"), entcatalogo.Not(porPrefixo(ancestral+"/agentes/"))))
+	}
+	if selecao.Fixture != "" {
+		filtros = append(filtros, entcatalogo.IDEQ(selecao.Fixture))
+	}
+	ctx, cancelar := context.WithTimeout(ctx, timeoutCatalogo)
+	defer cancelar()
+	linhas, err := p.cli.CatalogoArquivo.Query().Where(entcatalogo.Or(filtros...)).Order(ent.Asc(entcatalogo.FieldID)).All(ctx)
+	if err != nil {
+		return nil, falha.ComPilha(fmt.Errorf("listar catálogo da execução: %w", err))
+	}
+	arquivos := make([]Arquivo, len(linhas))
+	for i, linha := range linhas {
+		arquivos[i] = Arquivo{Caminho: linha.ID, Conteudo: linha.Conteudo}
+	}
+	return arquivos, nil
 }
 
 // Resumos devolve caminho → sha256 de tudo que está no banco, sem trazer os bytes.

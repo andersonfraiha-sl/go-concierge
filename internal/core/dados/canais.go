@@ -35,6 +35,30 @@ type Entrada struct {
 	http  *http.Client
 }
 
+type EntradaLocal struct {
+	repo canais.Repositorio
+}
+
+func NovaEntradaLocal(repo canais.Repositorio) *EntradaLocal {
+	return &EntradaLocal{repo: repo}
+}
+
+func (e *EntradaLocal) VerificarWebhook(ctx context.Context, id canais.Identidade, corpo []byte, assinatura string) (canais.Canal, error) {
+	ctx, cancelar := context.WithTimeout(ctx, prazoCanais)
+	defer cancelar()
+	canal, err := e.repo.Resolver(ctx, id)
+	if err != nil {
+		if errors.Is(err, canais.ErrDesconhecido) || errors.Is(err, canais.ErrInvalido) || errors.Is(err, canais.ErrDesabilitado) {
+			return canais.Canal{}, ErrWebhookNaoAutorizado
+		}
+		return canais.Canal{}, errors.Join(ErrDadosIndisponiveis, err)
+	}
+	if !canal.Habilitado || atendeapi.VerificarAssinatura(canal.WebhookSecret, assinatura, corpo) != nil {
+		return canais.Canal{}, ErrWebhookNaoAutorizado
+	}
+	return semCredenciais(canal), nil
+}
+
 type escopoCanal struct {
 	CompanyID string    `json:"company_id"`
 	ChannelID uuid.UUID `json:"channel_id"`
@@ -99,20 +123,15 @@ func registrarCanais(mux *http.ServeMux, repo canais.Repositorio, token, tokenEn
 		if !lerPedido(w, r, tokenEntrada, limiteWebhook, &p) {
 			return
 		}
-		canal, err := repo.Resolver(r.Context(), p.Identidade)
+		canal, err := NovaEntradaLocal(repo).VerificarWebhook(r.Context(), p.Identidade, p.Corpo, p.Assinatura)
 		if err != nil {
-			if errors.Is(err, canais.ErrDesconhecido) || errors.Is(err, canais.ErrInvalido) || errors.Is(err, canais.ErrDesabilitado) {
+			if errors.Is(err, ErrWebhookNaoAutorizado) {
 				responderCanal(w, respostaCanal{Erro: "webhook_nao_autorizado"}, http.StatusUnauthorized)
 			} else {
 				responderErroCanal(w, err)
 			}
 			return
 		}
-		if !canal.Habilitado || atendeapi.VerificarAssinatura(canal.WebhookSecret, p.Assinatura, p.Corpo) != nil {
-			responderCanal(w, respostaCanal{Erro: "webhook_nao_autorizado"}, http.StatusUnauthorized)
-			return
-		}
-		canal = semCredenciais(canal)
 		responderCanal(w, respostaCanal{Canal: &canal}, http.StatusOK)
 	})
 }

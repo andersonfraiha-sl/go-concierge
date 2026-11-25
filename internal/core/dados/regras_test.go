@@ -7,7 +7,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"go-concierge/internal/core/administracao/regras"
+	atende "go-concierge/internal/harness/atendimento"
+	"go-concierge/internal/harness/canais"
 	"go-concierge/internal/harness/ganchos"
 )
 
@@ -78,5 +82,40 @@ func TestRegrasHTTPCarregamEAtualizamOUnicoIndice(t *testing.T) {
 	fonte.confirmar(3, false)
 	if quantidade.Load() != 0 {
 		t.Fatal("desativação não atualizou índice")
+	}
+}
+
+type fonteEscopoTeste struct{ regras []regras.RegraGravada }
+
+func (f *fonteEscopoTeste) Ativas(context.Context) ([]regras.RegraGravada, error) {
+	return f.regras, nil
+}
+func (f *fonteEscopoTeste) ObservarAlteracoes(func([]regras.RegraGravada)) {}
+
+func TestRegrasHTTPAutorizaEFiltraEscopo(t *testing.T) {
+	condo := 42
+	repo := &repositorioCanalTeste{canal: canais.Canal{ID: uuid.New(), CompanyID: "empresa-a", CondoID: &condo, Habilitado: true}}
+	fonte := &fonteEscopoTeste{regras: []regras.RegraGravada{
+		{ID: "global"}, {ID: "empresa", AdministradoraID: "empresa-a"},
+		{ID: "condominio", AdministradoraID: "empresa-a", Condominios: []string{"42"}},
+		{ID: "outro-condominio", AdministradoraID: "empresa-a", Condominios: []string{"43"}},
+		{ID: "outra-empresa", AdministradoraID: "empresa-b"},
+	}}
+	servidor, cliente, _, err := IniciarConfigurado(Config{Turno: gravadorFunc(nil), Regras: fonte, Canais: repo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = servidor.Fechar(context.Background()) })
+	ctx := atende.ComEscopoSessao(t.Context(), "empresa-a", repo.canal.ID)
+	got, err := cliente.AtivasDoEscopo(ctx, "empresa-a", &condo)
+	if err != nil || len(got) != 3 || got[0].ID != "global" || got[1].ID != "empresa" || got[2].ID != "condominio" {
+		t.Fatalf("regras=%+v erro=%v", got, err)
+	}
+	if _, err := cliente.AtivasDoEscopo(ctx, "empresa-b", &condo); !errors.Is(err, atende.ErrEscopoSessao) {
+		t.Fatalf("empresa divergente: %v", err)
+	}
+	outro := 43
+	if _, err := cliente.AtivasDoEscopo(ctx, "empresa-a", &outro); !errors.Is(err, atende.ErrEscopoSessao) {
+		t.Fatalf("condomínio divergente: %v", err)
 	}
 }

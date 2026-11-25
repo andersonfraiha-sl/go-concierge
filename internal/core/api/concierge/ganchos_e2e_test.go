@@ -16,7 +16,6 @@ import (
 
 	atendeapi "go-concierge/internal/core/api/atende"
 	okf "go-concierge/internal/core/catalogo/arquivos"
-	"go-concierge/internal/core/clientes/mcp"
 	pedidospg "go-concierge/internal/core/dados/postgres/pedidos"
 	sessoespg "go-concierge/internal/core/dados/postgres/sessoes"
 	"go-concierge/internal/entrada"
@@ -24,6 +23,7 @@ import (
 	atende "go-concierge/internal/harness/atendimento"
 	admin "go-concierge/internal/harness/configuracao"
 	"go-concierge/internal/harness/pedidos"
+	"go-concierge/internal/harness/provedores/mcp"
 	"go-concierge/internal/recurso"
 )
 

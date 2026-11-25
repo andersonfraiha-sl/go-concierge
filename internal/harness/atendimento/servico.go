@@ -20,12 +20,14 @@ import (
 	"go-concierge/internal/escopo"
 	comfalha "go-concierge/internal/falha"
 	harness "go-concierge/internal/harness/agentes"
+	"go-concierge/internal/harness/camadas"
 	"go-concierge/internal/harness/canais"
 	admin "go-concierge/internal/harness/configuracao"
 	okf "go-concierge/internal/harness/conteudo"
 	"go-concierge/internal/harness/ganchos"
 	"go-concierge/internal/harness/ganchos/auditoria"
 	"go-concierge/internal/harness/ganchos/fixos"
+	regrasruntime "go-concierge/internal/harness/ganchos/regras"
 	gruvi "go-concierge/internal/harness/identificacao"
 	"go-concierge/internal/harness/memoria"
 	"go-concierge/internal/harness/pedidos"
@@ -165,6 +167,15 @@ func (o *Outbox) Itens(protocolo string) []Saida {
 var extracoes sync.WaitGroup
 
 type Servico struct {
+	Catalogos interface {
+		Carregar(context.Context, string, *int) (okf.Catalogo, error)
+	}
+	Conteudo interface {
+		LerRetratoDoEscopo(context.Context, string, *int) (camadas.Retrato, error)
+	}
+	Regras interface {
+		AtivasDoEscopo(context.Context, string, *int) ([]regrasruntime.RegraGravada, error)
+	}
 	CamadasDe func(context.Context, string, *int, time.Time) (harness.SkillPublicadaFunc, error)
 	Canais    CanaisRuntime
 	Cat       okf.Catalogo
@@ -698,6 +709,11 @@ func (s *Servico) PrepararMensagem(ctx context.Context, msg entrada.Mensagem) (e
 // sessão), roda o concierge com o histórico, envia a resposta e persiste a sessão.
 func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
 	ctx = identidade.ComoRuntime(ctx)
+	telefoneOriginal := msg.TelefoneOriginal
+	if telefoneOriginal == "" {
+		telefoneOriginal = msg.Contato.Phone
+	}
+	ctx = entrada.ComTelefoneOriginal(ctx, telefoneOriginal)
 	var err error
 	ctx, msg, err = s.autorizarMensagem(ctx, msg)
 	if err != nil {
@@ -800,7 +816,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 	}
 	plano := sess.Plano
 	sess.mu.Unlock()
-	turnoGanchos, err := s.abrirTurno(sess)
+	turnoGanchos, err := s.abrirTurnoDaExecucao(ctx, sess)
 	if err != nil {
 		return sess, err
 	}
@@ -902,6 +918,15 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		}
 	}
 
+	if s.Catalogos != nil {
+		cat, err := s.Catalogos.Carregar(ctx, contato.CompanyID, contato.CondoID)
+		if err != nil {
+			s.responderFalha(ctx, sess, turnoGanchos, troca, err)
+			historicoRegistrado = true
+			return sess, err
+		}
+		ctx = context.WithValue(ctx, chaveCatalogoExecucao{}, cat)
+	}
 	revisaoMemoria := s.revisaoMemoria(contato)
 	cfg, mem, def, err := s.prepararTurno(ctx, sess, m, condo)
 	cfg.Turno = &turnoGanchos
@@ -916,7 +941,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		ctx, cancel = context.WithTimeout(ctx, s.Timeout)
 		defer cancel()
 	}
-	ag, err := harness.Build(ctx, s.Cat, def, cfg)
+	ag, err := harness.Build(ctx, s.catalogoDoContexto(ctx), def, cfg)
 	if err != nil {
 		if errors.Is(err, context.Canceled) && interrompido() {
 			return sess, nil
@@ -1024,7 +1049,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		}
 		ctxEntrega := context.WithValue(ctxCancelavel, chaveControleEntrega{}, verificar)
 		erroEntrega = s.Sender.Enviar(ctxEntrega, sess.Destino, entregue)
-		suprimida := errors.Is(erroEntrega, errEntregaSuprimida) || erroEntrega != nil && ctxCancelavel.Err() != nil && !verificar()
+		suprimida := errors.Is(erroEntrega, errEntregaSuprimida) || errors.Is(erroEntrega, context.Canceled) && ctxCancelavel.Err() != nil && !verificar()
 		var parcial *entregaParcial
 		if errors.As(erroEntrega, &parcial) {
 			entregue = strings.Join(parcial.Partes, "\n")
@@ -1078,7 +1103,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		}
 	}
 	if respostaEnviada(s.Sender, res, erroEntrega) {
-		sess.guardarPerguntasDeRegra(turnoGanchos)
+		sess.guardarPerguntasDeRegra(turnoGanchos, msg.Revisao)
 	}
 	sess.historicoAtualizar(baseHistorico, res.Mensagens)
 	historicoRegistrado = true
@@ -1423,12 +1448,21 @@ func (s *Servico) responderAoMorador(ctx context.Context, sess *Sessao, t gancho
 }
 
 // prepararTurno monta a Config e carrega o agente de primeiro nível.
+type chaveCatalogoExecucao struct{}
+
+func (s *Servico) catalogoDoContexto(ctx context.Context) okf.Catalogo {
+	if cat, ok := ctx.Value(chaveCatalogoExecucao{}).(okf.Catalogo); ok {
+		return cat
+	}
+	return s.Cat
+}
+
 func (s *Servico) prepararTurno(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (harness.Config, memoria.Memoria, *okf.Agent, error) {
 	cfg, mem, dir, err := s.montar(ctx, sess, m, condo)
 	if err != nil {
 		return cfg, mem, nil, err
 	}
-	def, err := s.Cat.Load(dir)
+	def, err := s.catalogoDoContexto(ctx).Load(dir)
 	if err != nil {
 		return cfg, mem, nil, fmt.Errorf("carregar agente %s: %w", dir, err)
 	}
@@ -1483,7 +1517,28 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	if s.SkillsDe != nil {
 		cfg.Skills = s.SkillsDe(condo.Administradora, condo.ID, s.agora())
 	}
-	if s.CamadasDe != nil {
+	if s.Conteudo != nil {
+		retrato, errConteudo := s.Conteudo.LerRetratoDoEscopo(ctx, contato.CompanyID, contato.CondoID)
+		if errConteudo != nil {
+			return cfg, mem, "", errConteudo
+		}
+		if len(retrato.Bases) > 0 {
+			efetivas := camadas.NovasEfetivas(slog.Default())
+			efetivas.Trocar(retrato)
+			id := ""
+			if contato.CondoID != nil {
+				id = fmt.Sprint(*contato.CondoID)
+			}
+			consulta := efetivas.DoCondominio(contato.CompanyID, id, s.agora())
+			cfg.SkillPublicada = func(skill string) (okf.SkillEfetiva, bool, bool) {
+				if _, ok := retrato.Bases[skill]; !ok {
+					return okf.SkillEfetiva{}, false, false
+				}
+				v, ok := consulta(skill)
+				return v, ok, true
+			}
+		}
+	} else if s.CamadasDe != nil {
 		cfg.SkillPublicada, err = s.CamadasDe(ctx, contato.CompanyID, contato.CondoID, s.agora())
 		if err != nil {
 			return cfg, mem, "", err
@@ -1528,7 +1583,7 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	if c, ok := canalDoContexto(ctx); ok {
 		agenteRaiz = c.Agente
 	}
-	dir, err = s.Cat.ResolveAgente(agenteRaiz)
+	dir, err = s.catalogoDoContexto(ctx).ResolveAgente(agenteRaiz)
 	if err != nil {
 		return cfg, mem, "", err
 	}

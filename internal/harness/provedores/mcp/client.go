@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go-concierge/internal/entrada"
 	"go-concierge/internal/falha"
 	"go-concierge/internal/recurso"
 )
@@ -62,7 +63,7 @@ func (c *Client) ValidarToken(ctx context.Context) error {
 	if c == nil || c.Token == nil {
 		return errors.New("mcp: token B2C não configurado")
 	}
-	token, err := c.Token.Token(ctx)
+	token, err := c.obterToken(ctx)
 	if err != nil {
 		return fmt.Errorf("mcp: token B2C indisponível: %w", err)
 	}
@@ -70,6 +71,15 @@ func (c *Client) ValidarToken(ctx context.Context) error {
 		return errors.New("mcp: token B2C vazio")
 	}
 	return nil
+}
+
+func (c *Client) obterToken(ctx context.Context) (string, error) {
+	if provider, ok := c.Token.(interface {
+		TokenParaContato(context.Context, string) (string, error)
+	}); ok {
+		return provider.TokenParaContato(ctx, entrada.TelefoneOriginal(ctx))
+	}
+	return c.Token.Token(ctx)
 }
 
 // Tool é uma tool publicada pelo servidor (tools/list).
@@ -339,7 +349,7 @@ func (c *Client) post(ctx context.Context, body rpcRequest, wantID *int64) (*rpc
 		req.Header.Set("Mcp-Session-Id", c.session)
 	}
 	if c.Token != nil {
-		tok, err := c.Token.Token(ctx)
+		tok, err := c.obterToken(ctx)
 		if err != nil {
 			return nil, err
 		}

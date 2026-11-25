@@ -4,36 +4,18 @@
 package camadas
 
 import (
-	"time"
-
-	okf "go-concierge/internal/harness/conteudo"
+	camadasruntime "go-concierge/internal/harness/camadas"
 )
 
-// Tipo diz de que nível é uma camada.
-type Tipo string
+type Tipo = camadasruntime.Tipo
+type Camada = camadasruntime.Camada
+type Documento = camadasruntime.Documento
 
 const (
-	TipoBase           Tipo = "BASE"
-	TipoAdministradora Tipo = "COMPANY"
-	TipoCondominio     Tipo = "CONDO"
+	TipoBase           = camadasruntime.TipoBase
+	TipoAdministradora = camadasruntime.TipoAdministradora
+	TipoCondominio     = camadasruntime.TipoCondominio
 )
-
-// Camada identifica uma camada de uma skill. ID é vazio na base.
-type Camada struct {
-	Skill     string `json:"skill"`
-	Tipo      Tipo   `json:"tipo"`
-	ID        string `json:"id"`
-	CompanyID string `json:"company_id,omitempty"`
-}
-
-// Documento é o que uma camada guarda: a skill composta inteira daquele nível. As ferramentas
-// são sempre as da base; a camada de baixo só herda.
-type Documento struct {
-	Textos      okf.Textos `json:"textos"`
-	Fluxo       okf.Fluxo  `json:"fluxo"`
-	Ferramentas []string   `json:"ferramentas"`
-	Orientacao  string     `json:"orientacao"`
-}
 
 // TrechoID é a identidade estável de um trecho: sobrevive a reordenar e a renomear.
 type TrechoID string
@@ -81,26 +63,9 @@ type Diferenca struct {
 	Minha       *string    `json:"minha"`
 }
 
-// Cabeca é a versão mais recente de uma camada.
-type Cabeca struct {
-	VersaoID  int
-	Documento Documento
-}
-
-// VersaoBase é a cabeça da base: além do documento, o caso.yaml cru (para o turno sem
-// reler o disco) e a data em que ela deixa de valer, se foi encerrada.
-type VersaoBase struct {
-	Cabeca
-	CasoYAML  []byte
-	EncerraEm time.Time
-}
-
-// Retrato é tudo o que a composição precisa, lido do banco de uma vez.
-type Retrato struct {
-	Bases           map[string]VersaoBase        // skill → cabeça da base
-	Administradoras map[string]map[string]Cabeca // skill → administradora → cabeça
-	Condominios     map[string]map[string]Cabeca // skill → condomínio → cabeça
-}
+type Cabeca = camadasruntime.Cabeca
+type VersaoBase = camadasruntime.VersaoBase
+type Retrato = camadasruntime.Retrato
 
 // MudouTextos diz se algum trecho de texto difere entre os dois documentos.
 func MudouTextos(antes, depois Documento) bool {

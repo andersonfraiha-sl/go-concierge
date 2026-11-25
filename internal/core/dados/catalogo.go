@@ -17,6 +17,7 @@ const prazoCatalogo = 5 * time.Second
 
 type RepositorioCatalogo interface {
 	Listar(context.Context) ([]catalogo.Arquivo, error)
+	ListarParaExecucao(context.Context, string, string) ([]catalogo.Arquivo, error)
 	Substituir(context.Context, []catalogo.Arquivo, ...string) (catalogo.Mudanca, error)
 }
 

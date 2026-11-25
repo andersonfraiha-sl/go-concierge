@@ -832,11 +832,12 @@ func (s *Servico) Carteira(ctx context.Context, contato escopo.Contato) (pedidos
 		return cart, nil, err
 	}
 	slots := map[string][]*pedidos.Slot{}
-	dir, err := s.Cat.ResolveAgente(s.Agente)
+	cat := s.catalogoDoContexto(ctx)
+	dir, err := cat.ResolveAgente(s.Agente)
 	if err != nil {
 		return cart, slots, nil
 	}
-	raiz, err := s.Cat.Load(dir)
+	raiz, err := cat.Load(dir)
 	if err != nil {
 		return cart, slots, nil
 	}

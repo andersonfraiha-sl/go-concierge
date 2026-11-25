@@ -19,7 +19,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"go-concierge/internal/core/clientes/llm"
+	"go-concierge/internal/harness/provedores/llm"
 )
 
 func credencialVertexDeTeste(t *testing.T, tokenURL string) string {

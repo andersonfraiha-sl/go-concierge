@@ -5,8 +5,9 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+
+	"go-concierge/internal/harness/conteudo"
 )
 
 // Classes, na ordem em que a interface as mostra. A classe é o que o recurso É para o
@@ -92,22 +93,11 @@ func LerRecursosFixture(p string) ([]Recurso, error) {
 	if err != nil {
 		return nil, err
 	}
-	var f struct {
-		Recursos []Recurso `yaml:"recursos"`
-	}
-	if err := yaml.Unmarshal(raw, &f); err != nil {
+	recursos, err := conteudo.InterpretarRecursosFixture(raw)
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", p, err)
 	}
-	for i := range f.Recursos {
-		if f.Recursos[i].Params == nil {
-			f.Recursos[i].Params = []ParamMeta{}
-		}
-		if f.Recursos[i].Visibility == "" {
-			f.Recursos[i].Visibility = "private"
-		}
-	}
-	sort.Slice(f.Recursos, func(i, j int) bool { return f.Recursos[i].Name < f.Recursos[j].Name })
-	return f.Recursos, nil
+	return recursos, nil
 }
 
 // RecursosNexus devolve a lista da fonte configurada (vazia se não há fonte).

@@ -3,7 +3,7 @@ package catalogonexus
 import (
 	"testing"
 
-	"go-concierge/internal/core/clientes/mcp"
+	"go-concierge/internal/harness/provedores/mcp"
 )
 
 func TestPesquisaSemResultadosReconhecidos(t *testing.T) {

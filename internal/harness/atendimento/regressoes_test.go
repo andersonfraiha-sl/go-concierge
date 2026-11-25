@@ -71,7 +71,7 @@ func TestResponderVazioNaoBloqueiaSessao(t *testing.T) {
 	}
 }
 
-func TestEntregaInterrompidaEntrePartesAposTransicaoHumana(t *testing.T) {
+func TestEntregaContinuaEntrePartesAposTransicaoHumana(t *testing.T) {
 	var mu sync.Mutex
 	permitido := true
 	chamadas := 0
@@ -89,8 +89,8 @@ func TestEntregaInterrompidaEntrePartesAposTransicaoHumana(t *testing.T) {
 		return permitido
 	})
 	err := (&ATENDESender{BaseURL: server.URL, APIKey: "teste"}).Enviar(ctx, entrada.Destino{Telefone: "5511999999999"}, strings.Repeat("x", 5000))
-	if !errors.Is(err, errEntregaSuprimida) || chamadas != 1 {
-		t.Fatalf("esperava apenas primeira parte e interrupção: chamadas=%d erro=%v", chamadas, err)
+	if err != nil || chamadas != 2 {
+		t.Fatalf("entrega iniciada deve terminar: chamadas=%d erro=%v", chamadas, err)
 	}
 }
 

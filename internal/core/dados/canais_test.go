@@ -82,6 +82,18 @@ func TestCanaisHTTPComCredenciaisReservadas(t *testing.T) {
 	if _, err := entrada.VerificarWebhook(t.Context(), id, corpo, "inválida"); !errors.Is(err, ErrWebhookNaoAutorizado) {
 		t.Fatalf("assinatura inválida: %v", err)
 	}
+	local := NovaEntradaLocal(repo)
+	canal, err = local.VerificarWebhook(t.Context(), id, corpo, assinatura)
+	if err != nil || canal.ID != repo.canal.ID || canal.WebhookSecret != "" || canal.APIKey != "" || canal.APIBaseURL != "" {
+		t.Fatalf("webhook local: canal=%+v erro=%v", canal, err)
+	}
+	if _, err := local.VerificarWebhook(t.Context(), id, corpo, "inválida"); !errors.Is(err, ErrWebhookNaoAutorizado) {
+		t.Fatalf("assinatura local inválida: %v", err)
+	}
+	id.Endpoint = "canal-divergente"
+	if _, err := local.VerificarWebhook(t.Context(), id, corpo, assinatura); !errors.Is(err, ErrWebhookNaoAutorizado) {
+		t.Fatalf("canal local divergente: %v", err)
+	}
 	antes := repo.chamadas.Load()
 	for _, tc := range []struct{ rota, token string }{{rotaWebhook, cliente.token}, {rotaCanal, entrada.token}} {
 		req, err := http.NewRequest(http.MethodPost, cliente.base+tc.rota, strings.NewReader(`{}`))

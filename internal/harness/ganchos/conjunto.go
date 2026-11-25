@@ -159,6 +159,14 @@ func (c *Conjunto) TurnoAPartirDe(proximo int) Turno {
 	return Turno{conjunto: c, indice: c.indice(), cofre: pii.NovoCofreAPartirDe(proximo), feitas: &perguntasFeitas{}}
 }
 
+func (c *Conjunto) TurnoComIndice(proximo int, indice *Indice) Turno {
+	turno := Turno{conjunto: c, cofre: pii.NovoCofreAPartirDe(proximo), feitas: &perguntasFeitas{}}
+	if indice != nil {
+		turno.indice = *indice
+	}
+	return turno
+}
+
 // TurnoDePrevia abre um turno descartável, com cofre próprio, para prever uma decisão antes
 // da hora: as observações dele saem com Previa, e a auditoria as ignora.
 func (c *Conjunto) TurnoDePrevia() Turno {

@@ -218,6 +218,7 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		return
 	}
 	msg := ev.Normalizar()
+	msg.TelefoneOriginal = msg.Contato.Phone
 	if !emulado && s.atende != nil && s.atende.Canais != nil {
 		if s.entradaDados == nil {
 			writeErr(w, http.StatusUnauthorized, errUnauthorized)
@@ -257,6 +258,30 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: ev.Data.Protocol.Number, Telefone: ev.Data.Contact.Phone, Canal: msg.Canal}
 		msg.Destino.ChannelID = msg.ChannelID
 		msg.Destino.CompanyID = msg.CompanyID
+	}
+	if s.entradaHarness != nil {
+		operacao := "iniciar"
+		if tipo == atendeapi.EventoHumano {
+			operacao = "humano"
+		} else if tipo == atendeapi.EventoFechado {
+			operacao = "encerrar"
+		}
+		ctx, cancelar := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancelar()
+		resposta, status, err := s.entradaHarness.Aplicar(ctx, operacao, msg, w.Header().Get("X-Request-Id"))
+		if err != nil {
+			if status != http.StatusForbidden {
+				status = http.StatusInternalServerError
+			}
+			writeErr(w, status, err)
+			return
+		}
+		if operacao != "iniciar" {
+			writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": ev.Data.Protocol.Number})
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": resposta.Protocolo, "session_id": resposta.SessaoID})
+		return
 	}
 	if tipo == atendeapi.EventoHumano {
 		if _, err := s.atende.RegistrarHumano(r.Context(), msg); err != nil {

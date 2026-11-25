@@ -568,10 +568,13 @@ func (sess *Sessao) tomarPerguntasConfirmadas(mensagem string) []string {
 // guardarPerguntasDeRegra guarda as perguntas que os ganchos fizeram no turno, para a
 // próxima mensagem poder respondê-las. Só depois de a resposta do turno sair: pergunta que
 // não chegou ao morador não pode ser respondida.
-func (sess *Sessao) guardarPerguntasDeRegra(t ganchos.Turno) {
+func (sess *Sessao) guardarPerguntasDeRegra(t ganchos.Turno, revisao uint64) {
 	perguntas := t.PerguntasFeitas()
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.Encerrada || sess.AtendimentoHumano || sess.revisaoEstado != revisao {
+		return
+	}
 	sess.PerguntasDeRegra = perguntas
 }
 

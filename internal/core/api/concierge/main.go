@@ -36,9 +36,6 @@ import (
 	okf "go-concierge/internal/core/catalogo/arquivos"
 	canaiscore "go-concierge/internal/core/clientes/canais"
 	"go-concierge/internal/core/clientes/gruvi"
-	"go-concierge/internal/core/clientes/llm"
-	"go-concierge/internal/core/clientes/mcp"
-	"go-concierge/internal/core/clientes/nexus"
 	"go-concierge/internal/core/dados"
 	acessopg "go-concierge/internal/core/dados/postgres/acesso"
 	adminpg "go-concierge/internal/core/dados/postgres/admin"
@@ -53,12 +50,16 @@ import (
 	harness "go-concierge/internal/harness/agentes"
 	atende "go-concierge/internal/harness/atendimento"
 	"go-concierge/internal/harness/canais"
+	catalogoruntime "go-concierge/internal/harness/catalogo"
 	admin "go-concierge/internal/harness/configuracao"
 	"go-concierge/internal/harness/ganchos"
 	"go-concierge/internal/harness/ganchos/auditoria"
 	"go-concierge/internal/harness/ganchos/fixos"
 	"go-concierge/internal/harness/ganchos/pii"
 	"go-concierge/internal/harness/memoria"
+	"go-concierge/internal/harness/provedores/llm"
+	"go-concierge/internal/harness/provedores/mcp"
+	"go-concierge/internal/harness/provedores/nexus"
 	"go-concierge/internal/identidade"
 )
 
@@ -79,8 +80,11 @@ type servidor struct {
 	prazoDoCatalogo time.Duration
 
 	// canal ATENDE (webhook + emulador no Console)
-	atende          *atende.Servico
-	entradaDados    *dados.Entrada
+	atende         *atende.Servico
+	entradaHarness *atende.ClienteEntrada
+	entradaDados   interface {
+		VerificarWebhook(context.Context, canais.Identidade, []byte, string) (canais.Canal, error)
+	}
 	canaisMetadados interface {
 		ListarMetadados(context.Context, string) ([]canais.Resumo, error)
 	}
@@ -203,7 +207,8 @@ func Executar() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
+	nexusAoVivo := nexus.FonteAoVivo(cli, account)
+	fonteNexus := nexus.FonteComNexus(nexusAoVivo, account, filepath.Join(cat.Root, "nexus"))
 	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
 	s := &servidor{cat: cat, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
 		prazoDoCatalogo:   prazoCatalogo,
@@ -258,7 +263,7 @@ func Executar() {
 	}
 	adminPG := adminpg.NovoPostgres(db.Ent)
 	acessosDados := dados.NovosAcessosPrivados(autoridade.Verificador(), s.acessos, s.implantacao).ComContatos(memoriapg.NovoPostgres(db), pedidospg.NovoPostgres(db))
-	servidorDados, gravacaoTurno, entradaDados, err := dados.IniciarConfigurado(dados.Config{Turno: dados.NovoGravadorPostgres(db), Canais: canaisPG, Sessoes: sessoesPG, Memorias: dados.NovasMemoriasPostgres(db), Pedidos: dados.NovosPedidosPostgres(db), Auditoria: auditoriaPG, Acessos: acessosDados, Conteudo: camadas.NovoPostgres(db.Ent).Repo(), Regras: s.regras, Manutencao: dados.NovaManutencaoPostgres(db), Configuracao: adminPG, Catalogo: catalogo.NovoPostgres(db.Ent), Administracao: adminPG, Consultas: dados.NovasConsultasPostgres(db, canaisPG)})
+	servidorDados, gravacaoTurno, _, err := dados.IniciarConfigurado(dados.Config{Turno: dados.NovoGravadorPostgres(db), Canais: canaisPG, Sessoes: sessoesPG, Memorias: dados.NovasMemoriasPostgres(db), Pedidos: dados.NovosPedidosPostgres(db), Auditoria: auditoriaPG, Acessos: acessosDados, Conteudo: camadas.NovoPostgres(db.Ent).Repo(), Regras: s.regras, Manutencao: dados.NovaManutencaoPostgres(db), Configuracao: adminPG, Catalogo: catalogo.NovoPostgres(db.Ent), ContaPadrao: account, RecursosNexus: nexusAoVivo, Administracao: adminPG, Consultas: dados.NovasConsultasPostgres(db, canaisPG)})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -266,11 +271,15 @@ func Executar() {
 	s.regras = dados.NovasRegrasAdministrativas(gravacaoTurno)
 	cat.Persistir = persistirNoBanco(servidorDados.Catalogo(), cat.Root, cat.RemocoesDaEscrita)
 	s.autoridade, s.acessos = autoridade, gravacaoTurno
-	s.entradaDados, s.canaisMetadados = entradaDados, dados.NovasConsultas(gravacaoTurno)
+	s.entradaDados, s.canaisMetadados = dados.NovaEntradaLocal(canaisPG), dados.NovasConsultas(gravacaoTurno)
 	s.consultas = dados.NovasConsultas(gravacaoTurno)
 	s.conteudoExecucao, s.catalogoExecucao = gravacaoTurno, servidorDados.Catalogo()
-	s.outbox.ATENDE = canaiscore.SenderPorCanal{Canais: servidorDados.CanaisDeSaida()}
-	transferidores.ATENDE = canaiscore.TransferidorPorCanal{Canais: servidorDados.CanaisDeSaida()}
+	s.outbox.ATENDE = canaiscore.SenderPorCanal{Canais: canaisPG}
+	transferidores.ATENDE = canaiscore.TransferidorPorCanal{Canais: canaisPG}
+	servidorSaida, clienteSaida, err := iniciarSaidaHTTP(s.outbox, transferidores)
+	if err != nil {
+		log.Fatal(err)
+	}
 	// o sinal de desligamento cancela o ctx do servidor: o HTTP para de aceitar conexões e a
 	// retenção da auditoria para. Um segundo sinal volta ao padrão e mata na hora.
 	prazoDesligar, err := prazoDeDesligamento(os.Getenv("DESLIGAMENTO_PRAZO"))
@@ -301,36 +310,19 @@ func Executar() {
 	// o Studio e o turno dividem o cache: as escritas de um aparecem no outro
 	s.memorias = dados.NovasMemorias(gravacaoTurno)
 	s.atende = &atende.Servico{
+		Regras: gravacaoTurno, Conteudo: gravacaoTurno,
 		Canais: gravacaoTurno,
 		Cat:    cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
-		Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(dados.NovasSessoes(gravacaoTurno)), Timeout: 120 * time.Second, Log: s.log,
+		Sender: clienteSaida, Transferidor: clienteSaida, Sessoes: atende.NewSessoes(dados.NovasSessoes(gravacaoTurno)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 		GravacaoTurno: gravacaoTurno, Ganchos: conjunto, Auditoria: auditor,
 	}
-	s.atende.CamadasDe = func(ctx context.Context, company string, condo *int, agora time.Time) (harness.SkillPublicadaFunc, error) {
-		retrato, err := gravacaoTurno.LerRetratoDoEscopo(ctx, company, condo)
-		if err != nil {
-			return nil, err
-		}
-		if len(retrato.Bases) == 0 {
-			return nil, nil
-		}
-		efetivas := camadas.NovasEfetivas(s.registro)
-		efetivas.Trocar(retrato)
-		id := ""
-		if condo != nil {
-			id = fmt.Sprint(*condo)
-		}
-		consulta := efetivas.DoCondominio(company, id, agora)
-		return func(skill string) (okf.SkillEfetiva, bool, bool) {
-			if _, ok := retrato.Bases[skill]; !ok {
-				return okf.SkillEfetiva{}, false, false
-			}
-			v, ok := consulta(skill)
-			return v, ok, true
-		}, nil
+	fonteCatalogo := &catalogoruntime.Fonte{Dados: gravacaoTurno}
+	if mcpCli != nil {
+		fonteCatalogo.MCP = mcpCli
 	}
+	s.atende.Catalogos = fonteCatalogo
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
 	}
@@ -350,6 +342,11 @@ func Executar() {
 		log.Fatal(err)
 	}
 	s.atende.Mapeamento = gravacaoTurno
+	servidorHarness, clienteHarness, err := atende.IniciarEntradaHTTP(s.atende)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.entradaHarness = clienteHarness
 	if c, ok := administracaollm.NovoCopiloto(s.atende.Config); ok {
 		s.copiloto = c
 	}
@@ -381,7 +378,9 @@ func Executar() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = servir(ctxServidor, novoServidorHTTP(handler), ln, desligamento{prazo: prazoDesligar, aguardar: func() {
+	err = servir(ctxServidor, novoServidorHTTP(handler), ln, desligamento{prazo: prazoDesligar, parar: func(ctx context.Context) error {
+		return errors.Join(servidorHarness.Fechar(ctx), servidorSaida.Fechar(ctx))
+	}, aguardar: func() {
 		s.turnos.Wait()
 		s.atende.Aguardar()
 		<-retencaoParou

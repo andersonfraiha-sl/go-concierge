@@ -22,12 +22,12 @@ import (
 
 	okf "go-concierge/internal/core/catalogo/arquivos"
 	"go-concierge/internal/core/clientes/gruvi"
-	"go-concierge/internal/core/clientes/mcp"
 	"go-concierge/internal/escopo"
 	harness "go-concierge/internal/harness/agentes"
 	atende "go-concierge/internal/harness/atendimento"
 	admin "go-concierge/internal/harness/configuracao"
 	"go-concierge/internal/harness/memoria"
+	"go-concierge/internal/harness/provedores/mcp"
 	"go-concierge/internal/recurso"
 )
 
@@ -44,16 +44,37 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 	}
 	cat.Recursos = func() []okf.Recurso { return fix }
 	out := &atende.Outbox{}
+	store := atende.NovaSessaoEmMemoria()
 	repo := mapeamentoTeste(t)
 	s := &servidor{
 		atende: &atende.Servico{
 			Cat: cat, Agente: "agentes/concierge", Mapeamento: repo,
-			Sessoes: atende.NewSessoes(atende.NovaSessaoEmMemoria()), Sender: out,
+			Sessoes: atende.NewSessoes(store), Sender: out,
 			Config: harness.Config{Mock: true, Env: func(string) string { return "" }},
 		},
 		admin: repo,
 		log:   log.New(io.Discard, "", 0),
 	}
+	servidorSaida, clienteSaida, err := iniciarSaidaHTTP(out, atende.TransferidoresPorConector{Emulado: &atende.TransferidorEmulado{Outbox: out}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.atende.Sender, s.atende.Transferidor = clienteSaida, clienteSaida
+	servidorHarness, clienteHarness, err := atende.IniciarEntradaHTTP(s.atende)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.entradaHarness = clienteHarness
+	t.Cleanup(func() {
+		ctx, cancelar := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelar()
+		if err := servidorHarness.Fechar(ctx); err != nil {
+			t.Error(err)
+		}
+		if err := servidorSaida.Fechar(ctx); err != nil {
+			t.Error(err)
+		}
+	})
 	corpo := `{"event":"com.echo.atende.user.protocol.created","id":"evt-1","tenant":"tenant-1","data":{"protocol":{"number":"protocolo-1"},"contact":{"phone":"5519981621916","name":"Morador"},"channel":{"type":"whatsapp","wabaId":"waba-1","displayNumber":"551940402710"},"message":{"id":"msg-1","type":"text","content":"posso fazer barulho depois das 22h?"}}}`
 	w := httptest.NewRecorder()
 	// o evento vem com um tenant que nenhum condomínio tem: o seletor do Console decide
@@ -80,6 +101,16 @@ func TestWebhookAtendeProcessaMensagemNormalizada(t *testing.T) {
 			}
 			if sess := listarSessoes(t, s.atende.Sessoes)[0]; sess.Condominio != "101" || sess.AdministradoraID != "adm-x" {
 				t.Fatalf("condomínio da conversa: %s/%s", sess.AdministradoraID, sess.Condominio)
+			}
+			ctx, cancelar := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancelar()
+			if err := servidorHarness.Fechar(ctx); err != nil {
+				t.Fatal(err)
+			}
+			sess := listarSessoes(t, s.atende.Sessoes)[0]
+			registro, ok, err := store.Carregar(ctx, sess.ID)
+			if err != nil || !ok || !strings.Contains(string(registro.Dados), `"historico"`) {
+				t.Fatalf("histórico não persistido: encontrado=%v erro=%v", ok, err)
 			}
 			return
 		}
