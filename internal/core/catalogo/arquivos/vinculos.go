@@ -2,7 +2,7 @@ package arquivos
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -37,14 +37,14 @@ func (c *Catalogo) Vinculos(a *Agent) []Vinculo {
 	for _, cx := range []string{"rules", "workflows", "routers"} {
 		textos = append(textos, a.Arquivos[cx]...)
 	}
-	if fileExists(filepath.Join(a.Path, PersonaMD)) {
+	if c.fileExists(filepath.Join(a.Path, PersonaMD)) {
 		textos = append(textos, Arquivo{Caminho: PersonaMD})
 	}
 	for _, f := range textos {
 		if !strings.HasSuffix(f.Caminho, ".md") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(a.Path, filepath.FromSlash(f.Caminho)))
+		raw, err := c.readFile(filepath.Join(a.Path, filepath.FromSlash(f.Caminho)))
 		if err != nil {
 			continue
 		}
@@ -120,16 +120,16 @@ func (c *Catalogo) resolveRef(a *Agent, origem, ref string) Vinculo {
 		v.Tipo = "procedimento"
 	}
 	proprio := filepath.Join(a.Path, filepath.FromSlash(ref))
-	if fileExists(proprio) || dirExists(proprio) {
+	if c.fileExists(proprio) || c.dirExists(proprio) {
 		v.OK = true
 		v.Resolvido = "próprio"
 		return v
 	}
 	def, _ := CaixinhaPorNome(cx)
 	if def.Herda {
-		for _, anc := range Ancestrais(a.Path) {
+		for _, anc := range c.ancestrais(a.Path) {
 			p := filepath.Join(anc, filepath.FromSlash(ref))
-			if fileExists(p) || dirExists(p) {
+			if c.fileExists(p) || c.dirExists(p) {
 				v.OK = true
 				v.Resolvido = "herdado de " + filepath.Base(anc)
 				return v
@@ -146,11 +146,11 @@ func (c *Catalogo) resolveRef(a *Agent, origem, ref string) Vinculo {
 
 func (c *Catalogo) procurarEmOutroAgente(a *Agent, ref string) string {
 	var achado string
-	_ = filepath.WalkDir(filepath.Join(c.Root, DirAgentes), func(p string, d os.DirEntry, err error) error {
+	_ = c.walkDir(filepath.Join(c.Root, DirAgentes), func(p string, d fs.DirEntry, err error) error {
 		if err != nil || achado != "" {
 			return nil
 		}
-		if d.IsDir() && IsAgent(p) && p != a.Path && fileExists(filepath.Join(p, filepath.FromSlash(ref))) {
+		if d.IsDir() && c.IsAgent(p) && p != a.Path && c.fileExists(filepath.Join(p, filepath.FromSlash(ref))) {
 			rel, _ := filepath.Rel(c.Root, p)
 			achado = filepath.ToSlash(rel)
 		}
@@ -213,7 +213,7 @@ func (c *Catalogo) validar(a *Agent) []Problema {
 		if !temRouters {
 			ps = append(ps, Problema{Nivel: "aviso", Onde: "routers/", Texto: "sem routers/: roteia só pelas descrições dos subagentes", Solucao: "crie routers/rotas.md com um critério por rota e a saída `self`"})
 		}
-		if a.Persona == "" && len(Ancestrais(a.Path)) == 0 {
+		if a.Persona == "" && len(c.ancestrais(a.Path)) == 0 {
 			ps = append(ps, Problema{Nivel: "aviso", Onde: PersonaMD, Texto: "quem fala com o morador precisa de persona (tom, traços, frases)", Solucao: "crie persona.md neste agente de primeiro nível; todos os subagentes herdam"})
 		}
 	case Operador:

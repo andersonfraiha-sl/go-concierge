@@ -26,7 +26,7 @@ func catalogoDeTeste() Catalogo {
 
 func arquivos(t *testing.T, pasta string) []string {
 	t.Helper()
-	achados, err := filepath.Glob(filepath.Join("..", "..", "..", "harness", "ganchos", "testdata", "regras", pasta, "*.json"))
+	achados, err := filepath.Glob(filepath.Join("..", "testdata", "regras", pasta, "*.json"))
 	if err != nil || len(achados) == 0 {
 		t.Fatalf("sem arquivos em %s: %v", pasta, err)
 	}

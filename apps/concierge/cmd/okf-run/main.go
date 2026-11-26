@@ -27,12 +27,12 @@ import (
 	"go-concierge/internal/core/catalogo"
 	okf "go-concierge/internal/core/catalogo/arquivos"
 	conciergeapi "go-concierge/internal/core/clientes/concierge"
-	"go-concierge/internal/core/clientes/llm"
-	"go-concierge/internal/core/clientes/mcp"
-	"go-concierge/internal/core/clientes/nexus"
 	harness "go-concierge/internal/harness/agentes"
 	"go-concierge/internal/harness/canais"
 	admin "go-concierge/internal/harness/configuracao"
+	"go-concierge/internal/harness/provedores/llm"
+	"go-concierge/internal/harness/provedores/mcp"
+	"go-concierge/internal/harness/provedores/nexus"
 )
 
 func main() {

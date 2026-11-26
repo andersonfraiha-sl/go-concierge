@@ -8,8 +8,7 @@ import (
 	"hash/fnv"
 	"maps"
 	"math"
-	"os"
-	"path/filepath"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -240,9 +239,8 @@ func (ag *Agente) abrirWorkflow(_ context.Context, in *argsWorkflow) (saida, err
 		if p.Nome != strings.TrimSpace(in.Nome) {
 			continue
 		}
-		base := filepath.Join(ag.Def.Path, "workflows")
 		if len(p.Etapas) == 0 {
-			raw, err := os.ReadFile(filepath.Join(base, p.Nome+".md"))
+			raw, err := ag.Cat.LerArquivo(ag.Def.Rel, path.Join("workflows", p.Nome+".md"))
 			if err != nil {
 				return erro("não consegui ler o procedimento %s: %v", p.Nome, err), nil
 			}
@@ -262,7 +260,7 @@ func (ag *Agente) abrirWorkflow(_ context.Context, in *argsWorkflow) (saida, err
 		if idx == -1 {
 			return erro("etapa %q não existe em %s; etapas: %s", etapa, p.Nome, strings.Join(p.Etapas, ", ")), nil
 		}
-		raw, err := os.ReadFile(filepath.Join(base, p.Nome, etapa+".md"))
+		raw, err := ag.Cat.LerArquivo(ag.Def.Rel, path.Join("workflows", p.Nome, etapa+".md"))
 		if err != nil {
 			return erro("não consegui ler a etapa %s de %s: %v", etapa, p.Nome, err), nil
 		}

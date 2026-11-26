@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -62,9 +61,9 @@ func blocos(linhas []string) [][]string {
 }
 
 // RemoverRota tira a rota do agente que saiu (o item inteiro). Devolve o que mudou.
-func RemoverRota(pai, nome string) (string, error) {
+func (c *Catalogo) RemoverRota(pai, nome string) (string, error) {
 	arq := caminhoRotas(pai)
-	raw, err := os.ReadFile(arq)
+	raw, err := c.readFile(arq)
 	if err != nil {
 		return "", nil
 	}
@@ -83,7 +82,7 @@ func RemoverRota(pai, nome string) (string, error) {
 		linhas = append(linhas, b...)
 	}
 	texto := strings.TrimRight(strings.Join(linhas, "\n"), "\n") + "\n"
-	if err := os.WriteFile(arq, []byte(texto), 0o644); err != nil {
+	if err := c.writeFile(arq, []byte(texto), 0o644); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("rota '%s' removida de %s/routers/%s", nome, filepath.Base(pai), arquivoRotas), nil
@@ -123,9 +122,9 @@ func pontoDeEntrada(bl [][]string) int {
 }
 
 // RegistrarRota põe a rota do agente que chegou, antes da saída padrão.
-func RegistrarRota(pai, nome, descricao string) (string, error) {
+func (c *Catalogo) RegistrarRota(pai, nome, descricao string) (string, error) {
 	arq := caminhoRotas(pai)
-	raw, err := os.ReadFile(arq)
+	raw, err := c.readFile(arq)
 	if err != nil {
 		return "", nil // pai sem routers/: roteia pela descrição, nada a fazer
 	}
@@ -149,7 +148,7 @@ func RegistrarRota(pai, nome, descricao string) (string, error) {
 	for _, b := range saida {
 		linhas = append(linhas, b...)
 	}
-	if err := os.WriteFile(arq, []byte(strings.Join(linhas, "\n")+"\n"), 0o644); err != nil {
+	if err := c.writeFile(arq, []byte(strings.Join(linhas, "\n")+"\n"), 0o644); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("rota '%s' criada em %s/routers/%s", nome, filepath.Base(pai), arquivoRotas), nil
@@ -168,9 +167,9 @@ func linhasDaRota(nome, descricao string) []string {
 }
 
 // TrocarRota reescreve o item da rota no mesmo lugar do arquivo; sem o item, registra como novo.
-func TrocarRota(pai, nome, descricao string) (string, error) {
+func (c *Catalogo) TrocarRota(pai, nome, descricao string) (string, error) {
 	arq := caminhoRotas(pai)
-	raw, err := os.ReadFile(arq)
+	raw, err := c.readFile(arq)
 	if errors.Is(err, fs.ErrNotExist) {
 		return "", nil // pai sem routers/: roteia pela descrição, nada a fazer
 	}
@@ -180,10 +179,10 @@ func TrocarRota(pai, nome, descricao string) (string, error) {
 	bl := blocos(strings.Split(strings.TrimRight(string(raw), "\n"), "\n"))
 	i := slices.IndexFunc(bl, func(b []string) bool { return rotaDoBloco(b) == nome })
 	if i < 0 {
-		return RegistrarRota(pai, nome, descricao)
+		return c.RegistrarRota(pai, nome, descricao)
 	}
 	bl[i] = linhasDaRota(nome, descricao)
-	if err := os.WriteFile(arq, []byte(strings.Join(slices.Concat(bl...), "\n")+"\n"), 0o644); err != nil {
+	if err := c.writeFile(arq, []byte(strings.Join(slices.Concat(bl...), "\n")+"\n"), 0o644); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("rota '%s' atualizada em %s/routers/%s", nome, filepath.Base(pai), arquivoRotas), nil
@@ -213,10 +212,10 @@ func quebrar(texto string, largura int, indent string) []string {
 
 // SincronizarRotas acerta os dois lados depois de mover/clonar/criar/excluir.
 // paiAntigo vazio = clone ou criação (o original fica); paiNovo vazio = raiz (sem rotas).
-func SincronizarRotas(paiAntigo, paiNovo, agente, nome string) ([]string, error) {
+func (c *Catalogo) SincronizarRotas(paiAntigo, paiNovo, agente, nome string) ([]string, error) {
 	var mudancas []string
 	if paiAntigo != "" {
-		m, err := RemoverRota(paiAntigo, nome)
+		m, err := c.RemoverRota(paiAntigo, nome)
 		if err != nil {
 			return mudancas, err
 		}
@@ -225,7 +224,7 @@ func SincronizarRotas(paiAntigo, paiNovo, agente, nome string) ([]string, error)
 		}
 	}
 	if paiNovo != "" {
-		m, err := RegistrarRota(paiNovo, nome, Descrever(agente))
+		m, err := c.RegistrarRota(paiNovo, nome, c.Descrever(agente))
 		if err != nil {
 			return mudancas, err
 		}
@@ -234,4 +233,15 @@ func SincronizarRotas(paiAntigo, paiNovo, agente, nome string) ([]string, error)
 		}
 	}
 	return mudancas, nil
+}
+
+func RemoverRota(pai, nome string) (string, error) { return (&Catalogo{}).RemoverRota(pai, nome) }
+func RegistrarRota(pai, nome, descricao string) (string, error) {
+	return (&Catalogo{}).RegistrarRota(pai, nome, descricao)
+}
+func TrocarRota(pai, nome, descricao string) (string, error) {
+	return (&Catalogo{}).TrocarRota(pai, nome, descricao)
+}
+func SincronizarRotas(antigo, novo, agente, nome string) ([]string, error) {
+	return (&Catalogo{}).SincronizarRotas(antigo, novo, agente, nome)
 }

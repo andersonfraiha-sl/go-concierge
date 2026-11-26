@@ -1,4 +1,4 @@
-import type { SxProps, Theme } from '@mui/material';
+import { type SxProps, type Theme, useMediaQuery, useTheme } from '@mui/material';
 import { type ReactNode, useState } from 'react';
 import { MolduraDoStudio } from './MolduraDoStudio';
 import { Sidebar } from './Sidebar';
@@ -7,7 +7,7 @@ import { Topbar } from './Topbar';
 const CHAVE_MENU_RECOLHIDO = 'studio.menuRecolhido';
 
 // Telas de lista: 34 px em cima, 55 nas laterais e embaixo, na largura toda da janela.
-const ESTILO_DO_CONTEUDO: SxProps<Theme> = { pt: 4, px: 5, pb: 5 };
+const ESTILO_DO_CONTEUDO: SxProps<Theme> = { pt: 4, px: { xs: 2, md: 5 }, pb: 5 };
 
 /** Layout das telas de lista: barra global no topo e menu à esquerda. */
 export function StudioLayout(): ReactNode {
@@ -23,7 +23,8 @@ export function StudioLayout(): ReactNode {
 /** Menu à esquerda com as preferências lembradas entre telas e sessões. */
 export function MenuLateral(): ReactNode {
   const recolhido = usePreferencia(CHAVE_MENU_RECOLHIDO);
-  return <Sidebar recolhido={recolhido.ligada} aoAlternar={recolhido.alternar} />;
+  const estreita = useMediaQuery(useTheme().breakpoints.down('md'));
+  return <Sidebar recolhido={estreita || recolhido.ligada} aoAlternar={recolhido.alternar} />;
 }
 
 function usePreferencia(chave: string): { ligada: boolean; alternar: () => void } {

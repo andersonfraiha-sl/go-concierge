@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/google/uuid"
 
 	"go-concierge/internal/core/administracao/regras"
@@ -349,4 +350,110 @@ func regraNoCanalAmplo(idx *ganchos.Indice) *ganchos.Indice {
 	}
 	idx.AntesDaFerramenta.PorCondominio = nil
 	return idx
+}
+
+func TestPerguntaDeRegraNaoRetornaAposHumanoDuranteEnvio(t *testing.T) {
+	svc, _, _ := servicoComPedidos(t)
+	svc.Ganchos = ganchostest.Conjunto(fixos.Todos(), indiceDaRegraQueConfirma(t))
+	pedidos.Agora = func() time.Time { return time.Date(2026, 11, 4, 12, 0, 0, 0, time.Local) }
+	t.Cleanup(func() { pedidos.Agora = time.Now })
+	instante := time.Date(2026, 11, 5, 1, 30, 0, 0, time.UTC)
+	svc.Agora = func() time.Time { return instante }
+	svc.Config.Agora = svc.Agora
+	i := 0
+	mensagem := func(texto string) entrada.Mensagem {
+		i++
+		msg := mensagemDoMorador(eventoCom(t, texto), 91, i)
+		msg.CompanyID = ""
+		msg.ChannelID = uuid.Nil
+		return msg
+	}
+	var sess *Sessao
+	fala := func(texto string) string {
+		var err error
+		sess, err = svc.Processar(t.Context(), mensagem(texto))
+		if err != nil {
+			t.Fatal(err)
+		}
+		svc.Aguardar()
+		return ultimoConcierge(sess).Texto
+	}
+	ateAConfirmacaoDoCaso(t, fala)
+	iniciou, liberar := make(chan struct{}), make(chan struct{})
+	original := svc.Sender
+	svc.Sender = senderFunc(func(ctx context.Context, destino entrada.Destino, texto string) error {
+		if strings.Contains(texto, perguntaDaRegraDeReserva) {
+			close(iniciou)
+			<-liberar
+			return nil
+		}
+		return original.Enviar(ctx, destino, texto)
+	})
+	pergunta := mensagem("sim")
+	terminou := make(chan error, 1)
+	go func() { _, err := svc.Processar(context.Background(), pergunta); terminou <- err }()
+	select {
+	case <-iniciou:
+	case <-time.After(5 * time.Second):
+		t.Fatal("envio da pergunta não iniciou")
+	}
+	humana := pergunta
+	humana.ID, humana.Autor, humana.Texto = "evento-humano", "atendente", "Eu assumo."
+	aplicada, err := svc.RegistrarHumano(t.Context(), humana)
+	if err != nil || !aplicada {
+		close(liberar)
+		t.Fatalf("evento humano: aplicado=%v erro=%v", aplicada, err)
+	}
+	close(liberar)
+	if err := <-terminou; err != nil {
+		t.Fatal(err)
+	}
+	if got := perguntasGuardadas(sess); len(got) != 0 {
+		t.Fatalf("pergunta antiga foi restaurada: %v", got)
+	}
+	var entregue, falaHumana bool
+	for _, item := range sess.historicoSnapshot() {
+		if item.Role == schema.Assistant && strings.Contains(item.Content, perguntaDaRegraDeReserva) {
+			entregue = true
+		}
+		if item.Role == schema.Assistant && strings.Contains(item.Content, "Eu assumo.") {
+			falaHumana = true
+		}
+	}
+	if !entregue || !falaHumana {
+		t.Fatalf("histórico: pergunta entregue=%v fala humana=%v", entregue, falaHumana)
+	}
+	svc.Sender = original
+	if resposta := fala("sim"); !strings.Contains(resposta, perguntaDaRegraDeReserva) || strings.Contains(resposta, "Reserva confirmada") {
+		t.Fatalf("sim não deveria confirmar a pergunta invalidada: %q", resposta)
+	}
+}
+
+func TestGuardarPerguntasRespeitaRevisaoEEncerramento(t *testing.T) {
+	indice := indiceDaRegraQueConfirma(t)
+	turno := ganchos.NovoConjunto(ganchos.Fixos{}, func() *ganchos.Indice { return indice }).Turno()
+	turno.AntesDaFerramenta(t.Context(), ganchos.AntesDaFerramenta{
+		Agora: time.Date(2026, 11, 5, 1, 30, 0, 0, time.UTC), Ferramenta: "areas.reservar",
+		AdministradoraID: "adm-a", CondominioID: "101",
+	})
+	if got := turno.PerguntasFeitas(); !slices.Equal(got, []string{perguntaDaRegraDeReserva}) {
+		t.Fatalf("pergunta não produzida: %v", got)
+	}
+	for _, caso := range []struct {
+		nome   string
+		sessao *Sessao
+		quer   bool
+	}{
+		{"revisão igual", &Sessao{revisaoEstado: 1}, true},
+		{"revisão alterada", &Sessao{revisaoEstado: 2}, false},
+		{"atendimento humano", &Sessao{revisaoEstado: 1, AtendimentoHumano: true}, false},
+		{"encerrada", &Sessao{revisaoEstado: 1, Encerrada: true}, false},
+	} {
+		t.Run(caso.nome, func(t *testing.T) {
+			caso.sessao.guardarPerguntasDeRegra(turno, 1)
+			if got := len(perguntasGuardadas(caso.sessao)) > 0; got != caso.quer {
+				t.Fatalf("pergunta guardada=%v, esperado=%v", got, caso.quer)
+			}
+		})
+	}
 }

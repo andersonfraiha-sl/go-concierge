@@ -13,8 +13,8 @@ const ESTILO_DA_BARRA: SxProps<Theme> = {
   flexShrink: 0,
   display: 'flex',
   alignItems: 'center',
-  gap: 3,
-  px: 4,
+  gap: { xs: 1, md: 3 },
+  px: { xs: 1, md: 4 },
   borderBottom: 1,
   borderColor: 'border.default',
   bgcolor: 'background.paper',
@@ -52,6 +52,7 @@ function Marca(): ReactNode {
       <Typography
         component="span"
         sx={{
+          display: { xs: 'none', sm: 'inline' },
           fontFamily: (tema) => tema.typography.h6.fontFamily,
           fontWeight: PESOS.negrito,
           fontSize: TIPOS.marca,
@@ -61,10 +62,22 @@ function Marca(): ReactNode {
       >
         Superlógica
       </Typography>
-      <Box sx={{ height: SHELL.divisorDaMarca, borderLeft: 1, borderColor: 'border.strong' }} />
+      <Box
+        sx={{
+          display: { xs: 'none', sm: 'block' },
+          height: SHELL.divisorDaMarca,
+          borderLeft: 1,
+          borderColor: 'border.strong',
+        }}
+      />
       <Typography
         component="span"
-        sx={{ fontSize: TIPOS.subtitle1, lineHeight: 'normal', color: 'text.secondary' }}
+        sx={{
+          display: { xs: 'none', sm: 'inline' },
+          fontSize: TIPOS.subtitle1,
+          lineHeight: 'normal',
+          color: 'text.secondary',
+        }}
       >
         Concierge{' '}
         <Box component="strong" sx={{ color: 'primary.main', fontWeight: PESOS.semi }}>

@@ -272,7 +272,6 @@ func TestRotasExigemPermissao(t *testing.T) {
 		{nome: "config do atende", metodo: "GET", url: "/api/atende/config?administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
 		{nome: "caixa de saida inteira", metodo: "GET", url: "/api/atende/saidas?administradora=adm-a", sem: "construtor-a", com: "admin", quer: 200},
 		// conversas.atender na administradora da sessão
-		{nome: "transbordo", metodo: "POST", url: "/api/atende/transbordo?company_id=adm-a", corpo: `{"sessao_id":"` + amb.sessaoA + `","acao":"x"}`, sem: "gestor-b", com: "operador-a", quer: 400},
 		{nome: "reiniciar sessao", metodo: "DELETE", url: "/api/atende/sessao?id=" + sess(amb.sessaoA2) + "&company_id=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
 		// pedidos
 		{nome: "pedidos", metodo: "GET", url: "/api/pedidos?phone=" + tel + "&administradora=adm-a", sem: "gestor-b", com: "operador-a", quer: 200},
@@ -590,12 +589,11 @@ func TestUsuarioSemeadoSoValeEmModoDev(t *testing.T) {
 	}
 }
 
-func TestTransbordoNaoEcoaErroInterno(t *testing.T) {
+func TestRotaAdministrativaDeTransbordoRemovida(t *testing.T) {
 	amb := novoAmbienteRotas(t)
-	// responder sem transbordo ativo é recusado pelo serviço; o erro dele não vai na resposta
-	w := amb.pedir(t, "admin", "POST", "/api/atende/transbordo?company_id=adm-a", `{"sessao_id":"`+amb.sessaoA+`","acao":"responder","texto":"oi"}`)
-	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "TRANSBORDO_RECUSADO") || strings.Contains(w.Body.String(), "assuma o atendimento") {
-		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	w := amb.pedir(t, "admin", http.MethodPost, "/api/atende/transbordo?company_id=adm-a", `{"acao":"assumir"}`)
+	if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("rota removida: status %d: %s", w.Code, w.Body.String())
 	}
 }
 

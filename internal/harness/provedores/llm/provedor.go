@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/model"
 
-	"go-concierge/internal/core/clientes/llm/responses"
+	"go-concierge/internal/harness/provedores/llm/responses"
 )
 
 // Provedor de modelo, escolhido pelas mesmas variáveis do sl-concierge:

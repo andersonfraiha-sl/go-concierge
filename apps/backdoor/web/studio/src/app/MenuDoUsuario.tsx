@@ -51,7 +51,7 @@ function Identidade({ eu }: { eu: Eu }): ReactNode {
       <Box sx={ESTILO_DO_AVATAR}>{iniciaisDe(eu.nome)}</Box>
       <Box
         sx={{
-          display: 'flex',
+          display: { xs: 'none', sm: 'flex' },
           flexDirection: 'column',
           lineHeight: SHELL.alturaDaLinha,
           minWidth: 0,

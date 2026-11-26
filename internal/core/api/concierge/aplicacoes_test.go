@@ -16,6 +16,7 @@ import (
 	"time"
 
 	canaiscore "go-concierge/internal/core/clientes/canais"
+	atende "go-concierge/internal/harness/atendimento"
 	"go-concierge/internal/harness/canais"
 )
 
@@ -49,6 +50,18 @@ func TestConsoleSeparadoProcessaConversa(t *testing.T) {
 	canal := canais.Canal{ID: uuid.New(), CompanyID: "adm-a", Habilitado: true, Agente: "agentes/concierge", Modo: "INHERIT"}
 	amb.s.atende.Canais = canalConsoleTeste{canal: canal}
 	amb.s.atende.Mapeamento = nil
+	servidorHarness, clienteHarness, err := atende.IniciarEntradaHTTP(amb.s.atende)
+	if err != nil {
+		t.Fatal(err)
+	}
+	amb.s.entradaHarness = clienteHarness
+	t.Cleanup(func() {
+		ctx, cancelar := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelar()
+		if err := servidorHarness.Fechar(ctx); err != nil {
+			t.Error(err)
+		}
+	})
 	nucleo := httptest.NewServer(amb.s.rotear(nil))
 	defer nucleo.Close()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -116,7 +129,65 @@ func TestConsoleSeparadoProcessaConversa(t *testing.T) {
 			if resposta.Recebidas[0].Texto == "" {
 				t.Fatal("entrega vazia")
 			}
-			amb.s.turnos.Wait()
+			humano := strings.Replace(corpo, "com.echo.atende.user.protocol.created", "com.echo.atende.attendant.message", 1)
+			humano = strings.Replace(humano, "evt-separacao", "evt-humano", 1)
+			humano = strings.Replace(humano, "Qual o horário da piscina?", "Vou cuidar disso", 1)
+			resp, err = client.Post(base+"/emulador/atende/webhook?company_id=adm-a&channel_id="+canal.ID.String(), "application/json", strings.NewReader(humano))
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("evento humano: %d %s", resp.StatusCode, raw)
+			}
+			resp, err = client.Get(base + "/api/atende/sessao?protocolo=teste-separacao&company_id=adm-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			var estado struct {
+				Sessao struct {
+					Humano bool `json:"atendimento_humano"`
+					Turnos []struct {
+						Quem  string `json:"quem"`
+						Texto string `json:"texto"`
+					} `json:"turnos"`
+				} `json:"sessao"`
+			}
+			if err := json.Unmarshal(raw, &estado); err != nil || !estado.Sessao.Humano {
+				t.Fatalf("estado após intervenção: %s erro=%v", raw, err)
+			}
+			encontrou := false
+			for _, turno := range estado.Sessao.Turnos {
+				encontrou = encontrou || turno.Quem == "atendente" && turno.Texto == "Vou cuidar disso"
+			}
+			if !encontrou {
+				t.Fatalf("mensagem humana ausente: %s", raw)
+			}
+			morador := strings.Replace(corpo, "com.echo.atende.user.protocol.created", "com.echo.atende.user.message", 1)
+			morador = strings.Replace(morador, "evt-separacao", "evt-morador-humano", 1)
+			morador = strings.Replace(morador, `"number":"teste-separacao"`, `"number":"teste-separacao","isHumanAttendance":true`, 1)
+			morador = strings.Replace(morador, "Qual o horário da piscina?", "Obrigado", 1)
+			resp, err = client.Post(base+"/emulador/atende/webhook?company_id=adm-a&channel_id="+canal.ID.String(), "application/json", strings.NewReader(morador))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusAccepted {
+				t.Fatalf("mensagem durante atendimento humano: %d", resp.StatusCode)
+			}
+			resp, err = client.Get(base + "/api/atende/sessao?protocolo=teste-separacao&company_id=adm-a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err := json.Unmarshal(raw, &estado); err != nil || !estado.Sessao.Humano || !strings.Contains(string(raw), "Obrigado") {
+				t.Fatalf("mensagem do morador no atendimento humano: %s erro=%v", raw, err)
+			}
+			t.Logf("smoke HTTP pelo Console: webhook do morador 202, resposta recebida, webhook humano 202 e intervenção registrada no protocolo teste-separacao")
 			return
 		}
 		time.Sleep(100 * time.Millisecond)

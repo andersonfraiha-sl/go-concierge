@@ -72,6 +72,20 @@ func TestServirFalhaQuandoTrabalhoDeFundoEstouraOPrazo(t *testing.T) {
 	}
 }
 
+func TestServirPropagaFalhaAoPararHarness(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancelar := context.WithCancel(context.Background())
+	cancelar()
+	falha := errors.New("harness indisponível")
+	err = servir(ctx, novoServidorHTTP(http.NotFoundHandler()), ln, desligamento{prazo: time.Second, parar: func(context.Context) error { return falha }})
+	if !errors.Is(err, falha) {
+		t.Fatalf("erro = %v, quer falha do harness", err)
+	}
+}
+
 func TestPrazoDeDesligamento(t *testing.T) {
 	casos := []struct {
 		valor   string

@@ -105,7 +105,7 @@ function CampoDoTitulo({ estilo, valor, rotulo, onMudar, onEncerrar }: PropsDoCa
           onChange={field.onChange}
           onBlur={confirmar}
           onKeyDown={aoTeclar}
-          sx={{ ...estilo, minWidth: 200 }}
+          sx={{ ...estilo, minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 'auto' } }}
         />
       )}
     />

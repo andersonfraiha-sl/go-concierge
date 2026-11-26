@@ -1,7 +1,5 @@
-// Package catalogo guarda no Postgres os arquivos do catálogo (agentes/** e nexus/**). O
-// banco é a fonte da verdade; o disco é a cópia de trabalho que o okf.Catalogo lê, refeita
-// do banco a cada boot. O núcleo (Diferenca, ValidarCaminho) é puro; LerDisco, Materializar
-// e Postgres são as bordas com I/O.
+// Package catalogo guarda no Postgres os arquivos do catálogo (agentes/** e nexus/**).
+// O banco é a fonte da verdade; LerDisco e Materializar atendem à importação e aos usos locais.
 package catalogo
 
 import (

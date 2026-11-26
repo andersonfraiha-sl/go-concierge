@@ -6,61 +6,29 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"go-concierge/internal/core/banco"
 	"go-concierge/internal/core/catalogo"
 	okf "go-concierge/internal/core/catalogo/arquivos"
-	"go-concierge/internal/harness/persistencia"
 )
 
-const (
-	// o banco tem o catálogo; o disco em -root é a semente e a cópia de trabalho fica ao lado.
-	subpastaDaCopia  = "var/catalogo"
-	timeoutPersistir = 5 * time.Second
-)
+const timeoutPersistir = 5 * time.Second
 
-// abrirCatalogo põe o catálogo do Postgres em disco e o abre. semente é o -root: a pasta com
-// agentes/ e nexus/ que vem no repositório ou na imagem. Toda escrita no catálogo volta ao
-// banco pelo gancho Persistir.
 func abrirCatalogo(semente string, db banco.Banco) (*okf.Catalogo, error) {
-	copia := filepath.Join(semente, filepath.FromSlash(subpastaDaCopia))
 	pg := catalogo.NovoPostgres(db.Ent)
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
 	defer cancel()
-	if err := prepararCopia(ctx, pg, semente, copia); err != nil {
-		return nil, err
-	}
-	cat, err := okf.NewCatalogo(copia)
-	if err != nil {
-		return nil, fmt.Errorf("abrir catálogo: %w", err)
-	}
-	cat.Persistir = persistirNoBanco(pg, cat.Root, cat.RemocoesDaEscrita)
-	return cat, nil
-}
-
-// prepararCopia: tabela vazia recebe a semente; com dado, o banco vale e a semente diferente
-// só gera aviso. Depois refaz a cópia de trabalho a partir do banco.
-func prepararCopia(ctx context.Context, pg *catalogo.Postgres, semente, copia string) error {
-	if _, err := os.Stat(semente); err != nil {
-		return fmt.Errorf("preparar catálogo: semente %s: %w (use -root com a pasta que tem agentes/ e nexus/)", semente, err)
-	}
 	if err := semearOuAvisar(ctx, pg, semente); err != nil {
-		return fmt.Errorf("preparar catálogo: %w (confira DATABASE_URL e as migrations)", err)
+		return nil, fmt.Errorf("preparar catálogo: %w", err)
 	}
 	arquivos, err := pg.Listar(ctx)
 	if err != nil {
-		return fmt.Errorf("preparar catálogo: %w", err)
+		return nil, err
 	}
-	if err := os.MkdirAll(copia, 0o755); err != nil {
-		return fmt.Errorf("preparar catálogo: criar %s: %w", copia, err)
-	}
-	if err := catalogo.Materializar(copia, arquivos); err != nil {
-		return fmt.Errorf("preparar catálogo: %w", err)
-	}
-	return nil
+	return okf.NovoEmMemoria(arquivos)
 }
 
 func semearOuAvisar(ctx context.Context, pg *catalogo.Postgres, semente string) error {
@@ -68,87 +36,70 @@ func semearOuAvisar(ctx context.Context, pg *catalogo.Postgres, semente string) 
 	if err != nil {
 		return err
 	}
+	_, err = os.Stat(semente)
+	if err != nil {
+		if !vazio {
+			if !errors.Is(err, os.ErrNotExist) {
+				slog.WarnContext(ctx, "semente opcional indisponível; o banco continua sendo a fonte", "operacao", "semear_catalogo", "erro", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("semente %s: %w (use -root com a pasta que tem agentes/ e nexus/)", semente, err)
+	}
 	naSemente, err := catalogo.LerDisco(semente)
 	if err != nil {
+		if !vazio {
+			slog.WarnContext(ctx, "semente opcional indisponível; o banco continua sendo a fonte", "operacao", "semear_catalogo", "erro", err)
+			return nil
+		}
 		return err
 	}
 	if vazio {
+		if len(naSemente) == 0 {
+			return fmt.Errorf("semente %s não contém arquivos de catálogo", semente)
+		}
 		m, err := pg.Substituir(ctx, naSemente)
 		if err != nil {
 			return err
 		}
-		slog.InfoContext(ctx, "catálogo semeado no banco a partir da pasta", "operacao", "semear_catalogo",
-			"semente", semente, "arquivos", m.Gravados)
+		slog.InfoContext(ctx, "catálogo semeado no banco a partir da pasta", "operacao", "semear_catalogo", "semente", semente, "arquivos", m.Gravados)
 		return nil
 	}
 	noBanco, err := pg.Resumos(ctx)
 	if err != nil {
 		return err
 	}
+	for caminho := range noBanco {
+		if strings.HasPrefix(caminho, "nexus/catalogo-nexus/") {
+			delete(noBanco, caminho)
+		}
+	}
+	naSemente = slices.DeleteFunc(naSemente, func(a catalogo.Arquivo) bool {
+		return strings.HasPrefix(a.Caminho, "nexus/catalogo-nexus/")
+	})
 	gravar, remover := catalogo.Diferenca(noBanco, naSemente)
 	if len(gravar)+len(remover) > 0 {
-		slog.WarnContext(ctx, "a pasta do catálogo difere do banco; o banco vale e nada foi sobrescrito. "+
-			"Para levar a pasta ao banco, rode okf-admin importar-catalogo",
-			"operacao", "semear_catalogo", "semente", semente, "diferentes", len(gravar), "ausentes_na_pasta", len(remover))
+		slog.WarnContext(ctx, "a pasta do catálogo difere do banco; o banco vale e nada foi sobrescrito. Para levar a pasta ao banco, rode okf-admin importar-catalogo", "operacao", "semear_catalogo", "semente", semente, "diferentes", len(gravar), "ausentes_na_pasta", len(remover))
 	}
 	return nil
 }
 
-type substituidorCatalogo interface {
-	Substituir(context.Context, []catalogo.Arquivo, ...string) (catalogo.Mudanca, error)
-}
-
-func persistirNoBanco(pg substituidorCatalogo, copia string, remocoes ...func() []string) func() error {
-	conhecidos, inicialErr := catalogo.LerDisco(copia)
-	pendentes := map[string]bool{}
-	var incerta error
-	return func() error {
-		if incerta != nil {
-			return incerta
-		}
-		if inicialErr != nil {
-			return inicialErr
-		}
-		noDisco, err := catalogo.LerDisco(copia)
-		if err != nil {
-			return err
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), timeoutPersistir)
-		defer cancel()
-		var remover []string
-		if len(remocoes) > 0 {
-			remover = remocoes[0]()
-		}
-		presentes := make(map[string]bool, len(noDisco))
-		for _, a := range noDisco {
-			presentes[a.Caminho] = true
-		}
-		remover = slices.DeleteFunc(remover, func(caminho string) bool { return presentes[caminho] })
-		resumos := make(map[string]string, len(conhecidos))
-		for _, a := range conhecidos {
-			resumos[a.Caminho] = catalogo.SHA256(a.Conteudo)
-		}
-		alterados, _ := catalogo.Diferenca(resumos, noDisco)
-		for _, a := range alterados {
-			pendentes[a.Caminho] = true
-		}
-		for _, caminho := range remover {
-			pendentes[caminho] = true
-		}
-		var gravar []catalogo.Arquivo
-		for _, a := range noDisco {
-			if pendentes[a.Caminho] {
-				gravar = append(gravar, a)
-			}
-		}
-		_, err = pg.Substituir(ctx, gravar, remover...)
-		if errors.Is(err, persistencia.ErrGravacaoIncerta) {
-			incerta = err
-		}
-		if err == nil {
-			conhecidos = noDisco
-			clear(pendentes)
-		}
+func migrarCatalogoNexusLegado(raiz, account string, pg *catalogo.Postgres) error {
+	account = strings.TrimSpace(account)
+	legado, err := okf.NewCatalogoNexusStore(raiz, account)
+	if err != nil {
 		return err
 	}
+	raw, err := os.ReadFile(legado.Path())
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		slog.Warn("cópia Nexus legada indisponível; dados existentes foram preservados", "operacao", "migrar_catalogo_nexus", "erro", err)
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutBoot)
+	defer cancel()
+	caminho := "nexus/catalogo-nexus/" + account + ".yaml"
+	return pg.InserirCatalogoNexusSeAusente(ctx, catalogo.Arquivo{Caminho: caminho, Conteudo: raw})
 }

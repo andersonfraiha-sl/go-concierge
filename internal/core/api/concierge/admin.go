@@ -27,13 +27,13 @@ import (
 // (renomear administradora) e /backdoor/payloads (definições livres por recurso).
 
 func (s *servidor) rotasAdmin(mux *http.ServeMux) {
-	mux.Handle("GET /api/admin/orquestracao", s.protegidaEmAlgum(acesso.StudioAvancado, s.adminOrquestracao))
-	mux.Handle("PUT /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.adminSalvarOrquestracao))
+	mux.Handle("GET /api/admin/orquestracao", s.protegidaEmAlgum(acesso.StudioAvancado, s.comCatalogo((*servidor).adminOrquestracao)))
+	mux.Handle("PUT /api/admin/orquestracao", s.protegida(acesso.StudioAvancado, alvoSuperlogica, s.comCatalogo((*servidor).adminSalvarOrquestracao)))
 	// a resposta já vem recortada às administradoras visíveis ao usuário
-	mux.Handle("GET /api/admin/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.adminEstado))
+	mux.Handle("GET /api/admin/estado", s.protegidaEmAlgum(acesso.SkillsLer, s.comCatalogo((*servidor).adminEstado)))
 	mux.Handle("PUT /api/admin/orientacao", s.protegida(acesso.CondominiosHabilitar, alvoCondominioDoCorpo, s.adminOrientacao))
 	mux.Handle("PUT /api/admin/ajustes", s.protegida(acesso.CondominiosHabilitar, alvoCondominioDoCorpo, s.adminAjustes))
-	mux.Handle("POST /api/admin/sugerir-payload", s.protegida(acesso.CondominiosHabilitar, alvoCondominioDoCorpo, s.adminSugerirPayload))
+	mux.Handle("POST /api/admin/sugerir-payload", s.protegida(acesso.CondominiosHabilitar, alvoCondominioDoCorpo, s.comCatalogo((*servidor).adminSugerirPayload)))
 	mux.Handle("PUT /api/admin/payload", s.protegida(acesso.FerramentasEditar, alvoCondominioDoCorpo, s.adminPayload))
 }
 

@@ -164,12 +164,8 @@ func TestGravacaoTurnoIncertaNaoRepeteNemExecutaFallback(t *testing.T) {
 	if err := svc.Sessoes.Persistir(t.Context(), sess); !errors.Is(err, ErrGravacaoIncerta) {
 		t.Fatalf("persistência posterior = %v", err)
 	}
-	acionou := false
-	if _, err := svc.noProtocolo(t.Context(), sess.ID, func(s *Sessao) (*Sessao, error) {
-		acionou = true
-		return s, nil
-	}); !errors.Is(err, ErrGravacaoIncerta) || acionou {
-		t.Fatalf("ação posterior: erro=%v acionou=%v", err, acionou)
+	if _, _, _, err := svc.PreencherPedido(t.Context(), sess.ID, "pedido", "Ana", nil, false); !errors.Is(err, ErrGravacaoIncerta) {
+		t.Fatalf("ação posterior: erro=%v", err)
 	}
 	if chamadas != 1 || sessoes.gravacoes != 0 || spyPedidos.gravacoes != 0 {
 		t.Fatalf("chamadas=%d sessões=%d pedidos=%d", chamadas, sessoes.gravacoes, spyPedidos.gravacoes)

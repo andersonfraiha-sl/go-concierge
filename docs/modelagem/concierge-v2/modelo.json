@@ -8,7 +8,7 @@
       "name": "catalog_files",
       "group": "catalog",
       "ownership": "global",
-      "description": "Fonte canônica do conteúdo OKF; cópia de trabalho em disco é derivada.",
+      "description": "Fonte canônica do conteúdo OKF; o editor usa retratos em memória.",
       "columns": [
         {
           "name": "path",

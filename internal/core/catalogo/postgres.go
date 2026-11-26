@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	"gopkg.in/yaml.v3"
 
 	"go-concierge/internal/core/banco/ent"
 	entcatalogo "go-concierge/internal/core/banco/ent/catalogoarquivo"
+	"go-concierge/internal/core/banco/ent/predicate"
 	"go-concierge/internal/falha"
 	"go-concierge/internal/harness/persistencia"
 )
@@ -24,7 +26,7 @@ const (
 	arquivosPorLote = 100
 )
 
-// Postgres guarda o catálogo na tabela catalogo_arquivos.
+// Postgres guarda o catálogo na tabela catalog_files.
 type Postgres struct{ cli *ent.Client }
 
 // NovoPostgres usa cli, que o chamador abre e fecha.
@@ -48,6 +50,81 @@ func (p *Postgres) Listar(ctx context.Context) ([]Arquivo, error) {
 	return out, nil
 }
 
+func (p *Postgres) ListarPagina(ctx context.Context, caminho string, deslocamento int64) (Pagina, error) {
+	if deslocamento < 0 {
+		return Pagina{}, fmt.Errorf("deslocamento inválido")
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutCatalogo)
+	defer cancel()
+	rows, err := p.cli.QueryContext(ctx, `WITH versao AS (
+		SELECT md5(COALESCE(string_agg(length(path)::text || ':' || path || sha256, '' ORDER BY path COLLATE "C"), '')) AS valor FROM catalog_files
+	), fragmentos AS (
+		SELECT path, octet_length(content)::bigint AS total,
+		CASE WHEN path COLLATE "C" = $1::text COLLATE "C" THEN $2::bigint ELSE 0 END AS inicio,
+		substring(content FROM (CASE WHEN path COLLATE "C" = $1::text COLLATE "C" THEN $2 ELSE 0 END)::int + 1 FOR $3) AS conteudo
+		FROM catalog_files WHERE path COLLATE "C" > $1::text COLLATE "C" OR (path COLLATE "C" = $1::text COLLATE "C" AND $2 < octet_length(content))
+		ORDER BY path COLLATE "C" LIMIT $4
+	) SELECT versao.valor, fragmentos.path, fragmentos.total, fragmentos.inicio, fragmentos.conteudo
+	FROM versao LEFT JOIN fragmentos ON true ORDER BY fragmentos.path COLLATE "C"`, caminho, deslocamento, TamanhoTrecho, ArquivosPorPagina)
+	if err != nil {
+		return Pagina{}, falha.ComPilha(fmt.Errorf("listar página do catálogo: %w", err))
+	}
+	defer rows.Close()
+	out := Pagina{Trechos: []Trecho{}, Proximo: caminho, Deslocamento: deslocamento, Fim: true}
+	for rows.Next() {
+		var versao string
+		var nome *string
+		var total, inicio *int64
+		var conteudo []byte
+		if err := rows.Scan(&versao, &nome, &total, &inicio, &conteudo); err != nil {
+			return Pagina{}, err
+		}
+		out.Versao = versao
+		if nome == nil {
+			continue
+		}
+		t := Trecho{Caminho: *nome, Total: *total, Inicio: *inicio, Conteudo: conteudo}
+		out.Trechos = append(out.Trechos, t)
+		out.Proximo, out.Deslocamento = t.Caminho, t.Inicio+int64(len(t.Conteudo))
+		if out.Deslocamento < t.Total || len(out.Trechos) == ArquivosPorPagina {
+			out.Fim = false
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Pagina{}, err
+	}
+	return out, nil
+}
+
+func (p *Postgres) ListarParaExecucao(ctx context.Context, agente, conta string) ([]Arquivo, error) {
+	selecao, err := SelecionarExecucao(agente, conta)
+	if err != nil {
+		return nil, err
+	}
+	porPrefixo := func(prefixo string) predicate.CatalogoArquivo {
+		return func(s *entsql.Selector) { s.Where(entsql.HasPrefix(s.C(entcatalogo.FieldID), prefixo)) }
+	}
+	filtros := []predicate.CatalogoArquivo{porPrefixo(selecao.Raiz + "/")}
+	for _, ancestral := range selecao.Ancestrais {
+		filtros = append(filtros, entcatalogo.And(porPrefixo(ancestral+"/"), entcatalogo.Not(porPrefixo(ancestral+"/agentes/"))))
+	}
+	if selecao.Fixture != "" {
+		filtros = append(filtros, entcatalogo.IDEQ(selecao.Fixture))
+	}
+	ctx, cancelar := context.WithTimeout(ctx, timeoutCatalogo)
+	defer cancelar()
+	linhas, err := p.cli.CatalogoArquivo.Query().Where(entcatalogo.Or(filtros...)).Order(ent.Asc(entcatalogo.FieldID)).All(ctx)
+	if err != nil {
+		return nil, falha.ComPilha(fmt.Errorf("listar catálogo da execução: %w", err))
+	}
+	arquivos := make([]Arquivo, len(linhas))
+	for i, linha := range linhas {
+		arquivos[i] = Arquivo{Caminho: linha.ID, Conteudo: linha.Conteudo}
+	}
+	return arquivos, nil
+}
+
 // Resumos devolve caminho → sha256 de tudo que está no banco, sem trazer os bytes.
 func (p *Postgres) Resumos(ctx context.Context) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeoutCatalogo)
@@ -64,6 +141,23 @@ func (p *Postgres) Vazio(ctx context.Context) (bool, error) {
 		return false, falha.ComPilha(fmt.Errorf("conferir se o catálogo está vazio: %w", err))
 	}
 	return !existe, nil
+}
+
+func (p *Postgres) InserirCatalogoNexusSeAusente(ctx context.Context, arquivo Arquivo) error {
+	if err := ValidarCaminho(arquivo.Caminho); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(arquivo.Caminho, "nexus/catalogo-nexus/") {
+		return fmt.Errorf("caminho não é catálogo Nexus editável: %q", arquivo.Caminho)
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeoutCatalogo)
+	defer cancel()
+	_, err := p.cli.ExecContext(ctx, `INSERT INTO catalog_files(path,content,sha256,updated_at) VALUES($1,$2,$3,$4) ON CONFLICT(path) DO NOTHING`,
+		arquivo.Caminho, arquivo.Conteudo, SHA256(arquivo.Conteudo), time.Now().UTC())
+	if err != nil {
+		return errors.Join(persistencia.ErrGravacaoIncerta, fmt.Errorf("importar catálogo Nexus: %w", err))
+	}
+	return nil
 }
 
 func (p *Postgres) Substituir(ctx context.Context, noDisco []Arquivo, remover ...string) (Mudanca, error) {

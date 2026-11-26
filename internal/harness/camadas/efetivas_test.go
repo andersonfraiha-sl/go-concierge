@@ -13,7 +13,10 @@ import (
 	"time"
 
 	okf "go-concierge/internal/core/catalogo/arquivos"
+	"go-concierge/internal/escopo"
 )
+
+const skillMudanca = "agendar_mudanca"
 
 const casoDeTeste = `id: agendar_mudanca
 name: Agendamento de Mudança
@@ -77,7 +80,7 @@ func retratoDeTeste(t *testing.T) Retrato {
 			"A": {VersaoID: 2, Documento: comTitulo(base, "Adm A")},
 		}},
 		Condominios: map[string]map[string]Cabeca{skillMudanca: {
-			chaveCondominio("A", "101"): {VersaoID: 3, Documento: comTitulo(base, "Cond c1")},
+			escopo.ChaveCondominio("A", "101"): {VersaoID: 3, Documento: comTitulo(base, "Cond c1")},
 		}},
 	}
 }
@@ -245,7 +248,7 @@ func TestMontarCaiParaACamadaDeCimaQuandoAComposicaoFalha(t *testing.T) {
 			e.Trocar(Retrato{
 				Bases:           map[string]VersaoBase{skillMudanca: {Cabeca: Cabeca{VersaoID: 1, Documento: base}, CasoYAML: []byte(casoDeTeste)}},
 				Administradoras: map[string]map[string]Cabeca{skillMudanca: {"A": *tt.administradora}},
-				Condominios:     map[string]map[string]Cabeca{skillMudanca: {chaveCondominio("A", "101"): *tt.cond}},
+				Condominios:     map[string]map[string]Cabeca{skillMudanca: {escopo.ChaveCondominio("A", "101"): *tt.cond}},
 			})
 
 			got := tituloEfetivo(t, e.DoCondominio("A", "101", time.Now()), skillMudanca)
@@ -307,7 +310,7 @@ func TestTrocarCompoeCadaVersaoUmaVez(t *testing.T) {
 		t.Fatalf("composições depois de duas trocas iguais = %d, quer 3 (base, administradora, condomínio)", got)
 	}
 
-	r.Condominios[skillMudanca][chaveCondominio("A", "101")] = Cabeca{VersaoID: 4, Documento: comTitulo(base, "Cond novo")}
+	r.Condominios[skillMudanca][escopo.ChaveCondominio("A", "101")] = Cabeca{VersaoID: 4, Documento: comTitulo(base, "Cond novo")}
 	e.Trocar(r)
 	if got := chamadas.Load(); got != 4 {
 		t.Errorf("composições depois de mudar só o condomínio = %d, quer 4", got)
@@ -338,7 +341,7 @@ func TestTrocarNaoRepeteALogDeUmaCamadaQuebradaJaConhecida(t *testing.T) {
 	var saida bytes.Buffer
 	e := NovasEfetivas(slog.New(slog.NewJSONHandler(&saida, nil)))
 	r := retratoDeTeste(t)
-	r.Condominios[skillMudanca][chaveCondominio("A", "101")] = Cabeca{VersaoID: 3, Documento: blocoInvalido(documentoDoCaso(t, "Cond"))}
+	r.Condominios[skillMudanca][escopo.ChaveCondominio("A", "101")] = Cabeca{VersaoID: 3, Documento: blocoInvalido(documentoDoCaso(t, "Cond"))}
 
 	e.Trocar(r)
 	e.Trocar(r)
@@ -352,7 +355,7 @@ func TestConsultaJaEntregueNaoVeTrocaPosterior(t *testing.T) {
 	e.Trocar(r)
 	consulta := e.DoCondominio("A", "101", time.Now())
 
-	r.Condominios[skillMudanca][chaveCondominio("A", "101")] = Cabeca{VersaoID: 4, Documento: comTitulo(documentoDoCaso(t, "x"), "Depois")}
+	r.Condominios[skillMudanca][escopo.ChaveCondominio("A", "101")] = Cabeca{VersaoID: 4, Documento: comTitulo(documentoDoCaso(t, "x"), "Depois")}
 	e.Trocar(r)
 
 	if got := tituloEfetivo(t, consulta, skillMudanca); got != "Cond c1" {
@@ -405,7 +408,7 @@ func retratoDaGeracao(t *testing.T, geracao string) Retrato {
 	for i, skill := range []string{"s1", "s2", "s3"} {
 		r.Bases[skill] = VersaoBase{Cabeca: Cabeca{VersaoID: 10 + i, Documento: base}, CasoYAML: []byte(casoDeTeste)}
 		r.Administradoras[skill] = map[string]Cabeca{"A": {VersaoID: 20 + i, Documento: base}}
-		r.Condominios[skill] = map[string]Cabeca{chaveCondominio("A", "101"): {VersaoID: 30 + i, Documento: base}}
+		r.Condominios[skill] = map[string]Cabeca{escopo.ChaveCondominio("A", "101"): {VersaoID: 30 + i, Documento: base}}
 	}
 	return r
 }

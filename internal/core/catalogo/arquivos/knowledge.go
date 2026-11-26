@@ -3,7 +3,6 @@ package arquivos
 import (
 	"fmt"
 	"gopkg.in/yaml.v3"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,7 +18,7 @@ func (c *Catalogo) Conhecimento(a *Agent) Conhecimento {
 	for _, f := range append(append([]Arquivo{}, a.Arquivos["knowledge"]...), a.Herdados["knowledge"]...) {
 		base := a.Path
 		if f.HerdadoDe != "" {
-			base = ancestralPorNome(a.Path, f.HerdadoDe)
+			base = c.ancestralPorNome(a.Path, f.HerdadoDe)
 			if base == "" {
 				continue
 			}
@@ -30,12 +29,12 @@ func (c *Catalogo) Conhecimento(a *Agent) Conhecimento {
 		case nome == ArquivoLog:
 			// histórico do pacote OKF: não é conhecimento, só fica legível por ler_dado
 		case strings.HasSuffix(nome, ".md"):
-			if doc, ok := lerDoc(p, f.Caminho); ok {
+			if doc, ok := c.lerDoc(p, f.Caminho); ok {
 				doc.HerdadoDe = f.HerdadoDe
 				out.Docs = append(out.Docs, doc)
 			}
 		case nome == "glossary.yaml" || nome == "glossario.yaml" || nome == "glossary.yml":
-			for _, t := range lerGlossario(p, f.Caminho) {
+			for _, t := range c.lerGlossario(p, f.Caminho) {
 				t.HerdadoDe = f.HerdadoDe
 				out.Termos = append(out.Termos, t)
 			}
@@ -51,8 +50,8 @@ func (c *Catalogo) Conhecimento(a *Agent) Conhecimento {
 	return out
 }
 
-func ancestralPorNome(dir, nome string) string {
-	for _, anc := range Ancestrais(dir) {
+func (c *Catalogo) ancestralPorNome(dir, nome string) string {
+	for _, anc := range c.ancestrais(dir) {
 		if filepath.Base(anc) == nome {
 			return anc
 		}
@@ -60,8 +59,8 @@ func ancestralPorNome(dir, nome string) string {
 	return ""
 }
 
-func lerDoc(p, rel string) (Doc, bool) {
-	raw, err := os.ReadFile(p)
+func (c *Catalogo) lerDoc(p, rel string) (Doc, bool) {
+	raw, err := c.readFile(p)
 	if err != nil {
 		return Doc{}, false
 	}
@@ -75,7 +74,7 @@ func lerDoc(p, rel string) (Doc, bool) {
 	doc.ID = str(fm["id"], "")
 	doc.Titulo = str(fm["title"], str(fm["titulo"], ""))
 	if doc.Titulo == "" {
-		doc.Titulo = Resumo(p)
+		doc.Titulo = c.Resumo(p)
 	}
 	doc.Descricao = str(fm["description"], str(fm["descricao"], ""))
 	doc.Status = str(fm["status"], "")
@@ -98,8 +97,8 @@ func lerDoc(p, rel string) (Doc, bool) {
 	return doc, true
 }
 
-func lerGlossario(p, rel string) []Termo {
-	raw, err := os.ReadFile(p)
+func (c *Catalogo) lerGlossario(p, rel string) []Termo {
+	raw, err := c.readFile(p)
 	if err != nil {
 		return nil
 	}

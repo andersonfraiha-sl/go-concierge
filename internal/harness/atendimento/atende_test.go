@@ -12,10 +12,10 @@ import (
 	"time"
 
 	okf "go-concierge/internal/core/catalogo/arquivos"
-	"go-concierge/internal/core/clientes/mcp"
 	"go-concierge/internal/entrada"
 	harness "go-concierge/internal/harness/agentes"
 	"go-concierge/internal/harness/memoria"
+	"go-concierge/internal/harness/provedores/mcp"
 	"go-concierge/internal/recurso"
 )
 
@@ -44,9 +44,13 @@ type mcpServicoFalso struct {
 	erroEmpresa      error
 	resultadoEmpresa *mcp.CallResult
 	chamadas         []string
+	telefoneOriginal string
 }
 
-func (m *mcpServicoFalso) ValidarToken(context.Context) error { return m.erroToken }
+func (m *mcpServicoFalso) ValidarToken(ctx context.Context) error {
+	m.telefoneOriginal = entrada.TelefoneOriginal(ctx)
+	return m.erroToken
+}
 
 func (m *mcpServicoFalso) ExecutarRecurso(ctx context.Context, nome string, args map[string]any) (*recurso.Resultado, error) {
 	r, err := m.CallTool(ctx, nome, args)
@@ -339,12 +343,17 @@ func TestProcessarComMockEOutbox(t *testing.T) {
 		TelefoneB2C: "5519981621916",
 	}
 	ev, _ := Parse([]byte(eventoExemplo))
-	sess, err := svc.Processar(context.Background(), ev.Normalizar())
+	msg := ev.Normalizar()
+	msg.TelefoneOriginal = "5511888888888"
+	sess, err := svc.Processar(context.Background(), msg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !sess.Identidade.Authenticated || sess.Identidade.CompanyID != "5982" {
 		t.Fatalf("identidade: %+v", sess.Identidade)
+	}
+	if mcpFalso.telefoneOriginal != msg.TelefoneOriginal || sess.Identidade.Phone != msg.Contato.Phone {
+		t.Fatalf("telefone original=%q, identidade=%q", mcpFalso.telefoneOriginal, sess.Identidade.Phone)
 	}
 	if len(sess.Turnos) != 2 || sess.Turnos[0].Quem != "morador" || sess.Turnos[1].Quem != "concierge" || sess.Turnos[1].Texto == "" {
 		t.Fatalf("turnos: %+v", sess.Turnos)

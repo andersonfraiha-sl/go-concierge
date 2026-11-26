@@ -48,7 +48,7 @@ Esse alcance pertence à operação interna da plataforma, por Professional Serv
 
 ## catalog_files
 
-Fonte canônica do conteúdo OKF; cópia de trabalho em disco é derivada.
+Fonte canônica do conteúdo OKF; o editor usa retratos em memória.
 
 **Grupo:** catalog. **Propriedade:** Global da plataforma.
 

@@ -20,12 +20,14 @@ import (
 	"go-concierge/internal/escopo"
 	comfalha "go-concierge/internal/falha"
 	harness "go-concierge/internal/harness/agentes"
+	"go-concierge/internal/harness/camadas"
 	"go-concierge/internal/harness/canais"
 	admin "go-concierge/internal/harness/configuracao"
 	okf "go-concierge/internal/harness/conteudo"
 	"go-concierge/internal/harness/ganchos"
 	"go-concierge/internal/harness/ganchos/auditoria"
 	"go-concierge/internal/harness/ganchos/fixos"
+	regrasruntime "go-concierge/internal/harness/ganchos/regras"
 	gruvi "go-concierge/internal/harness/identificacao"
 	"go-concierge/internal/harness/memoria"
 	"go-concierge/internal/harness/pedidos"
@@ -165,6 +167,15 @@ func (o *Outbox) Itens(protocolo string) []Saida {
 var extracoes sync.WaitGroup
 
 type Servico struct {
+	Catalogos interface {
+		Carregar(context.Context, string, *int) (okf.Catalogo, error)
+	}
+	Conteudo interface {
+		LerRetratoDoEscopo(context.Context, string, *int) (camadas.Retrato, error)
+	}
+	Regras interface {
+		AtivasDoEscopo(context.Context, string, *int) ([]regrasruntime.RegraGravada, error)
+	}
 	CamadasDe func(context.Context, string, *int, time.Time) (harness.SkillPublicadaFunc, error)
 	Canais    CanaisRuntime
 	Cat       okf.Catalogo
@@ -698,6 +709,11 @@ func (s *Servico) PrepararMensagem(ctx context.Context, msg entrada.Mensagem) (e
 // sessão), roda o concierge com o histórico, envia a resposta e persiste a sessão.
 func (s *Servico) Processar(ctx context.Context, msg entrada.Mensagem) (*Sessao, error) {
 	ctx = identidade.ComoRuntime(ctx)
+	telefoneOriginal := msg.TelefoneOriginal
+	if telefoneOriginal == "" {
+		telefoneOriginal = msg.Contato.Phone
+	}
+	ctx = entrada.ComTelefoneOriginal(ctx, telefoneOriginal)
 	var err error
 	ctx, msg, err = s.autorizarMensagem(ctx, msg)
 	if err != nil {
@@ -800,7 +816,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 	}
 	plano := sess.Plano
 	sess.mu.Unlock()
-	turnoGanchos, err := s.abrirTurno(sess)
+	turnoGanchos, err := s.abrirTurnoDaExecucao(ctx, sess)
 	if err != nil {
 		return sess, err
 	}
@@ -902,6 +918,15 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		}
 	}
 
+	if s.Catalogos != nil {
+		cat, err := s.Catalogos.Carregar(ctx, contato.CompanyID, contato.CondoID)
+		if err != nil {
+			s.responderFalha(ctx, sess, turnoGanchos, troca, err)
+			historicoRegistrado = true
+			return sess, err
+		}
+		ctx = context.WithValue(ctx, chaveCatalogoExecucao{}, cat)
+	}
 	revisaoMemoria := s.revisaoMemoria(contato)
 	cfg, mem, def, err := s.prepararTurno(ctx, sess, m, condo)
 	cfg.Turno = &turnoGanchos
@@ -916,7 +941,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		ctx, cancel = context.WithTimeout(ctx, s.Timeout)
 		defer cancel()
 	}
-	ag, err := harness.Build(ctx, s.Cat, def, cfg)
+	ag, err := harness.Build(ctx, s.catalogoDoContexto(ctx), def, cfg)
 	if err != nil {
 		if errors.Is(err, context.Canceled) && interrompido() {
 			return sess, nil
@@ -1024,7 +1049,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		}
 		ctxEntrega := context.WithValue(ctxCancelavel, chaveControleEntrega{}, verificar)
 		erroEntrega = s.Sender.Enviar(ctxEntrega, sess.Destino, entregue)
-		suprimida := errors.Is(erroEntrega, errEntregaSuprimida) || erroEntrega != nil && ctxCancelavel.Err() != nil && !verificar()
+		suprimida := errors.Is(erroEntrega, errEntregaSuprimida) || errors.Is(erroEntrega, context.Canceled) && ctxCancelavel.Err() != nil && !verificar()
 		var parcial *entregaParcial
 		if errors.As(erroEntrega, &parcial) {
 			entregue = strings.Join(parcial.Partes, "\n")
@@ -1078,7 +1103,7 @@ func (s *Servico) processar(ctx context.Context, msg entrada.Mensagem, finalizar
 		}
 	}
 	if respostaEnviada(s.Sender, res, erroEntrega) {
-		sess.guardarPerguntasDeRegra(turnoGanchos)
+		sess.guardarPerguntasDeRegra(turnoGanchos, msg.Revisao)
 	}
 	sess.historicoAtualizar(baseHistorico, res.Mensagens)
 	historicoRegistrado = true
@@ -1423,12 +1448,21 @@ func (s *Servico) responderAoMorador(ctx context.Context, sess *Sessao, t gancho
 }
 
 // prepararTurno monta a Config e carrega o agente de primeiro nível.
+type chaveCatalogoExecucao struct{}
+
+func (s *Servico) catalogoDoContexto(ctx context.Context) okf.Catalogo {
+	if cat, ok := ctx.Value(chaveCatalogoExecucao{}).(okf.Catalogo); ok {
+		return cat
+	}
+	return s.Cat
+}
+
 func (s *Servico) prepararTurno(ctx context.Context, sess *Sessao, m admin.Mapeamento, condo admin.Condominio) (harness.Config, memoria.Memoria, *okf.Agent, error) {
 	cfg, mem, dir, err := s.montar(ctx, sess, m, condo)
 	if err != nil {
 		return cfg, mem, nil, err
 	}
-	def, err := s.Cat.Load(dir)
+	def, err := s.catalogoDoContexto(ctx).Load(dir)
 	if err != nil {
 		return cfg, mem, nil, fmt.Errorf("carregar agente %s: %w", dir, err)
 	}
@@ -1483,7 +1517,28 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	if s.SkillsDe != nil {
 		cfg.Skills = s.SkillsDe(condo.Administradora, condo.ID, s.agora())
 	}
-	if s.CamadasDe != nil {
+	if s.Conteudo != nil {
+		retrato, errConteudo := s.Conteudo.LerRetratoDoEscopo(ctx, contato.CompanyID, contato.CondoID)
+		if errConteudo != nil {
+			return cfg, mem, "", errConteudo
+		}
+		if len(retrato.Bases) > 0 {
+			efetivas := camadas.NovasEfetivas(slog.Default())
+			efetivas.Trocar(retrato)
+			id := ""
+			if contato.CondoID != nil {
+				id = fmt.Sprint(*contato.CondoID)
+			}
+			consulta := efetivas.DoCondominio(contato.CompanyID, id, s.agora())
+			cfg.SkillPublicada = func(skill string) (okf.SkillEfetiva, bool, bool) {
+				if _, ok := retrato.Bases[skill]; !ok {
+					return okf.SkillEfetiva{}, false, false
+				}
+				v, ok := consulta(skill)
+				return v, ok, true
+			}
+		}
+	} else if s.CamadasDe != nil {
 		cfg.SkillPublicada, err = s.CamadasDe(ctx, contato.CompanyID, contato.CondoID, s.agora())
 		if err != nil {
 			return cfg, mem, "", err
@@ -1528,7 +1583,7 @@ func (s *Servico) montar(ctx context.Context, sess *Sessao, m admin.Mapeamento, 
 	if c, ok := canalDoContexto(ctx); ok {
 		agenteRaiz = c.Agente
 	}
-	dir, err = s.Cat.ResolveAgente(agenteRaiz)
+	dir, err = s.catalogoDoContexto(ctx).ResolveAgente(agenteRaiz)
 	if err != nil {
 		return cfg, mem, "", err
 	}
@@ -1589,6 +1644,14 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 	if err != nil {
 		return nil, err
 	}
+	if s.Catalogos != nil {
+		contato := sess.contato()
+		cat, err := s.Catalogos.Carregar(ctx, contato.CompanyID, contato.CondoID)
+		if err != nil {
+			return nil, err
+		}
+		ctx = context.WithValue(ctx, chaveCatalogoExecucao{}, cat)
+	}
 	m, condo, err := s.condominioDaSessao(ctx, sess, sess.contato())
 	if err != nil {
 		return nil, err
@@ -1597,11 +1660,12 @@ func (s *Servico) agenteDaSessao(ctx context.Context, sess *Sessao) (*harness.Ag
 	if err != nil {
 		return nil, err
 	}
-	def, err := s.Cat.Load(dir)
+	cat := s.catalogoDoContexto(ctx)
+	def, err := cat.Load(dir)
 	if err != nil {
 		return nil, err
 	}
-	return harness.Build(ctx, s.Cat, def, cfg)
+	return harness.Build(ctx, cat, def, cfg)
 }
 
 // fixarCondominio fixa na sessão o condomínio que o escopo_da_conversa resolveu e o
@@ -1809,136 +1873,8 @@ func (sess *Sessao) contextoEntregaManual(ctx context.Context) (context.Context,
 	}
 }
 
-// Assumir: o atendente toma o protocolo (mesmo sem o concierge ter pedido).
-func (s *Servico) Assumir(ctx context.Context, protocolo, atendente, motivo string) (*Sessao, error) {
-	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.assumir(ctx, sess, atendente, motivo) })
-}
-
 // ErrProtocoloDesconhecido: não há sessão do protocolo visível nesta implantação.
 var ErrProtocoloDesconhecido = errors.New("protocolo desconhecido")
-
-// noProtocolo roda op na sessão do protocolo, com o trabalho dela travado, e persiste
-// a sessão em seguida (mesmo que op falhe: o que já mudou fica gravado).
-func (s *Servico) noProtocolo(ctx context.Context, protocolo string, op func(*Sessao) (*Sessao, error)) (*Sessao, error) {
-	sess, ok, err := s.Sessao(ctx, protocolo)
-	if err != nil {
-		return nil, fmt.Errorf("sessão do protocolo %s: %w", protocolo, err)
-	}
-	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrProtocoloDesconhecido, protocolo)
-	}
-	sess.workMu.Lock()
-	defer sess.workMu.Unlock()
-	if err := sess.verificarPersistencia(); err != nil {
-		return sess, err
-	}
-	if err := s.bloqueioCarteira(sess.contato()); err != nil {
-		return sess, err
-	}
-	res, err := op(sess)
-	return res, errors.Join(err, s.Sessoes.Persistir(context.WithoutCancel(ctx), sess))
-}
-
-func (s *Servico) assumir(ctx context.Context, sess *Sessao, atendente, motivo string) (*Sessao, error) {
-	if sess.Destino.Conector != "atende-emulado" {
-		return sess, errors.New("transferência de atendimento indisponível neste canal")
-	}
-	sess.mu.Lock()
-	encerrada := sess.Encerrada
-	sess.mu.Unlock()
-	if encerrada {
-		return sess, errors.New("o protocolo está encerrado")
-	}
-	if atendente == "" {
-		atendente = "atendente"
-	}
-	sess.mu.Lock()
-	if sess.Transbordo != nil && sess.Transbordo.Ativo {
-		sess.Transbordo.Atendente = atendente
-		sess.mu.Unlock()
-		sess.registrar(Turno{Quem: "sistema", Texto: atendente + " assumiu o atendimento"})
-		return sess, nil
-	}
-	sess.mu.Unlock()
-	if motivo == "" {
-		motivo = "o atendente assumiu a conversa"
-	}
-	t, err := s.abrirTurno(sess)
-	if err != nil {
-		return sess, err
-	}
-	defer sess.fecharTurno(t)
-	s.transbordar(comAuditoria(ctx, sess, atendente), sess, t, motivo, "atendente", atendente)
-	return sess, nil
-}
-
-// Responder: o atendente humano fala com o morador pelo mesmo canal do concierge.
-func (s *Servico) Responder(ctx context.Context, protocolo, atendente, texto string) (*Sessao, error) {
-	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return s.responder(ctx, sess, atendente, texto) })
-}
-
-func (s *Servico) responder(ctx context.Context, sess *Sessao, atendente, texto string) (*Sessao, error) {
-	sess.mu.Lock()
-	if sess.Encerrada {
-		sess.mu.Unlock()
-		return sess, errors.New("o protocolo está encerrado")
-	}
-	if sess.Transbordo == nil || !sess.Transbordo.Ativo {
-		sess.mu.Unlock()
-		return nil, fmt.Errorf("o protocolo não está em transbordo: assuma o atendimento antes")
-	}
-	texto = strings.TrimSpace(texto)
-	if texto == "" {
-		sess.mu.Unlock()
-		return nil, fmt.Errorf("mensagem vazia")
-	}
-	if atendente != "" {
-		sess.Transbordo.Atendente = atendente
-	}
-	quem := sess.Transbordo.Atendente
-	sess.mu.Unlock()
-	var errEnvio error
-	if s.Sender != nil {
-		ctxEnvio, finalizar := sess.contextoEntregaManual(ctx)
-		errEnvio = s.Sender.Enviar(ctxEnvio, sess.Destino, texto)
-		finalizar()
-	}
-	if entregue := textoEntregue(texto, errEnvio); entregue != "" {
-		// a fala humana sai como foi escrita; o turno e o histórico (que volta ao modelo) a
-		// guardam mascarada
-		guardado, err := s.mascararForaDoTurno(sess, entregue)
-		if err != nil {
-			return sess, errors.Join(err, errEnvio)
-		}
-		sess.registrar(Turno{Quem: "atendente", Texto: guardado, Agente: quem})
-		sess.historicoAdicionar(schema.AssistantMessage("[atendente humano] "+guardado, nil))
-	}
-	if errEnvio != nil {
-		sess.registrar(Turno{Quem: "erro", Texto: errEnvio.Error()})
-		return sess, errEnvio
-	}
-	return sess, nil
-}
-
-// Devolver: o atendente devolve o protocolo ao concierge, que volta a responder.
-func (s *Servico) Devolver(ctx context.Context, protocolo string) (*Sessao, error) {
-	return s.noProtocolo(ctx, protocolo, func(sess *Sessao) (*Sessao, error) { return devolver(sess) })
-}
-
-func devolver(sess *Sessao) (*Sessao, error) {
-	sess.mu.Lock()
-	if sess.Transbordo == nil || !sess.Transbordo.Ativo {
-		sess.mu.Unlock()
-		return sess, nil
-	}
-	agora := time.Now()
-	sess.Transbordo.Ativo = false
-	sess.Transbordo.Devolvido = &agora
-	sess.mu.Unlock()
-	sess.registrar(Turno{Quem: "sistema", Texto: "Devolvido ao concierge"})
-	sess.historicoAdicionar(schema.AssistantMessage("[sistema] o atendente humano devolveu a conversa ao concierge; continue de onde parou.", nil))
-	return sess, nil
-}
 
 // Aguardar espera as extrações de memória em andamento (testes e desligamento).
 func (s *Servico) Aguardar() { extracoes.Wait() }

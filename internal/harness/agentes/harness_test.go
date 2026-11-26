@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	okf "go-concierge/internal/core/catalogo/arquivos"
-	"go-concierge/internal/core/clientes/mcp"
-	"go-concierge/internal/core/clientes/nexus"
 	"go-concierge/internal/harness/ganchos/fixos"
+	"go-concierge/internal/harness/provedores/mcp"
+	"go-concierge/internal/harness/provedores/nexus"
 )
 
 func semEnv(string) string { return "" }

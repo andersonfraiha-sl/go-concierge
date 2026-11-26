@@ -26,14 +26,14 @@ var errCorpoInvalido = errors.New("corpo inválido")
 
 func (s *servidor) rotasStudio(mux *http.ServeMux) {
 	mux.Handle("GET /api/eu", s.autenticado(http.HandlerFunc(s.studioEu)))
-	mux.Handle("GET /api/skills", s.protegidaEmAlgum(acesso.SkillsLer, s.studioListar))
-	mux.Handle("POST /api/skills", s.protegida(acesso.SkillsCriar, alvoSuperlogica, s.studioCriar))
-	mux.Handle("GET /api/skills/{nome}", s.protegidaEmAlgum(acesso.SkillsLer, s.studioLerTextos))
-	mux.Handle("PUT /api/skills/{nome}/textos", s.protegida(acesso.SkillsEditarTextos, alvoSuperlogica, s.studioSalvarTextos))
-	mux.Handle("POST /api/skills/{nome}/duplicar", s.protegida(acesso.SkillsCriar, alvoSuperlogica, s.studioDuplicar))
-	mux.Handle("DELETE /api/skills/{nome}", s.protegida(acesso.SkillsExcluir, alvoSuperlogica, s.studioExcluir))
-	mux.Handle("GET /api/skills/{nome}/fluxo", s.protegidaEmAlgum(acesso.SkillsLer, s.studioLerFluxo))
-	mux.Handle("PUT /api/skills/{nome}/fluxo", s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, s.studioSalvarFluxo))
+	mux.Handle("GET /api/skills", s.protegidaEmAlgum(acesso.SkillsLer, s.comCatalogo((*servidor).studioListar)))
+	mux.Handle("POST /api/skills", s.protegida(acesso.SkillsCriar, alvoSuperlogica, s.comCatalogo((*servidor).studioCriar)))
+	mux.Handle("GET /api/skills/{nome}", s.protegidaEmAlgum(acesso.SkillsLer, s.comCatalogo((*servidor).studioLerTextos)))
+	mux.Handle("PUT /api/skills/{nome}/textos", s.protegida(acesso.SkillsEditarTextos, alvoSuperlogica, s.comCatalogo((*servidor).studioSalvarTextos)))
+	mux.Handle("POST /api/skills/{nome}/duplicar", s.protegida(acesso.SkillsCriar, alvoSuperlogica, s.comCatalogo((*servidor).studioDuplicar)))
+	mux.Handle("DELETE /api/skills/{nome}", s.protegida(acesso.SkillsExcluir, alvoSuperlogica, s.comCatalogo((*servidor).studioExcluir)))
+	mux.Handle("GET /api/skills/{nome}/fluxo", s.protegidaEmAlgum(acesso.SkillsLer, s.comCatalogo((*servidor).studioLerFluxo)))
+	mux.Handle("PUT /api/skills/{nome}/fluxo", s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, s.comCatalogo((*servidor).studioSalvarFluxo)))
 }
 
 // ---- /api/eu ----

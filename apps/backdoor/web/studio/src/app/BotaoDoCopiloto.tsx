@@ -1,4 +1,4 @@
-import { Button, type SxProps, type Theme } from '@mui/material';
+import { Box, Button, type SxProps, type Theme } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useCopiloto } from '@/copiloto/CopilotoProvider';
 import { ICONES, PESOS, RAIO, SHELL, TIPOS } from '@/theme/tokens';
@@ -37,12 +37,15 @@ export function BotaoDoCopiloto({ variante }: { variante: Variante }): ReactNode
   return (
     <Button
       ref={botaoDoCopiloto}
+      aria-label="Copiloto"
       aria-pressed={aberto}
       onClick={alternar}
       sx={estiloDoBotao(aberto, variante)}
     >
       <IconeDeLinha nome="copiloto" tamanho={ICONES.medio} />
-      Copiloto
+      <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+        Copiloto
+      </Box>
     </Button>
   );
 }

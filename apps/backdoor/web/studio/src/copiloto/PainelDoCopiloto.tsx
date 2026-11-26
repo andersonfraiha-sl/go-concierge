@@ -31,7 +31,13 @@ const ROTULO_DO_STATUS: Record<Status, { texto: string; cor: string; corDoPonto:
 };
 
 const ESTILO_DO_PAINEL = {
-  width: tokens.layout.copiloto,
+  width: { xs: '100%', md: tokens.layout.copiloto },
+  maxWidth: { xs: tokens.layout.copiloto, md: 'none' },
+  position: { xs: 'absolute', md: 'static' },
+  top: 0,
+  bottom: 0,
+  left: 0,
+  zIndex: 2,
   flexShrink: 0,
   // A moldura não rola: o painel ocupa a altura toda abaixo do topo, seja barra ou cabeçalho.
   alignSelf: 'stretch',

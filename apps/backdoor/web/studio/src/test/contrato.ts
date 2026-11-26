@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 const PASTA_DOS_CONTRATOS = resolve(
   import.meta.dirname,
-  '../../../../../../apps/concierge/cmd/concierge/testdata/contrato',
+  '../../../../../../internal/core/api/concierge/testdata/contrato',
 );
 
 export function lerContrato(nome: string): unknown {

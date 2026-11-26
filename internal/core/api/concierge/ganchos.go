@@ -35,8 +35,8 @@ func (s *servidor) rotasGanchos(mux *http.ServeMux) {
 	mux.Handle("GET /api/ganchos/fixos", editar(s.ganchosFixos))
 	mux.Handle("GET /api/ganchos/regras", editar(s.ganchosListar))
 	mux.Handle("GET /api/ganchos/regras/{id}", editar(s.ganchosLer))
-	mux.Handle("POST /api/ganchos/regras", editar(s.ganchosCriar))
-	mux.Handle("PUT /api/ganchos/regras/{id}", editar(s.ganchosAlterar))
+	mux.Handle("POST /api/ganchos/regras", editar(s.comCatalogo((*servidor).ganchosCriar)))
+	mux.Handle("PUT /api/ganchos/regras/{id}", editar(s.comCatalogo((*servidor).ganchosAlterar)))
 	mux.Handle("GET /api/ganchos/regras/{id}/versoes/{versao}", s.autenticado(http.HandlerFunc(s.ganchosVersao)))
 	mux.Handle("GET /api/ganchos/regras/exportar", editar(s.ganchosExportar))
 	mux.Handle("POST /api/ganchos/regras/importar", s.importarProtegido())
@@ -46,10 +46,10 @@ func (s *servidor) rotasGanchos(mux *http.ServeMux) {
 func (s *servidor) importarProtegido() http.Handler {
 	fixa := s.implantacao.AdministradoraFixa
 	if fixa == "" {
-		return s.protegida(acesso.GanchosEditar, alvoSuperlogica, s.ganchosImportar)
+		return s.protegida(acesso.GanchosEditar, alvoSuperlogica, s.comCatalogo((*servidor).ganchosImportar))
 	}
 	alvo := func(*http.Request) (acesso.Escopo, error) { return escopoAdministradora(fixa), nil }
-	return s.protegida(acesso.StudioAvancado, alvo, s.ganchosImportar)
+	return s.protegida(acesso.StudioAvancado, alvo, s.comCatalogo((*servidor).ganchosImportar))
 }
 
 // ---- respostas ---------------------------------------------------------------

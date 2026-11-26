@@ -36,9 +36,6 @@ import (
 	okf "go-concierge/internal/core/catalogo/arquivos"
 	canaiscore "go-concierge/internal/core/clientes/canais"
 	"go-concierge/internal/core/clientes/gruvi"
-	"go-concierge/internal/core/clientes/llm"
-	"go-concierge/internal/core/clientes/mcp"
-	"go-concierge/internal/core/clientes/nexus"
 	"go-concierge/internal/core/dados"
 	acessopg "go-concierge/internal/core/dados/postgres/acesso"
 	adminpg "go-concierge/internal/core/dados/postgres/admin"
@@ -53,12 +50,16 @@ import (
 	harness "go-concierge/internal/harness/agentes"
 	atende "go-concierge/internal/harness/atendimento"
 	"go-concierge/internal/harness/canais"
+	catalogoruntime "go-concierge/internal/harness/catalogo"
 	admin "go-concierge/internal/harness/configuracao"
 	"go-concierge/internal/harness/ganchos"
 	"go-concierge/internal/harness/ganchos/auditoria"
 	"go-concierge/internal/harness/ganchos/fixos"
 	"go-concierge/internal/harness/ganchos/pii"
 	"go-concierge/internal/harness/memoria"
+	"go-concierge/internal/harness/provedores/llm"
+	"go-concierge/internal/harness/provedores/mcp"
+	"go-concierge/internal/harness/provedores/nexus"
 	"go-concierge/internal/identidade"
 )
 
@@ -69,6 +70,7 @@ type servidor struct {
 		Listar(context.Context) ([]catalogo.Arquivo, error)
 	}
 	cat                *okf.Catalogo
+	catalogoStudio     *repositorioCatalogo
 	account            string
 	nexus              string // origem dos recursos: url do Nexus, "instantâneo" ou "nenhuma"
 	catalogoNexusStore *okf.CatalogoNexusStore
@@ -79,8 +81,11 @@ type servidor struct {
 	prazoDoCatalogo time.Duration
 
 	// canal ATENDE (webhook + emulador no Console)
-	atende          *atende.Servico
-	entradaDados    *dados.Entrada
+	atende         *atende.Servico
+	entradaHarness *atende.ClienteEntrada
+	entradaDados   interface {
+		VerificarWebhook(context.Context, canais.Identidade, []byte, string) (canais.Canal, error)
+	}
 	canaisMetadados interface {
 		ListarMetadados(context.Context, string) ([]canais.Resumo, error)
 	}
@@ -141,7 +146,7 @@ func Executar() {
 	if len(os.Args) > 1 && os.Args[1] == subcomandoSaude {
 		os.Exit(saude(os.Args[2:], os.Stderr))
 	}
-	root := flag.String("root", "okf", "semente do catálogo (agentes/, nexus/); a cópia de trabalho fica em <root>/var/catalogo")
+	root := flag.String("root", "okf", "semente do catálogo (agentes/, nexus/) para banco vazio")
 	addr := flag.String("addr", "127.0.0.1:8090", "endereço HTTP")
 	abrir := flag.Bool("open", false, "abre o navegador")
 	dotenv := flag.String("env", ".env", "arquivo NOME=valor (LLM_MODE e chaves, NEXUS_*, DEFAULT_ACCOUNT_ID, GRUVI_*, ATENDE_*)")
@@ -183,8 +188,11 @@ func Executar() {
 		log.Fatal(err)
 	}
 	account := env.Ou("DEFAULT_ACCOUNT_ID", "cond-001")
-	catalogoNexusStore, err := okf.NewCatalogoNexusStore(*root, account)
+	catalogoNexusStore, err := okf.NewCatalogoNexusStorePostgres(account, catalogo.NovoPostgres(db.Ent))
 	if err != nil {
+		log.Fatal(err)
+	}
+	if err := migrarCatalogoNexusLegado(*root, account, catalogo.NovoPostgres(db.Ent)); err != nil {
 		log.Fatal(err)
 	}
 	var catalogoNexusMCP *catalogonexus.Service
@@ -203,8 +211,17 @@ func Executar() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fonteNexus := nexus.Fonte(cli, account, filepath.Join(cat.Root, "nexus"))
-	cat.Recursos = mcp.Combinar(mcp.Fonte(mcpCli, time.Minute, log.Printf), fonteNexus)
+	nexusAoVivo := nexus.FonteAoVivo(cli, account)
+	fonteMCP := mcp.Fonte(mcpCli, time.Minute, log.Printf)
+	fonteDoRetrato := func(c *okf.Catalogo) func() []okf.Recurso {
+		fonteNexus := fonteNexusDoRetrato(c, account, nexusAoVivo)
+		return mcp.Combinar(fonteMCP, fonteNexus)
+	}
+	prepararRecursos := func(c *okf.Catalogo) func() func() []okf.Recurso {
+		return prepararRecursosDoRetrato(c, account, fonteMCP, nexusAoVivo)
+	}
+	cat.Recursos = fonteDoRetrato(cat)
+	temFixture := cat.TemInstantaneoDaConta(account)
 	s := &servidor{cat: cat, account: account, nexus: "nenhuma", catalogoNexusStore: catalogoNexusStore, catalogoNexusMCP: catalogoNexusMCP, log: log.Default(), banco: db,
 		prazoDoCatalogo:   prazoCatalogo,
 		implantacao:       escopo.Implantacao{AdministradoraFixa: strings.TrimSpace(os.Getenv("NEXUS_COMPANY_ID"))},
@@ -223,7 +240,7 @@ func Executar() {
 	switch {
 	case cli.BaseURL != "":
 		origens = append(origens, cli.BaseURL)
-	case fonteNexus != nil:
+	case temFixture:
 		origens = append(origens, "instantâneo nexus/"+account+".yaml")
 	}
 	if len(origens) > 0 {
@@ -258,19 +275,27 @@ func Executar() {
 	}
 	adminPG := adminpg.NovoPostgres(db.Ent)
 	acessosDados := dados.NovosAcessosPrivados(autoridade.Verificador(), s.acessos, s.implantacao).ComContatos(memoriapg.NovoPostgres(db), pedidospg.NovoPostgres(db))
-	servidorDados, gravacaoTurno, entradaDados, err := dados.IniciarConfigurado(dados.Config{Turno: dados.NovoGravadorPostgres(db), Canais: canaisPG, Sessoes: sessoesPG, Memorias: dados.NovasMemoriasPostgres(db), Pedidos: dados.NovosPedidosPostgres(db), Auditoria: auditoriaPG, Acessos: acessosDados, Conteudo: camadas.NovoPostgres(db.Ent).Repo(), Regras: s.regras, Manutencao: dados.NovaManutencaoPostgres(db), Configuracao: adminPG, Catalogo: catalogo.NovoPostgres(db.Ent), Administracao: adminPG, Consultas: dados.NovasConsultasPostgres(db, canaisPG)})
+	servidorDados, gravacaoTurno, _, err := dados.IniciarConfigurado(dados.Config{Turno: dados.NovoGravadorPostgres(db), Canais: canaisPG, Sessoes: sessoesPG, Memorias: dados.NovasMemoriasPostgres(db), Pedidos: dados.NovosPedidosPostgres(db), Auditoria: auditoriaPG, Acessos: acessosDados, Conteudo: camadas.NovoPostgres(db.Ent).Repo(), Regras: s.regras, Manutencao: dados.NovaManutencaoPostgres(db), Configuracao: adminPG, Catalogo: catalogo.NovoPostgres(db.Ent), ContaPadrao: account, RecursosNexus: nexusAoVivo, Administracao: adminPG, Consultas: dados.NovasConsultasPostgres(db, canaisPG)})
 	if err != nil {
 		log.Fatal(err)
 	}
 	s.dadosProntos = servidorDados.Pronto
 	s.regras = dados.NovasRegrasAdministrativas(gravacaoTurno)
-	cat.Persistir = persistirNoBanco(servidorDados.Catalogo(), cat.Root, cat.RemocoesDaEscrita)
+	s.catalogoStudio = &repositorioCatalogo{banco: servidorDados.Catalogo(), recursos: fonteDoRetrato, prepararRecursos: prepararRecursos}
+	s.catalogoNexusStore, err = okf.NewCatalogoNexusStorePostgres(account, servidorDados.Catalogo())
+	if err != nil {
+		log.Fatal(err)
+	}
 	s.autoridade, s.acessos = autoridade, gravacaoTurno
-	s.entradaDados, s.canaisMetadados = entradaDados, dados.NovasConsultas(gravacaoTurno)
+	s.entradaDados, s.canaisMetadados = dados.NovaEntradaLocal(canaisPG), dados.NovasConsultas(gravacaoTurno)
 	s.consultas = dados.NovasConsultas(gravacaoTurno)
 	s.conteudoExecucao, s.catalogoExecucao = gravacaoTurno, servidorDados.Catalogo()
-	s.outbox.ATENDE = canaiscore.SenderPorCanal{Canais: servidorDados.CanaisDeSaida()}
-	transferidores.ATENDE = canaiscore.TransferidorPorCanal{Canais: servidorDados.CanaisDeSaida()}
+	s.outbox.ATENDE = canaiscore.SenderPorCanal{Canais: canaisPG}
+	transferidores.ATENDE = canaiscore.TransferidorPorCanal{Canais: canaisPG}
+	servidorSaida, clienteSaida, err := iniciarSaidaHTTP(s.outbox, transferidores)
+	if err != nil {
+		log.Fatal(err)
+	}
 	// o sinal de desligamento cancela o ctx do servidor: o HTTP para de aceitar conexões e a
 	// retenção da auditoria para. Um segundo sinal volta ao padrão e mata na hora.
 	prazoDesligar, err := prazoDeDesligamento(os.Getenv("DESLIGAMENTO_PRAZO"))
@@ -301,36 +326,19 @@ func Executar() {
 	// o Studio e o turno dividem o cache: as escritas de um aparecem no outro
 	s.memorias = dados.NovasMemorias(gravacaoTurno)
 	s.atende = &atende.Servico{
+		Regras: gravacaoTurno, Conteudo: gravacaoTurno,
 		Canais: gravacaoTurno,
 		Cat:    cat, Agente: env.Ou("ATENDE_AGENTE", "agentes/concierge"), Implantacao: s.implantacao,
 		Config: cfgHarness,
-		Sender: s.outbox, Transferidor: transferidores, Sessoes: atende.NewSessoes(dados.NovasSessoes(gravacaoTurno)), Timeout: 120 * time.Second, Log: s.log,
+		Sender: clienteSaida, Transferidor: clienteSaida, Sessoes: atende.NewSessoes(dados.NovasSessoes(gravacaoTurno)), Timeout: 120 * time.Second, Log: s.log,
 		Memorias: s.memorias, Extrator: harness.NovoExtrator(context.Background(), cfgHarness),
 		GravacaoTurno: gravacaoTurno, Ganchos: conjunto, Auditoria: auditor,
 	}
-	s.atende.CamadasDe = func(ctx context.Context, company string, condo *int, agora time.Time) (harness.SkillPublicadaFunc, error) {
-		retrato, err := gravacaoTurno.LerRetratoDoEscopo(ctx, company, condo)
-		if err != nil {
-			return nil, err
-		}
-		if len(retrato.Bases) == 0 {
-			return nil, nil
-		}
-		efetivas := camadas.NovasEfetivas(s.registro)
-		efetivas.Trocar(retrato)
-		id := ""
-		if condo != nil {
-			id = fmt.Sprint(*condo)
-		}
-		consulta := efetivas.DoCondominio(company, id, agora)
-		return func(skill string) (okf.SkillEfetiva, bool, bool) {
-			if _, ok := retrato.Bases[skill]; !ok {
-				return okf.SkillEfetiva{}, false, false
-			}
-			v, ok := consulta(skill)
-			return v, ok, true
-		}, nil
+	fonteCatalogo := &catalogoruntime.Fonte{Dados: gravacaoTurno}
+	if mcpCli != nil {
+		fonteCatalogo.MCP = mcpCli
 	}
+	s.atende.Catalogos = fonteCatalogo
 	if mcpModo == "b2c" {
 		s.atende.TelefoneB2C = os.Getenv("MCP_B2C_MOBILE")
 	}
@@ -350,6 +358,11 @@ func Executar() {
 		log.Fatal(err)
 	}
 	s.atende.Mapeamento = gravacaoTurno
+	servidorHarness, clienteHarness, err := atende.IniciarEntradaHTTP(s.atende)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.entradaHarness = clienteHarness
 	if c, ok := administracaollm.NovoCopiloto(s.atende.Config); ok {
 		s.copiloto = c
 	}
@@ -381,7 +394,9 @@ func Executar() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = servir(ctxServidor, novoServidorHTTP(handler), ln, desligamento{prazo: prazoDesligar, aguardar: func() {
+	err = servir(ctxServidor, novoServidorHTTP(handler), ln, desligamento{prazo: prazoDesligar, parar: func(ctx context.Context) error {
+		return errors.Join(servidorHarness.Fechar(ctx), servidorSaida.Fechar(ctx))
+	}, aguardar: func() {
 		s.turnos.Wait()
 		s.atende.Aguardar()
 		<-retencaoParou
@@ -591,13 +606,13 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	// leitura do catálogo: skills.ler em qualquer escopo
 	for padrao, h := range map[string]http.HandlerFunc{
 		"GET /api/anatomia":                s.anatomia,
-		"GET /api/agentes":                 s.arvore,
-		"GET /api/agente":                  s.agente,
-		"GET /api/agentes/exportar":        s.exportar,
-		"GET /api/arquivo":                 s.lerArquivo,
+		"GET /api/agentes":                 s.comCatalogo((*servidor).arvore),
+		"GET /api/agente":                  s.comCatalogo((*servidor).agente),
+		"GET /api/agentes/exportar":        s.comCatalogo((*servidor).exportar),
+		"GET /api/arquivo":                 s.comCatalogo((*servidor).lerArquivo),
 		"GET /api/arquivo/modelo":          s.modelo,
-		"GET /api/projecao":                s.projecao,
-		"GET /api/nexus/recursos":          s.recursos,
+		"GET /api/projecao":                s.comCatalogo((*servidor).projecao),
+		"GET /api/nexus/recursos":          s.comCatalogo((*servidor).recursos),
 		"GET /api/catalogo-nexus/recursos": s.listarCatalogoNexus,
 		"POST /api/catalogo-nexus/search":  s.buscarCatalogoNexus,
 		"POST /api/catalogo-nexus/detail":  s.detalharCatalogoNexus,
@@ -606,21 +621,21 @@ func (s *servidor) rotas(mux *http.ServeMux) {
 	}
 	// fluxo dos agentes: skills.editar_fluxo na Superlógica
 	for padrao, h := range map[string]http.HandlerFunc{
-		"POST /api/agentes":          s.criar,
-		"PUT /api/agente/config":     s.config,
-		"DELETE /api/agente":         s.excluir,
+		"POST /api/agentes":          s.comCatalogo((*servidor).criar),
+		"PUT /api/agente/config":     s.comCatalogo((*servidor).config),
+		"DELETE /api/agente":         s.comCatalogo((*servidor).excluir),
 		"POST /api/agentes/mover":    s.mover,
-		"POST /api/agentes/importar": s.importar,
-		"PUT /api/arquivo":           s.salvarArquivo,
-		"DELETE /api/arquivo":        s.excluirArquivo,
+		"POST /api/agentes/importar": s.comCatalogo((*servidor).importar),
+		"PUT /api/arquivo":           s.comCatalogo((*servidor).salvarArquivo),
+		"DELETE /api/arquivo":        s.comCatalogo((*servidor).excluirArquivo),
 	} {
 		mux.Handle(padrao, s.protegida(acesso.SkillsEditarFluxo, alvoSuperlogica, h))
 	}
 	// recursos do Nexus: ferramentas.editar na Superlógica
 	for padrao, h := range map[string]http.HandlerFunc{
-		"PUT /api/nexus/recurso":             s.salvarRecurso,
-		"DELETE /api/nexus/recurso":          s.removerRecurso,
-		"POST /api/agente/recursos":          s.vincular,
+		"PUT /api/nexus/recurso":             s.comCatalogo((*servidor).salvarRecurso),
+		"DELETE /api/nexus/recurso":          s.comCatalogo((*servidor).removerRecurso),
+		"POST /api/agente/recursos":          s.comCatalogo((*servidor).vincular),
 		"PUT /api/catalogo-nexus/recurso":    s.salvarCatalogoNexus,
 		"DELETE /api/catalogo-nexus/recurso": s.removerCatalogoNexus,
 	} {
@@ -715,7 +730,7 @@ func (s *servidor) carregar(rel string) (*okf.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !okf.IsAgent(dir) {
+	if !s.cat.IsAgent(dir) {
 		return nil, fmt.Errorf("agente não existe: %s", rel)
 	}
 	return s.cat.Load(dir)
@@ -734,15 +749,15 @@ func (s *servidor) agente(w http.ResponseWriter, r *http.Request) {
 		"conhecimento":  s.cat.Conhecimento(a),
 		"indice":        s.cat.Indice(a),
 		"procedimentos": s.cat.Procedimentos(a),
-		"workflow":      workflowPrincipal(a),
+		"workflow":      workflowPrincipal(s.cat, a),
 		"pai":           paiRel(a.Rel),
 	})
 }
 
 // workflowPrincipal devolve o texto de workflows/principal.md (sem frontmatter), que a
 // ficha mostra como "a ordem do acontecimento" do agente.
-func workflowPrincipal(a *okf.Agent) string {
-	raw, err := os.ReadFile(filepath.Join(a.Path, "workflows", "principal.md"))
+func workflowPrincipal(cat *okf.Catalogo, a *okf.Agent) string {
+	raw, err := cat.LerArquivo(a.Rel, "workflows/principal.md")
 	if err != nil {
 		return ""
 	}
@@ -945,11 +960,11 @@ func (s *servidor) recursos(w http.ResponseWriter, _ *http.Request) {
 
 // instantaneoEditavel: o catálogo só se edita aqui quando vem do instantâneo YAML; ao
 // vivo, o dono é o Nexus.
-func (s *servidor) instantaneoEditavel() (string, error) {
+func (s *servidor) instantaneoEditavel() error {
 	if strings.HasPrefix(s.nexus, "http") || strings.Contains(s.nexus, "+ http") {
-		return "", errors.New("catálogo ao vivo do Nexus: edite o recurso lá")
+		return errors.New("catálogo ao vivo do Nexus: edite o recurso lá")
 	}
-	return filepath.Join(s.cat.Root, "nexus", s.account+".yaml"), nil
+	return nil
 }
 
 func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
@@ -961,27 +976,28 @@ func (s *servidor) salvarRecurso(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err)
 		return
 	}
-	p, err := s.instantaneoEditavel()
-	if err != nil {
+	if err := s.instantaneoEditavel(); err != nil {
 		writeErr(w, 409, err)
 		return
 	}
-	err = s.cat.Escrever(func() error { return okf.SalvarRecursoFixture(p, corpo.Original, corpo.Recurso) })
+	err := s.cat.SalvarRecursoDaConta(s.account, corpo.Original, corpo.Recurso)
 	if err != nil {
 		writeErr(w, 400, err)
 		return
+	}
+	if s.catalogoStudio != nil && s.catalogoStudio.recursos != nil {
+		s.cat.Recursos = s.catalogoStudio.recursos(s.cat)
 	}
 	s.recursos(w, r)
 }
 
 func (s *servidor) removerRecurso(w http.ResponseWriter, r *http.Request) {
 	nome := r.URL.Query().Get("nome")
-	p, err := s.instantaneoEditavel()
-	if err != nil {
+	if err := s.instantaneoEditavel(); err != nil {
 		writeErr(w, 409, err)
 		return
 	}
-	err = s.cat.Escrever(func() error { return okf.RemoverRecursoFixture(p, nome) })
+	err := s.cat.RemoverRecursoDaConta(s.account, nome)
 	if err != nil {
 		writeErr(w, 400, err)
 		return

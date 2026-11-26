@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"go-concierge/internal/core/clientes/mcp"
 	"go-concierge/internal/harness/pedidos"
+	"go-concierge/internal/harness/provedores/mcp"
 	"go-concierge/internal/recurso"
 )
 

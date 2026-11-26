@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-concierge/internal/core/clientes/mcp"
+	"go-concierge/internal/harness/provedores/mcp"
 )
 
 type fakeCaller struct {

@@ -89,7 +89,7 @@ Termos técnicos (YAML, nomes de pasta, "orquestrador") só aparecem dentro do A
 - Notificação no rodapé, 4s, para criar, excluir, publicar.
 - Confirmação diz a consequência ("Excluir "X"? O fluxo e as regras somem junto.").
 - Mesma identidade do Console (`web/okf/styles.css`): títulos em "Paralucent", "Plus Jakarta Sans"; texto em "Argumentum", "Inter"; navy `#071950`, slate, raio 8/12 px, perigo `#D61D1E`; azul `#1034F2`; cartões sem sombra; textos em PT-BR, segunda pessoa, curtos.
-- Funciona em telas a partir de 1280px; abaixo de 900px mostra só leitura.
+- Adapta o layout à largura da tela; a edição depende das permissões e do escopo do usuário.
 
 ## 8. Como saber que ficou pronto
 

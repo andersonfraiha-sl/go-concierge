@@ -22,6 +22,7 @@ import (
 	atende "go-concierge/internal/harness/atendimento"
 	"go-concierge/internal/harness/canais"
 	admin "go-concierge/internal/harness/configuracao"
+	"go-concierge/internal/harness/conteudo"
 	"go-concierge/internal/harness/ganchos/auditoria"
 	"go-concierge/internal/harness/pedidos"
 )
@@ -74,6 +75,8 @@ type Config struct {
 	Manutencao    OperacoesManutencao
 	Configuracao  LeitorConfiguracao
 	Catalogo      RepositorioCatalogo
+	ContaPadrao   string
+	RecursosNexus func(context.Context) ([]conteudo.Recurso, error)
 	Administracao ConsultaAdministracao
 	Consultas     *ConsultasPostgres
 }
@@ -209,13 +212,16 @@ func iniciar(config Config) (*Servidor, *Cliente, *Entrada, error) {
 		registrarConfiguracao(mux, repo, config.Configuracao, token)
 	}
 	if config.Regras != nil {
-		registrarRegrasAtivas(mux, config.Regras, token)
+		registrarRegrasAtivas(mux, config.Regras, config.Canais, token)
 	}
 	if config.Manutencao != nil {
 		registrarManutencao(mux, config.Manutencao, tokenManutencao)
 	}
 	if config.Catalogo != nil {
 		registrarCatalogo(mux, config.Catalogo, tokenManutencao)
+		if repo != nil {
+			registrarCatalogoExecucao(mux, config.Catalogo, repo, config.ContaPadrao, token, config.RecursosNexus)
+		}
 	}
 	if sessoes != nil {
 		registrarSessoes(mux, repo, sessoes, token)

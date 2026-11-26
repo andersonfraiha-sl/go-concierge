@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"go-concierge/internal/core/administracao/copiloto"
-	"go-concierge/internal/core/clientes/llm"
+	"go-concierge/internal/harness/provedores/llm"
 )
 
 func TestLerRespostaDoModelo(t *testing.T) {

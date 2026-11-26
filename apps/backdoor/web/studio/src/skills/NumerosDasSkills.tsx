@@ -38,7 +38,13 @@ export function NumerosDasSkills(props: Props): ReactNode {
   const { skills } = props;
   const escreventes = skills.filter((skill) => skill.escrita).length;
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 2 }}>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
+        gap: 2,
+      }}
+    >
       <CartaoDeNumero rotulo="Skills" valor={skills.length} />
       <CartaoDeNumero rotulo="Registram no sistema" valor={escreventes} />
       <CartaoDeNumero rotulo="Consultas e dúvidas" valor={skills.length - escreventes} />

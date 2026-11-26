@@ -23,6 +23,7 @@ import (
 	harness "go-concierge/internal/harness/agentes"
 	atende "go-concierge/internal/harness/atendimento"
 	"go-concierge/internal/harness/canais"
+	"go-concierge/internal/harness/pedidos"
 )
 
 // Canal ATENDE: o webhook que recebe os eventos, e a API do Console (emulador):
@@ -41,9 +42,8 @@ func (s *servidor) rotasAtende(mux *http.ServeMux) {
 	mux.Handle("GET /api/atende/sessao", s.protegida(acesso.ConversasVer, s.alvoSessaoDaConsulta, s.atendeSessao))
 	mux.Handle("GET /api/atende/saidas", s.saidasPorEscopo())
 	mux.Handle("DELETE /api/atende/sessao", s.protegida(acesso.ConversasAtender, s.alvoSessaoDaConsulta, s.atendeReiniciar))
-	mux.Handle("POST /api/atende/transbordo", s.protegida(acesso.ConversasAtender, s.alvoSessaoDoCorpo, s.atendeTransbordo))
-	mux.Handle("GET /api/pedidos", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosLer))
-	mux.Handle("GET /api/pedidos/exportar", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.pedidosExportar))
+	mux.Handle("GET /api/pedidos", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.comCatalogoDePedidos((*servidor).pedidosLer)))
+	mux.Handle("GET /api/pedidos/exportar", s.protegida(acesso.PedidosVer, s.alvoAdministradora, s.comCatalogoDePedidos((*servidor).pedidosExportar)))
 	mux.Handle("POST /api/pedidos/acao", s.protegida(acesso.PedidosEditar, s.alvoAcaoDePedido, s.pedidosAcao))
 	mux.Handle("GET /api/memoria", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriaLer))
 	mux.Handle("GET /api/memorias", s.protegida(acesso.MemoriaVer, s.alvoAdministradora, s.memoriasListar))
@@ -218,6 +218,7 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		return
 	}
 	msg := ev.Normalizar()
+	msg.TelefoneOriginal = msg.Contato.Phone
 	if !emulado && s.atende != nil && s.atende.Canais != nil {
 		if s.entradaDados == nil {
 			writeErr(w, http.StatusUnauthorized, errUnauthorized)
@@ -257,6 +258,30 @@ func (s *servidor) receberEventoAtende(w http.ResponseWriter, r *http.Request, e
 		msg.Destino = entrada.Destino{Conector: "atende-emulado", Meio: "whatsapp", ConexaoID: "console", Protocolo: ev.Data.Protocol.Number, Telefone: ev.Data.Contact.Phone, Canal: msg.Canal}
 		msg.Destino.ChannelID = msg.ChannelID
 		msg.Destino.CompanyID = msg.CompanyID
+	}
+	if s.entradaHarness != nil {
+		operacao := "iniciar"
+		if tipo == atendeapi.EventoHumano {
+			operacao = "humano"
+		} else if tipo == atendeapi.EventoFechado {
+			operacao = "encerrar"
+		}
+		ctx, cancelar := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancelar()
+		resposta, status, err := s.entradaHarness.Aplicar(ctx, operacao, msg, w.Header().Get("X-Request-Id"))
+		if err != nil {
+			if status != http.StatusForbidden {
+				status = http.StatusInternalServerError
+			}
+			writeErr(w, status, err)
+			return
+		}
+		if operacao != "iniciar" {
+			writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": ev.Data.Protocol.Number})
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"accepted": true, "event": ev.ID, "protocol": resposta.Protocolo, "session_id": resposta.SessaoID})
+		return
 	}
 	if tipo == atendeapi.EventoHumano {
 		if _, err := s.atende.RegistrarHumano(r.Context(), msg); err != nil {
@@ -425,18 +450,6 @@ func statusDaFalha(err error) int {
 	return http.StatusBadRequest
 }
 
-// responderFalhaDoTransbordo: persistência que falhou é do servidor (500, sem detalhe); a
-// ação recusada é do pedido (400), sem ecoar o erro interno.
-func (s *servidor) responderFalhaDoTransbordo(w http.ResponseWriter, r *http.Request, acao string, err error) {
-	if statusDaFalha(err) == http.StatusInternalServerError {
-		anotarFalha(r.Context(), w, fmt.Errorf("transbordo, %s: %w", acao, err), 1)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"codigo": "ERRO_INTERNO", "error": "erro interno; tente de novo"})
-		return
-	}
-	s.logger().WarnContext(r.Context(), "transbordo", "operacao", operacaoDe(r), "acao", acao, "erro", err.Error())
-	writeJSON(w, http.StatusBadRequest, map[string]string{"codigo": "TRANSBORDO_RECUSADO", "error": "não foi possível " + acao + " o protocolo"})
-}
-
 func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
 	identificador := r.URL.Query().Get("id")
 	if identificador == "" {
@@ -444,49 +457,6 @@ func (s *servidor) atendeSessao(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, ok := s.sessaoDaRota(w, r, identificador)
 	if !ok {
-		return
-	}
-	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
-}
-
-// atendeTransbordo: o atendente humano assume, responde ou devolve o protocolo.
-func (s *servidor) atendeTransbordo(w http.ResponseWriter, r *http.Request) {
-	var corpo struct {
-		Protocolo string `json:"protocolo"`
-		SessaoID  string `json:"sessao_id"`
-		Acao      string `json:"acao"` // assumir | responder | devolver
-		Atendente string `json:"atendente"`
-		Texto     string `json:"texto"`
-		Motivo    string `json:"motivo"`
-	}
-	if err := decodificarJSON(w, r, &corpo, limiteCorpoJSON); err != nil {
-		writeErr(w, 400, err)
-		return
-	}
-	if corpo.SessaoID != "" {
-		corpo.Protocolo = corpo.SessaoID
-	}
-	alvo, ok := s.sessaoDaRota(w, r, corpo.Protocolo)
-	if !ok {
-		return
-	}
-	var (
-		sess *atende.Sessao
-		err  error
-	)
-	switch corpo.Acao {
-	case "assumir":
-		sess, err = s.atende.Assumir(r.Context(), alvo.ID, corpo.Atendente, corpo.Motivo)
-	case "responder":
-		sess, err = s.atende.Responder(r.Context(), alvo.ID, corpo.Atendente, corpo.Texto)
-	case "devolver":
-		sess, err = s.atende.Devolver(r.Context(), alvo.ID)
-	default:
-		writeErr(w, 400, errors.New("acao: assumir | responder | devolver"))
-		return
-	}
-	if err != nil {
-		s.responderFalhaDoTransbordo(w, r, corpo.Acao, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"sessao": sess, "saidas": s.outbox.Itens(sess.ID), "reply_emulada": sess.Origem.Conector == "atende-emulado"})
@@ -599,6 +569,24 @@ func (s *servidor) atendeIdentidade(w http.ResponseWriter, r *http.Request) {
 
 // ---- pedidos: o registro por contato e as ações do atendente ----
 
+func (s *servidor) comCatalogoDePedidos(h func(*servidor, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	comCatalogo := s.comCatalogo(h)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.atende.Pedidos == nil {
+			h(s, w, r)
+			return
+		}
+		comCatalogo(w, r)
+	}
+}
+
+func (s *servidor) carteiraAtual(ctx context.Context, contato escopo.Contato) (pedidos.Carteira, map[string][]*pedidos.Slot, error) {
+	if s.catalogoStudio != nil {
+		return s.atende.CarteiraComCatalogo(ctx, contato, s.cat)
+	}
+	return s.atende.Carteira(ctx, contato)
+}
+
 func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
 	contato, ok := s.contatoDaRota(w, r, r.URL.Query().Get("phone"))
 	if !ok {
@@ -608,7 +596,7 @@ func (s *servidor) pedidosLer(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ligado": false})
 		return
 	}
-	cart, slots, err := s.atende.Carteira(r.Context(), contato)
+	cart, slots, err := s.carteiraAtual(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return
@@ -686,7 +674,7 @@ func (s *servidor) pedidosExportar(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, errors.New("registro de pedidos desligado"))
 		return
 	}
-	cart, slots, err := s.atende.Carteira(r.Context(), contato)
+	cart, slots, err := s.carteiraAtual(r.Context(), contato)
 	if err != nil {
 		writeErr(w, 500, err)
 		return

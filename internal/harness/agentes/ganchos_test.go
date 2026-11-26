@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"go-concierge/internal/core/administracao/regras"
-	"go-concierge/internal/core/clientes/mcp"
 	"go-concierge/internal/harness/ganchos"
 	"go-concierge/internal/harness/ganchos/fixos"
 	"go-concierge/internal/harness/ganchos/ganchostest"
+	"go-concierge/internal/harness/provedores/mcp"
 	"go-concierge/internal/recurso"
 )
 

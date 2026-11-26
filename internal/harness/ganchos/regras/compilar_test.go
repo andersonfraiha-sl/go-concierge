@@ -17,7 +17,7 @@ import (
 
 const (
 	ferramentaCodigoDeRetirada = "gruvi.bff.building-operation.get-package-delivery-code-controller-handle"
-	pastaDasValidas            = "../../../harness/ganchos/testdata/regras/validas"
+	pastaDasValidas            = "../testdata/regras/validas"
 )
 
 func gravadaDoArquivo(t *testing.T, id, arquivo string) RegraGravada {

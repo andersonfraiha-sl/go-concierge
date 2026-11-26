@@ -67,7 +67,7 @@ Consequentemente, **“alcançável no backdoor” não significa “gerenciáve
 - **Personalização de conteúdo/contexto:** `payloads` e `guidelines` têm gestão administrativa. O runtime consome a composição das camadas publicadas em `skill_layers` e `skill_versions`; esta etapa não inclui telas de gestão/publicação dessas camadas. `skill_updates` e `skill_notices` não têm tela administrativa própria nesta etapa.
 - **Instância de atendimento:** alterar um pedido ou assumir uma sessão opera um atendimento; não altera a definição do caso. Eventos e auditoria são históricos, sem editor arbitrário de seus registros.
 
-Um fluxo editado no backdoor é conteúdo persistido; não exige uma tabela nova para cada fluxo. O conteúdo canônico do catálogo fica no banco, embora o código atual também use uma cópia de trabalho em disco. Já “substituir coleções” de memória/pedidos refere-se à gravação de conjuntos de registros persistidos, não à remoção de arquivos físicos.
+Um fluxo editado no backdoor é conteúdo persistido; não exige uma tabela nova para cada fluxo. O conteúdo canônico do catálogo fica no banco e o editor usa retratos em memória. Já “substituir coleções” de memória/pedidos refere-se à gravação de conjuntos de registros persistidos, não à remoção de arquivos físicos.
 
 As personalizações por empresa/condomínio deverão preservar a definição global e os outros escopos. **Decisão aprovada:** manter base global → empresa → condomínio, sem acrescentar personalização de conteúdo por canal nesta fase. A herança de conteúdo é independente dos modos INHERIT/CUSTOM/EXPLICIT de disponibilidade.
 

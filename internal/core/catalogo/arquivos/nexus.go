@@ -5,8 +5,9 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+
+	"go-concierge/internal/harness/conteudo"
 )
 
 // Classes, na ordem em que a interface as mostra. A classe é o que o recurso É para o
@@ -16,11 +17,11 @@ var Classes = []string{"leitura", "escrita", "conhecimento", "memoria", "acao", 
 
 // SalvarRecursoFixture grava (cria ou substitui, pelo nome original) um recurso no
 // instantâneo YAML da account, preservando o cabeçalho de comentários do arquivo.
-func SalvarRecursoFixture(p, nomeOriginal string, r Recurso) error {
+func (c *Catalogo) SalvarRecursoFixture(p, nomeOriginal string, r Recurso) error {
 	if err := r.Validar(); err != nil {
 		return err
 	}
-	lista, err := LerRecursosFixture(p)
+	lista, err := c.LerRecursosFixture(p)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -39,12 +40,12 @@ func SalvarRecursoFixture(p, nomeOriginal string, r Recurso) error {
 	if !trocou {
 		lista = append(lista, r)
 	}
-	return gravarRecursosFixture(p, lista)
+	return c.gravarRecursosFixture(p, lista)
 }
 
 // RemoverRecursoFixture tira um recurso do instantâneo.
-func RemoverRecursoFixture(p, nome string) error {
-	lista, err := LerRecursosFixture(p)
+func (c *Catalogo) RemoverRecursoFixture(p, nome string) error {
+	lista, err := c.LerRecursosFixture(p)
 	if err != nil {
 		return err
 	}
@@ -57,12 +58,12 @@ func RemoverRecursoFixture(p, nome string) error {
 	if len(resto) == len(lista) {
 		return fmt.Errorf("recurso não encontrado: %s", nome)
 	}
-	return gravarRecursosFixture(p, resto)
+	return c.gravarRecursosFixture(p, resto)
 }
 
-func gravarRecursosFixture(p string, lista []Recurso) error {
+func (c *Catalogo) gravarRecursosFixture(p string, lista []Recurso) error {
 	var cab strings.Builder
-	if raw, err := os.ReadFile(p); err == nil {
+	if raw, err := c.readFile(p); err == nil {
 		for _, l := range strings.Split(string(raw), "\n") {
 			if !strings.HasPrefix(l, "#") {
 				break
@@ -79,35 +80,24 @@ func gravarRecursosFixture(p string, lista []Recurso) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := c.mkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(p, []byte(cab.String()+string(corpo)), 0o644)
+	return c.writeFile(p, []byte(cab.String()+string(corpo)), 0o644)
 }
 
 // LerRecursosFixture lê um arquivo `recursos: [...]` (o instantâneo de uma account,
 // usado quando o Nexus não está no ar).
-func LerRecursosFixture(p string) ([]Recurso, error) {
-	raw, err := os.ReadFile(p)
+func (c *Catalogo) LerRecursosFixture(p string) ([]Recurso, error) {
+	raw, err := c.readFile(p)
 	if err != nil {
 		return nil, err
 	}
-	var f struct {
-		Recursos []Recurso `yaml:"recursos"`
-	}
-	if err := yaml.Unmarshal(raw, &f); err != nil {
+	recursos, err := conteudo.InterpretarRecursosFixture(raw)
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", p, err)
 	}
-	for i := range f.Recursos {
-		if f.Recursos[i].Params == nil {
-			f.Recursos[i].Params = []ParamMeta{}
-		}
-		if f.Recursos[i].Visibility == "" {
-			f.Recursos[i].Visibility = "private"
-		}
-	}
-	sort.Slice(f.Recursos, func(i, j int) bool { return f.Recursos[i].Name < f.Recursos[j].Name })
-	return f.Recursos, nil
+	return recursos, nil
 }
 
 // RecursosNexus devolve a lista da fonte configurada (vazia se não há fonte).
@@ -170,4 +160,46 @@ func (c *Catalogo) RecursosDoAgente(a *Agent) []RecursoDeclarado {
 		out = []RecursoDeclarado{}
 	}
 	return out
+}
+
+func SalvarRecursoFixture(p, nomeOriginal string, r Recurso) error {
+	return (&Catalogo{}).SalvarRecursoFixture(p, nomeOriginal, r)
+}
+func RemoverRecursoFixture(p, nome string) error     { return (&Catalogo{}).RemoverRecursoFixture(p, nome) }
+func LerRecursosFixture(p string) ([]Recurso, error) { return (&Catalogo{}).LerRecursosFixture(p) }
+
+func (c *Catalogo) caminhoDaConta(account string) (string, error) {
+	if account == "" || account == "." || account == ".." || strings.ContainsAny(account, "/\\\x00") {
+		return "", fmt.Errorf("account inválida para o catálogo Nexus")
+	}
+	return filepath.Join(c.Root, "nexus", account+".yaml"), nil
+}
+
+func (c *Catalogo) LerRecursosDaConta(account string) ([]Recurso, error) {
+	p, err := c.caminhoDaConta(account)
+	if err != nil {
+		return nil, err
+	}
+	return c.LerRecursosFixture(p)
+}
+
+func (c *Catalogo) TemInstantaneoDaConta(account string) bool {
+	p, err := c.caminhoDaConta(account)
+	return err == nil && c.fileExists(p)
+}
+
+func (c *Catalogo) SalvarRecursoDaConta(account, original string, recurso Recurso) error {
+	p, err := c.caminhoDaConta(account)
+	if err != nil {
+		return err
+	}
+	return c.Escrever(func() error { return c.SalvarRecursoFixture(p, original, recurso) })
+}
+
+func (c *Catalogo) RemoverRecursoDaConta(account, nome string) error {
+	p, err := c.caminhoDaConta(account)
+	if err != nil {
+		return err
+	}
+	return c.Escrever(func() error { return c.RemoverRecursoFixture(p, nome) })
 }

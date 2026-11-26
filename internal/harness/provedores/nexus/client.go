@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	okf "go-concierge/internal/core/catalogo/arquivos"
+	okf "go-concierge/internal/harness/conteudo"
 )
 
 // Client fala HTTP com o Nexus.
@@ -125,9 +125,42 @@ func (c *Client) Invoke(ctx context.Context, name, account string, params map[st
 // Devolve nil se não há nem Nexus nem instantâneo, para o catálogo saber que não
 // pode conferir declarações.
 func Fonte(c *Client, account, dirFixtures string) func() []okf.Recurso {
+	return FonteComNexus(FonteAoVivo(c, account), account, dirFixtures)
+}
+
+func FonteAoVivo(c *Client, account string) func(context.Context) ([]okf.Recurso, error) {
+	if !c.Disponivel() {
+		return nil
+	}
+	var (
+		mu     sync.Mutex
+		cache  []okf.Recurso
+		quando time.Time
+	)
+	return func(ctx context.Context) ([]okf.Recurso, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if cache != nil && time.Since(quando) < 30*time.Second {
+			return cache, nil
+		}
+		ctx, cancelar := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelar()
+		lista, err := c.Recursos(ctx, account)
+		if err != nil {
+			return cache, err
+		}
+		if lista == nil {
+			lista = []okf.Recurso{}
+		}
+		cache, quando = lista, time.Now()
+		return cache, nil
+	}
+}
+
+func FonteComNexus(aoVivo func(context.Context) ([]okf.Recurso, error), account, dirFixtures string) func() []okf.Recurso {
 	fixture := filepath.Join(dirFixtures, account+".yaml")
 	_, temFixture := os.Stat(fixture)
-	if (c == nil || c.BaseURL == "") && temFixture != nil {
+	if aoVivo == nil && temFixture != nil {
 		return nil
 	}
 	var (
@@ -145,16 +178,19 @@ func Fonte(c *Client, account, dirFixtures string) func() []okf.Recurso {
 				return cache
 			}
 		}
-		if c != nil && c.BaseURL != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			lista, err := c.Recursos(ctx, account)
-			cancel()
+		if aoVivo != nil {
+			lista, err := aoVivo(context.Background())
 			if err == nil {
 				cache, quando = lista, time.Now()
 				return cache
 			}
 		}
-		if lista, err := okf.LerRecursosFixture(fixture); err == nil {
+		raw, err := os.ReadFile(fixture)
+		if err == nil {
+			lista, err := okf.InterpretarRecursosFixture(raw)
+			if err != nil {
+				return cache
+			}
 			cache, quando = lista, time.Now()
 			if st, err := os.Stat(fixture); err == nil {
 				mtime = st.ModTime()

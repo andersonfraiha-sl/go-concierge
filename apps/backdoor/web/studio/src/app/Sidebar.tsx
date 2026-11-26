@@ -125,7 +125,7 @@ function BotaoDeRecolher({ recolhido, aoAlternar }: RecolherProps): ReactNode {
     <Box
       sx={{
         mt: recolhido ? 'auto' : 0,
-        display: 'flex',
+        display: { xs: 'none', md: 'flex' },
         justifyContent: recolhido ? 'center' : 'flex-end',
       }}
     >

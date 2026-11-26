@@ -70,6 +70,10 @@ func (b *B2C) agora() time.Time {
 
 // Token devolve o token corrente, renovando quando faltar menos de 45 s para expirar.
 func (b *B2C) Token(ctx context.Context) (string, error) {
+	return b.TokenParaContato(ctx, "")
+}
+
+func (b *B2C) TokenParaContato(ctx context.Context, _ string) (string, error) {
 	if err := b.validar(); err != nil {
 		return "", err
 	}

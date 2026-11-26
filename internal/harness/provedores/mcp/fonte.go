@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	okf "go-concierge/internal/core/catalogo/arquivos"
+	okf "go-concierge/internal/harness/conteudo"
 )
 
 // Recursos converte as tools do servidor em recursos do Nexus (classe api). Tudo é

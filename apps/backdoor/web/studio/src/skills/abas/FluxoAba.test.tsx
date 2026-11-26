@@ -550,18 +550,23 @@ describe('FluxoAba em tela estreita', () => {
     });
   });
 
-  it('narrowScreenIsReadOnly', async () => {
+  it.each([
+    ['autorizado', construtor, true],
+    ['leitor', { ...construtor, permissoes: ['skills.ler'] as string[] }, false],
+  ] as const)('%s mantém a permissão de edição', async (_papel, eu, editavel) => {
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
       writable: true,
       value: (query: string) => ({ ...original(query), matches: true }),
     });
-    responderCom(rotas(construtor));
+    responderCom(rotas(eu));
     const { container } = montar();
     await selecionar('Confirmar');
-    expect(screen.queryByRole('button', { name: /Adicionar bloco/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Excluir bloco' })).not.toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toBeDisabled();
-    expect(container.querySelectorAll('.react-flow__node.draggable')).toHaveLength(0);
+    expect(Boolean(screen.queryByRole('button', { name: 'Excluir bloco' }))).toBe(editavel);
+    expect(screen.getByRole('textbox', { name: 'Pergunta de confirmação' })).toHaveProperty(
+      'disabled',
+      !editavel,
+    );
+    expect(container.querySelectorAll('.react-flow__node.draggable').length > 0).toBe(editavel);
   });
 });

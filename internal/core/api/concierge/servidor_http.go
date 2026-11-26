@@ -35,6 +35,7 @@ func novoServidorHTTP(handler http.Handler) *http.Server {
 // trabalhos de fundo (turnos do webhook, extração de memória, retenção da auditoria).
 type desligamento struct {
 	prazo    time.Duration
+	parar    func(context.Context) error
 	aguardar func()
 }
 
@@ -64,6 +65,11 @@ func servir(ctx context.Context, srv *http.Server, ln net.Listener, d desligamen
 	defer cancelar()
 	if err := srv.Shutdown(ctxFim); err != nil {
 		return fmt.Errorf("desligar http: %w", err)
+	}
+	if d.parar != nil {
+		if err := d.parar(ctxFim); err != nil {
+			return fmt.Errorf("desligar harness: %w", err)
+		}
 	}
 	return esperar(ctxFim, d.aguardar)
 }

@@ -11,7 +11,7 @@ import { IconeDeLinha } from './iconesDoShell';
 type Achado = { grupo: 'Skills' | 'Condomínios'; rotulo: string; destino: string };
 
 const ESTILO_DA_CAIXA: SxProps<Theme> = {
-  width: SHELL.larguraDaBusca,
+  width: { xs: 100, sm: SHELL.larguraDaBusca },
   // Como no desenho (HTML sem reset), altura e largura não contam padding nem borda.
   boxSizing: 'content-box',
   height: SHELL.alturaDoControle,
@@ -30,6 +30,7 @@ const ESTILO_DA_CAIXA: SxProps<Theme> = {
 
 const ESTILO_DO_CAMPO: SxProps<Theme> = {
   flex: 1,
+  minWidth: 0,
   fontSize: 'inherit',
   color: 'text.primary',
   '& input': { p: 0 },
